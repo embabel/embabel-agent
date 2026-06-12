@@ -1,18 +1,29 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# Sync the source branch (main) into the upgrade branch (2.0.0) safely:
+#   1. Snapshot both branches into dated, PR-scoped temp branches.
+#   2. Merge the upgrade temp into the source temp.
+#   3. If the merge is clean, run the build as a gate.
+#   4. If the build passes, fast-forward / force-with-lease the upgrade branch
+#      to the verified merge commit.
+# On a merge conflict or a build failure the upgrade branch is left untouched
+# and a GitHub issue + report are produced for a human to resolve.
+
 SOURCE_BRANCH="${SOURCE_BRANCH:-main}"
-BRANCH_PREFIX="${BRANCH_PREFIX:-2.0.0}"
+UPGRADE_BRANCH="${UPGRADE_BRANCH:-2.0.0}"
 REMOTE="${REMOTE:-origin}"
-KEEP_BRANCHES="${KEEP_BRANCHES:-5}"
 PUSH_CHANGES="${PUSH_CHANGES:-true}"
 DATE_FORMAT="${DATE_FORMAT:-mmddyyyy}"
+BUILD_COMMAND="${BUILD_COMMAND:-mvn -U -B test verify}"
+SKIP_BUILD="${SKIP_BUILD:-false}"
 CONFLICT_FILE="${CONFLICT_FILE:-conflicted-files.txt}"
 REPORT_FILE="${REPORT_FILE:-branch-sync-conflict.md}"
+BUILD_LOG="${BUILD_LOG:-build-failure.log}"
 PRESERVE_ARTIFACTS="${PRESERVE_ARTIFACTS:-false}"
 CREATE_ISSUE="${CREATE_ISSUE:-false}"
 ALLOW_DRY_RUN_ISSUE="${ALLOW_DRY_RUN_ISSUE:-false}"
-ISSUE_LABELS="${ISSUE_LABELS:-branch-sync,merge-conflict,spring-upgrade}"
+ISSUE_LABELS="${ISSUE_LABELS:-branch-sync,spring-upgrade}"
 ISSUE_ASSIGNEE="${ISSUE_ASSIGNEE:-${DEVELOPER_GITHUB_LOGIN:-}}"
 
 usage() {
@@ -20,33 +31,44 @@ usage() {
 Usage:
   sync-primary-to-upgrade.sh [options]
 
+Merges the source branch into the upgrade branch on throwaway temp branches,
+gates the result on a build, and only then advances the upgrade branch.
+
 Options:
-  --source BRANCH        Source branch to merge from. Default: main
-  --prefix PREFIX        Rolling upgrade branch prefix. Default: 2.0.0
-  --remote REMOTE        Git remote name. Default: origin
-  --keep COUNT           Number of generated upgrade branches to keep. Default: 5
-  --date-format FORMAT   Branch date format: mmddyyyy or yyyymmdd. Default: mmddyyyy
-  --conflict-file FILE   File to write conflicted paths to. Default: conflicted-files.txt
-  --report-file FILE     Markdown conflict report file. Default: branch-sync-conflict.md
-  --preserve-artifacts   Keep conflict/report files during dry-run
-  --create-issue         Create a GitHub issue on conflict. Skipped in dry-run by default
-  --issue-labels LABELS  Comma-separated labels for created issue
-  --issue-assignee USER  GitHub username to assign when creating conflict issue
-  --dry-run              Test the merge without pushing, deleting remote branches, or leaving artifacts
-  --push                 Push changes. Overrides PUSH_CHANGES=false
-  -h, --help             Show this help
+  --source BRANCH         Source branch to merge from. Default: main
+  --upgrade-branch BRANCH Upgrade branch to advance. Default: 2.0.0
+  --remote REMOTE         Git remote name. Default: origin
+  --date-format FORMAT    Temp-branch date format: mmddyyyy or yyyymmdd. Default: mmddyyyy
+  --build-command CMD     Build gate command. Default: "mvn -U -B test verify"
+  --skip-build            Skip the build gate (merge clean -> update upgrade branch)
+  --conflict-file FILE    File to write conflicted paths to. Default: conflicted-files.txt
+  --report-file FILE      Markdown failure report file. Default: branch-sync-conflict.md
+  --build-log FILE        Build output log file. Default: build-failure.log
+  --preserve-artifacts    Keep conflict/report/build-log files during dry-run
+  --create-issue          Create a GitHub issue on failure. Skipped in dry-run by default
+  --issue-labels LABELS   Comma-separated base labels for created issue
+  --issue-assignee USER   GitHub username to assign when creating a failure issue
+  --dry-run               Merge and build, but do not update the upgrade branch
+  --push                  Push changes. Overrides PUSH_CHANGES=false
+  -h, --help              Show this help
 
 Environment variables with matching names are also supported:
-  SOURCE_BRANCH, BRANCH_PREFIX, REMOTE, KEEP_BRANCHES, DATE_FORMAT,
-  CONFLICT_FILE, REPORT_FILE, PUSH_CHANGES, PRESERVE_ARTIFACTS,
-  CREATE_ISSUE, ISSUE_LABELS, ISSUE_ASSIGNEE
+  SOURCE_BRANCH, UPGRADE_BRANCH, REMOTE, DATE_FORMAT, BUILD_COMMAND, SKIP_BUILD,
+  CONFLICT_FILE, REPORT_FILE, BUILD_LOG, PUSH_CHANGES, PRESERVE_ARTIFACTS,
+  CREATE_ISSUE, ISSUE_LABELS, ISSUE_ASSIGNEE, PR_NUMBER, DEVELOPER_GITHUB_LOGIN
 
-Generated branch names use:
-  <prefix>-<date>-<sequence>
+Temp branch names use:
+  <source>-<date>-<pr-tag>-tmp   and   <upgrade>-<date>-<pr-tag>-tmp
+where <pr-tag> is pr<number> when known, otherwise the source short SHA.
+
+Exit codes:
+  0  success (upgrade branch updated, already up to date, or clean dry-run)
+  2  merge conflict (upgrade branch untouched)
+  3  build failure (upgrade branch untouched)
 
 Example:
   PUSH_CHANGES=false .github/scripts/sync-primary-to-upgrade.sh \
-    --source main --prefix 2.0.0 --date-format mmddyyyy
+    --source main --upgrade-branch 2.0.0 --dry-run
 USAGE
 }
 
@@ -56,21 +78,25 @@ while [ "$#" -gt 0 ]; do
       SOURCE_BRANCH="${2:?Missing value for --source}"
       shift 2
       ;;
-    --prefix)
-      BRANCH_PREFIX="${2:?Missing value for --prefix}"
+    --upgrade-branch)
+      UPGRADE_BRANCH="${2:?Missing value for --upgrade-branch}"
       shift 2
       ;;
     --remote)
       REMOTE="${2:?Missing value for --remote}"
       shift 2
       ;;
-    --keep)
-      KEEP_BRANCHES="${2:?Missing value for --keep}"
-      shift 2
-      ;;
     --date-format)
       DATE_FORMAT="${2:?Missing value for --date-format}"
       shift 2
+      ;;
+    --build-command)
+      BUILD_COMMAND="${2:?Missing value for --build-command}"
+      shift 2
+      ;;
+    --skip-build)
+      SKIP_BUILD="true"
+      shift
       ;;
     --conflict-file)
       CONFLICT_FILE="${2:?Missing value for --conflict-file}"
@@ -78,6 +104,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --report-file)
       REPORT_FILE="${2:?Missing value for --report-file}"
+      shift 2
+      ;;
+    --build-log)
+      BUILD_LOG="${2:?Missing value for --build-log}"
       shift 2
       ;;
     --preserve-artifacts)
@@ -146,9 +176,10 @@ write_summary() {
       echo "## Branch sync"
       echo ""
       echo "- Source: \`${SOURCE_BRANCH}\`"
-      echo "- Branch prefix: \`${BRANCH_PREFIX}\`"
+      echo "- Upgrade branch: \`${UPGRADE_BRANCH}\`"
       echo "- Remote: \`${REMOTE}\`"
-      echo "- Keep branches: \`${KEEP_BRANCHES}\`"
+      echo "- Build command: \`${BUILD_COMMAND}\`"
+      echo "- Skip build: \`${SKIP_BUILD}\`"
       echo "- Push changes: \`${PUSH_CHANGES}\`"
       echo "- Create issue: \`${CREATE_ISSUE}\`"
       echo ""
@@ -174,6 +205,18 @@ infer_pr_number() {
   printf 'unknown\n'
 }
 
+# pr<number> when a PR is known, otherwise the source branch short SHA so the
+# temp branch name is still unique on manual (workflow_dispatch) runs.
+pr_tag() {
+  local pr
+  pr="$(infer_pr_number)"
+  if [ "$pr" != "unknown" ]; then
+    printf 'pr%s\n' "$pr"
+  else
+    git rev-parse --short "${REMOTE}/${SOURCE_BRANCH}"
+  fi
+}
+
 developer_id() {
   if [ -n "${DEVELOPER_ID:-}" ]; then
     printf '%s\n' "$DEVELOPER_ID"
@@ -192,9 +235,59 @@ workflow_run_url() {
   fi
 }
 
-conflict_issue_title() {
-  local pr_number short_sha source_label
+today_for_branch() {
+  case "$DATE_FORMAT" in
+    mmddyyyy)
+      date '+%m%d%Y'
+      ;;
+    yyyymmdd)
+      date '+%Y%m%d'
+      ;;
+    *)
+      fail "Unsupported DATE_FORMAT: ${DATE_FORMAT}. Use mmddyyyy or yyyymmdd"
+      ;;
+  esac
+}
 
+restore_original_branch() {
+  if [ -n "${ORIGINAL_BRANCH:-}" ]; then
+    git switch -q "$ORIGINAL_BRANCH" >/dev/null 2>&1 || true
+  elif [ -n "${ORIGINAL_SHA:-}" ]; then
+    git switch -q --detach "$ORIGINAL_SHA" >/dev/null 2>&1 || true
+  fi
+}
+
+delete_local_branch_if_present() {
+  local branch="$1"
+
+  if git show-ref --verify --quiet "refs/heads/${branch}"; then
+    git branch -D "$branch" >/dev/null 2>&1 || true
+  fi
+}
+
+cleanup_temp_branches() {
+  restore_original_branch
+  delete_local_branch_if_present "$source_temp"
+  delete_local_branch_if_present "$upgrade_temp"
+}
+
+# Reason label used to title and label the failure issue.
+failure_label() {
+  case "$1" in
+    merge-conflict) printf 'conflict\n' ;;
+    build-failure)  printf 'build failure\n' ;;
+    *)              printf '%s\n' "$1" ;;
+  esac
+}
+
+issue_labels_for_reason() {
+  local reason="$1" base
+  base="$ISSUE_LABELS"
+  printf '%s,%s\n' "$base" "$reason"
+}
+
+failure_issue_title() {
+  local reason="$1" pr_number short_sha source_label
   pr_number="$(infer_pr_number)"
   short_sha="$(git rev-parse --short "${REMOTE}/${SOURCE_BRANCH}")"
 
@@ -204,11 +297,12 @@ conflict_issue_title() {
     source_label="${SOURCE_BRANCH}"
   fi
 
-  printf 'Branch sync conflict: %s -> %s (%s)\n' "$source_label" "$new_branch" "$short_sha"
+  printf 'Branch sync %s: %s -> %s (%s)\n' \
+    "$(failure_label "$reason")" "$source_label" "$UPGRADE_BRANCH" "$short_sha"
 }
 
-create_conflict_issue() {
-  local issue_title label_args assignee_args label issue_status
+create_failure_issue() {
+  local reason="$1" issue_title labels label label_args assignee_args issue_status
 
   if [ "$CREATE_ISSUE" != "true" ]; then
     log "CREATE_ISSUE=false; GitHub issue creation skipped."
@@ -222,7 +316,7 @@ create_conflict_issue() {
 
   command -v gh >/dev/null 2>&1 || fail "gh is required for --create-issue"
 
-  issue_title="$(conflict_issue_title)"
+  issue_title="$(failure_issue_title "$reason")"
   label_args=()
   assignee_args=()
 
@@ -230,7 +324,7 @@ create_conflict_issue() {
     assignee_args+=(--assignee "$ISSUE_ASSIGNEE")
   fi
 
-  IFS=',' read -ra labels <<< "$ISSUE_LABELS"
+  IFS=',' read -ra labels <<< "$(issue_labels_for_reason "$reason")"
   for label in "${labels[@]}"; do
     label="$(trim_whitespace "$label")"
     [ -n "$label" ] || continue
@@ -301,213 +395,158 @@ create_conflict_issue() {
   fi
 }
 
-write_conflict_report() {
-  local pr_number source_sha source_subject author run_url
+write_failure_report() {
+  local reason="$1" pr_number source_sha source_subject upgrade_sha author run_url
 
   pr_number="$(infer_pr_number)"
   source_sha="$(git rev-parse "${REMOTE}/${SOURCE_BRANCH}")"
   source_subject="$(git log -1 --format='%s' "${REMOTE}/${SOURCE_BRANCH}")"
+  upgrade_sha="$ORIG_UPGRADE_SHA"
   author="$(developer_id)"
   run_url="$(workflow_run_url)"
 
   {
-    echo "# Branch Sync Conflict"
-    echo ""
-    echo "Automatic branch sync could not merge \`${REMOTE}/${SOURCE_BRANCH}\` into a new \`${BRANCH_PREFIX}\` upgrade branch."
+    if [ "$reason" = "build-failure" ]; then
+      echo "# Branch Sync Build Failure"
+      echo ""
+      echo "Automatic branch sync merged \`${REMOTE}/${SOURCE_BRANCH}\` into \`${UPGRADE_BRANCH}\` cleanly, but the build gate failed. \`${UPGRADE_BRANCH}\` was left unchanged."
+    else
+      echo "# Branch Sync Conflict"
+      echo ""
+      echo "Automatic branch sync could not merge \`${REMOTE}/${UPGRADE_BRANCH}\` into \`${REMOTE}/${SOURCE_BRANCH}\`. \`${UPGRADE_BRANCH}\` was left unchanged."
+    fi
     echo ""
     echo "## Context"
     echo ""
-    echo "- Source branch: \`${SOURCE_BRANCH}\`"
-    echo "- Source commit: \`${source_sha}\`"
+    echo "- Source branch: \`${SOURCE_BRANCH}\` (\`${source_sha}\`)"
     echo "- Source commit subject: \`${source_subject}\`"
+    echo "- Upgrade branch: \`${UPGRADE_BRANCH}\` (\`${upgrade_sha}\`)"
     echo "- Pull request: \`${pr_number}\`"
     echo "- Developer: \`${author}\`"
     echo "- Issue assignee: \`${ISSUE_ASSIGNEE:-not assigned}\`"
-    echo "- Latest upgrade branch: \`${latest_branch}\`"
-    echo "- Attempted new branch: \`${new_branch}\`"
+    echo "- Source temp branch: \`${source_temp}\`"
+    echo "- Upgrade temp branch: \`${upgrade_temp}\`"
+    echo "- Build command: \`${BUILD_COMMAND}\`"
     echo "- Workflow run: ${run_url}"
-    echo "- Conflict file: \`${CONFLICT_FILE}\`"
-    echo "- Report file: \`${REPORT_FILE}\`"
     echo ""
-    echo "## Conflicted Files"
-    echo ""
-    sed 's/^/- `/' "$CONFLICT_FILE" | sed 's/$/`/'
-    echo ""
-    echo "## Artifacts"
-    echo ""
-    echo "The conflict file is \`${CONFLICT_FILE}\`. It contains the raw list of unresolved paths from:"
-    echo ""
-    echo '```bash'
-    echo "git diff --name-only --diff-filter=U"
-    echo '```'
-    echo ""
-    echo "When this runs in GitHub Actions, the workflow should upload \`${CONFLICT_FILE}\` and \`${REPORT_FILE}\` as artifacts on failure."
-    echo "If a workflow run URL is available above, open that run and download the branch sync conflict report artifact."
+
+    if [ "$reason" = "build-failure" ]; then
+      echo "## Build Output (tail)"
+      echo ""
+      echo '```text'
+      if [ -f "$BUILD_LOG" ]; then
+        tail -n 200 "$BUILD_LOG"
+      else
+        echo "(build log not captured)"
+      fi
+      echo '```'
+      echo ""
+      echo "Full build output is in \`${BUILD_LOG}\` (uploaded as a workflow artifact on failure)."
+    else
+      echo "## Conflicted Files"
+      echo ""
+      sed 's/^/- `/' "$CONFLICT_FILE" | sed 's/$/`/'
+      echo ""
+      echo "Raw list of unresolved paths produced by:"
+      echo ""
+      echo '```bash'
+      echo "git diff --name-only --diff-filter=U"
+      echo '```'
+    fi
+
     echo ""
     echo "## Manual Resolution"
     echo ""
     echo '```bash'
     echo "git fetch ${REMOTE}"
-    echo "git switch --no-track -C ${new_branch} ${REMOTE}/${latest_branch}"
-    echo "git merge ${REMOTE}/${SOURCE_BRANCH}"
-    echo "# Resolve conflicts listed above"
-    echo "git add <resolved-files>"
-    echo "git commit"
-    echo "git push ${REMOTE} HEAD:${new_branch}"
+    echo "git switch --no-track -C ${source_temp} ${REMOTE}/${SOURCE_BRANCH}"
+    echo "git merge ${REMOTE}/${UPGRADE_BRANCH}"
+    if [ "$reason" != "build-failure" ]; then
+      echo "# Resolve the conflicts listed above"
+      echo "git add <resolved-files>"
+      echo "git commit"
+    fi
+    echo "# Verify the merge builds"
+    echo "${BUILD_COMMAND}"
+    echo "# Once green, advance the upgrade branch (lease guards against races)"
+    echo "git push --force-with-lease=${UPGRADE_BRANCH}:${upgrade_sha} ${REMOTE} HEAD:${UPGRADE_BRANCH}"
     echo '```'
-    echo ""
-    echo "After the resolved branch is pushed, treat \`${new_branch}\` as the latest \`${BRANCH_PREFIX}\` branch."
     echo ""
     echo "## Copilot Prompt"
     echo ""
-    echo "Use this prompt with GitHub Copilot Workspace or Copilot Chat after checking out \`${new_branch}\` and reproducing the merge conflict:"
+    echo "Use this prompt with GitHub Copilot after reproducing the merge locally:"
     echo ""
     echo '```text'
-    echo "Resolve the merge conflict from merging ${REMOTE}/${SOURCE_BRANCH} into ${new_branch}."
-    echo "Preserve the Spring Boot 4 / Spring AI 2.0 upgrade behavior from ${latest_branch}, and forward-port the relevant changes from ${SOURCE_BRANCH}."
-    echo "Conflicted files are listed in ${CONFLICT_FILE}. After resolving, run the project tests that cover the changed modules."
+    if [ "$reason" = "build-failure" ]; then
+      echo "Merging ${REMOTE}/${UPGRADE_BRANCH} into ${REMOTE}/${SOURCE_BRANCH} is clean but the build (${BUILD_COMMAND}) fails."
+      echo "Fix the build while preserving the Spring Boot 4 / Spring AI 2.0 upgrade behavior from ${UPGRADE_BRANCH} and the changes from ${SOURCE_BRANCH}."
+      echo "The failing build output is in ${BUILD_LOG}."
+    else
+      echo "Resolve the merge conflict from merging ${REMOTE}/${UPGRADE_BRANCH} into ${REMOTE}/${SOURCE_BRANCH}."
+      echo "Preserve the Spring Boot 4 / Spring AI 2.0 upgrade behavior from ${UPGRADE_BRANCH}, and forward-port the relevant changes from ${SOURCE_BRANCH}."
+      echo "Conflicted files are listed in ${CONFLICT_FILE}. After resolving, run ${BUILD_COMMAND}."
+    fi
     echo '```'
   } > "$REPORT_FILE"
 }
 
-today_for_branch() {
-  case "$DATE_FORMAT" in
-    mmddyyyy)
-      date '+%m%d%Y'
-      ;;
-    yyyymmdd)
-      date '+%Y%m%d'
-      ;;
-    *)
-      fail "Unsupported DATE_FORMAT: ${DATE_FORMAT}. Use mmddyyyy or yyyymmdd"
-      ;;
-  esac
-}
-
-date_sort_key() {
-  case "$DATE_FORMAT" in
-    mmddyyyy)
-      printf '%s%s%s\n' "${1:4:4}" "${1:0:2}" "${1:2:2}"
-      ;;
-    yyyymmdd)
-      printf '%s\n' "$1"
-      ;;
-  esac
-}
-
-generated_branch_records() {
-  local branch rest date_part sequence sort_key
-
-  git for-each-ref --format='%(refname:strip=3)' "refs/remotes/${REMOTE}/${BRANCH_PREFIX}-*" |
-    while IFS= read -r branch; do
-      [ "$branch" != "HEAD" ] || continue
-      rest="${branch#"${BRANCH_PREFIX}-"}"
-
-      if [[ "$rest" =~ ^([0-9]{8})(-([0-9]+))?$ ]]; then
-        date_part="${BASH_REMATCH[1]}"
-        sequence="${BASH_REMATCH[3]:-0}"
-        sort_key="$(date_sort_key "$date_part")"
-        printf '%s %09d %s\n' "$sort_key" "$sequence" "$branch"
-      fi
-    done
-}
-
-restore_original_branch() {
-  if [ -n "${ORIGINAL_BRANCH:-}" ]; then
-    git switch -q "$ORIGINAL_BRANCH" >/dev/null 2>&1 || true
-  elif [ -n "${ORIGINAL_SHA:-}" ]; then
-    git switch -q --detach "$ORIGINAL_SHA" >/dev/null 2>&1 || true
-  fi
-}
-
-delete_local_branch_if_present() {
-  local branch="$1"
-
-  if git show-ref --verify --quiet "refs/heads/${branch}"; then
-    git branch -D "$branch" >/dev/null 2>&1 || true
-  fi
-}
-
-trim_old_remote_branches() {
-  local branches_to_delete
-
-  [ "$KEEP_BRANCHES" -gt 0 ] || fail "KEEP_BRANCHES must be greater than zero"
-
-  branches_to_delete="$(
-    generated_branch_records |
-      sort -r |
-      awk -v keep="$KEEP_BRANCHES" 'NR > keep { print $3 }'
-  )"
-
-  if [ -z "$branches_to_delete" ]; then
-    log "No old ${BRANCH_PREFIX} branches to delete."
-    return
+run_build() {
+  local status
+  if [ "$SKIP_BUILD" = "true" ]; then
+    log "SKIP_BUILD=true; build gate skipped."
+    return 0
   fi
 
-  log "Old generated branches selected for deletion:"
-  printf '%s\n' "$branches_to_delete"
-
-  if [ "$PUSH_CHANGES" != "true" ]; then
-    log "PUSH_CHANGES=false; remote branch deletion skipped."
-    return
-  fi
-
-  while IFS= read -r branch; do
-    [ -n "$branch" ] || continue
-    git push "$REMOTE" --delete "$branch"
-  done <<< "$branches_to_delete"
+  log "Running build gate: ${BUILD_COMMAND}"
+  set +e
+  bash -c "$BUILD_COMMAND" 2>&1 | tee "$BUILD_LOG"
+  status="${PIPESTATUS[0]}"
+  set -e
+  return "$status"
 }
 
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || fail "Not inside a git repository"
-[[ "$KEEP_BRANCHES" =~ ^[0-9]+$ ]] || fail "KEEP_BRANCHES must be a positive integer"
 require_clean_tree
 
 ORIGINAL_BRANCH="$(git branch --show-current || true)"
 ORIGINAL_SHA="$(git rev-parse HEAD)"
 
-log "Fetching ${REMOTE}/${SOURCE_BRANCH} and ${BRANCH_PREFIX} rolling branches."
+log "Fetching ${REMOTE}/${SOURCE_BRANCH} and ${REMOTE}/${UPGRADE_BRANCH}."
 
 git fetch --prune "$REMOTE" \
   "+refs/heads/${SOURCE_BRANCH}:refs/remotes/${REMOTE}/${SOURCE_BRANCH}" \
-  "+refs/heads/${BRANCH_PREFIX}-*:refs/remotes/${REMOTE}/${BRANCH_PREFIX}-*"
+  "+refs/heads/${UPGRADE_BRANCH}:refs/remotes/${REMOTE}/${UPGRADE_BRANCH}"
 
-latest_record="$(generated_branch_records | sort -r | head -n 1 || true)"
-[ -n "$latest_record" ] || fail "No remote branches found matching ${BRANCH_PREFIX}-<date>[-sequence]"
+git show-ref --verify --quiet "refs/remotes/${REMOTE}/${SOURCE_BRANCH}" \
+  || fail "Source branch ${REMOTE}/${SOURCE_BRANCH} not found"
+git show-ref --verify --quiet "refs/remotes/${REMOTE}/${UPGRADE_BRANCH}" \
+  || fail "Upgrade branch ${REMOTE}/${UPGRADE_BRANCH} not found"
 
-latest_branch="${latest_record#* * }"
-latest_branch="${latest_branch#* }"
+# Pin the upgrade branch tip captured at fetch time. This is both the merge
+# input and the expected value for the force-with-lease push, so a concurrent
+# push to the upgrade branch cannot be clobbered.
+ORIG_UPGRADE_SHA="$(git rev-parse "${REMOTE}/${UPGRADE_BRANCH}")"
+ORIG_SOURCE_SHA="$(git rev-parse "${REMOTE}/${SOURCE_BRANCH}")"
+
 today_part="$(today_for_branch)"
-today_sort_key="$(date_sort_key "$today_part")"
-next_sequence=1
+prtag="$(pr_tag)"
+source_temp="${SOURCE_BRANCH}-${today_part}-${prtag}-tmp"
+upgrade_temp="${UPGRADE_BRANCH}-${today_part}-${prtag}-tmp"
 
-while IFS= read -r record; do
-  record_sort_key="${record%% *}"
-  record_remainder="${record#* }"
-  record_sequence="${record_remainder%% *}"
+log "Source temp branch:  ${source_temp} (from ${REMOTE}/${SOURCE_BRANCH} @ $(git rev-parse --short "$ORIG_SOURCE_SHA"))"
+log "Upgrade temp branch: ${upgrade_temp} (from ${REMOTE}/${UPGRADE_BRANCH} @ $(git rev-parse --short "$ORIG_UPGRADE_SHA"))"
 
-  if [ "$record_sort_key" = "$today_sort_key" ] && [ "$record_sequence" -ge "$next_sequence" ]; then
-    next_sequence=$((10#$record_sequence + 1))
-  fi
-done < <(generated_branch_records)
-
-new_branch="${BRANCH_PREFIX}-${today_part}-${next_sequence}"
-
-while git show-ref --verify --quiet "refs/remotes/${REMOTE}/${new_branch}"; do
-  next_sequence=$((next_sequence + 1))
-  new_branch="${BRANCH_PREFIX}-${today_part}-${next_sequence}"
-done
-
-log "Latest upgrade branch: ${REMOTE}/${latest_branch}"
-log "New upgrade branch: ${new_branch}"
-log "Merging ${REMOTE}/${SOURCE_BRANCH} into ${new_branch}"
-
-git switch --no-track -C "$new_branch" "${REMOTE}/${latest_branch}"
+# Create both snapshots, then merge the upgrade temp into the source temp.
+delete_local_branch_if_present "$source_temp"
+delete_local_branch_if_present "$upgrade_temp"
+git branch --no-track "$upgrade_temp" "$ORIG_UPGRADE_SHA"
+git switch --no-track -C "$source_temp" "$ORIG_SOURCE_SHA"
 require_clean_tree
 
-before_sha="$(git rev-parse HEAD)"
+log "Merging ${upgrade_temp} into ${source_temp}"
 
 set +e
-git merge --no-edit "${REMOTE}/${SOURCE_BRANCH}"
+git merge --no-edit "$upgrade_temp"
 merge_status=$?
 set -e
 
@@ -515,19 +554,17 @@ if [ "$merge_status" -ne 0 ]; then
   log "Merge conflict detected."
 
   git diff --name-only --diff-filter=U | sort > "$CONFLICT_FILE"
-  write_conflict_report
+  write_failure_report "merge-conflict"
 
   log "Conflicted files:"
   cat "$CONFLICT_FILE"
-  log "Conflict report:"
-  log "$REPORT_FILE"
+  log "Report: ${REPORT_FILE}"
 
-  write_summary "Merge conflict detected while merging \`${SOURCE_BRANCH}\` into \`${new_branch}\`. See \`${REPORT_FILE}\` for resolution instructions."
-  create_conflict_issue
+  write_summary "Merge conflict while merging \`${UPGRADE_BRANCH}\` into \`${SOURCE_BRANCH}\`. \`${UPGRADE_BRANCH}\` left unchanged. See \`${REPORT_FILE}\`."
+  create_failure_issue "merge-conflict"
 
   git merge --abort || true
-  restore_original_branch
-  delete_local_branch_if_present "$new_branch"
+  cleanup_temp_branches
 
   if [ "$PUSH_CHANGES" != "true" ] && [ "$PRESERVE_ARTIFACTS" != "true" ]; then
     rm -f "$CONFLICT_FILE" "$REPORT_FILE"
@@ -536,32 +573,54 @@ if [ "$merge_status" -ne 0 ]; then
   exit 2
 fi
 
-after_sha="$(git rev-parse HEAD)"
+merged_sha="$(git rev-parse HEAD)"
 
-if [ "$before_sha" = "$after_sha" ]; then
-  log "Latest upgrade branch already contains ${SOURCE_BRANCH}; no new branch needed."
-  write_summary "No changes needed. \`${latest_branch}\` already contains \`${SOURCE_BRANCH}\`."
-  restore_original_branch
-  delete_local_branch_if_present "$new_branch"
+if [ "$merged_sha" = "$ORIG_UPGRADE_SHA" ]; then
+  log "${UPGRADE_BRANCH} already contains ${SOURCE_BRANCH}; nothing to update."
+  write_summary "No changes needed. \`${UPGRADE_BRANCH}\` already contains \`${SOURCE_BRANCH}\`."
+  cleanup_temp_branches
   exit 0
 fi
 
-log "Merge completed:"
+log "Merge clean. Resulting commit: $(git rev-parse --short HEAD)"
 git --no-pager log --oneline --decorate -n 5
 
+if ! run_build; then
+  log "Build failed."
+  write_failure_report "build-failure"
+
+  write_summary "Merge of \`${UPGRADE_BRANCH}\` into \`${SOURCE_BRANCH}\` was clean but the build failed. \`${UPGRADE_BRANCH}\` left unchanged. See \`${REPORT_FILE}\`."
+  create_failure_issue "build-failure"
+
+  cleanup_temp_branches
+
+  if [ "$PUSH_CHANGES" != "true" ] && [ "$PRESERVE_ARTIFACTS" != "true" ]; then
+    rm -f "$REPORT_FILE" "$BUILD_LOG"
+  fi
+
+  exit 3
+fi
+
+log "Build passed."
+
 if [ "$PUSH_CHANGES" != "true" ]; then
-  log "PUSH_CHANGES=false; dry run complete."
-  write_summary "Dry run succeeded. Merge was clean; \`${new_branch}\` was not pushed."
-  restore_original_branch
-  delete_local_branch_if_present "$new_branch"
+  log "PUSH_CHANGES=false; dry run complete. ${UPGRADE_BRANCH} not updated."
+  write_summary "Dry run succeeded. Merge clean and build green; \`${UPGRADE_BRANCH}\` was not updated."
+  cleanup_temp_branches
+  if [ "$PRESERVE_ARTIFACTS" != "true" ]; then
+    rm -f "$BUILD_LOG"
+  fi
   exit 0
 fi
 
-git push "$REMOTE" "HEAD:${new_branch}"
-git fetch "$REMOTE" "+refs/heads/${new_branch}:refs/remotes/${REMOTE}/${new_branch}"
-trim_old_remote_branches
+log "Updating ${REMOTE}/${UPGRADE_BRANCH} -> ${merged_sha} (force-with-lease against ${ORIG_UPGRADE_SHA})"
+git push --force-with-lease="${UPGRADE_BRANCH}:${ORIG_UPGRADE_SHA}" \
+  "$REMOTE" "HEAD:refs/heads/${UPGRADE_BRANCH}"
 
-write_summary "Merge succeeded. Pushed \`${new_branch}\` and trimmed generated branches to the latest \`${KEEP_BRANCHES}\`."
-log "Pushed ${new_branch}."
-restore_original_branch
-delete_local_branch_if_present "$new_branch"
+write_summary "Success. Merged \`${SOURCE_BRANCH}\` into \`${UPGRADE_BRANCH}\`, build passed, and \`${UPGRADE_BRANCH}\` was advanced to \`$(git rev-parse --short HEAD)\`."
+log "Updated ${UPGRADE_BRANCH}."
+
+cleanup_temp_branches
+if [ "$PRESERVE_ARTIFACTS" != "true" ]; then
+  rm -f "$BUILD_LOG"
+fi

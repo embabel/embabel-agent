@@ -4,6 +4,15 @@ on:
   # push:
   #  branches: [main]
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Test mode: merge (and build) but do NOT update 2.0.0"
+        type: boolean
+        default: true
+      skip_build:
+        description: "Skip the Maven build gate (faster test)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -32,6 +41,17 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Configure Testcontainers
+        run: |
+            mkdir -p /home/runner
+            echo "testcontainers.reuse.enable=true" > /home/runner/.testcontainers.properties
 
       - name: Resolve source PR metadata
         id: source
@@ -69,24 +89,38 @@ jobs:
             core.setOutput('pr_number', result.pr_number);
             core.setOutput('pr_author', result.pr_author);
 
-      - name: Sync main into rolling upgrade branch
+      - name: Merge main into 2.0.0, build, and update on success
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN || github.token }}
           SOURCE_BRANCH: main
-          BRANCH_PREFIX: 2.0.0
+          UPGRADE_BRANCH: 2.0.0
           DATE_FORMAT: mmddyyyy
-          KEEP_BRANCHES: 5
+          BUILD_COMMAND: mvn -U -B test verify
           CREATE_ISSUE: true
           PR_NUMBER: ${{ steps.source.outputs.pr_number }}
           DEVELOPER_GITHUB_LOGIN: ${{ steps.source.outputs.pr_author }}
+          # Manual runs default to a safe dry-run; uncheck "dry_run" to perform a real sync.
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+          SKIP_BUILD_INPUT: ${{ github.event.inputs.skip_build }}
         run: |
             mkdir -p .github/sync-reports
 
             args=(
               --conflict-file .github/sync-reports/conflicted-files.txt
               --report-file .github/sync-reports/branch-sync-conflict.md
+              --build-log .github/sync-reports/build-failure.log
               --create-issue
             )
+
+            # Manual runs default to dry-run unless the dry_run input is unchecked.
+            # Any other trigger (e.g. an uncommented push) performs a real sync.
+            if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ "${DRY_RUN}" != "false" ]; then
+              args+=(--dry-run --preserve-artifacts)
+            fi
+
+            if [ "${SKIP_BUILD_INPUT}" = "true" ]; then
+              args+=(--skip-build)
+            fi
 
             if [ -n "${DEVELOPER_GITHUB_LOGIN}" ]; then
               args+=(--issue-assignee "${DEVELOPER_GITHUB_LOGIN}")
@@ -95,11 +129,11 @@ jobs:
             .github/scripts/sync-primary-to-upgrade.sh "${args[@]}"
 
 
-      - name: Upload conflict report
+      - name: Upload failure report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: branch-sync-conflict-report
+          name: branch-sync-failure-report
           path: .github/sync-reports/
           if-no-files-found: ignore
 
