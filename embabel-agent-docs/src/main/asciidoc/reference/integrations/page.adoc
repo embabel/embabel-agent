@@ -909,7 +909,15 @@ All tracing options are enabled by default and can be toggled individually:
 
 |`embabel.observability.trace-agent-events`
 |`true`
-|Agent lifecycle (creation, execution, completion, failures)
+|Umbrella for the core scoped span tier (`embabel.agent`/`embabel.action`/`embabel.tool_loop`/`embabel.llm`). When `false`, all four are suppressed; keep `true` and use the per-span switches below for granular control
+
+|`embabel.observability.trace-agent`
+|`true`
+|`embabel.agent` scoped span (one run turn). Effective when `trace-agent-events=true`
+
+|`embabel.observability.trace-action`
+|`true`
+|`embabel.action` scoped span. Effective when `trace-agent-events=true`
 
 |`embabel.observability.trace-tool-calls`
 |`true`
@@ -917,11 +925,11 @@ All tracing options are enabled by default and can be toggled individually:
 
 |`embabel.observability.trace-tool-loop`
 |`true`
-|Tool loop execution (`embabel.tool_loop` + `embabel.tool_loop.completed`)
+|Tool loop execution (`embabel.tool_loop` scoped span + `embabel.tool_loop.completed` point span)
 
 |`embabel.observability.trace-llm-calls`
 |`true`
-|LLM invocations with token usage (`embabel.llm.invocation`)
+|LLM calls: the `embabel.llm` scoped span and the `embabel.llm.invocation` point span (token usage, cost), plus the Spring AI ChatModel filter
 
 |`embabel.observability.trace-embedding`
 |`true`
