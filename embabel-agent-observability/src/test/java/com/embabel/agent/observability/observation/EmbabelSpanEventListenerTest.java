@@ -344,6 +344,14 @@ class EmbabelSpanEventListenerTest {
             assertEquals("replan", kv.get("gen_ai.operation.name"));
             assertEquals("stuck, retrying with new plan", kv.get("embabel.replan.reason"));
         }
+
+        @Test
+        @DisplayName("trace-planning=false suppresses the planning span")
+        void planningFlagDisabled() {
+            properties.setTracePlanning(false);
+            listener().onProcessEvent(planEvent());
+            assertTrue(handler.stopped.stream().noneMatch(c -> "embabel.planning".equals(c.getName())));
+        }
     }
 
     @Nested
@@ -372,6 +380,32 @@ class EmbabelSpanEventListenerTest {
             assertEquals("what is x", kv.get("embabel.rag.query"));
             assertEquals("0", kv.get("embabel.rag.result_count"));
         }
+
+        @Test
+        @DisplayName("trace-rag=false suppresses the rag span")
+        void ragFlagDisabled() {
+            properties.setTraceRag(false);
+            RagResponse response = mock(RagResponse.class);
+            RagResponseEvent ragResponseEvent = mock(RagResponseEvent.class);
+            lenient().when(ragResponseEvent.getRagResponse()).thenReturn(response);
+            AgentProcessRagEvent event = mock(AgentProcessRagEvent.class);
+            lenient().when(event.getRagEvent()).thenReturn(ragResponseEvent);
+
+            listener().onProcessEvent(event);
+
+            assertTrue(handler.stopped.stream().noneMatch(c -> "embabel.rag".equals(c.getName())));
+        }
+
+        @Test
+        @DisplayName("a RAG event whose inner event is not a response produces no span")
+        void ragNonResponseInnerEventProducesNoSpan() {
+            AgentProcessRagEvent event = mock(AgentProcessRagEvent.class);
+            lenient().when(event.getRagEvent()).thenReturn(mock(RagEvent.class));
+
+            listener().onProcessEvent(event);
+
+            assertTrue(handler.stopped.isEmpty(), "only RagResponseEvent inner events yield a span");
+        }
     }
 
     @Nested
@@ -398,7 +432,18 @@ class EmbabelSpanEventListenerTest {
             assertEquals("ranking", kv.get("gen_ai.operation.name"));
             assertEquals("WeatherAgent", kv.get("embabel.ranking.choice"));
             assertEquals("2", kv.get("embabel.ranking.option_count"));
-            assertTrue(kv.containsKey("embabel.ranking.score"));
+            assertEquals("0.92", kv.get("embabel.ranking.score"));
+        }
+
+        @Test
+        @DisplayName("trace-ranking=false suppresses the ranking span")
+        void rankingFlagDisabled() {
+            properties.setTraceRanking(false);
+            RankingChoiceMadeEvent<?> event = mock(RankingChoiceMadeEvent.class);
+
+            listener().onPlatformEvent(event);
+
+            assertTrue(handler.stopped.stream().noneMatch(c -> "embabel.ranking".equals(c.getName())));
         }
 
         @Test
@@ -420,6 +465,7 @@ class EmbabelSpanEventListenerTest {
             assertEquals("none", kv.get("embabel.ranking.choice"));
             assertEquals("String", kv.get("embabel.ranking.type"));
             assertEquals("2", kv.get("embabel.ranking.option_count"));
+            assertEquals("0.7", kv.get("embabel.ranking.confidence_cutoff"));
             assertTrue(ctx.getError() != null, "no-choice ranking span should be marked errored");
         }
     }
@@ -480,6 +526,87 @@ class EmbabelSpanEventListenerTest {
             assertEquals("answerQuestion", kv.get("embabel.goal.short_name"));
             assertEquals("the answer", kv.get("embabel.goal.result"));
         }
+
+        @Test
+        @DisplayName("trace-state-transitions=false suppresses the state transition span")
+        void stateTransitionFlagDisabled() {
+            properties.setTraceStateTransitions(false);
+            StateTransitionEvent event = mock(StateTransitionEvent.class);
+            lenient().when(event.getNewState()).thenReturn("toState");
+
+            listener().onProcessEvent(event);
+
+            assertTrue(handler.stopped.stream().noneMatch(c -> "embabel.state_transition".equals(c.getName())));
+        }
+
+        @Test
+        @DisplayName("failed run becomes a lifecycle span carrying FAILED")
+        void failedLifecycleSpan() {
+            listener().onProcessEvent(
+                    new AgentProcessFailedEvent(processWithStatus("run-1", AgentProcessStatusCode.FAILED)));
+
+            Map<String, String> kv = kvOf("embabel.lifecycle");
+            assertEquals("FAILED", kv.get("embabel.lifecycle.state"));
+        }
+
+        @Test
+        @DisplayName("waiting, paused and stuck each become a lifecycle span with their status")
+        void intermediateLifecycleSpans() {
+            EmbabelSpanEventListener listener = listener();
+            listener.onProcessEvent(new AgentProcessWaitingEvent(processWithStatus("r", AgentProcessStatusCode.WAITING)));
+            listener.onProcessEvent(new AgentProcessPausedEvent(processWithStatus("r", AgentProcessStatusCode.PAUSED)));
+            listener.onProcessEvent(new AgentProcessStuckEvent(processWithStatus("r", AgentProcessStatusCode.STUCK)));
+
+            List<String> states = handler.stopped.stream()
+                    .filter(c -> "embabel.lifecycle".equals(c.getName()))
+                    .map(c -> KeyValues.of(c.getLowCardinalityKeyValues()).stream()
+                            .filter(k -> "embabel.lifecycle.state".equals(k.getKey()))
+                            .map(KeyValue::getValue).findFirst().orElse(null))
+                    .toList();
+            assertEquals(List.of("WAITING", "PAUSED", "STUCK"), states);
+        }
+
+        @Test
+        @DisplayName("trace-lifecycle-states=false suppresses the goal span (shared gate)")
+        void goalSuppressedWhenLifecycleDisabled() {
+            properties.setTraceLifecycleStates(false);
+            Goal goal = mock(Goal.class);
+            lenient().when(goal.getName()).thenReturn("com.example.A.answer");
+            AgentProcess process = mock(AgentProcess.class);
+            GoalAchievedEvent event = mock(GoalAchievedEvent.class);
+            lenient().when(event.getGoal()).thenReturn(goal);
+            lenient().when(event.getAgentProcess()).thenReturn(process);
+
+            listener().onProcessEvent(event);
+
+            assertTrue(handler.stopped.stream().noneMatch(c -> "embabel.goal".equals(c.getName())));
+        }
+
+        @Test
+        @DisplayName("process killed emits no lifecycle span but resets the plan iteration counter")
+        void killedEmitsNoSpanAndResetsIterations() {
+            EmbabelSpanEventListener listener = listener();
+            AgentProcessPlanFormulatedEvent plan = planEvent(); // run-1
+            listener.onProcessEvent(plan); // iteration 1
+            listener.onProcessEvent(plan); // iteration 2 (replanning)
+            listener.onProcessEvent(
+                    new ProcessKilledEvent(processWithStatus("run-1", AgentProcessStatusCode.KILLED)));
+            listener.onProcessEvent(plan); // counter reset -> iteration 1 again
+
+            assertTrue(handler.stopped.stream().noneMatch(c -> "embabel.lifecycle".equals(c.getName())),
+                    "killed does not produce a lifecycle span");
+
+            List<Map<String, String>> plans = handler.stopped.stream()
+                    .filter(c -> "embabel.planning".equals(c.getName()))
+                    .map(c -> KeyValues.of(c.getLowCardinalityKeyValues())
+                            .and(c.getHighCardinalityKeyValues())
+                            .stream().collect(Collectors.toMap(KeyValue::getKey, KeyValue::getValue)))
+                    .toList();
+            Map<String, String> lastPlan = plans.get(plans.size() - 1);
+            assertEquals("1", lastPlan.get("embabel.plan.iteration"),
+                    "iteration counter restarts after the run is killed");
+            assertEquals("false", lastPlan.get("embabel.plan.is_replanning"));
+        }
     }
 
     @Nested
@@ -494,6 +621,7 @@ class EmbabelSpanEventListenerTest {
             Map<String, String> kv = kvOf("embabel.dynamic_agent_creation");
             assertEquals("dynamic_agent_creation", kv.get("gen_ai.operation.name"));
             assertEquals("GeneratedAgent", kv.get("embabel.agent.name"));
+            assertEquals("user asked for X", kv.get("embabel.dynamic_agent.basis"));
         }
 
         @Test
@@ -580,6 +708,46 @@ class EmbabelSpanEventListenerTest {
 
             assertTrue(handler.stopped.stream().noneMatch(c -> "embabel.tool".equals(c.getName())));
         }
+
+        @Test
+        @DisplayName("placeholder correlation id '-' is not recorded")
+        void toolCallOmitsPlaceholderCorrelationId() {
+            ToolCallRequestEvent request = mock(ToolCallRequestEvent.class);
+            lenient().when(request.getTool()).thenReturn("myTool");
+            lenient().when(request.getCorrelationId()).thenReturn("-");
+            lenient().when(request.getToolInput()).thenReturn("{}");
+            ToolCallResponseEvent event = mock(ToolCallResponseEvent.class);
+            lenient().when(event.getRequest()).thenReturn(request);
+            lenient().when(event.getRunningTime()).thenReturn(Duration.ofMillis(1));
+            try (MockedStatic<ToolCallOutcomes> outcomes = mockStatic(ToolCallOutcomes.class)) {
+                outcomes.when(() -> ToolCallOutcomes.error(event)).thenReturn(null);
+                outcomes.when(() -> ToolCallOutcomes.resultText(event)).thenReturn("ok");
+                listener().onProcessEvent(event);
+            }
+
+            Map<String, String> kv = kvOf("embabel.tool");
+            assertNull(kv.get("embabel.tool.correlation_id"), "'-' placeholder correlation id is not recorded");
+        }
+
+        @Test
+        @DisplayName("null tool input omits the arguments tag")
+        void toolCallOmitsArgumentsWhenInputNull() {
+            ToolCallRequestEvent request = mock(ToolCallRequestEvent.class);
+            lenient().when(request.getTool()).thenReturn("myTool");
+            lenient().when(request.getCorrelationId()).thenReturn("corr-1");
+            lenient().when(request.getToolInput()).thenReturn(null);
+            ToolCallResponseEvent event = mock(ToolCallResponseEvent.class);
+            lenient().when(event.getRequest()).thenReturn(request);
+            lenient().when(event.getRunningTime()).thenReturn(Duration.ofMillis(1));
+            try (MockedStatic<ToolCallOutcomes> outcomes = mockStatic(ToolCallOutcomes.class)) {
+                outcomes.when(() -> ToolCallOutcomes.error(event)).thenReturn(null);
+                outcomes.when(() -> ToolCallOutcomes.resultText(event)).thenReturn("ok");
+                listener().onProcessEvent(event);
+            }
+
+            Map<String, String> kv = kvOf("embabel.tool");
+            assertNull(kv.get("gen_ai.tool.call.arguments"), "no arguments tag when tool input is null");
+        }
     }
 
     @Nested
@@ -628,6 +796,14 @@ class EmbabelSpanEventListenerTest {
         void noopRegistry() {
             EmbabelSpanEventListener noop = new EmbabelSpanEventListener(ObservationRegistry.NOOP, properties);
             noop.onProcessEvent(llmEvent());
+            assertTrue(handler.stopped.isEmpty());
+        }
+
+        @Test
+        @DisplayName("NOOP registry produces no span on platform events either")
+        void noopRegistryPlatformEvent() {
+            EmbabelSpanEventListener noop = new EmbabelSpanEventListener(ObservationRegistry.NOOP, properties);
+            noop.onPlatformEvent(dynamicAgentEvent());
             assertTrue(handler.stopped.isEmpty());
         }
     }
