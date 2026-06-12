@@ -26,7 +26,10 @@ import com.embabel.agent.api.event.AgentProcessStuckEvent;
 import com.embabel.agent.api.event.AgentProcessWaitingEvent;
 import com.embabel.agent.api.event.AgenticEventListener;
 import com.embabel.agent.api.event.DynamicAgentCreationEvent;
+import com.embabel.agent.api.event.EmbeddingEvent;
+import com.embabel.agent.api.event.EmbeddingEventListener;
 import com.embabel.agent.api.event.EmbeddingInvocationEvent;
+import com.embabel.agent.api.event.EmbeddingResponseEvent;
 import com.embabel.agent.api.event.GoalAchievedEvent;
 import com.embabel.agent.api.event.LlmInvocationEvent;
 import com.embabel.agent.api.event.ProcessKilledEvent;
@@ -38,6 +41,7 @@ import com.embabel.agent.api.event.ToolCallRequestEvent;
 import com.embabel.agent.api.event.ToolCallResponseEvent;
 import com.embabel.agent.api.event.ToolLoopCompletedEvent;
 import com.embabel.agent.api.event.observation.ToolCallOutcomes;
+import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.EmbeddingInvocation;
 import com.embabel.agent.core.LlmInvocation;
 import com.embabel.agent.core.ToolGroupMetadata;
@@ -46,6 +50,7 @@ import com.embabel.agent.event.AgentProcessRagEvent;
 import com.embabel.agent.event.RagResponseEvent;
 import com.embabel.agent.observability.ObservabilityProperties;
 import com.embabel.agent.rag.service.RagResponse;
+import com.embabel.common.ai.model.EmbeddingServiceMetadata;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 
@@ -58,7 +63,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * core involvement (unlike the long-scoped agent/action/tool-loop/LLM spans, instrumented directly
  * at the work site). Each span is gated by its {@code trace-*} switch, keeping those flags live.
  */
-public class EmbabelSpanEventListener implements AgenticEventListener {
+public class EmbabelSpanEventListener implements AgenticEventListener, EmbeddingEventListener {
 
     private final ObservationRegistry registry;
     private final ObservabilityProperties properties;
@@ -178,12 +183,43 @@ public class EmbabelSpanEventListener implements AgenticEventListener {
 
     private void recordEmbeddingInvocation(EmbeddingInvocationEvent event) {
         EmbeddingInvocation invocation = event.getInvocation();
-        Observation observation = point("embabel.embedding",
-                "embeddings " + invocation.getEmbeddingMetadata().getName())
+        emitEmbeddingSpan(invocation.getEmbeddingMetadata(), invocation.getUsage(),
+                invocation.cost(), event.getInteractionId());
+    }
+
+    /**
+     * Standalone (non-agent) embedding channel: RAG/pgvector calls made outside an agent process
+     * reach observability only via {@link EmbeddingEventListener}, not the {@code onProcessEvent}
+     * channel that carries {@link EmbeddingInvocationEvent}. Bridge those into the same
+     * {@code embabel.embedding} span so embeddings show up in the trace regardless of caller.
+     *
+     * <p>When an agent process <em>is</em> active, both channels fire for the same call — but the
+     * agent channel already emits the span via {@link #recordEmbeddingInvocation}, so we skip here
+     * to avoid a duplicate. {@code AgentProcess.get() != null} is exactly the "in-agent" predicate
+     * {@code EmbeddingOperations} uses to decide whether to dispatch the agent-channel event.
+     */
+    @Override
+    public void onEmbeddingEvent(EmbeddingEvent event) {
+        if (registry.isNoop() || !properties.isTraceEmbedding()) {
+            return;
+        }
+        if (AgentProcess.get() != null || !(event instanceof EmbeddingResponseEvent response)) {
+            return;
+        }
+        EmbeddingInvocation invocation = new EmbeddingInvocation(
+                response.getEmbeddingMetadata(), response.getUsage(),
+                null, response.getTimestamp(), response.getRunningTime());
+        emitEmbeddingSpan(invocation.getEmbeddingMetadata(), invocation.getUsage(),
+                invocation.cost(), response.getId());
+    }
+
+    private void emitEmbeddingSpan(EmbeddingServiceMetadata metadata, Usage usage,
+                                   double cost, String interactionId) {
+        Observation observation = point("embabel.embedding", "embeddings " + metadata.getName())
                 .lowCardinalityKeyValue("gen_ai.operation.name", "embeddings")
-                .lowCardinalityKeyValue("gen_ai.request.model", invocation.getEmbeddingMetadata().getName())
-                .highCardinalityKeyValue("embabel.interaction.id", event.getInteractionId());
-        addUsageAndCost(observation, invocation.getUsage(), invocation.cost());
+                .lowCardinalityKeyValue("gen_ai.request.model", metadata.getName())
+                .highCardinalityKeyValue("embabel.interaction.id", interactionId);
+        addUsageAndCost(observation, usage, cost);
         emit(observation);
     }
 

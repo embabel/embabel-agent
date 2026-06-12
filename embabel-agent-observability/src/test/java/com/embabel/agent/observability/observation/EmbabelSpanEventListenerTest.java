@@ -25,6 +25,8 @@ import com.embabel.agent.api.event.ProcessKilledEvent;
 import com.embabel.agent.api.event.DynamicAgentCreationEvent;
 import com.embabel.agent.core.Agent;
 import com.embabel.agent.api.event.EmbeddingInvocationEvent;
+import com.embabel.agent.api.event.EmbeddingRequestEvent;
+import com.embabel.agent.api.event.EmbeddingResponseEvent;
 import com.embabel.agent.api.event.GoalAchievedEvent;
 import com.embabel.agent.api.event.LlmInvocationEvent;
 import com.embabel.agent.api.event.RankingChoiceCouldNotBeMadeEvent;
@@ -268,6 +270,119 @@ class EmbabelSpanEventListenerTest {
 
             Map<String, String> kv = kvOf("embabel.llm.invocation");
             assertNotNull(kv.get("embabel.llm.cost"), "cost tag present when pricing yields a positive cost");
+        }
+    }
+
+    @Nested
+    @DisplayName("standalone embeddings (EmbeddingEventListener channel)")
+    class StandaloneEmbeddings {
+
+        private EmbeddingResponseEvent standaloneResponseEvent() {
+            EmbeddingServiceMetadata metadata = mock(EmbeddingServiceMetadata.class);
+            lenient().when(metadata.getName()).thenReturn("text-embedding-3");
+            EmbeddingRequestEvent request = new EmbeddingRequestEvent(
+                    metadata, List.of("hello"), "embed-standalone-1", Instant.now());
+            return new EmbeddingResponseEvent(
+                    request, new Usage(5, null, null), Duration.ofMillis(12), Instant.now());
+        }
+
+        @Test
+        @DisplayName("standalone embedding response (no agent) becomes an embedding span")
+        void standaloneEmbeddingSpan() {
+            try (MockedStatic<AgentProcess> ap = mockStatic(AgentProcess.class)) {
+                ap.when(AgentProcess::get).thenReturn(null);
+                listener().onEmbeddingEvent(standaloneResponseEvent());
+            }
+
+            Map<String, String> kv = kvOf("embabel.embedding");
+            assertEquals("embeddings", kv.get("gen_ai.operation.name"));
+            assertEquals("text-embedding-3", kv.get("gen_ai.request.model"));
+            assertEquals("5", kv.get("gen_ai.usage.input_tokens"));
+            assertEquals("embed-standalone-1", kv.get("embabel.interaction.id"));
+        }
+
+        @Test
+        @DisplayName("when an agent process is active the agent channel owns the span, so no duplicate here")
+        void noStandaloneSpanWhenAgentActive() {
+            AgentProcess process = mock(AgentProcess.class);
+            try (MockedStatic<AgentProcess> ap = mockStatic(AgentProcess.class)) {
+                ap.when(AgentProcess::get).thenReturn(process);
+                listener().onEmbeddingEvent(standaloneResponseEvent());
+            }
+
+            assertTrue(handler.stopped.stream().noneMatch(c -> "embabel.embedding".equals(c.getName())),
+                    "no standalone embedding span when an agent process is active (avoids double span)");
+        }
+
+        @Test
+        @DisplayName("trace-embedding=false suppresses the standalone embedding span")
+        void standaloneFlagDisabled() {
+            properties.setTraceEmbedding(false);
+            try (MockedStatic<AgentProcess> ap = mockStatic(AgentProcess.class)) {
+                ap.when(AgentProcess::get).thenReturn(null);
+                listener().onEmbeddingEvent(standaloneResponseEvent());
+            }
+
+            assertTrue(handler.stopped.stream().noneMatch(c -> "embabel.embedding".equals(c.getName())));
+        }
+
+        @Test
+        @DisplayName("a non-response embedding event (request/model-call) produces no span")
+        void requestEventProducesNoSpan() {
+            EmbeddingServiceMetadata metadata = mock(EmbeddingServiceMetadata.class);
+            lenient().when(metadata.getName()).thenReturn("text-embedding-3");
+            EmbeddingRequestEvent request = new EmbeddingRequestEvent(
+                    metadata, List.of("hello"), "embed-1", Instant.now());
+            try (MockedStatic<AgentProcess> ap = mockStatic(AgentProcess.class)) {
+                ap.when(AgentProcess::get).thenReturn(null);
+                listener().onEmbeddingEvent(request);
+            }
+
+            assertTrue(handler.stopped.isEmpty(), "only EmbeddingResponseEvent yields a span");
+        }
+
+        @Test
+        @DisplayName("standalone embedding cost is recorded when pricing is known")
+        void standaloneCostRecordedWhenPricingKnown() {
+            EmbeddingServiceMetadata metadata = mock(EmbeddingServiceMetadata.class);
+            lenient().when(metadata.getName()).thenReturn("text-embedding-3");
+            lenient().when(metadata.getPricingModel()).thenReturn(PricingModel.usdPer1MTokens(0.02, 0.0));
+            EmbeddingRequestEvent request = new EmbeddingRequestEvent(
+                    metadata, List.of("hello"), "embed-cost-1", Instant.now());
+            EmbeddingResponseEvent response = new EmbeddingResponseEvent(
+                    request, new Usage(1000, null, null), Duration.ofMillis(5), Instant.now());
+            try (MockedStatic<AgentProcess> ap = mockStatic(AgentProcess.class)) {
+                ap.when(AgentProcess::get).thenReturn(null);
+                listener().onEmbeddingEvent(response);
+            }
+
+            assertNotNull(kvOf("embabel.embedding").get("embabel.llm.cost"),
+                    "cost tag present when pricing yields a positive cost");
+        }
+
+        @Test
+        @DisplayName("no cost tag when the embedding service has no pricing model")
+        void standaloneNoCostWhenPricingUnknown() {
+            try (MockedStatic<AgentProcess> ap = mockStatic(AgentProcess.class)) {
+                ap.when(AgentProcess::get).thenReturn(null);
+                // standaloneResponseEvent() uses a metadata mock whose getPricingModel() is null
+                listener().onEmbeddingEvent(standaloneResponseEvent());
+            }
+
+            assertNull(kvOf("embabel.embedding").get("embabel.llm.cost"),
+                    "no cost tag when pricing is unknown (cost is zero)");
+        }
+
+        @Test
+        @DisplayName("NOOP registry produces no standalone embedding span and does not throw")
+        void noopRegistryProducesNoStandaloneSpan() {
+            EmbabelSpanEventListener noop = new EmbabelSpanEventListener(ObservationRegistry.NOOP, properties);
+            try (MockedStatic<AgentProcess> ap = mockStatic(AgentProcess.class)) {
+                ap.when(AgentProcess::get).thenReturn(null);
+                noop.onEmbeddingEvent(standaloneResponseEvent());
+            }
+
+            assertTrue(handler.stopped.isEmpty());
         }
     }
 
