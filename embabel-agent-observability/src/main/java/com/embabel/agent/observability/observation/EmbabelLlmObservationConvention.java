@@ -24,25 +24,16 @@ import io.micrometer.observation.Observation;
 /**
  * Global convention for the {@code embabel.llm} span. Reads request metadata from the
  * {@link LlmRequestEvent} wrapped by the thin {@link LlmObservationContext}.
- * (Token usage/cost keys are added when the billing inspector is wired.)
+ *
+ * <p>Unlike the sibling conventions, this one takes no {@code maxAttributeLength}: it emits only
+ * bounded-length keys (model, provider, ids), no free text. When the billing inspector is wired to
+ * capture prompt/response, reintroduce the truncation length then rather than carry it dead now.
  */
 public class EmbabelLlmObservationConvention
         implements GlobalObservationConvention<LlmObservationContext> {
 
     /** OTel GenAI operation name for a chat completion. */
     private static final String OPERATION = "chat";
-
-    /**
-     * Kept for parity with the sibling conventions; applied via
-     * {@link ObservationUtils#truncate} to free-text values (prompt/response, token-cost
-     * details) once the billing inspector is wired (see class Javadoc). No free-text key is
-     * emitted yet, so it is currently unused.
-     */
-    private final int maxAttributeLength;
-
-    public EmbabelLlmObservationConvention(int maxAttributeLength) {
-        this.maxAttributeLength = maxAttributeLength;
-    }
 
     @Override
     public boolean supportsContext(Observation.Context context) {

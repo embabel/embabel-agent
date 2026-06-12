@@ -382,6 +382,26 @@ class EmbabelSpanEventListenerTest {
         }
 
         @Test
+        @DisplayName("a long RAG query is truncated to max-attribute-length")
+        void ragQueryTruncated() {
+            properties.setMaxAttributeLength(10);
+            RagRequest request = mock(RagRequest.class);
+            lenient().when(request.getQuery()).thenReturn("0123456789ABCDEF");
+            RagResponse response = mock(RagResponse.class);
+            lenient().when(response.getService()).thenReturn("vec-store");
+            lenient().when(response.getRequest()).thenReturn(request);
+            lenient().when(response.getResults()).thenReturn(java.util.Collections.emptyList());
+            RagResponseEvent ragResponseEvent = mock(RagResponseEvent.class);
+            lenient().when(ragResponseEvent.getRagResponse()).thenReturn(response);
+            AgentProcessRagEvent event = mock(AgentProcessRagEvent.class);
+            lenient().when(event.getRagEvent()).thenReturn(ragResponseEvent);
+
+            listener().onProcessEvent(event);
+
+            assertEquals("0123456789...", kvOf("embabel.rag").get("embabel.rag.query"));
+        }
+
+        @Test
         @DisplayName("trace-rag=false suppresses the rag span")
         void ragFlagDisabled() {
             properties.setTraceRag(false);

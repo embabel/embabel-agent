@@ -458,7 +458,7 @@ class EmbabelObservationConventionsTest {
 
             LlmObservationContext ctx = new LlmObservationContext(event);
             Map<String, String> kv = allKeyValues(
-                    observe(new EmbabelLlmObservationConvention(4000), ctx, "embabel.llm"));
+                    observe(new EmbabelLlmObservationConvention(), ctx, "embabel.llm"));
 
             assertEquals("chat", kv.get("gen_ai.operation.name"));
             assertEquals("gpt-4o", kv.get("gen_ai.request.model"));
@@ -483,7 +483,7 @@ class EmbabelObservationConventionsTest {
 
             LlmObservationContext ctx = new LlmObservationContext(event);
             Map<String, String> kv = allKeyValues(
-                    observe(new EmbabelLlmObservationConvention(4000), ctx, "embabel.llm"));
+                    observe(new EmbabelLlmObservationConvention(), ctx, "embabel.llm"));
 
             assertEquals("CastSpell", kv.get("embabel.action.name"));
         }
@@ -498,7 +498,7 @@ class EmbabelObservationConventionsTest {
             lenient().when(event.getInteraction().getId()).thenReturn("interaction-3");
             lenient().when(event.getAction()).thenReturn(null);
 
-            Observation.Context ctx = observe(new EmbabelLlmObservationConvention(4000),
+            Observation.Context ctx = observe(new EmbabelLlmObservationConvention(),
                     new LlmObservationContext(event), "embabel.llm");
 
             assertTrue(lowCardinality(ctx).keySet().containsAll(List.of(

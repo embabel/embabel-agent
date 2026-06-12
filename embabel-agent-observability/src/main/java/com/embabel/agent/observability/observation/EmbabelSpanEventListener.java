@@ -168,9 +168,8 @@ public class EmbabelSpanEventListener implements AgenticEventListener {
         // gen_ai.operation.name here too would make exporters (e.g. Langfuse) count the same call as
         // two generations. We keep this span as a plain cost/usage record (model + tokens + cost still
         // visible) without re-triggering the generation classification.
-        Observation observation = Observation.createNotStarted("embabel.llm.invocation", registry)
-                .parentObservation(registry.getCurrentObservation())
-                .contextualName("llm.invocation " + invocation.getLlmMetadata().getName())
+        Observation observation = point("embabel.llm.invocation",
+                "llm.invocation " + invocation.getLlmMetadata().getName())
                 .lowCardinalityKeyValue("embabel.llm.model", invocation.getLlmMetadata().getName())
                 .highCardinalityKeyValue("embabel.interaction.id", event.getInteractionId());
         addUsageAndCost(observation, invocation.getUsage(), invocation.cost());
@@ -179,9 +178,8 @@ public class EmbabelSpanEventListener implements AgenticEventListener {
 
     private void recordEmbeddingInvocation(EmbeddingInvocationEvent event) {
         EmbeddingInvocation invocation = event.getInvocation();
-        Observation observation = Observation.createNotStarted("embabel.embedding", registry)
-                .parentObservation(registry.getCurrentObservation())
-                .contextualName("embeddings " + invocation.getEmbeddingMetadata().getName())
+        Observation observation = point("embabel.embedding",
+                "embeddings " + invocation.getEmbeddingMetadata().getName())
                 .lowCardinalityKeyValue("gen_ai.operation.name", "embeddings")
                 .lowCardinalityKeyValue("gen_ai.request.model", invocation.getEmbeddingMetadata().getName())
                 .highCardinalityKeyValue("embabel.interaction.id", event.getInteractionId());
@@ -193,9 +191,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener {
         int iteration = planIterations.merge(event.getAgentProcess().getId(), 1, Integer::sum);
         String goalName = event.getPlan().getGoal().getName();
         String goalShort = ObservationUtils.shortName(goalName);
-        Observation observation = Observation.createNotStarted("embabel.planning", registry)
-                .parentObservation(registry.getCurrentObservation())
-                .contextualName("planning " + goalShort)
+        Observation observation = point("embabel.planning", "planning " + goalShort)
                 .lowCardinalityKeyValue("gen_ai.operation.name", "planning")
                 .lowCardinalityKeyValue("embabel.plan.goal", goalName)
                 .lowCardinalityKeyValue("embabel.plan.goal_short", goalShort)
@@ -207,9 +203,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener {
     }
 
     private void recordReplan(ReplanRequestedEvent event) {
-        Observation observation = Observation.createNotStarted("embabel.replan", registry)
-                .parentObservation(registry.getCurrentObservation())
-                .contextualName("replan")
+        Observation observation = point("embabel.replan", "replan")
                 .lowCardinalityKeyValue("gen_ai.operation.name", "replan")
                 .highCardinalityKeyValue("embabel.replan.reason", truncate(event.getReason()));
         emit(observation);
@@ -217,21 +211,18 @@ public class EmbabelSpanEventListener implements AgenticEventListener {
 
     private void recordRag(RagResponseEvent event) {
         RagResponse response = event.getRagResponse();
-        Observation observation = Observation.createNotStarted("embabel.rag", registry)
-                .parentObservation(registry.getCurrentObservation())
-                .contextualName("rag " + response.getService())
+        Observation observation = point("embabel.rag", "rag " + response.getService())
                 .lowCardinalityKeyValue("gen_ai.operation.name", "rag")
                 .lowCardinalityKeyValue("embabel.rag.service", response.getService())
-                .highCardinalityKeyValue("embabel.rag.query", response.getRequest().getQuery())
+                .highCardinalityKeyValue("embabel.rag.query", truncate(response.getRequest().getQuery()))
                 .highCardinalityKeyValue("embabel.rag.result_count",
                         String.valueOf(response.getResults().size()));
         emit(observation);
     }
 
     private void recordStateTransition(StateTransitionEvent event) {
-        Observation observation = Observation.createNotStarted("embabel.state_transition", registry)
-                .parentObservation(registry.getCurrentObservation())
-                .contextualName("state " + event.getNewState().getClass().getSimpleName())
+        Observation observation = point("embabel.state_transition",
+                "state " + event.getNewState().getClass().getSimpleName())
                 .lowCardinalityKeyValue("gen_ai.operation.name", "state_transition")
                 .lowCardinalityKeyValue("embabel.state.to", event.getNewState().getClass().getSimpleName())
                 .lowCardinalityKeyValue("embabel.state.from",
@@ -243,18 +234,15 @@ public class EmbabelSpanEventListener implements AgenticEventListener {
         if (!properties.isTraceLifecycleStates()) {
             return;
         }
-        Observation observation = Observation.createNotStarted("embabel.lifecycle", registry)
-                .parentObservation(registry.getCurrentObservation())
-                .contextualName(event.getAgentProcess().getStatus().name())
+        Observation observation = point("embabel.lifecycle", event.getAgentProcess().getStatus().name())
                 .lowCardinalityKeyValue("gen_ai.operation.name", "lifecycle")
                 .lowCardinalityKeyValue("embabel.lifecycle.state", event.getAgentProcess().getStatus().name());
         emit(observation);
     }
 
     private void recordDynamicAgentCreation(DynamicAgentCreationEvent event) {
-        Observation observation = Observation.createNotStarted("embabel.dynamic_agent_creation", registry)
-                .parentObservation(registry.getCurrentObservation())
-                .contextualName("dynamic_agent " + event.getAgent().getName())
+        Observation observation = point("embabel.dynamic_agent_creation",
+                "dynamic_agent " + event.getAgent().getName())
                 .lowCardinalityKeyValue("gen_ai.operation.name", "dynamic_agent_creation")
                 .lowCardinalityKeyValue("embabel.agent.name", event.getAgent().getName())
                 .highCardinalityKeyValue("embabel.dynamic_agent.basis", String.valueOf(event.getBasis()));
@@ -262,9 +250,8 @@ public class EmbabelSpanEventListener implements AgenticEventListener {
     }
 
     private void recordRanking(RankingChoiceMadeEvent<?> event) {
-        Observation observation = Observation.createNotStarted("embabel.ranking", registry)
-                .parentObservation(registry.getCurrentObservation())
-                .contextualName("ranking " + event.getChoice().getMatch().getName())
+        Observation observation = point("embabel.ranking",
+                "ranking " + event.getChoice().getMatch().getName())
                 .lowCardinalityKeyValue("gen_ai.operation.name", "ranking")
                 .lowCardinalityKeyValue("embabel.ranking.choice", event.getChoice().getMatch().getName())
                 .highCardinalityKeyValue("embabel.ranking.score",
@@ -283,9 +270,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener {
      */
     private void recordToolCall(ToolCallResponseEvent event) {
         ToolCallRequestEvent request = event.getRequest();
-        Observation observation = Observation.createNotStarted("embabel.tool", registry)
-                .parentObservation(registry.getCurrentObservation())
-                .contextualName("execute_tool " + request.getTool())
+        Observation observation = point("embabel.tool", "execute_tool " + request.getTool())
                 .lowCardinalityKeyValue("gen_ai.operation.name", "execute_tool")
                 .lowCardinalityKeyValue("gen_ai.tool.name", request.getTool())
                 .lowCardinalityKeyValue("embabel.tool.name", request.getTool())
@@ -327,9 +312,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener {
      * span rather than enriching the closed span.
      */
     private void recordToolLoopCompleted(ToolLoopCompletedEvent event) {
-        Observation observation = Observation.createNotStarted("embabel.tool_loop.completed", registry)
-                .parentObservation(registry.getCurrentObservation())
-                .contextualName("tool-loop-completed")
+        Observation observation = point("embabel.tool_loop.completed", "tool-loop-completed")
                 .lowCardinalityKeyValue("gen_ai.operation.name", "tool_loop")
                 .lowCardinalityKeyValue("embabel.tool_loop.replan_requested",
                         String.valueOf(event.getReplanRequested()))
@@ -343,9 +326,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener {
 
     private void recordGoalAchieved(GoalAchievedEvent event) {
         String goalName = event.getGoal().getName();
-        Observation observation = Observation.createNotStarted("embabel.goal", registry)
-                .parentObservation(registry.getCurrentObservation())
-                .contextualName("goal " + ObservationUtils.shortName(goalName))
+        Observation observation = point("embabel.goal", "goal " + ObservationUtils.shortName(goalName))
                 .lowCardinalityKeyValue("gen_ai.operation.name", "goal_achieved")
                 .lowCardinalityKeyValue("embabel.goal.name", goalName)
                 .lowCardinalityKeyValue("embabel.goal.short_name", ObservationUtils.shortName(goalName));
@@ -358,9 +339,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener {
 
     /** Ranking that produced no choice: a span marked errored, so the failure is visible in the trace. */
     private void recordRankingCouldNotBeMade(RankingChoiceCouldNotBeMadeEvent<?> event) {
-        Observation observation = Observation.createNotStarted("embabel.ranking", registry)
-                .parentObservation(registry.getCurrentObservation())
-                .contextualName("ranking")
+        Observation observation = point("embabel.ranking", "ranking")
                 .lowCardinalityKeyValue("gen_ai.operation.name", "ranking")
                 .lowCardinalityKeyValue("embabel.ranking.choice", "none")
                 .highCardinalityKeyValue("embabel.ranking.type", event.getType().getSimpleName())
@@ -392,6 +371,18 @@ public class EmbabelSpanEventListener implements AgenticEventListener {
         if (cost > 0.0) {
             observation.highCardinalityKeyValue("embabel.llm.cost", String.valueOf(cost));
         }
+    }
+
+    /**
+     * Start a point observation, parented under the current observation. Centralizing the
+     * {@code parentObservation(registry.getCurrentObservation())} call guarantees every point span
+     * nests under the live agent/action/tool-loop/LLM span instead of becoming an orphan root —
+     * a mistake easy to make by omission when each {@code record*} method wires it by hand.
+     */
+    private Observation point(String name, String contextualName) {
+        return Observation.createNotStarted(name, registry)
+                .parentObservation(registry.getCurrentObservation())
+                .contextualName(contextualName);
     }
 
     /** Open and immediately close the observation: a point span marking the completed invocation. */
