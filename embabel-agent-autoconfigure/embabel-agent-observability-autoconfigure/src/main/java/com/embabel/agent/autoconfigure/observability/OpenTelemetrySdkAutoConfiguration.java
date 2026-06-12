@@ -56,7 +56,7 @@ import java.util.Objects;
 @AutoConfigureOrder(Ordered.LOWEST_PRECEDENCE - 10)
 @EnableConfigurationProperties(ObservabilityProperties.class)
 @ConditionalOnClass({SdkTracerProvider.class, OpenTelemetry.class})
-@ConditionalOnProperty(prefix = "embabel.observability", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "embabel.observability", name = {"enabled", "tracing-enabled"}, havingValue = "true", matchIfMissing = true)
 public class OpenTelemetrySdkAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(OpenTelemetrySdkAutoConfiguration.class);

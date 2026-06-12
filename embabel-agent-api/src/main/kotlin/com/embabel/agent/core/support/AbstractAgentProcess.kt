@@ -24,6 +24,9 @@ import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.StuckHandlingResultCode
 import com.embabel.agent.api.common.ToolsStats
 import com.embabel.agent.api.event.*
+import com.embabel.agent.api.event.observation.ActionObservationContext
+import com.embabel.agent.api.event.observation.AgentObservationContext
+import com.embabel.agent.api.event.observation.Observations
 import com.embabel.agent.core.*
 import com.embabel.agent.core.AgentProcess.Companion.withCurrent
 import com.embabel.agent.spi.DelayedActionExecutionSchedule
@@ -325,7 +328,18 @@ abstract class AbstractAgentProcess(
         if (!makeRunning()) {
             return this
         }
+        return Observations.observeOrSkip(
+            platformServices.observationRegistry,
+            "embabel.agent",
+            { AgentObservationContext(this) },
+        ) { executeTurn() }
+    }
 
+    /**
+     * Execute one turn: plan and tick until the status leaves RUNNING, then emit the terminal
+     * lifecycle event. Wrapped in the `embabel.agent` span by [run] when observability is configured.
+     */
+    private fun executeTurn(): AgentProcess {
         if (agent.goals.isEmpty() && processOptions.plannerType.needsGoals) {
             logger.info("🛑 Process {} has no goals: {}", this.id, agent.goals)
             error("Agent ${agent.name} has no goals: ${agent.infoString(verbose = true)}")
@@ -503,7 +517,14 @@ abstract class AbstractAgentProcess(
     /**
      * Execute an action
      */
-    protected fun executeAction(action: Action): ActionStatus {
+    protected fun executeAction(action: Action): ActionStatus =
+        Observations.observeOrSkip(
+            platformServices.observationRegistry,
+            "embabel.action",
+            { ActionObservationContext(this, action) },
+        ) { doExecuteAction(action) }
+
+    private fun doExecuteAction(action: Action): ActionStatus {
         val outputTypes: Map<String, DomainType> =
             action.outputs.associateBy({ it.name }, { agent.resolveType(it.type) })
         logger.debug(

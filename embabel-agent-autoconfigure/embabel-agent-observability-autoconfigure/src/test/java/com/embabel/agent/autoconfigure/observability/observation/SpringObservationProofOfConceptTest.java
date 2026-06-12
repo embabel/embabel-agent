@@ -266,7 +266,9 @@ class SpringObservationProofOfConceptTest {
                 .isEqualTo(rootSpanData.getTraceId());
     }
 
-    // Documents that neither Micrometer nor OTel context clearing helps when using Observation API -- this is WHY EmbabelTracingObservationHandler exists
+    // Documents that neither Micrometer nor OTel context clearing helps when using Observation API.
+    // This is harmless for direct instrumentation because observe{} never leaves a residual scope,
+    // so the standard DefaultTracingObservationHandler gives correct root semantics.
     @Test
     @DisplayName("Spring Observation API CANNOT create root spans with context clearing")
     void springObservation_cannotCreateRootSpans_documentedLimitation() {

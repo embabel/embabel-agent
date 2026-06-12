@@ -39,12 +39,6 @@ public class ObservabilityProperties {
     /** Service name for traces. */
     private String serviceName = "embabel-agent";
 
-    /** Tracer instrumentation name. */
-    private String tracerName = "embabel-agent";
-
-    /** Tracer version. */
-    private String tracerVersion = "0.3.4";
-
     /** Max attribute length before truncation. */
     private int maxAttributeLength = 4000;
 
@@ -69,6 +63,9 @@ public class ObservabilityProperties {
     /** Trace lifecycle states. */
     private boolean traceLifecycleStates = true;
 
+    /** Trace embedding invocations (model, token usage, cost). */
+    private boolean traceEmbedding = true;
+
     /** Trace RAG events (request, response, pipeline). */
     private boolean traceRag = true;
 
@@ -86,6 +83,14 @@ public class ObservabilityProperties {
 
     /** Propagate Embabel context (run_id, agent name, action name) into SLF4J MDC for log correlation. */
     private boolean mdcPropagation = true;
+
+    /**
+     * Master switch for tracing (spans). When false, no spans are produced regardless of the
+     * per-tier {@code trace-*} switches: the tracing handler, the span conventions and all span
+     * enrichment are disabled in one shot. Independent of {@link #metricsEnabled} — aggregated
+     * metrics keep flowing.
+     */
+    private boolean tracingEnabled = true;
 
     /** Enable/disable Micrometer business metrics (counters, gauges). */
     private boolean metricsEnabled = true;
@@ -122,38 +127,6 @@ public class ObservabilityProperties {
      */
     public void setServiceName(String serviceName) {
         this.serviceName = serviceName;
-    }
-
-    /**
-     * Returns the tracer instrumentation name.
-     * @return the tracer name
-     */
-    public String getTracerName() {
-        return tracerName;
-    }
-
-    /**
-     * Sets the tracer instrumentation name.
-     * @param tracerName the tracer name
-     */
-    public void setTracerName(String tracerName) {
-        this.tracerName = tracerName;
-    }
-
-    /**
-     * Returns the tracer version.
-     * @return the tracer version
-     */
-    public String getTracerVersion() {
-        return tracerVersion;
-    }
-
-    /**
-     * Sets the tracer version.
-     * @param tracerVersion the tracer version
-     */
-    public void setTracerVersion(String tracerVersion) {
-        this.tracerVersion = tracerVersion;
     }
 
     /**
@@ -285,6 +258,22 @@ public class ObservabilityProperties {
     }
 
     /**
+     * Returns whether embedding invocation tracing is enabled.
+     * @return true if embedding invocations are traced
+     */
+    public boolean isTraceEmbedding() {
+        return traceEmbedding;
+    }
+
+    /**
+     * Sets whether to trace embedding invocations.
+     * @param traceEmbedding true to trace embedding invocations
+     */
+    public void setTraceEmbedding(boolean traceEmbedding) {
+        this.traceEmbedding = traceEmbedding;
+    }
+
+    /**
      * Returns whether RAG events tracing is enabled.
      * @return true if RAG events are traced
      */
@@ -394,5 +383,22 @@ public class ObservabilityProperties {
      */
     public void setMetricsEnabled(boolean metricsEnabled) {
         this.metricsEnabled = metricsEnabled;
+    }
+
+    /**
+     * Returns whether tracing (spans) is enabled. Master switch over all {@code trace-*} switches.
+     * @return true if tracing is enabled
+     */
+    public boolean isTracingEnabled() {
+        return tracingEnabled;
+    }
+
+    /**
+     * Sets whether tracing (spans) is enabled. When false, all span production is disabled
+     * regardless of the per-tier {@code trace-*} switches.
+     * @param tracingEnabled true to enable tracing
+     */
+    public void setTracingEnabled(boolean tracingEnabled) {
+        this.tracingEnabled = tracingEnabled;
     }
 }

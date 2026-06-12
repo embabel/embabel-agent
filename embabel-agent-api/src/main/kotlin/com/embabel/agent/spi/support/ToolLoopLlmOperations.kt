@@ -19,6 +19,9 @@ import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.event.LlmInvocationEvent
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.event.ToolLoopStartEvent
+import com.embabel.agent.api.event.observation.LlmObservationContext
+import com.embabel.agent.api.event.observation.ToolLoopObservationContext
+import com.embabel.agent.api.event.observation.Observations
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.callback.AfterLlmCallContext
@@ -144,6 +147,22 @@ open class ToolLoopLlmOperations(
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>?,
     ): O {
+        if (llmRequestEvent == null) {
+            return doTransformInner(messages, interaction, outputClass, llmRequestEvent)
+        }
+        return Observations.observeOrSkip(
+            observationRegistry,
+            "embabel.llm",
+            { LlmObservationContext(llmRequestEvent) },
+        ) { doTransformInner(messages, interaction, outputClass, llmRequestEvent) }
+    }
+
+    private fun <O> doTransformInner(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+        llmRequestEvent: LlmRequestEvent<O>?,
+    ): O {
         val llm = chooseLlm(interaction.llm)
         val promptContributions = buildPromptContributions(interaction, llm)
 
@@ -196,11 +215,23 @@ open class ToolLoopLlmOperations(
         val tools = interaction.tools
         val toolLoopStartEvent = publishToolLoopStartEvent(llmRequestEvent, tools, interaction, outputClass)
 
-        val result = toolLoop.execute(
-            initialMessages = initialMessages,
-            initialTools = tools,
-            outputParser = outputParser,
-        )
+        val executeLoop = {
+            toolLoop.execute(
+                initialMessages = initialMessages,
+                initialTools = tools,
+                outputParser = outputParser,
+            )
+        }
+        val result = if (toolLoopStartEvent == null) {
+            executeLoop()
+        } else {
+            Observations.observeOrSkip(
+                observationRegistry,
+                "embabel.tool_loop",
+                { ToolLoopObservationContext(toolLoopStartEvent) },
+                executeLoop,
+            )
+        }
 
         handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent)
 

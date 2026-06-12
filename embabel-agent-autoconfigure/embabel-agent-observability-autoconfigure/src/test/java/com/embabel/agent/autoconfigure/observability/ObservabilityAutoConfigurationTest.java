@@ -19,7 +19,6 @@ import com.embabel.agent.observability.ObservabilityProperties;
 import com.embabel.agent.observability.metrics.EmbabelMetricsEventListener;
 import com.embabel.agent.observability.observation.ChatModelObservationFilter;
 import com.embabel.agent.observability.mdc.MdcPropagationEventListener;
-import com.embabel.agent.observability.observation.EmbabelFullObservationEventListener;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
@@ -43,42 +42,36 @@ class ObservabilityAutoConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(ObservabilityAutoConfiguration.class));
 
-    // --- Event Listener creation ---
+    // --- Span conventions customizer creation ---
+
+    private static final String CONVENTIONS_BEAN = "embabelSpanConventionsCustomizer";
 
     @Test
-    void eventListener_shouldBeCreated_byDefault() {
+    void spanConventionsCustomizer_shouldBeCreated_byDefault() {
         contextRunner
                 .withUserConfiguration(ObservationRegistryConfig.class)
                 .run(context -> {
-                    assertThat(context).hasSingleBean(EmbabelFullObservationEventListener.class);
+                    assertThat(context).hasBean(CONVENTIONS_BEAN);
                 });
     }
 
     @Test
-    void eventListener_shouldNotBeCreated_whenDisabled() {
+    void spanConventionsCustomizer_shouldNotBeCreated_whenDisabled() {
         contextRunner
                 .withUserConfiguration(ObservationRegistryConfig.class)
                 .withPropertyValues("embabel.observability.enabled=false")
                 .run(context -> {
-                    assertThat(context).doesNotHaveBean(EmbabelFullObservationEventListener.class);
+                    assertThat(context).doesNotHaveBean(CONVENTIONS_BEAN);
                 });
     }
 
     @Test
-    void eventListener_shouldNotBeCreated_whenTraceAgentEventsDisabled() {
+    void spanConventionsCustomizer_shouldNotBeCreated_whenTraceAgentEventsDisabled() {
         contextRunner
                 .withUserConfiguration(ObservationRegistryConfig.class)
                 .withPropertyValues("embabel.observability.trace-agent-events=false")
                 .run(context -> {
-                    assertThat(context).doesNotHaveBean(EmbabelFullObservationEventListener.class);
-                });
-    }
-
-    @Test
-    void eventListener_shouldNotBeCreated_whenNoObservationRegistry() {
-        contextRunner
-                .run(context -> {
-                    assertThat(context).doesNotHaveBean(EmbabelFullObservationEventListener.class);
+                    assertThat(context).doesNotHaveBean(CONVENTIONS_BEAN);
                 });
     }
 
@@ -100,6 +93,41 @@ class ObservabilityAutoConfigurationTest {
                 .withPropertyValues("embabel.observability.trace-llm-calls=false")
                 .run(context -> {
                     assertThat(context).doesNotHaveBean(ChatModelObservationFilter.class);
+                });
+    }
+
+    // --- Umbrella tracing-enabled switch ---
+
+    @Test
+    void tracingDisabled_killsSpanConventions() {
+        contextRunner
+                .withUserConfiguration(ObservationRegistryConfig.class)
+                .withPropertyValues("embabel.observability.tracing-enabled=false")
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(CONVENTIONS_BEAN);
+                });
+    }
+
+    @Test
+    void tracingDisabled_killsChatModelFilter_evenIfTraceLlmCallsTrue() {
+        contextRunner
+                .withUserConfiguration(ObservationRegistryConfig.class)
+                .withPropertyValues(
+                        "embabel.observability.tracing-enabled=false",
+                        "embabel.observability.trace-llm-calls=true"
+                )
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(ChatModelObservationFilter.class);
+                });
+    }
+
+    @Test
+    void tracingDisabled_keepsMetricsListener() {
+        contextRunner
+                .withUserConfiguration(ObservationRegistryConfig.class, MeterRegistryConfig.class)
+                .withPropertyValues("embabel.observability.tracing-enabled=false")
+                .run(context -> {
+                    assertThat(context).hasSingleBean(EmbabelMetricsEventListener.class);
                 });
     }
 

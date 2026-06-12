@@ -28,6 +28,7 @@ import com.embabel.chat.ConversationFactoryProvider
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.micrometer.observation.ObservationRegistry
 
 /**
  * Services used by the platform and available to user-authored code.
@@ -68,6 +69,14 @@ interface PlatformServices {
     val outputChannel: OutputChannel
 
     val templateRenderer: TemplateRenderer
+
+    /**
+     * Registry for direct Micrometer instrumentation (`observe{}`) of the core span tree.
+     * Defaults to [ObservationRegistry.NOOP] so instrumentation is a pure no-op until an
+     * observability module is configured; Spring-backed implementations resolve the real bean.
+     */
+    val observationRegistry: ObservationRegistry
+        get() = ObservationRegistry.NOOP
 
     fun autonomy(): Autonomy
 

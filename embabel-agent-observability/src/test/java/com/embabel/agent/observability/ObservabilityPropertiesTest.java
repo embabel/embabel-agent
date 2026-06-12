@@ -31,8 +31,6 @@ class ObservabilityPropertiesTest {
 
         assertThat(props.isEnabled()).isTrue();
         assertThat(props.getServiceName()).isEqualTo("embabel-agent");
-        assertThat(props.getTracerName()).isEqualTo("embabel-agent");
-        assertThat(props.getTracerVersion()).isEqualTo("0.3.4");
         assertThat(props.getMaxAttributeLength()).isEqualTo(4000);
     }
 
@@ -68,26 +66,6 @@ class ObservabilityPropertiesTest {
         assertThat(props.getServiceName()).isEqualTo("custom-service");
         assertThat(props.getMaxAttributeLength()).isEqualTo(1000);
         assertThat(props.isTraceToolCalls()).isFalse();
-    }
-
-    // Test tracerName setter
-    @Test
-    void setTracerName_shouldUpdateValue() {
-        ObservabilityProperties props = new ObservabilityProperties();
-
-        props.setTracerName("custom-tracer");
-
-        assertThat(props.getTracerName()).isEqualTo("custom-tracer");
-    }
-
-    // Test tracerVersion setter
-    @Test
-    void setTracerVersion_shouldUpdateValue() {
-        ObservabilityProperties props = new ObservabilityProperties();
-
-        props.setTracerVersion("1.0.0");
-
-        assertThat(props.getTracerVersion()).isEqualTo("1.0.0");
     }
 
     // Test all trace flag setters

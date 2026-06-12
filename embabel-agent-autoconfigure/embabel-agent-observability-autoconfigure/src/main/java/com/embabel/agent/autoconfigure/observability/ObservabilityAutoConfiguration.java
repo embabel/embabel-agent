@@ -15,16 +15,20 @@
  */
 package com.embabel.agent.autoconfigure.observability;
 
-import com.embabel.agent.api.event.AgenticEventListener;
 import com.embabel.agent.observability.ObservabilityProperties;
 import com.embabel.agent.observability.mdc.MdcPropagationEventListener;
 import com.embabel.agent.observability.observation.ChatModelObservationFilter;
-import com.embabel.agent.observability.observation.EmbabelFullObservationEventListener;
+import com.embabel.agent.observability.observation.EmbabelActionObservationConvention;
+import com.embabel.agent.observability.observation.EmbabelAgentObservationConvention;
+import com.embabel.agent.observability.observation.EmbabelLlmObservationConvention;
+import com.embabel.agent.observability.observation.EmbabelSpanEventListener;
+import com.embabel.agent.observability.observation.EmbabelToolLoopObservationConvention;
 import com.embabel.agent.observability.metrics.EmbabelMetricsEventListener;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.actuate.autoconfigure.observation.ObservationRegistryCustomizer;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -56,20 +60,75 @@ public class ObservabilityAutoConfiguration {
     private static final Logger log = LoggerFactory.getLogger(ObservabilityAutoConfiguration.class);
 
     /**
-     * Creates the event listener using Spring Observation API.
+     * Registers the four global span conventions (agent, action, tool loop, LLM call) on the
+     * ObservationRegistry. The core opens each observation with a thin context and a name only;
+     * these conventions — matched by context type — supply all attributes. This replaces the
+     * legacy event-listener span reconstruction with direct Micrometer instrumentation.
      *
-     * @param observationRegistry the ObservationRegistry
+     * @return a customizer registering the four conventions
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "embabel.observability", name = {"tracing-enabled", "trace-agent-events"}, havingValue = "true", matchIfMissing = true)
+    public ObservationRegistryCustomizer<ObservationRegistry> embabelSpanConventionsCustomizer(ObservabilityProperties properties) {
+        log.info("Registering Embabel span conventions (agent, action, tool_loop, llm) for direct Micrometer instrumentation");
+        int maxAttributeLength = properties.getMaxAttributeLength();
+        return registry -> registry.observationConfig()
+                .observationConvention(new EmbabelAgentObservationConvention(maxAttributeLength))
+                .observationConvention(new EmbabelActionObservationConvention(maxAttributeLength))
+                .observationConvention(new EmbabelToolLoopObservationConvention())
+                .observationConvention(new EmbabelLlmObservationConvention());
+    }
+
+    /**
+     * Disables span tiers by name without coupling the core to any flag, via an
+     * {@link io.micrometer.observation.ObservationPredicate}:
+     * <ul>
+     *   <li>Spring AI's native {@code tool call} span is <em>always</em> dropped — Embabel emits its
+     *       own richer {@code embabel.tool} point span (correlation id, tool group, status, error,
+     *       duration) from {@code ToolCallResponseEvent}, gated by {@code trace-tool-calls}. Keeping
+     *       both would double every tool span.</li>
+     *   <li>the core-produced {@code embabel.tool_loop} span is dropped when
+     *       {@code trace-tool-loop=false}.</li>
+     * </ul>
+     * A suppressed observation becomes a no-op, so its children simply re-parent to the next live
+     * ancestor.
+     *
+     * @param properties the observability properties (read at observation time)
+     * @return a customizer registering the tier filter
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "embabel.observability", name = "tracing-enabled", havingValue = "true", matchIfMissing = true)
+    public ObservationRegistryCustomizer<ObservationRegistry> embabelTierFilterCustomizer(ObservabilityProperties properties) {
+        return registry -> registry.observationConfig().observationPredicate((name, context) -> {
+            if ("tool call".equals(name)) {
+                return false;
+            }
+            if (!properties.isTraceToolLoop() && "embabel.tool_loop".equals(name)) {
+                return false;
+            }
+            return true;
+        });
+    }
+
+    /**
+     * Event-driven listener that emits instantaneous spans for point events (LLM and embedding
+     * invocations: model, token usage, cost; plus planning, RAG, ranking, state transitions and
+     * lifecycle states) as children of the current observation. These events hold no scope, so a
+     * listener is safe (no leaks). Each type is gated by its own {@code trace-*} switch inside the
+     * listener.
+     *
+     * @param observationRegistry the ObservationRegistry the spans are emitted on
      * @param properties the observability properties
-     * @return the configured event listener
+     * @return the span-emitting event listener
      */
     @Bean
     @ConditionalOnBean(ObservationRegistry.class)
-    @ConditionalOnProperty(prefix = "embabel.observability", name = "trace-agent-events", havingValue = "true", matchIfMissing = true)
-    public AgenticEventListener embabelObservationEventListener(
+    @ConditionalOnProperty(prefix = "embabel.observability", name = "tracing-enabled", havingValue = "true", matchIfMissing = true)
+    public EmbabelSpanEventListener embabelSpanEventListener(
             ObservationRegistry observationRegistry,
             ObservabilityProperties properties) {
-        log.info("Configuring Embabel Agent observability with Spring Observation API (traces + metrics)");
-        return new EmbabelFullObservationEventListener(observationRegistry, properties);
+        log.info("Configuring Embabel point-event span listener (LLM + embedding invocations)");
+        return new EmbabelSpanEventListener(observationRegistry, properties);
     }
 
     /**
@@ -128,7 +187,7 @@ public class ObservabilityAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnClass(name = "org.springframework.ai.chat.observation.ChatModelObservationContext")
-    @ConditionalOnProperty(prefix = "embabel.observability", name = "trace-llm-calls", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "embabel.observability", name = {"tracing-enabled", "trace-llm-calls"}, havingValue = "true", matchIfMissing = true)
     public ChatModelObservationFilter chatModelObservationFilter(ObservabilityProperties properties) {
         log.debug("Configuring ChatModel observation filter for LLM call tracing");
         return new ChatModelObservationFilter(properties.getMaxAttributeLength());

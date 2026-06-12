@@ -31,6 +31,7 @@ import com.embabel.chat.ConversationFactoryProvider
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.micrometer.observation.ObservationRegistry
 import org.springframework.beans.factory.getBean
 import org.springframework.beans.factory.getBeansOfType
 import org.springframework.context.ApplicationContext
@@ -64,6 +65,22 @@ data class SpringContextPlatformServices(
             }
         }
         LogicalExpressionParser.of(*parsers.toTypedArray())
+    }
+
+    /**
+     * Resolves the [ObservationRegistry] bean, else [ObservationRegistry.NOOP] (e.g. unit tests).
+     *
+     * Resolved lazily (on first access, not at construction) to follow the same pattern as
+     * [autonomy], [modelProvider] and [actionQosProperties]: this avoids touching the application
+     * context at construction time, so existing tests that build this service with a strict mock
+     * context — but never read the registry — keep working unchanged.
+     */
+    override val observationRegistry: ObservationRegistry by lazy {
+        applicationContext
+            ?.getBeansOfType<ObservationRegistry>()
+            ?.values
+            ?.firstOrNull()
+            ?: ObservationRegistry.NOOP
     }
 
     override fun withEventListener(agenticEventListener: AgenticEventListener): PlatformServices {
