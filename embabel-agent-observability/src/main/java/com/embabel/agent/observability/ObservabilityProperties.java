@@ -60,8 +60,19 @@ public class ObservabilityProperties {
     /** Max attribute length before truncation. */
     private int maxAttributeLength = 4000;
 
-    /** Trace agent events (agents, actions, goals). */
+    /**
+     * Umbrella switch for the core scoped span tier (agent, action, tool_loop, llm). When false, all
+     * four scoped spans are suppressed at once and their conventions are not registered. For
+     * per-span control while keeping the tier on, use {@link #traceAgent}, {@link #traceAction},
+     * {@link #traceToolLoop} and {@link #traceLlmCalls}.
+     */
     private boolean traceAgentEvents = true;
+
+    /** Trace the {@code embabel.agent} scoped span (one run turn). Requires {@link #traceAgentEvents}. */
+    private boolean traceAgent = true;
+
+    /** Trace the {@code embabel.action} scoped span. Requires {@link #traceAgentEvents}. */
+    private boolean traceAction = true;
 
     /** Trace tool calls. */
     private boolean traceToolCalls = true;
@@ -177,6 +188,38 @@ public class ObservabilityProperties {
      */
     public void setTraceAgentEvents(boolean traceAgentEvents) {
         this.traceAgentEvents = traceAgentEvents;
+    }
+
+    /**
+     * Returns whether the {@code embabel.agent} scoped span is traced.
+     * @return true if the agent span is traced
+     */
+    public boolean isTraceAgent() {
+        return traceAgent;
+    }
+
+    /**
+     * Sets whether to trace the {@code embabel.agent} scoped span.
+     * @param traceAgent true to trace the agent span
+     */
+    public void setTraceAgent(boolean traceAgent) {
+        this.traceAgent = traceAgent;
+    }
+
+    /**
+     * Returns whether the {@code embabel.action} scoped span is traced.
+     * @return true if the action span is traced
+     */
+    public boolean isTraceAction() {
+        return traceAction;
+    }
+
+    /**
+     * Sets whether to trace the {@code embabel.action} scoped span.
+     * @param traceAction true to trace the action span
+     */
+    public void setTraceAction(boolean traceAction) {
+        this.traceAction = traceAction;
     }
 
     /**

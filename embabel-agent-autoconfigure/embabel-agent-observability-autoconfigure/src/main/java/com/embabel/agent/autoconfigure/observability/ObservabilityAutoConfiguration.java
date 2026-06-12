@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.autoconfigure.observability;
 
+import com.embabel.agent.api.event.observation.Observations;
 import com.embabel.agent.observability.ObservabilityProperties;
 import com.embabel.agent.observability.mdc.MdcPropagationEventListener;
 import com.embabel.agent.observability.observation.ChatModelObservationFilter;
@@ -108,6 +109,25 @@ public class ObservabilityAutoConfiguration {
                 return false;
             }
             if ("tool call".equals(name)) {
+                return false;
+            }
+            // trace-agent-events=false suppresses the whole core scoped span tier
+            // (agent/action/tool_loop/llm). With the conventions un-registered, those four spans
+            // all carry the placeholder name (Observations.PLACEHOLDER_NAME) — exclusive to them —
+            // so dropping it removes the tier in one rule without coupling the core to any flag.
+            if (!properties.isTraceAgentEvents() && Observations.PLACEHOLDER_NAME.equals(name)) {
+                return false;
+            }
+            // Per-span control of the core scoped tier, by semantic name (effective when the
+            // conventions are registered, i.e. trace-agent-events=true). trace-llm-calls also drops
+            // the scoped embabel.llm span here, in addition to its llm.invocation point span.
+            if (!properties.isTraceAgent() && "embabel.agent".equals(name)) {
+                return false;
+            }
+            if (!properties.isTraceAction() && "embabel.action".equals(name)) {
+                return false;
+            }
+            if (!properties.isTraceLlmCalls() && "embabel.llm".equals(name)) {
                 return false;
             }
             if (!properties.isTraceToolLoop() && "embabel.tool_loop".equals(name)) {

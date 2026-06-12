@@ -241,10 +241,12 @@ Your agents are now fully traced. No code changes required.
 | `embabel.observability.tracing-enabled` | `true` | **Umbrella switch for tracing (spans).** When `false`, no spans are produced regardless of the per-tier `trace-*` switches below. Independent of `metrics-enabled` |
 | `embabel.observability.metrics-enabled` | `true` | Enable/disable Micrometer business metrics (independent of tracing) |
 | `embabel.observability.service-name` | `embabel-agent` | Service name in traces |
-| `embabel.observability.trace-agent-events` | `true` | Register the agent/action/tool-loop/LLM span conventions |
+| `embabel.observability.trace-agent-events` | `true` | **Umbrella** for the core scoped span tier (`embabel.agent`/`embabel.action`/`embabel.tool_loop`/`embabel.llm`). When `false`, the conventions are not registered **and** all four spans are dropped by the tier filter — the whole core tier is suppressed (point spans still emit). For per-span control keep this `true` and use the four switches below |
+| `embabel.observability.trace-agent` | `true` | Trace the `embabel.agent` scoped span (one run turn). Effective when `trace-agent-events=true` |
+| `embabel.observability.trace-action` | `true` | Trace the `embabel.action` scoped span. Effective when `trace-agent-events=true` |
 | `embabel.observability.trace-tool-calls` | `true` | Trace tool invocations (`embabel.tool` span) |
-| `embabel.observability.trace-tool-loop` | `true` | Trace tool loop execution (`embabel.tool_loop` + `embabel.tool_loop.completed` spans) |
-| `embabel.observability.trace-llm-calls` | `true` | Trace LLM invocations (`embabel.llm.invocation` span: model, tokens, cost) |
+| `embabel.observability.trace-tool-loop` | `true` | Trace tool loop execution (`embabel.tool_loop` scoped span + `embabel.tool_loop.completed` point span) |
+| `embabel.observability.trace-llm-calls` | `true` | Trace LLM calls: the `embabel.llm` scoped span **and** the `embabel.llm.invocation` point span (model, tokens, cost), plus the Spring AI ChatModel filter |
 | `embabel.observability.trace-embedding` | `true` | Trace embedding invocations (`embabel.embedding` span: model, tokens, cost) |
 | `embabel.observability.trace-planning` | `true` | Trace plan formulation (`embabel.planning`) and replan requests (`embabel.replan`) |
 | `embabel.observability.trace-state-transitions` | `true` | Trace state transitions (`embabel.state_transition` span) |

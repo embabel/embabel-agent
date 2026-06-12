@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.autoconfigure.observability;
 
+import com.embabel.agent.api.event.observation.Observations;
 import com.embabel.agent.observability.ObservabilityProperties;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;
@@ -146,6 +147,91 @@ class TierFilterPredicateTest {
 
         assertFalse(recorded("embabel.tool_loop"));
         assertFalse(recorded("tool call"));
+    }
+
+    @Test
+    @DisplayName("trace-agent-events=false drops the core scoped span tier (placeholder name)")
+    void traceAgentEventsFalseDropsCoreScopedTier() {
+        ObservabilityProperties properties = new ObservabilityProperties();
+        properties.setTraceAgentEvents(false);
+        applyFilter(properties);
+
+        // With the conventions un-registered, agent/action/tool_loop/llm all carry the placeholder
+        // name; dropping it suppresses the whole core scoped span tier in one rule.
+        observe(Observations.PLACEHOLDER_NAME);
+
+        assertFalse(recorded(Observations.PLACEHOLDER_NAME),
+                "trace-agent-events=false suppresses the core scoped spans, not just their attributes");
+    }
+
+    @Test
+    @DisplayName("trace-agent-events=true (default) keeps the core scoped spans")
+    void traceAgentEventsTrueKeepsCoreScopedTier() {
+        applyFilter(new ObservabilityProperties()); // default: trace-agent-events=true
+
+        observe(Observations.PLACEHOLDER_NAME);
+
+        assertTrue(recorded(Observations.PLACEHOLDER_NAME));
+    }
+
+    @Test
+    @DisplayName("trace-agent-events=false leaves point spans untouched (only the core tier is dropped)")
+    void traceAgentEventsFalseKeepsPointSpans() {
+        ObservabilityProperties properties = new ObservabilityProperties();
+        properties.setTraceAgentEvents(false);
+        applyFilter(properties);
+
+        observe("embabel.embedding");
+        observe("embabel.llm.invocation");
+
+        assertTrue(recorded("embabel.embedding"), "point spans are unaffected by trace-agent-events");
+        assertTrue(recorded("embabel.llm.invocation"));
+    }
+
+    @Test
+    @DisplayName("trace-agent=false drops only embabel.agent, leaving action/llm/tool_loop")
+    void traceAgentFalseDropsOnlyAgent() {
+        ObservabilityProperties properties = new ObservabilityProperties();
+        properties.setTraceAgent(false);
+        applyFilter(properties);
+
+        observe("embabel.agent");
+        observe("embabel.action");
+        observe("embabel.llm");
+        observe("embabel.tool_loop");
+
+        assertFalse(recorded("embabel.agent"), "embabel.agent dropped");
+        assertTrue(recorded("embabel.action"), "embabel.action kept");
+        assertTrue(recorded("embabel.llm"), "embabel.llm kept");
+        assertTrue(recorded("embabel.tool_loop"), "embabel.tool_loop kept");
+    }
+
+    @Test
+    @DisplayName("trace-action=false drops only embabel.action")
+    void traceActionFalseDropsOnlyAction() {
+        ObservabilityProperties properties = new ObservabilityProperties();
+        properties.setTraceAction(false);
+        applyFilter(properties);
+
+        observe("embabel.agent");
+        observe("embabel.action");
+
+        assertTrue(recorded("embabel.agent"), "embabel.agent kept");
+        assertFalse(recorded("embabel.action"), "embabel.action dropped");
+    }
+
+    @Test
+    @DisplayName("trace-llm-calls=false drops the scoped embabel.llm span")
+    void traceLlmCallsFalseDropsScopedLlm() {
+        ObservabilityProperties properties = new ObservabilityProperties();
+        properties.setTraceLlmCalls(false);
+        applyFilter(properties);
+
+        observe("embabel.agent");
+        observe("embabel.llm");
+
+        assertTrue(recorded("embabel.agent"), "embabel.agent kept");
+        assertFalse(recorded("embabel.llm"), "scoped embabel.llm dropped by trace-llm-calls");
     }
 
     @Test
