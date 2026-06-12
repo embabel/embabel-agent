@@ -113,6 +113,7 @@ class EmbabelObservationConventionsTest {
             lenient().when(process.getId()).thenReturn("run-1");
             lenient().when(process.getParentId()).thenReturn(parentId);
             lenient().when(process.getProcessOptions().getPlannerType()).thenReturn(PlannerType.GOAP);
+            lenient().when(process.getProcessOptions().getIdentities().getForUser()).thenReturn(null);
             lenient().when(process.getStatus()).thenReturn(status);
             lenient().when(process.getGoal()).thenReturn(null);
             lenient().when(process.objectsOfType(Conversation.class)).thenReturn(conversations);
@@ -189,6 +190,46 @@ class EmbabelObservationConventionsTest {
             assertEquals("user-7", kv.get("user.id"));
             assertEquals("true", kv.get("embabel.agent.is_subagent"));
             assertEquals("parent-2", kv.get("embabel.parent.id"));
+        }
+
+        @Test
+        @DisplayName("user.id resolves from ProcessOptions identities.forUser (the chat path) when none on the blackboard")
+        void resolvesUserFromIdentitiesWhenNotOnBlackboard() {
+            // The chatbot carries the user in ProcessOptions.identities.forUser, not on the
+            // blackboard — the same source OperationContext.user() reads. Without this, chat
+            // turns get a conversation.id but never a user.id.
+            User identityUser = mock(User.class);
+            when(identityUser.getId()).thenReturn("user-from-identities");
+
+            AgentProcess process = process(AgentProcessStatusCode.RUNNING, null,
+                    List.of(), List.of());
+            when(process.getProcessOptions().getIdentities().getForUser()).thenReturn(identityUser);
+            AgentObservationContext ctx = new AgentObservationContext(process);
+
+            Map<String, String> kv = allKeyValues(
+                    observe(new EmbabelAgentObservationConvention(4000), ctx, "embabel.agent"));
+
+            assertEquals("user-from-identities", kv.get("user.id"));
+        }
+
+        @Test
+        @DisplayName("identities.forUser takes precedence over a User on the blackboard")
+        void identitiesUserTakesPrecedenceOverBlackboard() {
+            User identityUser = mock(User.class);
+            when(identityUser.getId()).thenReturn("user-from-identities");
+            User blackboardUser = mock(User.class);
+            lenient().when(blackboardUser.getId()).thenReturn("user-from-blackboard");
+
+            AgentProcess process = process(AgentProcessStatusCode.RUNNING, null,
+                    List.of(), List.of(blackboardUser));
+            when(process.getProcessOptions().getIdentities().getForUser()).thenReturn(identityUser);
+            AgentObservationContext ctx = new AgentObservationContext(process);
+
+            Map<String, String> kv = allKeyValues(
+                    observe(new EmbabelAgentObservationConvention(4000), ctx, "embabel.agent"));
+
+            assertEquals("user-from-identities", kv.get("user.id"),
+                    "the canonical process identity wins over a blackboard User object");
         }
 
         @Test

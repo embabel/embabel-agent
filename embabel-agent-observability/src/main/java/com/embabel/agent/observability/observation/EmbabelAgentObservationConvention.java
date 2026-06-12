@@ -119,8 +119,18 @@ public class EmbabelAgentObservationConvention
         return process.getId();
     }
 
-    /** User id from the last {@link User} bound on the blackboard, for per-user grouping; null if none. */
+    /**
+     * User id for per-user grouping (e.g. Langfuse). Prefers the canonical process identity
+     * {@code ProcessOptions.identities.forUser} — the same source {@code OperationContext.user()}
+     * reads, and where the chatbot binds the user — so chat turns carry a {@code user.id}, not just a
+     * conversation id. Falls back to the last {@link User} bound on the blackboard (for agents that
+     * place a User as a domain object). Null if neither is present.
+     */
     private static String userId(AgentProcess process) {
+        User forUser = process.getProcessOptions().getIdentities().getForUser();
+        if (forUser != null) {
+            return forUser.getId();
+        }
         List<User> users = process.objectsOfType(User.class);
         if (!users.isEmpty()) {
             return users.get(users.size() - 1).getId();
