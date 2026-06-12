@@ -76,7 +76,7 @@ public class ObservabilityAutoConfiguration {
                 .observationConvention(new EmbabelAgentObservationConvention(maxAttributeLength))
                 .observationConvention(new EmbabelActionObservationConvention(maxAttributeLength))
                 .observationConvention(new EmbabelToolLoopObservationConvention(maxAttributeLength))
-                .observationConvention(new EmbabelLlmObservationConvention());
+                .observationConvention(new EmbabelLlmObservationConvention(maxAttributeLength));
     }
 
     /**

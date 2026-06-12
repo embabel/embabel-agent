@@ -105,6 +105,20 @@ class TrackedAspectAutoConfigurationTest {
    }
 
    /**
+    * Verifies that disabling tracing globally also backs off the tracked aspect: it is a tracing
+    * feature, so it must honour the {@code tracing-enabled} master switch like the other tracing beans.
+    */
+   @Test
+   void trackedAspectNotCreatedWhenTracingDisabled() {
+      // Arrange
+      contextRunner
+              .withUserConfiguration(TrackedAspectDependenciesConfig.class)
+              .withPropertyValues("embabel.observability.tracing-enabled=false")
+              // Act
+              .run(context -> assertThat(context).doesNotHaveBean(TrackedAspect.class));
+   }
+
+   /**
     * Supplies the minimal dependencies needed for the tracked-aspect auto-configuration to create its aspect bean.
     */
    @Configuration

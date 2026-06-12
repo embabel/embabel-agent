@@ -17,6 +17,8 @@ package com.embabel.agent.observability;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -41,15 +43,29 @@ class ObservabilityPropertiesTest {
 
         assertThat(props.isTraceAgentEvents()).isTrue();
         assertThat(props.isTraceToolCalls()).isTrue();
+        assertThat(props.isTraceToolLoop()).isTrue();
         assertThat(props.isTraceLlmCalls()).isTrue();
+        assertThat(props.isTraceEmbedding()).isTrue();
         assertThat(props.isTracePlanning()).isTrue();
         assertThat(props.isTraceStateTransitions()).isTrue();
         assertThat(props.isTraceLifecycleStates()).isTrue();
         assertThat(props.isTraceRag()).isTrue();
         assertThat(props.isTraceRanking()).isTrue();
         assertThat(props.isTraceDynamicAgentCreation()).isTrue();
-        // HTTP details enabled by default
-        assertThat(props.isTraceHttpDetails()).isTrue();
+        assertThat(props.isTraceTrackedOperations()).isTrue();
+        // HTTP details disabled by default (captures bodies/headers; opt-in only)
+        assertThat(props.isTraceHttpDetails()).isFalse();
+    }
+
+    // Test umbrella switches and MDC defaults
+    @Test
+    void umbrellaSwitches_shouldHaveCorrectDefaults() {
+        ObservabilityProperties props = new ObservabilityProperties();
+
+        assertThat(props.isTracingEnabled()).isTrue();
+        assertThat(props.isMetricsEnabled()).isTrue();
+        assertThat(props.isMdcPropagation()).isTrue();
+        assertThat(props.getDisabledTraces()).isEmpty();
     }
 
     // Test setters work correctly
@@ -143,11 +159,86 @@ class ObservabilityPropertiesTest {
 
     @Test
     void setTraceHttpDetails_shouldUpdateValue() {
-        var props = new ObservabilityProperties();
+        ObservabilityProperties props = new ObservabilityProperties();
 
         props.setTraceHttpDetails(true);
 
         assertThat(props.isTraceHttpDetails()).isTrue();
+    }
+
+    @Test
+    void setTraceToolLoop_shouldUpdateValue() {
+        ObservabilityProperties props = new ObservabilityProperties();
+
+        props.setTraceToolLoop(false);
+
+        assertThat(props.isTraceToolLoop()).isFalse();
+    }
+
+    @Test
+    void setTraceEmbedding_shouldUpdateValue() {
+        ObservabilityProperties props = new ObservabilityProperties();
+
+        props.setTraceEmbedding(false);
+
+        assertThat(props.isTraceEmbedding()).isFalse();
+    }
+
+    @Test
+    void setTraceTrackedOperations_shouldUpdateValue() {
+        ObservabilityProperties props = new ObservabilityProperties();
+
+        props.setTraceTrackedOperations(false);
+
+        assertThat(props.isTraceTrackedOperations()).isFalse();
+    }
+
+    @Test
+    void setTracingEnabled_shouldUpdateValue() {
+        ObservabilityProperties props = new ObservabilityProperties();
+
+        props.setTracingEnabled(false);
+
+        assertThat(props.isTracingEnabled()).isFalse();
+    }
+
+    @Test
+    void setMetricsEnabled_shouldUpdateValue() {
+        ObservabilityProperties props = new ObservabilityProperties();
+
+        props.setMetricsEnabled(false);
+
+        assertThat(props.isMetricsEnabled()).isFalse();
+    }
+
+    @Test
+    void setMdcPropagation_shouldUpdateValue() {
+        ObservabilityProperties props = new ObservabilityProperties();
+
+        props.setMdcPropagation(false);
+
+        assertThat(props.isMdcPropagation()).isFalse();
+    }
+
+    @Test
+    void setDisabledTraces_shouldUpdateValue() {
+        ObservabilityProperties props = new ObservabilityProperties();
+
+        props.setDisabledTraces(List.of("tasks.scheduled.execution", "http.server.requests"));
+
+        assertThat(props.getDisabledTraces())
+                .containsExactly("tasks.scheduled.execution", "http.server.requests");
+    }
+
+    // null is coalesced to an empty list so callers never get an NPE
+    @Test
+    void setDisabledTraces_shouldCoalesceNullToEmptyList() {
+        ObservabilityProperties props = new ObservabilityProperties();
+        props.setDisabledTraces(List.of("http.server.requests"));
+
+        props.setDisabledTraces(null);
+
+        assertThat(props.getDisabledTraces()).isNotNull().isEmpty();
     }
 
 }

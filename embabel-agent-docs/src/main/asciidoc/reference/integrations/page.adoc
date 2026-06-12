@@ -970,7 +970,23 @@ All tracing options are enabled by default and can be toggled individually:
 |`embabel.observability.max-attribute-length`
 |`4000`
 |Max span attribute length before truncation
+
+|`embabel.observability.disabled-traces`
+|`[]` (empty)
+|List of observation names to suppress, matched by *exact* name. Lets you drop non-Embabel infrastructure spans you don't want exported (e.g. `tasks.scheduled.execution`, `http.server.requests`, `http.client.requests`) without code. Embabel's own spans are named `embabel.*`; list one only if you really want to drop it. A suppressed observation becomes a no-op, so its children re-parent to the next live ancestor
 |===
+
+For example, to keep Embabel's agent traces but stop exporting Spring's scheduled-task and
+incoming-HTTP spans:
+
+[source,yaml]
+----
+embabel:
+  observability:
+    disabled-traces:
+      - tasks.scheduled.execution
+      - http.server.requests
+----
 
 ===== Custom Operation Tracking with `@Tracked`
 

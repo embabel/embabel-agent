@@ -23,6 +23,7 @@ import io.micrometer.tracing.handler.DefaultTracingObservationHandler;
 import io.micrometer.tracing.otel.bridge.OtelBaggageManager;
 import io.micrometer.tracing.otel.bridge.OtelCurrentTraceContext;
 import io.micrometer.tracing.otel.bridge.OtelTracer;
+import io.opentelemetry.api.trace.SpanId;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.ContextPropagators;
@@ -67,6 +68,7 @@ class MicrometerDirectInstrumentationConcurrencyTest {
     private InMemorySpanExporter spanExporter;
     private OpenTelemetrySdk openTelemetry;
     private ObservationRegistry observationRegistry;
+    private ExecutorService asyncerExecutor;
     private ExecutorAsyncer asyncer;
     private Scope otelRootScope;
 
@@ -93,15 +95,22 @@ class MicrometerDirectInstrumentationConcurrencyTest {
         observationRegistry.observationConfig()
                 .observationHandler(new DefaultTracingObservationHandler(tracer));
 
-        asyncer = new ExecutorAsyncer(Executors.newFixedThreadPool(4));
+        asyncerExecutor = Executors.newFixedThreadPool(4);
+        asyncer = new ExecutorAsyncer(asyncerExecutor);
     }
 
     @AfterEach
     void tearDown() {
-        spanExporter.reset();
+        if (asyncerExecutor != null) {
+            asyncerExecutor.shutdownNow();
+        }
         if (otelRootScope != null) {
             otelRootScope.close();
         }
+        if (openTelemetry != null) {
+            openTelemetry.close();
+        }
+        spanExporter.reset();
     }
 
     /** Run a child observation on a worker thread via the asyncer, returning when it completes. */
@@ -132,7 +141,10 @@ class MicrometerDirectInstrumentationConcurrencyTest {
         // Child closed before parent (LLM finishes inside the action), but parentage is what matters:
         assertThat(child.getParentSpanId()).isEqualTo(parent.getSpanId());
         assertThat(child.getTraceId()).isEqualTo(parent.getTraceId());
-        assertThat(parent.getParentSpanId()).isEqualTo("0000000000000000"); // root: no parent
+        assertThat(parent.getParentSpanId()).isEqualTo(SpanId.getInvalid()); // root: no parent
+        // Successful work must not error either span (guards against a stray error() call).
+        assertThat(parent.getStatus().getStatusCode()).isNotEqualTo(StatusData.error().getStatusCode());
+        assertThat(child.getStatus().getStatusCode()).isNotEqualTo(StatusData.error().getStatusCode());
     }
 
     @Test
@@ -152,6 +164,39 @@ class MicrometerDirectInstrumentationConcurrencyTest {
         assertThat(span.getStatus().getStatusCode()).isEqualTo(StatusData.error().getStatusCode());
         assertThat(span.getEvents())
                 .anyMatch(e -> e.getName().equals("exception"));
+    }
+
+    @Test
+    @DisplayName("an exception on a worker thread errors the child span and bubbles up to the caller")
+    void crossThreadExceptionErrorsChildAndBubblesUp() {
+        // A child observation runs (and fails) on a worker thread; the failure must error the child
+        // span there, then propagate back through asyncer.join() and error the parent span too.
+        assertThatThrownBy(() ->
+                Observation.createNotStarted("embabel.action", observationRegistry)
+                        .observe(() -> {
+                            Function0<Object> work = () -> {
+                                Observation.createNotStarted("embabel.llm", observationRegistry)
+                                        .observe((Supplier<Object>) () -> {
+                                            throw new IllegalStateException("worker boom");
+                                        });
+                                return null;
+                            };
+                            asyncer.async(work).join(); // re-throws the worker failure (wrapped)
+                        }))
+                .hasRootCauseInstanceOf(IllegalStateException.class)
+                .hasRootCauseMessage("worker boom");
+
+        Map<String, SpanData> byName = spanExporter.getFinishedSpanItems().stream()
+                .collect(Collectors.toMap(SpanData::getName, s -> s));
+        SpanData child = byName.get("embabel.llm");
+        SpanData parent = byName.get("embabel.action");
+        assertThat(child).as("child llm span").isNotNull();
+        assertThat(parent).as("parent action span").isNotNull();
+        // Child still nests under parent despite failing on another thread.
+        assertThat(child.getParentSpanId()).isEqualTo(parent.getSpanId());
+        // Both spans are closed and errored — the worker failure was not swallowed at any hop.
+        assertThat(child.getStatus().getStatusCode()).isEqualTo(StatusData.error().getStatusCode());
+        assertThat(parent.getStatus().getStatusCode()).isEqualTo(StatusData.error().getStatusCode());
     }
 
     @Test

@@ -16,7 +16,12 @@
 package com.embabel.agent.observability.observation;
 
 import com.embabel.agent.api.event.AgentProcessCompletedEvent;
+import com.embabel.agent.api.event.AgentProcessFailedEvent;
+import com.embabel.agent.api.event.AgentProcessPausedEvent;
 import com.embabel.agent.api.event.AgentProcessPlanFormulatedEvent;
+import com.embabel.agent.api.event.AgentProcessStuckEvent;
+import com.embabel.agent.api.event.AgentProcessWaitingEvent;
+import com.embabel.agent.api.event.ProcessKilledEvent;
 import com.embabel.agent.api.event.DynamicAgentCreationEvent;
 import com.embabel.agent.core.Agent;
 import com.embabel.agent.api.event.EmbeddingInvocationEvent;
@@ -37,12 +42,14 @@ import com.embabel.agent.core.EmbeddingInvocation;
 import com.embabel.agent.core.LlmInvocation;
 import com.embabel.agent.core.Usage;
 import com.embabel.agent.event.AgentProcessRagEvent;
+import com.embabel.agent.event.RagEvent;
 import com.embabel.agent.event.RagResponseEvent;
 import com.embabel.agent.observability.ObservabilityProperties;
 import com.embabel.agent.rag.service.RagRequest;
 import com.embabel.agent.rag.service.RagResponse;
 import com.embabel.common.ai.model.EmbeddingServiceMetadata;
 import com.embabel.common.ai.model.LlmMetadata;
+import com.embabel.common.ai.model.PricingModel;
 import com.embabel.common.core.types.Named;
 import com.embabel.plan.Goal;
 import com.embabel.plan.Plan;
@@ -182,6 +189,13 @@ class EmbabelSpanEventListenerTest {
         return event;
     }
 
+    private AgentProcess processWithStatus(String id, AgentProcessStatusCode status) {
+        AgentProcess process = mock(AgentProcess.class);
+        lenient().when(process.getId()).thenReturn(id);
+        lenient().when(process.getStatus()).thenReturn(status);
+        return process;
+    }
+
     @Nested
     @DisplayName("LLM and embedding invocations")
     class Invocations {
@@ -232,6 +246,28 @@ class EmbabelSpanEventListenerTest {
             properties.setTraceLlmCalls(false);
             listener().onProcessEvent(llmEvent());
             assertTrue(handler.stopped.stream().noneMatch(c -> "embabel.llm.invocation".equals(c.getName())));
+        }
+
+        @Test
+        @DisplayName("trace-embedding=false suppresses the embedding invocation span")
+        void embeddingFlagDisabled() {
+            properties.setTraceEmbedding(false);
+            listener().onProcessEvent(embeddingEvent());
+            assertTrue(handler.stopped.stream().noneMatch(c -> "embabel.embedding".equals(c.getName())));
+        }
+
+        @Test
+        @DisplayName("LLM cost is recorded as embabel.llm.cost when pricing is known")
+        void llmCostRecordedWhenPricingKnown() {
+            AgentProcess process = mock(AgentProcess.class);
+            LlmInvocation invocation = new LlmInvocation(
+                    LlmMetadata.create("gpt-4o", "openai", null, PricingModel.usdPerToken(0.001, 0.002)),
+                    new Usage(10, 20, null),
+                    null, Instant.now(), Duration.ZERO);
+            listener().onProcessEvent(new LlmInvocationEvent(process, invocation, "interaction-cost"));
+
+            Map<String, String> kv = kvOf("embabel.llm.invocation");
+            assertNotNull(kv.get("embabel.llm.cost"), "cost tag present when pricing yields a positive cost");
         }
     }
 

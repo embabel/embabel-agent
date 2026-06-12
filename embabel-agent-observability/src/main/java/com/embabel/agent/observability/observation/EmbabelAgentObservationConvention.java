@@ -33,10 +33,12 @@ import java.util.List;
  * high-cardinality values are read at <em>stop</em> time, so {@code status} reflects the
  * final outcome.
  *
- * <p><strong>STUCK is not an error.</strong> Status is recorded only as a tag. The span is
- * marked errored solely when the wrapped work throws (the {@code observe{}} at the call site
- * propagates the exception). A turn that ends STUCK — the expected resting state for a
- * ChatBot awaiting the next user message — returns normally, so its span closes OK.
+ * <p><strong>Status is a tag, not a span error.</strong> The span is marked errored solely when
+ * the wrapped work throws (the {@code observe{}} at the call site propagates the exception). Every
+ * terminal status reached <em>without</em> an exception — COMPLETED, STUCK, WAITING, FAILED, KILLED,
+ * TERMINATED — therefore closes the span OK, distinguished only by the {@code embabel.agent.status}
+ * tag. STUCK in particular is the expected resting state of a ChatBot awaiting the next user message,
+ * so it must not look like a failure.
  */
 public class EmbabelAgentObservationConvention
         implements GlobalObservationConvention<AgentObservationContext> {
@@ -59,7 +61,9 @@ public class EmbabelAgentObservationConvention
 
     @Override
     public String getContextualName(AgentObservationContext context) {
-        return context.getProcess().getAgent().getName();
+        // Prefix the type so the span is identifiable regardless of how the user named the agent
+        // (e.g. "researcher" -> "agent researcher"), consistent with the <type> <name> scheme.
+        return "agent " + context.getProcess().getAgent().getName();
     }
 
     @Override

@@ -23,6 +23,7 @@ import io.micrometer.tracing.handler.DefaultTracingObservationHandler;
 import io.micrometer.tracing.otel.bridge.OtelBaggageManager;
 import io.micrometer.tracing.otel.bridge.OtelCurrentTraceContext;
 import io.micrometer.tracing.otel.bridge.OtelTracer;
+import io.opentelemetry.api.trace.SpanId;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.ContextPropagators;
@@ -92,44 +93,59 @@ class TierFilterSpanTreeTest {
         new ObservabilityAutoConfiguration().embabelTierFilterCustomizer(properties).customize(registry);
     }
 
+    private static SpanData span(List<SpanData> spans, String name) {
+        return spans.stream()
+                .filter(s -> name.equals(s.getName()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no span named " + name));
+    }
+
+    /** llm (live) > tool_loop > embedding (live), so the chain is observable whether or not tool_loop is dropped. */
+    private void observeLlmToolLoopEmbedding() {
+        Observation.createNotStarted("embabel.llm", registry).observe((Supplier<Object>) () ->
+                Observation.createNotStarted("embabel.tool_loop", registry).observe((Supplier<Object>) () ->
+                        Observation.createNotStarted("embabel.embedding", registry).observe((Supplier<Object>) () -> null)));
+    }
+
     @Test
-    @DisplayName("trace-tool-loop=false: no tool_loop span, child nests directly under the llm span")
+    @DisplayName("trace-tool-loop=false: no tool_loop span, embedding nests directly under the llm span")
     void suppressedToolLoopReParentsChildSpan() {
         ObservabilityProperties properties = new ObservabilityProperties();
         properties.setTraceToolLoop(false);
         applyFilter(properties);
 
-        // embabel.llm (live) > embabel.tool_loop (suppressed) > embabel.embedding (live)
-        Observation.createNotStarted("embabel.llm", registry).observe((Supplier<Object>) () ->
-                Observation.createNotStarted("embabel.tool_loop", registry).observe((Supplier<Object>) () ->
-                        Observation.createNotStarted("embabel.embedding", registry).observe((Supplier<Object>) () -> null)));
+        observeLlmToolLoopEmbedding();
 
         List<SpanData> spans = spanExporter.getFinishedSpanItems();
-        assertThat(spans).extracting(SpanData::getName).doesNotContain("embabel.tool_loop");
-        assertThat(spans).hasSize(2);
+        assertThat(spans).extracting(SpanData::getName)
+                .containsExactlyInAnyOrder("embabel.llm", "embabel.embedding");
 
-        SpanData parent = spans.stream().filter(s -> "0000000000000000".equals(s.getParentSpanId()))
-                .findFirst().orElseThrow();
-        SpanData child = spans.stream().filter(s -> !"0000000000000000".equals(s.getParentSpanId()))
-                .findFirst().orElseThrow();
-        assertThat(child.getParentSpanId())
-                .as("child re-parents to the live llm span, skipping the suppressed tool_loop")
-                .isEqualTo(parent.getSpanId());
-        assertThat(child.getTraceId()).isEqualTo(parent.getTraceId());
+        SpanData llm = span(spans, "embabel.llm");
+        SpanData embedding = span(spans, "embabel.embedding");
+        assertThat(llm.getParentSpanId()).as("llm is the root span").isEqualTo(SpanId.getInvalid());
+        assertThat(embedding.getParentSpanId())
+                .as("embedding re-parents to the live llm span, skipping the suppressed tool_loop")
+                .isEqualTo(llm.getSpanId());
+        assertThat(embedding.getTraceId()).isEqualTo(llm.getTraceId());
     }
 
     @Test
-    @DisplayName("defaults: tool_loop span present, full chain llm > tool_loop > embedding")
+    @DisplayName("defaults: full chain llm > tool_loop > embedding in one trace")
     void defaultsKeepFullChain() {
         applyFilter(new ObservabilityProperties());
 
-        Observation.createNotStarted("embabel.llm", registry).observe((Supplier<Object>) () ->
-                Observation.createNotStarted("embabel.tool_loop", registry).observe((Supplier<Object>) () ->
-                        Observation.createNotStarted("embabel.embedding", registry).observe((Supplier<Object>) () -> null)));
+        observeLlmToolLoopEmbedding();
 
         List<SpanData> spans = spanExporter.getFinishedSpanItems();
-        assertThat(spans).hasSize(3);
-        long traces = spans.stream().map(SpanData::getTraceId).distinct().count();
-        assertThat(traces).isEqualTo(1);
+        assertThat(spans).extracting(SpanData::getName)
+                .containsExactlyInAnyOrder("embabel.llm", "embabel.tool_loop", "embabel.embedding");
+
+        SpanData llm = span(spans, "embabel.llm");
+        SpanData toolLoop = span(spans, "embabel.tool_loop");
+        SpanData embedding = span(spans, "embabel.embedding");
+        assertThat(llm.getParentSpanId()).as("llm is the root span").isEqualTo(SpanId.getInvalid());
+        assertThat(toolLoop.getParentSpanId()).as("tool_loop nests under llm").isEqualTo(llm.getSpanId());
+        assertThat(embedding.getParentSpanId()).as("embedding nests under tool_loop").isEqualTo(toolLoop.getSpanId());
+        assertThat(spans).extracting(SpanData::getTraceId).containsOnly(llm.getTraceId());
     }
 }

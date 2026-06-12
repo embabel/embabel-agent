@@ -23,8 +23,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -38,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TierFilterPredicateTest {
 
     private static final class RecordingHandler implements ObservationHandler<Observation.Context> {
-        final List<Observation.Context> stopped = new CopyOnWriteArrayList<>();
+        final List<Observation.Context> stopped = new ArrayList<>();
 
         @Override
         public boolean supportsContext(Observation.Context context) {
@@ -77,13 +77,61 @@ class TierFilterPredicateTest {
     @Test
     @DisplayName("Spring AI 'tool call' span is always dropped (Embabel emits its own embabel.tool)")
     void springAiToolCallAlwaysDropped() {
-        applyFilter(new ObservabilityProperties()); // defaults: trace-tool-calls=true
+        applyFilter(new ObservabilityProperties()); // defaults: trace-tool-loop=true
 
         observe("tool call");
         observe("embabel.tool_loop");
 
-        assertFalse(recorded("tool call"), "Spring AI tool span dropped regardless of the flag");
-        assertTrue(recorded("embabel.tool_loop"), "tool_loop unaffected by defaults");
+        assertFalse(recorded("tool call"), "Spring AI 'tool call' span is dropped unconditionally");
+        assertTrue(recorded("embabel.tool_loop"), "tool_loop kept when trace-tool-loop=true");
+    }
+
+    @Test
+    @DisplayName("trace-tool-loop=true explicitly keeps 'embabel.tool_loop'")
+    void toolLoopKeptWhenExplicitlyEnabled() {
+        ObservabilityProperties properties = new ObservabilityProperties();
+        properties.setTraceToolLoop(true);
+        applyFilter(properties);
+
+        observe("embabel.tool_loop");
+
+        assertTrue(recorded("embabel.tool_loop"));
+    }
+
+    @Test
+    @DisplayName("trace-tool-calls=false still drops 'tool call' (no gate reintroduced)")
+    void toolCallStaysDroppedWhenTraceToolCallsDisabled() {
+        ObservabilityProperties properties = new ObservabilityProperties();
+        properties.setTraceToolCalls(false);
+        applyFilter(properties);
+
+        observe("tool call");
+
+        assertFalse(recorded("tool call"),
+                "'tool call' is dropped regardless of trace-tool-calls; the rich embabel.tool span "
+                        + "is the only tool span, gated by trace-tool-calls in the event listener");
+    }
+
+    @Test
+    @DisplayName("trace-tool-calls=true still drops 'tool call' (only embabel.tool survives)")
+    void toolCallStaysDroppedWhenTraceToolCallsEnabled() {
+        ObservabilityProperties properties = new ObservabilityProperties();
+        properties.setTraceToolCalls(true);
+        applyFilter(properties);
+
+        observe("tool call");
+
+        assertFalse(recorded("tool call"), "'tool call' is dropped whether trace-tool-calls is true or false");
+    }
+
+    @Test
+    @DisplayName("name matching is exact: a name containing 'tool call' as a substring is kept")
+    void substringDoesNotMatch() {
+        applyFilter(new ObservabilityProperties());
+
+        observe("tool call wrapper");
+
+        assertTrue(recorded("tool call wrapper"), "only the exact 'tool call' name is dropped");
     }
 
     @Test

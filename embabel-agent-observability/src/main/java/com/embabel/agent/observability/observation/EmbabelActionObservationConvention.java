@@ -46,7 +46,7 @@ public class EmbabelActionObservationConvention
 
     @Override
     public String getContextualName(ActionObservationContext context) {
-        return ObservationUtils.shortName(context.getAction().getName());
+        return "action " + ObservationUtils.shortName(context.getAction().getName());
     }
 
     @Override
@@ -74,11 +74,13 @@ public class EmbabelActionObservationConvention
             if (!input.isEmpty()) {
                 kv = kv.and("input.value", ObservationUtils.truncate(input, maxAttributeLength));
             }
-        }
-        Object result = process.lastResult();
-        if (result != null) {
-            String output = ObservationUtils.truncate(result.toString(), maxAttributeLength);
-            kv = kv.and("embabel.action.result", output).and("output.value", output);
+            // The action's declared outputs resolved from the blackboard — its actual product,
+            // not the global lastResult() (which may belong to a previous action).
+            String output = ObservationUtils.getActionOutputs(coreAction, process);
+            if (!output.isEmpty()) {
+                String truncated = ObservationUtils.truncate(output, maxAttributeLength);
+                kv = kv.and("embabel.action.result", truncated).and("output.value", truncated);
+            }
         }
         return kv;
     }

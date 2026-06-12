@@ -29,6 +29,21 @@ import io.micrometer.observation.Observation;
 public class EmbabelLlmObservationConvention
         implements GlobalObservationConvention<LlmObservationContext> {
 
+    /** OTel GenAI operation name for a chat completion. */
+    private static final String OPERATION = "chat";
+
+    /**
+     * Kept for parity with the sibling conventions; applied via
+     * {@link ObservationUtils#truncate} to free-text values (prompt/response, token-cost
+     * details) once the billing inspector is wired (see class Javadoc). No free-text key is
+     * emitted yet, so it is currently unused.
+     */
+    private final int maxAttributeLength;
+
+    public EmbabelLlmObservationConvention(int maxAttributeLength) {
+        this.maxAttributeLength = maxAttributeLength;
+    }
+
     @Override
     public boolean supportsContext(Observation.Context context) {
         return context instanceof LlmObservationContext;
@@ -42,15 +57,16 @@ public class EmbabelLlmObservationConvention
     @Override
     public String getContextualName(LlmObservationContext context) {
         // OpenTelemetry GenAI semantic convention: span name = "{operation} {model}".
-        return "chat " + context.getRequestEvent().getLlmMetadata().getName();
+        return OPERATION + " " + context.getRequestEvent().getLlmMetadata().getName();
     }
 
     @Override
     public KeyValues getLowCardinalityKeyValues(LlmObservationContext context) {
         LlmRequestEvent<?> event = context.getRequestEvent();
         KeyValues kv = KeyValues.of(
-                "gen_ai.operation.name", "chat",
+                "gen_ai.operation.name", OPERATION,
                 "gen_ai.request.model", event.getLlmMetadata().getName(),
+                "gen_ai.system", event.getLlmMetadata().getProvider(),
                 "embabel.agent.name", event.getAgentProcess().getAgent().getName());
         if (event.getAction() != null) {
             kv = kv.and("embabel.action.name", event.getAction().getName());

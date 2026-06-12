@@ -88,6 +88,20 @@ class EmbabelObservationConventionsTest {
                 .collect(Collectors.toMap(KeyValue::getKey, KeyValue::getValue));
     }
 
+    /** Only the low-cardinality keys — the ones used as metric dimensions, which must stay bounded. */
+    private static Map<String, String> lowCardinality(Observation.Context context) {
+        return KeyValues.of(context.getLowCardinalityKeyValues())
+                .stream()
+                .collect(Collectors.toMap(KeyValue::getKey, KeyValue::getValue));
+    }
+
+    /** Only the high-cardinality keys — span attributes that may carry unbounded values. */
+    private static Map<String, String> highCardinality(Observation.Context context) {
+        return KeyValues.of(context.getHighCardinalityKeyValues())
+                .stream()
+                .collect(Collectors.toMap(KeyValue::getKey, KeyValue::getValue));
+    }
+
     @Nested
     @DisplayName("agent convention")
     class AgentConvention {
@@ -141,6 +155,22 @@ class EmbabelObservationConventionsTest {
         }
 
         @Test
+        @DisplayName("FAILED is recorded as status, not as a span error (only a throw errors the span)")
+        void failedIsRecordedAsStatusNotError() {
+            AgentProcess process = process(AgentProcessStatusCode.FAILED, null,
+                    List.of(), List.of());
+            AgentObservationContext ctx = new AgentObservationContext(process);
+
+            Observation.Context result = observe(
+                    new EmbabelAgentObservationConvention(4000), ctx, "embabel.agent");
+
+            assertEquals("FAILED", allKeyValues(result).get("embabel.agent.status"));
+            // A failed-status turn that returns normally still closes OK — consistent with the
+            // action span: status is a tag, only a thrown exception errors the span.
+            assertNull(result.getError());
+        }
+
+        @Test
         @DisplayName("conversation.id is the last Conversation id, user.id the last User id")
         void resolvesSessionAndUserFromBlackboard() {
             Conversation conversation = mock(Conversation.class);
@@ -187,6 +217,27 @@ class EmbabelObservationConventionsTest {
                     observe(new EmbabelAgentObservationConvention(4000), ctx, "embabel.agent"));
 
             assertEquals("the final answer", kv.get("embabel.agent.result"));
+        }
+
+        @Test
+        @DisplayName("unique ids are high-cardinality, bounded attributes low (guards metric cardinality)")
+        void cardinalitySplitIsCorrect() {
+            Conversation conversation = mock(Conversation.class);
+            when(conversation.getId()).thenReturn("conv-9");
+            AgentProcess process = process(AgentProcessStatusCode.COMPLETED, null,
+                    List.of(conversation), List.of());
+            Observation.Context ctx = observe(new EmbabelAgentObservationConvention(4000),
+                    new AgentObservationContext(process), "embabel.agent");
+
+            // Bounded enums/names → LOW: safe to use as metric dimensions.
+            assertTrue(lowCardinality(ctx).keySet().containsAll(List.of(
+                    "gen_ai.operation.name", "embabel.agent.name", "embabel.agent.status",
+                    "embabel.agent.planner_type", "embabel.agent.is_subagent")));
+            // Unbounded ids → HIGH, and never LOW: a run/conversation id as a metric tag explodes cardinality.
+            assertTrue(highCardinality(ctx).containsKey("embabel.run.id"));
+            assertTrue(highCardinality(ctx).containsKey("gen_ai.conversation.id"));
+            assertFalse(lowCardinality(ctx).containsKey("embabel.run.id"));
+            assertFalse(lowCardinality(ctx).containsKey("gen_ai.conversation.id"));
         }
     }
 
@@ -255,20 +306,77 @@ class EmbabelObservationConventionsTest {
         }
 
         @Test
-        @DisplayName("records action.result from blackboard lastResult")
+        @DisplayName("records action.result and output.value from the action's declared output binding")
         void recordsActionResult() {
             AgentProcess process = mock(AgentProcess.class, RETURNS_DEEP_STUBS);
             lenient().when(process.getAgent().getName()).thenReturn("TestAgent");
             lenient().when(process.getId()).thenReturn("run-1");
-            when(process.lastResult()).thenReturn("action output");
-            Action action = mock(Action.class);
+            com.embabel.agent.core.Action action = mock(com.embabel.agent.core.Action.class);
             when(action.getName()).thenReturn("MyAction");
+            com.embabel.agent.core.IoBinding binding = mock(com.embabel.agent.core.IoBinding.class);
+            when(binding.getValue()).thenReturn("it:java.lang.String");
+            when(action.getOutputs()).thenReturn(java.util.Set.of(binding));
+            com.embabel.agent.core.Blackboard blackboard = mock(com.embabel.agent.core.Blackboard.class);
+            when(process.getBlackboard()).thenReturn(blackboard);
+            when(blackboard.getValue("it", "java.lang.String", process.getAgent()))
+                    .thenReturn("action output");
 
             ActionObservationContext ctx = new ActionObservationContext(process, action);
             Map<String, String> kv = allKeyValues(
                     observe(new EmbabelActionObservationConvention(4000), ctx, "embabel.action"));
 
-            assertEquals("action output", kv.get("embabel.action.result"));
+            assertEquals("it (java.lang.String): action output", kv.get("embabel.action.result"));
+            assertEquals("it (java.lang.String): action output", kv.get("output.value"));
+        }
+
+        @Test
+        @DisplayName("an action that produces nothing has no output.value, even if lastResult holds a prior result")
+        void doesNotLeakPriorActionsResult() {
+            AgentProcess process = mock(AgentProcess.class, RETURNS_DEEP_STUBS);
+            lenient().when(process.getAgent().getName()).thenReturn("TestAgent");
+            lenient().when(process.getId()).thenReturn("run-1");
+            // A previous action's result still sits on the blackboard...
+            lenient().when(process.lastResult()).thenReturn("previous action's result");
+            com.embabel.agent.core.Action action = mock(com.embabel.agent.core.Action.class);
+            when(action.getName()).thenReturn("SideEffectAction");
+            // ...but this action declares an output that is not bound (null on the blackboard).
+            com.embabel.agent.core.IoBinding binding = mock(com.embabel.agent.core.IoBinding.class);
+            when(binding.getValue()).thenReturn("it:java.lang.String");
+            when(action.getOutputs()).thenReturn(java.util.Set.of(binding));
+            com.embabel.agent.core.Blackboard blackboard = mock(com.embabel.agent.core.Blackboard.class);
+            when(process.getBlackboard()).thenReturn(blackboard);
+            when(blackboard.getValue("it", "java.lang.String", process.getAgent())).thenReturn(null);
+
+            ActionObservationContext ctx = new ActionObservationContext(process, action);
+            Map<String, String> kv = allKeyValues(
+                    observe(new EmbabelActionObservationConvention(4000), ctx, "embabel.action"));
+
+            assertFalse(kv.containsKey("output.value"));
+            assertFalse(kv.containsKey("embabel.action.result"));
+        }
+
+        @Test
+        @DisplayName("run id is high-cardinality, action identity and status low (guards metric cardinality)")
+        void cardinalitySplitIsCorrect() {
+            AgentProcess process = mock(AgentProcess.class, RETURNS_DEEP_STUBS);
+            lenient().when(process.getAgent().getName()).thenReturn("TestAgent");
+            lenient().when(process.getId()).thenReturn("run-1");
+            lenient().when(process.lastResult()).thenReturn(null);
+            Action action = mock(Action.class);
+            when(action.getName()).thenReturn("MyAction");
+            ActionObservationContext context = new ActionObservationContext(process, action);
+            context.setStatusCode(ActionStatusCode.SUCCEEDED);
+
+            Observation.Context ctx = observe(
+                    new EmbabelActionObservationConvention(4000), context, "embabel.action");
+
+            assertTrue(lowCardinality(ctx).keySet().containsAll(List.of(
+                    "gen_ai.operation.name", "embabel.action.name", "embabel.action.short_name",
+                    "embabel.agent.name", "embabel.action.status")));
+            // Also covers the SUCCEEDED status tag (the non-failure case).
+            assertEquals("SUCCEEDED", lowCardinality(ctx).get("embabel.action.status"));
+            assertTrue(highCardinality(ctx).containsKey("embabel.run.id"));
+            assertFalse(lowCardinality(ctx).containsKey("embabel.run.id"));
         }
     }
 
@@ -303,6 +411,34 @@ class EmbabelObservationConventionsTest {
             assertTrue(kv.get("input.value").contains("user question"));
             assertEquals("loop answer", kv.get("output.value"));
         }
+
+        @Test
+        @DisplayName("ids are high-cardinality, bounded attributes low; action name appears when the loop is bound to an action")
+        void cardinalitySplitAndBoundAction() {
+            ToolLoopStartEvent event = mock(ToolLoopStartEvent.class, RETURNS_DEEP_STUBS);
+            lenient().when(event.getAgentProcess().getAgent().getName()).thenReturn("TestAgent");
+            lenient().when(event.getAgentProcess().getId()).thenReturn("run-1");
+            lenient().when(event.getInteractionId()).thenReturn("interaction-3");
+            lenient().when(event.getToolNames()).thenReturn(List.of("toolA"));
+            lenient().when(event.getMaxIterations()).thenReturn(5);
+            lenient().when(event.getOutputClass()).thenReturn((Class) String.class);
+            com.embabel.agent.core.Action action = mock(com.embabel.agent.core.Action.class);
+            lenient().when(action.getName()).thenReturn("CastSpell");
+            lenient().when(event.getAction()).thenReturn(action);
+
+            Observation.Context ctx = observe(new EmbabelToolLoopObservationConvention(4000),
+                    new ToolLoopObservationContext(event, List.of()), "embabel.tool_loop");
+
+            // The bound action's name (bounded) is added to LOW — the present-action branch.
+            assertEquals("CastSpell", lowCardinality(ctx).get("embabel.action.name"));
+            assertTrue(lowCardinality(ctx).keySet().containsAll(List.of(
+                    "gen_ai.operation.name", "embabel.agent.name", "embabel.tool_loop.max_iterations")));
+            // Unbounded ids → HIGH, never LOW.
+            assertTrue(highCardinality(ctx).keySet().containsAll(List.of(
+                    "embabel.run.id", "embabel.interaction.id")));
+            assertFalse(lowCardinality(ctx).containsKey("embabel.run.id"));
+            assertFalse(lowCardinality(ctx).containsKey("embabel.interaction.id"));
+        }
     }
 
     @Nested
@@ -310,7 +446,7 @@ class EmbabelObservationConventionsTest {
     class LlmConvention {
 
         @Test
-        @DisplayName("records model and interaction")
+        @DisplayName("records model, provider, agent, run and interaction")
         void recordsModelAttributes() {
             LlmRequestEvent<?> event = mock(LlmRequestEvent.class, RETURNS_DEEP_STUBS);
             LlmMetadata metadata = LlmMetadata.create("gpt-4o", "openai");
@@ -322,12 +458,55 @@ class EmbabelObservationConventionsTest {
 
             LlmObservationContext ctx = new LlmObservationContext(event);
             Map<String, String> kv = allKeyValues(
-                    observe(new EmbabelLlmObservationConvention(), ctx, "embabel.llm"));
+                    observe(new EmbabelLlmObservationConvention(4000), ctx, "embabel.llm"));
 
             assertEquals("chat", kv.get("gen_ai.operation.name"));
             assertEquals("gpt-4o", kv.get("gen_ai.request.model"));
+            assertEquals("openai", kv.get("gen_ai.system"));
             assertEquals("TestAgent", kv.get("embabel.agent.name"));
+            assertEquals("run-1", kv.get("embabel.run.id"));
             assertEquals("interaction-3", kv.get("embabel.interaction.id"));
+            assertFalse(kv.containsKey("embabel.action.name"));
+        }
+
+        @Test
+        @DisplayName("includes action name when the call is bound to an action")
+        void recordsActionNameWhenPresent() {
+            LlmRequestEvent<?> event = mock(LlmRequestEvent.class, RETURNS_DEEP_STUBS);
+            lenient().when(event.getLlmMetadata()).thenReturn(LlmMetadata.create("gpt-4o", "openai"));
+            lenient().when(event.getAgentProcess().getAgent().getName()).thenReturn("TestAgent");
+            lenient().when(event.getAgentProcess().getId()).thenReturn("run-1");
+            lenient().when(event.getInteraction().getId()).thenReturn("interaction-3");
+            com.embabel.agent.core.Action action = mock(com.embabel.agent.core.Action.class);
+            lenient().when(action.getName()).thenReturn("CastSpell");
+            lenient().when(event.getAction()).thenReturn(action);
+
+            LlmObservationContext ctx = new LlmObservationContext(event);
+            Map<String, String> kv = allKeyValues(
+                    observe(new EmbabelLlmObservationConvention(4000), ctx, "embabel.llm"));
+
+            assertEquals("CastSpell", kv.get("embabel.action.name"));
+        }
+
+        @Test
+        @DisplayName("model and identity are low-cardinality, ids high (guards metric cardinality)")
+        void cardinalitySplitIsCorrect() {
+            LlmRequestEvent<?> event = mock(LlmRequestEvent.class, RETURNS_DEEP_STUBS);
+            lenient().when(event.getLlmMetadata()).thenReturn(LlmMetadata.create("gpt-4o", "openai"));
+            lenient().when(event.getAgentProcess().getAgent().getName()).thenReturn("TestAgent");
+            lenient().when(event.getAgentProcess().getId()).thenReturn("run-1");
+            lenient().when(event.getInteraction().getId()).thenReturn("interaction-3");
+            lenient().when(event.getAction()).thenReturn(null);
+
+            Observation.Context ctx = observe(new EmbabelLlmObservationConvention(4000),
+                    new LlmObservationContext(event), "embabel.llm");
+
+            assertTrue(lowCardinality(ctx).keySet().containsAll(List.of(
+                    "gen_ai.operation.name", "gen_ai.request.model", "gen_ai.system", "embabel.agent.name")));
+            assertTrue(highCardinality(ctx).keySet().containsAll(List.of(
+                    "embabel.run.id", "embabel.interaction.id")));
+            assertFalse(lowCardinality(ctx).containsKey("embabel.run.id"));
+            assertFalse(lowCardinality(ctx).containsKey("embabel.interaction.id"));
         }
     }
 }

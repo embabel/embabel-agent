@@ -20,6 +20,8 @@ import com.embabel.agent.api.dsl.evenMoreEvilWizard
 import com.embabel.agent.api.event.observation.ActionObservationContext
 import com.embabel.agent.api.event.observation.AgentObservationContext
 import com.embabel.agent.core.Agent
+import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.test.integration.IntegrationTestUtils
 import io.micrometer.observation.Observation
@@ -55,18 +57,28 @@ class AbstractAgentProcessSpanTest {
         }
     }
 
-    @Test
-    fun `run produces a turn span with action spans nested under it`() {
+    /** A real registry wired to a fresh [RecordingHandler] that captures every closed span. */
+    private fun recordingRegistry(): Pair<ObservationRegistry, RecordingHandler> {
         val registry = ObservationRegistry.create()
         val handler = RecordingHandler()
         registry.observationConfig().observationHandler(handler)
+        return registry to handler
+    }
 
+    /** Run the wizard fixture against [registry], returning the completed process. */
+    private fun runWizard(registry: ObservationRegistry): AgentProcess {
         val process = IntegrationTestUtils.dummyAgentProcessRunning(
             evenMoreEvilWizard(),
             servicesWith(registry),
         )
         process += UserInput("Rod")
-        process.run()
+        return process.run()
+    }
+
+    @Test
+    fun `run produces a turn span with action spans nested under it`() {
+        val (registry, handler) = recordingRegistry()
+        runWizard(registry)
 
         val turns = handler.stopped.filterIsInstance<AgentObservationContext>()
         val actions = handler.stopped.filterIsInstance<ActionObservationContext>()
@@ -83,16 +95,8 @@ class AbstractAgentProcessSpanTest {
 
     @Test
     fun `action spans carry the resulting status code, captured after execution`() {
-        val registry = ObservationRegistry.create()
-        val handler = RecordingHandler()
-        registry.observationConfig().observationHandler(handler)
-
-        val process = IntegrationTestUtils.dummyAgentProcessRunning(
-            evenMoreEvilWizard(),
-            servicesWith(registry),
-        )
-        process += UserInput("Rod")
-        process.run()
+        val (registry, handler) = recordingRegistry()
+        runWizard(registry)
 
         val actions = handler.stopped.filterIsInstance<ActionObservationContext>()
         assertTrue(actions.isNotEmpty(), "expected at least one action span")
@@ -106,9 +110,7 @@ class AbstractAgentProcessSpanTest {
 
     @Test
     fun `a turn that throws still closes its span and marks it errored`() {
-        val registry = ObservationRegistry.create()
-        val handler = RecordingHandler()
-        registry.observationConfig().observationHandler(handler)
+        val (registry, handler) = recordingRegistry()
 
         // A GOAP process with no goals throws in executeTurn; the throw must propagate through
         // observe{}, which closes the span and errors it (the anti-scope-leak guarantee).
@@ -129,16 +131,21 @@ class AbstractAgentProcessSpanTest {
     }
 
     @Test
-    fun `NOOP registry produces no spans`() {
-        val registry = ObservationRegistry.create()
-        val handler = RecordingHandler()
-        // Default dummy services carry a NOOP registry: observe{} is a pure passthrough.
+    fun `a NOOP registry runs the work as a transparent passthrough`() {
+        // Default dummy services carry ObservationRegistry.NOOP, so observe{} must skip all
+        // instrumentation yet still execute the work and drive the run to completion.
         val process = IntegrationTestUtils.dummyAgentProcessRunning(evenMoreEvilWizard())
         process += UserInput("Rod")
         process.run()
 
-        // Nothing was recorded because no real registry was wired in.
-        registry.observationConfig().observationHandler(handler)
-        assertTrue(handler.stopped.isEmpty())
+        assertEquals(
+            AgentProcessStatusCode.COMPLETED,
+            process.status,
+            "NOOP passthrough must still run the agent to completion",
+        )
+        assertTrue(
+            process.history.isNotEmpty(),
+            "NOOP passthrough must still execute the agent's actions",
+        )
     }
 }

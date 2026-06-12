@@ -33,7 +33,11 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import io.micrometer.observation.ObservationRegistry
+import org.springframework.beans.factory.config.BeanDefinitionCustomizer
 import org.springframework.context.ApplicationContext
+import org.springframework.context.support.GenericApplicationContext
+import java.util.function.Supplier
 
 /**
  * Unit tests for [SpringContextPlatformServices.actionQosProperties].
@@ -160,6 +164,66 @@ class SpringContextPlatformServicesActionQosTest {
 
             // Safe fallback — same result as null context.
             assertThat(props.default.maxAttempts).isNull()
+        }
+    }
+
+    @Nested
+    inner class `Observation registry resolution` {
+
+        private fun contextWith(vararg beans: Pair<String, ObservationRegistry>, primary: String? = null) =
+            GenericApplicationContext().apply {
+                beans.forEach { (name, registry) ->
+                    val customizers = if (name == primary) {
+                        arrayOf(BeanDefinitionCustomizer { it.isPrimary = true })
+                    } else {
+                        emptyArray()
+                    }
+                    registerBean(name, ObservationRegistry::class.java, Supplier { registry }, *customizers)
+                }
+                refresh()
+            }
+
+        @Test
+        fun `resolves the single ObservationRegistry bean from the context`() {
+            val registry = ObservationRegistry.create()
+            val services = createServices(contextWith("reg" to registry))
+
+            assertThat(services.observationRegistry).isSameAs(registry)
+        }
+
+        @Test
+        fun `falls back to NOOP when no ObservationRegistry bean is present`() {
+            val services = createServices(GenericApplicationContext().apply { refresh() })
+
+            assertThat(services.observationRegistry).isSameAs(ObservationRegistry.NOOP)
+        }
+
+        @Test
+        fun `falls back to NOOP when the context is null`() {
+            val services = createServices(applicationContext = null)
+
+            assertThat(services.observationRegistry).isSameAs(ObservationRegistry.NOOP)
+        }
+
+        @Test
+        fun `honours @Primary when several ObservationRegistry beans exist`() {
+            val primary = ObservationRegistry.create()
+            val other = ObservationRegistry.create()
+            val services = createServices(
+                contextWith("other" to other, "primary" to primary, primary = "primary"),
+            )
+
+            assertThat(services.observationRegistry).isSameAs(primary)
+        }
+
+        @Test
+        fun `falls back to NOOP when several beans exist with no primary`() {
+            val services = createServices(
+                contextWith("a" to ObservationRegistry.create(), "b" to ObservationRegistry.create()),
+            )
+
+            // Ambiguous, no primary → NOOP rather than an arbitrary pick or a thrown exception.
+            assertThat(services.observationRegistry).isSameAs(ObservationRegistry.NOOP)
         }
     }
 }

@@ -15,25 +15,20 @@
  */
 package com.embabel.agent.observability.observation;
 
-import com.embabel.agent.api.event.ToolCallResponseEvent;
 import com.embabel.agent.core.Action;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.Blackboard;
 import com.embabel.agent.core.IoBinding;
 import com.embabel.agent.domain.io.UserInput;
 import com.embabel.chat.Message;
-import com.embabel.plan.Plan;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Shared pure utility methods for observation listeners.
  */
 final class ObservationUtils {
-
-    private static final Logger log = LoggerFactory.getLogger(ObservationUtils.class);
 
     private ObservationUtils() {}
 
@@ -44,7 +39,7 @@ final class ObservationUtils {
 
     /** Local name from a possibly fully-qualified name: the segment after the last dot, else the name itself. */
     static String shortName(String name) {
-        if (name == null) return null;
+        if (name == null) return "";
         int lastDot = name.lastIndexOf('.');
         return lastDot >= 0 && lastDot < name.length() - 1 ? name.substring(lastDot + 1) : name;
     }
@@ -76,40 +71,28 @@ final class ObservationUtils {
         return sb.toString();
     }
 
-    static String extractGoalName(AgentProcess process) {
-        if (process.getGoal() != null) {
-            return process.getGoal().getName();
-        } else if (!process.getAgent().getGoals().isEmpty()) {
-            return process.getAgent().getGoals().iterator().next().getName();
-        }
-        return "unknown";
-    }
-
-    static String getBlackboardSnapshot(AgentProcess process) {
-        var objects = process.getBlackboard().getObjects();
-        if (objects == null || objects.isEmpty()) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder();
-        for (Object obj : objects) {
-            if (obj != null) {
-                if (sb.length() > 0) sb.append("\n---\n");
-                sb.append(obj.getClass().getSimpleName()).append(": ");
-                sb.append(obj.toString());
-            }
-        }
-        return sb.toString();
-    }
-
     static String getActionInputs(Action action, AgentProcess process) {
-        var inputs = action.getInputs();
-        if (inputs == null || inputs.isEmpty()) {
+        return resolveBindings(action.getInputs(), process);
+    }
+
+    /**
+     * The action's declared outputs resolved from the blackboard: its actual product, not the global
+     * {@code lastResult()}. A default ({@code "it"}) output binding resolves to the last result of the
+     * declared type, so this captures the value the action just produced.
+     */
+    static String getActionOutputs(Action action, AgentProcess process) {
+        return resolveBindings(action.getOutputs(), process);
+    }
+
+    /** Resolve a set of {@code name:Type} bindings against the blackboard, one {@code name (Type): value} line each. */
+    private static String resolveBindings(Set<IoBinding> bindings, AgentProcess process) {
+        if (bindings == null || bindings.isEmpty()) {
             return "";
         }
         Blackboard blackboard = process.getBlackboard();
         StringBuilder sb = new StringBuilder();
-        for (IoBinding input : inputs) {
-            String bindingValue = input.getValue();
+        for (IoBinding binding : bindings) {
+            String bindingValue = binding.getValue();
             String name;
             String type;
             if (bindingValue.contains(":")) {
@@ -130,90 +113,4 @@ final class ObservationUtils {
         return sb.toString();
     }
 
-    static String formatPlanSteps(Plan plan) {
-        if (plan == null || plan.getActions() == null || plan.getActions().isEmpty()) {
-            return "[]";
-        }
-        StringBuilder sb = new StringBuilder();
-        int index = 1;
-        for (var action : plan.getActions()) {
-            if (sb.length() > 0) sb.append("\n");
-            sb.append(index++).append(". ").append(action.getName());
-        }
-        if (plan.getGoal() != null) {
-            sb.append("\n-> Goal: ").append(plan.getGoal().getName());
-        }
-        return sb.toString();
-    }
-
-    /**
-     * Extracts the successful result from a Kotlin Result via reflection.
-     * Kotlin mangles getResult as getResult-XXXXX for value classes.
-     */
-    static Object extractToolResult(ToolCallResponseEvent event) {
-        try {
-            java.lang.reflect.Method getResultMethod = null;
-            for (java.lang.reflect.Method m : ToolCallResponseEvent.class.getMethods()) {
-                if (m.getName().startsWith("getResult") && m.getParameterCount() == 0) {
-                    getResultMethod = m;
-                    break;
-                }
-            }
-            if (getResultMethod == null) {
-                log.trace("getResult method not found on ToolCallResponseEvent");
-                return null;
-            }
-            Object result = getResultMethod.invoke(event);
-            if (result == null) {
-                return null;
-            }
-            try {
-                java.lang.reflect.Method getOrNullMethod = result.getClass().getMethod("getOrNull");
-                return getOrNullMethod.invoke(result);
-            } catch (NoSuchMethodException e) {
-                return result;
-            }
-        } catch (Exception e) {
-            log.trace("Could not extract tool result: {}", e.getMessage());
-        }
-        return null;
-    }
-
-    /**
-     * Extracts the error from a Kotlin Result via reflection.
-     */
-    static Throwable extractToolError(ToolCallResponseEvent event) {
-        try {
-            java.lang.reflect.Method getResultMethod = null;
-            for (java.lang.reflect.Method m : ToolCallResponseEvent.class.getMethods()) {
-                if (m.getName().startsWith("getResult") && m.getParameterCount() == 0) {
-                    getResultMethod = m;
-                    break;
-                }
-            }
-            if (getResultMethod == null) {
-                log.trace("getResult method not found on ToolCallResponseEvent");
-                return null;
-            }
-            Object result = getResultMethod.invoke(event);
-            if (result == null) {
-                return null;
-            }
-            if (result instanceof Throwable) {
-                return (Throwable) result;
-            }
-            try {
-                java.lang.reflect.Method exceptionOrNullMethod = result.getClass().getMethod("exceptionOrNull");
-                Object error = exceptionOrNullMethod.invoke(result);
-                if (error instanceof Throwable) {
-                    return (Throwable) error;
-                }
-            } catch (NoSuchMethodException e) {
-                return null;
-            }
-        } catch (Exception e) {
-            log.trace("Could not extract tool error: {}", e.getMessage());
-        }
-        return null;
-    }
 }

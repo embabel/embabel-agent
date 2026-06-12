@@ -20,6 +20,7 @@ import io.micrometer.observation.Observation
 import io.micrometer.observation.ObservationHandler
 import io.micrometer.observation.ObservationRegistry
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -62,13 +63,15 @@ class ObservationsTest {
     }
 
     @Test
-    fun `NOOP registry runs work and returns its value without observing`() {
-        val handler = RecordingHandler()
+    fun `NOOP registry runs work and returns its value without building the observation context`() {
+        var contextBuilt = false
         val result = Observations.observeOrSkip(
-            ObservationRegistry.NOOP, { Observation.Context() },
+            ObservationRegistry.NOOP, { contextBuilt = true; Observation.Context() },
         ) { 42 }
         assertEquals(42, result)
-        assertTrue(handler.stopped.isEmpty(), "NOOP registry must not produce any span")
+        // The NOOP path must short-circuit before the context supplier runs: no observation, no
+        // allocation. (A recording handler cannot be used here — a no-op registry has no handlers.)
+        assertFalse(contextBuilt, "NOOP path must not build the observation context")
     }
 
     @Test

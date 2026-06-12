@@ -16,7 +16,6 @@
 package com.embabel.agent.observability.observation;
 
 import com.embabel.agent.core.*;
-import com.embabel.plan.Plan;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -58,97 +57,6 @@ class ObservationUtilsTest {
         @DisplayName("should return value unchanged when exactly at limit")
         void exactlyAtLimit() {
             assertThat(ObservationUtils.truncate("abcde", 5)).isEqualTo("abcde");
-        }
-    }
-
-    @Nested
-    class ExtractGoalName {
-
-        @Test
-        @DisplayName("should return goal name from process goal")
-        void fromProcessGoal() {
-            var process = mock(AgentProcess.class);
-            var goal = mock(Goal.class);
-            lenient().when(process.getGoal()).thenReturn(goal);
-            when(goal.getName()).thenReturn("MyGoal");
-
-            assertThat(ObservationUtils.extractGoalName(process)).isEqualTo("MyGoal");
-        }
-
-        @Test
-        @DisplayName("should fall back to agent goals when process goal is null")
-        void fromAgentGoals() {
-            var process = mock(AgentProcess.class);
-            var agent = mock(Agent.class);
-            var goal = mock(Goal.class);
-            when(process.getGoal()).thenReturn(null);
-            when(process.getAgent()).thenReturn(agent);
-            when(agent.getGoals()).thenReturn(Set.of(goal));
-            when(goal.getName()).thenReturn("AgentGoal");
-
-            assertThat(ObservationUtils.extractGoalName(process)).isEqualTo("AgentGoal");
-        }
-
-        @Test
-        @DisplayName("should return unknown when no goals")
-        void noGoals() {
-            var process = mock(AgentProcess.class);
-            var agent = mock(Agent.class);
-            when(process.getGoal()).thenReturn(null);
-            when(process.getAgent()).thenReturn(agent);
-            when(agent.getGoals()).thenReturn(Collections.emptySet());
-
-            assertThat(ObservationUtils.extractGoalName(process)).isEqualTo("unknown");
-        }
-    }
-
-    @Nested
-    class GetBlackboardSnapshot {
-
-        @Test
-        @DisplayName("should return empty string for empty blackboard")
-        void emptyBlackboard() {
-            var process = mock(AgentProcess.class);
-            var blackboard = mock(Blackboard.class);
-            when(process.getBlackboard()).thenReturn(blackboard);
-            when(blackboard.getObjects()).thenReturn(Collections.emptyList());
-
-            assertThat(ObservationUtils.getBlackboardSnapshot(process)).isEmpty();
-        }
-
-        @Test
-        @DisplayName("should return empty string for null objects")
-        void nullObjects() {
-            var process = mock(AgentProcess.class);
-            var blackboard = mock(Blackboard.class);
-            when(process.getBlackboard()).thenReturn(blackboard);
-            when(blackboard.getObjects()).thenReturn(null);
-
-            assertThat(ObservationUtils.getBlackboardSnapshot(process)).isEmpty();
-        }
-
-        @Test
-        @DisplayName("should format single object")
-        void singleObject() {
-            var process = mock(AgentProcess.class);
-            var blackboard = mock(Blackboard.class);
-            when(process.getBlackboard()).thenReturn(blackboard);
-            when(blackboard.getObjects()).thenReturn(List.of("hello"));
-
-            var result = ObservationUtils.getBlackboardSnapshot(process);
-            assertThat(result).isEqualTo("String: hello");
-        }
-
-        @Test
-        @DisplayName("should separate multiple objects with ---")
-        void multipleObjects() {
-            var process = mock(AgentProcess.class);
-            var blackboard = mock(Blackboard.class);
-            when(process.getBlackboard()).thenReturn(blackboard);
-            when(blackboard.getObjects()).thenReturn(List.of("a", "b"));
-
-            var result = ObservationUtils.getBlackboardSnapshot(process);
-            assertThat(result).isEqualTo("String: a\n---\nString: b");
         }
     }
 
@@ -233,49 +141,35 @@ class ObservationUtilsTest {
     }
 
     @Nested
-    class FormatPlanSteps {
+    class GetActionOutputs {
 
         @Test
-        @DisplayName("should return [] for null plan")
-        void nullPlan() {
-            assertThat(ObservationUtils.formatPlanSteps(null)).isEqualTo("[]");
+        @DisplayName("should resolve the action's declared output binding from the blackboard")
+        void resolvesDeclaredOutput() {
+            var action = mock(Action.class);
+            var process = mock(AgentProcess.class);
+            var blackboard = mock(Blackboard.class);
+            var agent = mock(Agent.class);
+            var binding = mock(IoBinding.class);
+
+            when(action.getOutputs()).thenReturn(Set.of(binding));
+            when(binding.getValue()).thenReturn("it:java.lang.String");
+            when(process.getBlackboard()).thenReturn(blackboard);
+            when(process.getAgent()).thenReturn(agent);
+            when(blackboard.getValue("it", "java.lang.String", agent)).thenReturn("action output");
+
+            assertThat(ObservationUtils.getActionOutputs(action, process))
+                    .isEqualTo("it (java.lang.String): action output");
         }
 
         @Test
-        @DisplayName("should return [] for empty actions")
-        void emptyActions() {
-            var plan = mock(Plan.class);
-            when(plan.getActions()).thenReturn(Collections.emptyList());
+        @DisplayName("should return empty string for empty outputs")
+        void emptyOutputs() {
+            var action = mock(Action.class);
+            var process = mock(AgentProcess.class);
+            when(action.getOutputs()).thenReturn(Collections.emptySet());
 
-            assertThat(ObservationUtils.formatPlanSteps(plan)).isEqualTo("[]");
-        }
-
-        @Test
-        @DisplayName("should format numbered action list")
-        void withActions() {
-            var plan = mock(Plan.class);
-            var action1 = mock(com.embabel.plan.Action.class);
-            var action2 = mock(com.embabel.plan.Action.class);
-            when(action1.getName()).thenReturn("Step1");
-            when(action2.getName()).thenReturn("Step2");
-            when(plan.getActions()).thenReturn(List.of(action1, action2));
-            when(plan.getGoal()).thenReturn(null);
-
-            assertThat(ObservationUtils.formatPlanSteps(plan)).isEqualTo("1. Step1\n2. Step2");
-        }
-
-        @Test
-        @DisplayName("should append goal when present")
-        void withGoal() {
-            var plan = mock(Plan.class);
-            var action1 = mock(com.embabel.plan.Action.class);
-            var goal = mock(Goal.class);
-            when(action1.getName()).thenReturn("Step1");
-            when(plan.getActions()).thenReturn(List.of(action1));
-            when(plan.getGoal()).thenReturn(goal);
-            when(goal.getName()).thenReturn("FinalGoal");
-
-            assertThat(ObservationUtils.formatPlanSteps(plan)).isEqualTo("1. Step1\n-> Goal: FinalGoal");
+            assertThat(ObservationUtils.getActionOutputs(action, process)).isEmpty();
         }
     }
 }

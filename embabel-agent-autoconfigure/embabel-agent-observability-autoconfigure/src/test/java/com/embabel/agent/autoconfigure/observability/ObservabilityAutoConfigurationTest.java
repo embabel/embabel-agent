@@ -18,6 +18,7 @@ package com.embabel.agent.autoconfigure.observability;
 import com.embabel.agent.observability.ObservabilityProperties;
 import com.embabel.agent.observability.metrics.EmbabelMetricsEventListener;
 import com.embabel.agent.observability.observation.ChatModelObservationFilter;
+import com.embabel.agent.observability.observation.EmbabelSpanEventListener;
 import com.embabel.agent.observability.mdc.MdcPropagationEventListener;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -31,11 +32,10 @@ import org.springframework.context.annotation.Configuration;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Tests conditional bean creation in ObservabilityAutoConfiguration.
- * Verifies that beans are created/skipped based on properties, available dependencies,
- * and implementation type.
- *
- * @since 0.3.4
+ * Tests conditional bean creation in ObservabilityAutoConfiguration: which beans are created or
+ * skipped based on the {@code embabel.observability.*} properties (the {@code enabled} /
+ * {@code tracing-enabled} / {@code metrics-enabled} switches and the per-tier {@code trace-*}
+ * toggles) and the available dependencies ({@code ObservationRegistry}, {@code MeterRegistry}).
  */
 class ObservabilityAutoConfigurationTest {
 
@@ -45,6 +45,8 @@ class ObservabilityAutoConfigurationTest {
     // --- Span conventions customizer creation ---
 
     private static final String CONVENTIONS_BEAN = "embabelSpanConventionsCustomizer";
+
+    private static final String TIER_FILTER_BEAN = "embabelTierFilterCustomizer";
 
     @Test
     void spanConventionsCustomizer_shouldBeCreated_byDefault() {
@@ -72,6 +74,56 @@ class ObservabilityAutoConfigurationTest {
                 .withPropertyValues("embabel.observability.trace-agent-events=false")
                 .run(context -> {
                     assertThat(context).doesNotHaveBean(CONVENTIONS_BEAN);
+                });
+    }
+
+    // --- Tier-filter predicate customizer ---
+
+    @Test
+    void tierFilterCustomizer_shouldBeCreated_byDefault() {
+        contextRunner
+                .withUserConfiguration(ObservationRegistryConfig.class)
+                .run(context -> {
+                    assertThat(context).hasBean(TIER_FILTER_BEAN);
+                });
+    }
+
+    @Test
+    void tierFilterCustomizer_shouldNotBeCreated_whenTracingDisabled() {
+        contextRunner
+                .withUserConfiguration(ObservationRegistryConfig.class)
+                .withPropertyValues("embabel.observability.tracing-enabled=false")
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(TIER_FILTER_BEAN);
+                });
+    }
+
+    // --- Point-event span listener ---
+
+    @Test
+    void spanEventListener_shouldBeCreated_byDefault() {
+        contextRunner
+                .withUserConfiguration(ObservationRegistryConfig.class)
+                .run(context -> {
+                    assertThat(context).hasSingleBean(EmbabelSpanEventListener.class);
+                });
+    }
+
+    @Test
+    void spanEventListener_shouldNotBeCreated_whenTracingDisabled() {
+        contextRunner
+                .withUserConfiguration(ObservationRegistryConfig.class)
+                .withPropertyValues("embabel.observability.tracing-enabled=false")
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(EmbabelSpanEventListener.class);
+                });
+    }
+
+    @Test
+    void spanEventListener_shouldNotBeCreated_whenNoObservationRegistry() {
+        contextRunner
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(EmbabelSpanEventListener.class);
                 });
     }
 

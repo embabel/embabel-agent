@@ -33,6 +33,7 @@ import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.beans.factory.getBean
+import org.springframework.beans.factory.getBeanProvider
 import org.springframework.beans.factory.getBeansOfType
 import org.springframework.context.ApplicationContext
 
@@ -70,16 +71,20 @@ data class SpringContextPlatformServices(
     /**
      * Resolves the [ObservationRegistry] bean, else [ObservationRegistry.NOOP] (e.g. unit tests).
      *
-     * Resolved lazily (on first access, not at construction) to follow the same pattern as
-     * [autonomy], [modelProvider] and [actionQosProperties]: this avoids touching the application
-     * context at construction time, so existing tests that build this service with a strict mock
-     * context — but never read the registry — keep working unchanged.
+     * Resolved lazily — on first access, not at construction — sharing the deferred-resolution
+     * *timing* of [autonomy], [modelProvider] and [actionQosProperties]: this avoids touching the
+     * application context at construction time, so existing tests that build this service with a
+     * strict mock context but never read the registry keep working unchanged.
+     *
+     * Resolution uses [org.springframework.beans.factory.ObjectProvider.getIfUnique], which honours
+     * `@Primary` and falls back to [ObservationRegistry.NOOP] when the bean is absent or ambiguous
+     * (several candidates, no primary). This matches the pre-migration `getIfUnique { NOOP }`
+     * resolution and never throws.
      */
     override val observationRegistry: ObservationRegistry by lazy {
         applicationContext
-            ?.getBeansOfType<ObservationRegistry>()
-            ?.values
-            ?.firstOrNull()
+            ?.getBeanProvider<ObservationRegistry>()
+            ?.getIfUnique { ObservationRegistry.NOOP }
             ?: ObservationRegistry.NOOP
     }
 

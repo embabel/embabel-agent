@@ -36,8 +36,23 @@ public class ObservabilityProperties {
     public ObservabilityProperties() {
     }
 
-    /** Enable/disable observability. */
+    /**
+     * Grand master switch for all observability. When false, neither tracing nor metrics
+     * auto-configuration is activated. Sits above {@link #tracingEnabled} and {@link #metricsEnabled},
+     * which independently gate the two pillars when observability as a whole is enabled.
+     */
     private boolean enabled = true;
+
+    /**
+     * Master switch for tracing (spans). When false, no spans are produced regardless of the
+     * per-tier {@code trace-*} switches: the tracing handler, the span conventions and all span
+     * enrichment are disabled in one shot. Independent of {@link #metricsEnabled} — aggregated
+     * metrics keep flowing.
+     */
+    private boolean tracingEnabled = true;
+
+    /** Master switch for Micrometer business metrics (counters, gauges). Independent of {@link #tracingEnabled}. */
+    private boolean metricsEnabled = true;
 
     /** Service name for traces. */
     private String serviceName = "embabel-agent";
@@ -78,25 +93,14 @@ public class ObservabilityProperties {
     /** Trace dynamic agent creation events. */
     private boolean traceDynamicAgentCreation = true;
 
-    /** Trace HTTP request/response details including bodies, headers and params (enabled by default). */
-    private boolean traceHttpDetails = true;
+    /** Trace HTTP request/response details including bodies, headers and params (disabled by default; opt-in). */
+    private boolean traceHttpDetails = false;
 
     /** Enable @Tracked annotation aspect for custom operation tracking. */
     private boolean traceTrackedOperations = true;
 
     /** Propagate Embabel context (run_id, agent name, action name) into SLF4J MDC for log correlation. */
     private boolean mdcPropagation = true;
-
-    /**
-     * Master switch for tracing (spans). When false, no spans are produced regardless of the
-     * per-tier {@code trace-*} switches: the tracing handler, the span conventions and all span
-     * enrichment are disabled in one shot. Independent of {@link #metricsEnabled} — aggregated
-     * metrics keep flowing.
-     */
-    private boolean tracingEnabled = true;
-
-    /** Enable/disable Micrometer business metrics (counters, gauges). */
-    private boolean metricsEnabled = true;
 
     /**
      * Names of observations (spans) to suppress, matched by exact observation name. Lets you drop

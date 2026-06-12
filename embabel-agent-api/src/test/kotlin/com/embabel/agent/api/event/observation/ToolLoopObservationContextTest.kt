@@ -23,7 +23,9 @@ import io.micrometer.observation.ObservationHandler
 import io.micrometer.observation.ObservationRegistry
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -44,6 +46,8 @@ class ToolLoopObservationContextTest {
         }
     }
 
+    /** Required to make the observation active: without a handler that supports the context, the
+     * registry would not run start/stop and the convention would never be invoked. */
     private object NoopHandler : ObservationHandler<Observation.Context> {
         override fun supportsContext(context: Observation.Context) = true
     }
@@ -60,10 +64,31 @@ class ToolLoopObservationContextTest {
             "loop answer"
         }
 
+        // Assert the temporal contract via first/last rather than an exact list, so the test stays
+        // robust to how many times Micrometer happens to read the convention.
+        assertNull(probe.outputsSeen.first(), "convention must see no output at span start")
         assertEquals(
-            listOf(null, "loop answer"),
-            probe.outputsSeen,
-            "convention must see no output at start, then the value captured at stop",
+            "loop answer",
+            probe.outputsSeen.last(),
+            "convention must see the output captured by span stop",
         )
+    }
+
+    @Test
+    fun `output stays null when the work throws before producing a result`() {
+        val probe = OutputProbeConvention()
+        val registry = ObservationRegistry.create()
+        registry.observationConfig().observationHandler(NoopHandler).observationConvention(probe)
+        val context = ToolLoopObservationContext(mockk<ToolLoopStartEvent>(), emptyList())
+
+        assertThrows<IllegalStateException> {
+            Observations.observeOrSkip(registry, { context }) {
+                throw IllegalStateException("loop failed") // output never set
+            }
+        }
+
+        // The span still stops on failure (the convention is re-read), but no output was produced.
+        assertNull(probe.outputsSeen.first(), "no output at span start")
+        assertNull(probe.outputsSeen.last(), "no output captured when the work throws")
     }
 }

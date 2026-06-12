@@ -185,7 +185,7 @@ class ChatModelObservationFilterTest {
         @BeforeEach
         void setUpHierarchyTests() {
             // Force clean OTel context to prevent cross-test context leakage
-            // (e.g., SpringObservationProofOfConceptTest leaves stale spans in thread-local)
+            // (e.g., ObserveTracingContractTest leaves stale spans in thread-local)
             otelRootScope = Context.root().makeCurrent();
 
             // Wire up a real OTel SDK -> Micrometer bridge -> ObservationRegistry pipeline
