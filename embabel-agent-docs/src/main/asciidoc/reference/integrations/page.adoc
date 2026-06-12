@@ -925,7 +925,7 @@ All tracing options are enabled by default and can be toggled individually:
 
 |`embabel.observability.trace-embedding`
 |`true`
-|Embedding invocations with token usage (`embabel.embedding`)
+|Embedding invocations with token usage (`embabel.embedding`), in-agent and standalone (RAG/pgvector outside an agent process)
 
 |`embabel.observability.trace-planning`
 |`true`

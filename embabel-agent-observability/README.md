@@ -190,7 +190,7 @@ Your agents are now fully traced. No code changes required.
 | **Sub-agent Hierarchy** | Proper parent-child span relationships for sub-agents |
 | **Action Tracing** | Each action execution as a child span with duration, status, and `input.value`/`output.value` |
 | **LLM Call Spans** | A span per LLM interaction (`embabel.llm`) with model, operation, agent and action; plus an `embabel.llm.invocation` span per model round-trip carrying token usage and cost |
-| **Embedding Spans** | An `embabel.embedding` span per embedding invocation with model and token usage/cost |
+| **Embedding Spans** | An `embabel.embedding` span per embedding invocation with model and token usage/cost — for in-agent embeddings and for **standalone** calls made outside an agent process (RAG/pgvector), which appear as root spans |
 | **Tool Loop Tracing** | An `embabel.tool_loop` span wrapping the tool loop (with the prompt `input.value` and result `output.value`), plus an `embabel.tool_loop.completed` point span with iteration count and replan flag |
 | **Input / Output Capture** | Agent, action and tool-loop spans carry `input.value`/`output.value` (OpenInference keys, rendered in Langfuse's input/output panels), truncated to `max-attribute-length` |
 | **Tool Call Tracing** | Every tool invocation as an `embabel.tool` span with tool name, group, correlation id, status, duration, arguments/result and error (Spring AI's native `tool call` span is suppressed in favour of this richer one) |
@@ -276,6 +276,16 @@ embabel:
     trace-tool-calls: false   # drop the 'embabel.tool' spans
     trace-tool-loop: false    # drop the 'embabel.tool_loop' spans
 ```
+
+### Session & user grouping
+
+The `embabel.agent` span carries two ids that backends such as Langfuse use to group traces:
+
+- `gen_ai.conversation.id` — the session id, taken from the last `Conversation` on the blackboard,
+  falling back to the run id. Every turn of a conversation shares it.
+- `user.id` — the per-user id, resolved from the process identity
+  `ProcessOptions.identities.forUser` (the same source as `OperationContext.user()`), falling back
+  to the last `User` bound on the blackboard. Omitted when no user is known.
 
 ---
 
