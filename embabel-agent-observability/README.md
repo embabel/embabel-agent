@@ -186,12 +186,13 @@ Your agents are now fully traced. No code changes required.
 
 | Feature | Description |
 |---------|-------------|
-| **Agent Lifecycle Tracing** | Full trace of agent creation, execution, completion, failures, and process kill |
+| **Agent Lifecycle Tracing** | Full trace of agent creation, execution, completion, failures, and process kill, with the turn `input.value`/`output.value` |
 | **Sub-agent Hierarchy** | Proper parent-child span relationships for sub-agents |
-| **Action Tracing** | Each action execution as a child span with duration, status, and result |
+| **Action Tracing** | Each action execution as a child span with duration, status, and `input.value`/`output.value` |
 | **LLM Call Spans** | A span per LLM interaction (`embabel.llm`) with model, operation, agent and action; plus an `embabel.llm.invocation` span per model round-trip carrying token usage and cost |
 | **Embedding Spans** | An `embabel.embedding` span per embedding invocation with model and token usage/cost |
-| **Tool Loop Tracing** | An `embabel.tool_loop` span wrapping the tool loop, plus an `embabel.tool_loop.completed` point span with iteration count and replan flag |
+| **Tool Loop Tracing** | An `embabel.tool_loop` span wrapping the tool loop (with the prompt `input.value` and result `output.value`), plus an `embabel.tool_loop.completed` point span with iteration count and replan flag |
+| **Input / Output Capture** | Agent, action and tool-loop spans carry `input.value`/`output.value` (OpenInference keys, rendered in Langfuse's input/output panels), truncated to `max-attribute-length` |
 | **Tool Call Tracing** | Every tool invocation as an `embabel.tool` span with tool name, group, correlation id, status, duration, arguments/result and error (Spring AI's native `tool call` span is suppressed in favour of this richer one) |
 | **Goal & Replan Tracing** | `embabel.goal` on goal achievement (name + result) and `embabel.replan` on replan requests (reason) |
 | **LLM Call Integration** | Spring AI ChatModel calls automatically appear as child spans via `ChatModelObservationFilter` |
@@ -368,6 +369,19 @@ customer-service-agent                 (embabel.agent — one run() turn)
 
 > `embabel.ranking` (agent routing) is a platform-level decision with no enclosing agent process, so
 > it is emitted as its own root span rather than nested in a turn.
+
+### Input / Output
+
+The `embabel.agent`, `embabel.action` and `embabel.tool_loop` spans carry the step's input and output
+under the **OpenInference** keys `input.value` and `output.value` — which LLM-observability backends
+(Langfuse, etc.) render in their dedicated input/output panels:
+
+- **agent** — input: the bound `UserInput`(s); output: the run's last result.
+- **action** — input: the action's declared inputs read from the blackboard; output: the action's result.
+- **tool_loop** — input: the prompt messages; output: the loop result.
+
+Both are truncated to `embabel.observability.max-attribute-length`. These keys are vendor-neutral
+(OpenInference), not Langfuse-specific.
 
 ### Sub-agent Hierarchy
 

@@ -20,9 +20,13 @@ import com.embabel.agent.core.Action;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.Blackboard;
 import com.embabel.agent.core.IoBinding;
+import com.embabel.agent.domain.io.UserInput;
+import com.embabel.chat.Message;
 import com.embabel.plan.Plan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.List;
 
 /**
  * Shared pure utility methods for observation listeners.
@@ -43,6 +47,33 @@ final class ObservationUtils {
         if (name == null) return null;
         int lastDot = name.lastIndexOf('.');
         return lastDot >= 0 && lastDot < name.length() - 1 ? name.substring(lastDot + 1) : name;
+    }
+
+    /** Chat messages formatted as span input: one {@code [ROLE]: content} line per message. */
+    static String formatMessages(List<? extends Message> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (Message m : messages) {
+            if (sb.length() > 0) sb.append("\n");
+            sb.append("[").append(m.getRole()).append("]: ").append(m.getContent());
+        }
+        return sb.toString();
+    }
+
+    /** The agent turn's input: the content of the {@link UserInput}(s) bound on the blackboard. */
+    static String agentInput(AgentProcess process) {
+        List<UserInput> inputs = process.objectsOfType(UserInput.class);
+        if (inputs.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (UserInput input : inputs) {
+            if (sb.length() > 0) sb.append("\n");
+            sb.append(input.getContent());
+        }
+        return sb.toString();
     }
 
     static String extractGoalName(AgentProcess process) {

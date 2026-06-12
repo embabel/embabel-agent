@@ -29,6 +29,7 @@ import com.embabel.agent.core.AgentProcessStatusCode;
 import com.embabel.agent.core.ProcessOptions;
 import com.embabel.chat.Conversation;
 import com.embabel.common.ai.model.LlmMetadata;
+import com.embabel.chat.Message;
 import com.embabel.plan.Action;
 import io.micrometer.common.KeyValue;
 import io.micrometer.common.KeyValues;
@@ -47,6 +48,7 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -265,16 +267,21 @@ class EmbabelObservationConventionsTest {
             lenient().when(event.getToolNames()).thenReturn(List.of("toolA", "toolB"));
             lenient().when(event.getMaxIterations()).thenReturn(20);
             lenient().when(event.getOutputClass()).thenReturn((Class) String.class);
+            Message message = mock(Message.class);
+            lenient().when(message.getContent()).thenReturn("user question");
 
-            ToolLoopObservationContext ctx = new ToolLoopObservationContext(event);
+            ToolLoopObservationContext ctx = new ToolLoopObservationContext(event, List.of(message));
+            ctx.setOutput("loop answer");
             Map<String, String> kv = allKeyValues(
-                    observe(new EmbabelToolLoopObservationConvention(), ctx, "embabel.tool_loop"));
+                    observe(new EmbabelToolLoopObservationConvention(4000), ctx, "embabel.tool_loop"));
 
             assertEquals("tool_loop", kv.get("gen_ai.operation.name"));
             assertEquals("20", kv.get("embabel.tool_loop.max_iterations"));
             assertEquals("interaction-3", kv.get("embabel.interaction.id"));
             assertEquals("toolA,toolB", kv.get("embabel.tool_loop.tool_names"));
             assertEquals(String.class.getName(), kv.get("embabel.tool_loop.output_class"));
+            assertTrue(kv.get("input.value").contains("user question"));
+            assertEquals("loop answer", kv.get("output.value"));
         }
     }
 

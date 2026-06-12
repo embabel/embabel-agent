@@ -63,9 +63,16 @@ public class EmbabelActionObservationConvention
     public KeyValues getHighCardinalityKeyValues(ActionObservationContext context) {
         AgentProcess process = context.getProcess();
         KeyValues kv = KeyValues.of("embabel.run.id", process.getId());
+        if (context.getAction() instanceof com.embabel.agent.core.Action coreAction) {
+            String input = ObservationUtils.getActionInputs(coreAction, process);
+            if (!input.isEmpty()) {
+                kv = kv.and("input.value", ObservationUtils.truncate(input, maxAttributeLength));
+            }
+        }
         Object result = process.lastResult();
         if (result != null) {
-            kv = kv.and("embabel.action.result", ObservationUtils.truncate(result.toString(), maxAttributeLength));
+            String output = ObservationUtils.truncate(result.toString(), maxAttributeLength);
+            kv = kv.and("embabel.action.result", output).and("output.value", output);
         }
         return kv;
     }

@@ -75,7 +75,7 @@ public class ObservabilityAutoConfiguration {
         return registry -> registry.observationConfig()
                 .observationConvention(new EmbabelAgentObservationConvention(maxAttributeLength))
                 .observationConvention(new EmbabelActionObservationConvention(maxAttributeLength))
-                .observationConvention(new EmbabelToolLoopObservationConvention())
+                .observationConvention(new EmbabelToolLoopObservationConvention(maxAttributeLength))
                 .observationConvention(new EmbabelLlmObservationConvention());
     }
 

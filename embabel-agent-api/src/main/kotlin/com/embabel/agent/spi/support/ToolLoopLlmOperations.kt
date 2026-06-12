@@ -225,12 +225,12 @@ open class ToolLoopLlmOperations(
         val result = if (toolLoopStartEvent == null) {
             executeLoop()
         } else {
-            Observations.observeOrSkip(
-                observationRegistry,
-                "embabel.tool_loop",
-                { ToolLoopObservationContext(toolLoopStartEvent) },
-                executeLoop,
-            )
+            val toolLoopContext = ToolLoopObservationContext(toolLoopStartEvent, initialMessages)
+            Observations.observeOrSkip(observationRegistry, "embabel.tool_loop", { toolLoopContext }) {
+                val loopResult = executeLoop()
+                toolLoopContext.output = loopResult
+                loopResult
+            }
         }
 
         handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent)

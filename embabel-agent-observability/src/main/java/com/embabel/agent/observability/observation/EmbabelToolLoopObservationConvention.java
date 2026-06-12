@@ -28,6 +28,12 @@ import io.micrometer.observation.Observation;
 public class EmbabelToolLoopObservationConvention
         implements GlobalObservationConvention<ToolLoopObservationContext> {
 
+    private final int maxAttributeLength;
+
+    public EmbabelToolLoopObservationConvention(int maxAttributeLength) {
+        this.maxAttributeLength = maxAttributeLength;
+    }
+
     @Override
     public boolean supportsContext(Observation.Context context) {
         return context instanceof ToolLoopObservationContext;
@@ -59,10 +65,19 @@ public class EmbabelToolLoopObservationConvention
     @Override
     public KeyValues getHighCardinalityKeyValues(ToolLoopObservationContext context) {
         ToolLoopStartEvent event = context.getStartEvent();
-        return KeyValues.of(
+        KeyValues kv = KeyValues.of(
                 "embabel.run.id", event.getAgentProcess().getId(),
                 "embabel.interaction.id", event.getInteractionId(),
                 "embabel.tool_loop.tool_names", String.join(",", event.getToolNames()),
                 "embabel.tool_loop.output_class", event.getOutputClass().getName());
+        String input = ObservationUtils.formatMessages(context.getInputMessages());
+        if (!input.isEmpty()) {
+            kv = kv.and("input.value", ObservationUtils.truncate(input, maxAttributeLength));
+        }
+        Object output = context.getOutput();
+        if (output != null) {
+            kv = kv.and("output.value", ObservationUtils.truncate(output.toString(), maxAttributeLength));
+        }
+        return kv;
     }
 }

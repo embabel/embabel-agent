@@ -16,11 +16,21 @@
 package com.embabel.agent.api.event.observation
 
 import com.embabel.agent.api.event.ToolLoopStartEvent
+import com.embabel.chat.Message
 import io.micrometer.observation.Observation
 import org.jetbrains.annotations.ApiStatus
 
-/** Thin context for the `embabel.tool_loop` span: wraps the [ToolLoopStartEvent] that opened the loop. */
+/**
+ * Thin context for the `embabel.tool_loop` span: wraps the [ToolLoopStartEvent] and the
+ * [inputMessages] (the prompt, captured at start). [output] is set after the loop runs and read by
+ * the convention at stop — the only mutable field, since the result is not on the start event.
+ */
 @ApiStatus.Internal
 class ToolLoopObservationContext(
     val startEvent: ToolLoopStartEvent,
-) : Observation.Context()
+    val inputMessages: List<Message>,
+) : Observation.Context() {
+
+    @Volatile
+    var output: Any? = null
+}

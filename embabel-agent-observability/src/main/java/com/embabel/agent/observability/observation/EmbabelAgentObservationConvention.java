@@ -89,9 +89,14 @@ public class EmbabelAgentObservationConvention
         if (process.getGoal() != null) {
             kv = kv.and("embabel.goal", process.getGoal().getName());
         }
+        String input = ObservationUtils.agentInput(process);
+        if (!input.isEmpty()) {
+            kv = kv.and("input.value", ObservationUtils.truncate(input, maxAttributeLength));
+        }
         Object result = process.lastResult();
         if (result != null) {
-            kv = kv.and("embabel.agent.result", ObservationUtils.truncate(result.toString(), maxAttributeLength));
+            String output = ObservationUtils.truncate(result.toString(), maxAttributeLength);
+            kv = kv.and("embabel.agent.result", output).and("output.value", output);
         }
         return kv;
     }

@@ -877,6 +877,16 @@ customer-service-agent              (embabel.agent — one run() turn)
 └── completed                       (embabel.lifecycle)
 ----
 
+The `embabel.agent`, `embabel.action` and `embabel.tool_loop` spans also carry the step's input and
+output under the vendor-neutral **OpenInference** keys `input.value` / `output.value`, which
+LLM-observability backends (Langfuse, etc.) render in their input/output panels:
+
+* *agent* — input: the bound `UserInput`(s); output: the run's last result.
+* *action* — input: the action's declared inputs from the blackboard; output: the action's result.
+* *tool_loop* — input: the prompt messages; output: the loop result.
+
+Both are truncated to `embabel.observability.max-attribute-length`.
+
 ===== Tracing Configuration Properties
 
 All tracing options are enabled by default and can be toggled individually:
