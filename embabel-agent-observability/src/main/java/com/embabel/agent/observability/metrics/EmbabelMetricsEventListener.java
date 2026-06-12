@@ -29,8 +29,8 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Emits Micrometer business metrics for Embabel Agent processes.
@@ -60,7 +60,7 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
 
     private final MeterRegistry registry;
     private final ObservabilityProperties properties;
-    private final AtomicInteger activeAgents = new AtomicInteger(0);
+    private final Set<String> activeProcessIds = ConcurrentHashMap.newKeySet();
     private final ConcurrentHashMap<String, Instant> creationTimestamps = new ConcurrentHashMap<>();
 
     /**
@@ -72,7 +72,7 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
     public EmbabelMetricsEventListener(MeterRegistry registry, ObservabilityProperties properties) {
         this.registry = registry;
         this.properties = properties;
-        Gauge.builder("embabel.agent.active", activeAgents, AtomicInteger::get)
+        Gauge.builder("embabel.agent.active", activeProcessIds, Set::size)
                 .description("Number of agent processes currently running")
                 .register(registry);
     }
@@ -94,22 +94,22 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
 
         switch (event) {
             case AgentProcessCreationEvent e -> {
-                activeAgents.incrementAndGet();
+                activeProcessIds.add(e.getAgentProcess().getId());
                 creationTimestamps.put(e.getAgentProcess().getId(), Instant.now());
             }
             case AgentProcessCompletedEvent e -> {
-                activeAgents.decrementAndGet();
+                activeProcessIds.remove(e.getAgentProcess().getId());
                 recordTokensAndCost(e.getAgentProcess());
                 recordAgentDuration(e.getAgentProcess(), "completed");
             }
             case AgentProcessFailedEvent e -> {
-                activeAgents.decrementAndGet();
+                activeProcessIds.remove(e.getAgentProcess().getId());
                 recordAgentError(e.getAgentProcess());
                 recordTokensAndCost(e.getAgentProcess());
                 recordAgentDuration(e.getAgentProcess(), "failed");
             }
             case ProcessKilledEvent e -> {
-                activeAgents.decrementAndGet();
+                activeProcessIds.remove(e.getAgentProcess().getId());
                 creationTimestamps.remove(e.getAgentProcess().getId());
             }
             case ToolCallRequestEvent e -> recordToolCall(e);
@@ -119,7 +119,12 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
             }
             case LlmRequestEvent e -> recordLlmRequest(e);
             case LlmResponseEvent e -> recordLlmDuration(e);
-            case AgentProcessStuckEvent e -> recordAgentStuck(e);
+            case AgentProcessStuckEvent e -> {
+                activeProcessIds.remove(e.getAgentProcess().getId());
+                recordAgentStuck(e);
+            }
+            case AgentProcessWaitingEvent e -> activeProcessIds.remove(e.getAgentProcess().getId());
+            case AgentProcessPausedEvent e -> activeProcessIds.remove(e.getAgentProcess().getId());
             case ToolLoopCompletedEvent e -> recordToolLoopIterations(e);
             case ReplanRequestedEvent e -> recordReplanning(e.getAgentProcess());
             default -> { }

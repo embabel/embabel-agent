@@ -126,6 +126,60 @@ class EmbabelMetricsEventListenerTest {
             listener.onProcessEvent(new AgentProcessCompletedEvent(process1));
             assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(2.0);
         }
+
+        @Test
+        @DisplayName("Stuck should remove the agent from the active gauge (no leak)")
+        void stuck_shouldDecrementGauge() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "TestAgent");
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new AgentProcessStuckEvent(process));
+
+            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(0.0);
+        }
+
+        @Test
+        @DisplayName("Waiting should remove the agent from the active gauge (no leak)")
+        void waiting_shouldDecrementGauge() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "TestAgent");
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new AgentProcessWaitingEvent(process));
+
+            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(0.0);
+        }
+
+        @Test
+        @DisplayName("Paused should remove the agent from the active gauge (no leak)")
+        void paused_shouldDecrementGauge() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "TestAgent");
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new AgentProcessPausedEvent(process));
+
+            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(0.0);
+        }
+
+        @Test
+        @DisplayName("Duplicate terminal events keep the gauge at zero (idempotent, never negative)")
+        void duplicateTerminal_staysAtZero() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "TestAgent");
+            mockUsageAndCost(process, null, 0.0);
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new AgentProcessStuckEvent(process));
+            listener.onProcessEvent(new AgentProcessCompletedEvent(process)); // second terminal for same id
+
+            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(0.0);
+        }
     }
 
     // ================================================================================
