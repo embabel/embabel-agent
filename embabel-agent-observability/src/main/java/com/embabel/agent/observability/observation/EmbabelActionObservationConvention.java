@@ -46,14 +46,16 @@ public class EmbabelActionObservationConvention
 
     @Override
     public String getContextualName(ActionObservationContext context) {
-        return context.getAction().getName();
+        return ObservationUtils.shortName(context.getAction().getName());
     }
 
     @Override
     public KeyValues getLowCardinalityKeyValues(ActionObservationContext context) {
+        String name = context.getAction().getName();
         return KeyValues.of(
                 "gen_ai.operation.name", "action",
-                "embabel.action.name", context.getAction().getName(),
+                "embabel.action.name", name,
+                "embabel.action.short_name", ObservationUtils.shortName(name),
                 "embabel.agent.name", context.getProcess().getAgent().getName());
     }
 

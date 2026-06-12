@@ -17,6 +17,9 @@ package com.embabel.agent.observability;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Configuration properties for Embabel Agent observability.
  *
@@ -94,6 +97,17 @@ public class ObservabilityProperties {
 
     /** Enable/disable Micrometer business metrics (counters, gauges). */
     private boolean metricsEnabled = true;
+
+    /**
+     * Names of observations (spans) to suppress, matched by exact observation name. Lets you drop
+     * non-Embabel infrastructure spans you don't want exported (Langfuse, Zipkin, …) without code,
+     * e.g. {@code tasks.scheduled.execution} (@Scheduled tasks), {@code http.server.requests}
+     * (incoming HTTP), {@code http.client.requests} (outgoing HTTP). Empty by default (nothing
+     * suppressed). Embabel's own spans are named {@code embabel.*}; list one only if you really
+     * want to drop it. A suppressed observation becomes a no-op, so its children re-parent to the
+     * next live ancestor.
+     */
+    private List<String> disabledTraces = new ArrayList<>();
 
     // Getters and Setters
 
@@ -400,5 +414,21 @@ public class ObservabilityProperties {
      */
     public void setTracingEnabled(boolean tracingEnabled) {
         this.tracingEnabled = tracingEnabled;
+    }
+
+    /**
+     * Returns the names of observations to suppress.
+     * @return the list of disabled observation names (never null; empty means none)
+     */
+    public List<String> getDisabledTraces() {
+        return disabledTraces;
+    }
+
+    /**
+     * Sets the names of observations to suppress (matched by exact observation name).
+     * @param disabledTraces the observation names to drop
+     */
+    public void setDisabledTraces(List<String> disabledTraces) {
+        this.disabledTraces = disabledTraces == null ? new ArrayList<>() : disabledTraces;
     }
 }

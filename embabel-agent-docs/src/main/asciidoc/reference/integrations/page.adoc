@@ -857,19 +857,24 @@ management:
 ===== What Gets Traced
 
 All tracing is automatic once the module is on the classpath.
-The following events are captured as OpenTelemetry spans, organized in a parent-child hierarchy:
+Operations are captured as OpenTelemetry spans organized in a parent-child hierarchy.
+Each span has a human-friendly **contextual** label (shown below) and a stable low-cardinality
+**meter** name in parentheses (`embabel.*`, used for metrics):
 
 [source]
 ----
-Agent: CustomerServiceAgent (trace root)
-├── planning:formulated [iteration=1, actions=3]
-├── Action: AnalyzeRequest
-│   └── ChatModel: gpt-4 (Spring AI)
-│       └── tool:searchKnowledgeBase
-├── Action: GenerateResponse
-│   └── ChatModel: gpt-4 (Spring AI)
-├── goal:achieved [RequestProcessed]
-└── status: completed [duration=2340ms]
+customer-service-agent              (embabel.agent — one run() turn)
+├── planning                        (embabel.planning) [goal=RequestProcessed, action_count=3]
+├── analyze-request                 (embabel.action)
+│   └── gpt-4o                      (embabel.llm — one LLM interaction)
+│       └── tool-loop               (embabel.tool_loop)
+│           ├── gpt-4o              (embabel.llm.invocation) [input/output tokens, cost]
+│           ├── search-knowledge-base (embabel.tool) [status=success]
+│           └── tool-loop-completed (embabel.tool_loop.completed) [iterations, replan flag]
+├── generate-response               (embabel.action)
+│   └── gpt-4o                      (embabel.llm)
+├── request-processed               (embabel.goal)
+└── completed                       (embabel.lifecycle)
 ----
 
 ===== Tracing Configuration Properties
@@ -882,7 +887,11 @@ All tracing options are enabled by default and can be toggled individually:
 
 |`embabel.observability.enabled`
 |`true`
-|Master switch for observability
+|Master switch for the whole module (traces and metrics)
+
+|`embabel.observability.tracing-enabled`
+|`true`
+|Umbrella switch for tracing (spans). When `false`, disables all `trace-*` tiers at once; independent of `metrics-enabled`
 
 |`embabel.observability.service-name`
 |`embabel-agent`
@@ -894,19 +903,23 @@ All tracing options are enabled by default and can be toggled individually:
 
 |`embabel.observability.trace-tool-calls`
 |`true`
-|Tool invocations with input/output
+|Tool invocations (`embabel.tool` span: name, group, status, duration, arguments/result, error)
 
 |`embabel.observability.trace-tool-loop`
 |`true`
-|Tool loop execution
+|Tool loop execution (`embabel.tool_loop` + `embabel.tool_loop.completed`)
 
 |`embabel.observability.trace-llm-calls`
 |`true`
-|LLM calls with token usage
+|LLM invocations with token usage (`embabel.llm.invocation`)
+
+|`embabel.observability.trace-embedding`
+|`true`
+|Embedding invocations with token usage (`embabel.embedding`)
 
 |`embabel.observability.trace-planning`
 |`true`
-|Planning and replanning iterations
+|Plan formulation (`embabel.planning`) and replan requests (`embabel.replan`)
 
 |`embabel.observability.trace-state-transitions`
 |`true`
@@ -914,7 +927,7 @@ All tracing options are enabled by default and can be toggled individually:
 
 |`embabel.observability.trace-lifecycle-states`
 |`true`
-|WAITING, PAUSED, STUCK states
+|Lifecycle states — COMPLETED/FAILED/WAITING/PAUSED/STUCK (`embabel.lifecycle`) and goal achievement (`embabel.goal`)
 
 |`embabel.observability.trace-rag`
 |`true`
@@ -1005,12 +1018,12 @@ When called within an agent execution, `@Tracked` spans are automatically nested
 
 [source]
 ----
-Agent: CustomerServiceAgent
-├── Action: ProcessOrder
-│   ├── @Tracked: enrichCustomer (PROCESSING)
-│   ├── ChatModel: gpt-4
-│   └── @Tracked: callPaymentApi (EXTERNAL_CALL)
-└── status: completed
+customer-service-agent              (embabel.agent)
+├── process-order                   (embabel.action)
+│   ├── enrich-customer             (@Tracked, PROCESSING)
+│   ├── gpt-4o                      (embabel.llm)
+│   └── call-payment-api            (@Tracked, EXTERNAL_CALL)
+└── completed                       (embabel.lifecycle)
 ----
 
 IMPORTANT: `@Tracked` uses Spring AOP proxies.

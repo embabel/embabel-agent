@@ -111,4 +111,32 @@ class TierFilterPredicateTest {
         assertTrue(recorded("embabel.llm"));
         assertTrue(recorded("embabel.tool_loop"));
     }
+
+    @Test
+    @DisplayName("disabled-traces drops the named observations and nothing else")
+    void disabledTracesDropped() {
+        ObservabilityProperties properties = new ObservabilityProperties();
+        properties.setDisabledTraces(List.of("tasks.scheduled.execution", "http.server.requests"));
+        applyFilter(properties);
+
+        observe("tasks.scheduled.execution");
+        observe("http.server.requests");
+        observe("embabel.llm");
+
+        assertFalse(recorded("tasks.scheduled.execution"), "listed observation is dropped");
+        assertFalse(recorded("http.server.requests"), "listed observation is dropped");
+        assertTrue(recorded("embabel.llm"), "unlisted Embabel span is kept");
+    }
+
+    @Test
+    @DisplayName("empty disabled-traces (default) suppresses nothing")
+    void emptyDisabledTracesKeepsEverything() {
+        applyFilter(new ObservabilityProperties()); // defaults: disabled-traces empty
+
+        observe("tasks.scheduled.execution");
+        observe("embabel.llm");
+
+        assertTrue(recorded("tasks.scheduled.execution"), "no suppression by default");
+        assertTrue(recorded("embabel.llm"));
+    }
 }

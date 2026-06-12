@@ -207,9 +207,29 @@ class EmbabelObservationConventionsTest {
 
             assertEquals("action", kv.get("gen_ai.operation.name"));
             assertEquals("MyAction", kv.get("embabel.action.name"));
+            assertEquals("MyAction", kv.get("embabel.action.short_name"));
             assertEquals("TestAgent", kv.get("embabel.agent.name"));
             assertEquals("run-1", kv.get("embabel.run.id"));
             assertFalse(kv.containsKey("embabel.action.result"));
+        }
+
+        @Test
+        @DisplayName("fully-qualified action name kept as-is; short_name carries the method name")
+        void addsShortNameForFullyQualifiedName() {
+            AgentProcess process = mock(AgentProcess.class, RETURNS_DEEP_STUBS);
+            lenient().when(process.getAgent().getName()).thenReturn("TestAgent");
+            lenient().when(process.getId()).thenReturn("run-1");
+            lenient().when(process.lastResult()).thenReturn(null);
+            Action action = mock(Action.class);
+            String fqn = "com.example.agent.TimeCalculatorAgent.calculateHours";
+            when(action.getName()).thenReturn(fqn);
+
+            ActionObservationContext ctx = new ActionObservationContext(process, action);
+            Map<String, String> kv = allKeyValues(
+                    observe(new EmbabelActionObservationConvention(4000), ctx, "embabel.action"));
+
+            assertEquals(fqn, kv.get("embabel.action.name"));
+            assertEquals("calculateHours", kv.get("embabel.action.short_name"));
         }
 
         @Test

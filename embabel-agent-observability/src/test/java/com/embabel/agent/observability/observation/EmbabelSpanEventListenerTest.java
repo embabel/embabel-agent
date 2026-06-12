@@ -401,10 +401,10 @@ class EmbabelSpanEventListenerTest {
         }
 
         @Test
-        @DisplayName("goal achieved becomes a span with goal name and result")
+        @DisplayName("goal achieved span keeps the full goal name and adds a short name")
         void goalAchievedSpan() {
             Goal goal = mock(Goal.class);
-            lenient().when(goal.getName()).thenReturn("answerQuestion");
+            lenient().when(goal.getName()).thenReturn("com.example.WizardAgent.answerQuestion");
             AgentProcess process = mock(AgentProcess.class);
             lenient().when(process.lastResult()).thenReturn("the answer");
             GoalAchievedEvent event = mock(GoalAchievedEvent.class);
@@ -415,7 +415,8 @@ class EmbabelSpanEventListenerTest {
 
             Map<String, String> kv = kvOf("embabel.goal");
             assertEquals("goal_achieved", kv.get("gen_ai.operation.name"));
-            assertEquals("answerQuestion", kv.get("embabel.goal.name"));
+            assertEquals("com.example.WizardAgent.answerQuestion", kv.get("embabel.goal.name"));
+            assertEquals("answerQuestion", kv.get("embabel.goal.short_name"));
             assertEquals("the answer", kv.get("embabel.goal.result"));
         }
     }

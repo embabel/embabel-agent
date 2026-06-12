@@ -89,6 +89,10 @@ public class ObservabilityAutoConfiguration {
      *       both would double every tool span.</li>
      *   <li>the core-produced {@code embabel.tool_loop} span is dropped when
      *       {@code trace-tool-loop=false}.</li>
+     *   <li>any observation whose name is listed in {@code embabel.observability.disabled-traces}
+     *       is dropped — typically non-Embabel infrastructure spans the user does not want exported
+     *       (e.g. {@code tasks.scheduled.execution}, {@code http.server.requests}). Empty by
+     *       default, so nothing extra is suppressed.</li>
      * </ul>
      * A suppressed observation becomes a no-op, so its children simply re-parent to the next live
      * ancestor.
@@ -100,6 +104,9 @@ public class ObservabilityAutoConfiguration {
     @ConditionalOnProperty(prefix = "embabel.observability", name = "tracing-enabled", havingValue = "true", matchIfMissing = true)
     public ObservationRegistryCustomizer<ObservationRegistry> embabelTierFilterCustomizer(ObservabilityProperties properties) {
         return registry -> registry.observationConfig().observationPredicate((name, context) -> {
+            if (properties.getDisabledTraces().contains(name)) {
+                return false;
+            }
             if ("tool call".equals(name)) {
                 return false;
             }

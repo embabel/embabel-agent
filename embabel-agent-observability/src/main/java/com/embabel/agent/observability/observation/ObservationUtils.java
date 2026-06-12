@@ -38,6 +38,13 @@ final class ObservationUtils {
         return value.length() > maxLength ? value.substring(0, maxLength) + "..." : value;
     }
 
+    /** Local name from a possibly fully-qualified name: the segment after the last dot, else the name itself. */
+    static String shortName(String name) {
+        if (name == null) return null;
+        int lastDot = name.lastIndexOf('.');
+        return lastDot >= 0 && lastDot < name.length() - 1 ? name.substring(lastDot + 1) : name;
+    }
+
     static String extractGoalName(AgentProcess process) {
         if (process.getGoal() != null) {
             return process.getGoal().getName();

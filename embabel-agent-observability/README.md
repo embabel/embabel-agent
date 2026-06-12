@@ -344,25 +344,26 @@ so they are emitted as instantaneous spans by a small event-driven listener
 
 ## Trace Hierarchy Example
 
-Span names are kebab-cased by the standard tracing handler: the **contextual** name (agent name,
-action name, model) becomes the span label, while the low-cardinality meter name stays `embabel.*`.
-Point spans (no contextual name) keep their `embabel.*` name.
+Every span carries two names: the **contextual** name is the human-friendly label shown in the trace
+backend (kebab-cased by the standard handler), and the low-cardinality **meter** name (`embabel.*`,
+shown in parentheses below) is the stable identifier used for metrics. Below, the label is the
+contextual name and the parenthesised value is the meter name.
 
 ```
 customer-service-agent                 (embabel.agent — one run() turn)
-├── embabel.planning                   [embabel.plan.goal=RequestProcessed, action_count=3]
+├── planning                           (embabel.planning) [goal=RequestProcessed, action_count=3]
 ├── analyze-request                    (embabel.action)
-│   └── gpt-4                          (embabel.llm — one LLM interaction)
+│   └── gpt-4o                         (embabel.llm — one LLM interaction)
 │       └── tool-loop                  (embabel.tool_loop)
-│           ├── embabel.llm.invocation [gen_ai.usage.input_tokens=…, output_tokens=…, embabel.llm.cost=…]
-│           ├── embabel.tool           [embabel.tool.name=searchKnowledgeBase, status=success]
-│           └── embabel.tool_loop.completed [total_iterations=2, replan_requested=false]
+│           ├── gpt-4o                 (embabel.llm.invocation) [usage.input_tokens=…, output_tokens=…, cost=…]
+│           ├── search-knowledge-base  (embabel.tool) [status=success]
+│           └── tool-loop-completed    (embabel.tool_loop.completed) [total_iterations=2, replan_requested=false]
 ├── generate-response                  (embabel.action)
-│   └── gpt-4                          (embabel.llm)
+│   └── gpt-4o                         (embabel.llm)
 │       └── tool-loop                  (embabel.tool_loop)
-│           └── embabel.llm.invocation
-├── embabel.goal                       [embabel.goal.name=RequestProcessed]
-└── embabel.lifecycle                  [embabel.lifecycle.state=COMPLETED]
+│           └── gpt-4o                 (embabel.llm.invocation)
+├── request-processed                  (embabel.goal)
+└── completed                          (embabel.lifecycle)
 ```
 
 > `embabel.ranking` (agent routing) is a platform-level decision with no enclosing agent process, so
@@ -434,12 +435,12 @@ public PaymentResult processPayment(Order order) {
 When `@Tracked` methods are called within an agent execution, spans are automatically nested under the current action or agent span:
 
 ```
-Agent: CustomerServiceAgent
-├── Action: ProcessOrder
-│   ├── @Tracked: enrichCustomer (PROCESSING)
-│   ├── ChatModel: gpt-4
-│   └── @Tracked: callPaymentApi (EXTERNAL_CALL)
-└── status: completed
+customer-service-agent              (embabel.agent)
+├── process-order                   (embabel.action)
+│   ├── enrich-customer             (@Tracked, PROCESSING)
+│   ├── gpt-4o                      (embabel.llm)
+│   └── call-payment-api            (@Tracked, EXTERNAL_CALL)
+└── completed                       (embabel.lifecycle)
 ```
 
 ### Important: Spring AOP Proxy Limitation
