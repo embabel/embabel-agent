@@ -198,7 +198,7 @@ Your agents are now fully traced. No code changes required.
 | **LLM Call Integration** | Spring AI ChatModel calls automatically appear as child spans via `ChatModelObservationFilter` |
 | **LLM Token Metrics & Cost** | `gen_ai.usage.*` tokens and `embabel.llm.cost` on per-invocation spans, plus business-metric counters |
 | **Planning Events** | Track plan formulation, replanning iterations, and replan requests with reasons |
-| **RAG Pipeline Tracing** | Full RAG event tracing: request, response, pipeline stages, and enhancement steps |
+| **RAG Tracing** | An `embabel.rag` span on RAG response with service, query and result count |
 | **Ranking Events** | Agent routing decisions: ranking requests, choices made (with score), and failures (with confidence cutoff) |
 | **Dynamic Agent Creation Tracing** | Platform events for dynamically created agents |
 | **State Transitions** | Monitor workflow state changes |

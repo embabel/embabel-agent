@@ -40,7 +40,7 @@ import java.util.concurrent.CopyOnWriteArrayList
  * recording [ObservationHandler] (no tracer / OTel needed); nesting is asserted via the
  * parent-observation chain that Micrometer maintains.
  */
-class AbstractAgentProcessSpanTest {
+class AgentProcessSpanTest {
 
     private class RecordingHandler : ObservationHandler<Observation.Context> {
         val stopped = CopyOnWriteArrayList<Observation.Context>()

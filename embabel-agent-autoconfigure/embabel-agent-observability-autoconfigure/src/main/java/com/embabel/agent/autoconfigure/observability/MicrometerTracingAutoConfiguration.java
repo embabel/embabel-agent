@@ -16,7 +16,6 @@
 package com.embabel.agent.autoconfigure.observability;
 
 import io.micrometer.observation.ObservationRegistry;
-import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.handler.DefaultTracingObservationHandler;
 import io.micrometer.tracing.otel.bridge.OtelCurrentTraceContext;
 import io.micrometer.tracing.otel.bridge.OtelTracer;
@@ -24,7 +23,6 @@ import io.opentelemetry.api.OpenTelemetry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -33,11 +31,11 @@ import org.springframework.context.annotation.Bean;
 /**
  * Auto-configuration for the Micrometer Tracing bridge to OpenTelemetry.
  *
- * <p>Provides {@link OtelCurrentTraceContext} for context propagation and the standard
- * {@link DefaultTracingObservationHandler} that turns the direct-instrumentation observations
- * (agent turn, action, tool loop, LLM call, tool call) into spans. Span hierarchy comes from
- * Micrometer's current-observation mechanism — no custom handler is needed because {@code observe{}}
- * never leaves a residual scope.
+ * <p>Provides {@link OtelCurrentTraceContext} for context propagation. The observations produced by
+ * the direct instrumentation (agent turn, action, tool loop, LLM call, tool call) are turned into
+ * spans by Spring Boot's own standard {@link DefaultTracingObservationHandler} — Embabel registers no
+ * handler of its own: with direct {@code observe{}} instrumentation the span hierarchy comes from
+ * Micrometer's current-observation mechanism (no residual scope), so the stock handler suffices.
  *
  * @see OpenTelemetrySdkAutoConfiguration
  * @since 0.3.4
@@ -59,21 +57,5 @@ public class MicrometerTracingAutoConfiguration {
     public OtelCurrentTraceContext otelCurrentTraceContext() {
         log.debug("Creating OtelCurrentTraceContext for trace context propagation");
         return new OtelCurrentTraceContext();
-    }
-
-    /**
-     * Registers the standard Micrometer {@link DefaultTracingObservationHandler}, which bridges
-     * observations to OpenTelemetry spans. Spring Boot auto-registers this handler on the
-     * ObservationRegistry.
-     *
-     * @param tracer the Micrometer Tracer
-     * @return the standard tracing observation handler
-     */
-    @Bean
-    @ConditionalOnBean(Tracer.class)
-    @ConditionalOnMissingBean(DefaultTracingObservationHandler.class)
-    public DefaultTracingObservationHandler defaultTracingObservationHandler(Tracer tracer) {
-        log.info("Registering standard DefaultTracingObservationHandler for direct Micrometer instrumentation");
-        return new DefaultTracingObservationHandler(tracer);
     }
 }
