@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.config.models.anthropic
 
+import com.anthropic.client.AnthropicClient
+import com.anthropic.client.okhttp.AnthropicOkHttpClient
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
@@ -27,14 +29,11 @@ import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.ai.anthropic.AnthropicChatModel
 import org.springframework.ai.anthropic.AnthropicChatOptions
-import org.springframework.ai.anthropic.api.AnthropicApi
 import org.springframework.ai.model.tool.ToolCallingManager
-import org.springframework.ai.retry.RetryUtils
 import org.springframework.beans.factory.ObjectProvider
-import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.retry.support.RetryTemplate
 import org.springframework.web.client.RestClient
-import org.springframework.web.reactive.function.client.WebClient
+import java.time.Duration
 
 /**
  * Builds Anthropic [LlmService] instances from a raw API key.
@@ -56,18 +55,25 @@ import org.springframework.web.reactive.function.client.WebClient
  * AnthropicModelFactory(apiKey = userKey, validationModel = AnthropicModels.CLAUDE_SONNET_4_5)
  * ```
  *
+ * Spring AI 2.0 swapped its hand-rolled `AnthropicApi` for the official anthropic-java SDK
+ * ([AnthropicClient]). The migration removes Spring's `RestClient`/`WebClient` from the
+ * HTTP path entirely — the SDK uses OkHttp internally. The [restClientBuilder] parameter
+ * is kept for source compatibility with the previous constructor signature but is no
+ * longer wired into HTTP calls.
+ *
  * @param apiKey Anthropic API key.
  * @param baseUrl Optional base URL override; defaults to the standard Anthropic endpoint.
  * @param validationModel Model used for the key-validation probe. Defaults to [VALIDATION_MODEL].
- * @param observationRegistry Micrometer registry for HTTP client instrumentation.
- * @param requestFactory Optional HTTP request factory (e.g. for custom timeouts).
+ * @param observationRegistry Micrometer registry for Spring AI's chat model instrumentation.
+ * @param restClientBuilder Unused since Spring AI 2.0; retained for source compatibility.
  */
 open class AnthropicModelFactory(
     private val apiKey: String,
     private val baseUrl: String? = null,
     private val validationModel: String = VALIDATION_MODEL,
     protected val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
-    private val restClientBuilder: ObjectProvider<RestClient.Builder> = ObjectProviders.empty(),
+    @Suppress("UNUSED_PARAMETER")
+    restClientBuilder: ObjectProvider<RestClient.Builder> = ObjectProviders.empty(),
 ) : ByokFactory<LlmService<*>> {
 
     protected val logger = LoggerFactory.getLogger(javaClass)
@@ -76,57 +82,50 @@ open class AnthropicModelFactory(
         /** Default model used for key validation probes — cheapest available. */
         const val VALIDATION_MODEL = AnthropicModels.CLAUDE_HAIKU_4_5
 
-        private const val CONNECT_TIMEOUT_MS = 5000
-        private const val READ_TIMEOUT_MS = 600000
-
-        private val PASS_THROUGH_RETRY_TEMPLATE: RetryTemplate =
-            RetryTemplate.builder().maxAttempts(1).build()
+        private val READ_TIMEOUT: Duration = Duration.ofMillis(600_000)
     }
 
     /**
-     * Builds an [AnthropicApi] client from the configured credentials.
-     * Protected so that [AnthropicModelsConfig] can reuse it for its own model wiring.
+     * Builds an [AnthropicClient] (from anthropic-java, the SDK Spring AI 2.0 delegates to)
+     * from the configured credentials. Protected so [AnthropicModelsConfig] can reuse it.
+     *
+     * Uses [AnthropicOkHttpClient.builder] directly rather than `AnthropicSetup` so we don't
+     * inherit Spring AI's `ANTHROPIC_BASE_URL` / `ANTHROPIC_API_KEY` environment-variable
+     * precedence — the factory's caller has already resolved env vs. properties at construction
+     * time.
      */
-    protected fun createAnthropicApi(): AnthropicApi {
-        val builder = AnthropicApi.builder().apiKey(apiKey)
+    protected fun createAnthropicClient(): AnthropicClient {
+        val builder = AnthropicOkHttpClient.builder()
+            .apiKey(apiKey)
+            .timeout(READ_TIMEOUT)
         if (!baseUrl.isNullOrBlank()) {
             logger.info("Using custom Anthropic base URL: {}", baseUrl)
             builder.baseUrl(baseUrl)
         }
-        builder.restClientBuilder(
-            restClientBuilder.getIfAvailable {
-                RestClient.builder()
-                    .requestFactory(
-                        SimpleClientHttpRequestFactory().apply {
-                            setConnectTimeout(CONNECT_TIMEOUT_MS)
-                            setReadTimeout(READ_TIMEOUT_MS)
-                        })
-            }
-                .observationRegistry(observationRegistry)
-        )
-        builder.webClientBuilder(
-            WebClient.builder().observationRegistry(observationRegistry)
-        )
         return builder.build()
     }
 
     /**
      * Builds an [LlmService] for the given Anthropic model.
      *
+     * Spring AI 2.0 dropped the spring-retry `RetryTemplate` parameter on the chat model
+     * builder. The [retryTemplate] param is kept here so existing call sites compile, but
+     * is ignored — retries are handled at the ChatClientLlmOperations layer via spring-retry.
+     *
      * @param model Model identifier, e.g. [AnthropicModels.CLAUDE_HAIKU_4_5].
-     * @param retryTemplate Retry policy; defaults to Spring AI's standard retry template.
      */
+    @JvmOverloads
     fun build(
         model: String,
-        retryTemplate: RetryTemplate = RetryUtils.DEFAULT_RETRY_TEMPLATE,
+        @Suppress("UNUSED_PARAMETER")
+        retryTemplate: RetryTemplate? = null,
     ): LlmService<*> {
         val chatModel = AnthropicChatModel.builder()
-            .defaultOptions(AnthropicChatOptions.builder().model(model).build())
-            .anthropicApi(createAnthropicApi())
+            .options(AnthropicChatOptions.builder().model(model).build())
+            .anthropicClient(createAnthropicClient())
             .toolCallingManager(
                 ToolCallingManager.builder().observationRegistry(observationRegistry).build()
             )
-            .retryTemplate(retryTemplate)
             .observationRegistry(observationRegistry)
             .build()
 
@@ -151,15 +150,16 @@ open class AnthropicModelFactory(
      * Validates the API key with a probe call on the given [model], then returns a production
      * [LlmService] if successful.
      *
-     * The probe uses a single-attempt retry template so an invalid key fails fast without
-     * retries or noisy stack traces. On any exception the provider-specific error is
-     * translated to [InvalidApiKeyException], keeping Spring AI types out of the caller.
+     * Spring AI 2.0 no longer accepts a spring-retry [RetryTemplate] on the model builder,
+     * so the probe relies on the anthropic-java SDK's own no-retry default (any 401 fails fast).
+     * On any exception the provider-specific error is translated to [InvalidApiKeyException],
+     * keeping Spring AI types out of the caller.
      *
      * @param model Model to use for the probe.
      * @throws InvalidApiKeyException if the key is invalid.
      */
     fun buildValidated(model: String): LlmService<*> {
-        val probe = build(model, PASS_THROUGH_RETRY_TEMPLATE)
+        val probe = build(model)
         try {
             probe.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())
         } catch (e: Exception) {

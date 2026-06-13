@@ -18,7 +18,7 @@ package com.embabel.agent.spi.support.springai
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.tools.mcp.ToolCallContextMcpMetaConverter
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import io.modelcontextprotocol.client.McpSyncClient
 import io.modelcontextprotocol.spec.McpSchema
 import io.modelcontextprotocol.spec.McpSchema.CallToolRequest
@@ -29,7 +29,6 @@ import org.springframework.ai.mcp.SyncMcpToolCallbackProvider
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.springframework.ai.model.ModelOptionsUtils
 import org.springframework.ai.tool.ToolCallback
 import org.springframework.ai.tool.definition.DefaultToolDefinition
 import org.springframework.ai.tool.metadata.DefaultToolMetadata
@@ -366,8 +365,11 @@ class SpringToolCallbackAdapterTest {
             `when`(callResult.content()).thenReturn(listOf(McpSchema.TextContent("ok")))
 
             val clientInfo = McpSchema.Implementation("test-client", "1.0.0")
+            // Spring AI 2.0 / MCP SDK: clientCapabilities is now non-null; mock with a minimal default.
+            val clientCapabilities = McpSchema.ClientCapabilities.builder().build()
             val mcpClient = mock(McpSyncClient::class.java)
             `when`(mcpClient.clientInfo).thenReturn(clientInfo)
+            `when`(mcpClient.clientCapabilities).thenReturn(clientCapabilities)
             `when`(mcpClient.listTools()).thenReturn(listResult)
             `when`(mcpClient.callTool(captor.capture())).thenReturn(callResult)
 
@@ -429,9 +431,11 @@ class SpringToolCallbackAdapterTest {
                 objectMapper.readTree(schema)
             }
 
-            // Verify Spring AI's ModelOptionsUtils can parse it (this is what fails in production)
+            // Verify the schema parses as a JSON object map.
+            // (Spring AI 2.0 removed ModelOptionsUtils.jsonToMap; readValue<Map> is the equivalent
+            //  check that the production parser path will accept the schema.)
             assertDoesNotThrow {
-                ModelOptionsUtils.jsonToMap(schema)
+                objectMapper.readValue(schema, Map::class.java)
             }
         }
 

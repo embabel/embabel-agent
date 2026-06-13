@@ -101,7 +101,7 @@ internal class SpringAiLlmMessageSender(
         // the first is empty and the second contains tool calls. We need to find the
         // generation with tool calls, or fall back to the first one if none have them.
         // See: https://github.com/embabel/embabel-agent/issues/1350
-        val assistantMessage = findGenerationWithToolCalls(response) ?: response.result.output
+        val assistantMessage = findGenerationWithToolCalls(response) ?: response.result!!.output
         val embabelMessage = assistantMessage.toEmbabelMessage()
 
         // Extract usage information
@@ -198,12 +198,14 @@ internal class SpringAiLlmMessageSender(
         // If chatOptions already implements ToolCallingChatOptions (e.g., AnthropicChatOptions,
         // OpenAiChatOptions, etc.), use its copy() method to preserve all provider-specific settings
         if (chatOptions is ToolCallingChatOptions) {
-            val copied: ChatOptions = chatOptions.copy()
-            if (copied is ToolCallingChatOptions) {
-                copied.toolCallbacks = toolCallbacks
-                copied.internalToolExecutionEnabled = false
-            }
-            return copied
+            // Spring AI 2.0: toolCallbacks / internalToolExecutionEnabled are read-only on
+            // ToolCallingChatOptions, so use mutate() to derive a new instance. This preserves
+            // the provider-specific subtype (e.g. Anthropic cache settings) while attaching our
+            // tool callbacks and disabling Spring AI's automatic tool execution.
+            return chatOptions.mutate()
+                .toolCallbacks(toolCallbacks)
+                .internalToolExecutionEnabled(false)
+                .build()
         }
 
         // Fallback: Create generic ToolCallingChatOptions

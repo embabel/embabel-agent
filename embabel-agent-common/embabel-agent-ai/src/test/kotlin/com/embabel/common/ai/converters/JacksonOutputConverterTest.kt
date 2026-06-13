@@ -15,12 +15,11 @@
  */
 package com.embabel.common.ai.converters
 
-import com.fasterxml.jackson.databind.JsonMappingException
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.SerializationFeature
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
-import com.fasterxml.jackson.module.kotlin.KotlinModule
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.core.JacksonException
+import tools.jackson.databind.cfg.DateTimeFeature
+import tools.jackson.databind.json.JsonMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.kotlinModule
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -33,10 +32,10 @@ import java.time.LocalDateTime
 
 class JacksonOutputConverterTest {
 
-    private val objectMapper = jacksonObjectMapper().apply {
-        registerModule(JavaTimeModule())
-        disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-    }
+    private val objectMapper = JsonMapper.builder()
+        .addModule(kotlinModule())
+        .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
+        .build()
 
     data class SimpleObject(
         val name: String,
@@ -439,10 +438,8 @@ World"""
             val messyJson = """{"name":"$name", "value": 42}"""
 
             // Parse the malformed json string without the lenient mapper.
-            val mapper = ObjectMapper().registerModule(
-                KotlinModule.Builder().build()
-            )
-            val exception = assertThrows<JsonMappingException> {
+            val mapper = jacksonObjectMapper()
+            val exception = assertThrows<JacksonException> {
                 mapper.readValue(messyJson, SimpleObject::class.java)
             }
 
@@ -572,8 +569,8 @@ World"""
     }
 }
 
-private fun com.fasterxml.jackson.databind.JsonNode.requiredFieldNamesOrRefResolved(
-    rootSchema: com.fasterxml.jackson.databind.JsonNode,
+private fun tools.jackson.databind.JsonNode.requiredFieldNamesOrRefResolved(
+    rootSchema: tools.jackson.databind.JsonNode,
 ): Set<String> {
     val ref = get("\$ref")?.takeIf { it.isTextual }?.asText()
     if (ref != null && ref.startsWith("#/")) {

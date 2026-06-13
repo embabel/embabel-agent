@@ -28,8 +28,9 @@ import io.opentelemetry.api.OpenTelemetry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.actuate.autoconfigure.observation.ObservationRegistryCustomizer;
+import org.springframework.boot.micrometer.observation.autoconfigure.ObservationRegistryCustomizer;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -43,7 +44,22 @@ import org.springframework.context.annotation.Bean;
  * @see OpenTelemetrySdkAutoConfiguration
  * @since 0.3.4
  */
-@AutoConfiguration(after = OpenTelemetrySdkAutoConfiguration.class)
+@AutoConfiguration(
+        after = OpenTelemetrySdkAutoConfiguration.class,
+        // Order relative to Spring Boot's own tracing auto-configuration so Embabel's
+        // NonEmbabelTracingObservationHandler deterministically wins the
+        // @ConditionalOnMissingBean(DefaultTracingObservationHandler) race:
+        //  - afterName: run after the OpenTelemetry Tracer (OtelTracer) bean is created,
+        //    otherwise @ConditionalOnBean(Tracer.class) below evaluates false and the
+        //    handler is never registered;
+        //  - beforeName: run before Boot registers its DefaultTracingObservationHandler,
+        //    so Boot's @ConditionalOnMissingBean backs off in favour of ours.
+        // Referenced by name so we take no compile/runtime dependency on the
+        // spring-boot-micrometer-tracing(-opentelemetry) modules; the ordering is simply
+        // ignored when those modules are absent from the classpath.
+        afterName = "org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.OpenTelemetryTracingAutoConfiguration",
+        beforeName = "org.springframework.boot.micrometer.tracing.autoconfigure.MicrometerTracingAutoConfiguration"
+)
 @ConditionalOnClass({OtelTracer.class, OpenTelemetry.class, ObservationRegistry.class})
 @ConditionalOnProperty(prefix = "embabel.observability", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class MicrometerTracingAutoConfiguration {
@@ -111,6 +127,7 @@ public class MicrometerTracingAutoConfiguration {
      * @return the configured observation handler
      */
     @Bean
+    @ConditionalOnBean(Tracer.class)
     @ConditionalOnMissingBean(DefaultTracingObservationHandler.class)
     @ConditionalOnProperty(prefix = "embabel.observability", name = "implementation",
             havingValue = "SPRING_OBSERVATION", matchIfMissing = true)

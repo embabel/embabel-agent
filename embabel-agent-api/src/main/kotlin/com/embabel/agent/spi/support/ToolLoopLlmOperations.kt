@@ -60,9 +60,8 @@ import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.thinking.spi.InternalThinkingApi
 import com.embabel.common.core.thinking.spi.extractAllThinkingBlocks
 import com.embabel.common.textio.template.TemplateRenderer
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import io.micrometer.observation.ObservationRegistry
 import jakarta.validation.Validator
 import java.time.Duration
@@ -121,7 +120,7 @@ open class ToolLoopLlmOperations(
     dataBindingProperties: LlmDataBindingProperties = LlmDataBindingProperties(),
     autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
     promptsProperties: LlmOperationsPromptsProperties = LlmOperationsPromptsProperties(),
-    objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
+    objectMapper: ObjectMapper = jacksonObjectMapper(),
     protected val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
     asyncer: Asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
     protected val toolLoopFactory: ToolLoopFactory = ToolLoopFactory.create(ToolLoopConfiguration(), asyncer, AutoCorrectionPolicy()),
