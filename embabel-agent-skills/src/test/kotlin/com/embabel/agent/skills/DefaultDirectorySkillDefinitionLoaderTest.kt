@@ -218,6 +218,55 @@ class DefaultDirectorySkillDefinitionLoaderTest {
     }
 
     @Test
+    fun `loadAll skips an unloadable skill and still loads the rest`() {
+        createSkillDirectory(
+            "good-skill",
+            """
+            ---
+            name: good-skill
+            description: A fine skill
+            ---
+            """.trimIndent()
+        )
+        // Malformed: a Markdown link to a non-URL target that doesn't exist on disk →
+        // validateFileReferences fails → load() would throw. loadAll must skip it,
+        // not abort the whole set (the regression that crashed the host chat UI).
+        createSkillDirectory(
+            "broken-skill",
+            """
+            ---
+            name: broken-skill
+            description: References a missing file
+            ---
+            See [the diagram](references/missing.png) for details.
+            """.trimIndent()
+        )
+
+        val skills = loader.loadAll(tempDir)
+
+        assertEquals(1, skills.size, "the good skill loads; the broken one is skipped, not fatal")
+        assertTrue(skills.any { it.name == "good-skill" })
+        assertTrue(skills.none { it.name == "broken-skill" })
+    }
+
+    @Test
+    fun `load (single) still throws for an unloadable skill`() {
+        val dir = createSkillDirectory(
+            "broken-single",
+            """
+            ---
+            name: broken-single
+            description: References a missing file
+            ---
+            See [the diagram](references/missing.png).
+            """.trimIndent()
+        )
+        // Single-skill load stays strict: a caller asking for one skill by path
+        // still gets the exception (only the collection loadAll degrades).
+        assertThrows<SkillLoadException> { loader.load(dir) }
+    }
+
+    @Test
     fun `loadAll returns empty list when no skills found`() {
         val emptyParent = tempDir.resolve("empty-parent")
         Files.createDirectories(emptyParent)
