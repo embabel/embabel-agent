@@ -39,7 +39,7 @@ import java.lang.reflect.Type
  * text for LLMs. Native structured-output payloads need the schema itself.
  */
 interface JsonSchemaProvider {
-    val jsonSchema: String
+    fun getJsonSchema(): String
 }
 
 /**

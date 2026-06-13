@@ -958,5 +958,5 @@ private class SpringAiOutputConverterAdapter<T>(
 ) : OutputConverter<T> {
     override fun convert(source: String): T? = delegate.convert(source)
     override fun getFormat(): String? = delegate.format
-    override fun getJsonSchema(): String? = jsonSchemaProvider?.jsonSchema
+    override fun getJsonSchema(): String? = jsonSchemaProvider?.getJsonSchema()
 }

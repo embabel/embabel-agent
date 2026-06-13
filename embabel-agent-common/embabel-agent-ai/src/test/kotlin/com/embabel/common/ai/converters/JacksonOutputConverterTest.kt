@@ -91,7 +91,7 @@ class JacksonOutputConverterTest {
         @Test
         fun `marks Kotlin non-null properties as required`() {
             val converter = JacksonOutputConverter(KotlinRequiredParent::class.java, objectMapper)
-            val schema = jacksonObjectMapper().readTree(converter.jsonSchema)
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
 
             assertThat(schema.requiredFieldNames()).containsExactlyInAnyOrder("child", "title")
             assertThat(schema.path("properties").path("optional").requiredFieldNames()).isEmpty()
@@ -105,7 +105,7 @@ class JacksonOutputConverterTest {
                 objectMapper,
                 requiredFieldNormalization = RequiredFieldNormalization.DISABLED,
             )
-            val schema = jacksonObjectMapper().readTree(converter.jsonSchema)
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
 
             assertThat(schema.requiredFieldNames()).isEmpty()
             assertThat(schema.path("properties").path("child").requiredFieldNames()).isEmpty()
@@ -119,7 +119,7 @@ class JacksonOutputConverterTest {
                 fieldFilter = { true },
                 requiredFieldNormalization = RequiredFieldNormalization.DISABLED,
             )
-            val schema = jacksonObjectMapper().readTree(converter.jsonSchema)
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
 
             assertThat(schema.requiredFieldNames()).isEmpty()
             assertThat(schema.path("properties").path("child").requiredFieldNames()).isEmpty()
@@ -130,7 +130,7 @@ class JacksonOutputConverterTest {
             val javaType = Class.forName("com.embabel.common.ai.converters.JavaStructuredOutputFixtures\$Parent")
                 as Class<Any>
             val converter = JacksonOutputConverter(javaType, objectMapper)
-            val schema = jacksonObjectMapper().readTree(converter.jsonSchema)
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
 
             assertThat(schema.requiredFieldNames()).containsExactlyInAnyOrder(
                 "primitiveCount",
