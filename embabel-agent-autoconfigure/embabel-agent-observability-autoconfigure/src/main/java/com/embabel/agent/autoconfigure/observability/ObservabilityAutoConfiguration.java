@@ -15,7 +15,10 @@
  */
 package com.embabel.agent.autoconfigure.observability;
 
-import com.embabel.agent.api.event.observation.Observations;
+import com.embabel.agent.api.event.observation.ActionObservationContext;
+import com.embabel.agent.api.event.observation.AgentObservationContext;
+import com.embabel.agent.api.event.observation.LlmObservationContext;
+import com.embabel.agent.api.event.observation.ToolLoopObservationContext;
 import com.embabel.agent.observability.ObservabilityProperties;
 import com.embabel.agent.observability.mdc.MdcPropagationEventListener;
 import com.embabel.agent.observability.observation.ChatModelObservationFilter;
@@ -111,27 +114,23 @@ public class ObservabilityAutoConfiguration {
             if ("tool call".equals(name)) {
                 return false;
             }
-            // trace-agent-events=false suppresses the whole core scoped span tier
-            // (agent/action/tool_loop/llm). With the conventions un-registered, those four spans
-            // all carry the placeholder name (Observations.PLACEHOLDER_NAME) — exclusive to them —
-            // so dropping it removes the tier in one rule without coupling the core to any flag.
-            if (!properties.isTraceAgentEvents() && Observations.PLACEHOLDER_NAME.equals(name)) {
-                return false;
+            // The four core scoped spans (agent/action/tool_loop/llm) are opened by the core via the
+            // by-name factory with a shared placeholder name; their semantic name (embabel.agent, …)
+            // is applied only at start(), AFTER this predicate has run — so they cannot be matched by
+            // name. They ARE matched by their typed Observation.Context, which is available here.
+            // trace-agent-events is the umbrella; the per-span flag refines it. trace-llm-calls also
+            // governs the scoped embabel.llm span (in addition to its llm.invocation point span).
+            if (context instanceof AgentObservationContext) {
+                return properties.isTraceAgentEvents() && properties.isTraceAgent();
             }
-            // Per-span control of the core scoped tier, by semantic name (effective when the
-            // conventions are registered, i.e. trace-agent-events=true). trace-llm-calls also drops
-            // the scoped embabel.llm span here, in addition to its llm.invocation point span.
-            if (!properties.isTraceAgent() && "embabel.agent".equals(name)) {
-                return false;
+            if (context instanceof ActionObservationContext) {
+                return properties.isTraceAgentEvents() && properties.isTraceAction();
             }
-            if (!properties.isTraceAction() && "embabel.action".equals(name)) {
-                return false;
+            if (context instanceof LlmObservationContext) {
+                return properties.isTraceAgentEvents() && properties.isTraceLlmCalls();
             }
-            if (!properties.isTraceLlmCalls() && "embabel.llm".equals(name)) {
-                return false;
-            }
-            if (!properties.isTraceToolLoop() && "embabel.tool_loop".equals(name)) {
-                return false;
+            if (context instanceof ToolLoopObservationContext) {
+                return properties.isTraceAgentEvents() && properties.isTraceToolLoop();
             }
             return true;
         });

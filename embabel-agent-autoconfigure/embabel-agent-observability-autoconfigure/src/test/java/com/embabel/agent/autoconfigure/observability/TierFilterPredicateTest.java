@@ -15,8 +15,16 @@
  */
 package com.embabel.agent.autoconfigure.observability;
 
+import com.embabel.agent.api.event.LlmRequestEvent;
+import com.embabel.agent.api.event.ToolLoopStartEvent;
+import com.embabel.agent.api.event.observation.ActionObservationContext;
+import com.embabel.agent.api.event.observation.AgentObservationContext;
+import com.embabel.agent.api.event.observation.LlmObservationContext;
 import com.embabel.agent.api.event.observation.Observations;
+import com.embabel.agent.api.event.observation.ToolLoopObservationContext;
+import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.observability.ObservabilityProperties;
+import com.embabel.plan.Action;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;
 import io.micrometer.observation.ObservationRegistry;
@@ -29,12 +37,24 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 /**
- * Verifies the tier-filter ObservationPredicate: Spring AI's native {@code tool call} span is
- * always dropped (Embabel emits its own richer {@code embabel.tool} point span instead), and the
- * core-produced {@code embabel.tool_loop} span is dropped when {@code trace-tool-loop=false} — all
- * by name, without the core ever reading a flag.
+ * Verifies the tier-filter {@code ObservationPredicate}.
+ *
+ * <p>Two distinct matching strategies, because the name a span carries at predicate time differs by
+ * how it was created:
+ * <ul>
+ *   <li><b>By context type</b> — the four core <em>scoped</em> spans (agent/action/tool_loop/llm) are
+ *       created by the core via the by-name factory with a shared placeholder name; their semantic
+ *       name (`embabel.agent`, …) is only applied later at {@code start()}, after the predicate has
+ *       already run. So they cannot be matched by name — the predicate matches them by their typed
+ *       {@code Observation.Context} ({@link AgentObservationContext}, …), which IS available at
+ *       predicate time. Tests reproduce the real path ({@link #keptScoped}).</li>
+ *   <li><b>By name</b> — Spring AI's {@code tool call} span and the {@code disabled-traces} entries
+ *       carry their real name at creation (created via a convention / a real name), so a name match
+ *       works for those.</li>
+ * </ul>
  */
 class TierFilterPredicateTest {
 
@@ -66,6 +86,8 @@ class TierFilterPredicateTest {
         new ObservabilityAutoConfiguration().embabelTierFilterCustomizer(properties).customize(registry);
     }
 
+    // --- by-name path (Spring AI 'tool call', disabled-traces): the span has its real name at creation ---
+
     private boolean recorded(String name) {
         return handler.stopped.stream().anyMatch(c -> name.equals(c.getName()));
     }
@@ -75,28 +97,44 @@ class TierFilterPredicateTest {
         });
     }
 
+    // --- faithful scoped-span path: exactly what Observations.observeOrSkip does in the core ---
+    // The span is created with the placeholder name and a typed context; the predicate sees the
+    // placeholder (not the semantic name), so it must match on the context type. Returns true if the
+    // span survived the predicate (recorded), false if it was dropped.
+
+    private boolean keptScoped(Observation.Context ctx) {
+        Observation.createNotStarted(Observations.PLACEHOLDER_NAME, () -> ctx, registry)
+                .observe(() -> {
+                });
+        return handler.stopped.contains(ctx);
+    }
+
+    private AgentObservationContext agentCtx() {
+        return new AgentObservationContext(mock(AgentProcess.class));
+    }
+
+    private ActionObservationContext actionCtx() {
+        return new ActionObservationContext(mock(AgentProcess.class), mock(Action.class));
+    }
+
+    private LlmObservationContext llmCtx() {
+        return new LlmObservationContext(mock(LlmRequestEvent.class));
+    }
+
+    private ToolLoopObservationContext toolLoopCtx() {
+        return new ToolLoopObservationContext(mock(ToolLoopStartEvent.class), List.of());
+    }
+
+    // --- Spring AI 'tool call' suppression (by name) ---
+
     @Test
     @DisplayName("Spring AI 'tool call' span is always dropped (Embabel emits its own embabel.tool)")
     void springAiToolCallAlwaysDropped() {
-        applyFilter(new ObservabilityProperties()); // defaults: trace-tool-loop=true
+        applyFilter(new ObservabilityProperties());
 
         observe("tool call");
-        observe("embabel.tool_loop");
 
         assertFalse(recorded("tool call"), "Spring AI 'tool call' span is dropped unconditionally");
-        assertTrue(recorded("embabel.tool_loop"), "tool_loop kept when trace-tool-loop=true");
-    }
-
-    @Test
-    @DisplayName("trace-tool-loop=true explicitly keeps 'embabel.tool_loop'")
-    void toolLoopKeptWhenExplicitlyEnabled() {
-        ObservabilityProperties properties = new ObservabilityProperties();
-        properties.setTraceToolLoop(true);
-        applyFilter(properties);
-
-        observe("embabel.tool_loop");
-
-        assertTrue(recorded("embabel.tool_loop"));
     }
 
     @Test
@@ -114,18 +152,6 @@ class TierFilterPredicateTest {
     }
 
     @Test
-    @DisplayName("trace-tool-calls=true still drops 'tool call' (only embabel.tool survives)")
-    void toolCallStaysDroppedWhenTraceToolCallsEnabled() {
-        ObservabilityProperties properties = new ObservabilityProperties();
-        properties.setTraceToolCalls(true);
-        applyFilter(properties);
-
-        observe("tool call");
-
-        assertFalse(recorded("tool call"), "'tool call' is dropped whether trace-tool-calls is true or false");
-    }
-
-    @Test
     @DisplayName("name matching is exact: a name containing 'tool call' as a substring is kept")
     void substringDoesNotMatch() {
         applyFilter(new ObservabilityProperties());
@@ -135,75 +161,43 @@ class TierFilterPredicateTest {
         assertTrue(recorded("tool call wrapper"), "only the exact 'tool call' name is dropped");
     }
 
+    // --- core scoped spans (by context type), reproduced via the real path ---
+
     @Test
-    @DisplayName("trace-tool-loop=false drops 'embabel.tool_loop'; 'tool call' stays dropped")
-    void toolLoopSuppressed() {
-        ObservabilityProperties properties = new ObservabilityProperties();
-        properties.setTraceToolLoop(false);
-        applyFilter(properties);
+    @DisplayName("defaults keep all four core scoped spans")
+    void defaultsKeepAllScopedSpans() {
+        applyFilter(new ObservabilityProperties());
 
-        observe("tool call");
-        observe("embabel.tool_loop");
-
-        assertFalse(recorded("embabel.tool_loop"));
-        assertFalse(recorded("tool call"));
+        assertTrue(keptScoped(agentCtx()), "embabel.agent kept");
+        assertTrue(keptScoped(actionCtx()), "embabel.action kept");
+        assertTrue(keptScoped(llmCtx()), "embabel.llm kept");
+        assertTrue(keptScoped(toolLoopCtx()), "embabel.tool_loop kept");
     }
 
     @Test
-    @DisplayName("trace-agent-events=false drops the core scoped span tier (placeholder name)")
-    void traceAgentEventsFalseDropsCoreScopedTier() {
-        ObservabilityProperties properties = new ObservabilityProperties();
-        properties.setTraceAgentEvents(false);
-        applyFilter(properties);
-
-        // With the conventions un-registered, agent/action/tool_loop/llm all carry the placeholder
-        // name; dropping it suppresses the whole core scoped span tier in one rule.
-        observe(Observations.PLACEHOLDER_NAME);
-
-        assertFalse(recorded(Observations.PLACEHOLDER_NAME),
-                "trace-agent-events=false suppresses the core scoped spans, not just their attributes");
-    }
-
-    @Test
-    @DisplayName("trace-agent-events=true (default) keeps the core scoped spans")
-    void traceAgentEventsTrueKeepsCoreScopedTier() {
-        applyFilter(new ObservabilityProperties()); // default: trace-agent-events=true
-
-        observe(Observations.PLACEHOLDER_NAME);
-
-        assertTrue(recorded(Observations.PLACEHOLDER_NAME));
-    }
-
-    @Test
-    @DisplayName("trace-agent-events=false leaves point spans untouched (only the core tier is dropped)")
-    void traceAgentEventsFalseKeepsPointSpans() {
+    @DisplayName("trace-agent-events=false (umbrella) drops the whole core scoped tier")
+    void traceAgentEventsFalseDropsWholeTier() {
         ObservabilityProperties properties = new ObservabilityProperties();
         properties.setTraceAgentEvents(false);
         applyFilter(properties);
 
-        observe("embabel.embedding");
-        observe("embabel.llm.invocation");
-
-        assertTrue(recorded("embabel.embedding"), "point spans are unaffected by trace-agent-events");
-        assertTrue(recorded("embabel.llm.invocation"));
+        assertFalse(keptScoped(agentCtx()), "embabel.agent dropped");
+        assertFalse(keptScoped(actionCtx()), "embabel.action dropped");
+        assertFalse(keptScoped(llmCtx()), "embabel.llm dropped");
+        assertFalse(keptScoped(toolLoopCtx()), "embabel.tool_loop dropped");
     }
 
     @Test
-    @DisplayName("trace-agent=false drops only embabel.agent, leaving action/llm/tool_loop")
+    @DisplayName("trace-agent=false drops only embabel.agent")
     void traceAgentFalseDropsOnlyAgent() {
         ObservabilityProperties properties = new ObservabilityProperties();
         properties.setTraceAgent(false);
         applyFilter(properties);
 
-        observe("embabel.agent");
-        observe("embabel.action");
-        observe("embabel.llm");
-        observe("embabel.tool_loop");
-
-        assertFalse(recorded("embabel.agent"), "embabel.agent dropped");
-        assertTrue(recorded("embabel.action"), "embabel.action kept");
-        assertTrue(recorded("embabel.llm"), "embabel.llm kept");
-        assertTrue(recorded("embabel.tool_loop"), "embabel.tool_loop kept");
+        assertFalse(keptScoped(agentCtx()), "embabel.agent dropped");
+        assertTrue(keptScoped(actionCtx()), "embabel.action kept");
+        assertTrue(keptScoped(llmCtx()), "embabel.llm kept");
+        assertTrue(keptScoped(toolLoopCtx()), "embabel.tool_loop kept");
     }
 
     @Test
@@ -213,11 +207,8 @@ class TierFilterPredicateTest {
         properties.setTraceAction(false);
         applyFilter(properties);
 
-        observe("embabel.agent");
-        observe("embabel.action");
-
-        assertTrue(recorded("embabel.agent"), "embabel.agent kept");
-        assertFalse(recorded("embabel.action"), "embabel.action dropped");
+        assertTrue(keptScoped(agentCtx()), "embabel.agent kept");
+        assertFalse(keptScoped(actionCtx()), "embabel.action dropped");
     }
 
     @Test
@@ -227,24 +218,38 @@ class TierFilterPredicateTest {
         properties.setTraceLlmCalls(false);
         applyFilter(properties);
 
-        observe("embabel.agent");
-        observe("embabel.llm");
-
-        assertTrue(recorded("embabel.agent"), "embabel.agent kept");
-        assertFalse(recorded("embabel.llm"), "scoped embabel.llm dropped by trace-llm-calls");
+        assertTrue(keptScoped(agentCtx()), "embabel.agent kept");
+        assertFalse(keptScoped(llmCtx()), "scoped embabel.llm dropped by trace-llm-calls");
     }
 
     @Test
-    @DisplayName("a normal span (embabel.llm) is never dropped")
-    void normalSpanKept() {
-        applyFilter(new ObservabilityProperties());
+    @DisplayName("trace-tool-loop=false drops only embabel.tool_loop")
+    void traceToolLoopFalseDropsOnlyToolLoop() {
+        ObservabilityProperties properties = new ObservabilityProperties();
+        properties.setTraceToolLoop(false);
+        applyFilter(properties);
 
-        observe("embabel.llm");
-        observe("embabel.tool_loop");
-
-        assertTrue(recorded("embabel.llm"));
-        assertTrue(recorded("embabel.tool_loop"));
+        assertTrue(keptScoped(agentCtx()), "embabel.agent kept");
+        assertFalse(keptScoped(toolLoopCtx()), "embabel.tool_loop dropped");
     }
+
+    // --- point spans (plain context) are governed by their own flags in the listener, never here ---
+
+    @Test
+    @DisplayName("point spans are untouched even when the whole scoped tier is off")
+    void pointSpansUnaffectedByScopedFlags() {
+        ObservabilityProperties properties = new ObservabilityProperties();
+        properties.setTraceAgentEvents(false);
+        applyFilter(properties);
+
+        observe("embabel.embedding");
+        observe("embabel.llm.invocation");
+
+        assertTrue(recorded("embabel.embedding"), "point spans are unaffected by the scoped-tier flags");
+        assertTrue(recorded("embabel.llm.invocation"));
+    }
+
+    // --- disabled-traces (by name) ---
 
     @Test
     @DisplayName("disabled-traces drops the named observations and nothing else")
@@ -255,22 +260,19 @@ class TierFilterPredicateTest {
 
         observe("tasks.scheduled.execution");
         observe("http.server.requests");
-        observe("embabel.llm");
 
         assertFalse(recorded("tasks.scheduled.execution"), "listed observation is dropped");
         assertFalse(recorded("http.server.requests"), "listed observation is dropped");
-        assertTrue(recorded("embabel.llm"), "unlisted Embabel span is kept");
+        assertTrue(keptScoped(agentCtx()), "unlisted Embabel scoped span is kept");
     }
 
     @Test
     @DisplayName("empty disabled-traces (default) suppresses nothing")
     void emptyDisabledTracesKeepsEverything() {
-        applyFilter(new ObservabilityProperties()); // defaults: disabled-traces empty
+        applyFilter(new ObservabilityProperties());
 
         observe("tasks.scheduled.execution");
-        observe("embabel.llm");
 
         assertTrue(recorded("tasks.scheduled.execution"), "no suppression by default");
-        assertTrue(recorded("embabel.llm"));
     }
 }

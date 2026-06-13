@@ -15,6 +15,9 @@
  */
 package com.embabel.agent.autoconfigure.observability;
 
+import com.embabel.agent.api.event.ToolLoopStartEvent;
+import com.embabel.agent.api.event.observation.Observations;
+import com.embabel.agent.api.event.observation.ToolLoopObservationContext;
 import com.embabel.agent.observability.ObservabilityProperties;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
@@ -42,6 +45,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 /**
  * Proves, against a real OpenTelemetry bridge, the actual trace-level semantics of suppressing a
@@ -120,6 +124,17 @@ class TierFilterSpanTreeTest {
                 .observe((Supplier<Object>) () -> observeFrom(names, index + 1));
     }
 
+    /**
+     * A scoped {@code tool_loop} observation created the way the core does it: the placeholder name
+     * plus a real {@link ToolLoopObservationContext}. The tier filter matches it by context type
+     * (the semantic name is not yet set when the predicate runs), so {@code trace-tool-loop=false}
+     * actually drops it — exactly like in production.
+     */
+    private Observation toolLoopObservation() {
+        return Observation.createNotStarted(Observations.PLACEHOLDER_NAME,
+                () -> new ToolLoopObservationContext(mock(ToolLoopStartEvent.class), List.of()), registry);
+    }
+
     @Test
     @DisplayName("trace-tool-loop=false: no tool_loop span, embedding nests directly under the llm span")
     void suppressedToolLoopReParentsChildSpan() {
@@ -127,7 +142,11 @@ class TierFilterSpanTreeTest {
         properties.setTraceToolLoop(false);
         applyFilter(properties);
 
-        observeLlmToolLoopEmbedding();
+        // llm (live) > tool_loop (real context → dropped by the flag) > embedding (live)
+        Observation.createNotStarted("embabel.llm", registry).observe((Supplier<Object>) () ->
+                toolLoopObservation().observe((Supplier<Object>) () ->
+                        Observation.createNotStarted("embabel.embedding", registry)
+                                .observe((Supplier<Object>) () -> null)));
 
         List<SpanData> spans = spanExporter.getFinishedSpanItems();
         assertThat(spans).extracting(SpanData::getName)
@@ -169,8 +188,10 @@ class TierFilterSpanTreeTest {
         properties.setTraceToolLoop(false);
         applyFilter(properties);
 
-        // tool_loop is the outermost observation; dropping it leaves embedding with no live ancestor.
-        observeNested("embabel.tool_loop", "embabel.embedding");
+        // tool_loop (real context) is the outermost observation; dropping it leaves embedding with no live ancestor.
+        toolLoopObservation().observe((Supplier<Object>) () ->
+                Observation.createNotStarted("embabel.embedding", registry)
+                        .observe((Supplier<Object>) () -> null));
 
         List<SpanData> spans = spanExporter.getFinishedSpanItems();
         assertThat(spans).extracting(SpanData::getName).containsExactly("embabel.embedding");
@@ -183,12 +204,17 @@ class TierFilterSpanTreeTest {
     @DisplayName("two consecutive suppressed tiers: child re-parents across both to the live ancestor")
     void twoConsecutiveSuppressedTiersReParentTransitively() {
         ObservabilityProperties properties = new ObservabilityProperties();
-        // action (via disabled-traces) and tool_loop (via the flag) are both dropped, back to back.
+        // action (via disabled-traces, by name) and tool_loop (via the flag, by context type) are both
+        // dropped, back to back. agent (live) > action (dropped) > tool_loop (dropped) > embedding (live).
         properties.setDisabledTraces(List.of("embabel.action"));
         properties.setTraceToolLoop(false);
         applyFilter(properties);
 
-        observeNested("embabel.agent", "embabel.action", "embabel.tool_loop", "embabel.embedding");
+        Observation.createNotStarted("embabel.agent", registry).observe((Supplier<Object>) () ->
+                Observation.createNotStarted("embabel.action", registry).observe((Supplier<Object>) () ->
+                        toolLoopObservation().observe((Supplier<Object>) () ->
+                                Observation.createNotStarted("embabel.embedding", registry)
+                                        .observe((Supplier<Object>) () -> null))));
 
         List<SpanData> spans = spanExporter.getFinishedSpanItems();
         assertThat(spans).extracting(SpanData::getName)
