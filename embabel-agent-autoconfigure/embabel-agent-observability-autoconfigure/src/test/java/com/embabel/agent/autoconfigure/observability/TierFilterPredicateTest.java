@@ -249,6 +249,34 @@ class TierFilterPredicateTest {
         assertTrue(recorded("embabel.llm.invocation"));
     }
 
+    // --- master switch: tracing-enabled=false suppresses Embabel spans, even with external tracing ---
+
+    @Test
+    @DisplayName("tracing-enabled=false suppresses all Embabel spans (scoped + embabel.* point), keeps non-Embabel")
+    void tracingDisabledSuppressesEmbabelSpansOnly() {
+        ObservabilityProperties properties = new ObservabilityProperties();
+        properties.setTracingEnabled(false);
+        applyFilter(properties);
+
+        // Embabel scoped spans (placeholder name + typed context) — suppressed
+        assertFalse(keptScoped(agentCtx()), "embabel.agent suppressed");
+        assertFalse(keptScoped(actionCtx()), "embabel.action suppressed");
+        assertFalse(keptScoped(llmCtx()), "embabel.llm suppressed");
+        assertFalse(keptScoped(toolLoopCtx()), "embabel.tool_loop suppressed");
+
+        // Embabel point spans (named embabel.*) — suppressed
+        observe("embabel.embedding");
+        observe("embabel.llm.invocation");
+        assertFalse(recorded("embabel.embedding"), "embabel.* point span suppressed");
+        assertFalse(recorded("embabel.llm.invocation"));
+
+        // Non-Embabel spans (the app's own Spring Boot / Spring AI tracing) — kept
+        observe("http.server.requests");
+        observe("chat gemini-2.5-pro");
+        assertTrue(recorded("http.server.requests"), "non-Embabel spans are not Embabel's to suppress");
+        assertTrue(recorded("chat gemini-2.5-pro"));
+    }
+
     // --- disabled-traces (by name) ---
 
     @Test
@@ -264,6 +292,20 @@ class TierFilterPredicateTest {
         assertFalse(recorded("tasks.scheduled.execution"), "listed observation is dropped");
         assertFalse(recorded("http.server.requests"), "listed observation is dropped");
         assertTrue(keptScoped(agentCtx()), "unlisted Embabel scoped span is kept");
+    }
+
+    @Test
+    @DisplayName("disabled-traces does NOT target core scoped spans (placeholder name) — use the trace-* flags")
+    void disabledTracesDoesNotTargetScopedSpans() {
+        // The four core scoped spans carry the placeholder name at predicate time, so listing their
+        // semantic name in disabled-traces has no effect by design — they are controlled by their
+        // dedicated flags (here trace-action), not by disabled-traces.
+        ObservabilityProperties properties = new ObservabilityProperties();
+        properties.setDisabledTraces(List.of("embabel.action"));
+        applyFilter(properties);
+
+        assertTrue(keptScoped(actionCtx()),
+                "disabled-traces=[embabel.action] does not drop the scoped span; trace-action=false would");
     }
 
     @Test

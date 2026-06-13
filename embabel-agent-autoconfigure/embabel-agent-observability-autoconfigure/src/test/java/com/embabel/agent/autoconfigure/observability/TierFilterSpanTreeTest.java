@@ -15,10 +15,16 @@
  */
 package com.embabel.agent.autoconfigure.observability;
 
+import com.embabel.agent.api.event.LlmRequestEvent;
 import com.embabel.agent.api.event.ToolLoopStartEvent;
+import com.embabel.agent.api.event.observation.ActionObservationContext;
+import com.embabel.agent.api.event.observation.AgentObservationContext;
+import com.embabel.agent.api.event.observation.LlmObservationContext;
 import com.embabel.agent.api.event.observation.Observations;
 import com.embabel.agent.api.event.observation.ToolLoopObservationContext;
+import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.observability.ObservabilityProperties;
+import com.embabel.plan.Action;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.Tracer;
@@ -133,6 +139,45 @@ class TierFilterSpanTreeTest {
     private Observation toolLoopObservation() {
         return Observation.createNotStarted(Observations.PLACEHOLDER_NAME,
                 () -> new ToolLoopObservationContext(mock(ToolLoopStartEvent.class), List.of()), registry);
+    }
+
+    /** Observe with a real scoped context the way the core does (placeholder name + typed context). */
+    private Object observeScoped(Observation.Context ctx, Supplier<Object> inner) {
+        return Observation.createNotStarted(Observations.PLACEHOLDER_NAME, () -> ctx, registry).observe(inner);
+    }
+
+    /**
+     * Reproduces the user's scenario end-to-end against the real OpenTelemetry bridge, on a single
+     * thread (sub-agents run synchronously): agent (live) > action (dropped by trace-action=false) >
+     * llm (live). Verifies the RAW OTel parentSpanId — not how a backend such as Langfuse later
+     * re-labels the node — so it answers definitively whether the llm re-parents to the agent span.
+     */
+    @Test
+    @DisplayName("trace-action=false: the embabel.llm (chat) span re-parents directly to the agent span")
+    void scopedLlmReParentsToAgentWhenActionDropped() {
+        ObservabilityProperties properties = new ObservabilityProperties();
+        properties.setTraceAction(false);
+        applyFilter(properties);
+
+        observeScoped(new AgentObservationContext(mock(AgentProcess.class)), () ->
+                observeScoped(new ActionObservationContext(mock(AgentProcess.class), mock(Action.class)), () ->
+                        observeScoped(new LlmObservationContext(mock(LlmRequestEvent.class)), () -> null)));
+
+        List<SpanData> spans = spanExporter.getFinishedSpanItems();
+        // action is dropped → exactly two spans (agent + llm), both placeholder-named (no conventions here).
+        assertThat(spans).as("only agent + llm are exported; action is dropped").hasSize(2);
+
+        List<SpanData> roots = spans.stream()
+                .filter(s -> SpanId.getInvalid().equals(s.getParentSpanId()))
+                .toList();
+        assertThat(roots).as("exactly one root span (the agent); the llm must NOT be a second root").hasSize(1);
+
+        SpanData agent = roots.get(0);
+        SpanData llm = spans.stream().filter(s -> s != agent).findFirst().orElseThrow();
+        assertThat(llm.getParentSpanId())
+                .as("the llm (chat) re-parents directly to the agent span across the dropped action")
+                .isEqualTo(agent.getSpanId());
+        assertThat(llm.getTraceId()).isEqualTo(agent.getTraceId());
     }
 
     @Test

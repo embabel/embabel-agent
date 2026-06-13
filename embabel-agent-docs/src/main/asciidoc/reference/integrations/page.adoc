@@ -981,7 +981,7 @@ All tracing options are enabled by default and can be toggled individually:
 
 |`embabel.observability.disabled-traces`
 |`[]` (empty)
-|List of observation names to suppress, matched by *exact* name. Lets you drop non-Embabel infrastructure spans you don't want exported (e.g. `tasks.scheduled.execution`, `http.server.requests`, `http.client.requests`) without code. Embabel's own spans are named `embabel.*`; list one only if you really want to drop it. A suppressed observation becomes a no-op, so its children re-parent to the next live ancestor
+|List of observation names to suppress, matched by *exact* name. Lets you drop non-Embabel infrastructure spans you don't want exported (e.g. `tasks.scheduled.execution`, `http.server.requests`, `http.client.requests`) without code. Works for any span that carries its real name (incl. Embabel point spans like `embabel.embedding`), but *not* the four core scoped spans (`embabel.agent`/`embabel.action`/`embabel.llm`/`embabel.tool_loop`), which are placeholder-named until `start()` — use their `trace-*` flags for those. A suppressed observation becomes a no-op, so its children re-parent to the next live ancestor
 |===
 
 For example, to keep Embabel's agent traces but stop exporting Spring's scheduled-task and

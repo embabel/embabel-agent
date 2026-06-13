@@ -254,7 +254,7 @@ Your agents are now fully traced. No code changes required.
 | `embabel.observability.trace-rag` | `true` | Trace RAG responses (`embabel.rag` span) |
 | `embabel.observability.trace-ranking` | `true` | Trace ranking/selection events — agent routing (`embabel.ranking` span) |
 | `embabel.observability.trace-dynamic-agent-creation` | `true` | Trace dynamic agent creation (`embabel.dynamic_agent_creation` span) |
-| `embabel.observability.trace-http-details` | `true` | Trace HTTP request/response details (bodies, headers) |
+| `embabel.observability.trace-http-details` | `false` | Trace HTTP request/response details (bodies, headers) — opt-in |
 | `embabel.observability.trace-tracked-operations` | `true` | Enable/disable `@Tracked` annotation aspect |
 | `embabel.observability.mdc-propagation` | `true` | Propagate agent context into SLF4J MDC for log correlation |
 | `embabel.observability.max-attribute-length` | `4000` | Max attribute length before truncation |
@@ -269,8 +269,12 @@ suppressed** to avoid a duplicate — by an `ObservationPredicate` registered in
 The `embabel.tool_loop` span is opened directly at the work site in the agent core (so its hierarchy
 is always correct, even under parallelism). The core never reads the `trace-*` flags — that would
 couple it to this module. Instead, `trace-tool-loop=false` makes the same predicate drop the
-`embabel.tool_loop` span by name; a suppressed span becomes a no-op, so its children simply re-parent
-to the next live ancestor span.
+`embabel.tool_loop` span by matching its **context type** (`ToolLoopObservationContext`) — not its
+name: the core opens scoped spans with a placeholder name and the semantic name (`embabel.tool_loop`)
+is only applied at `start()`, after the predicate has run, so the context type is what the predicate
+can reliably match. A suppressed span becomes a no-op, so its children simply re-parent to the next
+live ancestor span. (Spring AI's `tool call` span, by contrast, carries its real name at creation and
+is dropped by name.)
 
 ```yaml
 embabel:

@@ -84,32 +84,57 @@ public class ObservabilityAutoConfiguration {
     }
 
     /**
-     * Disables span tiers by name without coupling the core to any flag, via an
+     * Filters observations without coupling the core to any flag, via an
      * {@link io.micrometer.observation.ObservationPredicate}:
      * <ul>
-     *   <li>Spring AI's native {@code tool call} span is <em>always</em> dropped — Embabel emits its
-     *       own richer {@code embabel.tool} point span (correlation id, tool group, status, error,
-     *       duration) from {@code ToolCallResponseEvent}, gated by {@code trace-tool-calls}. Keeping
-     *       both would double every tool span.</li>
-     *   <li>the core-produced {@code embabel.tool_loop} span is dropped when
-     *       {@code trace-tool-loop=false}.</li>
-     *   <li>any observation whose name is listed in {@code embabel.observability.disabled-traces}
-     *       is dropped — typically non-Embabel infrastructure spans the user does not want exported
-     *       (e.g. {@code tasks.scheduled.execution}, {@code http.server.requests}). Empty by
-     *       default, so nothing extra is suppressed.</li>
+     *   <li><b>Master switch.</b> When {@code tracing-enabled=false}, every Embabel-owned observation
+     *       is dropped (names starting with {@code embabel.} plus the four scoped context types) so
+     *       the switch holds even when another Micrometer tracing source keeps the registry live;
+     *       the application's own non-Embabel spans are left untouched.</li>
+     *   <li>The four <b>core scoped spans</b> (agent/action/tool_loop/llm) are matched by their
+     *       {@code Observation.Context} <em>type</em>, not by name: the core opens them with a
+     *       placeholder name and the semantic name is applied only at {@code start()}, after this
+     *       predicate runs. Each is gated by {@code trace-agent}/{@code trace-action}/
+     *       {@code trace-tool-loop}/{@code trace-llm-calls}, all under the umbrella
+     *       {@code trace-agent-events}.</li>
+     *   <li>Spring AI's native {@code tool call} span is <em>always</em> dropped (by name — it carries
+     *       its real name at creation) — Embabel emits its own richer {@code embabel.tool} point span,
+     *       gated by {@code trace-tool-calls}. Keeping both would double every tool span.</li>
+     *   <li>any observation whose name is in {@code embabel.observability.disabled-traces} is dropped —
+     *       typically non-Embabel infrastructure spans (e.g. {@code http.server.requests}). Empty by
+     *       default.</li>
      * </ul>
      * A suppressed observation becomes a no-op, so its children simply re-parent to the next live
-     * ancestor.
+     * ancestor. The bean is gated on the module {@code enabled} (the class condition), not on
+     * {@code tracing-enabled}, so it can still enforce the master switch when tracing is off.
      *
      * @param properties the observability properties (read at observation time)
      * @return a customizer registering the tier filter
      */
     @Bean
-    @ConditionalOnProperty(prefix = "embabel.observability", name = "tracing-enabled", havingValue = "true", matchIfMissing = true)
     public ObservationRegistryCustomizer<ObservationRegistry> embabelTierFilterCustomizer(ObservabilityProperties properties) {
         return registry -> registry.observationConfig().observationPredicate((name, context) -> {
+            // disabled-traces matches by span name, so it targets spans that carry their real name at
+            // predicate time: non-Embabel infrastructure spans and Embabel point spans. It does NOT
+            // target the four core scoped spans (agent/action/tool_loop/llm) — those carry a
+            // placeholder name until start() and are controlled by their trace-* flags instead.
             if (properties.getDisabledTraces().contains(name)) {
                 return false;
+            }
+            // Master tracing switch: tracing-enabled=false must yield NO Embabel spans — even when
+            // another Micrometer tracing source (e.g. Spring Boot's own tracing) keeps the registry
+            // non-no-op and would otherwise export the core's spans (named with the placeholder
+            // until start()). We suppress only Embabel-owned observations (embabel.* names + the four
+            // scoped context types) and leave the application's own non-Embabel spans untouched. This
+            // is why the bean is gated on the module `enabled` (the class condition), not on
+            // `tracing-enabled` — it must still run to enforce the switch when tracing is off.
+            if (!properties.isTracingEnabled()) {
+                boolean embabelOwned = (name != null && name.startsWith("embabel."))
+                        || context instanceof AgentObservationContext
+                        || context instanceof ActionObservationContext
+                        || context instanceof LlmObservationContext
+                        || context instanceof ToolLoopObservationContext;
+                return !embabelOwned;
             }
             if ("tool call".equals(name)) {
                 return false;

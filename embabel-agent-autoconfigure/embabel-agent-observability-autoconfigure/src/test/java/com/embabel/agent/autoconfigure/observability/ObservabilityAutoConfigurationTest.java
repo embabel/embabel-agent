@@ -89,10 +89,23 @@ class ObservabilityAutoConfigurationTest {
     }
 
     @Test
-    void tierFilterCustomizer_shouldNotBeCreated_whenTracingDisabled() {
+    void tierFilterCustomizer_isStillCreated_whenTracingDisabled_soItCanSuppressEmbabelSpans() {
+        // The master switch tracing-enabled=false must SUPPRESS Embabel spans even when another
+        // tracing source (Spring Boot) is active. That suppression is done by this predicate, so the
+        // bean must remain registered (gated only by the module `enabled`), not be skipped.
         contextRunner
                 .withUserConfiguration(ObservationRegistryConfig.class)
                 .withPropertyValues("embabel.observability.tracing-enabled=false")
+                .run(context -> {
+                    assertThat(context).hasBean(TIER_FILTER_BEAN);
+                });
+    }
+
+    @Test
+    void tierFilterCustomizer_shouldNotBeCreated_whenModuleDisabled() {
+        contextRunner
+                .withUserConfiguration(ObservationRegistryConfig.class)
+                .withPropertyValues("embabel.observability.enabled=false")
                 .run(context -> {
                     assertThat(context).doesNotHaveBean(TIER_FILTER_BEAN);
                 });

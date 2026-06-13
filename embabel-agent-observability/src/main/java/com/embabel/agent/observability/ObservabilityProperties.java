@@ -118,9 +118,14 @@ public class ObservabilityProperties {
      * non-Embabel infrastructure spans you don't want exported (Langfuse, Zipkin, …) without code,
      * e.g. {@code tasks.scheduled.execution} (@Scheduled tasks), {@code http.server.requests}
      * (incoming HTTP), {@code http.client.requests} (outgoing HTTP). Empty by default (nothing
-     * suppressed). Embabel's own spans are named {@code embabel.*}; list one only if you really
-     * want to drop it. A suppressed observation becomes a no-op, so its children re-parent to the
-     * next live ancestor.
+     * suppressed). A suppressed observation becomes a no-op, so its children re-parent to the next
+     * live ancestor.
+     * <p>
+     * Matches by name, so it works for any span that carries its real name at creation — including
+     * Embabel point spans ({@code embabel.embedding}, {@code embabel.llm.invocation}, …). It does
+     * <em>not</em> target the four core scoped spans ({@code embabel.agent}, {@code embabel.action},
+     * {@code embabel.llm}, {@code embabel.tool_loop}): the core opens them with a placeholder name and
+     * the semantic name is applied only later, so use their {@code trace-*} flags to toggle those.
      */
     private List<String> disabledTraces = new ArrayList<>();
 
