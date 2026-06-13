@@ -887,6 +887,13 @@ LLM-observability backends (Langfuse, etc.) render in their input/output panels:
 
 Both are truncated to `embabel.observability.max-attribute-length`.
 
+Spring AI *ChatModel* spans additionally carry the structured OTel GenAI message attributes
+`gen_ai.input.messages` / `gen_ai.output.messages` (JSON arrays of `{role, parts:[{type, content}]}`,
+with `finish_reason` on output), alongside the OpenInference `input.value` / `output.value` bridge.
+This content is governed by `embabel.observability.capture-message-content` (default `true`); set it
+to `false` to keep model/token metadata while omitting message bodies, as the GenAI convention
+recommends content capture be opt-in (potential PII).
+
 ===== Tracing Configuration Properties
 
 All tracing options are enabled by default and can be toggled individually:
@@ -978,6 +985,10 @@ All tracing options are enabled by default and can be toggled individually:
 |`embabel.observability.max-attribute-length`
 |`4000`
 |Max span attribute length before truncation
+
+|`embabel.observability.capture-message-content`
+|`true`
+|Capture LLM prompt/response content on chat-model spans (`gen_ai.input.messages`/`gen_ai.output.messages` plus the `input.value`/`output.value` bridge). The OTel GenAI convention recommends this be opt-in as content may contain PII; set `false` to keep model/token metadata while omitting message bodies
 
 |`embabel.observability.disabled-traces`
 |`[]` (empty)

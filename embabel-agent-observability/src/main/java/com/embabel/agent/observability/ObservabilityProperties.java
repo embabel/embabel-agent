@@ -61,6 +61,16 @@ public class ObservabilityProperties {
     private int maxAttributeLength = 4000;
 
     /**
+     * Whether to capture LLM prompt/response message content on chat-model spans as the OTel GenAI
+     * {@code gen_ai.input.messages} / {@code gen_ai.output.messages} attributes (and the OpenInference
+     * {@code input.value} / {@code output.value} bridge). The OTel GenAI semantic convention recommends
+     * content capture be opt-in because it may contain sensitive data (PII); this defaults to
+     * {@code true} to preserve historical behaviour. Set to {@code false} to keep model/token metadata
+     * while omitting message bodies.
+     */
+    private boolean captureMessageContent = true;
+
+    /**
      * Umbrella switch for the core scoped span tier (agent, action, tool_loop, llm). When false, all
      * four scoped spans are suppressed at once and their conventions are not registered. For
      * per-span control while keeping the tier on, use {@link #traceAgent}, {@link #traceAction},
@@ -177,6 +187,22 @@ public class ObservabilityProperties {
      */
     public void setMaxAttributeLength(int maxAttributeLength) {
         this.maxAttributeLength = maxAttributeLength;
+    }
+
+    /**
+     * Returns whether LLM message content is captured on chat-model spans.
+     * @return {@code true} if prompt/response content is captured
+     */
+    public boolean isCaptureMessageContent() {
+        return captureMessageContent;
+    }
+
+    /**
+     * Sets whether LLM message content is captured on chat-model spans.
+     * @param captureMessageContent {@code true} to capture prompt/response content
+     */
+    public void setCaptureMessageContent(boolean captureMessageContent) {
+        this.captureMessageContent = captureMessageContent;
     }
 
     /**

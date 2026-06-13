@@ -241,7 +241,8 @@ public class ObservabilityAutoConfiguration {
     @ConditionalOnProperty(prefix = "embabel.observability", name = {"tracing-enabled", "trace-llm-calls"}, havingValue = "true", matchIfMissing = true)
     public ChatModelObservationFilter chatModelObservationFilter(ObservabilityProperties properties) {
         log.debug("Configuring ChatModel observation filter for LLM call tracing");
-        return new ChatModelObservationFilter(properties.getMaxAttributeLength());
+        return new ChatModelObservationFilter(
+                properties.getMaxAttributeLength(), properties.isCaptureMessageContent());
     }
 
     /**

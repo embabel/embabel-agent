@@ -207,7 +207,7 @@ Your agents are now fully traced. No code changes required.
 | **Automatic Metrics** | Duration and count metrics (Spring Observation mode) |
 | **Business Metrics** | Micrometer counters/gauges: active agents, LLM tokens, cost, errors, replanning |
 | **OpenTelemetry GenAI Semantic Conventions** | Consistent `gen_ai.*` attributes across all spans (`gen_ai.operation.name`, `gen_ai.request.model`, `gen_ai.tool.name`, etc.) |
-| **ChatModel Observation Filter** | Enriches Spring AI observations with prompts, completions, token counts, and model info |
+| **ChatModel Observation Filter** | Enriches Spring AI observations with token counts, model info, and (opt-in) structured GenAI message content — `gen_ai.input.messages`/`gen_ai.output.messages` plus the OpenInference `input.value`/`output.value` bridge |
 | **`@Tracked` Annotation** | Custom operation tracking with automatic span creation |
 | **MDC Log Correlation** | Automatic SLF4J MDC propagation of agent context (run ID, agent name, action name) |
 
@@ -258,6 +258,7 @@ Your agents are now fully traced. No code changes required.
 | `embabel.observability.trace-tracked-operations` | `true` | Enable/disable `@Tracked` annotation aspect |
 | `embabel.observability.mdc-propagation` | `true` | Propagate agent context into SLF4J MDC for log correlation |
 | `embabel.observability.max-attribute-length` | `4000` | Max attribute length before truncation |
+| `embabel.observability.capture-message-content` | `true` | Capture LLM prompt/response **content** on chat-model spans (`gen_ai.input.messages`/`gen_ai.output.messages` + the `input.value`/`output.value` bridge). The OTel GenAI convention recommends this be opt-in as content may contain PII; set `false` to keep model/token metadata while omitting message bodies |
 
 ### Tool and tool-loop spans
 
@@ -400,6 +401,14 @@ under the **OpenInference** keys `input.value` and `output.value` — which LLM-
 
 Both are truncated to `embabel.observability.max-attribute-length`. These keys are vendor-neutral
 (OpenInference), not Langfuse-specific.
+
+For Spring AI **ChatModel** spans, the `ChatModelObservationFilter` additionally emits the structured
+OTel GenAI message attributes `gen_ai.input.messages` / `gen_ai.output.messages` (JSON arrays of
+`{role, parts:[{type, content}]}`, with `finish_reason` on output), alongside the OpenInference
+`input.value` / `output.value` bridge. This message content is governed by
+`embabel.observability.capture-message-content` (default `true`); set it to `false` to keep
+model/token metadata while omitting message bodies (the GenAI convention recommends content capture
+be opt-in, as it may contain PII).
 
 ### Sub-agent Hierarchy
 
