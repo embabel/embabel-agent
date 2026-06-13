@@ -15,13 +15,133 @@
  */
 package com.embabel.agent.config.models.anthropic
 
+import com.embabel.agent.api.models.AnthropicModels
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.springframework.core.io.DefaultResourceLoader
-import java.io.File
-import java.nio.file.Files
+import org.springframework.core.io.ByteArrayResource
+import org.springframework.core.io.ResourceLoader
 
+/**
+ * Unit tests for [AnthropicModelLoader].
+ *
+ * Covers loading and validating model definitions from `anthropic-models.yml`, default-value
+ * handling, and rejection of malformed entries. Includes a grounding check that the
+ * `claude_opus_48` model is present with the expected id ([AnthropicModels.CLAUDE_OPUS_4_8])
+ * and pricing.
+ */
 class AnthropicModelLoaderTest {
+
+    @Nested
+    inner class NativeSupportTests {
+
+        @Test
+        fun `default YAML loads native structured-output metadata for anthropic models`() {
+            val loader = AnthropicModelLoader()
+
+            val result = loader.loadAutoConfigMetadata()
+            val defaults = result.nativeSupportDefaults
+            assertNotNull(defaults)
+            val structuredOutput = defaults?.structuredOutput
+            assertNotNull(structuredOutput)
+            assertTrue(structuredOutput?.supported == false)
+            assertEquals("tool", structuredOutput?.strategy)
+            assertEquals(true, structuredOutput?.strict)
+            assertEquals("include", structuredOutput?.promptInstructions)
+            assertEquals("tools", structuredOutput?.options?.get("tools_field"))
+            assertEquals("input_schema", structuredOutput?.options?.get("input_schema_field"))
+
+            val effectiveModel = result.effectiveModels().first { it.name == "claude_opus_46" }
+            assertNotNull(effectiveModel.nativeSupport)
+            assertEquals("tool", effectiveModel.nativeSupport?.structuredOutput?.strategy)
+        }
+
+        @Test
+        fun `model native support overrides defaults in YAML`() {
+            val tempYaml = createTempYamlFile("""
+                native_support_defaults:
+                  structured_output:
+                    supported: true
+                    strategy: tool
+                    strict: true
+                    prompt_instructions: include
+                    options:
+                      tools_field: tools
+                      input_schema_field: input_schema
+                models:
+                  - name: alias-model
+                    model_id: claude-alias
+                    native_support:
+                      structured_output:
+                        supported: true
+                        strategy: tool
+                        strict: false
+                        prompt_instructions: suppress
+                        options:
+                          tools_field: tools
+                          input_schema_field: custom_schema
+            """.trimIndent())
+
+            val loader = AnthropicModelLoader(
+                resourceLoader = tempYaml.resourceLoader,
+                configPath = tempYaml.configPath
+            )
+
+            val result = loader.loadAutoConfigMetadata()
+            val model = result.effectiveModels().single()
+            val structuredOutput = model.nativeSupport?.structuredOutput
+
+            assertNotNull(structuredOutput)
+            assertEquals(true, structuredOutput?.supported)
+            assertEquals("tool", structuredOutput?.strategy)
+            assertEquals(false, structuredOutput?.strict)
+            assertEquals("suppress", structuredOutput?.promptInstructions)
+            assertEquals("tools", structuredOutput?.options?.get("tools_field"))
+            assertEquals("custom_schema", structuredOutput?.options?.get("input_schema_field"))
+        }
+
+        @Test
+        fun `native support defaults and overrides merge in YAML`() {
+            val tempYaml = createTempYamlFile("""
+                native_support_defaults:
+                  structured_output:
+                    supported: true
+                    strategy: tool
+                    strict: true
+                    prompt_instructions: include
+                    options:
+                      tools_field: tools
+                      input_schema_field: input_schema
+                models:
+                  - name: alias-model
+                    model_id: claude-alias
+                    native_support:
+                      structured_output:
+                        supported: true
+                        strategy: tool
+                        strict: true
+                        prompt_instructions: include
+                        options:
+                          tools_field: tools
+                          input_schema_field: input_schema
+            """.trimIndent())
+
+            val loader = AnthropicModelLoader(
+                resourceLoader = tempYaml.resourceLoader,
+                configPath = tempYaml.configPath
+            )
+
+            val result = loader.loadAutoConfigMetadata()
+            val model = result.effectiveModels().single()
+            val structuredOutput = model.nativeSupport?.structuredOutput
+
+            assertNotNull(structuredOutput)
+            assertEquals("tool", structuredOutput?.strategy)
+            assertEquals("include", structuredOutput?.promptInstructions)
+            assertEquals("tools", structuredOutput?.options?.get("tools_field"))
+            assertEquals("input_schema", structuredOutput?.options?.get("input_schema_field"))
+        }
+    }
 
     @Test
     fun `should load valid model definitions from default YAML file`() {
@@ -81,17 +201,24 @@ class AnthropicModelLoaderTest {
         // Assert - verify some known Anthropic models are present
         val modelNames = result.models.map { it.name }
         assertTrue(modelNames.isNotEmpty(), "Should have loaded model names")
+        assertTrue(modelNames.contains("claude_opus_48"), "Should include Claude Opus 4.8")
+
+        // Verify the Opus 4.8 model id and pricing are grounded
+        val opus48 = result.models.first { it.name == "claude_opus_48" }
+        assertEquals(AnthropicModels.CLAUDE_OPUS_4_8, opus48.modelId, "Opus 4.8 model id should match constant")
+        assertNotNull(opus48.pricingModel, "Opus 4.8 should have pricing information")
+        assertEquals(5.0, opus48.pricingModel?.usdPer1mInputTokens)
+        assertEquals(25.0, opus48.pricingModel?.usdPer1mOutputTokens)
 
         // Verify at least one model has pricing info
-        assertTrue(result.models.any { it.pricingModel != null },
-            "At least one model should have pricing information")
+        assertTrue(result.models.any { it.pricingModel != null }, "At least one model should have pricing information")
     }
 
     @Test
     fun `should return empty definitions when file does not exist`() {
         // Arrange
         val loader = AnthropicModelLoader(
-            resourceLoader = DefaultResourceLoader(),
+            resourceLoader = org.springframework.core.io.DefaultResourceLoader(),
             configPath = "classpath:nonexistent-file.yml"
         )
 
@@ -106,13 +233,11 @@ class AnthropicModelLoaderTest {
     @Test
     fun `should handle invalid YAML gracefully`() {
         // Arrange
-        val tempFile = Files.createTempFile("invalid", ".yml").toFile()
-        tempFile.writeText("invalid: yaml: content: ][")
-        tempFile.deleteOnExit()
+        val tempYaml = createTempYamlFile("invalid: yaml: content: ][")
 
         val loader = AnthropicModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act
@@ -126,7 +251,7 @@ class AnthropicModelLoaderTest {
     @Test
     fun `should validate model with invalid maxTokens`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             models:
               - name: test-model
                 model_id: test-id
@@ -134,8 +259,8 @@ class AnthropicModelLoaderTest {
         """.trimIndent())
 
         val loader = AnthropicModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act & Assert
@@ -146,7 +271,7 @@ class AnthropicModelLoaderTest {
     @Test
     fun `should validate model with invalid temperature`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             models:
               - name: test-model
                 model_id: test-id
@@ -154,8 +279,8 @@ class AnthropicModelLoaderTest {
         """.trimIndent())
 
         val loader = AnthropicModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act & Assert
@@ -166,7 +291,7 @@ class AnthropicModelLoaderTest {
     @Test
     fun `should validate model with invalid topP`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             models:
               - name: test-model
                 model_id: test-id
@@ -174,8 +299,8 @@ class AnthropicModelLoaderTest {
         """.trimIndent())
 
         val loader = AnthropicModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act & Assert
@@ -186,15 +311,15 @@ class AnthropicModelLoaderTest {
     @Test
     fun `should validate model with blank name`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             models:
               - name: ""
                 model_id: test-id
         """.trimIndent())
 
         val loader = AnthropicModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act & Assert
@@ -205,7 +330,7 @@ class AnthropicModelLoaderTest {
     @Test
     fun `should load valid model with all optional fields`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             models:
               - name: test-model
                 model_id: claude-test
@@ -222,8 +347,8 @@ class AnthropicModelLoaderTest {
         """.trimIndent())
 
         val loader = AnthropicModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act
@@ -249,7 +374,7 @@ class AnthropicModelLoaderTest {
     @Test
     fun `should load multiple models correctly`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             models:
               - name: model-1
                 model_id: claude-1
@@ -260,8 +385,8 @@ class AnthropicModelLoaderTest {
         """.trimIndent())
 
         val loader = AnthropicModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act
@@ -278,7 +403,7 @@ class AnthropicModelLoaderTest {
     @Test
     fun `should validate model with invalid topK`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             models:
               - name: test-model
                 model_id: test-id
@@ -286,8 +411,8 @@ class AnthropicModelLoaderTest {
         """.trimIndent())
 
         val loader = AnthropicModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act & Assert
@@ -298,7 +423,7 @@ class AnthropicModelLoaderTest {
     @Test
     fun `should validate model with invalid thinking token budget`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             models:
               - name: test-model
                 model_id: test-id
@@ -307,8 +432,8 @@ class AnthropicModelLoaderTest {
         """.trimIndent())
 
         val loader = AnthropicModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act & Assert
@@ -319,15 +444,15 @@ class AnthropicModelLoaderTest {
     @Test
     fun `should load model with minimal fields`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             models:
               - name: minimal-model
                 model_id: claude-minimal
         """.trimIndent())
 
         val loader = AnthropicModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act
@@ -347,10 +472,20 @@ class AnthropicModelLoaderTest {
         assertNull(model.pricingModel)
     }
 
-    private fun createTempYamlFile(content: String): File {
-        val tempFile = Files.createTempFile("test-anthropic", ".yml").toFile()
-        tempFile.writeText(content)
-        tempFile.deleteOnExit()
-        return tempFile
+    private data class TempYamlResource(
+        val resourceLoader: ResourceLoader,
+        val configPath: String,
+    )
+
+    private fun createTempYamlFile(content: String): TempYamlResource {
+        val resource = ByteArrayResource(content.toByteArray())
+        val resourceLoader = object : ResourceLoader {
+            override fun getResource(location: String) = resource
+            override fun getClassLoader() = javaClass.classLoader
+        }
+        return TempYamlResource(
+            resourceLoader = resourceLoader,
+            configPath = "memory:test-anthropic.yml"
+        )
     }
 }

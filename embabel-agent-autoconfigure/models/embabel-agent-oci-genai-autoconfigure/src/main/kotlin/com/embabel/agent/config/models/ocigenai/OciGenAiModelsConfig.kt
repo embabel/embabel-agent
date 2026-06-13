@@ -16,6 +16,7 @@
 package com.embabel.agent.config.models.ocigenai
 
 import com.embabel.agent.api.models.OciGenAiModels
+import com.embabel.agent.config.models.ocigenai.OciGenAiProperties.Companion.PREFIX
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
@@ -52,7 +53,7 @@ import java.io.ByteArrayInputStream
 import java.nio.file.Files
 import java.nio.file.Paths
 
-@ConfigurationProperties(prefix = "embabel.agent.platform.models.ocigenai")
+@ConfigurationProperties(prefix = PREFIX)
 class OciGenAiProperties : RetryProperties {
 
     var authenticationType: AuthenticationType = AuthenticationType.FILE
@@ -78,6 +79,11 @@ class OciGenAiProperties : RetryProperties {
     override var backoffMillis: Long = 5_000L
     override var backoffMultiplier: Double = 5.0
     override var backoffMaxInterval: Long = 180_000L
+
+    override val propertyPrefix: String = PREFIX
+    companion object {
+        const val PREFIX  = "embabel.agent.platform.models.ocigenai"
+    }
 
     override fun toString(): String =
         "OciGenAiProperties(" +

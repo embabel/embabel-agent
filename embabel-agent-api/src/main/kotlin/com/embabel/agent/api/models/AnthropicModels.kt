@@ -39,6 +39,8 @@ class AnthropicModels {
 
         const val CLAUDE_SONNET_4_6 = "claude-sonnet-4-6"
 
+        const val CLAUDE_OPUS_4_8 = "claude-opus-4-8"
+
         const val PROVIDER = "Anthropic"
     }
 }

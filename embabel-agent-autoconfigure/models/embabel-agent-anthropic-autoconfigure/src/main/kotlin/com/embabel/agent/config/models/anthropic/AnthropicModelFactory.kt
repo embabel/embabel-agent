@@ -134,6 +134,7 @@ open class AnthropicModelFactory(
             chatModel = chatModel,
             provider = AnthropicModels.PROVIDER,
             optionsConverter = AnthropicOptionsConverter,
+            thinkingSupported = true,
         )
     }
 

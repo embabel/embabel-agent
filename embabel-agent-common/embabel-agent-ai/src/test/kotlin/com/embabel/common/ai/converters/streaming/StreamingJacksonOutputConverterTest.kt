@@ -262,7 +262,7 @@ class StreamingJacksonOutputConverterTest {
         )
 
         // When
-        val schema = converter.jsonSchema
+        val schema = converter.getJsonSchema()
 
         // Then
         assertTrue(schema.contains("name"))

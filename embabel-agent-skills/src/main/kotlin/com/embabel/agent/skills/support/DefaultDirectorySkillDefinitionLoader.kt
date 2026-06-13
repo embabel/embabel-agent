@@ -97,11 +97,26 @@ class DefaultDirectorySkillDefinitionLoader(
             throw SkillLoadException("Path is not a directory: $parentDirectory")
         }
 
-        return Files.list(parentDirectory)
-            .filter { Files.isDirectory(it) }
-            .filter { findSkillFile(it) != null }
-            .map { load(it) }
-            .toList()
+        val skillDirs = Files.list(parentDirectory).use { stream ->
+            stream.filter { Files.isDirectory(it) }
+                .filter { findSkillFile(it) != null }
+                .toList()
+        }
+
+        // Degrade gracefully: one malformed skill (bad frontmatter, dangling file
+        // reference, …) must NOT abort loading the rest. Previously a single
+        // [SkillLoadException] here propagated all the way up and could take down a
+        // host UI that builds its skill surface at construction time. Skip the bad
+        // skill, log it, and keep every loadable one. Single-skill [load] stays
+        // strict — a caller asking for one skill by path still gets the exception.
+        return skillDirs.mapNotNull { dir ->
+            try {
+                load(dir)
+            } catch (e: SkillLoadException) {
+                logger.warn("Skipping unloadable skill at {}: {}", dir, e.message)
+                null
+            }
+        }
     }
 
     private fun findSkillFile(directory: Path): Path? {

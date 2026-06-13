@@ -137,3 +137,25 @@ if (result != null) {
 }
 ----
 ====
+
+==== Provider Notes
+
+Embabel exposes thinking through a provider-neutral API:
+
+- `PromptRunner.thinking()`
+- `LlmOptions.thinking`
+
+This remains the primary public API for enabling reasoning/thinking mode.
+
+Under the hood, provider integrations may translate `Thinking` differently to match provider-specific capabilities. For example, Google GenAI maps Embabel thinking options to the corresponding Spring AI Google GenAI chat options such as `includeThoughts` and `thinkingBudget`.
+
+No new application-level thinking API is required for callers. In general, existing applications should continue to use Embabel's generic thinking API rather than provider-specific configuration.
+
+Some providers may also define model-level defaults in model YAML, but explicit runtime thinking requests still flow through `LlmOptions.thinking`.
+
+Provider behavior may differ slightly depending on how Spring AI surfaces reasoning data:
+
+- Some providers expose reasoning on the assistant message itself
+- Others expose it through generation metadata
+
+As a result, the presence and shape of extracted thinking blocks may vary somewhat by provider and Spring AI integration version.

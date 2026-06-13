@@ -39,7 +39,7 @@ class FilteringJacksonOutputConverterTest {
             fieldFilter = { it.name == "name" || it.name == "age" }
         )
 
-        val schema = converter.jsonSchema
+        val schema = converter.getJsonSchema()
 
         assertTrue(schema.contains("name"))
         assertTrue(schema.contains("age"))
@@ -55,7 +55,7 @@ class FilteringJacksonOutputConverterTest {
             fieldFilter = { it.name != "email" && it.name != "address" }
         )
 
-        val schema = converter.jsonSchema
+        val schema = converter.getJsonSchema()
 
         assertTrue(schema.contains("name"))
         assertTrue(schema.contains("age"))

@@ -180,6 +180,7 @@ class OllamaModelsConfig(
             provider = OllamaModels.PROVIDER,
             pricingModel = PricingModel.ALL_YOU_CAN_EAT,
             optionsConverter = OllamaOptionsConverter,
+            thinkingSupported = true,
         )
     }
 

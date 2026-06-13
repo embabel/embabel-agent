@@ -23,6 +23,7 @@ import com.embabel.agent.core.support.InvalidLlmReturnTypeException
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.core.thinking.ThinkingResponse
 import org.jetbrains.annotations.ApiStatus
 
@@ -38,6 +39,11 @@ import org.jetbrains.annotations.ApiStatus
  */
 @ApiStatus.Internal
 interface LlmOperations {
+
+    /**
+     * Check if the LLM selected by these options supports thinking operations.
+     */
+    fun supportsThinking(options: LlmOptions): Boolean = false
 
     /**
      * Generate text in the context of an AgentProcess.

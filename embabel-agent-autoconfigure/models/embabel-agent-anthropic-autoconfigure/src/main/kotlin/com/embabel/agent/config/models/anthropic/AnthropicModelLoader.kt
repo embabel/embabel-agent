@@ -18,7 +18,9 @@ package com.embabel.agent.config.models.anthropic
 import com.embabel.common.ai.autoconfig.AbstractYamlModelLoader
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadata
 import com.embabel.common.ai.autoconfig.LlmAutoConfigProvider
+import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.PerTokenPricingModel
+import com.fasterxml.jackson.annotation.JsonAlias
 import org.springframework.core.io.DefaultResourceLoader
 import org.springframework.core.io.ResourceLoader
 import java.time.LocalDate
@@ -32,8 +34,17 @@ import java.time.LocalDate
  * @property models list of Anthropic model definitions
  */
 data class AnthropicModelDefinitions(
-    override val models: List<AnthropicModelDefinition> = emptyList()
-) : LlmAutoConfigProvider<AnthropicModelDefinition>
+    override val models: List<AnthropicModelDefinition> = emptyList(),
+    val nativeSupportDefaults: NativeSupport? = null,
+) : LlmAutoConfigProvider<AnthropicModelDefinition> {
+    fun effectiveModels(): List<AnthropicModelDefinition> {
+        return models.map { model ->
+            model.copy(
+                nativeSupport = model.nativeSupport?.merge(nativeSupportDefaults) ?: nativeSupportDefaults,
+            )
+        }
+    }
+}
 
 /**
  * Anthropic-specific model definition.
@@ -51,6 +62,7 @@ data class AnthropicModelDefinitions(
  * @property topP nucleus sampling parameter
  * @property topK top-k sampling parameter
  * @property thinking optional thinking mode configuration
+ * @property nativeSupport optional provider-native support metadata
  */
 data class AnthropicModelDefinition(
     override val name: String,
@@ -63,6 +75,8 @@ data class AnthropicModelDefinition(
     val topP: Double? = null,
     val topK: Int? = null,
     val thinking: ThinkingConfiguration? = null,
+    @param:JsonAlias("native-support")
+    override val nativeSupport: NativeSupport? = null,
 ) : LlmAutoConfigMetadata
 
 /**

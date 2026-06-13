@@ -16,6 +16,7 @@
 package com.embabel.agent.config.models.mistralai
 
 import com.embabel.agent.api.models.MistralAiModels
+import com.embabel.agent.config.models.mistralai.MistralAiProperties.Companion.PREFIX
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
@@ -45,7 +46,7 @@ import org.springframework.web.reactive.function.client.WebClient
  * Configuration properties for Mistral AI models.
  * These properties control retry behavior when calling Mistral AI APIs.
  */
-@ConfigurationProperties(prefix = "embabel.agent.platform.models.mistralai")
+@ConfigurationProperties(prefix = PREFIX)
 class MistralAiProperties : RetryProperties {
     /**
      * Base URL for Mistral AI API requests.
@@ -76,6 +77,11 @@ class MistralAiProperties : RetryProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 180_000L
+
+    override val propertyPrefix: String = PREFIX
+    companion object {
+        const val PREFIX  = "embabel.agent.platform.models.mistralai"
+    }
 }
 
 /**

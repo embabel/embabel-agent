@@ -44,6 +44,8 @@ import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.chat.Message
 import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
+import com.embabel.common.ai.converters.JsonSchemaProvider
+import com.embabel.common.ai.converters.RequiredFieldNormalization
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.core.thinking.ThinkingException
@@ -71,7 +73,7 @@ import org.springframework.ai.chat.client.ResponseEntity
 import org.springframework.ai.chat.client.advisor.observation.DefaultAdvisorObservationConvention
 import org.springframework.ai.chat.client.observation.DefaultChatClientObservationConvention
 import org.springframework.ai.chat.messages.SystemMessage
-import org.springframework.ai.chat.messages.UserMessage
+import org.springframework.ai.chat.messages.UserMessage as SpringAiUserMessage
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.ai.chat.prompt.Prompt
@@ -80,6 +82,7 @@ import org.springframework.context.ApplicationContext
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.retry.support.RetrySynchronizationManager
 import org.springframework.stereotype.Service
+import com.embabel.chat.UserMessage
 
 // Log message constants to avoid duplication
 private const val LLM_TIMEOUT_MESSAGE = "LLM {}: attempt {} timed out after {}ms"
@@ -177,7 +180,14 @@ internal class ChatClientLlmOperations(
             val springAiLlm = requireSpringAiLlm(llm)
             val chatOptions = springAiLlm.optionsConverter.convertOptions(options)
             val instrumentedModel = InstrumentedChatModel(springAiLlm.chatModel, llmRequestEvent)
-            return SpringAiLlmMessageSender(instrumentedModel, chatOptions, springAiLlm.toolResponseContentAdapter)
+            return SpringAiLlmMessageSender(
+                chatModel = instrumentedModel,
+                chatOptions = chatOptions,
+                toolResponseContentAdapter = springAiLlm.toolResponseContentAdapter,
+                nativeStructuredOutputConfigurer = springAiLlm.nativeStructuredOutputConfigurer,
+                nativeSupport = springAiLlm.nativeSupport,
+                llmMetadata = springAiLlm,
+            )
         }
         return llm.createMessageSender(options)
     }
@@ -190,15 +200,18 @@ internal class ChatClientLlmOperations(
         // Our enclosing <O> is unbounded; erase via Class<Any> for the construction, then cast back.
         @Suppress("UNCHECKED_CAST")
         val outputClassAny = outputClass as Class<Any>
+        // Keep a reference to the JSON converter so it can supply the schema for native
+        // structured output (#1715); FilteringJacksonOutputConverter is a JsonSchemaProvider.
+        val jsonConverter = FilteringJacksonOutputConverter<Any>(
+            clazz = outputClassAny,
+            objectMapper = objectMapper,
+            fieldFilter = interaction.fieldFilter,
+        )
         val springAiConverter = ExceptionWrappingConverter<Any>(
             expectedType = outputClassAny,
             delegate = WithExampleConverter<Any>(
                 delegate = SuppressThinkingConverter<Any>(
-                    FilteringJacksonOutputConverter<Any>(
-                        clazz = outputClassAny,
-                        objectMapper = objectMapper,
-                        fieldFilter = interaction.fieldFilter,
-                    )
+                    jsonConverter
                 ),
                 outputClass = outputClassAny,
                 ifPossible = false,
@@ -206,7 +219,7 @@ internal class ChatClientLlmOperations(
             )
         )
         @Suppress("UNCHECKED_CAST")
-        return SpringAiOutputConverterAdapter(springAiConverter) as OutputConverter<O>
+        return SpringAiOutputConverterAdapter(springAiConverter, jsonConverter) as OutputConverter<O>
     }
 
     override fun sanitizeStringOutput(text: String): String {
@@ -222,22 +235,24 @@ internal class ChatClientLlmOperations(
             MaybeReturn::class.java,
             outputClass,
         )
+        val jsonConverter = FilteringJacksonOutputConverter(
+            typeReference = typeReference,
+            objectMapper = objectMapper,
+            fieldFilter = interaction.fieldFilter,
+            requiredFieldNormalization = RequiredFieldNormalization.DISABLED,
+        )
         val springAiConverter = ExceptionWrappingConverter(
             expectedType = MaybeReturn::class.java,
             delegate = WithExampleConverter(
                 delegate = SuppressThinkingConverter(
-                    FilteringJacksonOutputConverter(
-                        typeReference = typeReference,
-                        objectMapper = objectMapper,
-                        fieldFilter = interaction.fieldFilter,
-                    )
+                    jsonConverter
                 ),
                 outputClass = outputClass as Class<MaybeReturn<*>>,
                 ifPossible = true,
                 generateExamples = shouldGenerateExamples(interaction),
             )
         )
-        return SpringAiOutputConverterAdapter(springAiConverter) as OutputConverter<MaybeReturn<O>>
+        return SpringAiOutputConverterAdapter(springAiConverter, jsonConverter) as OutputConverter<MaybeReturn<O>>
     }
 
     // emitCallEvent is intentionally not overridden here.
@@ -331,7 +346,7 @@ internal class ChatClientLlmOperations(
             buildBasicPrompt(promptContributions, messages)
         }
         // Guardrails: Pre-validation of user input
-        val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
+        val userMessages = messages.filterIsInstance<UserMessage>()
         validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
 
         // Resolve tool groups and decorate tools
@@ -469,6 +484,7 @@ internal class ChatClientLlmOperations(
                             typeReference = typeReference,
                             objectMapper = objectMapper,
                             fieldFilter = interaction.fieldFilter,
+                            requiredFieldNormalization = RequiredFieldNormalization.DISABLED,
                         )
                     ),
                     outputClass = outputClass as Class<MaybeReturn<*>>, // NOSONAR: Safe cast for MaybeReturn wrapper pattern
@@ -491,7 +507,7 @@ internal class ChatClientLlmOperations(
             )
 
             // Guardrails: Pre-validation of user input
-            val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
+            val userMessages = messages.filterIsInstance<UserMessage>()
             validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
 
             // Resolve tool groups and decorate tools
@@ -719,7 +735,7 @@ internal class ChatClientLlmOperations(
                 if (allSystemContent.isNotEmpty()) {
                     add(SystemMessage(allSystemContent))
                 }
-                add(UserMessage(maybeReturnPrompt))
+                add(SpringAiUserMessage(maybeReturnPrompt))
                 addAll(nonSystemMessages.map { it.toSpringAiMessage() })
             }
         )
@@ -773,7 +789,7 @@ internal class ChatClientLlmOperations(
                 if (allSystemContent.isNotEmpty()) {
                     add(SystemMessage(allSystemContent))
                 }
-                add(UserMessage(maybeReturnPrompt))
+                add(SpringAiUserMessage(maybeReturnPrompt))
                 addAll(nonSystemMessages.map { it.toSpringAiMessage() })
             }
         )
@@ -938,7 +954,9 @@ internal class ChatClientLlmOperations(
  */
 private class SpringAiOutputConverterAdapter<T>(
     private val delegate: org.springframework.ai.converter.StructuredOutputConverter<T>,
+    private val jsonSchemaProvider: JsonSchemaProvider? = null,
 ) : OutputConverter<T> {
     override fun convert(source: String): T? = delegate.convert(source)
     override fun getFormat(): String? = delegate.format
+    override fun getJsonSchema(): String? = jsonSchemaProvider?.getJsonSchema()
 }

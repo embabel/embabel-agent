@@ -16,12 +16,14 @@
 package com.embabel.agent.config.models.openai
 
 import com.embabel.agent.api.models.OpenAiModels
+import com.embabel.agent.config.models.openai.OpenAiProperties.Companion.PREFIX
 import com.embabel.agent.openai.Gpt5ChatOptionsConverter
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.openai.StandardOpenAiOptionsConverter
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.agent.spi.support.springai.SpringAiNativeStructuredOutputConfigurer
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
@@ -47,7 +49,7 @@ import org.springframework.web.reactive.function.client.WebClient
  * These properties can be set in application.properties/yaml using the
  * prefix embabel.agent.platform.models.openai.
  */
-@ConfigurationProperties(prefix = "embabel.agent.platform.models.openai")
+@ConfigurationProperties(prefix = PREFIX)
 class OpenAiProperties : RetryProperties {
     /**
      * Base URL for OpenAI API requests.
@@ -88,6 +90,11 @@ class OpenAiProperties : RetryProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 180000L
+
+    override val propertyPrefix: String = PREFIX
+    companion object {
+        const val PREFIX  = "embabel.agent.platform.models.openai"
+    }
 }
 
 /**
@@ -116,6 +123,8 @@ class OpenAiModelsConfig(
     private val modelLoader: LlmAutoConfigMetadataLoader<OpenAiModelDefinitions> = OpenAiModelLoader(),
     @Qualifier("aiModelWebClientBuilder")
     webClientBuilder: ObjectProvider<WebClient.Builder>,
+    private val nativeStructuredOutputConfigurer: SpringAiNativeStructuredOutputConfigurer =
+        OpenAiNativeStructuredOutputConfigurer,
 ) : OpenAiCompatibleModelFactory(
     baseUrl = envBaseUrl ?: properties.baseUrl,
     apiKey = envApiKey ?: properties.apiKey
@@ -135,10 +144,11 @@ class OpenAiModelsConfig(
     @Bean
     fun openAiModelsInitializer(): ProviderInitialization {
         val definitions = modelLoader.loadAutoConfigMetadata()
+        val effectiveModels = definitions.effectiveModels()
 
         val registeredLlms = buildList {
             // Register LLM models
-            definitions.models.forEach { modelDef ->
+            effectiveModels.forEach { modelDef ->
                 try {
                     val llm = createOpenAiLlm(modelDef)
                     configurableBeanFactory.registerSingleton(modelDef.name, llm)
@@ -213,6 +223,9 @@ class OpenAiModelsConfig(
             optionsConverter = optionsConverter,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
             pricingModel = pricingModel,
+            thinkingSupported = true,
+            nativeStructuredOutputConfigurer = nativeStructuredOutputConfigurer,
+            nativeSupport = modelDef.nativeSupport,
         )
     }
 

@@ -21,6 +21,7 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.chat.Message
+import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.util.DummyInstanceCreator
 
@@ -30,6 +31,8 @@ import com.embabel.common.util.DummyInstanceCreator
 open class DummyObjectCreatingLlmOperations(
     stringsToUse: List<String>,
 ) : LlmOperations, DummyInstanceCreator(stringsToUse) {
+
+    override fun supportsThinking(options: LlmOptions): Boolean = true
 
     override fun <O> doTransform(
         messages: List<Message>,

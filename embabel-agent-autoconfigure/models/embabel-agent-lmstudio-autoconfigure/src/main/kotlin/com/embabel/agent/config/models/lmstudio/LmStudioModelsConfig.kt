@@ -16,6 +16,7 @@
 package com.embabel.agent.config.models.lmstudio
 
 import com.embabel.agent.api.models.LmStudioModels
+import com.embabel.agent.config.models.lmstudio.LmStudioProperties.Companion.PREFIX
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.common.ai.autoconfig.ProviderInitialization
@@ -38,7 +39,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
 
-@ConfigurationProperties(prefix = "embabel.agent.platform.models.lmstudio")
+@ConfigurationProperties(prefix = PREFIX)
 class LmStudioProperties : RetryProperties {
 
     /**
@@ -70,6 +71,11 @@ class LmStudioProperties : RetryProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 180000L
+
+    override val propertyPrefix: String = PREFIX
+    companion object {
+        const val PREFIX  = "embabel.agent.platform.models.lmstudio"
+    }
 }
 
 /**

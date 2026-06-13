@@ -22,6 +22,7 @@ import com.embabel.agent.api.common.ranking.Rankings
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.common.RetryProperties
+import com.embabel.agent.spi.support.RankingProperties.Companion.PREFIX
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelSelectionCriteria
 import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byName
@@ -40,14 +41,19 @@ import org.springframework.boot.context.properties.ConfigurationProperties
  * @param backoffMultiplier multiplier for backoff time
  * @param backoffMaxInterval maximum backoff time in milliseconds
  */
-@ConfigurationProperties("embabel.agent.platform.ranking")
+@ConfigurationProperties(PREFIX)
 data class RankingProperties(
     val llm: String? = null,
     override val maxAttempts: Int = 5,
     override val backoffMillis: Long = 100L,
     override val backoffMultiplier: Double = 5.0,
     override val backoffMaxInterval: Long = 180000L,
-) : RetryProperties
+    override val propertyPrefix: String = PREFIX,
+) : RetryProperties {
+    companion object {
+        const val PREFIX: String  = "embabel.agent.platform.ranking"
+    }
+}
 
 /**
  * Use an LLM to rank things

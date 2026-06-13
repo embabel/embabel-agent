@@ -19,6 +19,7 @@ import com.embabel.agent.api.tool.ToolControlFlowSignal
 import com.embabel.agent.api.validation.guardrails.GuardRailViolationException
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.common.RetryTemplateProvider
+import com.embabel.agent.spi.support.LlmDataBindingProperties.Companion.PREFIX
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.retry.RetryCallback
@@ -35,11 +36,12 @@ import java.time.Duration
  * @param sendValidationInfo Should we send validation info to the LLM in every request,
  * even before a validation error occurs?
  */
-@ConfigurationProperties(prefix = "embabel.agent.platform.llm-operations.data-binding")
+@ConfigurationProperties(prefix = PREFIX)
 class LlmDataBindingProperties(
     override val maxAttempts: Int = 10,
     val fixedBackoffMillis: Long = 30L,
     val sendValidationInfo: Boolean = true,
+    override val propertyPrefix: String = PREFIX,
 ) : RetryTemplateProvider {
 
     private val logger = LoggerFactory.getLogger(LlmDataBindingProperties::class.java)
@@ -65,18 +67,31 @@ class LlmDataBindingProperties(
                     }
                     if (isRateLimitError(throwable)) {
                         logger.info(
-                            "LLM invocation {} RATE LIMITED: Retry attempt {} of {}",
+                            "LLM invocation {} RATE LIMITED: Retry attempt {} of {}.{}",
                             name,
                             context.retryCount,
-                            maxAttempts,
+                            maxAttempts
                         )
                     } else {
                         logger.warn(
-                            "LLM invocation {}: Retry attempt {} of {} due to: {}",
+                            "LLM invocation {}: Retry attempt {} of {} due to: {}. {}",
                             name,
                             context.retryCount,
                             maxAttempts,
                             throwable.message ?: "Unknown error"
+                        )
+                    }
+                }
+                override fun <T: Any, E : Throwable> close(
+                    context: RetryContext,
+                    callback: RetryCallback<T, E>,
+                    throwable: Throwable?,
+                ) {
+                    throwable?.let {
+                        logger.warn(
+                            "Maximum attempts of {} have reached. The maximum attempt can be configured using property {}.max-attempts",
+                            maxAttempts,
+                            propertyPrefix
                         )
                     }
                 }
@@ -92,6 +107,8 @@ class LlmDataBindingProperties(
             "rate-limited",
             "429",
         )
+
+        const val PREFIX  = "embabel.agent.platform.llm-operations.data-binding"
 
         fun isRateLimitError(t: Throwable): Boolean {
             val message = t.message?.lowercase() ?: return false

@@ -71,6 +71,40 @@ class MessagePromptBuildersTest {
         assertEquals("only-llm", result)
     }
 
+    @Test
+    fun `buildPromptContributionsString drops blank contributions so no dangling separator`() {
+        val interactionContributors = listOf(
+            testPromptContributor("real1"),
+            testPromptContributor(""),
+            testPromptContributor("   "),
+            testPromptContributor("real2")
+        )
+
+        val result = buildPromptContributionsString(interactionContributors, emptyList())
+
+        // Without filtering this would be "real1\n----\n\n----\n   \n----\nreal2".
+        assertEquals("real1\n----\nreal2", result)
+    }
+
+    @Test
+    fun `buildPromptContributionsString with all blank contributions returns empty string`() {
+        val contributors = listOf(testPromptContributor(""), testPromptContributor("  "))
+
+        val result = buildPromptContributionsString(contributors, emptyList())
+
+        assertEquals("", result)
+    }
+
+    @Test
+    fun `buildPromptContributionsString drops a blank contributor spanning both lists`() {
+        val interactionContributors = listOf(testPromptContributor("i1"), testPromptContributor(""))
+        val llmContributors = listOf(testPromptContributor(""), testPromptContributor("l1"))
+
+        val result = buildPromptContributionsString(interactionContributors, llmContributors)
+
+        assertEquals("i1\n----\nl1", result)
+    }
+
     private fun testPromptContributor(content: String): PromptContributor = object : PromptContributor {
         override fun contribution(): String = content
     }
