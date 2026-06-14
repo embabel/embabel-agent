@@ -40,6 +40,7 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.observation.ChatModelObservationContext;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 
 import java.util.Collections;
@@ -164,8 +165,56 @@ class ChatModelObservationFilterTest {
         assertThat(inputValue).hasSize(4003); // 4000 + "..."
     }
 
+    // gen_ai.request.top_p must be emitted (high cardinality) when set on the request options
+    @Test
+    void map_shouldEmitTopP_whenSetOnRequestOptions() {
+        ChatOptions options = ChatOptions.builder().topP(0.9).build();
+        Prompt prompt = new Prompt(List.of(new UserMessage("Hello AI")), options);
+        ChatModelObservationContext context = ChatModelObservationContext.builder()
+                .prompt(prompt)
+                .provider("test-provider")
+                .build();
+
+        filter.map(context);
+
+        assertThat(highCardinalityValue(context, "gen_ai.request.top_p"))
+                .as("gen_ai.request.top_p")
+                .isEqualTo("0.9");
+    }
+
+    // top_p is omitted when not set on the request options
+    @Test
+    void map_shouldOmitTopP_whenNotSet() {
+        ChatModelObservationContext context = createContextWithPrompt("Hello AI");
+
+        filter.map(context);
+
+        assertThat(context.getHighCardinalityKeyValues())
+                .noneMatch(kv -> kv.getKey().equals("gen_ai.request.top_p"));
+    }
+
+    // gen_ai.provider.name must be emitted (low cardinality) from the observation context metadata
+    @Test
+    void map_shouldEmitProviderName_fromContext() {
+        ChatModelObservationContext context = createContextWithPrompt("Hello AI");
+
+        filter.map(context);
+
+        assertThat(lowCardinalityValue(context, "gen_ai.provider.name"))
+                .as("gen_ai.provider.name")
+                .isEqualTo("test-provider");
+    }
+
     private static String highCardinalityValue(ChatModelObservationContext context, String key) {
         return context.getHighCardinalityKeyValues().stream()
+                .filter(kv -> kv.getKey().equals(key))
+                .findFirst()
+                .map(kv -> kv.getValue())
+                .orElse("");
+    }
+
+    private static String lowCardinalityValue(ChatModelObservationContext context, String key) {
+        return context.getLowCardinalityKeyValues().stream()
                 .filter(kv -> kv.getKey().equals(key))
                 .findFirst()
                 .map(kv -> kv.getValue())

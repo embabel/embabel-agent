@@ -19,6 +19,7 @@ import com.embabel.agent.api.event.AgentProcessCompletedEvent;
 import com.embabel.agent.api.event.AgentProcessFailedEvent;
 import com.embabel.agent.api.event.AgentProcessPausedEvent;
 import com.embabel.agent.api.event.AgentProcessPlanFormulatedEvent;
+import com.embabel.agent.api.event.AgentProcessReadyToPlanEvent;
 import com.embabel.agent.api.event.AgentProcessStuckEvent;
 import com.embabel.agent.api.event.AgentProcessWaitingEvent;
 import com.embabel.agent.api.event.ProcessKilledEvent;
@@ -49,14 +50,18 @@ import com.embabel.agent.event.AgentProcessRagEvent;
 import com.embabel.agent.event.RagEvent;
 import com.embabel.agent.event.RagResponseEvent;
 import com.embabel.agent.observability.ObservabilityProperties;
+import com.embabel.agent.rag.service.QualityMetrics;
 import com.embabel.agent.rag.service.RagRequest;
 import com.embabel.agent.rag.service.RagResponse;
+import com.embabel.common.core.types.SimilarityResult;
 import com.embabel.common.ai.model.EmbeddingServiceMetadata;
 import com.embabel.common.ai.model.LlmMetadata;
 import com.embabel.common.ai.model.PricingModel;
 import com.embabel.common.core.types.Named;
+import com.embabel.plan.Action;
 import com.embabel.plan.Goal;
 import com.embabel.plan.Plan;
+import com.embabel.plan.WorldState;
 import com.embabel.agent.api.common.ranking.Ranking;
 import io.micrometer.common.KeyValue;
 import io.micrometer.common.KeyValues;
@@ -81,6 +86,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -158,10 +165,18 @@ class EmbabelSpanEventListenerTest {
         lenient().when(plan.getActions()).thenReturn(List.of());
         AgentProcess process = mock(AgentProcess.class);
         lenient().when(process.getId()).thenReturn("run-1");
+        WorldState worldState = worldState("world: ready");
         AgentProcessPlanFormulatedEvent event = mock(AgentProcessPlanFormulatedEvent.class);
         lenient().when(event.getPlan()).thenReturn(plan);
+        lenient().when(event.getWorldState()).thenReturn(worldState);
         lenient().when(event.getAgentProcess()).thenReturn(process);
         return event;
+    }
+
+    private WorldState worldState(String info) {
+        WorldState worldState = mock(WorldState.class);
+        lenient().when(worldState.infoString(any(), anyInt())).thenReturn(info);
+        return worldState;
     }
 
     private AgentProcessCompletedEvent completedEvent() {
@@ -408,6 +423,50 @@ class EmbabelSpanEventListenerTest {
         }
 
         @Test
+        @DisplayName("plan formulated carries the world state as input and the formatted plan steps as output")
+        void planningWorldStateAndSteps() {
+            Goal goal = mock(Goal.class);
+            lenient().when(goal.getName()).thenReturn("done");
+            Action a1 = mock(Action.class);
+            lenient().when(a1.getName()).thenReturn("research");
+            Action a2 = mock(Action.class);
+            lenient().when(a2.getName()).thenReturn("write");
+            Plan plan = mock(Plan.class);
+            lenient().when(plan.getGoal()).thenReturn(goal);
+            lenient().when(plan.getActions()).thenReturn(List.of(a1, a2));
+            AgentProcess process = mock(AgentProcess.class);
+            lenient().when(process.getId()).thenReturn("run-1");
+            WorldState worldState = worldState("conditions: c1=true");
+            AgentProcessPlanFormulatedEvent event = mock(AgentProcessPlanFormulatedEvent.class);
+            lenient().when(event.getPlan()).thenReturn(plan);
+            lenient().when(event.getWorldState()).thenReturn(worldState);
+            lenient().when(event.getAgentProcess()).thenReturn(process);
+
+            listener().onProcessEvent(event);
+
+            Map<String, String> kv = kvOf("embabel.planning");
+            assertEquals("conditions: c1=true", kv.get("input.value"));
+            assertEquals("1. research\n2. write\n-> Goal: done", kv.get("output.value"));
+        }
+
+        @Test
+        @DisplayName("ready-to-plan becomes a planning.ready span carrying the world state as input")
+        void readyToPlanSpan() {
+            AgentProcess process = mock(AgentProcess.class);
+            lenient().when(process.getId()).thenReturn("run-1");
+            WorldState worldState = worldState("conditions: start");
+            AgentProcessReadyToPlanEvent event = mock(AgentProcessReadyToPlanEvent.class);
+            lenient().when(event.getWorldState()).thenReturn(worldState);
+            lenient().when(event.getAgentProcess()).thenReturn(process);
+
+            listener().onProcessEvent(event);
+
+            Map<String, String> kv = kvOf("embabel.planning.ready");
+            assertEquals("planning", kv.get("gen_ai.operation.name"));
+            assertEquals("conditions: start", kv.get("input.value"));
+        }
+
+        @Test
         @DisplayName("fully-qualified goal keeps the full name and exposes a readable short_name")
         void planningGoalShortName() {
             Goal goal = mock(Goal.class);
@@ -417,8 +476,10 @@ class EmbabelSpanEventListenerTest {
             lenient().when(plan.getActions()).thenReturn(List.of());
             AgentProcess process = mock(AgentProcess.class);
             lenient().when(process.getId()).thenReturn("run-1");
+            WorldState worldState = worldState("world: ready");
             AgentProcessPlanFormulatedEvent event = mock(AgentProcessPlanFormulatedEvent.class);
             lenient().when(event.getPlan()).thenReturn(plan);
+            lenient().when(event.getWorldState()).thenReturn(worldState);
             lenient().when(event.getAgentProcess()).thenReturn(process);
 
             listener().onProcessEvent(event);
@@ -544,6 +605,85 @@ class EmbabelSpanEventListenerTest {
 
             assertTrue(handler.stopped.isEmpty(), "only RagResponseEvent inner events yield a span");
         }
+
+        @Test
+        @DisplayName("RAG span carries request params (top_k, similarity_threshold) and top score")
+        void ragRequestParamsAndTopScore() {
+            RagRequest request = mock(RagRequest.class);
+            lenient().when(request.getQuery()).thenReturn("what is x");
+            lenient().when(request.getTopK()).thenReturn(8);
+            lenient().when(request.getSimilarityThreshold()).thenReturn(0.7);
+            SimilarityResult<?> r1 = mock(SimilarityResult.class);
+            lenient().when(r1.getScore()).thenReturn(0.42);
+            SimilarityResult<?> r2 = mock(SimilarityResult.class);
+            lenient().when(r2.getScore()).thenReturn(0.91);
+            RagResponse response = mock(RagResponse.class);
+            lenient().when(response.getService()).thenReturn("vec-store");
+            lenient().when(response.getRequest()).thenReturn(request);
+            lenient().doReturn(java.util.List.of(r1, r2)).when(response).getResults();
+            RagResponseEvent ragResponseEvent = mock(RagResponseEvent.class);
+            lenient().when(ragResponseEvent.getRagResponse()).thenReturn(response);
+            AgentProcessRagEvent event = mock(AgentProcessRagEvent.class);
+            lenient().when(event.getRagEvent()).thenReturn(ragResponseEvent);
+
+            listener().onProcessEvent(event);
+
+            Map<String, String> kv = kvOf("embabel.rag");
+            assertEquals("8", kv.get("embabel.rag.top_k"));
+            assertEquals("0.7", kv.get("embabel.rag.similarity_threshold"));
+            assertEquals("2", kv.get("embabel.rag.result_count"));
+            assertEquals("0.91", kv.get("embabel.rag.top_score"));
+        }
+
+        @Test
+        @DisplayName("RAG span carries RAGAS quality metrics when present")
+        void ragQualityMetrics() {
+            RagRequest request = mock(RagRequest.class);
+            lenient().when(request.getQuery()).thenReturn("what is x");
+            QualityMetrics metrics = new QualityMetrics(0.9, 0.8, 0.7, 0.6, 0.5, 0.7);
+            RagResponse response = mock(RagResponse.class);
+            lenient().when(response.getService()).thenReturn("vec-store");
+            lenient().when(response.getRequest()).thenReturn(request);
+            lenient().when(response.getResults()).thenReturn(java.util.Collections.emptyList());
+            lenient().when(response.getQualityMetrics()).thenReturn(metrics);
+            RagResponseEvent ragResponseEvent = mock(RagResponseEvent.class);
+            lenient().when(ragResponseEvent.getRagResponse()).thenReturn(response);
+            AgentProcessRagEvent event = mock(AgentProcessRagEvent.class);
+            lenient().when(event.getRagEvent()).thenReturn(ragResponseEvent);
+
+            listener().onProcessEvent(event);
+
+            Map<String, String> kv = kvOf("embabel.rag");
+            assertEquals("0.9", kv.get("embabel.rag.faithfulness"));
+            assertEquals("0.8", kv.get("embabel.rag.answer_relevancy"));
+            assertEquals("0.7", kv.get("embabel.rag.context_precision"));
+            assertEquals("0.6", kv.get("embabel.rag.context_recall"));
+            assertEquals("0.5", kv.get("embabel.rag.context_relevancy"));
+            assertNotNull(kv.get("embabel.rag.ragas_score"));
+        }
+
+        @Test
+        @DisplayName("RAG span omits quality metrics and top score when absent")
+        void ragNoMetricsNoResults() {
+            RagRequest request = mock(RagRequest.class);
+            lenient().when(request.getQuery()).thenReturn("what is x");
+            RagResponse response = mock(RagResponse.class);
+            lenient().when(response.getService()).thenReturn("vec-store");
+            lenient().when(response.getRequest()).thenReturn(request);
+            lenient().when(response.getResults()).thenReturn(java.util.Collections.emptyList());
+            lenient().when(response.getQualityMetrics()).thenReturn(null);
+            RagResponseEvent ragResponseEvent = mock(RagResponseEvent.class);
+            lenient().when(ragResponseEvent.getRagResponse()).thenReturn(response);
+            AgentProcessRagEvent event = mock(AgentProcessRagEvent.class);
+            lenient().when(event.getRagEvent()).thenReturn(ragResponseEvent);
+
+            listener().onProcessEvent(event);
+
+            Map<String, String> kv = kvOf("embabel.rag");
+            assertNull(kv.get("embabel.rag.top_score"));
+            assertNull(kv.get("embabel.rag.faithfulness"));
+            assertNull(kv.get("embabel.rag.ragas_score"));
+        }
     }
 
     @Nested
@@ -652,8 +792,10 @@ class EmbabelSpanEventListenerTest {
             lenient().when(goal.getName()).thenReturn("com.example.WizardAgent.answerQuestion");
             AgentProcess process = mock(AgentProcess.class);
             lenient().when(process.lastResult()).thenReturn("the answer");
+            WorldState worldState = worldState("blackboard: UserInput, Answer");
             GoalAchievedEvent event = mock(GoalAchievedEvent.class);
             lenient().when(event.getGoal()).thenReturn(goal);
+            lenient().when(event.getWorldState()).thenReturn(worldState);
             lenient().when(event.getAgentProcess()).thenReturn(process);
 
             listener().onProcessEvent(event);
@@ -663,6 +805,7 @@ class EmbabelSpanEventListenerTest {
             assertEquals("com.example.WizardAgent.answerQuestion", kv.get("embabel.goal.name"));
             assertEquals("answerQuestion", kv.get("embabel.goal.short_name"));
             assertEquals("the answer", kv.get("embabel.goal.result"));
+            assertEquals("blackboard: UserInput, Answer", kv.get("input.value"));
         }
 
         @Test
@@ -806,6 +949,7 @@ class EmbabelSpanEventListenerTest {
             Map<String, String> kv = kvOf("embabel.tool");
             assertEquals("execute_tool", kv.get("gen_ai.operation.name"));
             assertEquals("myTool", kv.get("gen_ai.tool.name"));
+            assertEquals("function", kv.get("gen_ai.tool.type"));
             assertEquals("myTool", kv.get("embabel.tool.name"));
             assertEquals("corr-1", kv.get("embabel.tool.correlation_id"));
             assertEquals("success", kv.get("embabel.tool.status"));
@@ -820,6 +964,7 @@ class EmbabelSpanEventListenerTest {
             ToolGroupMetadata metadata = mock(ToolGroupMetadata.class);
             lenient().when(metadata.getName()).thenReturn("web");
             lenient().when(metadata.getRole()).thenReturn("search");
+            lenient().when(metadata.getDescription()).thenReturn("Web search tools");
             ToolCallResponseEvent event = toolResponse(metadata);
             try (MockedStatic<ToolCallOutcomes> outcomes = mockStatic(ToolCallOutcomes.class)) {
                 outcomes.when(() -> ToolCallOutcomes.error(event)).thenReturn(null);
@@ -830,6 +975,7 @@ class EmbabelSpanEventListenerTest {
             Map<String, String> kv = kvOf("embabel.tool");
             assertEquals("web", kv.get("embabel.tool.group.name"));
             assertEquals("search", kv.get("embabel.tool.group.role"));
+            assertEquals("Web search tools", kv.get("gen_ai.tool.description"));
         }
 
         @Test

@@ -821,6 +821,15 @@ TIP: You can use multiple exporters simultaneously (e.g., Langfuse for traces + 
 
 ===== Configuration
 
+[WARNING]
+====
+*Migrating from an earlier version — breaking changes:*
+
+* *Config prefix renamed:* `embabel.observability.*` -> `embabel.agent.platform.observability.*`. The old prefix is *silently ignored* (no startup error), so existing configuration stops taking effect until you rename it.
+* *`trace-http-details` now defaults to `false`* (was `true`). HTTP request/response bodies, headers and params are no longer captured unless you opt in with `trace-http-details: true`, avoiding capture of potentially sensitive HTTP payloads by default.
+* *Removed properties:* `tracer-name` and `tracer-version` no longer exist.
+====
+
 Enable observability and configure your exporter in `application.yml`:
 
 [source,yaml]
@@ -958,7 +967,7 @@ All tracing options are enabled by default and can be toggled individually:
 
 |`embabel.agent.platform.observability.trace-rag`
 |`true`
-|RAG events (request, response, pipeline)
+|RAG responses (query, top-k, similarity threshold, result count, top score, RAGAS quality metrics)
 
 |`embabel.agent.platform.observability.trace-ranking`
 |`true`

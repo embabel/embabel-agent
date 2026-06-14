@@ -42,10 +42,12 @@ import java.util.Map;
  * <p>OpenTelemetry GenAI semantic convention attributes added:
  * <ul>
  *   <li>{@code gen_ai.operation.name} - Always "chat" for chat model operations</li>
+ *   <li>{@code gen_ai.provider.name} - The provider name from the observation metadata (e.g. "openai")</li>
  *   <li>{@code gen_ai.request.model} - The model name from the request</li>
  *   <li>{@code gen_ai.response.model} - The model name from the response</li>
  *   <li>{@code gen_ai.request.temperature} - Temperature setting if available</li>
  *   <li>{@code gen_ai.request.max_tokens} - Max tokens setting if available</li>
+ *   <li>{@code gen_ai.request.top_p} - Top-p (nucleus sampling) setting if available</li>
  *   <li>{@code gen_ai.usage.input_tokens} - Number of tokens in the prompt</li>
  *   <li>{@code gen_ai.usage.output_tokens} - Number of tokens in the response</li>
  *   <li>{@code gen_ai.input.messages} - JSON array of input messages (opt-in content)</li>
@@ -113,6 +115,15 @@ public class ChatModelObservationFilter implements ObservationFilter {
             // OpenTelemetry GenAI semantic conventions
             context.addLowCardinalityKeyValue(KeyValue.of(SpanAttributes.GEN_AI_OPERATION_NAME, "chat"));
 
+            // Provider name from the observation metadata (e.g. "openai", "anthropic", "ollama")
+            var operationMetadata = chatContext.getOperationMetadata();
+            if (operationMetadata != null) {
+                String provider = operationMetadata.provider();
+                if (provider != null && !provider.isEmpty()) {
+                    context.addLowCardinalityKeyValue(KeyValue.of(SpanAttributes.GEN_AI_PROVIDER_NAME, provider));
+                }
+            }
+
             // Extract model info from request
             var request = chatContext.getRequest();
             if (request != null && request.getOptions() != null) {
@@ -127,6 +138,10 @@ public class ChatModelObservationFilter implements ObservationFilter {
                 if (request.getOptions().getMaxTokens() != null) {
                     context.addHighCardinalityKeyValue(KeyValue.of(SpanAttributes.GEN_AI_REQUEST_MAX_TOKENS,
                             String.valueOf(request.getOptions().getMaxTokens())));
+                }
+                if (request.getOptions().getTopP() != null) {
+                    context.addHighCardinalityKeyValue(KeyValue.of(SpanAttributes.GEN_AI_REQUEST_TOP_P,
+                            String.valueOf(request.getOptions().getTopP())));
                 }
             }
 

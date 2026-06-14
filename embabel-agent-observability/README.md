@@ -2,7 +2,7 @@
 
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.org/projects/jdk/21/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.12-brightgreen.svg)](https://spring.io/projects/spring-boot)
-[![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-2.17.0-blue.svg)](https://opentelemetry.io/)
+[![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-1.49.0-blue.svg)](https://opentelemetry.io/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 **Unified observability for Embabel AI Agents** — Automatic tracing, metrics, and LLM call integration with zero code changes.
@@ -200,7 +200,7 @@ Your agents are now fully traced. No code changes required.
 | **LLM Call Integration** | Spring AI ChatModel calls automatically appear as child spans via `ChatModelObservationFilter` |
 | **LLM Token Metrics & Cost** | `gen_ai.usage.*` tokens and `embabel.llm.cost` on per-invocation spans, plus business-metric counters |
 | **Planning Events** | Track plan formulation, replanning iterations, and replan requests with reasons |
-| **RAG Tracing** | An `embabel.rag` span on RAG response with service, query and result count |
+| **RAG Tracing** | An `embabel.rag` span on RAG response with service, query, top-k, similarity threshold, result count, top score and RAGAS quality metrics |
 | **Ranking Events** | Agent routing decisions: ranking requests, choices made (with score), and failures (with confidence cutoff) |
 | **Dynamic Agent Creation Tracing** | Platform events for dynamically created agents |
 | **State Transitions** | Monitor workflow state changes |
@@ -218,6 +218,7 @@ Your agents are now fully traced. No code changes required.
 | Feature | Target |
 |---------|--------|
 | Pre-built Grafana Dashboards | v1.0.x |
+| Scoped RAG span (request→response duration + enhancement children) | TBD — wrap `PipelinedRagServiceEnhancer.search()` with `instrumentation.observe{}` (needs a `RagObservationContext` + convention); currently an `embabel.rag` point span on the response event only |
 
 ---
 
@@ -236,6 +237,12 @@ Your agents are now fully traced. No code changes required.
 ---
 
 ## Configuration
+
+> ⚠️ **Migrating from an earlier version — breaking changes**
+>
+> - **Config prefix renamed:** `embabel.observability.*` → `embabel.agent.platform.observability.*`. The old prefix is **silently ignored** (no startup error), so existing config stops taking effect until you rename it. Update every property in your `application.yml`/`application.properties`.
+> - **`trace-http-details` now defaults to `false`** (was `true`). HTTP request/response bodies, headers and params are no longer captured unless you opt in with `trace-http-details: true`. This avoids capturing potentially sensitive HTTP payloads by default.
+> - **Removed properties:** `tracer-name` and `tracer-version` no longer exist.
 
 | Property | Default | Description |
 |----------|---------|-------------|
@@ -385,8 +392,6 @@ customer-service-agent                 (embabel.agent — one run() turn)
 │           └── tool-loop-completed    (embabel.tool_loop.completed) [total_iterations=2, replan_requested=false]
 ├── generate-response                  (embabel.action)
 │   └── gpt-4o                         (embabel.llm)
-│       └── tool-loop                  (embabel.tool_loop)
-│           └── gpt-4o                 (embabel.llm.invocation)
 ├── request-processed                  (embabel.goal)
 └── completed                          (embabel.lifecycle)
 ```

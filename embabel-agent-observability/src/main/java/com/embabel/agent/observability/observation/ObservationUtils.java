@@ -21,6 +21,7 @@ import com.embabel.agent.core.Blackboard;
 import com.embabel.agent.core.IoBinding;
 import com.embabel.agent.domain.io.UserInput;
 import com.embabel.chat.Message;
+import com.embabel.plan.Plan;
 
 import java.util.List;
 import java.util.Set;
@@ -82,6 +83,23 @@ final class ObservationUtils {
      */
     static String getActionOutputs(Action action, AgentProcess process) {
         return resolveBindings(action.getOutputs(), process);
+    }
+
+    /** The plan as numbered steps, one action name per line, with the target goal appended. */
+    static String formatPlanSteps(Plan plan) {
+        if (plan == null || plan.getActions() == null || plan.getActions().isEmpty()) {
+            return "[]";
+        }
+        StringBuilder sb = new StringBuilder();
+        int index = 1;
+        for (var action : plan.getActions()) {
+            if (sb.length() > 0) sb.append("\n");
+            sb.append(index++).append(". ").append(action.getName());
+        }
+        if (plan.getGoal() != null) {
+            sb.append("\n-> Goal: ").append(plan.getGoal().getName());
+        }
+        return sb.toString();
     }
 
     /** Resolve a set of {@code name:Type} bindings against the blackboard, one {@code name (Type): value} line each. */

@@ -105,7 +105,7 @@ public class ObservabilityProperties {
     /** Trace embedding invocations (model, token usage, cost). */
     private boolean traceEmbedding = true;
 
-    /** Trace RAG events (request, response, pipeline). */
+    /** Trace RAG responses (query, top-k, similarity threshold, result count, top score, RAGAS quality metrics). */
     private boolean traceRag = true;
 
     /** Trace ranking/selection events (agent routing decisions). */
