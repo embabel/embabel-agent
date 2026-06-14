@@ -19,9 +19,10 @@ import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.event.LlmInvocationEvent
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.event.ToolLoopStartEvent
+import com.embabel.agent.api.event.observation.AgentInstrumentation
 import com.embabel.agent.api.event.observation.LlmObservationContext
+import com.embabel.agent.api.event.observation.NoOpAgentInstrumentation
 import com.embabel.agent.api.event.observation.ToolLoopObservationContext
-import com.embabel.agent.api.event.observation.Observations
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.callback.AfterLlmCallContext
@@ -66,7 +67,6 @@ import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import io.micrometer.observation.ObservationRegistry
 import jakarta.validation.Validator
 import java.time.Duration
 import java.time.Instant
@@ -112,7 +112,7 @@ interface OutputConverter<T> {
  * @param autoLlmSelectionCriteriaResolver Resolver for auto LLM selection
  * @param promptsProperties Properties for prompt configuration
  * @param objectMapper ObjectMapper for JSON serialization
- * @param observationRegistry Registry for distributed tracing observations
+ * @param instrumentation Port for direct instrumentation of the LLM and tool-loop spans (no-op by default)
  * @param templateRenderer TemplateRenderer for rendering prompt templates (default: NoOpTemplateRenderer)
  */
 @ThreadSafe
@@ -125,7 +125,7 @@ open class ToolLoopLlmOperations(
     autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
     promptsProperties: LlmOperationsPromptsProperties = LlmOperationsPromptsProperties(),
     objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
-    protected val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
+    protected val instrumentation: AgentInstrumentation = NoOpAgentInstrumentation,
     asyncer: Asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
     protected val toolLoopFactory: ToolLoopFactory = ToolLoopFactory.create(ToolLoopConfiguration(), asyncer, AutoCorrectionPolicy()),
     protected val templateRenderer: TemplateRenderer = NoOpTemplateRenderer,
@@ -150,8 +150,7 @@ open class ToolLoopLlmOperations(
         if (llmRequestEvent == null) {
             return doTransformInner(messages, interaction, outputClass, llmRequestEvent)
         }
-        return Observations.observeOrSkip(
-            observationRegistry,
+        return instrumentation.observe(
             { LlmObservationContext(llmRequestEvent) },
         ) { doTransformInner(messages, interaction, outputClass, llmRequestEvent) }
     }
@@ -225,7 +224,7 @@ open class ToolLoopLlmOperations(
             executeLoop()
         } else {
             val toolLoopContext = ToolLoopObservationContext(toolLoopStartEvent, initialMessages)
-            Observations.observeOrSkip(observationRegistry, { toolLoopContext }) {
+            instrumentation.observe({ toolLoopContext }) {
                 val loopResult = executeLoop()
                 toolLoopContext.output = loopResult
                 loopResult

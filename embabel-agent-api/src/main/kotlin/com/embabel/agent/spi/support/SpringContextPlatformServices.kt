@@ -20,6 +20,8 @@ import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.event.AgenticEventListener
+import com.embabel.agent.api.event.observation.AgentInstrumentation
+import com.embabel.agent.api.event.observation.NoOpAgentInstrumentation
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcessRepository
 import com.embabel.agent.core.expression.LogicalExpressionParser
@@ -31,7 +33,6 @@ import com.embabel.chat.ConversationFactoryProvider
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
-import io.micrometer.observation.ObservationRegistry
 import org.springframework.beans.factory.getBean
 import org.springframework.beans.factory.getBeanProvider
 import org.springframework.beans.factory.getBeansOfType
@@ -69,23 +70,16 @@ data class SpringContextPlatformServices(
     }
 
     /**
-     * Resolves the [ObservationRegistry] bean, else [ObservationRegistry.NOOP] (e.g. unit tests).
-     *
-     * Resolved lazily — on first access, not at construction — sharing the deferred-resolution
-     * *timing* of [autonomy], [modelProvider] and [actionQosProperties]: this avoids touching the
-     * application context at construction time, so existing tests that build this service with a
-     * strict mock context but never read the registry keep working unchanged.
-     *
-     * Resolution uses [org.springframework.beans.factory.ObjectProvider.getIfUnique], which honours
-     * `@Primary` and falls back to [ObservationRegistry.NOOP] when the bean is absent or ambiguous
-     * (several candidates, no primary). This matches the pre-migration `getIfUnique { NOOP }`
-     * resolution and never throws.
+     * Resolves the [AgentInstrumentation] bean, else [NoOpAgentInstrumentation]. Only the
+     * observability module contributes a real adapter, so when that module is absent (or disabled)
+     * the core creates no span — without ever reading an ambient `ObservationRegistry`. Resolved
+     * lazily, like [observationRegistry], to avoid touching the context at construction time.
      */
-    override val observationRegistry: ObservationRegistry by lazy {
+    override val instrumentation: AgentInstrumentation by lazy {
         applicationContext
-            ?.getBeanProvider<ObservationRegistry>()
-            ?.getIfUnique { ObservationRegistry.NOOP }
-            ?: ObservationRegistry.NOOP
+            ?.getBeanProvider<AgentInstrumentation>()
+            ?.getIfUnique { NoOpAgentInstrumentation }
+            ?: NoOpAgentInstrumentation
     }
 
     override fun withEventListener(agenticEventListener: AgenticEventListener): PlatformServices {

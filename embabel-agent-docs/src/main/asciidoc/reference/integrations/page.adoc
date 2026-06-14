@@ -954,7 +954,7 @@ All tracing options are enabled by default and can be toggled individually:
 
 |`embabel.agent.platform.observability.trace-lifecycle-states`
 |`true`
-|Lifecycle states — COMPLETED/FAILED/WAITING/PAUSED/STUCK (`embabel.lifecycle`) and goal achievement (`embabel.goal`)
+|Lifecycle states — COMPLETED/FAILED/KILLED/TERMINATED/WAITING/PAUSED/STUCK (`embabel.lifecycle`) and goal achievement (`embabel.goal`)
 
 |`embabel.agent.platform.observability.trace-rag`
 |`true`

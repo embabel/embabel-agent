@@ -20,6 +20,8 @@ import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcessRepository
+import com.embabel.agent.api.event.observation.AgentInstrumentation
+import com.embabel.agent.api.event.observation.NoOpAgentInstrumentation
 import com.embabel.agent.core.expression.LogicalExpressionParser
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.spi.OperationScheduler
@@ -28,7 +30,6 @@ import com.embabel.chat.ConversationFactoryProvider
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
-import io.micrometer.observation.ObservationRegistry
 
 /**
  * Services used by the platform and available to user-authored code.
@@ -71,12 +72,13 @@ interface PlatformServices {
     val templateRenderer: TemplateRenderer
 
     /**
-     * Registry for direct Micrometer instrumentation (`observe{}`) of the core span tree.
-     * Defaults to [ObservationRegistry.NOOP] so instrumentation is a pure no-op until an
-     * observability module is configured; Spring-backed implementations resolve the real bean.
+     * Port for direct instrumentation (`observe{}`) of the core span tree (agent turn, action,
+     * LLM call, tool loop). Defaults to [NoOpAgentInstrumentation], so the core creates no span
+     * until an observability module contributes an [AgentInstrumentation] adapter — making
+     * "no module = no embabel spans" structural rather than flag-driven.
      */
-    val observationRegistry: ObservationRegistry
-        get() = ObservationRegistry.NOOP
+    val instrumentation: AgentInstrumentation
+        get() = NoOpAgentInstrumentation
 
     fun autonomy(): Autonomy
 

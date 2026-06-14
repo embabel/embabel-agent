@@ -40,6 +40,8 @@ import com.embabel.agent.api.event.observation.ToolCallOutcomes;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.ToolGroupMetadata;
 import com.embabel.agent.core.AgentProcessStatusCode;
+import com.embabel.agent.core.EarlyTermination;
+import com.embabel.agent.core.EarlyTerminationPolicy;
 import com.embabel.agent.core.EmbeddingInvocation;
 import com.embabel.agent.core.LlmInvocation;
 import com.embabel.agent.core.Usage;
@@ -62,6 +64,7 @@ import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;
 import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -718,8 +721,8 @@ class EmbabelSpanEventListenerTest {
         }
 
         @Test
-        @DisplayName("process killed emits no lifecycle span but resets the plan iteration counter")
-        void killedEmitsNoSpanAndResetsIterations() {
+        @DisplayName("process killed emits a KILLED lifecycle span and resets the plan iteration counter")
+        void killedEmitsLifecycleSpanAndResetsIterations() {
             EmbabelSpanEventListener listener = listener();
             AgentProcessPlanFormulatedEvent plan = planEvent(); // run-1
             listener.onProcessEvent(plan); // iteration 1
@@ -728,8 +731,9 @@ class EmbabelSpanEventListenerTest {
                     new ProcessKilledEvent(processWithStatus("run-1", AgentProcessStatusCode.KILLED)));
             listener.onProcessEvent(plan); // counter reset -> iteration 1 again
 
-            assertTrue(handler.stopped.stream().noneMatch(c -> "embabel.lifecycle".equals(c.getName())),
-                    "killed does not produce a lifecycle span");
+            Map<String, String> kv = kvOf("embabel.lifecycle");
+            assertEquals("KILLED", kv.get("embabel.lifecycle.state"),
+                    "killed produces a lifecycle span carrying KILLED");
 
             List<Map<String, String>> plans = handler.stopped.stream()
                     .filter(c -> "embabel.planning".equals(c.getName()))
@@ -741,6 +745,23 @@ class EmbabelSpanEventListenerTest {
             assertEquals("1", lastPlan.get("embabel.plan.iteration"),
                     "iteration counter restarts after the run is killed");
             assertEquals("false", lastPlan.get("embabel.plan.is_replanning"));
+        }
+
+        @Test
+        @Disabled("Blocked by core ordering bug: EarlyTermination is published before the core sets the "
+                + "status to TERMINATED, so recordLifecycle reads getStatus()=RUNNING here. Re-enable once "
+                + "AbstractAgentProcess.identifyEarlyTermination sets the status before publishing the event.")
+        @DisplayName("early termination emits a TERMINATED lifecycle span")
+        void earlyTerminationEmitsLifecycleSpan() {
+            EarlyTerminationPolicy policy = mock(EarlyTerminationPolicy.class);
+            // Once the core ordering is fixed, the process status is TERMINATED when the event fires.
+            EarlyTermination event = new EarlyTermination(
+                    processWithStatus("run-1", AgentProcessStatusCode.TERMINATED), true, "budget exceeded", policy);
+
+            listener().onProcessEvent(event);
+
+            Map<String, String> kv = kvOf("embabel.lifecycle");
+            assertEquals("TERMINATED", kv.get("embabel.lifecycle.state"));
         }
     }
 

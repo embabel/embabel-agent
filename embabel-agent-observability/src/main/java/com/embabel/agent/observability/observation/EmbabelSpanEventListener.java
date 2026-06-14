@@ -44,6 +44,7 @@ import com.embabel.agent.api.event.ToolCallResponseEvent;
 import com.embabel.agent.api.event.ToolLoopCompletedEvent;
 import com.embabel.agent.api.event.observation.ToolCallOutcomes;
 import com.embabel.agent.core.AgentProcess;
+import com.embabel.agent.core.EarlyTermination;
 import com.embabel.agent.core.EmbeddingInvocation;
 import com.embabel.agent.core.LlmInvocation;
 import com.embabel.agent.core.ToolGroupMetadata;
@@ -73,7 +74,9 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
     /**
      * Per-run plan iteration counter, so the planning span can carry {@code embabel.plan.iteration}
      * and {@code embabel.plan.is_replanning} without the core tracking it. Entries are removed when
-     * the run reaches a terminal lifecycle state (completed/failed/killed), so the map stays bounded.
+     * the run reaches a terminal lifecycle state (completed/failed/killed/terminated), so the map
+     * stays bounded. Suspended-but-resumable states (waiting/paused/stuck) keep their entry so the
+     * counter survives a resume.
      */
     private final Map<String, Integer> planIterations = new ConcurrentHashMap<>();
 
@@ -144,7 +147,14 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
             case AgentProcessWaitingEvent e -> recordLifecycle(e);
             case AgentProcessPausedEvent e -> recordLifecycle(e);
             case AgentProcessStuckEvent e -> recordLifecycle(e);
-            case ProcessKilledEvent e -> planIterations.remove(e.getAgentProcess().getId());
+            case ProcessKilledEvent e -> {
+                planIterations.remove(e.getAgentProcess().getId());
+                recordLifecycle(e);
+            }
+            case EarlyTermination e -> {
+                planIterations.remove(e.getAgentProcess().getId());
+                recordLifecycle(e);
+            }
             default -> {
             }
         }

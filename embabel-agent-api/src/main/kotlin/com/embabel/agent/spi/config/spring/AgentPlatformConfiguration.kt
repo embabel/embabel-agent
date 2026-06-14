@@ -19,6 +19,8 @@ import com.embabel.agent.api.channel.DevNullOutputChannel
 import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.common.ranking.Ranker
 import com.embabel.agent.api.event.AgenticEventListener
+import com.embabel.agent.api.event.observation.AgentInstrumentation
+import com.embabel.agent.api.event.observation.NoOpAgentInstrumentation
 import com.embabel.agent.core.AgentProcessRepository
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.internal.LlmOperations
@@ -67,6 +69,15 @@ class AgentPlatformConfiguration(
      */
     @Bean
     fun nameGenerator(): NameGenerator = MobyNameGenerator
+
+    /**
+     * Default no-op instrumentation: the core creates no span unless an observability module
+     * contributes a real [AgentInstrumentation] adapter (registered `@Primary`), which then wins
+     * by-type injection and [org.springframework.beans.factory.ObjectProvider.getIfUnique]. Keeping
+     * this bean unconditional (no `@ConditionalOnMissingBean`) makes resolution order-independent.
+     */
+    @Bean
+    fun agentInstrumentation(): AgentInstrumentation = NoOpAgentInstrumentation
 
     @Bean
     fun toolDecorator(

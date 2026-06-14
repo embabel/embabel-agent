@@ -27,7 +27,9 @@ import com.embabel.agent.observability.observation.EmbabelAgentObservationConven
 import com.embabel.agent.observability.observation.EmbabelLlmObservationConvention;
 import com.embabel.agent.observability.observation.EmbabelSpanEventListener;
 import com.embabel.agent.observability.observation.EmbabelToolLoopObservationConvention;
+import com.embabel.agent.api.event.observation.AgentInstrumentation;
 import com.embabel.agent.observability.metrics.EmbabelMetricsEventListener;
+import com.embabel.agent.observability.observation.MicrometerAgentInstrumentation;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
 import org.slf4j.Logger;
@@ -41,6 +43,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 /**
  * Auto-configuration for Embabel Agent observability.
@@ -71,6 +74,26 @@ public class ObservabilityAutoConfiguration {
      *
      * @return a customizer registering the four conventions
      */
+    /**
+     * Contributes the Micrometer adapter for the core's {@link AgentInstrumentation} port, marked
+     * {@code @Primary} so it wins over the core's default no-op bean for both by-type injection and
+     * {@code ObjectProvider.getIfUnique}. Present only when this module is on the classpath (the
+     * class condition) and {@code tracing-enabled=true}; otherwise the core falls back to no-op and
+     * creates no span at the source — making "no module (or tracing off) = no embabel spans"
+     * structural rather than relying solely on the observation predicate filter.
+     *
+     * @param observationRegistry the registry the core's spans are opened on
+     * @return the Micrometer-backed instrumentation adapter
+     */
+    @Bean
+    @Primary
+    @ConditionalOnBean(ObservationRegistry.class)
+    @ConditionalOnProperty(prefix = "embabel.agent.platform.observability", name = "tracing-enabled", havingValue = "true", matchIfMissing = true)
+    public AgentInstrumentation embabelAgentInstrumentation(ObservationRegistry observationRegistry) {
+        log.info("Registering Micrometer AgentInstrumentation adapter for direct core span instrumentation");
+        return new MicrometerAgentInstrumentation(observationRegistry);
+    }
+
     @Bean
     @ConditionalOnProperty(prefix = "embabel.agent.platform.observability", name = {"tracing-enabled", "trace-agent-events"}, havingValue = "true", matchIfMissing = true)
     public ObservationRegistryCustomizer<ObservationRegistry> embabelSpanConventionsCustomizer(ObservabilityProperties properties) {

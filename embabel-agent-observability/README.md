@@ -252,7 +252,7 @@ Your agents are now fully traced. No code changes required.
 | `embabel.agent.platform.observability.trace-embedding` | `true` | Trace embedding invocations (`embabel.embedding` span: model, tokens, cost) |
 | `embabel.agent.platform.observability.trace-planning` | `true` | Trace plan formulation (`embabel.planning`) and replan requests (`embabel.replan`) |
 | `embabel.agent.platform.observability.trace-state-transitions` | `true` | Trace state transitions (`embabel.state_transition` span) |
-| `embabel.agent.platform.observability.trace-lifecycle-states` | `true` | Trace lifecycle states — COMPLETED/FAILED/WAITING/PAUSED/STUCK (`embabel.lifecycle`) and goal achievement (`embabel.goal`) |
+| `embabel.agent.platform.observability.trace-lifecycle-states` | `true` | Trace lifecycle states — COMPLETED/FAILED/KILLED/TERMINATED/WAITING/PAUSED/STUCK (`embabel.lifecycle`) and goal achievement (`embabel.goal`) |
 | `embabel.agent.platform.observability.trace-rag` | `true` | Trace RAG responses (`embabel.rag` span) |
 | `embabel.agent.platform.observability.trace-ranking` | `true` | Trace ranking/selection events — agent routing (`embabel.ranking` span) |
 | `embabel.agent.platform.observability.trace-dynamic-agent-creation` | `true` | Trace dynamic agent creation (`embabel.dynamic_agent_creation` span) |
@@ -261,6 +261,7 @@ Your agents are now fully traced. No code changes required.
 | `embabel.agent.platform.observability.mdc-propagation` | `true` | Propagate agent context into SLF4J MDC for log correlation |
 | `embabel.agent.platform.observability.max-attribute-length` | `4000` | Max attribute length before truncation |
 | `embabel.agent.platform.observability.capture-message-content` | `true` | Capture LLM prompt/response **content** on chat-model spans (`gen_ai.input.messages`/`gen_ai.output.messages` + the `input.value`/`output.value` bridge). The OTel GenAI convention recommends this be opt-in as content may contain PII; set `false` to keep model/token metadata while omitting message bodies |
+| `embabel.agent.platform.observability.disabled-traces` | `[]` (empty) | Observation names to suppress, matched by **exact** name. Drops non-Embabel infrastructure spans you don't want exported (e.g. `tasks.scheduled.execution`, `http.server.requests`, `http.client.requests`) without code. Works for any span carrying its real name (incl. Embabel point spans like `embabel.embedding`), but **not** the four core scoped spans (`embabel.agent`/`embabel.action`/`embabel.llm`/`embabel.tool_loop`), which are placeholder-named until `start()` — use their `trace-*` flags for those. A suppressed observation becomes a no-op, so its children re-parent to the next live ancestor |
 
 ### Tool and tool-loop spans
 

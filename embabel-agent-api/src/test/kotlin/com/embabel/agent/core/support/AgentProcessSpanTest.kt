@@ -18,7 +18,9 @@ package com.embabel.agent.core.support
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
 import com.embabel.agent.api.event.observation.ActionObservationContext
+import com.embabel.agent.api.event.observation.AgentInstrumentation
 import com.embabel.agent.api.event.observation.AgentObservationContext
+import com.embabel.agent.api.event.observation.Observations
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.AgentProcessStatusCode
@@ -53,7 +55,12 @@ class AgentProcessSpanTest {
     private fun servicesWith(registry: ObservationRegistry): PlatformServices {
         val base = IntegrationTestUtils.dummyPlatformServices()
         return object : PlatformServices by base {
-            override val observationRegistry = registry
+            // Mirror the production Micrometer adapter: drive the core's instrumentation port from
+            // the real registry (the core no longer reads an ambient ObservationRegistry directly).
+            override val instrumentation = object : AgentInstrumentation {
+                override fun <T> observe(context: () -> Observation.Context, work: () -> T): T =
+                    Observations.observeOrSkip(registry, context, work)
+            }
         }
     }
 

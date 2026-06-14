@@ -77,6 +77,46 @@ class ObservabilityAutoConfigurationTest {
                 });
     }
 
+    // --- AgentInstrumentation adapter (the core's instrumentation port) ---
+    // Master-switch guarantee: with the module disabled, the Micrometer ADAPTER is NOT created, so the
+    // core falls back to its own NoOpAgentInstrumentation bean => no embabel agent/action/llm/tool-loop
+    // spans. Asserted BY BEAN NAME (not by the AgentInstrumentation type) on purpose: the core's NoOp
+    // bean is also an AgentInstrumentation, so a type assertion would be both imprecise and fragile —
+    // the bean name pins it to the adapter alone. A real ObservationRegistry is supplied in every case,
+    // so a missing-bean result proves the FLAG gates the adapter, not an absent registry.
+
+    private static final String ADAPTER_BEAN = "embabelAgentInstrumentation";
+
+    @Test
+    void agentInstrumentationAdapter_shouldBeCreated_byDefault() {
+        contextRunner
+                .withUserConfiguration(ObservationRegistryConfig.class)
+                .run(context -> {
+                    assertThat(context).hasBean(ADAPTER_BEAN);
+                });
+    }
+
+    @Test
+    void agentInstrumentationAdapter_shouldNotBeCreated_whenObservabilityDisabled() {
+        contextRunner
+                .withUserConfiguration(ObservationRegistryConfig.class)
+                .withPropertyValues("embabel.agent.platform.observability.enabled=false")
+                .run(context -> {
+                    // enabled=false disables the whole auto-config class => no adapter => core stays NoOp.
+                    assertThat(context).doesNotHaveBean(ADAPTER_BEAN);
+                });
+    }
+
+    @Test
+    void agentInstrumentationAdapter_shouldNotBeCreated_whenTracingDisabled() {
+        contextRunner
+                .withUserConfiguration(ObservationRegistryConfig.class)
+                .withPropertyValues("embabel.agent.platform.observability.tracing-enabled=false")
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(ADAPTER_BEAN);
+                });
+    }
+
     // --- Tier-filter predicate customizer ---
 
     @Test

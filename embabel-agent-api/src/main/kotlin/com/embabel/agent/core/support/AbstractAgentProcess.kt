@@ -26,7 +26,6 @@ import com.embabel.agent.api.common.ToolsStats
 import com.embabel.agent.api.event.*
 import com.embabel.agent.api.event.observation.ActionObservationContext
 import com.embabel.agent.api.event.observation.AgentObservationContext
-import com.embabel.agent.api.event.observation.Observations
 import com.embabel.agent.core.*
 import com.embabel.agent.core.AgentProcess.Companion.withCurrent
 import com.embabel.agent.spi.DelayedActionExecutionSchedule
@@ -328,8 +327,7 @@ abstract class AbstractAgentProcess(
         if (!makeRunning()) {
             return this
         }
-        return Observations.observeOrSkip(
-            platformServices.observationRegistry,
+        return platformServices.instrumentation.observe(
             { AgentObservationContext(this) },
         ) { executeTurn() }
     }
@@ -523,8 +521,7 @@ abstract class AbstractAgentProcess(
      */
     protected fun executeAction(action: Action): ActionStatus {
         val observationContext = ActionObservationContext(this, action)
-        return Observations.observeOrSkip(
-            platformServices.observationRegistry,
+        return platformServices.instrumentation.observe(
             { observationContext },
         ) {
             val actionStatus = doExecuteAction(action)

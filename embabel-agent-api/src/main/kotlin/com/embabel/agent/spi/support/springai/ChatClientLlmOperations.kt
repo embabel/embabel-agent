@@ -17,6 +17,8 @@ package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.event.LlmRequestEvent
+import com.embabel.agent.api.event.observation.AgentInstrumentation
+import com.embabel.agent.api.event.observation.NoOpAgentInstrumentation
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration
 import com.embabel.agent.core.Action
@@ -116,7 +118,8 @@ internal class ChatClientLlmOperations(
     autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
     @Qualifier("embabelJacksonObjectMapper")
     objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
-    observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
+    private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
+    instrumentation: AgentInstrumentation = NoOpAgentInstrumentation,
     private val customizers: List<ChatClientCustomizer> = emptyList(),
     asyncer: Asyncer,
     toolLoopFactory: ToolLoopFactory = ToolLoopFactory.create(ToolLoopConfiguration(), asyncer, AutoCorrectionPolicy()),
@@ -131,7 +134,7 @@ internal class ChatClientLlmOperations(
     autoLlmSelectionCriteriaResolver = autoLlmSelectionCriteriaResolver,
     promptsProperties = llmOperationsPromptsProperties,
     objectMapper = objectMapper,
-    observationRegistry = observationRegistry,
+    instrumentation = instrumentation,
     toolLoopFactory = toolLoopFactory,
     asyncer = asyncer,
     templateRenderer = templateRenderer,
