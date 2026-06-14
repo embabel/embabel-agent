@@ -187,6 +187,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
         // visible) without re-triggering the generation classification.
         Observation observation = point(SpanAttributes.EMBABEL_LLM_INVOCATION,
                 "llm.invocation " + invocation.getLlmMetadata().getName())
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_EVENT_TYPE, "llm_invocation")
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_LLM_MODEL, invocation.getLlmMetadata().getName())
                 .highCardinalityKeyValue(SpanAttributes.EMBABEL_INTERACTION_ID, event.getInteractionId());
         addUsageAndCost(observation, invocation.getUsage(), invocation.cost());
@@ -228,6 +229,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
     private void emitEmbeddingSpan(EmbeddingServiceMetadata metadata, Usage usage,
                                    double cost, String interactionId) {
         Observation observation = point(SpanAttributes.EMBABEL_EMBEDDING, "embeddings " + metadata.getName())
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_EVENT_TYPE, "embedding")
                 .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "embeddings")
                 .lowCardinalityKeyValue(SpanAttributes.GEN_AI_REQUEST_MODEL, metadata.getName())
                 .highCardinalityKeyValue(SpanAttributes.EMBABEL_INTERACTION_ID, interactionId);
@@ -240,6 +242,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
         String goalName = event.getPlan().getGoal().getName();
         String goalShort = ObservationUtils.shortName(goalName);
         Observation observation = point(SpanAttributes.EMBABEL_PLANNING, "planning " + goalShort)
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_EVENT_TYPE, "planning")
                 .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "planning")
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_PLAN_GOAL, goalName)
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_PLAN_GOAL_SHORT, goalShort)
@@ -252,6 +255,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
 
     private void recordReplan(ReplanRequestedEvent event) {
         Observation observation = point(SpanAttributes.EMBABEL_REPLAN, "replan")
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_EVENT_TYPE, "replan")
                 .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "replan")
                 .highCardinalityKeyValue(SpanAttributes.EMBABEL_REPLAN_REASON, truncate(event.getReason()));
         emit(observation);
@@ -260,6 +264,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
     private void recordRag(RagResponseEvent event) {
         RagResponse response = event.getRagResponse();
         Observation observation = point(SpanAttributes.EMBABEL_RAG, "rag " + response.getService())
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_EVENT_TYPE, "rag")
                 .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "rag")
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_RAG_SERVICE, response.getService())
                 .highCardinalityKeyValue(SpanAttributes.EMBABEL_RAG_QUERY, truncate(response.getRequest().getQuery()))
@@ -271,6 +276,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
     private void recordStateTransition(StateTransitionEvent event) {
         Observation observation = point(SpanAttributes.EMBABEL_STATE_TRANSITION,
                 "state " + event.getNewState().getClass().getSimpleName())
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_EVENT_TYPE, "state_transition")
                 .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "state_transition")
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_STATE_TO, event.getNewState().getClass().getSimpleName())
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_STATE_FROM,
@@ -283,6 +289,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
             return;
         }
         Observation observation = point(SpanAttributes.EMBABEL_LIFECYCLE, event.getAgentProcess().getStatus().name())
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_EVENT_TYPE, "lifecycle")
                 .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "lifecycle")
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_LIFECYCLE_STATE, event.getAgentProcess().getStatus().name());
         emit(observation);
@@ -291,6 +298,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
     private void recordDynamicAgentCreation(DynamicAgentCreationEvent event) {
         Observation observation = point(SpanAttributes.EMBABEL_DYNAMIC_AGENT_CREATION,
                 "dynamic_agent " + event.getAgent().getName())
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_EVENT_TYPE, "dynamic_agent_creation")
                 .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "dynamic_agent_creation")
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_AGENT_NAME, event.getAgent().getName())
                 .highCardinalityKeyValue(SpanAttributes.EMBABEL_DYNAMIC_AGENT_BASIS, String.valueOf(event.getBasis()));
@@ -300,6 +308,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
     private void recordRanking(RankingChoiceMadeEvent<?> event) {
         Observation observation = point(SpanAttributes.EMBABEL_RANKING,
                 "ranking " + event.getChoice().getMatch().getName())
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_EVENT_TYPE, "ranking")
                 .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "ranking")
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_RANKING_CHOICE, event.getChoice().getMatch().getName())
                 .highCardinalityKeyValue(SpanAttributes.EMBABEL_RANKING_SCORE,
@@ -319,6 +328,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
     private void recordToolCall(ToolCallResponseEvent event) {
         ToolCallRequestEvent request = event.getRequest();
         Observation observation = point(SpanAttributes.EMBABEL_TOOL, "execute_tool " + request.getTool())
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_EVENT_TYPE, "tool_call")
                 .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "execute_tool")
                 .lowCardinalityKeyValue(SpanAttributes.GEN_AI_TOOL_NAME, request.getTool())
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_NAME, request.getTool())
@@ -361,6 +371,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
      */
     private void recordToolLoopCompleted(ToolLoopCompletedEvent event) {
         Observation observation = point(SpanAttributes.EMBABEL_TOOL_LOOP_COMPLETED, "tool-loop-completed")
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_EVENT_TYPE, "tool_loop_completed")
                 .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "tool_loop")
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_LOOP_REPLAN_REQUESTED,
                         String.valueOf(event.getReplanRequested()))
@@ -375,6 +386,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
     private void recordGoalAchieved(GoalAchievedEvent event) {
         String goalName = event.getGoal().getName();
         Observation observation = point(SpanAttributes.EMBABEL_GOAL, "goal " + ObservationUtils.shortName(goalName))
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_EVENT_TYPE, "goal")
                 .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "goal_achieved")
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_GOAL_NAME, goalName)
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_GOAL_SHORT_NAME, ObservationUtils.shortName(goalName));
@@ -388,6 +400,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
     /** Ranking that produced no choice: a span marked errored, so the failure is visible in the trace. */
     private void recordRankingCouldNotBeMade(RankingChoiceCouldNotBeMadeEvent<?> event) {
         Observation observation = point(SpanAttributes.EMBABEL_RANKING, "ranking")
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_EVENT_TYPE, "ranking")
                 .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "ranking")
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_RANKING_CHOICE, "none")
                 .highCardinalityKeyValue(SpanAttributes.EMBABEL_RANKING_TYPE, event.getType().getSimpleName())

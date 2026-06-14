@@ -60,6 +60,7 @@ public class EmbabelActionObservationConvention
         // dimension.
         KeyValues kv = KeyValues.of(
                 SpanAttributes.GEN_AI_OPERATION_NAME, "action",
+                SpanAttributes.EMBABEL_EVENT_TYPE, "action",
                 SpanAttributes.EMBABEL_ACTION_SHORT_NAME, ObservationUtils.shortName(name),
                 SpanAttributes.EMBABEL_AGENT_NAME, context.getProcess().getAgent().getName());
         // Status is known only once the action has run (set on the context before stop). A failed

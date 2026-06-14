@@ -64,7 +64,9 @@ public class EmbabelLlmObservationConvention
     public KeyValues getLowCardinalityKeyValues(LlmObservationContext context) {
         LlmRequestEvent<?> event = context.getRequestEvent();
         // No gen_ai.* here on purpose: see the class javadoc (avoids a duplicate empty generation).
+        // embabel.event.type still classifies it as a structural llm_call wrapper for exporters.
         KeyValues kv = KeyValues.of(
+                SpanAttributes.EMBABEL_EVENT_TYPE, "llm_call",
                 SpanAttributes.EMBABEL_LLM_MODEL, event.getLlmMetadata().getName(),
                 SpanAttributes.EMBABEL_AGENT_NAME, event.getAgentProcess().getAgent().getName());
         // Only the bounded short_name is a LOW-cardinality tag; the full (possibly fully-qualified)

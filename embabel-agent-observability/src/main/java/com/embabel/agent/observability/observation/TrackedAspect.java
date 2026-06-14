@@ -78,6 +78,7 @@ public class TrackedAspect {
         Observation observation = Observation.createNotStarted(operationName, () -> context, registry);
 
         // Low cardinality tags
+        observation.lowCardinalityKeyValue(SpanAttributes.EMBABEL_EVENT_TYPE, "custom");
         observation.lowCardinalityKeyValue(SpanAttributes.EMBABEL_TRACKED_TYPE, tracked.type().name());
         observation.lowCardinalityKeyValue(SpanAttributes.EMBABEL_TRACKED_CLASS, signature.getDeclaringType().getSimpleName());
         if (!tracked.description().isEmpty()) {

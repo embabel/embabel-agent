@@ -56,6 +56,7 @@ public class EmbabelToolLoopObservationConvention
         ToolLoopStartEvent event = context.getStartEvent();
         KeyValues kv = KeyValues.of(
                 SpanAttributes.GEN_AI_OPERATION_NAME, "tool_loop",
+                SpanAttributes.EMBABEL_EVENT_TYPE, "tool_loop",
                 SpanAttributes.EMBABEL_AGENT_NAME, event.getAgentProcess().getAgent().getName(),
                 SpanAttributes.EMBABEL_TOOL_LOOP_MAX_ITERATIONS, String.valueOf(event.getMaxIterations()));
         // Only the bounded short_name is a LOW-cardinality tag; the full (possibly fully-qualified)

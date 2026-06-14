@@ -73,6 +73,7 @@ public class EmbabelAgentObservationConvention
         AgentProcess process = context.getProcess();
         return KeyValues.of(
                 SpanAttributes.GEN_AI_OPERATION_NAME, "agent",
+                SpanAttributes.EMBABEL_EVENT_TYPE, "agent_process",
                 SpanAttributes.EMBABEL_AGENT_NAME, process.getAgent().getName(),
                 SpanAttributes.EMBABEL_AGENT_IS_SUBAGENT, String.valueOf(process.getParentId() != null),
                 SpanAttributes.EMBABEL_AGENT_PLANNER_TYPE, process.getProcessOptions().getPlannerType().name(),

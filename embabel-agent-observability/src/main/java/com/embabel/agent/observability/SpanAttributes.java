@@ -64,6 +64,14 @@ public final class SpanAttributes {
     public static final String EMBABEL_DYNAMIC_AGENT_BASIS = "embabel.dynamic_agent.basis";
     public static final String EMBABEL_DYNAMIC_AGENT_CREATION = "embabel.dynamic_agent_creation";
     public static final String EMBABEL_EMBEDDING = "embabel.embedding";
+    /**
+     * Embabel-native event type for the span, one value per kind of observed operation
+     * (e.g. {@code agent_process}, {@code action}, {@code tool_call}, {@code llm_call}, ...).
+     * Unlike {@code gen_ai.operation.name} — which is present only on GenAI-classified spans and
+     * absent on the structural LLM wrapper / cost-record spans — this tag is emitted on <em>every</em>
+     * Embabel span, giving downstream exporters (e.g. Langfuse) an unambiguous, complete classifier.
+     */
+    public static final String EMBABEL_EVENT_TYPE = "embabel.event.type";
     public static final String EMBABEL_GOAL = "embabel.goal";
     public static final String EMBABEL_GOAL_NAME = "embabel.goal.name";
     public static final String EMBABEL_GOAL_RESULT = "embabel.goal.result";
