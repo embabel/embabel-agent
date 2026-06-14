@@ -16,7 +16,6 @@
 package com.embabel.agent.api.event.observation
 
 import io.micrometer.observation.Observation
-import org.jetbrains.annotations.ApiStatus
 
 /**
  * Port for direct instrumentation at the agent work sites (agent turn, action, LLM call, tool loop).
@@ -31,7 +30,7 @@ import org.jetbrains.annotations.ApiStatus
  * module, so it is the [Observation.Context] *type* — not a name — that drives naming. The adapter
  * owns the open/close (and error) lifecycle of the span around [observe], guaranteeing no scope leak.
  */
-@ApiStatus.Internal
+@InternalObservabilityApi
 interface AgentInstrumentation {
 
     /**
@@ -45,7 +44,7 @@ interface AgentInstrumentation {
  * No-op default: runs [work] and creates no observation, never even invoking [context]. Active
  * whenever no observability module contributes an [AgentInstrumentation] bean.
  */
-@ApiStatus.Internal
+@InternalObservabilityApi
 object NoOpAgentInstrumentation : AgentInstrumentation {
     override fun <T> observe(context: () -> Observation.Context, work: () -> T): T = work()
 }

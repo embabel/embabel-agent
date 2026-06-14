@@ -18,7 +18,6 @@ package com.embabel.agent.api.event.observation
 import com.embabel.agent.api.event.ToolLoopStartEvent
 import com.embabel.chat.Message
 import io.micrometer.observation.Observation
-import org.jetbrains.annotations.ApiStatus
 
 /**
  * Thin context for the `embabel.tool_loop` span: wraps the [ToolLoopStartEvent] and the
@@ -28,7 +27,7 @@ import org.jetbrains.annotations.ApiStatus
  * No cross-thread synchronization is needed: `observe{}` is synchronous, so [output] is written and
  * then read (by the convention at stop) on the same thread, with a happens-before from program order.
  */
-@ApiStatus.Internal
+@InternalObservabilityApi
 class ToolLoopObservationContext(
     val startEvent: ToolLoopStartEvent,
     val inputMessages: List<Message>,

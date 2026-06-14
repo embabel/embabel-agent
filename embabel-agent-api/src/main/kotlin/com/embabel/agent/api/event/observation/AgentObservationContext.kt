@@ -17,13 +17,12 @@ package com.embabel.agent.api.event.observation
 
 import com.embabel.agent.core.AgentProcess
 import io.micrometer.observation.Observation
-import org.jetbrains.annotations.ApiStatus
 
 /**
  * Thin context for the `embabel.agent` span: wraps the live [AgentProcess], from which the
  * registered convention reads all attributes — status at stop, so it reflects the final outcome.
  */
-@ApiStatus.Internal
+@InternalObservabilityApi
 class AgentObservationContext(
     val process: AgentProcess,
 ) : Observation.Context() {

@@ -17,10 +17,9 @@ package com.embabel.agent.api.event.observation
 
 import com.embabel.agent.api.event.LlmRequestEvent
 import io.micrometer.observation.Observation
-import org.jetbrains.annotations.ApiStatus
 
 /** Thin context for the `embabel.llm` span: wraps the [LlmRequestEvent]; the convention extracts attributes. */
-@ApiStatus.Internal
+@InternalObservabilityApi
 class LlmObservationContext(
     val requestEvent: LlmRequestEvent<*>,
 ) : Observation.Context() {

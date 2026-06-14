@@ -69,7 +69,6 @@ import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;
 import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -891,13 +890,13 @@ class EmbabelSpanEventListenerTest {
         }
 
         @Test
-        @Disabled("Blocked by core ordering bug: EarlyTermination is published before the core sets the "
-                + "status to TERMINATED, so recordLifecycle reads getStatus()=RUNNING here. Re-enable once "
-                + "AbstractAgentProcess.identifyEarlyTermination sets the status before publishing the event.")
-        @DisplayName("early termination emits a TERMINATED lifecycle span")
+        @DisplayName("early termination maps the process status onto the lifecycle span state")
         void earlyTerminationEmitsLifecycleSpan() {
             EarlyTerminationPolicy policy = mock(EarlyTerminationPolicy.class);
-            // Once the core ordering is fixed, the process status is TERMINATED when the event fires.
+            // Listener-mapping test: with the process reporting TERMINATED, recordLifecycle must copy
+            // getStatus() into embabel.lifecycle.state (parallel to the FAILED/KILLED/WAITING cases).
+            // The core guarantee that the status is already TERMINATED when the event fires is covered
+            // by AbstractAgentProcessTerminationStatusOrderingTest, not here (the process is mocked).
             EarlyTermination event = new EarlyTermination(
                     processWithStatus("run-1", AgentProcessStatusCode.TERMINATED), true, "budget exceeded", policy);
 

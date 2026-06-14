@@ -16,14 +16,13 @@
 package com.embabel.agent.api.event.observation
 
 import com.embabel.agent.api.event.ToolCallResponseEvent
-import org.jetbrains.annotations.ApiStatus
 
 /**
  * Java-friendly view of the Kotlin [Result] carried by [ToolCallResponseEvent], for Java consumers
  * (e.g. the observability module) that cannot read a Kotlin inline value class directly. Lives in
  * this Kotlin module so the read stays native — no reflection.
  */
-@ApiStatus.Internal
+@InternalObservabilityApi
 object ToolCallOutcomes {
 
     /** The tool's textual result on success, or null if the call failed. */

@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+@file:OptIn(com.embabel.agent.api.event.observation.InternalObservabilityApi::class)
+
 package com.embabel.agent.core.support
 
 import com.embabel.agent.api.common.TerminationScope
@@ -404,9 +406,9 @@ abstract class AbstractAgentProcess(
                 this.id,
                 signalTermination.reason,
             )
-            platformServices.eventListener.onProcessEvent(signalTermination)
             _failureInfo = signalTermination
             setStatus(AgentProcessStatusCode.TERMINATED)
+            platformServices.eventListener.onProcessEvent(signalTermination)
             return signalTermination
         }
 
@@ -428,9 +430,9 @@ abstract class AbstractAgentProcess(
                 earlyTermination.policy,
                 earlyTermination.reason,
             )
-            platformServices.eventListener.onProcessEvent(earlyTermination)
             _failureInfo = earlyTermination
             setStatus(AgentProcessStatusCode.TERMINATED)
+            platformServices.eventListener.onProcessEvent(earlyTermination)
             return earlyTermination
         }
         return null

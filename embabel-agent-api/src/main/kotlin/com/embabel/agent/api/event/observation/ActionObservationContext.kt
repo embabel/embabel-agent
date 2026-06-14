@@ -19,7 +19,6 @@ import com.embabel.agent.core.ActionStatusCode
 import com.embabel.agent.core.AgentProcess
 import com.embabel.plan.Action
 import io.micrometer.observation.Observation
-import org.jetbrains.annotations.ApiStatus
 
 /**
  * Thin context for the `embabel.action` span: wraps the owning [AgentProcess] and the [Action].
@@ -29,7 +28,7 @@ import org.jetbrains.annotations.ApiStatus
  * is needed: `observe{}` is synchronous, so it is written and then read on the same thread, with a
  * happens-before from program order.
  */
-@ApiStatus.Internal
+@InternalObservabilityApi
 class ActionObservationContext(
     val process: AgentProcess,
     val action: Action,

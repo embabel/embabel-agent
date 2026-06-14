@@ -17,13 +17,12 @@ package com.embabel.agent.api.event.observation
 
 import io.micrometer.observation.Observation
 import io.micrometer.observation.ObservationRegistry
-import org.jetbrains.annotations.ApiStatus
 import java.util.function.Supplier
 
 /**
  * Direct-instrumentation helpers used at the agent work sites.
  */
-@ApiStatus.Internal
+@InternalObservabilityApi
 object Observations {
 
     /**
