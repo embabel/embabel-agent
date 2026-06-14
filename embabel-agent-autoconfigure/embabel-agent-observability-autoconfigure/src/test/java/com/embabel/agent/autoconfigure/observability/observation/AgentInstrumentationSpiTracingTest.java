@@ -163,7 +163,7 @@ class AgentInstrumentationSpiTracingTest {
     void parallelChildrenNestUnderParentThroughAdapter() throws Exception {
         AgentInstrumentation adapter = new MicrometerAgentInstrumentation(observationRegistry);
         int children = 4;
-        long callerThreadId = Thread.currentThread().getId();
+        long callerThreadId = Thread.currentThread().threadId();
         // Barrier forces all `children` to be in-flight on distinct pool threads at the SAME time before
         // any opens its span — so this proves true concurrency, not sequential reuse of one pool thread.
         CyclicBarrier barrier = new CyclicBarrier(children);
@@ -176,7 +176,7 @@ class AgentInstrumentationSpiTracingTest {
             List<CompletableFuture<Object>> futures = new java.util.ArrayList<>();
             for (int i = 0; i < children; i++) {
                 Function0<Object> childWork = () -> {
-                    childThreadIds.add(Thread.currentThread().getId());
+                    childThreadIds.add(Thread.currentThread().threadId());
                     try {
                         barrier.await(); // all children must reach here together => real parallelism
                     } catch (Exception e) {

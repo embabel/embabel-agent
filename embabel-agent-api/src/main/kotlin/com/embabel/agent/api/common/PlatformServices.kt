@@ -18,10 +18,10 @@ package com.embabel.agent.api.common
 import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.event.AgenticEventListener
-import com.embabel.agent.core.AgentPlatform
-import com.embabel.agent.core.AgentProcessRepository
 import com.embabel.agent.api.event.observation.AgentInstrumentation
 import com.embabel.agent.api.event.observation.NoOpAgentInstrumentation
+import com.embabel.agent.core.AgentPlatform
+import com.embabel.agent.core.AgentProcessRepository
 import com.embabel.agent.core.expression.LogicalExpressionParser
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.spi.OperationScheduler

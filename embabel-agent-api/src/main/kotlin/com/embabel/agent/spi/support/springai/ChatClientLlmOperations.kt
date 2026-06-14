@@ -118,6 +118,10 @@ internal class ChatClientLlmOperations(
     autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
     @Qualifier("embabelJacksonObjectMapper")
     objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
+    // Drives ONLY Spring AI's own ChatClient/advisor observations (see createChatClient). The embabel
+    // master-switch (`tracing-enabled`) gates the [instrumentation] adapter — i.e. the embabel core
+    // spans — NOT this registry: disabling tracing stops embabel spans but leaves Spring AI's native
+    // chat-client spans intact, since this registry stays injected with the real bean.
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
     instrumentation: AgentInstrumentation = NoOpAgentInstrumentation,
     private val customizers: List<ChatClientCustomizer> = emptyList(),

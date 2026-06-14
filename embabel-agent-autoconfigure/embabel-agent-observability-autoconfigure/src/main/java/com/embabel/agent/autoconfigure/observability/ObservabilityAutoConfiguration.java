@@ -67,14 +67,6 @@ public class ObservabilityAutoConfiguration {
     private static final Logger log = LoggerFactory.getLogger(ObservabilityAutoConfiguration.class);
 
     /**
-     * Registers the four global span conventions (agent, action, tool loop, LLM call) on the
-     * ObservationRegistry. The core opens each observation with a thin context and a name only;
-     * these conventions — matched by context type — supply all attributes. This replaces the
-     * legacy event-listener span reconstruction with direct Micrometer instrumentation.
-     *
-     * @return a customizer registering the four conventions
-     */
-    /**
      * Contributes the Micrometer adapter for the core's {@link AgentInstrumentation} port, marked
      * {@code @Primary} so it wins over the core's default no-op bean for both by-type injection and
      * {@code ObjectProvider.getIfUnique}. Present only when this module is on the classpath (the
@@ -94,6 +86,14 @@ public class ObservabilityAutoConfiguration {
         return new MicrometerAgentInstrumentation(observationRegistry);
     }
 
+    /**
+     * Registers the four global span conventions (agent, action, tool loop, LLM call) on the
+     * ObservationRegistry. The core opens each observation with a thin context and a name only;
+     * these conventions — matched by context type — supply all attributes. This replaces the
+     * legacy event-listener span reconstruction with direct Micrometer instrumentation.
+     *
+     * @return a customizer registering the four conventions
+     */
     @Bean
     @ConditionalOnProperty(prefix = "embabel.agent.platform.observability", name = {"tracing-enabled", "trace-agent-events"}, havingValue = "true", matchIfMissing = true)
     public ObservationRegistryCustomizer<ObservationRegistry> embabelSpanConventionsCustomizer(ObservabilityProperties properties) {
