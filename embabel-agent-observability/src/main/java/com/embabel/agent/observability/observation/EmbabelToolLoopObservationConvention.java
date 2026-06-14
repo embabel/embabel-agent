@@ -31,9 +31,21 @@ public class EmbabelToolLoopObservationConvention
         implements GlobalObservationConvention<ToolLoopObservationContext> {
 
     private final int maxAttributeLength;
+    private final boolean captureMessageContent;
 
     public EmbabelToolLoopObservationConvention(int maxAttributeLength) {
+        this(maxAttributeLength, true);
+    }
+
+    /**
+     * @param maxAttributeLength    truncation bound for message bodies
+     * @param captureMessageContent when {@code false}, omit the {@code input.value} /
+     *                              {@code output.value} bodies (may contain PII); metadata is
+     *                              still recorded
+     */
+    public EmbabelToolLoopObservationConvention(int maxAttributeLength, boolean captureMessageContent) {
         this.maxAttributeLength = maxAttributeLength;
+        this.captureMessageContent = captureMessageContent;
     }
 
     @Override
@@ -79,13 +91,15 @@ public class EmbabelToolLoopObservationConvention
         if (event.getAction() != null) {
             kv = kv.and(SpanAttributes.EMBABEL_ACTION_NAME, event.getAction().getName());
         }
-        String input = ObservationUtils.formatMessages(context.getInputMessages());
-        if (!input.isEmpty()) {
-            kv = kv.and(SpanAttributes.INPUT_VALUE, ObservationUtils.truncate(input, maxAttributeLength));
-        }
-        Object output = context.getOutput();
-        if (output != null) {
-            kv = kv.and(SpanAttributes.OUTPUT_VALUE, ObservationUtils.truncate(output.toString(), maxAttributeLength));
+        if (captureMessageContent) {
+            String input = ObservationUtils.formatMessages(context.getInputMessages());
+            if (!input.isEmpty()) {
+                kv = kv.and(SpanAttributes.INPUT_VALUE, ObservationUtils.truncate(input, maxAttributeLength));
+            }
+            Object output = context.getOutput();
+            if (output != null) {
+                kv = kv.and(SpanAttributes.OUTPUT_VALUE, ObservationUtils.truncate(output.toString(), maxAttributeLength));
+            }
         }
         return kv;
     }

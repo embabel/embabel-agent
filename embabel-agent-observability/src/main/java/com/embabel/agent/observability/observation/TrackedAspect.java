@@ -46,10 +46,23 @@ public class TrackedAspect {
 
     private final ObservationRegistry registry;
     private final int maxAttributeLength;
+    private final boolean captureMessageContent;
 
     public TrackedAspect(ObservationRegistry registry, int maxAttributeLength) {
+        this(registry, maxAttributeLength, true);
+    }
+
+    /**
+     * @param registry              the observation registry
+     * @param maxAttributeLength    truncation bound for captured args/result
+     * @param captureMessageContent when {@code false}, omit the {@code embabel.tracked.args} /
+     *                              {@code embabel.tracked.result} bodies (may contain PII); the
+     *                              span and its metadata tags are still recorded
+     */
+    public TrackedAspect(ObservationRegistry registry, int maxAttributeLength, boolean captureMessageContent) {
         this.registry = registry;
         this.maxAttributeLength = maxAttributeLength;
+        this.captureMessageContent = captureMessageContent;
     }
 
     /**
@@ -88,15 +101,17 @@ public class TrackedAspect {
             observation.lowCardinalityKeyValue(SpanAttributes.EMBABEL_TRACKED_AGENT, process.getAgent().getName());
         }
 
-        // High cardinality tags (inputs)
-        String argsString = truncate(formatArgs(signature.getParameterNames(), joinPoint.getArgs()));
-        observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_TRACKED_ARGS, argsString);
+        // High cardinality tags (inputs) — message bodies are opt-in (may contain PII).
+        if (captureMessageContent) {
+            String argsString = truncate(formatArgs(signature.getParameterNames(), joinPoint.getArgs()));
+            observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_TRACKED_ARGS, argsString);
+        }
 
         observation.start();
         Observation.Scope scope = observation.openScope();
         try {
             Object result = joinPoint.proceed();
-            if (result != null) {
+            if (captureMessageContent && result != null) {
                 observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_TRACKED_RESULT, truncate(result.toString()));
             }
             return result;

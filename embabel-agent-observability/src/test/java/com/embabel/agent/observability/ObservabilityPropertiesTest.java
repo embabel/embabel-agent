@@ -44,6 +44,7 @@ class ObservabilityPropertiesTest {
         assertThat(props.isTraceAgentEvents()).isTrue();
         assertThat(props.isTraceToolCalls()).isTrue();
         assertThat(props.isTraceToolLoop()).isTrue();
+        assertThat(props.isTraceToolLoopCompleted()).isTrue();
         assertThat(props.isTraceLlmCalls()).isTrue();
         assertThat(props.isTraceEmbedding()).isTrue();
         assertThat(props.isTracePlanning()).isTrue();
@@ -173,6 +174,15 @@ class ObservabilityPropertiesTest {
         props.setTraceToolLoop(false);
 
         assertThat(props.isTraceToolLoop()).isFalse();
+    }
+
+    @Test
+    void setTraceToolLoopCompleted_shouldUpdateValue() {
+        ObservabilityProperties props = new ObservabilityProperties();
+
+        props.setTraceToolLoopCompleted(false);
+
+        assertThat(props.isTraceToolLoopCompleted()).isFalse();
     }
 
     @Test

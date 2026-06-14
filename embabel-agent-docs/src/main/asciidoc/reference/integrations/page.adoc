@@ -901,8 +901,13 @@ Both are truncated to `embabel.agent.platform.observability.max-attribute-length
 Spring AI *ChatModel* spans additionally carry the structured OTel GenAI message attributes
 `gen_ai.input.messages` / `gen_ai.output.messages` (JSON arrays of `{role, parts:[{type, content}]}`,
 with `finish_reason` on output), alongside the OpenInference `input.value` / `output.value` bridge.
-This content is governed by `embabel.agent.platform.observability.capture-message-content` (default `true`); set it
-to `false` to keep model/token metadata while omitting message bodies, as the GenAI convention
+
+All of this payload content — the `input.value` / `output.value` and `*.result` bodies on the
+`embabel.agent` / `embabel.action` / `embabel.tool_loop` spans, the GenAI message attributes on
+ChatModel spans, and the point-span bodies (tool-call arguments and result, RAG query, planning and
+goal world state, replan reason, and `@Tracked` method args/return) — is governed by
+`embabel.agent.platform.observability.capture-message-content` (default `true`). Set it to `false`
+to keep model/token/identity metadata while omitting every message body, as the GenAI convention
 recommends content capture be opt-in (potential PII).
 
 ===== Tracing Configuration Properties
@@ -944,6 +949,10 @@ All tracing options are enabled by default and can be toggled individually:
 |`embabel.agent.platform.observability.trace-tool-loop`
 |`true`
 |Tool loop execution (`embabel.tool_loop` scoped span + `embabel.tool_loop.completed` point span)
+
+|`embabel.agent.platform.observability.trace-tool-loop-completed`
+|`true`
+|Emit the `embabel.tool_loop.completed` point span (loop outcome: iterations, replan flag, duration). Set `false` to keep the scoped `embabel.tool_loop` span but drop the extra completion node. No effect when `trace-tool-loop` is `false`
 
 |`embabel.agent.platform.observability.trace-llm-calls`
 |`true`
@@ -999,7 +1008,7 @@ All tracing options are enabled by default and can be toggled individually:
 
 |`embabel.agent.platform.observability.capture-message-content`
 |`true`
-|Capture LLM prompt/response content on chat-model spans (`gen_ai.input.messages`/`gen_ai.output.messages` plus the `input.value`/`output.value` bridge). The OTel GenAI convention recommends this be opt-in as content may contain PII; set `false` to keep model/token metadata while omitting message bodies
+|Capture message/payload content across all spans: ChatModel `gen_ai.input.messages`/`gen_ai.output.messages` plus the `input.value`/`output.value`/`*.result` bodies on agent/action/tool_loop spans, tool-call args/result, RAG query, planning/goal world state, replan reason, and `@Tracked` args/return. The OTel GenAI convention recommends this be opt-in as content may contain PII; set `false` to keep model/token/identity metadata while omitting every message body
 
 |`embabel.agent.platform.observability.disabled-traces`
 |`[]` (empty)

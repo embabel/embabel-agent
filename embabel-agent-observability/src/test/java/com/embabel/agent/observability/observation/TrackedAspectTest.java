@@ -271,6 +271,25 @@ class TrackedAspectTest {
         }
 
         @Test
+        @DisplayName("capture-message-content=false omits args and result but keeps metadata")
+        void captureContentDisabledOmitsArgsAndResult() throws Throwable {
+            TrackedAspect noContent = new TrackedAspect(registry, 4000, false);
+            setupJoinPoint("customNamed");
+            when(joinPoint.proceed()).thenReturn("my-result");
+
+            Tracked tracked = SampleService.class.getMethod("customNamed", String.class)
+                    .getAnnotation(Tracked.class);
+
+            noContent.tracked(joinPoint, tracked);
+
+            EmbabelObservationContext ctx = capturingHandler.contexts.get(0);
+            assertThat(hasHighCardinalityKey(ctx, "embabel.tracked.args")).isFalse();
+            assertThat(hasHighCardinalityKey(ctx, "embabel.tracked.result")).isFalse();
+            // Metadata (no message bodies) is always recorded.
+            assertThat(hasLowCardinalityKeyValue(ctx, "embabel.tracked.class", "SampleService")).isTrue();
+        }
+
+        @Test
         @DisplayName("Should tag class name on observation")
         void shouldTagClassName() throws Throwable {
             setupJoinPoint("customNamed");

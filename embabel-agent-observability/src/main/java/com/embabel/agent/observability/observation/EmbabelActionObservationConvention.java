@@ -31,9 +31,21 @@ public class EmbabelActionObservationConvention
         implements GlobalObservationConvention<ActionObservationContext> {
 
     private final int maxAttributeLength;
+    private final boolean captureMessageContent;
 
     public EmbabelActionObservationConvention(int maxAttributeLength) {
+        this(maxAttributeLength, true);
+    }
+
+    /**
+     * @param maxAttributeLength    truncation bound for message bodies
+     * @param captureMessageContent when {@code false}, omit the {@code input.value} /
+     *                              {@code output.value} / {@code embabel.action.result} bodies
+     *                              (may contain PII); metadata is still recorded
+     */
+    public EmbabelActionObservationConvention(int maxAttributeLength, boolean captureMessageContent) {
         this.maxAttributeLength = maxAttributeLength;
+        this.captureMessageContent = captureMessageContent;
     }
 
     @Override
@@ -78,7 +90,7 @@ public class EmbabelActionObservationConvention
         KeyValues kv = KeyValues.of(
                 SpanAttributes.EMBABEL_RUN_ID, process.getId(),
                 SpanAttributes.EMBABEL_ACTION_NAME, context.getAction().getName());
-        if (context.getAction() instanceof com.embabel.agent.core.Action coreAction) {
+        if (captureMessageContent && context.getAction() instanceof com.embabel.agent.core.Action coreAction) {
             String input = ObservationUtils.getActionInputs(coreAction, process);
             if (!input.isEmpty()) {
                 kv = kv.and(SpanAttributes.INPUT_VALUE, ObservationUtils.truncate(input, maxAttributeLength));

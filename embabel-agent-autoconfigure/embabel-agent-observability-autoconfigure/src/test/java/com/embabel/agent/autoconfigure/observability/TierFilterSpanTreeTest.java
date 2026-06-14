@@ -322,4 +322,44 @@ class TierFilterSpanTreeTest {
                 .as("llm remains the root span when its only child is suppressed")
                 .isEqualTo(SpanId.getInvalid());
     }
+
+    @Test
+    @DisplayName("a suppressed tier with TWO children: both re-parent to the live ancestor, neither cross-links to the other")
+    void suppressedTierWithMultipleChildrenReParentsEachToAncestor() {
+        // The existing re-parent tests are all single-child chains, so they cannot detect a sibling
+        // being mis-attached to another sibling. Here the dropped action holds two live children
+        // (concurrent-style: an llm and an embedding); each must nest directly under the agent.
+        ObservabilityProperties properties = new ObservabilityProperties();
+        properties.setDisabledTraces(List.of("embabel.action"));
+        applyFilter(properties);
+
+        // agent (live) > action (dropped) > { llm (live), embedding (live) }
+        Observation.createNotStarted("embabel.agent", registry).observe((Supplier<Object>) () ->
+                Observation.createNotStarted("embabel.action", registry).observe((Supplier<Object>) () -> {
+                    Observation.createNotStarted("embabel.llm", registry).observe((Supplier<Object>) () -> null);
+                    Observation.createNotStarted("embabel.embedding", registry).observe((Supplier<Object>) () -> null);
+                    return null;
+                }));
+
+        List<SpanData> spans = spanExporter.getFinishedSpanItems();
+        assertThat(spans).extracting(SpanData::getName)
+                .as("action is dropped; agent + both children are exported")
+                .containsExactlyInAnyOrder("embabel.agent", "embabel.llm", "embabel.embedding");
+
+        SpanData agent = span(spans, "embabel.agent");
+        SpanData llm = span(spans, "embabel.llm");
+        SpanData embedding = span(spans, "embabel.embedding");
+
+        assertThat(agent.getParentSpanId()).as("agent is the only root").isEqualTo(SpanId.getInvalid());
+        assertThat(llm.getParentSpanId())
+                .as("llm re-parents to the agent across the dropped action")
+                .isEqualTo(agent.getSpanId());
+        assertThat(embedding.getParentSpanId())
+                .as("embedding ALSO re-parents to the agent, not to its sibling llm")
+                .isEqualTo(agent.getSpanId());
+        assertThat(embedding.getParentSpanId())
+                .as("no cross-linking between concurrent siblings")
+                .isNotEqualTo(llm.getSpanId());
+        assertThat(spans).extracting(SpanData::getTraceId).containsOnly(agent.getTraceId());
+    }
 }

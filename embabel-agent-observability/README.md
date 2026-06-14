@@ -255,6 +255,7 @@ Your agents are now fully traced. No code changes required.
 | `embabel.agent.platform.observability.trace-action` | `true` | Trace the `embabel.action` scoped span. Effective when `trace-agent-events=true` |
 | `embabel.agent.platform.observability.trace-tool-calls` | `true` | Trace tool invocations (`embabel.tool` span) |
 | `embabel.agent.platform.observability.trace-tool-loop` | `true` | Trace tool loop execution (`embabel.tool_loop` scoped span + `embabel.tool_loop.completed` point span) |
+| `embabel.agent.platform.observability.trace-tool-loop-completed` | `true` | Emit the `embabel.tool_loop.completed` point span (loop outcome: iterations, replan flag, duration). Set `false` to keep the scoped `embabel.tool_loop` span but drop the extra completion node. No effect when `trace-tool-loop` is `false` |
 | `embabel.agent.platform.observability.trace-llm-calls` | `true` | Trace LLM calls: the `embabel.llm` scoped span **and** the `embabel.llm.invocation` point span (model, tokens, cost), plus the Spring AI ChatModel filter |
 | `embabel.agent.platform.observability.trace-embedding` | `true` | Trace embedding invocations (`embabel.embedding` span: model, tokens, cost) |
 | `embabel.agent.platform.observability.trace-planning` | `true` | Trace plan formulation (`embabel.planning`) and replan requests (`embabel.replan`) |
@@ -267,7 +268,7 @@ Your agents are now fully traced. No code changes required.
 | `embabel.agent.platform.observability.trace-tracked-operations` | `true` | Enable/disable `@Tracked` annotation aspect |
 | `embabel.agent.platform.observability.mdc-propagation` | `true` | Propagate agent context into SLF4J MDC for log correlation |
 | `embabel.agent.platform.observability.max-attribute-length` | `4000` | Max attribute length before truncation |
-| `embabel.agent.platform.observability.capture-message-content` | `true` | Capture LLM prompt/response **content** on chat-model spans (`gen_ai.input.messages`/`gen_ai.output.messages` + the `input.value`/`output.value` bridge). The OTel GenAI convention recommends this be opt-in as content may contain PII; set `false` to keep model/token metadata while omitting message bodies |
+| `embabel.agent.platform.observability.capture-message-content` | `true` | Capture message/payload **content** across all spans: ChatModel `gen_ai.input.messages`/`gen_ai.output.messages` + the `input.value`/`output.value`/`*.result` bodies on agent/action/tool_loop spans, tool-call args/result, RAG query, planning/goal world state, replan reason, and `@Tracked` args/return. The OTel GenAI convention recommends this be opt-in as content may contain PII; set `false` to keep model/token/identity metadata while omitting every message body |
 | `embabel.agent.platform.observability.disabled-traces` | `[]` (empty) | Observation names to suppress, matched by **exact** name. Drops non-Embabel infrastructure spans you don't want exported (e.g. `tasks.scheduled.execution`, `http.server.requests`, `http.client.requests`) without code. Works for any span carrying its real name (incl. Embabel point spans like `embabel.embedding`), but **not** the four core scoped spans (`embabel.agent`/`embabel.action`/`embabel.llm`/`embabel.tool_loop`), which are placeholder-named until `start()` — use their `trace-*` flags for those. A suppressed observation becomes a no-op, so its children re-parent to the next live ancestor |
 
 ### Tool and tool-loop spans
@@ -415,10 +416,13 @@ Both are truncated to `embabel.agent.platform.observability.max-attribute-length
 For Spring AI **ChatModel** spans, the `ChatModelObservationFilter` additionally emits the structured
 OTel GenAI message attributes `gen_ai.input.messages` / `gen_ai.output.messages` (JSON arrays of
 `{role, parts:[{type, content}]}`, with `finish_reason` on output), alongside the OpenInference
-`input.value` / `output.value` bridge. This message content is governed by
+`input.value` / `output.value` bridge. All payload content — these GenAI message attributes, the
+`input.value` / `output.value` / `*.result` bodies on the agent/action/tool_loop spans, and the
+point-span bodies (tool-call args/result, RAG query, planning/goal world state, replan reason,
+`@Tracked` args/return) — is governed by
 `embabel.agent.platform.observability.capture-message-content` (default `true`); set it to `false` to keep
-model/token metadata while omitting message bodies (the GenAI convention recommends content capture
-be opt-in, as it may contain PII).
+model/token/identity metadata while omitting every message body (the GenAI convention recommends content
+capture be opt-in, as it may contain PII).
 
 ### Sub-agent Hierarchy
 

@@ -34,6 +34,7 @@ import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
+import io.opentelemetry.sdk.trace.data.StatusData;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import kotlin.jvm.functions.Function0;
 import org.junit.jupiter.api.AfterEach;
@@ -53,6 +54,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Guard tests for the {@link AgentInstrumentation} SPI inversion (the LIGHT migration). They exercise
@@ -156,6 +158,29 @@ class AgentInstrumentationSpiTracingTest {
         assertThat(spanExporter.getFinishedSpanItems())
                 .as("adapter present => span exported")
                 .hasSize(1);
+    }
+
+    @Test
+    @DisplayName("SCOPE-LEAK GUARD: an exception in observed work closes the span and marks it errored through the adapter")
+    void adapterExceptionClosesAndErrorsSpan() {
+        AgentInstrumentation adapter = new MicrometerAgentInstrumentation(observationRegistry);
+
+        // The raw observe{} error contract is covered by MicrometerDirectInstrumentationConcurrencyTest;
+        // here we prove the SPI indirection preserves it: the work throws, the exception propagates, yet
+        // the span is still closed (no scope leak) and carries ERROR status.
+        assertThatThrownBy(() ->
+                adapter.observe((Function0<Observation.Context>) Observation.Context::new,
+                        (Function0<Object>) () -> {
+                            throw new IllegalStateException("boom");
+                        }))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("boom");
+
+        List<SpanData> spans = spanExporter.getFinishedSpanItems();
+        assertThat(spans).as("the span is still closed despite the exception (no scope leak)").hasSize(1);
+        assertThat(spans.get(0).getStatus().getStatusCode())
+                .as("the span is marked errored")
+                .isEqualTo(StatusData.error().getStatusCode());
     }
 
     @Test

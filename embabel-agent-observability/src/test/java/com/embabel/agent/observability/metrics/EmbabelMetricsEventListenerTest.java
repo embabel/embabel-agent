@@ -30,6 +30,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -411,6 +413,82 @@ class EmbabelMetricsEventListenerTest {
             Timer timer = registry.find("embabel.agent.duration")
                     .tag("agent", "DurationAgent").tag("status", "failed").timer();
             assertThat(timer).isNotNull();
+            assertThat(timer.count()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("Early termination should record duration with status=terminated")
+        void earlyTermination_shouldRecordDuration() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "DurationAgent");
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new EarlyTermination(
+                    process, true, "budget exceeded", mock(EarlyTerminationPolicy.class)));
+
+            Timer timer = registry.find("embabel.agent.duration")
+                    .tag("agent", "DurationAgent").tag("status", "terminated").timer();
+            assertThat(timer).isNotNull();
+            assertThat(timer.count()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("Active duration should sum action running times, excluding idle/wait time")
+        void completed_shouldRecordActiveDurationFromHistory() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "DurationAgent");
+            mockUsageAndCost(process, null, 0.0);
+            when(process.getHistory()).thenReturn(List.of(
+                    new ActionInvocation("a1", Instant.now(), Duration.ofMillis(100)),
+                    new ActionInvocation("a2", Instant.now(), Duration.ofMillis(150))));
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new AgentProcessCompletedEvent(process));
+
+            Timer timer = registry.find("embabel.agent.active_duration")
+                    .tag("agent", "DurationAgent").tag("status", "completed").timer();
+            assertThat(timer).isNotNull();
+            assertThat(timer.count()).isEqualTo(1);
+            assertThat(timer.totalTime(TimeUnit.MILLISECONDS)).isEqualTo(250.0);
+        }
+
+        @Test
+        @DisplayName("Active duration is recorded as zero when there is no action history")
+        void completed_shouldRecordZeroActiveDurationWhenNoHistory() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "DurationAgent");
+            mockUsageAndCost(process, null, 0.0);
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new AgentProcessCompletedEvent(process));
+
+            Timer timer = registry.find("embabel.agent.active_duration")
+                    .tag("agent", "DurationAgent").tag("status", "completed").timer();
+            assertThat(timer).isNotNull();
+            assertThat(timer.count()).isEqualTo(1);
+            assertThat(timer.totalTime(TimeUnit.MILLISECONDS)).isEqualTo(0.0);
+        }
+
+        @Test
+        @DisplayName("Early termination should purge the creation timestamp (no leak)")
+        void earlyTermination_shouldPurgeTimestamp() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "DurationAgent");
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new EarlyTermination(
+                    process, true, "budget exceeded", mock(EarlyTerminationPolicy.class)));
+            // A second terminal event for the same process must not re-record:
+            // the timestamp was purged on the first, proving no entry lingers.
+            listener.onProcessEvent(new EarlyTermination(
+                    process, true, "budget exceeded", mock(EarlyTerminationPolicy.class)));
+
+            Timer timer = registry.find("embabel.agent.duration")
+                    .tag("agent", "DurationAgent").tag("status", "terminated").timer();
             assertThat(timer.count()).isEqualTo(1);
         }
     }

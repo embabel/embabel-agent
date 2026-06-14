@@ -99,10 +99,11 @@ public class ObservabilityAutoConfiguration {
     public ObservationRegistryCustomizer<ObservationRegistry> embabelSpanConventionsCustomizer(ObservabilityProperties properties) {
         log.info("Registering Embabel span conventions (agent, action, tool_loop, llm) for direct Micrometer instrumentation");
         int maxAttributeLength = properties.getMaxAttributeLength();
+        boolean captureMessageContent = properties.isCaptureMessageContent();
         return registry -> registry.observationConfig()
-                .observationConvention(new EmbabelAgentObservationConvention(maxAttributeLength))
-                .observationConvention(new EmbabelActionObservationConvention(maxAttributeLength))
-                .observationConvention(new EmbabelToolLoopObservationConvention(maxAttributeLength))
+                .observationConvention(new EmbabelAgentObservationConvention(maxAttributeLength, captureMessageContent))
+                .observationConvention(new EmbabelActionObservationConvention(maxAttributeLength, captureMessageContent))
+                .observationConvention(new EmbabelToolLoopObservationConvention(maxAttributeLength, captureMessageContent))
                 .observationConvention(new EmbabelLlmObservationConvention());
     }
 

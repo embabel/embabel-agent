@@ -1086,6 +1086,128 @@ class EmbabelSpanEventListenerTest {
 
             assertTrue(handler.stopped.stream().noneMatch(c -> "embabel.tool_loop.completed".equals(c.getName())));
         }
+
+        @Test
+        @DisplayName("trace-tool-loop-completed=false suppresses only the completion point span")
+        void toolLoopCompletedPointFlagDisabled() {
+            properties.setTraceToolLoopCompleted(false);
+            ToolLoopCompletedEvent event = mock(ToolLoopCompletedEvent.class);
+            lenient().when(event.getInteractionId()).thenReturn("i-1");
+            lenient().when(event.getRunningTime()).thenReturn(Duration.ZERO);
+
+            listener().onProcessEvent(event);
+
+            assertTrue(handler.stopped.stream().noneMatch(c -> "embabel.tool_loop.completed".equals(c.getName())));
+        }
+    }
+
+    @Nested
+    @DisplayName("content capture gating (capture-message-content=false)")
+    class ContentCaptureGating {
+
+        @BeforeEach
+        void disableContentCapture() {
+            properties.setCaptureMessageContent(false);
+        }
+
+        @Test
+        @DisplayName("tool call omits arguments and result but keeps metadata")
+        void toolCallOmitsContent() {
+            ToolCallResponseEvent event = toolResponse(null);
+            try (MockedStatic<ToolCallOutcomes> outcomes = mockStatic(ToolCallOutcomes.class)) {
+                outcomes.when(() -> ToolCallOutcomes.error(event)).thenReturn(null);
+                outcomes.when(() -> ToolCallOutcomes.resultText(event)).thenReturn("tool output");
+                listener().onProcessEvent(event);
+            }
+
+            Map<String, String> kv = kvOf("embabel.tool");
+            assertNull(kv.get("gen_ai.tool.call.arguments"));
+            assertNull(kv.get("gen_ai.tool.call.result"));
+            // Metadata stays.
+            assertEquals("myTool", kv.get("gen_ai.tool.name"));
+            assertEquals("success", kv.get("embabel.tool.status"));
+            assertEquals("7", kv.get("embabel.tool.duration_ms"));
+        }
+
+        @Test
+        @DisplayName("RAG omits the query but keeps service and counts")
+        void ragOmitsQuery() {
+            RagRequest request = mock(RagRequest.class);
+            lenient().when(request.getQuery()).thenReturn("what is x");
+            RagResponse response = mock(RagResponse.class);
+            lenient().when(response.getService()).thenReturn("vec-store");
+            lenient().when(response.getRequest()).thenReturn(request);
+            lenient().when(response.getResults()).thenReturn(java.util.Collections.emptyList());
+            RagResponseEvent ragResponseEvent = mock(RagResponseEvent.class);
+            lenient().when(ragResponseEvent.getRagResponse()).thenReturn(response);
+            AgentProcessRagEvent event = mock(AgentProcessRagEvent.class);
+            lenient().when(event.getRagEvent()).thenReturn(ragResponseEvent);
+
+            listener().onProcessEvent(event);
+
+            Map<String, String> kv = kvOf("embabel.rag");
+            assertNull(kv.get("embabel.rag.query"));
+            assertEquals("vec-store", kv.get("embabel.rag.service"));
+            assertEquals("0", kv.get("embabel.rag.result_count"));
+        }
+
+        @Test
+        @DisplayName("planning omits world-state input and plan output but keeps the goal")
+        void planningOmitsBodies() {
+            listener().onProcessEvent(planEvent());
+
+            Map<String, String> kv = kvOf("embabel.planning");
+            assertNull(kv.get("input.value"));
+            assertNull(kv.get("output.value"));
+            assertEquals("done", kv.get("embabel.plan.goal"));
+        }
+
+        @Test
+        @DisplayName("ready-to-plan omits the world-state input")
+        void readyToPlanOmitsInput() {
+            AgentProcess process = mock(AgentProcess.class);
+            lenient().when(process.getId()).thenReturn("run-1");
+            WorldState worldState = worldState("conditions: start");
+            AgentProcessReadyToPlanEvent event = mock(AgentProcessReadyToPlanEvent.class);
+            lenient().when(event.getWorldState()).thenReturn(worldState);
+            lenient().when(event.getAgentProcess()).thenReturn(process);
+
+            listener().onProcessEvent(event);
+
+            assertNull(kvOf("embabel.planning.ready").get("input.value"));
+        }
+
+        @Test
+        @DisplayName("replan omits the reason")
+        void replanOmitsReason() {
+            ReplanRequestedEvent event = mock(ReplanRequestedEvent.class);
+            lenient().when(event.getReason()).thenReturn("stuck, retrying with new plan");
+
+            listener().onProcessEvent(event);
+
+            assertNull(kvOf("embabel.replan").get("embabel.replan.reason"));
+        }
+
+        @Test
+        @DisplayName("goal achieved omits world-state input and result but keeps the goal name")
+        void goalOmitsContent() {
+            Goal goal = mock(Goal.class);
+            lenient().when(goal.getName()).thenReturn("com.example.WizardAgent.answerQuestion");
+            AgentProcess process = mock(AgentProcess.class);
+            lenient().when(process.lastResult()).thenReturn("the answer");
+            WorldState worldState = worldState("blackboard: UserInput, Answer");
+            GoalAchievedEvent event = mock(GoalAchievedEvent.class);
+            lenient().when(event.getGoal()).thenReturn(goal);
+            lenient().when(event.getWorldState()).thenReturn(worldState);
+            lenient().when(event.getAgentProcess()).thenReturn(process);
+
+            listener().onProcessEvent(event);
+
+            Map<String, String> kv = kvOf("embabel.goal");
+            assertNull(kv.get("input.value"));
+            assertNull(kv.get("embabel.goal.result"));
+            assertEquals("com.example.WizardAgent.answerQuestion", kv.get("embabel.goal.name"));
+        }
     }
 
     @Nested
@@ -1106,6 +1228,50 @@ class EmbabelSpanEventListenerTest {
             EmbabelSpanEventListener noop = new EmbabelSpanEventListener(ObservationRegistry.NOOP, properties);
             noop.onPlatformEvent(dynamicAgentEvent());
             assertTrue(handler.stopped.isEmpty());
+        }
+    }
+
+    @Nested
+    @DisplayName("planIterations cleanup (no leak across runs)")
+    class PlanIterationsCleanup {
+
+        /** Iteration values (in order) carried by every emitted embabel.planning span. */
+        private List<String> planningIterations() {
+            return handler.stopped.stream()
+                    .filter(c -> "embabel.planning".equals(c.getName()))
+                    .map(c -> KeyValues.of(c.getLowCardinalityKeyValues())
+                            .and(c.getHighCardinalityKeyValues())
+                            .stream()
+                            .filter(kv -> "embabel.plan.iteration".equals(kv.getKey()))
+                            .map(KeyValue::getValue)
+                            .findFirst()
+                            .orElseThrow(() -> new AssertionError("planning span has no iteration attribute")))
+                    .collect(Collectors.toList());
+        }
+
+        @Test
+        @DisplayName("a completed event purges the counter, so a reused process id restarts planning at iteration 1")
+        void completedEventResetsIterationCounter() {
+            EmbabelSpanEventListener listener = listener();
+            listener.onProcessEvent(planEvent()); // run-1 -> iteration 1
+            listener.onProcessEvent(planEvent()); // run-1 -> iteration 2
+            listener.onProcessEvent(completedEvent()); // purges run-1
+            listener.onProcessEvent(planEvent()); // run-1 -> iteration 1 again iff purged (else 3)
+
+            assertEquals(List.of("1", "2", "1"), planningIterations());
+        }
+
+        @Test
+        @DisplayName("early termination also purges the counter (parallel to completed/failed/killed)")
+        void earlyTerminationResetsIterationCounter() {
+            EmbabelSpanEventListener listener = listener();
+            listener.onProcessEvent(planEvent()); // run-1 -> iteration 1
+            listener.onProcessEvent(new EarlyTermination(
+                    processWithStatus("run-1", AgentProcessStatusCode.TERMINATED),
+                    true, "budget exceeded", mock(EarlyTerminationPolicy.class)));
+            listener.onProcessEvent(planEvent()); // run-1 -> iteration 1 again iff purged
+
+            assertEquals(List.of("1", "1"), planningIterations());
         }
     }
 }

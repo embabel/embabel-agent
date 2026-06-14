@@ -136,7 +136,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
                 }
             }
             case ToolLoopCompletedEvent e -> {
-                if (properties.isTraceToolLoop()) {
+                if (properties.isTraceToolLoop() && properties.isTraceToolLoopCompleted()) {
                     recordToolLoopCompleted(e);
                 }
             }
@@ -250,9 +250,11 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
     private void recordReadyToPlan(AgentProcessReadyToPlanEvent event) {
         Observation observation = point(SpanAttributes.EMBABEL_PLANNING_READY, "planning ready")
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_EVENT_TYPE, "planning_ready")
-                .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "planning")
-                .highCardinalityKeyValue(SpanAttributes.INPUT_VALUE,
-                        truncate(event.getWorldState().infoString(true, 0)));
+                .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "planning");
+        if (properties.isCaptureMessageContent()) {
+            observation.highCardinalityKeyValue(SpanAttributes.INPUT_VALUE,
+                    truncate(event.getWorldState().infoString(true, 0)));
+        }
         emit(observation);
     }
 
@@ -268,19 +270,24 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_PLAN_IS_REPLANNING, String.valueOf(iteration > 1))
                 .highCardinalityKeyValue(SpanAttributes.EMBABEL_PLAN_ITERATION, String.valueOf(iteration))
                 .highCardinalityKeyValue(SpanAttributes.EMBABEL_PLAN_ACTION_COUNT,
-                        String.valueOf(event.getPlan().getActions().size()))
-                .highCardinalityKeyValue(SpanAttributes.INPUT_VALUE,
-                        truncate(event.getWorldState().infoString(true, 0)))
-                .highCardinalityKeyValue(SpanAttributes.OUTPUT_VALUE,
-                        truncate(ObservationUtils.formatPlanSteps(event.getPlan())));
+                        String.valueOf(event.getPlan().getActions().size()));
+        if (properties.isCaptureMessageContent()) {
+            observation
+                    .highCardinalityKeyValue(SpanAttributes.INPUT_VALUE,
+                            truncate(event.getWorldState().infoString(true, 0)))
+                    .highCardinalityKeyValue(SpanAttributes.OUTPUT_VALUE,
+                            truncate(ObservationUtils.formatPlanSteps(event.getPlan())));
+        }
         emit(observation);
     }
 
     private void recordReplan(ReplanRequestedEvent event) {
         Observation observation = point(SpanAttributes.EMBABEL_REPLAN, "replan")
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_EVENT_TYPE, "replan")
-                .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "replan")
-                .highCardinalityKeyValue(SpanAttributes.EMBABEL_REPLAN_REASON, truncate(event.getReason()));
+                .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "replan");
+        if (properties.isCaptureMessageContent()) {
+            observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_REPLAN_REASON, truncate(event.getReason()));
+        }
         emit(observation);
     }
 
@@ -294,9 +301,11 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_RAG_TOP_K, String.valueOf(request.getTopK()))
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_RAG_SIMILARITY_THRESHOLD,
                         String.valueOf(request.getSimilarityThreshold()))
-                .highCardinalityKeyValue(SpanAttributes.EMBABEL_RAG_QUERY, truncate(request.getQuery()))
                 .highCardinalityKeyValue(SpanAttributes.EMBABEL_RAG_RESULT_COUNT,
                         String.valueOf(response.getResults().size()));
+        if (properties.isCaptureMessageContent()) {
+            observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_RAG_QUERY, truncate(request.getQuery()));
+        }
 
         response.getResults().stream()
                 .mapToDouble(SimilarityResult::getScore)
@@ -398,7 +407,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
                 observation.highCardinalityKeyValue(SpanAttributes.GEN_AI_TOOL_DESCRIPTION, truncate(description));
             }
         }
-        if (request.getToolInput() != null) {
+        if (request.getToolInput() != null && properties.isCaptureMessageContent()) {
             observation.highCardinalityKeyValue(SpanAttributes.GEN_AI_TOOL_CALL_ARGUMENTS, truncate(request.getToolInput()));
         }
 
@@ -412,7 +421,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
         } else {
             observation.lowCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_STATUS, "success");
             String result = ToolCallOutcomes.resultText(event);
-            if (result != null) {
+            if (result != null && properties.isCaptureMessageContent()) {
                 observation.highCardinalityKeyValue(SpanAttributes.GEN_AI_TOOL_CALL_RESULT, truncate(result));
             }
         }
@@ -445,11 +454,13 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
                 .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "goal_achieved")
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_GOAL_NAME, goalName)
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_GOAL_SHORT_NAME, ObservationUtils.shortName(goalName));
-        observation.highCardinalityKeyValue(SpanAttributes.INPUT_VALUE,
-                truncate(event.getWorldState().infoString(true, 0)));
-        Object result = event.getAgentProcess().lastResult();
-        if (result != null) {
-            observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_GOAL_RESULT, truncate(result.toString()));
+        if (properties.isCaptureMessageContent()) {
+            observation.highCardinalityKeyValue(SpanAttributes.INPUT_VALUE,
+                    truncate(event.getWorldState().infoString(true, 0)));
+            Object result = event.getAgentProcess().lastResult();
+            if (result != null) {
+                observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_GOAL_RESULT, truncate(result.toString()));
+            }
         }
         emit(observation);
     }

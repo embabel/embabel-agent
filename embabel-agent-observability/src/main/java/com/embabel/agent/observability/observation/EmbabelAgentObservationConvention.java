@@ -46,9 +46,21 @@ public class EmbabelAgentObservationConvention
         implements GlobalObservationConvention<AgentObservationContext> {
 
     private final int maxAttributeLength;
+    private final boolean captureMessageContent;
 
     public EmbabelAgentObservationConvention(int maxAttributeLength) {
+        this(maxAttributeLength, true);
+    }
+
+    /**
+     * @param maxAttributeLength    truncation bound for message bodies
+     * @param captureMessageContent when {@code false}, omit the {@code input.value} /
+     *                              {@code output.value} / {@code embabel.agent.result} bodies
+     *                              (may contain PII); metadata is still recorded
+     */
+    public EmbabelAgentObservationConvention(int maxAttributeLength, boolean captureMessageContent) {
         this.maxAttributeLength = maxAttributeLength;
+        this.captureMessageContent = captureMessageContent;
     }
 
     @Override
@@ -96,14 +108,16 @@ public class EmbabelAgentObservationConvention
         if (process.getGoal() != null) {
             kv = kv.and(SpanAttributes.EMBABEL_GOAL, process.getGoal().getName());
         }
-        String input = ObservationUtils.agentInput(process);
-        if (!input.isEmpty()) {
-            kv = kv.and(SpanAttributes.INPUT_VALUE, ObservationUtils.truncate(input, maxAttributeLength));
-        }
-        Object result = process.lastResult();
-        if (result != null) {
-            String output = ObservationUtils.truncate(result.toString(), maxAttributeLength);
-            kv = kv.and(SpanAttributes.EMBABEL_AGENT_RESULT, output).and(SpanAttributes.OUTPUT_VALUE, output);
+        if (captureMessageContent) {
+            String input = ObservationUtils.agentInput(process);
+            if (!input.isEmpty()) {
+                kv = kv.and(SpanAttributes.INPUT_VALUE, ObservationUtils.truncate(input, maxAttributeLength));
+            }
+            Object result = process.lastResult();
+            if (result != null) {
+                String output = ObservationUtils.truncate(result.toString(), maxAttributeLength);
+                kv = kv.and(SpanAttributes.EMBABEL_AGENT_RESULT, output).and(SpanAttributes.OUTPUT_VALUE, output);
+            }
         }
         return kv;
     }

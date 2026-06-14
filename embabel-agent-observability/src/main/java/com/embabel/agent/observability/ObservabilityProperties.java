@@ -61,12 +61,20 @@ public class ObservabilityProperties {
     private int maxAttributeLength = 4000;
 
     /**
-     * Whether to capture LLM prompt/response message content on chat-model spans as the OTel GenAI
-     * {@code gen_ai.input.messages} / {@code gen_ai.output.messages} attributes (and the OpenInference
-     * {@code input.value} / {@code output.value} bridge). The OTel GenAI semantic convention recommends
-     * content capture be opt-in because it may contain sensitive data (PII); this defaults to
-     * {@code true} to preserve historical behaviour. Set to {@code false} to keep model/token metadata
-     * while omitting message bodies.
+     * Whether to capture message/payload content across all Embabel spans (privacy / PII gate).
+     * This covers, in addition to the LLM chat-model spans ({@code gen_ai.input.messages} /
+     * {@code gen_ai.output.messages} and the OpenInference {@code input.value} / {@code output.value}
+     * bridge):
+     * <ul>
+     *   <li>the {@code embabel.agent} / {@code embabel.action} / {@code embabel.tool_loop} span
+     *       {@code input.value} / {@code output.value} and {@code *.result} bodies,</li>
+     *   <li>the point spans emitted by the event listener: tool-call arguments and result, RAG query,
+     *       planning/goal world-state input and output, and the replan reason,</li>
+     *   <li>{@code @Tracked} method arguments and return value.</li>
+     * </ul>
+     * The OTel GenAI semantic convention recommends content capture be opt-in because it may contain
+     * sensitive data (PII); this defaults to {@code true} to preserve historical behaviour. Set to
+     * {@code false} to keep model/token/identity metadata while omitting every message body.
      */
     private boolean captureMessageContent = true;
 
@@ -89,6 +97,14 @@ public class ObservabilityProperties {
 
     /** Trace tool loop execution. */
     private boolean traceToolLoop = true;
+
+    /**
+     * Emit the {@code embabel.tool_loop.completed} point span recording the loop outcome (total
+     * iterations, replan flag, duration). This is a sibling of the scoped {@code embabel.tool_loop}
+     * span, emitted after it closes. Set false to keep the scoped tool-loop span while removing the
+     * extra completion node from the trace. Has no effect when {@link #traceToolLoop} is false.
+     */
+    private boolean traceToolLoopCompleted = true;
 
     /** Trace LLM calls. */
     private boolean traceLlmCalls = true;
@@ -190,16 +206,18 @@ public class ObservabilityProperties {
     }
 
     /**
-     * Returns whether LLM message content is captured on chat-model spans.
-     * @return {@code true} if prompt/response content is captured
+     * Returns whether message/payload content is captured across all Embabel spans.
+     * @return {@code true} if content bodies (prompts, tool args/results, RAG queries, world state,
+     *         results, {@code @Tracked} args/return) are captured
      */
     public boolean isCaptureMessageContent() {
         return captureMessageContent;
     }
 
     /**
-     * Sets whether LLM message content is captured on chat-model spans.
-     * @param captureMessageContent {@code true} to capture prompt/response content
+     * Sets whether message/payload content is captured across all Embabel spans.
+     * @param captureMessageContent {@code true} to capture content bodies; {@code false} to keep
+     *                              metadata only (privacy / PII gate)
      */
     public void setCaptureMessageContent(boolean captureMessageContent) {
         this.captureMessageContent = captureMessageContent;
@@ -283,6 +301,22 @@ public class ObservabilityProperties {
      */
     public void setTraceToolLoop(boolean traceToolLoop) {
         this.traceToolLoop = traceToolLoop;
+    }
+
+    /**
+     * Returns whether the tool loop completion point span is emitted.
+     * @return true if the {@code embabel.tool_loop.completed} point span is emitted
+     */
+    public boolean isTraceToolLoopCompleted() {
+        return traceToolLoopCompleted;
+    }
+
+    /**
+     * Sets whether to emit the tool loop completion point span.
+     * @param traceToolLoopCompleted true to emit the {@code embabel.tool_loop.completed} point span
+     */
+    public void setTraceToolLoopCompleted(boolean traceToolLoopCompleted) {
+        this.traceToolLoopCompleted = traceToolLoopCompleted;
     }
 
     /**

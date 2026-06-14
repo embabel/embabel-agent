@@ -51,6 +51,7 @@ public class TrackedAspectAutoConfiguration {
     @ConditionalOnMissingBean
     public TrackedAspect trackedAspect(ObservationRegistry observationRegistry, ObservabilityProperties properties) {
         log.info("Configuring @Tracked annotation aspect for custom operation tracking");
-        return new TrackedAspect(observationRegistry, properties.getMaxAttributeLength());
+        return new TrackedAspect(observationRegistry, properties.getMaxAttributeLength(),
+                properties.isCaptureMessageContent());
     }
 }

@@ -261,6 +261,26 @@ class EmbabelObservationConventionsTest {
         }
 
         @Test
+        @DisplayName("capture-message-content=false omits input/output bodies but keeps identity and status")
+        void captureContentDisabledOmitsBodies() {
+            AgentProcess process = process(AgentProcessStatusCode.COMPLETED, null,
+                    List.of(), List.of());
+            when(process.lastResult()).thenReturn("the final answer");
+            AgentObservationContext ctx = new AgentObservationContext(process);
+
+            Map<String, String> kv = allKeyValues(
+                    observe(new EmbabelAgentObservationConvention(4000, false), ctx, "embabel.agent"));
+
+            assertFalse(kv.containsKey("input.value"));
+            assertFalse(kv.containsKey("output.value"));
+            assertFalse(kv.containsKey("embabel.agent.result"));
+            // Metadata (no message bodies) is always recorded.
+            assertEquals("TestAgent", kv.get("embabel.agent.name"));
+            assertEquals("COMPLETED", kv.get("embabel.agent.status"));
+            assertEquals("run-1", kv.get("embabel.run.id"));
+        }
+
+        @Test
         @DisplayName("unique ids are high-cardinality, bounded attributes low (guards metric cardinality)")
         void cardinalitySplitIsCorrect() {
             Conversation conversation = mock(Conversation.class);
@@ -397,6 +417,33 @@ class EmbabelObservationConventionsTest {
         }
 
         @Test
+        @DisplayName("capture-message-content=false omits action input/output but keeps names")
+        void captureContentDisabledOmitsBodies() {
+            AgentProcess process = mock(AgentProcess.class, RETURNS_DEEP_STUBS);
+            lenient().when(process.getAgent().getName()).thenReturn("TestAgent");
+            lenient().when(process.getId()).thenReturn("run-1");
+            com.embabel.agent.core.Action action = mock(com.embabel.agent.core.Action.class);
+            when(action.getName()).thenReturn("MyAction");
+            com.embabel.agent.core.IoBinding binding = mock(com.embabel.agent.core.IoBinding.class);
+            when(binding.getValue()).thenReturn("it:java.lang.String");
+            when(action.getOutputs()).thenReturn(java.util.Set.of(binding));
+            com.embabel.agent.core.Blackboard blackboard = mock(com.embabel.agent.core.Blackboard.class);
+            when(process.getBlackboard()).thenReturn(blackboard);
+            when(blackboard.getValue("it", "java.lang.String", process.getAgent()))
+                    .thenReturn("action output");
+
+            ActionObservationContext ctx = new ActionObservationContext(process, action);
+            Map<String, String> kv = allKeyValues(
+                    observe(new EmbabelActionObservationConvention(4000, false), ctx, "embabel.action"));
+
+            assertFalse(kv.containsKey("input.value"));
+            assertFalse(kv.containsKey("output.value"));
+            assertFalse(kv.containsKey("embabel.action.result"));
+            assertEquals("MyAction", kv.get("embabel.action.name"));
+            assertEquals("TestAgent", kv.get("embabel.agent.name"));
+        }
+
+        @Test
         @DisplayName("run id is high-cardinality, action identity and status low (guards metric cardinality)")
         void cardinalitySplitIsCorrect() {
             AgentProcess process = mock(AgentProcess.class, RETURNS_DEEP_STUBS);
@@ -455,6 +502,31 @@ class EmbabelObservationConventionsTest {
             assertEquals(String.class.getName(), kv.get("embabel.tool_loop.output_class"));
             assertTrue(kv.get("input.value").contains("user question"));
             assertEquals("loop answer", kv.get("output.value"));
+        }
+
+        @Test
+        @DisplayName("capture-message-content=false omits input/output bodies but keeps tool metadata")
+        void captureContentDisabledOmitsBodies() {
+            ToolLoopStartEvent event = mock(ToolLoopStartEvent.class, RETURNS_DEEP_STUBS);
+            lenient().when(event.getAgentProcess().getAgent().getName()).thenReturn("TestAgent");
+            lenient().when(event.getAgentProcess().getId()).thenReturn("run-1");
+            lenient().when(event.getAction()).thenReturn(null);
+            lenient().when(event.getInteractionId()).thenReturn("interaction-3");
+            lenient().when(event.getToolNames()).thenReturn(List.of("toolA", "toolB"));
+            lenient().when(event.getMaxIterations()).thenReturn(20);
+            lenient().when(event.getOutputClass()).thenReturn((Class) String.class);
+            Message message = mock(Message.class);
+            lenient().when(message.getContent()).thenReturn("user question");
+
+            ToolLoopObservationContext ctx = new ToolLoopObservationContext(event, List.of(message));
+            ctx.setOutput("loop answer");
+            Map<String, String> kv = allKeyValues(
+                    observe(new EmbabelToolLoopObservationConvention(4000, false), ctx, "embabel.tool_loop"));
+
+            assertFalse(kv.containsKey("input.value"));
+            assertFalse(kv.containsKey("output.value"));
+            assertEquals("toolA,toolB", kv.get("embabel.tool_loop.tool_names"));
+            assertEquals("interaction-3", kv.get("embabel.interaction.id"));
         }
 
         @Test

@@ -16,7 +16,9 @@
 package com.embabel.agent.observability.metrics;
 
 import com.embabel.agent.api.event.*;
+import com.embabel.agent.core.ActionInvocation;
 import com.embabel.agent.core.AgentProcess;
+import com.embabel.agent.core.EarlyTermination;
 import com.embabel.agent.core.Usage;
 import com.embabel.agent.observability.ObservabilityProperties;
 import io.micrometer.core.instrument.Counter;
@@ -43,7 +45,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>{@code embabel.llm.cost.total} (counter) — estimated USD cost, tagged by {@code agent}</li>
  *   <li>{@code embabel.tool.errors.total} (counter) — tool failures, tagged by {@code tool} and {@code agent}</li>
  *   <li>{@code embabel.planning.replanning.total} (counter) — replanifications, tagged by {@code agent}</li>
- *   <li>{@code embabel.agent.duration} (timer) — agent process duration, tagged by {@code agent} and {@code status}</li>
+ *   <li>{@code embabel.agent.duration} (timer) — agent process wall-clock duration (includes idle/wait time), tagged by {@code agent} and {@code status}</li>
+ *   <li>{@code embabel.agent.active_duration} (timer) — agent process active duration (sum of action running times, excludes idle/wait time), tagged by {@code agent} and {@code status}</li>
  *   <li>{@code embabel.llm.requests.total} (counter) — LLM requests, tagged by {@code agent} and {@code model}</li>
  *   <li>{@code embabel.llm.duration} (timer) — LLM call duration, tagged by {@code model} and {@code agent}</li>
  *   <li>{@code embabel.tool.duration} (timer) — tool call duration, tagged by {@code tool} and {@code agent}</li>
@@ -111,6 +114,10 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
             case ProcessKilledEvent e -> {
                 activeProcessIds.remove(e.getAgentProcess().getId());
                 creationTimestamps.remove(e.getAgentProcess().getId());
+            }
+            case EarlyTermination e -> {
+                activeProcessIds.remove(e.getAgentProcess().getId());
+                recordAgentDuration(e.getAgentProcess(), "terminated");
             }
             case ToolCallRequestEvent e -> recordToolCall(e);
             case ToolCallResponseEvent e -> {
@@ -214,11 +221,23 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
         if (createdAt != null) {
             var duration = Duration.between(createdAt, Instant.now());
             Timer.builder("embabel.agent.duration")
-                    .description("Agent process duration")
+                    .description("Agent process duration (wall-clock, includes time spent waiting for input)")
                     .tag("agent", process.getAgent().getName())
                     .tag("status", status)
                     .register(registry)
                     .record(duration);
+
+            // Active duration sums per-action running times, so idle gaps (WAITING/STUCK/PAUSED,
+            // e.g. a user answering in a chat) are excluded — this is compute time, not elapsed time.
+            var activeDuration = process.getHistory().stream()
+                    .map(ActionInvocation::getRunningTime)
+                    .reduce(Duration.ZERO, Duration::plus);
+            Timer.builder("embabel.agent.active_duration")
+                    .description("Agent process active duration (sum of action running times, excludes idle/wait time)")
+                    .tag("agent", process.getAgent().getName())
+                    .tag("status", status)
+                    .register(registry)
+                    .record(activeDuration);
         }
     }
 
