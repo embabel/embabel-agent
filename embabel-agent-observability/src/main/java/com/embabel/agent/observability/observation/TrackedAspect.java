@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.observability.observation;
 
+import com.embabel.agent.observability.SpanAttributes;
+
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.observability.annotation.Tracked;
 import io.micrometer.observation.Observation;
@@ -76,25 +78,25 @@ public class TrackedAspect {
         Observation observation = Observation.createNotStarted(operationName, () -> context, registry);
 
         // Low cardinality tags
-        observation.lowCardinalityKeyValue("embabel.tracked.type", tracked.type().name());
-        observation.lowCardinalityKeyValue("embabel.tracked.class", signature.getDeclaringType().getSimpleName());
+        observation.lowCardinalityKeyValue(SpanAttributes.EMBABEL_TRACKED_TYPE, tracked.type().name());
+        observation.lowCardinalityKeyValue(SpanAttributes.EMBABEL_TRACKED_CLASS, signature.getDeclaringType().getSimpleName());
         if (!tracked.description().isEmpty()) {
-            observation.lowCardinalityKeyValue("embabel.tracked.description", tracked.description());
+            observation.lowCardinalityKeyValue(SpanAttributes.EMBABEL_TRACKED_DESCRIPTION, tracked.description());
         }
         if (process != null) {
-            observation.lowCardinalityKeyValue("embabel.tracked.agent", process.getAgent().getName());
+            observation.lowCardinalityKeyValue(SpanAttributes.EMBABEL_TRACKED_AGENT, process.getAgent().getName());
         }
 
         // High cardinality tags (inputs)
         String argsString = truncate(formatArgs(signature.getParameterNames(), joinPoint.getArgs()));
-        observation.highCardinalityKeyValue("embabel.tracked.args", argsString);
+        observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_TRACKED_ARGS, argsString);
 
         observation.start();
         Observation.Scope scope = observation.openScope();
         try {
             Object result = joinPoint.proceed();
             if (result != null) {
-                observation.highCardinalityKeyValue("embabel.tracked.result", truncate(result.toString()));
+                observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_TRACKED_RESULT, truncate(result.toString()));
             }
             return result;
         } catch (Throwable t) {

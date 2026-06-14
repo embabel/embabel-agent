@@ -36,9 +36,12 @@ object Observations {
     const val PLACEHOLDER_NAME = "embabel.operation"
 
     /**
-     * Run [work] inside an `observe{}` span carrying [context], or run it directly with no
-     * observation overhead when [registry] is a no-op. The span always closes — and is errored if
-     * [work] throws — because [Observation.observe] owns the scope, so no scope can leak.
+     * Run [work] inside an `observe{}` span carrying [context]. The span always closes — and is
+     * errored if [work] throws — because [Observation.observe] owns the scope, so no scope can leak.
+     *
+     * No explicit no-op short-circuit is needed: [Observation.createNotStarted] already fast-returns
+     * a no-op observation for a no-op [registry] without invoking the [context] supplier, so the
+     * disabled-tracing path builds no context and runs [work] directly.
      *
      * The span name is not supplied here: the registered convention names it from [context] (see
      * [PLACEHOLDER_NAME]).
@@ -53,12 +56,9 @@ object Observations {
         registry: ObservationRegistry,
         context: () -> Observation.Context,
         work: () -> T,
-    ): T =
-        if (registry.isNoop) {
-            work()
-        } else {
-            @Suppress("UNCHECKED_CAST")
-            Observation.createNotStarted(PLACEHOLDER_NAME, Supplier { context() }, registry)
-                .observe(Supplier { work() }) as T
-        }
+    ): T {
+        @Suppress("UNCHECKED_CAST")
+        return Observation.createNotStarted(PLACEHOLDER_NAME, Supplier { context() }, registry)
+            .observe(Supplier { work() }) as T
+    }
 }

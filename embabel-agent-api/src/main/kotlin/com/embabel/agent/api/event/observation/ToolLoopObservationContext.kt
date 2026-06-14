@@ -35,4 +35,7 @@ class ToolLoopObservationContext(
 ) : Observation.Context() {
 
     var output: Any? = null
+
+    override fun toString(): String =
+        "ToolLoopObservationContext(inputMessages=${inputMessages.size}, output=$output)"
 }

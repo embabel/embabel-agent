@@ -36,4 +36,7 @@ class ActionObservationContext(
 ) : Observation.Context() {
 
     var statusCode: ActionStatusCode? = null
+
+    override fun toString(): String =
+        "ActionObservationContext(processId=${process.id}, action=${action.name}, statusCode=$statusCode)"
 }

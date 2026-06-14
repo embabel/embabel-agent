@@ -27,7 +27,7 @@ import java.util.List;
  *
  * @since 0.3.4
  */
-@ConfigurationProperties(prefix = "embabel.observability")
+@ConfigurationProperties(prefix = "embabel.agent.platform.observability")
 public class ObservabilityProperties {
 
     /**

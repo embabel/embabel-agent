@@ -58,7 +58,7 @@ import org.springframework.context.annotation.Configuration;
         }
 )
 @EnableConfigurationProperties(ObservabilityProperties.class)
-@ConditionalOnProperty(prefix = "embabel.observability", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "embabel.agent.platform.observability", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class ObservabilityAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(ObservabilityAutoConfiguration.class);
@@ -72,7 +72,7 @@ public class ObservabilityAutoConfiguration {
      * @return a customizer registering the four conventions
      */
     @Bean
-    @ConditionalOnProperty(prefix = "embabel.observability", name = {"tracing-enabled", "trace-agent-events"}, havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "embabel.agent.platform.observability", name = {"tracing-enabled", "trace-agent-events"}, havingValue = "true", matchIfMissing = true)
     public ObservationRegistryCustomizer<ObservationRegistry> embabelSpanConventionsCustomizer(ObservabilityProperties properties) {
         log.info("Registering Embabel span conventions (agent, action, tool_loop, llm) for direct Micrometer instrumentation");
         int maxAttributeLength = properties.getMaxAttributeLength();
@@ -100,7 +100,7 @@ public class ObservabilityAutoConfiguration {
      *   <li>Spring AI's native {@code tool call} span is <em>always</em> dropped (by name — it carries
      *       its real name at creation) — Embabel emits its own richer {@code embabel.tool} point span,
      *       gated by {@code trace-tool-calls}. Keeping both would double every tool span.</li>
-     *   <li>any observation whose name is in {@code embabel.observability.disabled-traces} is dropped —
+     *   <li>any observation whose name is in {@code embabel.agent.platform.observability.disabled-traces} is dropped —
      *       typically non-Embabel infrastructure spans (e.g. {@code http.server.requests}). Empty by
      *       default.</li>
      * </ul>
@@ -174,7 +174,7 @@ public class ObservabilityAutoConfiguration {
      */
     @Bean
     @ConditionalOnBean(ObservationRegistry.class)
-    @ConditionalOnProperty(prefix = "embabel.observability", name = "tracing-enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "embabel.agent.platform.observability", name = "tracing-enabled", havingValue = "true", matchIfMissing = true)
     public EmbabelSpanEventListener embabelSpanEventListener(
             ObservationRegistry observationRegistry,
             ObservabilityProperties properties) {
@@ -196,7 +196,7 @@ public class ObservabilityAutoConfiguration {
      */
     @Configuration(proxyBeanMethods = false)
     @ConditionalOnClass(name = "jakarta.servlet.Filter")
-    @ConditionalOnProperty(prefix = "embabel.observability", name = "trace-http-details", havingValue = "true")
+    @ConditionalOnProperty(prefix = "embabel.agent.platform.observability", name = "trace-http-details", havingValue = "true")
     static class ServletObservabilityConfiguration {
 
         private static final Logger log = LoggerFactory.getLogger(ServletObservabilityConfiguration.class);
@@ -238,7 +238,7 @@ public class ObservabilityAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnClass(name = "org.springframework.ai.chat.observation.ChatModelObservationContext")
-    @ConditionalOnProperty(prefix = "embabel.observability", name = {"tracing-enabled", "trace-llm-calls"}, havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "embabel.agent.platform.observability", name = {"tracing-enabled", "trace-llm-calls"}, havingValue = "true", matchIfMissing = true)
     public ChatModelObservationFilter chatModelObservationFilter(ObservabilityProperties properties) {
         log.debug("Configuring ChatModel observation filter for LLM call tracing");
         return new ChatModelObservationFilter(
@@ -252,7 +252,7 @@ public class ObservabilityAutoConfiguration {
      * @return the MDC propagation event listener
      */
     @Bean
-    @ConditionalOnProperty(prefix = "embabel.observability", name = "mdc-propagation", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "embabel.agent.platform.observability", name = "mdc-propagation", havingValue = "true", matchIfMissing = true)
     public MdcPropagationEventListener mdcPropagationEventListener(ObservabilityProperties properties) {
         log.info("Configuring Embabel Agent MDC propagation for log correlation");
         return new MdcPropagationEventListener(properties);
@@ -267,7 +267,7 @@ public class ObservabilityAutoConfiguration {
      */
     @Bean
     @ConditionalOnBean(MeterRegistry.class)
-    @ConditionalOnProperty(prefix = "embabel.observability", name = "metrics-enabled",
+    @ConditionalOnProperty(prefix = "embabel.agent.platform.observability", name = "metrics-enabled",
             havingValue = "true", matchIfMissing = true)
     public EmbabelMetricsEventListener embabelMetricsEventListener(
             MeterRegistry meterRegistry, ObservabilityProperties properties) {

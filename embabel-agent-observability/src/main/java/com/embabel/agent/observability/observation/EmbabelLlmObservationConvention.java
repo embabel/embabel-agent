@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.observability.observation;
 
+import com.embabel.agent.observability.SpanAttributes;
+
 import com.embabel.agent.api.event.LlmRequestEvent;
 import com.embabel.agent.api.event.observation.LlmObservationContext;
 import io.micrometer.common.KeyValues;
@@ -22,18 +24,24 @@ import io.micrometer.observation.GlobalObservationConvention;
 import io.micrometer.observation.Observation;
 
 /**
- * Global convention for the {@code embabel.llm} span. Reads request metadata from the
- * {@link LlmRequestEvent} wrapped by the thin {@link LlmObservationContext}.
+ * Global convention for the {@code embabel.llm} span: the core's scoped wrapper around one LLM
+ * call. Reads request metadata from the {@link LlmRequestEvent} wrapped by the thin
+ * {@link LlmObservationContext}.
  *
- * <p>Unlike the sibling conventions, this one takes no {@code maxAttributeLength}: it emits only
- * bounded-length keys (model, provider, ids), no free text. When the billing inspector is wired to
- * capture prompt/response, reintroduce the truncation length then rather than carry it dead now.
+ * <p><strong>Deliberately not a GenAI generation.</strong> The actual generation — prompt/completion
+ * content and token usage — is carried by the nested Spring AI ChatModel span (enriched with the
+ * {@code gen_ai.*} semantic convention by {@code ChatModelObservationFilter}). If this span also
+ * advertised {@code gen_ai.operation.name=chat} / a {@code "chat {model}"} name, GenAI consumers
+ * (LangSmith, Langfuse, …) would count a single call as two generations — an empty one here plus the
+ * real one below. So this span stays a plain structural wrapper named {@code "llm {model}"}, carrying
+ * only embabel correlation metadata (agent/action/run/interaction ids); the model is recorded under
+ * the embabel-namespaced {@code embabel.llm.model} for convenience, not as {@code gen_ai.request.model}.
+ *
+ * <p>It emits only bounded-length keys (model, ids), no free text, hence takes no
+ * {@code maxAttributeLength}.
  */
 public class EmbabelLlmObservationConvention
         implements GlobalObservationConvention<LlmObservationContext> {
-
-    /** OTel GenAI operation name for a chat completion. */
-    private static final String OPERATION = "chat";
 
     @Override
     public boolean supportsContext(Observation.Context context) {
@@ -42,25 +50,28 @@ public class EmbabelLlmObservationConvention
 
     @Override
     public String getName() {
-        return "embabel.llm";
+        return SpanAttributes.EMBABEL_LLM;
     }
 
     @Override
     public String getContextualName(LlmObservationContext context) {
-        // OpenTelemetry GenAI semantic convention: span name = "{operation} {model}".
-        return OPERATION + " " + context.getRequestEvent().getLlmMetadata().getName();
+        // Embabel "<type> <name>" scheme (cf. "agent X", "action Y"): a wrapper name, NOT the GenAI
+        // "{operation} {model}" generation name — that belongs to the nested ChatModel span.
+        return "llm " + context.getRequestEvent().getLlmMetadata().getName();
     }
 
     @Override
     public KeyValues getLowCardinalityKeyValues(LlmObservationContext context) {
         LlmRequestEvent<?> event = context.getRequestEvent();
+        // No gen_ai.* here on purpose: see the class javadoc (avoids a duplicate empty generation).
         KeyValues kv = KeyValues.of(
-                "gen_ai.operation.name", OPERATION,
-                "gen_ai.request.model", event.getLlmMetadata().getName(),
-                "gen_ai.system", event.getLlmMetadata().getProvider(),
-                "embabel.agent.name", event.getAgentProcess().getAgent().getName());
+                SpanAttributes.EMBABEL_LLM_MODEL, event.getLlmMetadata().getName(),
+                SpanAttributes.EMBABEL_AGENT_NAME, event.getAgentProcess().getAgent().getName());
+        // Only the bounded short_name is a LOW-cardinality tag; the full (possibly fully-qualified)
+        // action name is unbounded and goes to HIGH-cardinality below.
         if (event.getAction() != null) {
-            kv = kv.and("embabel.action.name", event.getAction().getName());
+            kv = kv.and(SpanAttributes.EMBABEL_ACTION_SHORT_NAME,
+                    ObservationUtils.shortName(event.getAction().getName()));
         }
         return kv;
     }
@@ -68,8 +79,12 @@ public class EmbabelLlmObservationConvention
     @Override
     public KeyValues getHighCardinalityKeyValues(LlmObservationContext context) {
         LlmRequestEvent<?> event = context.getRequestEvent();
-        return KeyValues.of(
-                "embabel.run.id", event.getAgentProcess().getId(),
-                "embabel.interaction.id", event.getInteraction().getId());
+        KeyValues kv = KeyValues.of(
+                SpanAttributes.EMBABEL_RUN_ID, event.getAgentProcess().getId(),
+                SpanAttributes.EMBABEL_INTERACTION_ID, event.getInteraction().getId());
+        if (event.getAction() != null) {
+            kv = kv.and(SpanAttributes.EMBABEL_ACTION_NAME, event.getAction().getName());
+        }
+        return kv;
     }
 }

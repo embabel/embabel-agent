@@ -42,7 +42,7 @@ import org.springframework.context.annotation.Bean;
  */
 @AutoConfiguration(after = OpenTelemetrySdkAutoConfiguration.class)
 @ConditionalOnClass({OtelTracer.class, OpenTelemetry.class, ObservationRegistry.class})
-@ConditionalOnProperty(prefix = "embabel.observability", name = {"enabled", "tracing-enabled"}, havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "embabel.agent.platform.observability", name = {"enabled", "tracing-enabled"}, havingValue = "true", matchIfMissing = true)
 public class MicrometerTracingAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(MicrometerTracingAutoConfiguration.class);

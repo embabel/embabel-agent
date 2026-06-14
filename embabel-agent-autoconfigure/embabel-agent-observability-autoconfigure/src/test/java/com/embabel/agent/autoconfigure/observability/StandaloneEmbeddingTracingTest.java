@@ -83,7 +83,7 @@ class StandaloneEmbeddingTracingTest {
     @Test
     void standaloneEmbed_producesNoSpan_whenTracingDisabled() {
         contextRunner
-                .withPropertyValues("embabel.observability.tracing-enabled=false")
+                .withPropertyValues("embabel.agent.platform.observability.tracing-enabled=false")
                 .run(context -> {
                     RecordingHandler handler = context.getBean(RecordingHandler.class);
                     EmbeddingService service = context.getBean(EmbeddingService.class);

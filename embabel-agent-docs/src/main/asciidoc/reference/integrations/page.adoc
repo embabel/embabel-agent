@@ -826,9 +826,11 @@ Enable observability and configure your exporter in `application.yml`:
 [source,yaml]
 ----
 embabel:
-  observability:
-    enabled: true
-    service-name: my-agent-app
+  agent:
+    platform:
+      observability:
+        enabled: true
+        service-name: my-agent-app
 
 management:
   tracing:
@@ -885,12 +887,12 @@ LLM-observability backends (Langfuse, etc.) render in their input/output panels:
 * *action* — input: the action's declared inputs from the blackboard; output: the action's result.
 * *tool_loop* — input: the prompt messages; output: the loop result.
 
-Both are truncated to `embabel.observability.max-attribute-length`.
+Both are truncated to `embabel.agent.platform.observability.max-attribute-length`.
 
 Spring AI *ChatModel* spans additionally carry the structured OTel GenAI message attributes
 `gen_ai.input.messages` / `gen_ai.output.messages` (JSON arrays of `{role, parts:[{type, content}]}`,
 with `finish_reason` on output), alongside the OpenInference `input.value` / `output.value` bridge.
-This content is governed by `embabel.observability.capture-message-content` (default `true`); set it
+This content is governed by `embabel.agent.platform.observability.capture-message-content` (default `true`); set it
 to `false` to keep model/token metadata while omitting message bodies, as the GenAI convention
 recommends content capture be opt-in (potential PII).
 
@@ -902,95 +904,95 @@ All tracing options are enabled by default and can be toggled individually:
 |===
 |Property |Default |Description
 
-|`embabel.observability.enabled`
+|`embabel.agent.platform.observability.enabled`
 |`true`
 |Master switch for the whole module (traces and metrics)
 
-|`embabel.observability.tracing-enabled`
+|`embabel.agent.platform.observability.tracing-enabled`
 |`true`
 |Umbrella switch for tracing (spans). When `false`, disables all `trace-*` tiers at once; independent of `metrics-enabled`
 
-|`embabel.observability.service-name`
+|`embabel.agent.platform.observability.service-name`
 |`embabel-agent`
 |Service name in traces
 
-|`embabel.observability.trace-agent-events`
+|`embabel.agent.platform.observability.trace-agent-events`
 |`true`
 |Umbrella for the core scoped span tier (`embabel.agent`/`embabel.action`/`embabel.tool_loop`/`embabel.llm`). When `false`, all four are suppressed; keep `true` and use the per-span switches below for granular control
 
-|`embabel.observability.trace-agent`
+|`embabel.agent.platform.observability.trace-agent`
 |`true`
 |`embabel.agent` scoped span (one run turn). Effective when `trace-agent-events=true`
 
-|`embabel.observability.trace-action`
+|`embabel.agent.platform.observability.trace-action`
 |`true`
 |`embabel.action` scoped span. Effective when `trace-agent-events=true`
 
-|`embabel.observability.trace-tool-calls`
+|`embabel.agent.platform.observability.trace-tool-calls`
 |`true`
 |Tool invocations (`embabel.tool` span: name, group, status, duration, arguments/result, error)
 
-|`embabel.observability.trace-tool-loop`
+|`embabel.agent.platform.observability.trace-tool-loop`
 |`true`
 |Tool loop execution (`embabel.tool_loop` scoped span + `embabel.tool_loop.completed` point span)
 
-|`embabel.observability.trace-llm-calls`
+|`embabel.agent.platform.observability.trace-llm-calls`
 |`true`
 |LLM calls: the `embabel.llm` scoped span and the `embabel.llm.invocation` point span (token usage, cost), plus the Spring AI ChatModel filter
 
-|`embabel.observability.trace-embedding`
+|`embabel.agent.platform.observability.trace-embedding`
 |`true`
 |Embedding invocations with token usage (`embabel.embedding`), in-agent and standalone (RAG/pgvector outside an agent process)
 
-|`embabel.observability.trace-planning`
+|`embabel.agent.platform.observability.trace-planning`
 |`true`
 |Plan formulation (`embabel.planning`) and replan requests (`embabel.replan`)
 
-|`embabel.observability.trace-state-transitions`
+|`embabel.agent.platform.observability.trace-state-transitions`
 |`true`
 |Workflow state changes
 
-|`embabel.observability.trace-lifecycle-states`
+|`embabel.agent.platform.observability.trace-lifecycle-states`
 |`true`
 |Lifecycle states — COMPLETED/FAILED/WAITING/PAUSED/STUCK (`embabel.lifecycle`) and goal achievement (`embabel.goal`)
 
-|`embabel.observability.trace-rag`
+|`embabel.agent.platform.observability.trace-rag`
 |`true`
 |RAG events (request, response, pipeline)
 
-|`embabel.observability.trace-ranking`
+|`embabel.agent.platform.observability.trace-ranking`
 |`true`
 |Ranking/selection events (agent routing)
 
-|`embabel.observability.trace-dynamic-agent-creation`
+|`embabel.agent.platform.observability.trace-dynamic-agent-creation`
 |`true`
 |Dynamic agent creation events
 
-|`embabel.observability.trace-http-details`
+|`embabel.agent.platform.observability.trace-http-details`
 |`false`
 |HTTP request/response details (bodies, headers)
 
-|`embabel.observability.trace-tracked-operations`
+|`embabel.agent.platform.observability.trace-tracked-operations`
 |`true`
 |`@Tracked` annotation aspect
 
-|`embabel.observability.mdc-propagation`
+|`embabel.agent.platform.observability.mdc-propagation`
 |`true`
 |Propagate agent context into SLF4J MDC
 
-|`embabel.observability.metrics-enabled`
+|`embabel.agent.platform.observability.metrics-enabled`
 |`true`
 |Micrometer business metrics (counters, gauges)
 
-|`embabel.observability.max-attribute-length`
+|`embabel.agent.platform.observability.max-attribute-length`
 |`4000`
 |Max span attribute length before truncation
 
-|`embabel.observability.capture-message-content`
+|`embabel.agent.platform.observability.capture-message-content`
 |`true`
 |Capture LLM prompt/response content on chat-model spans (`gen_ai.input.messages`/`gen_ai.output.messages` plus the `input.value`/`output.value` bridge). The OTel GenAI convention recommends this be opt-in as content may contain PII; set `false` to keep model/token metadata while omitting message bodies
 
-|`embabel.observability.disabled-traces`
+|`embabel.agent.platform.observability.disabled-traces`
 |`[]` (empty)
 |List of observation names to suppress, matched by *exact* name. Lets you drop non-Embabel infrastructure spans you don't want exported (e.g. `tasks.scheduled.execution`, `http.server.requests`, `http.client.requests`) without code. Works for any span that carries its real name (incl. Embabel point spans like `embabel.embedding`), but *not* the four core scoped spans (`embabel.agent`/`embabel.action`/`embabel.llm`/`embabel.tool_loop`), which are placeholder-named until `start()` — use their `trace-*` flags for those. A suppressed observation becomes a no-op, so its children re-parent to the next live ancestor
 |===
@@ -1001,10 +1003,12 @@ incoming-HTTP spans:
 [source,yaml]
 ----
 embabel:
-  observability:
-    disabled-traces:
-      - tasks.scheduled.execution
-      - http.server.requests
+  agent:
+    platform:
+      observability:
+        disabled-traces:
+          - tasks.scheduled.execution
+          - http.server.requests
 ----
 
 ===== Custom Operation Tracking with `@Tracked`
@@ -1120,8 +1124,10 @@ To disable MDC propagation:
 [source,yaml]
 ----
 embabel:
-  observability:
-    mdc-propagation: false
+  agent:
+    platform:
+      observability:
+        mdc-propagation: false
 ----
 
 ===== Supported Backends

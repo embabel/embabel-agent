@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.observability.observation;
 
+import com.embabel.agent.observability.SpanAttributes;
+
 import com.embabel.agent.api.event.ToolLoopStartEvent;
 import com.embabel.agent.api.event.observation.ToolLoopObservationContext;
 import io.micrometer.common.KeyValues;
@@ -41,7 +43,7 @@ public class EmbabelToolLoopObservationConvention
 
     @Override
     public String getName() {
-        return "embabel.tool_loop";
+        return SpanAttributes.EMBABEL_TOOL_LOOP;
     }
 
     @Override
@@ -53,11 +55,14 @@ public class EmbabelToolLoopObservationConvention
     public KeyValues getLowCardinalityKeyValues(ToolLoopObservationContext context) {
         ToolLoopStartEvent event = context.getStartEvent();
         KeyValues kv = KeyValues.of(
-                "gen_ai.operation.name", "tool_loop",
-                "embabel.agent.name", event.getAgentProcess().getAgent().getName(),
-                "embabel.tool_loop.max_iterations", String.valueOf(event.getMaxIterations()));
+                SpanAttributes.GEN_AI_OPERATION_NAME, "tool_loop",
+                SpanAttributes.EMBABEL_AGENT_NAME, event.getAgentProcess().getAgent().getName(),
+                SpanAttributes.EMBABEL_TOOL_LOOP_MAX_ITERATIONS, String.valueOf(event.getMaxIterations()));
+        // Only the bounded short_name is a LOW-cardinality tag; the full (possibly fully-qualified)
+        // action name is unbounded and goes to HIGH-cardinality below.
         if (event.getAction() != null) {
-            kv = kv.and("embabel.action.name", event.getAction().getName());
+            kv = kv.and(SpanAttributes.EMBABEL_ACTION_SHORT_NAME,
+                    ObservationUtils.shortName(event.getAction().getName()));
         }
         return kv;
     }
@@ -66,17 +71,20 @@ public class EmbabelToolLoopObservationConvention
     public KeyValues getHighCardinalityKeyValues(ToolLoopObservationContext context) {
         ToolLoopStartEvent event = context.getStartEvent();
         KeyValues kv = KeyValues.of(
-                "embabel.run.id", event.getAgentProcess().getId(),
-                "embabel.interaction.id", event.getInteractionId(),
-                "embabel.tool_loop.tool_names", String.join(",", event.getToolNames()),
-                "embabel.tool_loop.output_class", event.getOutputClass().getName());
+                SpanAttributes.EMBABEL_RUN_ID, event.getAgentProcess().getId(),
+                SpanAttributes.EMBABEL_INTERACTION_ID, event.getInteractionId(),
+                SpanAttributes.EMBABEL_TOOL_LOOP_TOOL_NAMES, String.join(",", event.getToolNames()),
+                SpanAttributes.EMBABEL_TOOL_LOOP_OUTPUT_CLASS, event.getOutputClass().getName());
+        if (event.getAction() != null) {
+            kv = kv.and(SpanAttributes.EMBABEL_ACTION_NAME, event.getAction().getName());
+        }
         String input = ObservationUtils.formatMessages(context.getInputMessages());
         if (!input.isEmpty()) {
-            kv = kv.and("input.value", ObservationUtils.truncate(input, maxAttributeLength));
+            kv = kv.and(SpanAttributes.INPUT_VALUE, ObservationUtils.truncate(input, maxAttributeLength));
         }
         Object output = context.getOutput();
         if (output != null) {
-            kv = kv.and("output.value", ObservationUtils.truncate(output.toString(), maxAttributeLength));
+            kv = kv.and(SpanAttributes.OUTPUT_VALUE, ObservationUtils.truncate(output.toString(), maxAttributeLength));
         }
         return kv;
     }

@@ -33,7 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Tests conditional bean creation in ObservabilityAutoConfiguration: which beans are created or
- * skipped based on the {@code embabel.observability.*} properties (the {@code enabled} /
+ * skipped based on the {@code embabel.agent.platform.observability.*} properties (the {@code enabled} /
  * {@code tracing-enabled} / {@code metrics-enabled} switches and the per-tier {@code trace-*}
  * toggles) and the available dependencies ({@code ObservationRegistry}, {@code MeterRegistry}).
  */
@@ -61,7 +61,7 @@ class ObservabilityAutoConfigurationTest {
     void spanConventionsCustomizer_shouldNotBeCreated_whenDisabled() {
         contextRunner
                 .withUserConfiguration(ObservationRegistryConfig.class)
-                .withPropertyValues("embabel.observability.enabled=false")
+                .withPropertyValues("embabel.agent.platform.observability.enabled=false")
                 .run(context -> {
                     assertThat(context).doesNotHaveBean(CONVENTIONS_BEAN);
                 });
@@ -71,7 +71,7 @@ class ObservabilityAutoConfigurationTest {
     void spanConventionsCustomizer_shouldNotBeCreated_whenTraceAgentEventsDisabled() {
         contextRunner
                 .withUserConfiguration(ObservationRegistryConfig.class)
-                .withPropertyValues("embabel.observability.trace-agent-events=false")
+                .withPropertyValues("embabel.agent.platform.observability.trace-agent-events=false")
                 .run(context -> {
                     assertThat(context).doesNotHaveBean(CONVENTIONS_BEAN);
                 });
@@ -95,7 +95,7 @@ class ObservabilityAutoConfigurationTest {
         // bean must remain registered (gated only by the module `enabled`), not be skipped.
         contextRunner
                 .withUserConfiguration(ObservationRegistryConfig.class)
-                .withPropertyValues("embabel.observability.tracing-enabled=false")
+                .withPropertyValues("embabel.agent.platform.observability.tracing-enabled=false")
                 .run(context -> {
                     assertThat(context).hasBean(TIER_FILTER_BEAN);
                 });
@@ -105,7 +105,7 @@ class ObservabilityAutoConfigurationTest {
     void tierFilterCustomizer_shouldNotBeCreated_whenModuleDisabled() {
         contextRunner
                 .withUserConfiguration(ObservationRegistryConfig.class)
-                .withPropertyValues("embabel.observability.enabled=false")
+                .withPropertyValues("embabel.agent.platform.observability.enabled=false")
                 .run(context -> {
                     assertThat(context).doesNotHaveBean(TIER_FILTER_BEAN);
                 });
@@ -126,7 +126,7 @@ class ObservabilityAutoConfigurationTest {
     void spanEventListener_shouldNotBeCreated_whenTracingDisabled() {
         contextRunner
                 .withUserConfiguration(ObservationRegistryConfig.class)
-                .withPropertyValues("embabel.observability.tracing-enabled=false")
+                .withPropertyValues("embabel.agent.platform.observability.tracing-enabled=false")
                 .run(context -> {
                     assertThat(context).doesNotHaveBean(EmbabelSpanEventListener.class);
                 });
@@ -155,7 +155,7 @@ class ObservabilityAutoConfigurationTest {
     void chatModelFilter_shouldNotBeCreated_whenDisabled() {
         contextRunner
                 .withUserConfiguration(ObservationRegistryConfig.class)
-                .withPropertyValues("embabel.observability.trace-llm-calls=false")
+                .withPropertyValues("embabel.agent.platform.observability.trace-llm-calls=false")
                 .run(context -> {
                     assertThat(context).doesNotHaveBean(ChatModelObservationFilter.class);
                 });
@@ -167,7 +167,7 @@ class ObservabilityAutoConfigurationTest {
     void tracingDisabled_killsSpanConventions() {
         contextRunner
                 .withUserConfiguration(ObservationRegistryConfig.class)
-                .withPropertyValues("embabel.observability.tracing-enabled=false")
+                .withPropertyValues("embabel.agent.platform.observability.tracing-enabled=false")
                 .run(context -> {
                     assertThat(context).doesNotHaveBean(CONVENTIONS_BEAN);
                 });
@@ -178,8 +178,8 @@ class ObservabilityAutoConfigurationTest {
         contextRunner
                 .withUserConfiguration(ObservationRegistryConfig.class)
                 .withPropertyValues(
-                        "embabel.observability.tracing-enabled=false",
-                        "embabel.observability.trace-llm-calls=true"
+                        "embabel.agent.platform.observability.tracing-enabled=false",
+                        "embabel.agent.platform.observability.trace-llm-calls=true"
                 )
                 .run(context -> {
                     assertThat(context).doesNotHaveBean(ChatModelObservationFilter.class);
@@ -190,7 +190,7 @@ class ObservabilityAutoConfigurationTest {
     void tracingDisabled_keepsMetricsListener() {
         contextRunner
                 .withUserConfiguration(ObservationRegistryConfig.class, MeterRegistryConfig.class)
-                .withPropertyValues("embabel.observability.tracing-enabled=false")
+                .withPropertyValues("embabel.agent.platform.observability.tracing-enabled=false")
                 .run(context -> {
                     assertThat(context).hasSingleBean(EmbabelMetricsEventListener.class);
                 });
@@ -212,8 +212,8 @@ class ObservabilityAutoConfigurationTest {
         contextRunner
                 .withUserConfiguration(ObservationRegistryConfig.class)
                 .withPropertyValues(
-                        "embabel.observability.service-name=my-app",
-                        "embabel.observability.max-attribute-length=2000"
+                        "embabel.agent.platform.observability.service-name=my-app",
+                        "embabel.agent.platform.observability.max-attribute-length=2000"
                 )
                 .run(context -> {
                     ObservabilityProperties props = context.getBean(ObservabilityProperties.class);
@@ -237,7 +237,7 @@ class ObservabilityAutoConfigurationTest {
     void mdcPropagationListener_shouldNotBeCreated_whenDisabled() {
         contextRunner
                 .withUserConfiguration(ObservationRegistryConfig.class)
-                .withPropertyValues("embabel.observability.mdc-propagation=false")
+                .withPropertyValues("embabel.agent.platform.observability.mdc-propagation=false")
                 .run(context -> {
                     assertThat(context).doesNotHaveBean(MdcPropagationEventListener.class);
                 });
@@ -258,7 +258,7 @@ class ObservabilityAutoConfigurationTest {
     void httpBodyCachingFilter_shouldBeCreated_whenTraceHttpDetailsEnabled() {
         contextRunner
                 .withUserConfiguration(ObservationRegistryConfig.class)
-                .withPropertyValues("embabel.observability.trace-http-details=true")
+                .withPropertyValues("embabel.agent.platform.observability.trace-http-details=true")
                 .run(context -> {
                     assertThat(context).hasSingleBean(HttpBodyCachingFilter.class);
                 });
@@ -277,7 +277,7 @@ class ObservabilityAutoConfigurationTest {
     void httpRequestObservationFilter_shouldBeCreated_whenTraceHttpDetailsEnabled() {
         contextRunner
                 .withUserConfiguration(ObservationRegistryConfig.class)
-                .withPropertyValues("embabel.observability.trace-http-details=true")
+                .withPropertyValues("embabel.agent.platform.observability.trace-http-details=true")
                 .run(context -> {
                     assertThat(context).hasSingleBean(HttpRequestObservationFilter.class);
                 });
@@ -298,7 +298,7 @@ class ObservabilityAutoConfigurationTest {
     void metricsListener_shouldNotBeCreated_whenMetricsDisabled() {
         contextRunner
                 .withUserConfiguration(ObservationRegistryConfig.class, MeterRegistryConfig.class)
-                .withPropertyValues("embabel.observability.metrics-enabled=false")
+                .withPropertyValues("embabel.agent.platform.observability.metrics-enabled=false")
                 .run(context -> {
                     assertThat(context).doesNotHaveBean(EmbabelMetricsEventListener.class);
                 });

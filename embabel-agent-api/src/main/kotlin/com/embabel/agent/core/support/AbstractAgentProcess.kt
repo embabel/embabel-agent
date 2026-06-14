@@ -514,7 +514,12 @@ abstract class AbstractAgentProcess(
     ): AgentProcess
 
     /**
-     * Execute an action
+     * Execute the given action, wrapping it in a Micrometer observation for tracing.
+     * The status code is recorded on the [ActionObservationContext]; the observation
+     * is skipped when no registry is active (see [Observations.observeOrSkip]).
+     *
+     * @param action the action to execute
+     * @return the [ActionStatus] describing the outcome
      */
     protected fun executeAction(action: Action): ActionStatus {
         val observationContext = ActionObservationContext(this, action)

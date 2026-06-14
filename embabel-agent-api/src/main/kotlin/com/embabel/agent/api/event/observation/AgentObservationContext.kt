@@ -26,4 +26,8 @@ import org.jetbrains.annotations.ApiStatus
 @ApiStatus.Internal
 class AgentObservationContext(
     val process: AgentProcess,
-) : Observation.Context()
+) : Observation.Context() {
+
+    override fun toString(): String =
+        "AgentObservationContext(processId=${process.id})"
+}

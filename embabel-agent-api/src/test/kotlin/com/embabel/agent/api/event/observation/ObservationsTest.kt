@@ -65,10 +65,11 @@ class ObservationsTest {
     @Test
     fun `NOOP registry runs work and returns its value without building the observation context`() {
         var contextBuilt = false
+        val workResult = 42
         val result = Observations.observeOrSkip(
             ObservationRegistry.NOOP, { contextBuilt = true; Observation.Context() },
-        ) { 42 }
-        assertEquals(42, result)
+        ) { workResult }
+        assertEquals(workResult, result)
         // The NOOP path must short-circuit before the context supplier runs: no observation, no
         // allocation. (A recording handler cannot be used here — a no-op registry has no handlers.)
         assertFalse(contextBuilt, "NOOP path must not build the observation context")

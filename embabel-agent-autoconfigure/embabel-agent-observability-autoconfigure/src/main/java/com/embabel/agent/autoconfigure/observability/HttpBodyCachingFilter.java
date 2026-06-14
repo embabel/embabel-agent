@@ -34,7 +34,7 @@ import java.io.IOException;
  * <p>Runs at {@link Ordered#HIGHEST_PRECEDENCE} to ensure wrapping happens before
  * Spring's {@code ServerHttpObservationFilter} creates its observation context.
  *
- * <p>Only active when {@code embabel.observability.trace-http-details=true}.
+ * <p>Only active when {@code embabel.agent.platform.observability.trace-http-details=true}.
  *
  * @since 0.3.4
  */

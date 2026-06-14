@@ -412,12 +412,16 @@ class EmbabelObservationConventionsTest {
                     new EmbabelActionObservationConvention(4000), context, "embabel.action");
 
             assertTrue(lowCardinality(ctx).keySet().containsAll(List.of(
-                    "gen_ai.operation.name", "embabel.action.name", "embabel.action.short_name",
+                    "gen_ai.operation.name", "embabel.action.short_name",
                     "embabel.agent.name", "embabel.action.status")));
             // Also covers the SUCCEEDED status tag (the non-failure case).
             assertEquals("SUCCEEDED", lowCardinality(ctx).get("embabel.action.status"));
             assertTrue(highCardinality(ctx).containsKey("embabel.run.id"));
             assertFalse(lowCardinality(ctx).containsKey("embabel.run.id"));
+            // The action name can be fully-qualified (package + class.method, or In=>Out-N) and is
+            // therefore unbounded: it lives in HIGH, never LOW. Only the bounded short_name is a tag.
+            assertTrue(highCardinality(ctx).containsKey("embabel.action.name"));
+            assertFalse(lowCardinality(ctx).containsKey("embabel.action.name"));
         }
     }
 
@@ -470,8 +474,11 @@ class EmbabelObservationConventionsTest {
             Observation.Context ctx = observe(new EmbabelToolLoopObservationConvention(4000),
                     new ToolLoopObservationContext(event, List.of()), "embabel.tool_loop");
 
-            // The bound action's name (bounded) is added to LOW — the present-action branch.
-            assertEquals("CastSpell", lowCardinality(ctx).get("embabel.action.name"));
+            // The bound action's bounded short_name goes to LOW; the (possibly fully-qualified,
+            // unbounded) full name goes to HIGH — the present-action branch.
+            assertEquals("CastSpell", lowCardinality(ctx).get("embabel.action.short_name"));
+            assertEquals("CastSpell", highCardinality(ctx).get("embabel.action.name"));
+            assertFalse(lowCardinality(ctx).containsKey("embabel.action.name"));
             assertTrue(lowCardinality(ctx).keySet().containsAll(List.of(
                     "gen_ai.operation.name", "embabel.agent.name", "embabel.tool_loop.max_iterations")));
             // Unbounded ids → HIGH, never LOW.
@@ -487,7 +494,7 @@ class EmbabelObservationConventionsTest {
     class LlmConvention {
 
         @Test
-        @DisplayName("records model, provider, agent, run and interaction")
+        @DisplayName("records model + identity, and emits NO gen_ai.* (not a generation)")
         void recordsModelAttributes() {
             LlmRequestEvent<?> event = mock(LlmRequestEvent.class, RETURNS_DEEP_STUBS);
             LlmMetadata metadata = LlmMetadata.create("gpt-4o", "openai");
@@ -501,9 +508,12 @@ class EmbabelObservationConventionsTest {
             Map<String, String> kv = allKeyValues(
                     observe(new EmbabelLlmObservationConvention(), ctx, "embabel.llm"));
 
-            assertEquals("chat", kv.get("gen_ai.operation.name"));
-            assertEquals("gpt-4o", kv.get("gen_ai.request.model"));
-            assertEquals("openai", kv.get("gen_ai.system"));
+            // Model is recorded under the embabel namespace, NOT gen_ai.* — the nested ChatModel span
+            // is the generation; this wrapper must not duplicate it.
+            assertEquals("gpt-4o", kv.get("embabel.llm.model"));
+            assertFalse(kv.containsKey("gen_ai.operation.name"));
+            assertFalse(kv.containsKey("gen_ai.request.model"));
+            assertFalse(kv.containsKey("gen_ai.system"));
             assertEquals("TestAgent", kv.get("embabel.agent.name"));
             assertEquals("run-1", kv.get("embabel.run.id"));
             assertEquals("interaction-3", kv.get("embabel.interaction.id"));
@@ -522,11 +532,13 @@ class EmbabelObservationConventionsTest {
             lenient().when(action.getName()).thenReturn("CastSpell");
             lenient().when(event.getAction()).thenReturn(action);
 
-            LlmObservationContext ctx = new LlmObservationContext(event);
-            Map<String, String> kv = allKeyValues(
-                    observe(new EmbabelLlmObservationConvention(), ctx, "embabel.llm"));
+            Observation.Context ctx = observe(
+                    new EmbabelLlmObservationConvention(), new LlmObservationContext(event), "embabel.llm");
 
-            assertEquals("CastSpell", kv.get("embabel.action.name"));
+            // Bounded short_name → LOW (metric grouping); fully-qualifiable full name → HIGH.
+            assertEquals("CastSpell", lowCardinality(ctx).get("embabel.action.short_name"));
+            assertEquals("CastSpell", highCardinality(ctx).get("embabel.action.name"));
+            assertFalse(lowCardinality(ctx).containsKey("embabel.action.name"));
         }
 
         @Test
@@ -543,7 +555,7 @@ class EmbabelObservationConventionsTest {
                     new LlmObservationContext(event), "embabel.llm");
 
             assertTrue(lowCardinality(ctx).keySet().containsAll(List.of(
-                    "gen_ai.operation.name", "gen_ai.request.model", "gen_ai.system", "embabel.agent.name")));
+                    "embabel.llm.model", "embabel.agent.name")));
             assertTrue(highCardinality(ctx).keySet().containsAll(List.of(
                     "embabel.run.id", "embabel.interaction.id")));
             assertFalse(lowCardinality(ctx).containsKey("embabel.run.id"));

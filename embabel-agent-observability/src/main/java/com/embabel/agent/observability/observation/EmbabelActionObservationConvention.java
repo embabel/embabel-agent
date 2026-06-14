@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.observability.observation;
 
+import com.embabel.agent.observability.SpanAttributes;
+
 import com.embabel.agent.api.event.observation.ActionObservationContext;
 import com.embabel.agent.core.AgentProcess;
 import io.micrometer.common.KeyValues;
@@ -41,7 +43,7 @@ public class EmbabelActionObservationConvention
 
     @Override
     public String getName() {
-        return "embabel.action";
+        return SpanAttributes.EMBABEL_ACTION;
     }
 
     @Override
@@ -52,15 +54,18 @@ public class EmbabelActionObservationConvention
     @Override
     public KeyValues getLowCardinalityKeyValues(ActionObservationContext context) {
         String name = context.getAction().getName();
+        // Only the bounded short_name is a LOW-cardinality tag. The full action name can be
+        // fully-qualified (com.pkg.Agent.method, or com.pkg.In=>com.pkg.Out-N) and is therefore
+        // unbounded across extension packages — it belongs in HIGH-cardinality, not as a metric
+        // dimension.
         KeyValues kv = KeyValues.of(
-                "gen_ai.operation.name", "action",
-                "embabel.action.name", name,
-                "embabel.action.short_name", ObservationUtils.shortName(name),
-                "embabel.agent.name", context.getProcess().getAgent().getName());
+                SpanAttributes.GEN_AI_OPERATION_NAME, "action",
+                SpanAttributes.EMBABEL_ACTION_SHORT_NAME, ObservationUtils.shortName(name),
+                SpanAttributes.EMBABEL_AGENT_NAME, context.getProcess().getAgent().getName());
         // Status is known only once the action has run (set on the context before stop). A failed
         // status is recorded as a tag only — the span is errored solely when the work throws.
         if (context.getStatusCode() != null) {
-            kv = kv.and("embabel.action.status", context.getStatusCode().name());
+            kv = kv.and(SpanAttributes.EMBABEL_ACTION_STATUS, context.getStatusCode().name());
         }
         return kv;
     }
@@ -68,18 +73,21 @@ public class EmbabelActionObservationConvention
     @Override
     public KeyValues getHighCardinalityKeyValues(ActionObservationContext context) {
         AgentProcess process = context.getProcess();
-        KeyValues kv = KeyValues.of("embabel.run.id", process.getId());
+        // Full (possibly fully-qualified) action name lives here, where unbounded values are fine.
+        KeyValues kv = KeyValues.of(
+                SpanAttributes.EMBABEL_RUN_ID, process.getId(),
+                SpanAttributes.EMBABEL_ACTION_NAME, context.getAction().getName());
         if (context.getAction() instanceof com.embabel.agent.core.Action coreAction) {
             String input = ObservationUtils.getActionInputs(coreAction, process);
             if (!input.isEmpty()) {
-                kv = kv.and("input.value", ObservationUtils.truncate(input, maxAttributeLength));
+                kv = kv.and(SpanAttributes.INPUT_VALUE, ObservationUtils.truncate(input, maxAttributeLength));
             }
             // The action's declared outputs resolved from the blackboard — its actual product,
             // not the global lastResult() (which may belong to a previous action).
             String output = ObservationUtils.getActionOutputs(coreAction, process);
             if (!output.isEmpty()) {
                 String truncated = ObservationUtils.truncate(output, maxAttributeLength);
-                kv = kv.and("embabel.action.result", truncated).and("output.value", truncated);
+                kv = kv.and(SpanAttributes.EMBABEL_ACTION_RESULT, truncated).and(SpanAttributes.OUTPUT_VALUE, truncated);
             }
         }
         return kv;

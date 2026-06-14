@@ -83,7 +83,9 @@ class AgentProcessSpanTest {
         val turns = handler.stopped.filterIsInstance<AgentObservationContext>()
         val actions = handler.stopped.filterIsInstance<ActionObservationContext>()
         assertEquals(1, turns.size, "exactly one turn span")
-        assertTrue(actions.size >= 2, "expected at least two action spans, got ${actions.size}")
+        // EvenMoreEvilWizard runs a deterministic set of actions: the "thing"
+        // transformation plus the aggregate's three transforms and its merge.
+        assertEquals(5, actions.size, "expected exactly five action spans, got ${actions.size}")
         actions.forEach { a ->
             val parent = a.parentObservation?.contextView
             assertTrue(

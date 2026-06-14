@@ -23,4 +23,8 @@ import org.jetbrains.annotations.ApiStatus
 @ApiStatus.Internal
 class LlmObservationContext(
     val requestEvent: LlmRequestEvent<*>,
-) : Observation.Context()
+) : Observation.Context() {
+
+    override fun toString(): String =
+        "LlmObservationContext(requestEvent=$requestEvent)"
+}

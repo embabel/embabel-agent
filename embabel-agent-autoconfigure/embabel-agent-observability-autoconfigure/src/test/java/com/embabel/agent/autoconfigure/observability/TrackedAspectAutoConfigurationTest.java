@@ -99,7 +99,7 @@ class TrackedAspectAutoConfigurationTest {
       // Arrange
       contextRunner
               .withUserConfiguration(TrackedAspectDependenciesConfig.class)
-              .withPropertyValues("embabel.observability.trace-tracked-operations=false")
+              .withPropertyValues("embabel.agent.platform.observability.trace-tracked-operations=false")
               // Act
               .run(context -> assertThat(context).doesNotHaveBean(TrackedAspect.class));
    }
@@ -113,7 +113,7 @@ class TrackedAspectAutoConfigurationTest {
       // Arrange
       contextRunner
               .withUserConfiguration(TrackedAspectDependenciesConfig.class)
-              .withPropertyValues("embabel.observability.tracing-enabled=false")
+              .withPropertyValues("embabel.agent.platform.observability.tracing-enabled=false")
               // Act
               .run(context -> assertThat(context).doesNotHaveBean(TrackedAspect.class));
    }

@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.observability.observation;
 
+import com.embabel.agent.observability.SpanAttributes;
+
 import com.embabel.agent.api.event.observation.AgentObservationContext;
 import com.embabel.agent.api.identity.User;
 import com.embabel.agent.core.AgentProcess;
@@ -56,7 +58,7 @@ public class EmbabelAgentObservationConvention
 
     @Override
     public String getName() {
-        return "embabel.agent";
+        return SpanAttributes.EMBABEL_AGENT;
     }
 
     @Override
@@ -70,37 +72,37 @@ public class EmbabelAgentObservationConvention
     public KeyValues getLowCardinalityKeyValues(AgentObservationContext context) {
         AgentProcess process = context.getProcess();
         return KeyValues.of(
-                "gen_ai.operation.name", "agent",
-                "embabel.agent.name", process.getAgent().getName(),
-                "embabel.agent.is_subagent", String.valueOf(process.getParentId() != null),
-                "embabel.agent.planner_type", process.getProcessOptions().getPlannerType().name(),
-                "embabel.agent.status", process.getStatus().name());
+                SpanAttributes.GEN_AI_OPERATION_NAME, "agent",
+                SpanAttributes.EMBABEL_AGENT_NAME, process.getAgent().getName(),
+                SpanAttributes.EMBABEL_AGENT_IS_SUBAGENT, String.valueOf(process.getParentId() != null),
+                SpanAttributes.EMBABEL_AGENT_PLANNER_TYPE, process.getProcessOptions().getPlannerType().name(),
+                SpanAttributes.EMBABEL_AGENT_STATUS, process.getStatus().name());
     }
 
     @Override
     public KeyValues getHighCardinalityKeyValues(AgentObservationContext context) {
         AgentProcess process = context.getProcess();
         KeyValues kv = KeyValues.of(
-                "embabel.run.id", process.getId(),
-                "gen_ai.conversation.id", conversationId(process));
+                SpanAttributes.EMBABEL_RUN_ID, process.getId(),
+                SpanAttributes.GEN_AI_CONVERSATION_ID, conversationId(process));
         if (process.getParentId() != null) {
-            kv = kv.and("embabel.parent.id", process.getParentId());
+            kv = kv.and(SpanAttributes.EMBABEL_PARENT_ID, process.getParentId());
         }
         String userId = userId(process);
         if (userId != null) {
             kv = kv.and("user.id", userId);
         }
         if (process.getGoal() != null) {
-            kv = kv.and("embabel.goal", process.getGoal().getName());
+            kv = kv.and(SpanAttributes.EMBABEL_GOAL, process.getGoal().getName());
         }
         String input = ObservationUtils.agentInput(process);
         if (!input.isEmpty()) {
-            kv = kv.and("input.value", ObservationUtils.truncate(input, maxAttributeLength));
+            kv = kv.and(SpanAttributes.INPUT_VALUE, ObservationUtils.truncate(input, maxAttributeLength));
         }
         Object result = process.lastResult();
         if (result != null) {
             String output = ObservationUtils.truncate(result.toString(), maxAttributeLength);
-            kv = kv.and("embabel.agent.result", output).and("output.value", output);
+            kv = kv.and(SpanAttributes.EMBABEL_AGENT_RESULT, output).and(SpanAttributes.OUTPUT_VALUE, output);
         }
         return kv;
     }

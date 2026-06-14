@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.observability.observation;
 
+import com.embabel.agent.observability.SpanAttributes;
+
 import io.micrometer.common.KeyValue;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationFilter;
@@ -109,21 +111,21 @@ public class ChatModelObservationFilter implements ObservationFilter {
 
         try {
             // OpenTelemetry GenAI semantic conventions
-            context.addLowCardinalityKeyValue(KeyValue.of("gen_ai.operation.name", "chat"));
+            context.addLowCardinalityKeyValue(KeyValue.of(SpanAttributes.GEN_AI_OPERATION_NAME, "chat"));
 
             // Extract model info from request
             var request = chatContext.getRequest();
             if (request != null && request.getOptions() != null) {
                 String model = request.getOptions().getModel();
                 if (model != null && !model.isEmpty()) {
-                    context.addLowCardinalityKeyValue(KeyValue.of("gen_ai.request.model", model));
+                    context.addLowCardinalityKeyValue(KeyValue.of(SpanAttributes.GEN_AI_REQUEST_MODEL, model));
                 }
                 if (request.getOptions().getTemperature() != null) {
-                    context.addHighCardinalityKeyValue(KeyValue.of("gen_ai.request.temperature",
+                    context.addHighCardinalityKeyValue(KeyValue.of(SpanAttributes.GEN_AI_REQUEST_TEMPERATURE,
                             String.valueOf(request.getOptions().getTemperature())));
                 }
                 if (request.getOptions().getMaxTokens() != null) {
-                    context.addHighCardinalityKeyValue(KeyValue.of("gen_ai.request.max_tokens",
+                    context.addHighCardinalityKeyValue(KeyValue.of(SpanAttributes.GEN_AI_REQUEST_MAX_TOKENS,
                             String.valueOf(request.getOptions().getMaxTokens())));
                 }
             }
@@ -133,16 +135,16 @@ public class ChatModelObservationFilter implements ObservationFilter {
             if (response != null && response.getMetadata() != null) {
                 String responseModel = response.getMetadata().getModel();
                 if (responseModel != null && !responseModel.isEmpty()) {
-                    context.addLowCardinalityKeyValue(KeyValue.of("gen_ai.response.model", responseModel));
+                    context.addLowCardinalityKeyValue(KeyValue.of(SpanAttributes.GEN_AI_RESPONSE_MODEL, responseModel));
                 }
                 var usage = response.getMetadata().getUsage();
                 if (usage != null) {
                     if (usage.getPromptTokens() != null) {
-                        context.addHighCardinalityKeyValue(KeyValue.of("gen_ai.usage.input_tokens",
+                        context.addHighCardinalityKeyValue(KeyValue.of(SpanAttributes.GEN_AI_USAGE_INPUT_TOKENS,
                                 String.valueOf(usage.getPromptTokens())));
                     }
                     if (usage.getCompletionTokens() != null) {
-                        context.addHighCardinalityKeyValue(KeyValue.of("gen_ai.usage.output_tokens",
+                        context.addHighCardinalityKeyValue(KeyValue.of(SpanAttributes.GEN_AI_USAGE_OUTPUT_TOKENS,
                                 String.valueOf(usage.getCompletionTokens())));
                     }
                 }
@@ -169,21 +171,21 @@ public class ChatModelObservationFilter implements ObservationFilter {
     private void addMessageContent(Observation.Context context, ChatModelObservationContext chatContext) {
         String inputMessages = buildInputMessages(chatContext);
         if (inputMessages != null) {
-            context.addHighCardinalityKeyValue(KeyValue.of("gen_ai.input.messages", inputMessages));
+            context.addHighCardinalityKeyValue(KeyValue.of(SpanAttributes.GEN_AI_INPUT_MESSAGES, inputMessages));
         }
         String outputMessages = buildOutputMessages(chatContext);
         if (outputMessages != null) {
-            context.addHighCardinalityKeyValue(KeyValue.of("gen_ai.output.messages", outputMessages));
+            context.addHighCardinalityKeyValue(KeyValue.of(SpanAttributes.GEN_AI_OUTPUT_MESSAGES, outputMessages));
         }
 
         // OpenInference bridge, kept until a dedicated exporter derives it from the GenAI messages.
         String prompt = extractPrompt(chatContext);
         if (prompt != null && !prompt.isEmpty()) {
-            context.addHighCardinalityKeyValue(KeyValue.of("input.value", truncate(prompt)));
+            context.addHighCardinalityKeyValue(KeyValue.of(SpanAttributes.INPUT_VALUE, truncate(prompt)));
         }
         String completion = extractCompletion(chatContext);
         if (completion != null && !completion.isEmpty()) {
-            context.addHighCardinalityKeyValue(KeyValue.of("output.value", truncate(completion)));
+            context.addHighCardinalityKeyValue(KeyValue.of(SpanAttributes.OUTPUT_VALUE, truncate(completion)));
         }
     }
 

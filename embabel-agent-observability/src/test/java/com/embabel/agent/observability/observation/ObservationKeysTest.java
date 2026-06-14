@@ -105,7 +105,7 @@ class ObservationKeysTest {
     @DisplayName("Should format tool loop span name correctly")
     void toolLoopSpanNameFormatsCorrectly() {
         // Act
-        String result = ObservationKeys.toolLoopSpanName("inter456");
+        String result = ObservationKeys.toolLoopSpanName();
         
         // Assert
         assertEquals("tool-loop:", result);

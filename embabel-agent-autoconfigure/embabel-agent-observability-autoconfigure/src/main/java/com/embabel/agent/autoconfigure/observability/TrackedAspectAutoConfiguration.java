@@ -35,7 +35,7 @@ import org.springframework.context.annotation.Bean;
  */
 @AutoConfiguration(after = ObservabilityAutoConfiguration.class)
 @ConditionalOnClass(name = "org.aspectj.lang.ProceedingJoinPoint")
-@ConditionalOnProperty(prefix = "embabel.observability", name = {"enabled", "tracing-enabled", "trace-tracked-operations"}, havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "embabel.agent.platform.observability", name = {"enabled", "tracing-enabled", "trace-tracked-operations"}, havingValue = "true", matchIfMissing = true)
 public class TrackedAspectAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(TrackedAspectAutoConfiguration.class);

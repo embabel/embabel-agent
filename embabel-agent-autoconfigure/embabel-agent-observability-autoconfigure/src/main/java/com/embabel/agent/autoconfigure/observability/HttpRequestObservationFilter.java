@@ -42,7 +42,7 @@ import java.util.StringJoiner;
  * <p>Body extraction requires {@link HttpBodyCachingFilter} to be active so that
  * {@link ContentCachingRequestWrapper} and {@link ContentCachingResponseWrapper} are available.
  *
- * <p>Only active when {@code embabel.observability.trace-http-details=true}.
+ * <p>Only active when {@code embabel.agent.platform.observability.trace-http-details=true}.
  *
  * @since 0.3.4
  */

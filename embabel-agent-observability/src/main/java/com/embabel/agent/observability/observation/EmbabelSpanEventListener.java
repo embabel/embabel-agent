@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.observability.observation;
 
+import com.embabel.agent.observability.SpanAttributes;
+
 import com.embabel.agent.api.event.AbstractAgentProcessEvent;
 import com.embabel.agent.api.event.AgentPlatformEvent;
 import com.embabel.agent.api.event.AgentProcessCompletedEvent;
@@ -173,10 +175,10 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
         // gen_ai.operation.name here too would make exporters (e.g. Langfuse) count the same call as
         // two generations. We keep this span as a plain cost/usage record (model + tokens + cost still
         // visible) without re-triggering the generation classification.
-        Observation observation = point("embabel.llm.invocation",
+        Observation observation = point(SpanAttributes.EMBABEL_LLM_INVOCATION,
                 "llm.invocation " + invocation.getLlmMetadata().getName())
-                .lowCardinalityKeyValue("embabel.llm.model", invocation.getLlmMetadata().getName())
-                .highCardinalityKeyValue("embabel.interaction.id", event.getInteractionId());
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_LLM_MODEL, invocation.getLlmMetadata().getName())
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_INTERACTION_ID, event.getInteractionId());
         addUsageAndCost(observation, invocation.getUsage(), invocation.cost());
         emit(observation);
     }
@@ -215,10 +217,10 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
 
     private void emitEmbeddingSpan(EmbeddingServiceMetadata metadata, Usage usage,
                                    double cost, String interactionId) {
-        Observation observation = point("embabel.embedding", "embeddings " + metadata.getName())
-                .lowCardinalityKeyValue("gen_ai.operation.name", "embeddings")
-                .lowCardinalityKeyValue("gen_ai.request.model", metadata.getName())
-                .highCardinalityKeyValue("embabel.interaction.id", interactionId);
+        Observation observation = point(SpanAttributes.EMBABEL_EMBEDDING, "embeddings " + metadata.getName())
+                .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "embeddings")
+                .lowCardinalityKeyValue(SpanAttributes.GEN_AI_REQUEST_MODEL, metadata.getName())
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_INTERACTION_ID, interactionId);
         addUsageAndCost(observation, usage, cost);
         emit(observation);
     }
@@ -227,41 +229,41 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
         int iteration = planIterations.merge(event.getAgentProcess().getId(), 1, Integer::sum);
         String goalName = event.getPlan().getGoal().getName();
         String goalShort = ObservationUtils.shortName(goalName);
-        Observation observation = point("embabel.planning", "planning " + goalShort)
-                .lowCardinalityKeyValue("gen_ai.operation.name", "planning")
-                .lowCardinalityKeyValue("embabel.plan.goal", goalName)
-                .lowCardinalityKeyValue("embabel.plan.goal_short", goalShort)
-                .lowCardinalityKeyValue("embabel.plan.is_replanning", String.valueOf(iteration > 1))
-                .highCardinalityKeyValue("embabel.plan.iteration", String.valueOf(iteration))
-                .highCardinalityKeyValue("embabel.plan.action_count",
+        Observation observation = point(SpanAttributes.EMBABEL_PLANNING, "planning " + goalShort)
+                .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "planning")
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_PLAN_GOAL, goalName)
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_PLAN_GOAL_SHORT, goalShort)
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_PLAN_IS_REPLANNING, String.valueOf(iteration > 1))
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_PLAN_ITERATION, String.valueOf(iteration))
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_PLAN_ACTION_COUNT,
                         String.valueOf(event.getPlan().getActions().size()));
         emit(observation);
     }
 
     private void recordReplan(ReplanRequestedEvent event) {
-        Observation observation = point("embabel.replan", "replan")
-                .lowCardinalityKeyValue("gen_ai.operation.name", "replan")
-                .highCardinalityKeyValue("embabel.replan.reason", truncate(event.getReason()));
+        Observation observation = point(SpanAttributes.EMBABEL_REPLAN, "replan")
+                .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "replan")
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_REPLAN_REASON, truncate(event.getReason()));
         emit(observation);
     }
 
     private void recordRag(RagResponseEvent event) {
         RagResponse response = event.getRagResponse();
-        Observation observation = point("embabel.rag", "rag " + response.getService())
-                .lowCardinalityKeyValue("gen_ai.operation.name", "rag")
-                .lowCardinalityKeyValue("embabel.rag.service", response.getService())
-                .highCardinalityKeyValue("embabel.rag.query", truncate(response.getRequest().getQuery()))
-                .highCardinalityKeyValue("embabel.rag.result_count",
+        Observation observation = point(SpanAttributes.EMBABEL_RAG, "rag " + response.getService())
+                .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "rag")
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_RAG_SERVICE, response.getService())
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_RAG_QUERY, truncate(response.getRequest().getQuery()))
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_RAG_RESULT_COUNT,
                         String.valueOf(response.getResults().size()));
         emit(observation);
     }
 
     private void recordStateTransition(StateTransitionEvent event) {
-        Observation observation = point("embabel.state_transition",
+        Observation observation = point(SpanAttributes.EMBABEL_STATE_TRANSITION,
                 "state " + event.getNewState().getClass().getSimpleName())
-                .lowCardinalityKeyValue("gen_ai.operation.name", "state_transition")
-                .lowCardinalityKeyValue("embabel.state.to", event.getNewState().getClass().getSimpleName())
-                .lowCardinalityKeyValue("embabel.state.from",
+                .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "state_transition")
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_STATE_TO, event.getNewState().getClass().getSimpleName())
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_STATE_FROM,
                         event.getPreviousState() == null ? "none" : event.getPreviousState().getClass().getSimpleName());
         emit(observation);
     }
@@ -270,29 +272,29 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
         if (!properties.isTraceLifecycleStates()) {
             return;
         }
-        Observation observation = point("embabel.lifecycle", event.getAgentProcess().getStatus().name())
-                .lowCardinalityKeyValue("gen_ai.operation.name", "lifecycle")
-                .lowCardinalityKeyValue("embabel.lifecycle.state", event.getAgentProcess().getStatus().name());
+        Observation observation = point(SpanAttributes.EMBABEL_LIFECYCLE, event.getAgentProcess().getStatus().name())
+                .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "lifecycle")
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_LIFECYCLE_STATE, event.getAgentProcess().getStatus().name());
         emit(observation);
     }
 
     private void recordDynamicAgentCreation(DynamicAgentCreationEvent event) {
-        Observation observation = point("embabel.dynamic_agent_creation",
+        Observation observation = point(SpanAttributes.EMBABEL_DYNAMIC_AGENT_CREATION,
                 "dynamic_agent " + event.getAgent().getName())
-                .lowCardinalityKeyValue("gen_ai.operation.name", "dynamic_agent_creation")
-                .lowCardinalityKeyValue("embabel.agent.name", event.getAgent().getName())
-                .highCardinalityKeyValue("embabel.dynamic_agent.basis", String.valueOf(event.getBasis()));
+                .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "dynamic_agent_creation")
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_AGENT_NAME, event.getAgent().getName())
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_DYNAMIC_AGENT_BASIS, String.valueOf(event.getBasis()));
         emit(observation);
     }
 
     private void recordRanking(RankingChoiceMadeEvent<?> event) {
-        Observation observation = point("embabel.ranking",
+        Observation observation = point(SpanAttributes.EMBABEL_RANKING,
                 "ranking " + event.getChoice().getMatch().getName())
-                .lowCardinalityKeyValue("gen_ai.operation.name", "ranking")
-                .lowCardinalityKeyValue("embabel.ranking.choice", event.getChoice().getMatch().getName())
-                .highCardinalityKeyValue("embabel.ranking.score",
+                .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "ranking")
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_RANKING_CHOICE, event.getChoice().getMatch().getName())
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_RANKING_SCORE,
                         String.valueOf(event.getChoice().getScore()))
-                .highCardinalityKeyValue("embabel.ranking.option_count",
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_RANKING_OPTION_COUNT,
                         String.valueOf(event.getChoices().size()));
         emit(observation);
     }
@@ -306,37 +308,37 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
      */
     private void recordToolCall(ToolCallResponseEvent event) {
         ToolCallRequestEvent request = event.getRequest();
-        Observation observation = point("embabel.tool", "execute_tool " + request.getTool())
-                .lowCardinalityKeyValue("gen_ai.operation.name", "execute_tool")
-                .lowCardinalityKeyValue("gen_ai.tool.name", request.getTool())
-                .lowCardinalityKeyValue("embabel.tool.name", request.getTool())
-                .highCardinalityKeyValue("embabel.tool.duration_ms",
+        Observation observation = point(SpanAttributes.EMBABEL_TOOL, "execute_tool " + request.getTool())
+                .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "execute_tool")
+                .lowCardinalityKeyValue(SpanAttributes.GEN_AI_TOOL_NAME, request.getTool())
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_NAME, request.getTool())
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_DURATION_MS,
                         String.valueOf(event.getRunningTime().toMillis()));
         String correlationId = request.getCorrelationId();
         if (correlationId != null && !"-".equals(correlationId)) {
-            observation.highCardinalityKeyValue("embabel.tool.correlation_id", correlationId);
+            observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_CORRELATION_ID, correlationId);
         }
         ToolGroupMetadata metadata = request.getToolGroupMetadata();
         if (metadata != null) {
-            observation.lowCardinalityKeyValue("embabel.tool.group.name", metadata.getName());
-            observation.lowCardinalityKeyValue("embabel.tool.group.role", metadata.getRole());
+            observation.lowCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_GROUP_NAME, metadata.getName());
+            observation.lowCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_GROUP_ROLE, metadata.getRole());
         }
         if (request.getToolInput() != null) {
-            observation.highCardinalityKeyValue("gen_ai.tool.call.arguments", truncate(request.getToolInput()));
+            observation.highCardinalityKeyValue(SpanAttributes.GEN_AI_TOOL_CALL_ARGUMENTS, truncate(request.getToolInput()));
         }
 
         observation.start();
         Throwable error = ToolCallOutcomes.error(event);
         if (error != null) {
-            observation.lowCardinalityKeyValue("embabel.tool.status", "error");
-            observation.highCardinalityKeyValue("embabel.tool.error.type", error.getClass().getSimpleName());
-            observation.highCardinalityKeyValue("embabel.tool.error.message", truncate(error.getMessage()));
+            observation.lowCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_STATUS, "error");
+            observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_ERROR_TYPE, error.getClass().getSimpleName());
+            observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_ERROR_MESSAGE, truncate(error.getMessage()));
             observation.error(error);
         } else {
-            observation.lowCardinalityKeyValue("embabel.tool.status", "success");
+            observation.lowCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_STATUS, "success");
             String result = ToolCallOutcomes.resultText(event);
             if (result != null) {
-                observation.highCardinalityKeyValue("gen_ai.tool.call.result", truncate(result));
+                observation.highCardinalityKeyValue(SpanAttributes.GEN_AI_TOOL_CALL_RESULT, truncate(result));
             }
         }
         observation.stop();
@@ -348,40 +350,40 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
      * span rather than enriching the closed span.
      */
     private void recordToolLoopCompleted(ToolLoopCompletedEvent event) {
-        Observation observation = point("embabel.tool_loop.completed", "tool-loop-completed")
-                .lowCardinalityKeyValue("gen_ai.operation.name", "tool_loop")
-                .lowCardinalityKeyValue("embabel.tool_loop.replan_requested",
+        Observation observation = point(SpanAttributes.EMBABEL_TOOL_LOOP_COMPLETED, "tool-loop-completed")
+                .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "tool_loop")
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_LOOP_REPLAN_REQUESTED,
                         String.valueOf(event.getReplanRequested()))
-                .highCardinalityKeyValue("embabel.interaction.id", event.getInteractionId())
-                .highCardinalityKeyValue("embabel.tool_loop.total_iterations",
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_INTERACTION_ID, event.getInteractionId())
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_LOOP_TOTAL_ITERATIONS,
                         String.valueOf(event.getTotalIterations()))
-                .highCardinalityKeyValue("embabel.tool_loop.duration_ms",
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_LOOP_DURATION_MS,
                         String.valueOf(event.getRunningTime().toMillis()));
         emit(observation);
     }
 
     private void recordGoalAchieved(GoalAchievedEvent event) {
         String goalName = event.getGoal().getName();
-        Observation observation = point("embabel.goal", "goal " + ObservationUtils.shortName(goalName))
-                .lowCardinalityKeyValue("gen_ai.operation.name", "goal_achieved")
-                .lowCardinalityKeyValue("embabel.goal.name", goalName)
-                .lowCardinalityKeyValue("embabel.goal.short_name", ObservationUtils.shortName(goalName));
+        Observation observation = point(SpanAttributes.EMBABEL_GOAL, "goal " + ObservationUtils.shortName(goalName))
+                .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "goal_achieved")
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_GOAL_NAME, goalName)
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_GOAL_SHORT_NAME, ObservationUtils.shortName(goalName));
         Object result = event.getAgentProcess().lastResult();
         if (result != null) {
-            observation.highCardinalityKeyValue("embabel.goal.result", truncate(result.toString()));
+            observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_GOAL_RESULT, truncate(result.toString()));
         }
         emit(observation);
     }
 
     /** Ranking that produced no choice: a span marked errored, so the failure is visible in the trace. */
     private void recordRankingCouldNotBeMade(RankingChoiceCouldNotBeMadeEvent<?> event) {
-        Observation observation = point("embabel.ranking", "ranking")
-                .lowCardinalityKeyValue("gen_ai.operation.name", "ranking")
-                .lowCardinalityKeyValue("embabel.ranking.choice", "none")
-                .highCardinalityKeyValue("embabel.ranking.type", event.getType().getSimpleName())
-                .highCardinalityKeyValue("embabel.ranking.confidence_cutoff",
+        Observation observation = point(SpanAttributes.EMBABEL_RANKING, "ranking")
+                .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "ranking")
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_RANKING_CHOICE, "none")
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_RANKING_TYPE, event.getType().getSimpleName())
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_RANKING_CONFIDENCE_CUTOFF,
                         String.valueOf(event.getConfidenceCutOff()))
-                .highCardinalityKeyValue("embabel.ranking.option_count",
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_RANKING_OPTION_COUNT,
                         String.valueOf(event.getChoices().size()));
         observation.start();
         observation.error(new IllegalStateException("No ranking choice could be made"));
@@ -395,17 +397,17 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
     private static void addUsageAndCost(Observation observation, Usage usage, double cost) {
         if (usage != null) {
             if (usage.getPromptTokens() != null) {
-                observation.highCardinalityKeyValue("gen_ai.usage.input_tokens", String.valueOf(usage.getPromptTokens()));
+                observation.highCardinalityKeyValue(SpanAttributes.GEN_AI_USAGE_INPUT_TOKENS, String.valueOf(usage.getPromptTokens()));
             }
             if (usage.getCompletionTokens() != null) {
-                observation.highCardinalityKeyValue("gen_ai.usage.output_tokens", String.valueOf(usage.getCompletionTokens()));
+                observation.highCardinalityKeyValue(SpanAttributes.GEN_AI_USAGE_OUTPUT_TOKENS, String.valueOf(usage.getCompletionTokens()));
             }
             if (usage.getTotalTokens() != null) {
-                observation.highCardinalityKeyValue("gen_ai.usage.total_tokens", String.valueOf(usage.getTotalTokens()));
+                observation.highCardinalityKeyValue(SpanAttributes.GEN_AI_USAGE_TOTAL_TOKENS, String.valueOf(usage.getTotalTokens()));
             }
         }
         if (cost > 0.0) {
-            observation.highCardinalityKeyValue("embabel.llm.cost", String.valueOf(cost));
+            observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_LLM_COST, String.valueOf(cost));
         }
     }
 
