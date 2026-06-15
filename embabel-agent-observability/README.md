@@ -226,8 +226,9 @@ Your agents are now fully traced. No code changes required.
 
 | Feature | Target |
 |---------|--------|
-| Pre-built Grafana Dashboards | v1.0.x |
-| Scoped RAG span (request→response duration + enhancement children) | TBD — wrap `PipelinedRagServiceEnhancer.search()` with `instrumentation.observe{}` (needs a `RagObservationContext` + convention); currently an `embabel.rag` point span on the response event only |
+| Pre-built Grafana Dashboards | v1.0.x — ready-to-import dashboards for agent, LLM and tool-loop spans, token usage and cost, so you get visualizations out of the box without building panels yourself |
+| Scoped RAG span (request→response duration + enhancement children) | TBD — a span covering the full RAG request→response with enhancement steps as children; currently an `embabel.rag` point span on the response event only |
+| Guardrail span (`embabel.guardrail`, one per input/output phase) | TBD — a span per guardrail validation so a rejection is attributed to its own span and its latency timed (e.g. LLM-as-judge guardrails), while `embabel.llm` stays a success |
 
 ---
 
