@@ -36,6 +36,16 @@
            <artifactId>spring-ai-anthropic</artifactId>
         </dependency>
 
+        <!--
+          Spring AI 2.0's spring-ai-anthropic depends only on anthropic-java-core, not the OkHttp
+          client. AnthropicModelFactory uses AnthropicOkHttpClient directly, so declare the client
+          artifact explicitly. Version is managed by the embabel-build BOM (anthropic-java.version).
+        -->
+        <dependency>
+            <groupId>com.anthropic</groupId>
+            <artifactId>anthropic-java-client-okhttp</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-test-internal</artifactId>
