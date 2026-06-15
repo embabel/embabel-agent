@@ -152,7 +152,7 @@ class DeepSeekModelsConfig(
                     .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
                     .build()
             )
-            .defaultOptions(
+            .options(
                 DeepSeekChatOptions.builder()
                     .model(name)
                     .build()
