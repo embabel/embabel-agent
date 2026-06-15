@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.api.identity
+package com.embabel.agent.core.identity
 
 /**
  * Common interface for working with users in the system.

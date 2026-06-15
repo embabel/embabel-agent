@@ -46,7 +46,7 @@ class ConversationFactoryTest {
 
         val result = factory.createForParticipants(
             id = "test-id",
-            user = com.embabel.agent.api.identity.SimpleUser(
+            user = com.embabel.agent.core.identity.SimpleUser(
                 id = "user-1",
                 displayName = "Test User",
                 username = "testuser",

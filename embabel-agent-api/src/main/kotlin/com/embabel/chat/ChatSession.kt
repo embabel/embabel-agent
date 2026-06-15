@@ -17,7 +17,7 @@ package com.embabel.chat
 
 import com.embabel.agent.api.channel.MessageOutputChannelEvent
 import com.embabel.agent.api.channel.OutputChannel
-import com.embabel.agent.api.identity.User
+import com.embabel.agent.core.identity.User
 
 /**
  * Simplest possible conversation session implementation

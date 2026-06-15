@@ -15,8 +15,8 @@
  */
 package com.embabel.chat
 
-import com.embabel.agent.api.identity.SimpleUser
-import com.embabel.agent.api.identity.User
+import com.embabel.agent.core.identity.SimpleUser
+import com.embabel.agent.core.identity.User
 import com.embabel.chat.support.InMemoryConversation
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested

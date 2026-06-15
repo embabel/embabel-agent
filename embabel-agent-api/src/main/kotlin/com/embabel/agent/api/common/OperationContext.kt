@@ -19,7 +19,7 @@ import com.embabel.agent.api.common.support.DelegatingStreamingPromptRunner
 import com.embabel.agent.api.common.support.OperationContextDelegate
 import com.embabel.agent.api.dsl.TypedAgentScopeBuilder
 import com.embabel.agent.api.event.AgenticEventListener
-import com.embabel.agent.api.identity.User
+import com.embabel.agent.core.identity.User
 import com.embabel.agent.api.invocation.AgentInvocation
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.Action

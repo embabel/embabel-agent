@@ -16,7 +16,7 @@
 package com.embabel.chat.agent
 
 import com.embabel.agent.api.channel.DevNullOutputChannel
-import com.embabel.agent.api.identity.SimpleUser
+import com.embabel.agent.core.identity.SimpleUser
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcess

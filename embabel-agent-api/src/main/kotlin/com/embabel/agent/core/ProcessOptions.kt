@@ -19,7 +19,7 @@ import com.embabel.agent.api.channel.DevNullOutputChannel
 import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.common.PlannerType
 import com.embabel.agent.api.event.AgenticEventListener
-import com.embabel.agent.api.identity.User
+import com.embabel.agent.core.identity.Identities
 import com.embabel.agent.api.tool.ToolCallContext
 
 /**
@@ -154,33 +154,6 @@ data class Budget @JvmOverloads constructor(
 
         @JvmField
         val DEFAULT = Budget()
-
-    }
-
-}
-
-/**
- * Identities associated with an agent process.
- * @param forUser the user for whom the process is running. Can be null.
- * @param runAs the user under which the process is running. Can be null.
- */
-data class Identities
-@JvmOverloads
-constructor(
-    val forUser: User? = null,
-    val runAs: User? = null,
-) {
-
-    fun withForUser(forUser: User?): Identities =
-        this.copy(forUser = forUser)
-
-    fun withRunAs(runAs: User?): Identities =
-        this.copy(runAs = runAs)
-
-    companion object {
-
-        @JvmField
-        val DEFAULT = Identities()
 
     }
 

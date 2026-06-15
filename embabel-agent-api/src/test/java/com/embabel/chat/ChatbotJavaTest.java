@@ -17,7 +17,7 @@ package com.embabel.chat;
 
 import com.embabel.agent.api.channel.DevNullOutputChannel;
 import com.embabel.agent.api.channel.OutputChannel;
-import com.embabel.agent.api.identity.User;
+import com.embabel.agent.core.identity.User;
 import com.embabel.agent.core.Budget;
 import com.embabel.chat.support.InMemoryConversation;
 import org.jetbrains.annotations.NotNull;

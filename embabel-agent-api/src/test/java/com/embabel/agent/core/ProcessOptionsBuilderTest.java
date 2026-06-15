@@ -19,6 +19,7 @@ import com.embabel.agent.api.channel.DevNullOutputChannel;
 import com.embabel.agent.api.channel.OutputChannel;
 import com.embabel.agent.api.common.PlannerType;
 import com.embabel.agent.api.event.AgenticEventListener;
+import com.embabel.agent.core.identity.Identities;
 import com.embabel.agent.core.support.InMemoryBlackboard;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

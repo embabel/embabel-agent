@@ -15,7 +15,7 @@
  */
 package com.embabel.chat
 
-import com.embabel.agent.api.identity.User
+import com.embabel.agent.core.identity.User
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.StableIdentified
 import com.embabel.common.core.types.HasInfoString

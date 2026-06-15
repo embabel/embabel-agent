@@ -15,7 +15,7 @@
  */
 package com.embabel.chat
 
-import com.embabel.agent.api.identity.User
+import com.embabel.agent.core.identity.User
 
 /**
  * System-initiated event that triggers a chatbot response without entering the conversation.

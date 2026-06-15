@@ -20,7 +20,8 @@ import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.common.PlannerType
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.event.progress.OutputChannelHighlightingEventListener
-import com.embabel.agent.api.identity.User
+import com.embabel.agent.core.identity.Identities
+import com.embabel.agent.core.identity.User
 import com.embabel.agent.api.invocation.UtilityInvocation
 import com.embabel.agent.core.*
 import com.embabel.chat.ChatSession
