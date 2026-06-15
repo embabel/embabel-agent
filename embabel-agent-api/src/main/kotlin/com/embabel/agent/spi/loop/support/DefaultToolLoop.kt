@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.spi.loop.support
 
-import com.embabel.agent.api.common.TerminationScope
+import com.embabel.agent.core.TerminationScope
 import com.embabel.agent.api.tool.TerminateActionException
 import com.embabel.agent.core.support.AbstractAgentProcess
 import com.embabel.agent.api.tool.Tool

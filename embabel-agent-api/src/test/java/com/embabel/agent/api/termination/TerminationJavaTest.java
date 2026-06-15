@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.api.termination;
 
-import com.embabel.agent.api.common.TerminationScope;
-import com.embabel.agent.api.common.TerminationSignal;
+import com.embabel.agent.core.TerminationScope;
+import com.embabel.agent.core.TerminationSignal;
 import com.embabel.agent.api.tool.TerminateActionException;
 import com.embabel.agent.api.tool.TerminateAgentException;
 import com.embabel.agent.api.tool.TerminationException;

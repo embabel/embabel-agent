@@ -17,8 +17,8 @@
 
 package com.embabel.agent.api.termination
 
-import com.embabel.agent.api.common.TerminationScope
-import com.embabel.agent.api.common.TerminationSignal
+import com.embabel.agent.core.TerminationScope
+import com.embabel.agent.core.TerminationSignal
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.EarlyTermination
 import com.embabel.agent.core.EarlyTerminationPolicy

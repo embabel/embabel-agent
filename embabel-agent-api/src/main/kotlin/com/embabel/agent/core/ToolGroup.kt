@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.core
 
-import com.embabel.agent.api.common.TerminationScope
 import com.embabel.agent.api.tool.Tool
 import com.embabel.common.core.types.AssetCoordinates
 import com.embabel.common.core.types.HasInfoString

@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.core
 
-import com.embabel.agent.api.common.TerminationScope
+import com.embabel.agent.core.TerminationScope
 import com.embabel.agent.api.tool.Tool
 import com.embabel.common.core.types.Semver
 import org.junit.jupiter.api.Assertions.*

@@ -17,7 +17,7 @@ package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.AgentImage
 import com.embabel.agent.api.common.InteractionId
-import com.embabel.agent.api.common.TerminationScope
+import com.embabel.agent.core.TerminationScope
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolObject

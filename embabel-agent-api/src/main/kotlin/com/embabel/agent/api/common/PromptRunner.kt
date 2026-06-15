@@ -16,6 +16,7 @@
 package com.embabel.agent.api.common
 
 import com.embabel.agent.api.common.PromptRunner.Creating
+import com.embabel.agent.core.TerminationScope
 import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
