@@ -781,7 +781,7 @@ embabel:
 ==== Observability
 
 Embabel Agent provides a unified observability module that automatically traces agent lifecycle, actions, LLM calls, tool invocations, and more — with zero code changes.
-It integrates with any OpenTelemetry-compatible backend (Zipkin, Langfuse, Jaeger, Prometheus, etc.).
+It integrates with any OpenTelemetry-compatible backend (Zipkin, Langfuse, LangSmith, Jaeger, Prometheus, etc.).
 
 ===== Setup
 
@@ -806,14 +806,15 @@ Then add an exporter dependency. For example, Zipkin:
 </dependency>
 ----
 
-Or Langfuse for LLM-focused observability:
+Or the Embabel OpenTelemetry exporter for LLM-focused observability — a single exporter that sends
+spans to *Langfuse* and/or *LangSmith*:
 
 [source,xml]
 ----
 <dependency>
     <groupId>com.quantpulsar</groupId>
-    <artifactId>opentelemetry-exporter-langfuse</artifactId>
-    <version>0.4.0</version>
+    <artifactId>opentelemetry-exporter-embabel</artifactId>
+    <version>0.6.0</version>
 </dependency>
 ----
 
@@ -828,6 +829,7 @@ TIP: You can use multiple exporters simultaneously (e.g., Langfuse for traces + 
 * *Config prefix renamed:* `embabel.observability.*` -> `embabel.agent.platform.observability.*`. The old prefix is *silently ignored* (no startup error), so existing configuration stops taking effect until you rename it.
 * *`trace-http-details` now defaults to `false`* (was `true`). HTTP request/response bodies, headers and params are no longer captured unless you opt in with `trace-http-details: true`, avoiding capture of potentially sensitive HTTP payloads by default.
 * *Removed properties:* `tracer-name` and `tracer-version` no longer exist.
+* *Langfuse exporter replaced:* `com.quantpulsar:opentelemetry-exporter-langfuse:0.4.0` -> the unified `com.quantpulsar:opentelemetry-exporter-embabel:0.6.0`, which exports to *both* Langfuse (`management.langfuse.*`) and LangSmith (`management.langsmith.*`). Update the dependency.
 ====
 
 Enable observability and configure your exporter in `application.yml`:
@@ -853,7 +855,7 @@ management:
       endpoint: http://localhost:9411/api/v2/spans
 ----
 
-For Langfuse:
+For Langfuse (`management.langfuse.*`):
 
 [source,yaml]
 ----
@@ -864,6 +866,21 @@ management:
     public-key: pk-lf-...
     secret-key: sk-lf-...
 ----
+
+For LangSmith (`management.langsmith.*`) — can run alongside Langfuse:
+
+[source,yaml]
+----
+management:
+  langsmith:
+    enabled: true
+    endpoint: https://eu.api.smith.langchain.com/otel  # US: https://api.smith.langchain.com/otel — /v1/traces is appended automatically
+    api-key: lsv2_...
+    project: my-project
+    # embabel-only: true   # optional — export only Embabel/GenAI spans
+----
+
+The LangSmith exporter derives each span's `langsmith.span.kind` from its Embabel type (`embabel.llm` -> `LLM`, `embabel.tool` -> `TOOL`, embeddings -> `RETRIEVER`/`EMBEDDING`, etc.) so LangSmith renders it in the right category instead of as a generic span.
 
 ===== What Gets Traced
 
@@ -1029,6 +1046,9 @@ embabel:
           - http.server.requests
 ----
 
+NOTE: Re-parenting onto the next live ancestor also holds across async thread hops, not just within a
+single thread.
+
 ===== Custom Operation Tracking with `@Tracked`
 
 The `@Tracked` annotation lets you add observability spans to your own methods.
@@ -1158,7 +1178,11 @@ embabel:
 
 |Langfuse
 |Traces
-|`opentelemetry-exporter-langfuse`
+|`opentelemetry-exporter-embabel`
+
+|LangSmith
+|Traces
+|`opentelemetry-exporter-embabel`
 
 |Zipkin
 |Traces

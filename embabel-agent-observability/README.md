@@ -15,6 +15,10 @@
 
 ![Langfuse Tracing](docs/langfuse.png)
 
+### LangSmith
+
+![LangSmith Tracing](docs/langsmith.png)
+
 ### Zipkin
 
 ![Zipkin Tracing](docs/zipkin.png)
@@ -69,35 +73,40 @@ management:
 ### 3. Choose your exporter
 
 <details>
-<summary><b>Option A: Langfuse</b> (LLM-focused observability)</summary>
+<summary><b>Option A: Langfuse / LangSmith</b> (Embabel OpenTelemetry exporter — LLM-focused observability)</summary>
+
+A single exporter that sends spans to **Langfuse** and/or **LangSmith**. Enable either or both.
 
 ```xml
 <dependency>
     <groupId>com.quantpulsar</groupId>
-    <artifactId>opentelemetry-exporter-langfuse</artifactId>
-    <version>0.4.0</version>
+    <artifactId>opentelemetry-exporter-embabel</artifactId>
+    <version>0.6.0</version>
 </dependency>
 ```
 
-**For Langfuse Cloud:**
+**Langfuse** (`management.langfuse.*`):
 ```yaml
 management:
   langfuse:
     enabled: true
-    endpoint: https://cloud.langfuse.com/api/public/otel
+    endpoint: https://cloud.langfuse.com/api/public/otel  # self-hosted: http://localhost:3000/api/public/otel
     public-key: pk-lf-...
     secret-key: sk-lf-...
 ```
 
-**For local Langfuse instance (self-hosted):**
+**LangSmith** (`management.langsmith.*`):
 ```yaml
 management:
-  langfuse:
+  langsmith:
     enabled: true
-    endpoint: http://localhost:3000/api/public/otel
-    public-key: pk-lf-your-public-key
-    secret-key: sk-lf-your-secret-key
+    endpoint: https://eu.api.smith.langchain.com/otel  # US: https://api.smith.langchain.com/otel — /v1/traces is appended automatically
+    api-key: lsv2_...
+    project: my-project
+    # embabel-only: true   # optional — export only Embabel/GenAI spans
 ```
+
+The LangSmith exporter derives each span's `langsmith.span.kind` from its Embabel type (`embabel.llm` → `LLM`, `embabel.tool` → `TOOL`, embeddings → `RETRIEVER`/`EMBEDDING`, etc.) so LangSmith renders it in the right category instead of as a generic span.
 
 </details>
 
@@ -226,7 +235,8 @@ Your agents are now fully traced. No code changes required.
 
 | Backend | Type | Module |
 |---------|------|--------|
-| **Langfuse** | Traces | [`opentelemetry-exporter-langfuse`](https://github.com/quantpulsar/opentelemetry-exporter-langfuse) |
+| **Langfuse** | Traces | [`opentelemetry-exporter-embabel`](https://github.com/quantpulsar/opentelemetry-exporter-embabel) |
+| **LangSmith** | Traces | [`opentelemetry-exporter-embabel`](https://github.com/quantpulsar/opentelemetry-exporter-embabel) |
 | **Zipkin** | Traces | [`opentelemetry-exporter-zipkin`](https://github.com/open-telemetry/opentelemetry-java) |
 | **OTLP** (Jaeger, Tempo) | Traces | [`opentelemetry-exporter-otlp`](https://github.com/open-telemetry/opentelemetry-java) |
 | **Prometheus** | Metrics | [`micrometer-registry-prometheus`](https://github.com/micrometer-metrics/micrometer) |
@@ -243,6 +253,7 @@ Your agents are now fully traced. No code changes required.
 > - **Config prefix renamed:** `embabel.observability.*` → `embabel.agent.platform.observability.*`. The old prefix is **silently ignored** (no startup error), so existing config stops taking effect until you rename it. Update every property in your `application.yml`/`application.properties`.
 > - **`trace-http-details` now defaults to `false`** (was `true`). HTTP request/response bodies, headers and params are no longer captured unless you opt in with `trace-http-details: true`. This avoids capturing potentially sensitive HTTP payloads by default.
 > - **Removed properties:** `tracer-name` and `tracer-version` no longer exist.
+> - **Langfuse exporter replaced:** `com.quantpulsar:opentelemetry-exporter-langfuse:0.4.0` → the unified `com.quantpulsar:opentelemetry-exporter-embabel:0.6.0`, which exports to **both** Langfuse (`management.langfuse.*`) and LangSmith (`management.langsmith.*`). Update the dependency.
 
 | Property | Default | Description |
 |----------|---------|-------------|
@@ -575,6 +586,10 @@ This produces logs like:
 ```
 14:23:45.123 [main] INFO  c.e.MyService [runId=abc-123 agent=CustomerServiceAgent action=AnalyzeRequest] - Processing request
 ```
+
+The keys are propagated across the agent's internal thread hops (planning loop, tool loop, async
+fan-out), so log lines emitted off the calling thread keep the same `runId`/`agent`/`action`
+correlation. This works whether or not tracing is enabled.
 
 To disable MDC propagation:
 ```yaml
