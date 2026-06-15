@@ -611,6 +611,7 @@ When a `MeterRegistry` is available (e.g. via `micrometer-registry-prometheus`),
 |--------|------|------|-------------|
 | `embabel.agent.active` | Gauge | — | Number of agent processes currently running |
 | `embabel.agent.duration` | Timer | `agent`, `status` | Agent process duration (completed/failed) |
+| `embabel.agent.active_duration` | Timer | `agent`, `status` | Agent active duration (sum of action run times, excludes idle/wait) |
 | `embabel.agent.errors.total` | Counter | `agent` | Total agent process failures |
 | `embabel.agent.stuck.total` | Counter | `agent` | Agent stuck events (unable to plan) |
 | `embabel.llm.requests.total` | Counter | `agent`, `model` | Total LLM requests |
