@@ -412,7 +412,10 @@ internal data class OperationContextDelegate(
             )
     }
 
-    override fun supportsThinking(): Boolean = true
+    override fun supportsThinking(): Boolean {
+        val llmOperations = context.agentPlatform().platformServices.llmOperations
+        return llmOperations.supportsThinking(this.llm)
+    }
 
     // Patterned after createObject() - uses ProcessContext flow
     override fun <T> createObjectWithThinking(

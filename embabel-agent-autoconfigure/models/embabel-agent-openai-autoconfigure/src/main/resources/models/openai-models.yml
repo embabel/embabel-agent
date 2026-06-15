@@ -11,6 +11,31 @@
 # Note: cached_input pricing is intentionally omitted — PerTokenPricingModel
 #       only supports usd_per1m_input_tokens and usd_per1m_output_tokens.
 
+native_support_defaults:
+  structured_output:
+    # Default native structured-output metadata for OpenAI models.
+    # The tag names under options are documentation-only for now; the current
+    # configurer still uses Spring AI option objects for payload mutation.
+    supported: true
+    strategy: "response_format"
+    strict: false
+    prompt_instructions: "include"
+    options:
+      # Documentation only for now.
+      response_format_field: "response_format"
+      # Documentation only for now.
+      type_field: "type"
+      # Documentation only for now.
+      type_value: "json_schema"
+      # Documentation only for now.
+      json_schema_field: "json_schema"
+      # Documentation only for now.
+      name_field: "name"
+      # Documentation only for now.
+      schema_field: "schema"
+      # Documentation only for now.
+      strict_field: "strict"
+
 models:
   # ========================================
   # GPT-5.4 FAMILY (Current Flagship - March 2026)

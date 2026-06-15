@@ -16,6 +16,8 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.spi.support.springai.streaming.SpringAiLlmMessageStreamer
+import com.embabel.common.ai.autoconfig.NativeStructuredOutputCapability
+import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
@@ -78,6 +80,37 @@ class SpringAiLlmServiceTest {
             assertThat(service.knowledgeCutoffDate).isEqualTo(cutoffDate)
             assertThat(service.promptContributors).hasSize(1)
             assertThat(service.pricingModel).isEqualTo(pricingModel)
+        }
+
+        @Test
+        fun `creates service with native support metadata`() {
+            val nativeSupport = NativeSupport(
+                structuredOutput = NativeStructuredOutputCapability(
+                    supported = true,
+                    strategy = "response_format",
+                )
+            )
+
+            val service = SpringAiLlmService(
+                name = "native-model",
+                provider = "Provider",
+                chatModel = mockChatModel,
+                nativeSupport = nativeSupport,
+            )
+
+            assertThat(service.nativeSupport).isEqualTo(nativeSupport)
+        }
+
+        @Test
+        fun `creates service with thinking capability`() {
+            val service = SpringAiLlmService(
+                name = "thinking-model",
+                provider = "Provider",
+                chatModel = mockChatModel,
+                thinkingSupported = true,
+            )
+
+            assertThat(service.supportsThinking()).isTrue()
         }
 
         @Test

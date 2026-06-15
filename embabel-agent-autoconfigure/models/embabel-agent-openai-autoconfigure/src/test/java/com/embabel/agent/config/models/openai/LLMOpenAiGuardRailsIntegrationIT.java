@@ -25,11 +25,15 @@ import com.embabel.agent.api.validation.guardrails.UserInputGuardRail;
 import com.embabel.agent.autoconfigure.models.openai.AgentOpenAiAutoConfiguration;
 import com.embabel.agent.core.Blackboard;
 import com.embabel.agent.spi.LlmService;
+import com.embabel.common.ai.model.DefaultModelSelectionCriteria;
+import com.embabel.common.ai.model.LlmOptions;
+import com.embabel.common.ai.model.NativeStructuredOutputMode;
 import com.embabel.common.core.thinking.ThinkingBlock;
 import com.embabel.common.core.thinking.ThinkingResponse;
 import com.embabel.common.core.validation.ValidationError;
 import com.embabel.common.core.validation.ValidationResult;
 import com.embabel.common.core.validation.ValidationSeverity;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.moderations.ModerationCreateParams;
@@ -46,7 +50,8 @@ import org.springframework.ai.openai.OpenAiModerationModel;
 import org.springframework.ai.openai.api.OpenAiModerationApi;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -61,6 +66,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static com.embabel.common.ai.model.NativeStructuredOutputModeKt.withNativeStructuredOutput;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -293,6 +299,7 @@ class GuardRailConfiguration {
  * Tests integration with OpenAI Moderation API as a guardrail provider.
  */
 @SpringBootTest(
+        classes = LLMOpenAiGuardRailsIntegrationIT.TestApplication.class,
         properties = {
                 "embabel.models.cheapest=gpt-4.1-mini",
                 "embabel.models.best=gpt-4.1-mini",
@@ -324,12 +331,6 @@ class GuardRailConfiguration {
         }
 )
 @ActiveProfiles("thinking")
-@ConfigurationPropertiesScan(
-        basePackages = {
-                "com.embabel.agent",
-                "com.embabel.example"
-        }
-)
 @ComponentScan(
         basePackages = {
                 "com.embabel.agent",
@@ -344,6 +345,11 @@ class GuardRailConfiguration {
 )
 @Import({AgentOpenAiAutoConfiguration.class, GuardRailConfiguration.class})
 class LLMOpenAiGuardRailsIntegrationIT {
+
+    @SpringBootConfiguration
+    @EnableAutoConfiguration
+    static class TestApplication {
+    }
 
 
     private static final Logger logger = LoggerFactory.getLogger(LLMOpenAiGuardRailsIntegrationIT.class);
@@ -372,6 +378,7 @@ class LLMOpenAiGuardRailsIntegrationIT {
                 .withToolObject(new Tooling())
                 .withGenerateExamples(true)
                 .withGuardRails(openAiGuardRail, new ThinkingBlocksGuardRail());
+        assertTrue(runner.supportsThinking(), "Expected OpenAI prompt runner to support thinking");
 
         String prompt = """
                 What is the hottest month in Florida and  provide its temperature.
@@ -401,6 +408,7 @@ class LLMOpenAiGuardRailsIntegrationIT {
                 .withToolObject(new Tooling())
                 .withGuardRails(springAiGuardRail)
                 .withGuardRails(new ThinkingBlocksGuardRail());
+        assertTrue(runner.supportsThinking(), "Expected OpenAI prompt runner to support thinking");
 
         String prompt = """ 
                 Think about the coldest month in Alaska and its temperature.
@@ -440,8 +448,10 @@ class LLMOpenAiGuardRailsIntegrationIT {
      * Simple data class for testing thinking object creation
      */
     static class MonthItem {
+        @JsonProperty(required = true)
         private String name;
 
+        @JsonProperty(required = true)
         private Integer temperature;
 
         public MonthItem() {
@@ -597,7 +607,7 @@ class LLMOpenAiGuardRailsIntegrationIT {
      * that previously skipped guardrail validation for non-String/non-AssistantMessage types.
      */
     @Test
-    void testGuardRailInvokedForStructuredCreateObject() {
+    void testGuardRailInvokedForNativeStructuredCreateObject() {
         logger.info("Starting guardrail structured createObject test");
 
         List<String> guardRailCalled = Collections.synchronizedList(new ArrayList<>());
@@ -626,7 +636,12 @@ class LLMOpenAiGuardRailsIntegrationIT {
             }
         };
 
-        PromptRunner runner = ai.withDefaultLlm()
+        PromptRunner runner = ai.withLlm(
+                withNativeStructuredOutput(
+                        LlmOptions.fromCriteria(DefaultModelSelectionCriteria.INSTANCE),
+                        NativeStructuredOutputMode.ENABLED
+                )
+        )
                 .withGuardRails(trackingGuard);
 
         String prompt = """

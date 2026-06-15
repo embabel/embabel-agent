@@ -429,6 +429,11 @@ abstract class AbstractLlmOperations(
         return llmService.supportsStreaming()
     }
 
+    override fun supportsThinking(options: LlmOptions): Boolean {
+        val llmService = chooseLlm(options)
+        return llmService.supportsThinking()
+    }
+
     override fun createStreamingOperations(options: LlmOptions): StreamingLlmOperations {
         val llmService = chooseLlm(options)
         val messageStreamer = llmService.createMessageStreamer(options)

@@ -20,6 +20,7 @@ import com.embabel.agent.config.models.anthropic.AnthropicProperties.Companion.P
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.agent.spi.support.springai.SpringAiNativeStructuredOutputConfigurer
 import com.embabel.chat.MessageRole
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.autoconfig.ProviderInitialization
@@ -113,6 +114,8 @@ class AnthropicModelsConfig(
     restClientBuilder: ObjectProvider<RestClient.Builder>,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     private val modelLoader: LlmAutoConfigMetadataLoader<AnthropicModelDefinitions> = AnthropicModelLoader(),
+    private val nativeStructuredOutputConfigurer: SpringAiNativeStructuredOutputConfigurer =
+        SpringAiNativeStructuredOutputConfigurer.NOOP,
 ) : AnthropicModelFactory(
     apiKey = envApiKey ?: properties.apiKey
         ?: error("Anthropic API key required: set ANTHROPIC_API_KEY env var or embabel.agent.platform.models.anthropic.api-key"),
@@ -127,11 +130,12 @@ class AnthropicModelsConfig(
 
     @Bean
     fun anthropicModelsInitializer(): ProviderInitialization {
+        val definitions = modelLoader.loadAutoConfigMetadata()
+        val effectiveModels = definitions.effectiveModels()
         val registeredLlms = buildList {
-            modelLoader
-                .loadAutoConfigMetadata().models.forEach { modelDef ->
-                    try {
-                        val llm = createAnthropicLlm(modelDef)
+            effectiveModels.forEach { modelDef ->
+                try {
+                    val llm = createAnthropicLlm(modelDef)
 
                         // Register as singleton bean with the configured bean name
                         configurableBeanFactory.registerSingleton(modelDef.name, llm)
@@ -182,13 +186,16 @@ class AnthropicModelsConfig(
             chatModel = chatModel,
             provider = AnthropicModels.PROVIDER,
             optionsConverter = AnthropicOptionsConverter,
+            thinkingSupported = true,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
             pricingModel = modelDef.pricingModel?.let {
                 PerTokenPricingModel(
                     usdPer1mInputTokens = it.usdPer1mInputTokens,
                     usdPer1mOutputTokens = it.usdPer1mOutputTokens,
                 )
-            }
+            },
+            nativeStructuredOutputConfigurer = nativeStructuredOutputConfigurer,
+            nativeSupport = modelDef.nativeSupport,
         )
     }
 

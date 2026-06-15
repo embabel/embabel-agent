@@ -17,11 +17,123 @@ package com.embabel.agent.config.models.openai
 
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
-import org.springframework.core.io.DefaultResourceLoader
-import java.io.File
-import java.nio.file.Files
+import org.junit.jupiter.api.Nested
+import org.springframework.core.io.ByteArrayResource
+import org.springframework.core.io.ResourceLoader
 
 class OpenAiModelLoaderTest {
+
+    @Nested
+    inner class NativeSupportTests {
+
+        @Test
+        fun `default YAML loads native structured-output metadata for chat models`() {
+            val loader = OpenAiModelLoader()
+
+            val result = loader.loadAutoConfigMetadata()
+            val defaults = result.nativeSupportDefaults
+            assertNotNull(defaults)
+            val structuredOutput = defaults?.structuredOutput
+            assertNotNull(structuredOutput)
+            assertEquals("response_format", structuredOutput?.strategy)
+            assertEquals(false, structuredOutput?.strict)
+            assertEquals("include", structuredOutput?.promptInstructions)
+            assertEquals("response_format", structuredOutput?.options?.get("response_format_field"))
+            assertEquals("json_schema", structuredOutput?.options?.get("type_value"))
+            assertEquals("json_schema", structuredOutput?.options?.get("json_schema_field"))
+
+            val effectiveModel = result.effectiveModels().first { it.name == "gpt54" }
+            assertNotNull(effectiveModel.nativeSupport)
+            assertEquals("response_format", effectiveModel.nativeSupport?.structuredOutput?.strategy)
+        }
+
+        @Test
+        fun `model native support overrides defaults in YAML`() {
+            val tempYaml = createTempYamlFile("""
+                native_support_defaults:
+                  structured_output:
+                    supported: true
+                    strategy: response_format
+                    strict: true
+                    prompt_instructions: include
+                    options:
+                      response_format_field: response_format
+                      json_schema_field: json_schema
+                models:
+                  - name: alias-model
+                    model_id: gpt-alias
+                    native_support:
+                      structured_output:
+                        supported: true
+                        strategy: response_format
+                        strict: false
+                        prompt_instructions: suppress
+                        options:
+                          response_format_field: response_format
+                          json_schema_field: custom_json_schema
+            """.trimIndent())
+
+            val loader = OpenAiModelLoader(
+                resourceLoader = tempYaml.resourceLoader,
+                configPath = tempYaml.configPath
+            )
+
+            val result = loader.loadAutoConfigMetadata()
+            val model = result.effectiveModels().single()
+            val structuredOutput = model.nativeSupport?.structuredOutput
+
+            assertNotNull(structuredOutput)
+            assertEquals(true, structuredOutput?.supported)
+            assertEquals("response_format", structuredOutput?.strategy)
+            assertEquals(false, structuredOutput?.strict)
+            assertEquals("suppress", structuredOutput?.promptInstructions)
+            assertEquals("response_format", structuredOutput?.options?.get("response_format_field"))
+            assertEquals("custom_json_schema", structuredOutput?.options?.get("json_schema_field"))
+        }
+
+        @Test
+        fun `native support defaults and overrides merge in YAML`() {
+            val tempYaml = createTempYamlFile("""
+                native_support_defaults:
+                  structured_output:
+                    supported: true
+                    strategy: response_format
+                    strict: true
+                    prompt_instructions: include
+                    options:
+                      response_format_field: response_format
+                      json_schema_field: json_schema
+                models:
+                  - name: alias-model
+                    model_id: gpt-alias
+                    native_support:
+                      structured_output:
+                        supported: true
+                        strategy: response_format
+                        strict: true
+                        prompt_instructions: include
+                        options:
+                          response_format_field: response_format
+                          json_schema_field: json_schema
+            """.trimIndent())
+
+            val loader = OpenAiModelLoader(
+                resourceLoader = tempYaml.resourceLoader,
+                configPath = tempYaml.configPath
+            )
+
+            val result = loader.loadAutoConfigMetadata()
+            val model = result.effectiveModels().single()
+            val structuredOutput = model.nativeSupport?.structuredOutput
+
+            assertNotNull(structuredOutput)
+            assertEquals("response_format", structuredOutput?.strategy)
+            assertEquals("include", structuredOutput?.promptInstructions)
+            assertEquals("response_format", structuredOutput?.options?.get("response_format_field"))
+            assertEquals("json_schema", structuredOutput?.options?.get("json_schema_field"))
+        }
+
+    }
 
     @Test
     fun `should load valid model definitions from default YAML file`() {
@@ -150,7 +262,7 @@ class OpenAiModelLoaderTest {
     fun `should return empty definitions when file does not exist`() {
         // Arrange
         val loader = OpenAiModelLoader(
-            resourceLoader = DefaultResourceLoader(),
+            resourceLoader = org.springframework.core.io.DefaultResourceLoader(),
             configPath = "classpath:nonexistent-file.yml"
         )
 
@@ -166,13 +278,11 @@ class OpenAiModelLoaderTest {
     @Test
     fun `should handle invalid YAML gracefully`() {
         // Arrange
-        val tempFile = Files.createTempFile("invalid", ".yml").toFile()
-        tempFile.writeText("invalid: yaml: content: ][")
-        tempFile.deleteOnExit()
+        val tempYaml = createTempYamlFile("invalid: yaml: content: ][")
 
         val loader = OpenAiModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act
@@ -187,7 +297,7 @@ class OpenAiModelLoaderTest {
     @Test
     fun `should validate model with invalid maxTokens`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             models:
               - name: test-model
                 model_id: gpt-test
@@ -195,8 +305,8 @@ class OpenAiModelLoaderTest {
         """.trimIndent())
 
         val loader = OpenAiModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act & Assert
@@ -207,7 +317,7 @@ class OpenAiModelLoaderTest {
     @Test
     fun `should validate model with invalid temperature`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             models:
               - name: test-model
                 model_id: gpt-test
@@ -215,8 +325,8 @@ class OpenAiModelLoaderTest {
         """.trimIndent())
 
         val loader = OpenAiModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act & Assert
@@ -227,7 +337,7 @@ class OpenAiModelLoaderTest {
     @Test
     fun `should validate model with invalid topP`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             models:
               - name: test-model
                 model_id: gpt-test
@@ -235,8 +345,8 @@ class OpenAiModelLoaderTest {
         """.trimIndent())
 
         val loader = OpenAiModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act & Assert
@@ -247,15 +357,15 @@ class OpenAiModelLoaderTest {
     @Test
     fun `should validate model with blank name`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             models:
               - name: ""
                 model_id: gpt-test
         """.trimIndent())
 
         val loader = OpenAiModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act & Assert
@@ -266,7 +376,7 @@ class OpenAiModelLoaderTest {
     @Test
     fun `should load valid model with all optional fields`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             models:
               - name: test-model
                 model_id: gpt-test
@@ -282,8 +392,8 @@ class OpenAiModelLoaderTest {
         """.trimIndent())
 
         val loader = OpenAiModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act
@@ -308,7 +418,7 @@ class OpenAiModelLoaderTest {
     @Test
     fun `should load multiple models correctly`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             models:
               - name: model-1
                 model_id: gpt-1
@@ -319,8 +429,8 @@ class OpenAiModelLoaderTest {
         """.trimIndent())
 
         val loader = OpenAiModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act
@@ -337,15 +447,15 @@ class OpenAiModelLoaderTest {
     @Test
     fun `should load model with minimal fields`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             models:
               - name: minimal-model
                 model_id: gpt-minimal
         """.trimIndent())
 
         val loader = OpenAiModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act
@@ -367,7 +477,7 @@ class OpenAiModelLoaderTest {
     @Test
     fun `should validate embedding model with invalid dimensions`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             embedding_models:
               - name: test-embedding
                 model_id: text-embedding-test
@@ -375,8 +485,8 @@ class OpenAiModelLoaderTest {
         """.trimIndent())
 
         val loader = OpenAiModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act & Assert
@@ -387,7 +497,7 @@ class OpenAiModelLoaderTest {
     @Test
     fun `should validate embedding model with blank name`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             embedding_models:
               - name: ""
                 model_id: text-embedding-test
@@ -395,8 +505,8 @@ class OpenAiModelLoaderTest {
         """.trimIndent())
 
         val loader = OpenAiModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act & Assert
@@ -407,7 +517,7 @@ class OpenAiModelLoaderTest {
     @Test
     fun `should load valid embedding model with all fields`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             embedding_models:
               - name: test-embedding
                 model_id: text-embedding-test
@@ -418,8 +528,8 @@ class OpenAiModelLoaderTest {
         """.trimIndent())
 
         val loader = OpenAiModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act
@@ -439,7 +549,7 @@ class OpenAiModelLoaderTest {
     @Test
     fun `should load multiple embedding models correctly`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             embedding_models:
               - name: embedding-1
                 model_id: text-embedding-1
@@ -450,8 +560,8 @@ class OpenAiModelLoaderTest {
         """.trimIndent())
 
         val loader = OpenAiModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act
@@ -468,7 +578,7 @@ class OpenAiModelLoaderTest {
     @Test
     fun `should load both LLM and embedding models from same file`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             models:
               - name: llm-1
                 model_id: gpt-test-1
@@ -486,8 +596,8 @@ class OpenAiModelLoaderTest {
         """.trimIndent())
 
         val loader = OpenAiModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act
@@ -501,7 +611,7 @@ class OpenAiModelLoaderTest {
     @Test
     fun `should validate embedding model with invalid pricing`() {
         // Arrange
-        val tempFile = createTempYamlFile("""
+        val tempYaml = createTempYamlFile("""
             embedding_models:
               - name: test-embedding
                 model_id: text-embedding-test
@@ -511,8 +621,8 @@ class OpenAiModelLoaderTest {
         """.trimIndent())
 
         val loader = OpenAiModelLoader(
-            resourceLoader = DefaultResourceLoader(),
-            configPath = "file:${tempFile.absolutePath}"
+            resourceLoader = tempYaml.resourceLoader,
+            configPath = tempYaml.configPath
         )
 
         // Act & Assert
@@ -520,10 +630,20 @@ class OpenAiModelLoaderTest {
         assertTrue(result.embeddingModels.isEmpty(), "Should fail validation for negative pricing")
     }
 
-    private fun createTempYamlFile(content: String): File {
-        val tempFile = Files.createTempFile("test-openai", ".yml").toFile()
-        tempFile.writeText(content)
-        tempFile.deleteOnExit()
-        return tempFile
+    private data class TempYamlResource(
+        val resourceLoader: ResourceLoader,
+        val configPath: String,
+    )
+
+    private fun createTempYamlFile(content: String): TempYamlResource {
+        val resource = ByteArrayResource(content.toByteArray())
+        val resourceLoader = object : ResourceLoader {
+            override fun getResource(location: String) = resource
+            override fun getClassLoader() = javaClass.classLoader
+        }
+        return TempYamlResource(
+            resourceLoader = resourceLoader,
+            configPath = "memory:test-openai.yml"
+        )
     }
 }

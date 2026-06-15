@@ -42,6 +42,33 @@ class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport<GoogleGenAiC
     }
 
     @Test
+    fun `should set include thoughts when thinking extraction is enabled`() {
+        val options = optionsConverter.convertOptions(
+            LlmOptions().withThinking(Thinking.withExtraction())
+        )
+        assertEquals(true, options.includeThoughts)
+    }
+
+    @Test
+    fun `should set thinking budget and include thoughts together`() {
+        val options = optionsConverter.convertOptions(
+            LlmOptions().withThinking(
+                Thinking.withTokenBudget(2000).applyExtraction()
+            )
+        )
+        assertEquals(true, options.includeThoughts)
+        assertEquals(2000, options.thinkingBudget)
+    }
+
+    @Test
+    fun `should not set include thoughts when extraction is disabled`() {
+        val options = optionsConverter.convertOptions(
+            LlmOptions().withThinking(Thinking.withTokenBudget(2000))
+        )
+        assertEquals(false, options.includeThoughts)
+    }
+
+    @Test
     fun `should not set thinking budget when thinking is null`() {
         val options = optionsConverter.convertOptions(LlmOptions())
         assertNull(options.thinkingBudget)
