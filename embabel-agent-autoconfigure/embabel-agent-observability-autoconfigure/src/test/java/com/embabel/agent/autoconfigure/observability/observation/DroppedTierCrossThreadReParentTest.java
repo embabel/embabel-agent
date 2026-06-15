@@ -23,7 +23,7 @@ import com.embabel.agent.autoconfigure.observability.EmbabelTracingContextPropag
 import com.embabel.agent.autoconfigure.observability.ObservabilityAutoConfiguration;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.observability.ObservabilityProperties;
-import com.embabel.agent.observability.observation.MicrometerAgentInstrumentation;
+import com.embabel.agent.observability.tracing.MicrometerAgentInstrumentation;
 import com.embabel.agent.spi.support.ExecutorAsyncer;
 import com.embabel.plan.Action;
 import io.micrometer.observation.Observation;

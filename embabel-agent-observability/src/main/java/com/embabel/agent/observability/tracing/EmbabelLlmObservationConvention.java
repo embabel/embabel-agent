@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.observability.observation;
+package com.embabel.agent.observability.tracing;
 
 import com.embabel.agent.observability.SpanAttributes;
 

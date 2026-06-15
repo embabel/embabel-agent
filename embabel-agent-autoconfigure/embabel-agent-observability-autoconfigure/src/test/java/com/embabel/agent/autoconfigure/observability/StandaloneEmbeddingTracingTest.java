@@ -36,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * End-to-end wiring test for standalone (non-agent) embedding tracing.
  *
- * <p>Verifies that {@link com.embabel.agent.observability.observation.EmbabelSpanEventListener},
+ * <p>Verifies that {@link com.embabel.agent.observability.tracing.EmbabelSpanEventListener},
  * registered by {@link ObservabilityAutoConfiguration}, is picked up as an
  * {@link com.embabel.agent.api.event.EmbeddingEventListener} bean and folded by
  * {@link EmbeddingTrackingConfiguration}'s bean post-processor into the {@code EmbeddingOperations}

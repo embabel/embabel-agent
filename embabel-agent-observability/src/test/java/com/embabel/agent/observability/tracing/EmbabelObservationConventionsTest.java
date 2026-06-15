@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.observability.observation;
+package com.embabel.agent.observability.tracing;
 
 import com.embabel.agent.api.common.PlannerType;
 import com.embabel.agent.api.event.LlmRequestEvent;
@@ -23,11 +23,9 @@ import com.embabel.agent.api.event.observation.AgentObservationContext;
 import com.embabel.agent.api.event.observation.LlmObservationContext;
 import com.embabel.agent.api.event.observation.ToolLoopObservationContext;
 import com.embabel.agent.api.identity.User;
-import com.embabel.agent.core.Agent;
 import com.embabel.agent.core.ActionStatusCode;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.AgentProcessStatusCode;
-import com.embabel.agent.core.ProcessOptions;
 import com.embabel.chat.Conversation;
 import com.embabel.common.ai.model.LlmMetadata;
 import com.embabel.chat.Message;

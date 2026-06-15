@@ -16,7 +16,7 @@
 package com.embabel.agent.autoconfigure.observability;
 
 import com.embabel.agent.observability.ObservabilityProperties;
-import com.embabel.agent.observability.observation.TrackedAspect;
+import com.embabel.agent.observability.tracing.TrackedAspect;
 import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;

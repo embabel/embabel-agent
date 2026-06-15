@@ -17,8 +17,8 @@ package com.embabel.agent.autoconfigure.observability;
 
 import com.embabel.agent.observability.ObservabilityProperties;
 import com.embabel.agent.observability.metrics.EmbabelMetricsEventListener;
-import com.embabel.agent.observability.observation.ChatModelObservationFilter;
-import com.embabel.agent.observability.observation.EmbabelSpanEventListener;
+import com.embabel.agent.observability.tracing.ChatModelObservationFilter;
+import com.embabel.agent.observability.tracing.EmbabelSpanEventListener;
 import com.embabel.agent.observability.mdc.MdcPropagationEventListener;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;

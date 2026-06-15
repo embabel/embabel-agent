@@ -17,7 +17,7 @@ package com.embabel.agent.autoconfigure.observability.observation;
 
 import com.embabel.agent.api.event.observation.AgentInstrumentation;
 import com.embabel.agent.api.event.observation.NoOpAgentInstrumentation;
-import com.embabel.agent.observability.observation.MicrometerAgentInstrumentation;
+import com.embabel.agent.observability.tracing.MicrometerAgentInstrumentation;
 import com.embabel.agent.spi.support.ExecutorAsyncer;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;

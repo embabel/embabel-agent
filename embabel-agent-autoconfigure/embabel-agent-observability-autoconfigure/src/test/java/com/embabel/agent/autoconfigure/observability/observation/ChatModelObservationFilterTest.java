@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.autoconfigure.observability.observation;
 
-import com.embabel.agent.observability.observation.ChatModelObservationFilter;
+import com.embabel.agent.observability.tracing.ChatModelObservationFilter;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.Tracer;
