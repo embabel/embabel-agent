@@ -94,9 +94,7 @@ class DroppedTierCrossThreadReParentTest {
 
         observationRegistry = ObservationRegistry.create();
         observationRegistry.observationConfig().observationHandler(new DefaultTracingObservationHandler(tracer));
-        ObservabilityProperties props = new ObservabilityProperties();
-        props.setTraceAction(false); // DROP the action tier
-        new ObservabilityAutoConfiguration().embabelTierFilterCustomizer(props).customize(observationRegistry);
+        // The tier filter is applied per-test (dropped vs live action), see applyTierFilter(...).
 
         asyncerExecutor = Executors.newFixedThreadPool(4);
         asyncer = new ExecutorAsyncer(asyncerExecutor);
@@ -116,32 +114,45 @@ class DroppedTierCrossThreadReParentTest {
         spanExporter.reset();
     }
 
-    @Test
-    @DisplayName("trace-action=false + async LLM: the LLM span nests under the agent across the dropped action")
-    void llmReParentsToAgentAcrossDroppedActionOnAnotherThread() {
+    private void applyTierFilter(boolean traceAction) {
+        ObservabilityProperties props = new ObservabilityProperties();
+        props.setTraceAction(traceAction);
+        new ObservabilityAutoConfiguration().embabelTierFilterCustomizer(props).customize(observationRegistry);
+    }
+
+    /**
+     * Runs agent (live) &gt; action &gt; async hop &gt; llm (live) through the real adapter + asyncer, asserts
+     * the LLM ran on a worker thread, and returns the exported spans.
+     */
+    private List<SpanData> runAgentActionAsyncLlm() {
         MicrometerAgentInstrumentation adapter = new MicrometerAgentInstrumentation(observationRegistry);
         long callerThreadId = Thread.currentThread().threadId();
         final long[] llmThreadId = {callerThreadId};
 
-        // agent (live) > action (dropped) > async hop > llm (live)
         adapter.observe((Function0<Observation.Context>) () -> new AgentObservationContext(mock(AgentProcess.class)),
                 (Function0<Object>) () ->
                         adapter.observe((Function0<Observation.Context>) () ->
                                         new ActionObservationContext(mock(AgentProcess.class), mock(Action.class)),
-                                (Function0<Object>) () -> {
-                                    // dispatch the LLM call onto the asyncer pool (a different thread)
-                                    return asyncer.async((Function0<Object>) () -> {
-                                        llmThreadId[0] = Thread.currentThread().threadId();
-                                        return adapter.observe(
-                                                (Function0<Observation.Context>) () ->
-                                                        new LlmObservationContext(mock(LlmRequestEvent.class)),
-                                                (Function0<Object>) () -> null);
-                                    }).join();
-                                }));
+                                (Function0<Object>) () ->
+                                        // dispatch the LLM call onto the asyncer pool (a different thread)
+                                        asyncer.async((Function0<Object>) () -> {
+                                            llmThreadId[0] = Thread.currentThread().threadId();
+                                            return adapter.observe(
+                                                    (Function0<Observation.Context>) () ->
+                                                            new LlmObservationContext(mock(LlmRequestEvent.class)),
+                                                    (Function0<Object>) () -> null);
+                                        }).join()));
 
         assertThat(llmThreadId[0]).as("LLM ran on a worker thread, not the caller").isNotEqualTo(callerThreadId);
+        return spanExporter.getFinishedSpanItems();
+    }
 
-        List<SpanData> spans = spanExporter.getFinishedSpanItems();
+    @Test
+    @DisplayName("trace-action=false + async LLM: the LLM span nests under the agent across the dropped action")
+    void llmReParentsToAgentAcrossDroppedActionOnAnotherThread() {
+        applyTierFilter(false); // DROP the action tier
+
+        List<SpanData> spans = runAgentActionAsyncLlm();
         // action dropped => only agent + llm are exported
         assertThat(spans).as("agent + llm exported; action dropped").hasSize(2);
 
@@ -155,5 +166,29 @@ class DroppedTierCrossThreadReParentTest {
         assertThat(llm.getParentSpanId())
                 .as("the LLM nests directly under the agent across the dropped action")
                 .isEqualTo(agent.getSpanId());
+    }
+
+    @Test
+    @DisplayName("NO REGRESSION: with the span accessor registered, the live-action path still nests agent > action > llm in one trace")
+    void liveActionPathStillNestsCorrectlyWithAccessorRegistered() {
+        applyTierFilter(true); // action stays LIVE (default)
+
+        List<SpanData> spans = runAgentActionAsyncLlm();
+        // all three tiers exported; the accessor must not double-scope or re-root anything
+        assertThat(spans).as("agent + action + llm all exported").hasSize(3);
+        assertThat(spans.stream().map(SpanData::getTraceId).distinct().count())
+                .as("the whole chain stays in a single trace").isEqualTo(1L);
+
+        SpanData agent = spans.stream()
+                .filter(s -> !SpanId.isValid(s.getParentSpanId())).findFirst().orElseThrow();
+        // the live action span sits between agent and llm
+        SpanData action = spans.stream()
+                .filter(s -> agent.getSpanId().equals(s.getParentSpanId())).findFirst().orElseThrow();
+        SpanData llm = spans.stream()
+                .filter(s -> action.getSpanId().equals(s.getParentSpanId())).findFirst().orElseThrow();
+
+        assertThat(llm.getParentSpanId())
+                .as("LLM nests under the live action (not re-rooted to the agent)")
+                .isEqualTo(action.getSpanId());
     }
 }

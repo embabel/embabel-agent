@@ -1137,6 +1137,8 @@ This produces logs like:
 14:23:45.123 [main] INFO  c.e.MyService [runId=abc-123 agent=CustomerServiceAgent action=AnalyzeRequest] - Processing request
 ----
 
+The keys are propagated across the agent's internal thread hops (planning loop, tool loop, async fan-out): work dispatched through Embabel's `Asyncer` carries the MDC keys to the worker thread, so log lines emitted off the calling thread keep the same `runId`/`agent`/`action` correlation. This works whether or not tracing is enabled.
+
 To disable MDC propagation:
 
 [source,yaml]

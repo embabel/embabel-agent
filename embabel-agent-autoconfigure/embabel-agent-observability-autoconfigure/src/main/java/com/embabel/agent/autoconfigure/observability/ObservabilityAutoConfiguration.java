@@ -283,6 +283,21 @@ public class ObservabilityAutoConfiguration {
     }
 
     /**
+     * Registers the MDC {@code ThreadLocalAccessor} so the Embabel correlation keys (set by
+     * {@link MdcPropagationEventListener}) cross async thread hops via {@code ExecutorAsyncer}'s
+     * context snapshot. Without it, MDC stays thread-local and the keys show up empty on worker
+     * threads (run loop, tool loop, fan-out). Gated by the same {@code mdc-propagation} switch.
+     *
+     * @return the MDC context-propagation registrar
+     */
+    @Bean
+    @ConditionalOnMissingBean(EmbabelMdcContextPropagationRegistrar.class)
+    @ConditionalOnProperty(prefix = "embabel.agent.platform.observability", name = "mdc-propagation", havingValue = "true", matchIfMissing = true)
+    public EmbabelMdcContextPropagationRegistrar embabelMdcContextPropagationRegistrar() {
+        return new EmbabelMdcContextPropagationRegistrar();
+    }
+
+    /**
      * Creates the Micrometer business metrics listener.
      *
      * @param meterRegistry the meter registry
