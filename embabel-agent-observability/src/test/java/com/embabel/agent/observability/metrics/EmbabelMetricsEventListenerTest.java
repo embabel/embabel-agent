@@ -132,8 +132,8 @@ class EmbabelMetricsEventListenerTest {
         }
 
         @Test
-        @DisplayName("Stuck should remove the agent from the active gauge (no leak)")
-        void stuck_shouldDecrementGauge() {
+        @DisplayName("Stuck is non-terminal: agent stays in the active gauge (may resume)")
+        void stuck_keepsAgentActive() {
             var registry = new SimpleMeterRegistry();
             var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
             var process = createMockAgentProcess("run-1", "TestAgent");
@@ -141,12 +141,12 @@ class EmbabelMetricsEventListenerTest {
             listener.onProcessEvent(new AgentProcessCreationEvent(process));
             listener.onProcessEvent(new AgentProcessStuckEvent(process));
 
-            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(0.0);
+            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(1.0);
         }
 
         @Test
-        @DisplayName("Waiting should remove the agent from the active gauge (no leak)")
-        void waiting_shouldDecrementGauge() {
+        @DisplayName("Waiting is non-terminal: agent stays in the active gauge (may resume)")
+        void waiting_keepsAgentActive() {
             var registry = new SimpleMeterRegistry();
             var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
             var process = createMockAgentProcess("run-1", "TestAgent");
@@ -154,12 +154,12 @@ class EmbabelMetricsEventListenerTest {
             listener.onProcessEvent(new AgentProcessCreationEvent(process));
             listener.onProcessEvent(new AgentProcessWaitingEvent(process));
 
-            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(0.0);
+            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(1.0);
         }
 
         @Test
-        @DisplayName("Paused should remove the agent from the active gauge (no leak)")
-        void paused_shouldDecrementGauge() {
+        @DisplayName("Paused is non-terminal: agent stays in the active gauge (may resume)")
+        void paused_keepsAgentActive() {
             var registry = new SimpleMeterRegistry();
             var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
             var process = createMockAgentProcess("run-1", "TestAgent");
@@ -167,6 +167,26 @@ class EmbabelMetricsEventListenerTest {
             listener.onProcessEvent(new AgentProcessCreationEvent(process));
             listener.onProcessEvent(new AgentProcessPausedEvent(process));
 
+            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(1.0);
+        }
+
+        @Test
+        @DisplayName("Human-in-the-loop: process resumes after WAITING and is decremented only on completion")
+        void waitingThenComplete_decrementsOnlyOnTerminal() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "TestAgent");
+            mockUsageAndCost(process, null, 0.0);
+
+            // Created and running
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            // Asks the user a question and waits — no new creation event is ever emitted on resume
+            listener.onProcessEvent(new AgentProcessWaitingEvent(process));
+            // Still counted as a live process while it waits for / processes the answer
+            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(1.0);
+
+            // Only the terminal event removes it
+            listener.onProcessEvent(new AgentProcessCompletedEvent(process));
             assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(0.0);
         }
 
@@ -179,7 +199,7 @@ class EmbabelMetricsEventListenerTest {
             mockUsageAndCost(process, null, 0.0);
 
             listener.onProcessEvent(new AgentProcessCreationEvent(process));
-            listener.onProcessEvent(new AgentProcessStuckEvent(process));
+            listener.onProcessEvent(new AgentProcessCompletedEvent(process));
             listener.onProcessEvent(new AgentProcessCompletedEvent(process)); // second terminal for same id
 
             assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(0.0);

@@ -77,7 +77,7 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
         this.registry = registry;
         this.properties = properties;
         Gauge.builder("embabel.agent.active", activeProcessIds, Set::size)
-                .description("Number of agent processes currently running")
+                .description("Number of live (non-terminated) agent processes, including those waiting for input")
                 .register(registry);
     }
 
@@ -127,12 +127,12 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
             }
             case LlmRequestEvent e -> recordLlmRequest(e);
             case LlmResponseEvent e -> recordLlmDuration(e);
-            case AgentProcessStuckEvent e -> {
-                activeProcessIds.remove(e.getAgentProcess().getId());
-                recordAgentStuck(e);
-            }
-            case AgentProcessWaitingEvent e -> activeProcessIds.remove(e.getAgentProcess().getId());
-            case AgentProcessPausedEvent e -> activeProcessIds.remove(e.getAgentProcess().getId());
+            // WAITING/PAUSED/STUCK are NON-terminal: the process can resume via run() on the same
+            // instance without re-emitting AgentProcessCreationEvent (the normal human-in-the-loop
+            // case). Keep its id in the active set; only terminal events above remove it.
+            case AgentProcessStuckEvent e -> recordAgentStuck(e);
+            case AgentProcessWaitingEvent e -> { }
+            case AgentProcessPausedEvent e -> { }
             case ToolLoopCompletedEvent e -> recordToolLoopIterations(e);
             case ReplanRequestedEvent e -> recordReplanning(e.getAgentProcess());
             default -> { }
