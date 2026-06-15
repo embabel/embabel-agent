@@ -198,18 +198,20 @@ internal class SpringAiLlmMessageSender(
         // If chatOptions already implements ToolCallingChatOptions (e.g., AnthropicChatOptions,
         // OpenAiChatOptions, etc.), use its copy() method to preserve all provider-specific settings
         if (chatOptions is ToolCallingChatOptions) {
-            // Spring AI 2.0: toolCallbacks / internalToolExecutionEnabled are read-only on
-            // ToolCallingChatOptions, so use mutate() to derive a new instance. This preserves
-            // the provider-specific subtype (e.g. Anthropic cache settings) while attaching our
-            // tool callbacks and disabling Spring AI's automatic tool execution.
+            // Spring AI 2.0 GA: toolCallbacks are read-only on ToolCallingChatOptions, so use
+            // mutate() to derive a new instance, preserving the provider-specific subtype (e.g.
+            // Anthropic cache settings) while attaching our tool callbacks. The per-request
+            // internalToolExecutionEnabled flag was removed in 2.0.0; disabling Spring AI's
+            // automatic tool execution is now configured on the ChatModel (ToolCallingManager /
+            // ToolExecutionEligibilityPredicate) so embabel's DefaultToolLoop stays in control.
             return chatOptions.mutate()
                 .toolCallbacks(toolCallbacks)
-                .internalToolExecutionEnabled(false)
                 .build()
         }
 
-        // Fallback: Create generic ToolCallingChatOptions
-        // IMPORTANT: Disable internal tool execution - we handle tools ourselves in DefaultToolLoop
+        // Fallback: Create generic ToolCallingChatOptions.
+        // We handle tools ourselves in DefaultToolLoop. Spring AI 2.0 GA removed the per-request
+        // internalToolExecutionEnabled flag; internal execution is disabled on the ChatModel.
         return ToolCallingChatOptions.builder()
             .model(chatOptions.model)
             .temperature(chatOptions.temperature)
@@ -220,7 +222,6 @@ internal class SpringAiLlmMessageSender(
             .presencePenalty(chatOptions.presencePenalty)
             .stopSequences(chatOptions.stopSequences)
             .toolCallbacks(toolCallbacks)
-            .internalToolExecutionEnabled(false)
             .build()
     }
 }

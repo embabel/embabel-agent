@@ -28,7 +28,7 @@ import com.github.victools.jsonschema.module.jackson.JacksonOption
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.ai.converter.StructuredOutputConverter
-import org.springframework.ai.util.LoggingMarkers
+import org.slf4j.MarkerFactory
 import org.springframework.core.ParameterizedTypeReference
 import java.lang.reflect.Type
 
@@ -152,7 +152,9 @@ open class JacksonOutputConverter<T : Any> protected constructor(
             return lenientMapper.readValue<Any?>(unwrapped, lenientMapper.constructType(this.type)) as T
         } catch (e: JacksonException) {
             logger.error(
-                LoggingMarkers.SENSITIVE_DATA_MARKER,
+                // Spring AI 2.0 removed org.springframework.ai.util.LoggingMarkers; reproduce the
+                // same SLF4J marker ("SENSITIVE") so existing sensitive-data log filtering still applies.
+                MarkerFactory.getMarker("SENSITIVE"),
                 "Could not parse the given text to the desired target type: \"{}\" into {}", unwrapped, this.type
             )
             throw RuntimeException(e)
