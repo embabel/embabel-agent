@@ -13,12 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-@file:OptIn(com.embabel.agent.api.event.observation.InternalObservabilityApi::class)
+@file:OptIn(InternalObservabilityApi::class)
 
 package com.embabel.agent.core.support
 
 import com.embabel.agent.api.common.TerminationScope
 import com.embabel.agent.api.common.TerminationSignal
+import com.embabel.agent.api.event.observation.InternalObservabilityApi
 import com.embabel.agent.api.termination.TerminationSignalPolicy
 import com.embabel.agent.api.tool.TerminateActionException
 import com.embabel.agent.api.tool.TerminateAgentException

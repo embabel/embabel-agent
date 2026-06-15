@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-@file:OptIn(com.embabel.agent.api.event.observation.InternalObservabilityApi::class)
+@file:OptIn(InternalObservabilityApi::class)
 
 package com.embabel.agent.spi.support
 
@@ -21,6 +21,7 @@ import com.embabel.agent.api.annotation.support.Wumpus
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.common.ToolsStats
 import com.embabel.agent.api.event.LlmRequestEvent
+import com.embabel.agent.api.event.observation.InternalObservabilityApi
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.validation.guardrails.AssistantMessageGuardRail
 import com.embabel.agent.api.validation.guardrails.GuardRailViolationException

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-@file:OptIn(com.embabel.agent.api.event.observation.InternalObservabilityApi::class)
+@file:OptIn(InternalObservabilityApi::class)
 
 package com.embabel.agent.spi.support
 
@@ -22,6 +22,7 @@ import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.ToolsStats
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.event.LlmInvocationEvent
+import com.embabel.agent.api.event.observation.InternalObservabilityApi
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcess

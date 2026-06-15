@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-@file:OptIn(com.embabel.agent.api.event.observation.InternalObservabilityApi::class)
+@file:OptIn(InternalObservabilityApi::class)
 
 package com.embabel.agent.e2e
 
@@ -23,6 +23,7 @@ import com.embabel.agent.api.common.Ai
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
 import com.embabel.agent.api.common.streaming.asStreaming
+import com.embabel.agent.api.event.observation.InternalObservabilityApi
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.spi.LlmService
