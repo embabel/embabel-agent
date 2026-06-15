@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.core
 
-import com.embabel.agent.api.common.ToolsStats
 import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.core.types.Timed
 import com.embabel.common.core.types.Timestamped

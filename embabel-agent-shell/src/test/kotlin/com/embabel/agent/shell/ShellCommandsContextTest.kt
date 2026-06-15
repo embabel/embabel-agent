@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.shell
 
-import com.embabel.agent.api.common.ToolsStats
+import com.embabel.agent.core.ToolsStats
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.autonomy.AutonomyProperties
 import com.embabel.agent.api.common.autonomy.NoAgentFound

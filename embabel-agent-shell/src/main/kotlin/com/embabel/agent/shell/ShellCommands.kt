@@ -16,7 +16,7 @@
 package com.embabel.agent.shell
 
 import com.embabel.agent.api.common.Asyncer
-import com.embabel.agent.api.common.ToolsStats
+import com.embabel.agent.core.ToolsStats
 import com.embabel.agent.api.common.autonomy.*
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.core.*

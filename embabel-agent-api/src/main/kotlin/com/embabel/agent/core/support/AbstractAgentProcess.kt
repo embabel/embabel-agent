@@ -25,7 +25,6 @@ import com.embabel.agent.api.tool.TerminateActionException
 import com.embabel.agent.api.tool.TerminateAgentException
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.StuckHandlingResultCode
-import com.embabel.agent.api.common.ToolsStats
 import com.embabel.agent.api.event.*
 import com.embabel.agent.api.event.observation.ActionObservationContext
 import com.embabel.agent.api.event.observation.AgentObservationContext

@@ -16,7 +16,7 @@
 package com.embabel.agent.autoconfigure.shell;
 
 import com.embabel.agent.api.common.Asyncer;
-import com.embabel.agent.api.common.ToolsStats;
+import com.embabel.agent.core.ToolsStats;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.shell.TerminalServices;

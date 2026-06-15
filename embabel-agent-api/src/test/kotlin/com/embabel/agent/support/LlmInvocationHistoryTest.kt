@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.support
 
-import com.embabel.agent.api.common.ToolsStats
+import com.embabel.agent.core.ToolsStats
 import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.core.LlmInvocationHistory
 import com.embabel.agent.spi.support.springai.toEmbabelUsage

@@ -19,7 +19,7 @@ package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.common.PlatformServices
-import com.embabel.agent.api.common.ToolsStats
+import com.embabel.agent.core.ToolsStats
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.event.LlmInvocationEvent
 import com.embabel.agent.api.event.observation.InternalObservabilityApi
