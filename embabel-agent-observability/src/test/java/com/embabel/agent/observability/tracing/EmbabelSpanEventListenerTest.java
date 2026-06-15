@@ -84,6 +84,7 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -108,6 +109,19 @@ class EmbabelSpanEventListenerTest {
         @Override
         public void onStop(Observation.Context context) {
             stopped.add(context);
+        }
+    }
+
+    /** Handler that throws from {@code onError}, simulating a custom handler failing between start() and stop(). */
+    private static final class ThrowingOnErrorHandler implements ObservationHandler<Observation.Context> {
+        @Override
+        public boolean supportsContext(Observation.Context context) {
+            return true;
+        }
+
+        @Override
+        public void onError(Observation.Context context) {
+            throw new RuntimeException("handler boom");
         }
     }
 
@@ -745,6 +759,23 @@ class EmbabelSpanEventListenerTest {
             assertEquals("0.7", kv.get("embabel.ranking.confidence_cutoff"));
             assertTrue(ctx.getError() != null, "no-choice ranking span should be marked errored");
         }
+
+        @Test
+        @DisplayName("no-choice ranking span is closed even when error() throws between start() and stop()")
+        void rankingCouldNotBeMadeSpanClosedWhenErrorThrows() {
+            // A custom handler failing in onError() must not leave the span open: stop() must still run.
+            registry.observationConfig().observationHandler(new ThrowingOnErrorHandler());
+            RankingChoiceCouldNotBeMadeEvent<?> event = mock(RankingChoiceCouldNotBeMadeEvent.class);
+            lenient().when(((RankingChoiceCouldNotBeMadeEvent) event).getType()).thenReturn(String.class);
+            lenient().when(event.getConfidenceCutOff()).thenReturn(0.7);
+            org.mockito.Mockito.doReturn(List.of(new Object())).when(event).getChoices();
+            EmbabelSpanEventListener listener = listener();
+
+            assertThrows(RuntimeException.class, () -> listener.onPlatformEvent(event));
+
+            assertTrue(handler.stopped.stream().anyMatch(c -> "embabel.ranking".equals(c.getName())),
+                    "ranking span must be stopped even when error() throws after start()");
+        }
     }
 
     @Nested
@@ -997,6 +1028,23 @@ class EmbabelSpanEventListenerTest {
             assertEquals("IllegalStateException", kv.get("embabel.tool.error.type"));
             assertEquals("boom", kv.get("embabel.tool.error.message"));
             assertNotNull(ctx.getError(), "errored tool call should attach the throwable to the span");
+        }
+
+        @Test
+        @DisplayName("tool span is closed even when the body throws between start() and stop()")
+        void toolCallSpanClosedWhenBodyThrows() {
+            ToolCallResponseEvent event = toolResponse(null);
+            EmbabelSpanEventListener listener = listener();
+            try (MockedStatic<ToolCallOutcomes> outcomes = mockStatic(ToolCallOutcomes.class)) {
+                outcomes.when(() -> ToolCallOutcomes.error(event)).thenReturn(null);
+                // resultText() runs after start() but before stop(): a throw here must not orphan the span.
+                outcomes.when(() -> ToolCallOutcomes.resultText(event))
+                        .thenThrow(new RuntimeException("boom"));
+                assertThrows(RuntimeException.class, () -> listener.onProcessEvent(event));
+            }
+
+            assertTrue(handler.stopped.stream().anyMatch(c -> "embabel.tool".equals(c.getName())),
+                    "tool span must be stopped even when the body throws after start()");
         }
 
         @Test

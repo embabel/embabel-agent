@@ -411,21 +411,26 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
             observation.highCardinalityKeyValue(SpanAttributes.GEN_AI_TOOL_CALL_ARGUMENTS, truncate(request.getToolInput()));
         }
 
+        // start()/stop() must be paired even if the outcome handling below throws (e.g. a custom
+        // observation handler failing in onError), otherwise the span is left open and leaks.
         observation.start();
-        Throwable error = ToolCallOutcomes.error(event);
-        if (error != null) {
-            observation.lowCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_STATUS, "error");
-            observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_ERROR_TYPE, error.getClass().getSimpleName());
-            observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_ERROR_MESSAGE, truncate(error.getMessage()));
-            observation.error(error);
-        } else {
-            observation.lowCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_STATUS, "success");
-            String result = ToolCallOutcomes.resultText(event);
-            if (result != null && properties.isCaptureMessageContent()) {
-                observation.highCardinalityKeyValue(SpanAttributes.GEN_AI_TOOL_CALL_RESULT, truncate(result));
+        try {
+            Throwable error = ToolCallOutcomes.error(event);
+            if (error != null) {
+                observation.lowCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_STATUS, "error");
+                observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_ERROR_TYPE, error.getClass().getSimpleName());
+                observation.highCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_ERROR_MESSAGE, truncate(error.getMessage()));
+                observation.error(error);
+            } else {
+                observation.lowCardinalityKeyValue(SpanAttributes.EMBABEL_TOOL_STATUS, "success");
+                String result = ToolCallOutcomes.resultText(event);
+                if (result != null && properties.isCaptureMessageContent()) {
+                    observation.highCardinalityKeyValue(SpanAttributes.GEN_AI_TOOL_CALL_RESULT, truncate(result));
+                }
             }
+        } finally {
+            observation.stop();
         }
-        observation.stop();
     }
 
     /**
@@ -476,9 +481,13 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
                         String.valueOf(event.getConfidenceCutOff()))
                 .highCardinalityKeyValue(SpanAttributes.EMBABEL_RANKING_OPTION_COUNT,
                         String.valueOf(event.getChoices().size()));
+        // Pair start()/stop() so a throw from error() (e.g. a custom handler) can't leave the span open.
         observation.start();
-        observation.error(new IllegalStateException("No ranking choice could be made"));
-        observation.stop();
+        try {
+            observation.error(new IllegalStateException("No ranking choice could be made"));
+        } finally {
+            observation.stop();
+        }
     }
 
     private String truncate(String value) {
