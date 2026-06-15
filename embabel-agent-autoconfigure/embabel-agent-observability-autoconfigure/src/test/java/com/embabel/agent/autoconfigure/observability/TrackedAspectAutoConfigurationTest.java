@@ -16,7 +16,7 @@
 package com.embabel.agent.autoconfigure.observability;
 
 import com.embabel.agent.observability.ObservabilityProperties;
-import com.embabel.agent.observability.observation.TrackedAspect;
+import com.embabel.agent.observability.tracing.TrackedAspect;
 import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -99,7 +99,21 @@ class TrackedAspectAutoConfigurationTest {
       // Arrange
       contextRunner
               .withUserConfiguration(TrackedAspectDependenciesConfig.class)
-              .withPropertyValues("embabel.observability.trace-tracked-operations=false")
+              .withPropertyValues("embabel.agent.platform.observability.trace-tracked-operations=false")
+              // Act
+              .run(context -> assertThat(context).doesNotHaveBean(TrackedAspect.class));
+   }
+
+   /**
+    * Verifies that disabling tracing globally also backs off the tracked aspect: it is a tracing
+    * feature, so it must honour the {@code tracing-enabled} master switch like the other tracing beans.
+    */
+   @Test
+   void trackedAspectNotCreatedWhenTracingDisabled() {
+      // Arrange
+      contextRunner
+              .withUserConfiguration(TrackedAspectDependenciesConfig.class)
+              .withPropertyValues("embabel.agent.platform.observability.tracing-enabled=false")
               // Act
               .run(context -> assertThat(context).doesNotHaveBean(TrackedAspect.class));
    }

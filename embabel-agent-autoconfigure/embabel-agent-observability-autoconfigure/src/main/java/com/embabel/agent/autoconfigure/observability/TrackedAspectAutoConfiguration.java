@@ -16,7 +16,7 @@
 package com.embabel.agent.autoconfigure.observability;
 
 import com.embabel.agent.observability.ObservabilityProperties;
-import com.embabel.agent.observability.observation.TrackedAspect;
+import com.embabel.agent.observability.tracing.TrackedAspect;
 import io.micrometer.observation.ObservationRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +35,7 @@ import org.springframework.context.annotation.Bean;
  */
 @AutoConfiguration(after = ObservabilityAutoConfiguration.class)
 @ConditionalOnClass(name = "org.aspectj.lang.ProceedingJoinPoint")
-@ConditionalOnProperty(prefix = "embabel.observability", name = {"enabled", "trace-tracked-operations"}, havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "embabel.agent.platform.observability", name = {"enabled", "tracing-enabled", "trace-tracked-operations"}, havingValue = "true", matchIfMissing = true)
 public class TrackedAspectAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(TrackedAspectAutoConfiguration.class);
@@ -51,6 +51,7 @@ public class TrackedAspectAutoConfiguration {
     @ConditionalOnMissingBean
     public TrackedAspect trackedAspect(ObservationRegistry observationRegistry, ObservabilityProperties properties) {
         log.info("Configuring @Tracked annotation aspect for custom operation tracking");
-        return new TrackedAspect(observationRegistry, properties.getMaxAttributeLength());
+        return new TrackedAspect(observationRegistry, properties.getMaxAttributeLength(),
+                properties.isCaptureMessageContent());
     }
 }

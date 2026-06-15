@@ -1296,9 +1296,11 @@ Pick **one** (or combine multiple):
 ```yaml
 # Enable observability
 embabel:
-  observability:
-    enabled: true
-    service-name: my-agent-app
+  agent:
+    platform:
+      observability:
+        enabled: true
+        service-name: my-agent-app
 
 # Enable Spring Boot tracing
 management:

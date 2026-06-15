@@ -13,12 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+@file:OptIn(InternalObservabilityApi::class)
+
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.event.LlmInvocationEvent
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.event.ToolLoopStartEvent
+import com.embabel.agent.api.event.observation.AgentInstrumentation
+import com.embabel.agent.api.event.observation.InternalObservabilityApi
+import com.embabel.agent.api.event.observation.LlmObservationContext
+import com.embabel.agent.api.event.observation.NoOpAgentInstrumentation
+import com.embabel.agent.api.event.observation.ToolLoopObservationContext
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.callback.AfterLlmCallContext
@@ -41,7 +48,9 @@ import com.embabel.agent.spi.loop.NativeStructuredOutputRequest
 import com.embabel.agent.spi.loop.RequestAwareLlmMessageSender
 import com.embabel.agent.spi.loop.StructuredOutputRequest
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
+import com.embabel.agent.spi.loop.ToolLoop
 import com.embabel.agent.spi.loop.ToolLoopFactory
+import com.embabel.agent.spi.loop.ToolLoopResult
 import com.embabel.common.ai.model.NativeStructuredOutputMode
 import com.embabel.common.ai.model.getNativeStructuredOutput
 import com.embabel.agent.spi.support.guardrails.validateAssistantResponse
@@ -63,7 +72,6 @@ import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import io.micrometer.observation.ObservationRegistry
 import jakarta.validation.Validator
 import java.time.Duration
 import java.time.Instant
@@ -109,7 +117,7 @@ interface OutputConverter<T> {
  * @param autoLlmSelectionCriteriaResolver Resolver for auto LLM selection
  * @param promptsProperties Properties for prompt configuration
  * @param objectMapper ObjectMapper for JSON serialization
- * @param observationRegistry Registry for distributed tracing observations
+ * @param instrumentation Port for direct instrumentation of the LLM and tool-loop spans (no-op by default)
  * @param templateRenderer TemplateRenderer for rendering prompt templates (default: NoOpTemplateRenderer)
  */
 @ThreadSafe
@@ -122,7 +130,7 @@ open class ToolLoopLlmOperations(
     autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
     promptsProperties: LlmOperationsPromptsProperties = LlmOperationsPromptsProperties(),
     objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
-    protected val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
+    protected val instrumentation: AgentInstrumentation = NoOpAgentInstrumentation,
     asyncer: Asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
     protected val toolLoopFactory: ToolLoopFactory = ToolLoopFactory.create(ToolLoopConfiguration(), asyncer, AutoCorrectionPolicy()),
     protected val templateRenderer: TemplateRenderer = NoOpTemplateRenderer,
@@ -196,11 +204,13 @@ open class ToolLoopLlmOperations(
         val tools = interaction.tools
         val toolLoopStartEvent = publishToolLoopStartEvent(llmRequestEvent, tools, interaction, outputClass)
 
-        val result = toolLoop.execute(
-            initialMessages = initialMessages,
-            initialTools = tools,
-            outputParser = outputParser,
-        )
+        val result = toolLoop
+            .instrumented(llmRequestEvent, toolLoopStartEvent)
+            .execute(
+                initialMessages = initialMessages,
+                initialTools = tools,
+                outputParser = outputParser,
+            )
 
         handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent)
 
@@ -299,11 +309,13 @@ open class ToolLoopLlmOperations(
         val tools = interaction.tools
         val toolLoopStartEvent = publishToolLoopStartEvent(llmRequestEvent, tools, interaction, outputClass)
 
-        val result = toolLoop.execute(
-            initialMessages = initialMessages,
-            initialTools = tools,
-            outputParser = outputParser,
-        )
+        val result = toolLoop
+            .instrumented(llmRequestEvent, toolLoopStartEvent)
+            .execute(
+                initialMessages = initialMessages,
+                initialTools = tools,
+                outputParser = outputParser,
+            )
 
         handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent)
 
@@ -398,11 +410,13 @@ open class ToolLoopLlmOperations(
         val tools = interaction.tools
         val toolLoopStartEvent = publishToolLoopStartEvent(llmRequestEvent, tools, interaction, outputClass)
 
-        val result = toolLoop.execute(
-            initialMessages = initialMessages,
-            initialTools = tools,
-            outputParser = outputParser,
-        )
+        val result = toolLoop
+            .instrumented(llmRequestEvent, toolLoopStartEvent)
+            .execute(
+                initialMessages = initialMessages,
+                initialTools = tools,
+                outputParser = outputParser,
+            )
 
         handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent)
 
@@ -525,11 +539,13 @@ open class ToolLoopLlmOperations(
             val tools = interaction.tools
             val toolLoopStartEvent = publishToolLoopStartEvent(llmRequestEvent, tools, interaction, outputClass)
 
-            val result = toolLoop.execute(
-                initialMessages = initialMessages,
-                initialTools = tools,
-                outputParser = outputParser,
-            )
+            val result = toolLoop
+                .instrumented(llmRequestEvent, toolLoopStartEvent)
+                .execute(
+                    initialMessages = initialMessages,
+                    initialTools = tools,
+                    outputParser = outputParser,
+                )
 
             handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent)
 
@@ -902,7 +918,7 @@ open class ToolLoopLlmOperations(
      */
     private fun <O> handleToolLoopCompletion(
         toolLoopStartEvent: ToolLoopStartEvent?,
-        result: com.embabel.agent.spi.loop.ToolLoopResult<O>,
+        result: ToolLoopResult<O>,
         llmRequestEvent: LlmRequestEvent<*>?,
     ) {
         // Publish ToolLoopCompletedEvent after the tool loop
@@ -963,6 +979,58 @@ open class ToolLoopLlmOperations(
                 )
             } else {
                 finalIterationResult
+            }
+        }
+    }
+
+    /**
+     * Wrap this [ToolLoop] so its execution is observed under the `embabel.llm` span
+     * ([LlmObservationContext]) and the nested `embabel.tool_loop` span
+     * ([ToolLoopObservationContext]). Centralizing the two-span envelope here keeps the span shape
+     * identical across every transform path (doTransform, …IfPossible, …WithThinking,
+     * …WithThinkingIfPossible) instead of each path re-implementing — or forgetting — it.
+     *
+     * Each span is opened only when its driving event is present: the `embabel.llm` span requires an
+     * [llmRequestEvent] (agent-bound call), the `embabel.tool_loop` span a [toolLoopStartEvent]. A naked
+     * call (both null) runs the delegate directly with no observation, exactly as before.
+     */
+    private fun ToolLoop.instrumented(
+        llmRequestEvent: LlmRequestEvent<*>?,
+        toolLoopStartEvent: ToolLoopStartEvent?,
+    ): ToolLoop = InstrumentedToolLoop(this, instrumentation, llmRequestEvent, toolLoopStartEvent)
+
+    /**
+     * Decorator that opens the `embabel.llm` and `embabel.tool_loop` spans around a [ToolLoop]'s
+     * execution. The actual generation content (prompt/completion/tokens) is carried by the nested
+     * Spring AI ChatModel span produced inside [delegate]'s loop, so these spans stay thin structural
+     * wrappers; see [LlmObservationContext]/[ToolLoopObservationContext] and their conventions.
+     */
+    private class InstrumentedToolLoop(
+        private val delegate: ToolLoop,
+        private val instrumentation: AgentInstrumentation,
+        private val llmRequestEvent: LlmRequestEvent<*>?,
+        private val toolLoopStartEvent: ToolLoopStartEvent?,
+    ) : ToolLoop {
+        override fun <O> execute(
+            initialMessages: List<Message>,
+            initialTools: List<Tool>,
+            outputParser: (String) -> O,
+        ): ToolLoopResult<O> {
+            val runLoop = {
+                if (toolLoopStartEvent == null) {
+                    delegate.execute(initialMessages, initialTools, outputParser)
+                } else {
+                    val toolLoopContext = ToolLoopObservationContext(toolLoopStartEvent, initialMessages)
+                    instrumentation.observe({ toolLoopContext }) {
+                        delegate.execute(initialMessages, initialTools, outputParser)
+                            .also { toolLoopContext.output = it }
+                    }
+                }
+            }
+            return if (llmRequestEvent == null) {
+                runLoop()
+            } else {
+                instrumentation.observe({ LlmObservationContext(llmRequestEvent) }) { runLoop() }
             }
         }
     }
