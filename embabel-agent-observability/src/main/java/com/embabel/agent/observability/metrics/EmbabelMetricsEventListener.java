@@ -76,6 +76,10 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
     public EmbabelMetricsEventListener(MeterRegistry registry, ObservabilityProperties properties) {
         this.registry = registry;
         this.properties = properties;
+        // STUCK/WAITING/PAUSED processes stay counted: they are still live (resumable, held in
+        // the repository) and re-emit no creation event on resume. Only terminal events evict them.
+        // Abandoned ones (user never answers, stuck with no resolution) must be reaped by the
+        // application via kill(), which fires a terminal ProcessKilledEvent and decrements cleanly.
         Gauge.builder("embabel.agent.active", activeProcessIds, Set::size)
                 .description("Number of live (non-terminated) agent processes, including those waiting for input")
                 .register(registry);
