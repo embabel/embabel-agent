@@ -24,6 +24,7 @@ import com.embabel.chat.Message;
 import com.embabel.plan.Plan;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -45,7 +46,11 @@ final class ObservationUtils {
         return lastDot >= 0 && lastDot < name.length() - 1 ? name.substring(lastDot + 1) : name;
     }
 
-    /** Chat messages formatted as span input: one {@code [ROLE]: content} line per message. */
+    /**
+     * Chat messages formatted as span input: one {@code [role]: content} line per message. The role
+     * is spelled lowercase, matching the OpenTelemetry GenAI role convention (and the {@code input.value}
+     * bridge in {@link ChatModelObservationFilter}) so the same role is never spelled two ways.
+     */
     static String formatMessages(List<? extends Message> messages) {
         if (messages == null || messages.isEmpty()) {
             return "";
@@ -53,7 +58,8 @@ final class ObservationUtils {
         StringBuilder sb = new StringBuilder();
         for (Message m : messages) {
             if (sb.length() > 0) sb.append("\n");
-            sb.append("[").append(m.getRole()).append("]: ").append(m.getContent());
+            String role = m.getRole() == null ? "null" : m.getRole().name().toLowerCase(Locale.ROOT);
+            sb.append("[").append(role).append("]: ").append(m.getContent());
         }
         return sb.toString();
     }

@@ -52,6 +52,7 @@ public final class SpanAttributes {
     // OpenInference bridge
     public static final String INPUT_VALUE = "input.value";
     public static final String OUTPUT_VALUE = "output.value";
+    public static final String USER_ID = "user.id";
 
     // Embabel-specific span names and attribute keys
     public static final String EMBABEL_ACTION = "embabel.action";

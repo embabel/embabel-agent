@@ -103,7 +103,7 @@ public class EmbabelAgentObservationConvention
         }
         String userId = userId(process);
         if (userId != null) {
-            kv = kv.and("user.id", userId);
+            kv = kv.and(SpanAttributes.USER_ID, userId);
         }
         if (process.getGoal() != null) {
             kv = kv.and(SpanAttributes.EMBABEL_GOAL, process.getGoal().getName());

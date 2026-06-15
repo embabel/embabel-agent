@@ -29,6 +29,7 @@ import com.embabel.agent.core.AgentProcessStatusCode;
 import com.embabel.chat.Conversation;
 import com.embabel.common.ai.model.LlmMetadata;
 import com.embabel.chat.Message;
+import com.embabel.chat.MessageRole;
 import com.embabel.plan.Action;
 import io.micrometer.common.KeyValue;
 import io.micrometer.common.KeyValues;
@@ -486,6 +487,7 @@ class EmbabelObservationConventionsTest {
             lenient().when(event.getMaxIterations()).thenReturn(20);
             lenient().when(event.getOutputClass()).thenReturn((Class) String.class);
             Message message = mock(Message.class);
+            lenient().when(message.getRole()).thenReturn(MessageRole.USER);
             lenient().when(message.getContent()).thenReturn("user question");
 
             ToolLoopObservationContext ctx = new ToolLoopObservationContext(event, List.of(message));
@@ -498,7 +500,8 @@ class EmbabelObservationConventionsTest {
             assertEquals("interaction-3", kv.get("embabel.interaction.id"));
             assertEquals("toolA,toolB", kv.get("embabel.tool_loop.tool_names"));
             assertEquals(String.class.getName(), kv.get("embabel.tool_loop.output_class"));
-            assertTrue(kv.get("input.value").contains("user question"));
+            // Role spelled lowercase, matching the OTel gen_ai role convention.
+            assertEquals("[user]: user question", kv.get("input.value"));
             assertEquals("loop answer", kv.get("output.value"));
         }
 

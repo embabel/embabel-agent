@@ -290,7 +290,9 @@ public class ChatModelObservationFilter implements ObservationFilter {
             if (sb.length() > 0) {
                 sb.append("\n");
             }
-            sb.append("[").append(message.getMessageType()).append("]: ");
+            // Spring AI MessageType.getValue() yields the lowercase GenAI role, matching the
+            // gen_ai.input.messages convention above so both attributes spell the role identically.
+            sb.append("[").append(message.getMessageType().getValue()).append("]: ");
             sb.append(message.getText());
         }
         return sb.toString();
