@@ -21,7 +21,7 @@ import com.embabel.agent.api.event.GoalAchievedEvent
 import com.embabel.agent.api.event.ReplanRequestedEvent
 import com.embabel.agent.api.tool.TerminateActionException
 import com.embabel.agent.api.tool.TerminateAgentException
-import com.embabel.agent.api.tool.ToolControlFlowSignal
+import com.embabel.agent.core.ToolControlFlowSignal
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentProcess

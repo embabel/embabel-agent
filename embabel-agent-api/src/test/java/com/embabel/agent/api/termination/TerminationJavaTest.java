@@ -20,7 +20,7 @@ import com.embabel.agent.api.common.TerminationSignal;
 import com.embabel.agent.api.tool.TerminateActionException;
 import com.embabel.agent.api.tool.TerminateAgentException;
 import com.embabel.agent.api.tool.TerminationException;
-import com.embabel.agent.api.tool.ToolControlFlowSignal;
+import com.embabel.agent.core.ToolControlFlowSignal;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;

@@ -13,19 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.api.tool
+package com.embabel.agent.core
 
 /**
  * Marker interface for exceptions that represent control flow signals
  * rather than errors. These exceptions are allowed to propagate through
- * [TypedTool.call] without being caught and converted to error results.
+ * [com.embabel.agent.api.tool.TypedTool.call] without being caught and converted to error results.
  *
  * Control flow signals are also excluded from retry policies.
  *
  * Examples include:
  * - [com.embabel.agent.core.ReplanRequestedException]
  * - [com.embabel.agent.core.hitl.AwaitableResponseException]
- * - [TerminateActionException]
- * - [TerminateAgentException]
+ * - [com.embabel.agent.api.tool.TerminateActionException]
+ * - [com.embabel.agent.api.tool.TerminateAgentException]
  */
 interface ToolControlFlowSignal

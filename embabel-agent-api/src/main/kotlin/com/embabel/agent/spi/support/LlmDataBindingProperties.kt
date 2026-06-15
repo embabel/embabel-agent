@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.spi.support
 
-import com.embabel.agent.api.tool.ToolControlFlowSignal
+import com.embabel.agent.core.ToolControlFlowSignal
 import com.embabel.agent.api.validation.guardrails.GuardRailViolationException
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.common.RetryTemplateProvider

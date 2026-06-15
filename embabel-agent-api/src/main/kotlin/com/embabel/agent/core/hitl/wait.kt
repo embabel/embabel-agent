@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.core.hitl
 
-import com.embabel.agent.api.tool.ToolControlFlowSignal
+import com.embabel.agent.core.ToolControlFlowSignal
 import com.embabel.ux.form.SimpleFormGenerator
 
 /**

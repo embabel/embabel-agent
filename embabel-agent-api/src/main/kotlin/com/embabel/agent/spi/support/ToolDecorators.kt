@@ -19,7 +19,7 @@ import com.embabel.agent.api.event.ToolCallRequestEvent
 import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
-import com.embabel.agent.api.tool.ToolControlFlowSignal
+import com.embabel.agent.core.ToolControlFlowSignal
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ToolGroupMetadata

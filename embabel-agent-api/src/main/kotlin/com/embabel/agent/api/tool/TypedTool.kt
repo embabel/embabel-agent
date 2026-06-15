@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.tool
 
+import com.embabel.agent.core.ToolControlFlowSignal
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import java.util.function.Function

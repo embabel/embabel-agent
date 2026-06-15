@@ -17,7 +17,7 @@ package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.api.tool.TerminateActionException
 import com.embabel.agent.api.tool.TerminateAgentException
-import com.embabel.agent.api.tool.ToolControlFlowSignal
+import com.embabel.agent.core.ToolControlFlowSignal
 import com.embabel.agent.core.NonRetryable
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Retryable

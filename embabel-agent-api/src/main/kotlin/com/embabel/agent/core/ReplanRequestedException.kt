@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.core
 
-import com.embabel.agent.api.tool.ToolControlFlowSignal
 
 /**
  * Callback to update the blackboard before replanning.

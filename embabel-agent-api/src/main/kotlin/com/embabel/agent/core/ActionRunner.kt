@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.core
 
-import com.embabel.agent.api.tool.ToolControlFlowSignal
 import com.embabel.agent.core.hitl.AwaitableResponseException
 import com.embabel.common.util.time
 import org.slf4j.LoggerFactory

@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.api.tool
 
+import com.embabel.agent.core.ToolControlFlowSignal
+
 /**
  * Base class for termination exceptions.
  *

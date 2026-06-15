@@ -20,7 +20,7 @@ import com.embabel.agent.api.tool.TerminateActionException
 import com.embabel.agent.core.support.AbstractAgentProcess
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
-import com.embabel.agent.api.tool.ToolControlFlowSignal
+import com.embabel.agent.core.ToolControlFlowSignal
 import com.embabel.agent.api.tool.callback.AfterToolCallContext
 import com.embabel.agent.api.tool.callback.BeforeToolCallContext
 import com.embabel.agent.api.tool.callback.ToolCallInspector
