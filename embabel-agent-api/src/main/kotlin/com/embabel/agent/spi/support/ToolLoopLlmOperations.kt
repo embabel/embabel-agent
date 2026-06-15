@@ -47,7 +47,9 @@ import com.embabel.agent.spi.loop.NativeStructuredOutputRequest
 import com.embabel.agent.spi.loop.RequestAwareLlmMessageSender
 import com.embabel.agent.spi.loop.StructuredOutputRequest
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
+import com.embabel.agent.spi.loop.ToolLoop
 import com.embabel.agent.spi.loop.ToolLoopFactory
+import com.embabel.agent.spi.loop.ToolLoopResult
 import com.embabel.common.ai.model.NativeStructuredOutputMode
 import com.embabel.common.ai.model.getNativeStructuredOutput
 import com.embabel.agent.spi.support.guardrails.validateAssistantResponse
@@ -149,20 +151,6 @@ open class ToolLoopLlmOperations(
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>?,
     ): O {
-        if (llmRequestEvent == null) {
-            return doTransformInner(messages, interaction, outputClass, llmRequestEvent)
-        }
-        return instrumentation.observe(
-            { LlmObservationContext(llmRequestEvent) },
-        ) { doTransformInner(messages, interaction, outputClass, llmRequestEvent) }
-    }
-
-    private fun <O> doTransformInner(
-        messages: List<Message>,
-        interaction: LlmInteraction,
-        outputClass: Class<O>,
-        llmRequestEvent: LlmRequestEvent<O>?,
-    ): O {
         val llm = chooseLlm(interaction.llm)
         val promptContributions = buildPromptContributions(interaction, llm)
 
@@ -215,23 +203,13 @@ open class ToolLoopLlmOperations(
         val tools = interaction.tools
         val toolLoopStartEvent = publishToolLoopStartEvent(llmRequestEvent, tools, interaction, outputClass)
 
-        val executeLoop = {
-            toolLoop.execute(
+        val result = toolLoop
+            .instrumented(llmRequestEvent, toolLoopStartEvent)
+            .execute(
                 initialMessages = initialMessages,
                 initialTools = tools,
                 outputParser = outputParser,
             )
-        }
-        val result = if (toolLoopStartEvent == null) {
-            executeLoop()
-        } else {
-            val toolLoopContext = ToolLoopObservationContext(toolLoopStartEvent, initialMessages)
-            instrumentation.observe({ toolLoopContext }) {
-                val loopResult = executeLoop()
-                toolLoopContext.output = loopResult
-                loopResult
-            }
-        }
 
         handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent)
 
@@ -330,11 +308,13 @@ open class ToolLoopLlmOperations(
         val tools = interaction.tools
         val toolLoopStartEvent = publishToolLoopStartEvent(llmRequestEvent, tools, interaction, outputClass)
 
-        val result = toolLoop.execute(
-            initialMessages = initialMessages,
-            initialTools = tools,
-            outputParser = outputParser,
-        )
+        val result = toolLoop
+            .instrumented(llmRequestEvent, toolLoopStartEvent)
+            .execute(
+                initialMessages = initialMessages,
+                initialTools = tools,
+                outputParser = outputParser,
+            )
 
         handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent)
 
@@ -429,11 +409,13 @@ open class ToolLoopLlmOperations(
         val tools = interaction.tools
         val toolLoopStartEvent = publishToolLoopStartEvent(llmRequestEvent, tools, interaction, outputClass)
 
-        val result = toolLoop.execute(
-            initialMessages = initialMessages,
-            initialTools = tools,
-            outputParser = outputParser,
-        )
+        val result = toolLoop
+            .instrumented(llmRequestEvent, toolLoopStartEvent)
+            .execute(
+                initialMessages = initialMessages,
+                initialTools = tools,
+                outputParser = outputParser,
+            )
 
         handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent)
 
@@ -556,11 +538,13 @@ open class ToolLoopLlmOperations(
             val tools = interaction.tools
             val toolLoopStartEvent = publishToolLoopStartEvent(llmRequestEvent, tools, interaction, outputClass)
 
-            val result = toolLoop.execute(
-                initialMessages = initialMessages,
-                initialTools = tools,
-                outputParser = outputParser,
-            )
+            val result = toolLoop
+                .instrumented(llmRequestEvent, toolLoopStartEvent)
+                .execute(
+                    initialMessages = initialMessages,
+                    initialTools = tools,
+                    outputParser = outputParser,
+                )
 
             handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent)
 
@@ -933,7 +917,7 @@ open class ToolLoopLlmOperations(
      */
     private fun <O> handleToolLoopCompletion(
         toolLoopStartEvent: ToolLoopStartEvent?,
-        result: com.embabel.agent.spi.loop.ToolLoopResult<O>,
+        result: ToolLoopResult<O>,
         llmRequestEvent: LlmRequestEvent<*>?,
     ) {
         // Publish ToolLoopCompletedEvent after the tool loop
@@ -994,6 +978,58 @@ open class ToolLoopLlmOperations(
                 )
             } else {
                 finalIterationResult
+            }
+        }
+    }
+
+    /**
+     * Wrap this [ToolLoop] so its execution is observed under the `embabel.llm` span
+     * ([LlmObservationContext]) and the nested `embabel.tool_loop` span
+     * ([ToolLoopObservationContext]). Centralizing the two-span envelope here keeps the span shape
+     * identical across every transform path (doTransform, …IfPossible, …WithThinking,
+     * …WithThinkingIfPossible) instead of each path re-implementing — or forgetting — it.
+     *
+     * Each span is opened only when its driving event is present: the `embabel.llm` span requires an
+     * [llmRequestEvent] (agent-bound call), the `embabel.tool_loop` span a [toolLoopStartEvent]. A naked
+     * call (both null) runs the delegate directly with no observation, exactly as before.
+     */
+    private fun ToolLoop.instrumented(
+        llmRequestEvent: LlmRequestEvent<*>?,
+        toolLoopStartEvent: ToolLoopStartEvent?,
+    ): ToolLoop = InstrumentedToolLoop(this, instrumentation, llmRequestEvent, toolLoopStartEvent)
+
+    /**
+     * Decorator that opens the `embabel.llm` and `embabel.tool_loop` spans around a [ToolLoop]'s
+     * execution. The actual generation content (prompt/completion/tokens) is carried by the nested
+     * Spring AI ChatModel span produced inside [delegate]'s loop, so these spans stay thin structural
+     * wrappers; see [LlmObservationContext]/[ToolLoopObservationContext] and their conventions.
+     */
+    private class InstrumentedToolLoop(
+        private val delegate: ToolLoop,
+        private val instrumentation: AgentInstrumentation,
+        private val llmRequestEvent: LlmRequestEvent<*>?,
+        private val toolLoopStartEvent: ToolLoopStartEvent?,
+    ) : ToolLoop {
+        override fun <O> execute(
+            initialMessages: List<Message>,
+            initialTools: List<Tool>,
+            outputParser: (String) -> O,
+        ): ToolLoopResult<O> {
+            val runLoop = {
+                if (toolLoopStartEvent == null) {
+                    delegate.execute(initialMessages, initialTools, outputParser)
+                } else {
+                    val toolLoopContext = ToolLoopObservationContext(toolLoopStartEvent, initialMessages)
+                    instrumentation.observe({ toolLoopContext }) {
+                        delegate.execute(initialMessages, initialTools, outputParser)
+                            .also { toolLoopContext.output = it }
+                    }
+                }
+            }
+            return if (llmRequestEvent == null) {
+                runLoop()
+            } else {
+                instrumentation.observe({ LlmObservationContext(llmRequestEvent) }) { runLoop() }
             }
         }
     }

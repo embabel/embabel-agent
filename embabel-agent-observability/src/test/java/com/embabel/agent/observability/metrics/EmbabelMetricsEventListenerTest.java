@@ -17,6 +17,7 @@ package com.embabel.agent.observability.metrics;
 
 import com.embabel.agent.api.common.PlannerType;
 import com.embabel.agent.api.event.*;
+import com.embabel.agent.api.event.observation.ToolCallOutcomes;
 import com.embabel.agent.core.*;
 import com.embabel.agent.observability.ObservabilityProperties;
 import com.embabel.common.ai.model.LlmMetadata;
@@ -27,6 +28,7 @@ import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Duration;
@@ -324,9 +326,12 @@ class EmbabelMetricsEventListenerTest {
 
             listener.onProcessEvent(new AgentProcessCreationEvent(process));
 
-            var toolResponseEvent = createToolCallResponseEvent(
-                    process, "WebSearch", null, new RuntimeException("search failed"));
-            listener.onProcessEvent(toolResponseEvent);
+            var toolResponseEvent = createToolCallResponseEvent(process, "WebSearch");
+            try (MockedStatic<ToolCallOutcomes> outcomes = mockStatic(ToolCallOutcomes.class)) {
+                outcomes.when(() -> ToolCallOutcomes.error(toolResponseEvent))
+                        .thenReturn(new RuntimeException("search failed"));
+                listener.onProcessEvent(toolResponseEvent);
+            }
 
             Counter counter = registry.find("embabel.tool.errors.total").tag("tool", "WebSearch").tag("agent", "ToolAgent").counter();
             assertThat(counter).isNotNull();
@@ -342,9 +347,11 @@ class EmbabelMetricsEventListenerTest {
 
             listener.onProcessEvent(new AgentProcessCreationEvent(process));
 
-            var toolResponseEvent = createToolCallResponseEvent(
-                    process, "WebSearch", "result", null);
-            listener.onProcessEvent(toolResponseEvent);
+            var toolResponseEvent = createToolCallResponseEvent(process, "WebSearch");
+            try (MockedStatic<ToolCallOutcomes> outcomes = mockStatic(ToolCallOutcomes.class)) {
+                outcomes.when(() -> ToolCallOutcomes.error(toolResponseEvent)).thenReturn(null);
+                listener.onProcessEvent(toolResponseEvent);
+            }
 
             assertThat(registry.find("embabel.tool.errors.total").counter()).isNull();
         }
@@ -557,8 +564,11 @@ class EmbabelMetricsEventListenerTest {
             var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
             var process = createMockAgentProcess("run-1", "ToolAgent");
 
-            var toolResponseEvent = createToolCallResponseEvent(process, "WebSearch", "result", null);
-            listener.onProcessEvent(toolResponseEvent);
+            var toolResponseEvent = createToolCallResponseEvent(process, "WebSearch");
+            try (MockedStatic<ToolCallOutcomes> outcomes = mockStatic(ToolCallOutcomes.class)) {
+                outcomes.when(() -> ToolCallOutcomes.error(toolResponseEvent)).thenReturn(null);
+                listener.onProcessEvent(toolResponseEvent);
+            }
 
             Timer timer = registry.find("embabel.tool.duration")
                     .tag("tool", "WebSearch").tag("agent", "ToolAgent").timer();
@@ -748,18 +758,12 @@ class EmbabelMetricsEventListenerTest {
         return event;
     }
 
-    private static ToolCallResponseEvent createToolCallResponseEvent(AgentProcess process, String toolName,
-                                                                      String successResult, Throwable error) {
+    private static ToolCallResponseEvent createToolCallResponseEvent(AgentProcess process, String toolName) {
         ToolCallRequestEvent request = mock(ToolCallRequestEvent.class);
         lenient().when(request.getTool()).thenReturn(toolName);
 
-        MockResult mockResult = new MockResult(successResult, error);
-
         ToolCallResponseEvent event = mock(ToolCallResponseEvent.class, invocation -> {
             String methodName = invocation.getMethod().getName();
-            if (methodName.equals("getResult") || methodName.startsWith("getResult-")) {
-                return mockResult;
-            }
             if (methodName.equals("getAgentProcess")) {
                 return process;
             }
@@ -773,26 +777,5 @@ class EmbabelMetricsEventListenerTest {
         });
 
         return event;
-    }
-
-    /**
-     * A mock Result class that mimics Kotlin's Result&lt;T&gt;.
-     */
-    static class MockResult {
-        private final Object successValue;
-        private final Throwable error;
-
-        MockResult(Object successValue, Throwable error) {
-            this.successValue = successValue;
-            this.error = error;
-        }
-
-        public Object getOrNull() {
-            return error == null ? successValue : null;
-        }
-
-        public Throwable exceptionOrNull() {
-            return error;
-        }
     }
 }

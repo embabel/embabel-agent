@@ -16,6 +16,7 @@
 package com.embabel.agent.observability.metrics;
 
 import com.embabel.agent.api.event.*;
+import com.embabel.agent.api.event.observation.ToolCallOutcomes;
 import com.embabel.agent.core.ActionInvocation;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.EarlyTermination;
@@ -192,7 +193,7 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
      * The counter is tagged with the tool name. No-ops when the result is successful.
      */
     private void recordToolError(ToolCallResponseEvent event) {
-        Throwable error = extractToolError(event);
+        Throwable error = ToolCallOutcomes.error(event);
         if (error != null) {
             String toolName = event.getRequest().getTool();
             Counter.builder("embabel.tool.errors.total")
@@ -293,44 +294,5 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
                 .tag("agent", event.getAgentProcess().getAgent().getName())
                 .register(registry)
                 .record(event.getTotalIterations());
-    }
-
-    /**
-     * Extracts the error from a Kotlin Result via reflection.
-     */
-    private Throwable extractToolError(ToolCallResponseEvent event) {
-        try {
-            java.lang.reflect.Method getResultMethod = null;
-            for (java.lang.reflect.Method m : ToolCallResponseEvent.class.getMethods()) {
-                if (m.getName().startsWith("getResult") && m.getParameterCount() == 0) {
-                    getResultMethod = m;
-                    break;
-                }
-            }
-            if (getResultMethod == null) {
-                return null;
-            }
-
-            Object result = getResultMethod.invoke(event);
-            if (result == null) {
-                return null;
-            }
-            if (result instanceof Throwable t) {
-                return t;
-            }
-
-            try {
-                java.lang.reflect.Method exceptionOrNullMethod = result.getClass().getMethod("exceptionOrNull");
-                Object error = exceptionOrNullMethod.invoke(result);
-                if (error instanceof Throwable t) {
-                    return t;
-                }
-            } catch (NoSuchMethodException e) {
-                return null;
-            }
-        } catch (Exception e) {
-            log.trace("Could not extract tool error: {}", e.getMessage());
-        }
-        return null;
     }
 }
