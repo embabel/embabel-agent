@@ -270,7 +270,8 @@ public class ChatModelObservationFilter implements ObservationFilter {
 
     /**
      * Extracts the user prompt from the chat request instructions for the OpenInference bridge.
-     * Formats each message as {@code [MESSAGE_TYPE]: text}, joined by newlines.
+     * Formats each message as {@code [role]: text} (role spelled lowercase, matching the GenAI
+     * convention), joined by newlines.
      *
      * @return the formatted prompt string, or {@code null} if no instructions are available
      */
