@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.api.common.support
 
-import com.embabel.agent.api.common.SomeOf
+import com.embabel.agent.core.SomeOf
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.IoBinding
 import org.slf4j.Logger

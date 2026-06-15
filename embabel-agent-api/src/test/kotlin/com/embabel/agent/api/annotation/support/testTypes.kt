@@ -25,7 +25,7 @@ import com.embabel.agent.api.annotation.RequireNameMatch
 import com.embabel.agent.api.common.ActionContext
 import com.embabel.agent.api.common.Ai
 import com.embabel.agent.api.common.OperationContext
-import com.embabel.agent.api.common.SomeOf
+import com.embabel.agent.core.SomeOf
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.createObject
 import com.embabel.agent.api.dsl.Frog

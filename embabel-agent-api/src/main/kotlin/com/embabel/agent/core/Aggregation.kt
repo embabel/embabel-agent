@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.api.common
+package com.embabel.agent.core
 
 import java.lang.reflect.Field
 import java.lang.reflect.Modifier

@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.core
 
-import com.embabel.agent.api.common.SomeOf
 import com.embabel.common.util.indentLines
 import com.fasterxml.jackson.annotation.JsonClassDescription
 import com.fasterxml.jackson.annotation.JsonCreator

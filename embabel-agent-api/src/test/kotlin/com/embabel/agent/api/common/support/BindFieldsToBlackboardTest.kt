@@ -16,7 +16,7 @@
 package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.annotation.support.PersonWithReverseTool
-import com.embabel.agent.api.common.SomeOf
+import com.embabel.agent.core.SomeOf
 import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.agent.support.Dog
 import com.embabel.common.util.loggerFor

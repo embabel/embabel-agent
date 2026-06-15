@@ -16,7 +16,7 @@
 package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.annotation.support.isStateType
-import com.embabel.agent.api.common.SomeOf
+import com.embabel.agent.core.SomeOf
 import com.embabel.agent.api.common.Transformation
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.event.StateTransitionEvent
