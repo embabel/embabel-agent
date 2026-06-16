@@ -83,15 +83,15 @@ class StreamingGuardRailTestFakeChatModel(
     private var index = 0
 
     val promptsPassed = mutableListOf<Prompt>()
-    val optionsPassed = mutableListOf<ToolCallingChatOptions>()
+    val optionsPassed = mutableListOf<ChatOptions>()
 
     override fun getDefaultOptions(): ChatOptions = options
 
     override fun call(prompt: Prompt): ChatResponse {
         promptsPassed.add(prompt)
-        val options = prompt.options as? ToolCallingChatOptions
-            ?: throw IllegalArgumentException("Expected ToolCallingChatOptions")
-        optionsPassed.add(options)
+        // Spring AI 2.0's ChatClient merge does not preserve the ToolCallingChatOptions subtype;
+        // a real ChatModel receives a plain ChatOptions here (tools flow via the ToolCallingAdvisor).
+        optionsPassed.add(prompt.options)
         return ChatResponse(
             listOf(
                 Generation(SpringAssistantMessage(responses[index])).also {
@@ -104,9 +104,9 @@ class StreamingGuardRailTestFakeChatModel(
 
     override fun stream(prompt: Prompt): Flux<ChatResponse> {
         promptsPassed.add(prompt)
-        val options = prompt.options as? ToolCallingChatOptions
-            ?: throw IllegalArgumentException("Expected ToolCallingChatOptions")
-        optionsPassed.add(options)
+        // Spring AI 2.0's ChatClient merge does not preserve the ToolCallingChatOptions subtype;
+        // a real ChatModel receives a plain ChatOptions here (tools flow via the ToolCallingAdvisor).
+        optionsPassed.add(prompt.options)
 
         // Create streaming chunks from response
         val response = responses[index]

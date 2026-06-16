@@ -46,6 +46,8 @@ private fun anthropicUsage(
         .outputTokens(outputTokens)
         .cacheCreationInputTokens(cacheCreationInputTokens)
         .cacheReadInputTokens(cacheReadInputTokens)
+        // anthropic-java 2.40.1 made outputTokensDetails a required builder field; set it explicitly (empty).
+        .outputTokensDetails(Optional.empty())
         .cacheCreation(Optional.empty())
         .inferenceGeo(Optional.empty())
         .serverToolUse(Optional.empty())

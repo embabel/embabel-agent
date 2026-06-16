@@ -150,7 +150,7 @@ class MistralAiModelsConfig(
     private fun createMistralAiLlm(modelDef: MistralAiModelDefinition): LlmService<*> {
         val mistralChatModel = MistralAiChatModel
             .builder()
-            .defaultOptions(createDefaultOptions(modelDef))
+            .options(createDefaultOptions(modelDef))
             .mistralAiApi(createMistralAiApi())
             .toolCallingManager(
                 ToolCallingManager.builder()

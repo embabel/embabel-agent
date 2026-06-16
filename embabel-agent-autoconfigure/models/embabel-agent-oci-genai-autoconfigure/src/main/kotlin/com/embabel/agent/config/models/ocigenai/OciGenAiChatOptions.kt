@@ -110,13 +110,15 @@ class OciGenAiChatOptions internal constructor(
         this.toolCallbacks = toolCallbacks
     }
 
-    override fun getToolNames(): Set<String> = toolNames
+    // toolNames removed from Spring AI 2.0 ToolCallingChatOptions; kept as an OCI-internal property.
+    fun getToolNames(): Set<String> = toolNames
 
     fun setToolNames(toolNames: Set<String>) {
         this.toolNames = toolNames
     }
 
-    override fun getInternalToolExecutionEnabled(): Boolean? = internalToolExecutionEnabled
+    // internalToolExecutionEnabled removed from Spring AI 2.0 ToolCallingChatOptions; kept as an OCI-internal property.
+    fun getInternalToolExecutionEnabled(): Boolean? = internalToolExecutionEnabled
 
     fun setInternalToolExecutionEnabled(internalToolExecutionEnabled: Boolean?) {
         this.internalToolExecutionEnabled = internalToolExecutionEnabled
@@ -161,6 +163,10 @@ class OciGenAiChatOptions internal constructor(
             if (runtimeOptions.apiFormatExplicit) {
                 merged.apiFormat = runtimeOptions.apiFormat
             }
+            if (runtimeOptions.toolNames.isNotEmpty()) {
+                merged.toolNames = runtimeOptions.toolNames
+            }
+            runtimeOptions.internalToolExecutionEnabled?.let { merged.internalToolExecutionEnabled = it }
         }
         return merged
     }
@@ -172,17 +178,16 @@ class OciGenAiChatOptions internal constructor(
         if (runtimeOptions.toolCallbacks.isNotEmpty()) {
             merged.toolCallbacks = runtimeOptions.toolCallbacks
         }
-        if (runtimeOptions.toolNames.isNotEmpty()) {
-            merged.toolNames = runtimeOptions.toolNames
-        }
         if (runtimeOptions.toolContext.isNotEmpty()) {
             merged.toolContext = merged.toolContext + runtimeOptions.toolContext
         }
-        runtimeOptions.internalToolExecutionEnabled?.let { merged.internalToolExecutionEnabled = it }
+        // toolNames / internalToolExecutionEnabled were removed from Spring AI 2.0 ToolCallingChatOptions;
+        // they are OCI-internal now and merged in merge() when both sides are OciGenAiChatOptions.
     }
 
+    // ChatOptions.copy() was removed in Spring AI 2.0; kept as an OCI-internal deep-copy helper.
     @Suppress("UNCHECKED_CAST")
-    override fun <T : ChatOptions> copy(): T =
+    fun <T : ChatOptions> copy(): T =
         OciGenAiChatOptions(
             model = model,
             compartmentId = compartmentId,
@@ -254,13 +259,15 @@ class OciGenAiChatOptions internal constructor(
         override fun toolCallbacks(vararg toolCallbacks: ToolCallback): Builder =
             apply { options.setToolCallbacks(toolCallbacks.toList()) }
 
-        override fun toolNames(toolNames: Set<String>): Builder =
+        // toolNames / internalToolExecutionEnabled removed from Spring AI 2.0 ToolCallingChatOptions.Builder;
+        // kept as OCI-internal builder methods.
+        fun toolNames(toolNames: Set<String>): Builder =
             apply { options.setToolNames(toolNames) }
 
-        override fun toolNames(vararg toolNames: String): Builder =
+        fun toolNames(vararg toolNames: String): Builder =
             apply { options.setToolNames(toolNames.toSet()) }
 
-        override fun internalToolExecutionEnabled(internalToolExecutionEnabled: Boolean?): Builder =
+        fun internalToolExecutionEnabled(internalToolExecutionEnabled: Boolean?): Builder =
             apply { options.setInternalToolExecutionEnabled(internalToolExecutionEnabled) }
 
         override fun toolContext(toolContext: Map<String, Any>): Builder =

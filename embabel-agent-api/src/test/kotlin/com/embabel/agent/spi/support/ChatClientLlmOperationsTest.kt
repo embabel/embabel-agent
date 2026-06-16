@@ -88,15 +88,15 @@ class FakeChatModel(
     private var index = 0
 
     val promptsPassed = mutableListOf<Prompt>()
-    val optionsPassed = mutableListOf<ToolCallingChatOptions>()
+    val optionsPassed = mutableListOf<ChatOptions>()
 
     override fun getDefaultOptions(): ChatOptions = options
 
     override fun call(prompt: Prompt): ChatResponse {
         promptsPassed.add(prompt)
-        val options = prompt.options as? ToolCallingChatOptions
-            ?: throw IllegalArgumentException("Expected ToolCallingChatOptions")
-        optionsPassed.add(options)
+        // Spring AI 2.0's ChatClient merge does not preserve the ToolCallingChatOptions subtype;
+        // a real ChatModel receives a plain ChatOptions here (tools flow via the ToolCallingAdvisor).
+        optionsPassed.add(prompt.options)
         return ChatResponse(
             listOf(
                 Generation(AssistantMessage(responses[index])).also {
@@ -302,7 +302,7 @@ class ChatClientLlmOperationsTest {
             )
             assertEquals(duke, result)
             assertEquals(1, fakeChatModel.promptsPassed.size)
-            val tools = fakeChatModel.optionsPassed[0].toolCallbacks
+            val tools = (fakeChatModel.optionsPassed[0] as? ToolCallingChatOptions)?.toolCallbacks.orEmpty()
             assertEquals(0, tools.size)
         }
 
@@ -610,8 +610,6 @@ class ChatClientLlmOperationsTest {
             override fun call(prompt: Prompt): ChatResponse {
                 callCount.incrementAndGet()
                 Thread.sleep(delayMillis)
-                val options = prompt.options as? ToolCallingChatOptions
-                    ?: throw IllegalArgumentException("Expected ToolCallingChatOptions")
                 return ChatResponse(listOf(Generation(AssistantMessage(response))))
             }
         }
