@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.api.tool
 
+import com.embabel.agent.api.tool.JavaAnnotatedRecord
+import com.fasterxml.jackson.annotation.JsonPropertyDescription
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
@@ -313,6 +315,61 @@ class TypeBasedInputSchemaTest {
      * Tests for array/list schemas - OpenAI requires `items` property for arrays.
      * See: https://platform.openai.com/docs/guides/function-calling
      */
+    data class AnnotatedKotlinClass(
+        @field:JsonPropertyDescription("The user's full name")
+        val name: String,
+        @field:JsonPropertyDescription("Age in years")
+        val age: Int,
+        val noDescription: String,
+    )
+
+    @Nested
+    inner class JsonPropertyDescriptionTest {
+
+        @Test
+        fun `uses JsonPropertyDescription annotation as description in parameters`() {
+            val schema = TypeBasedInputSchema.of(AnnotatedKotlinClass::class.java)
+
+            val nameParam = schema.parameters.find { it.name == "name" }
+            assertNotNull(nameParam)
+            assertEquals("The user's full name", nameParam!!.description)
+
+            val ageParam = schema.parameters.find { it.name == "age" }
+            assertNotNull(ageParam)
+            assertEquals("Age in years", ageParam!!.description)
+        }
+
+        @Test
+        fun `falls back to field name when no JsonPropertyDescription`() {
+            val schema = TypeBasedInputSchema.of(AnnotatedKotlinClass::class.java)
+
+            val param = schema.parameters.find { it.name == "noDescription" }
+            assertNotNull(param)
+            assertEquals("noDescription", param!!.description)
+        }
+
+        @Test
+        fun `uses JsonPropertyDescription in generated JSON schema`() {
+            val schema = TypeBasedInputSchema.of(AnnotatedKotlinClass::class.java)
+
+            val jsonSchema = schema.toJsonSchema()
+            val parsed = objectMapper.readTree(jsonSchema)
+            val properties = parsed.get("properties")
+
+            assertEquals("The user's full name", properties.get("name").get("description").asText())
+            assertEquals("Age in years", properties.get("age").get("description").asText())
+        }
+
+        @Test
+        fun `uses JsonPropertyDescription for Java class fields`() {
+            val schema = TypeBasedInputSchema.of(JavaAnnotatedRecord::class.java)
+
+            val param = schema.parameters.find { it.name == "title" }
+            assertNotNull(param)
+            assertEquals("The task title", param!!.description)
+        }
+    }
+
     @Nested
     inner class ArrayItemsSchemaTest {
 

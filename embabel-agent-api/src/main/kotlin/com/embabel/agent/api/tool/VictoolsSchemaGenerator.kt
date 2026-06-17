@@ -24,6 +24,8 @@ import com.github.victools.jsonschema.generator.OptionPreset
 import com.github.victools.jsonschema.generator.SchemaGenerator
 import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import com.github.victools.jsonschema.generator.SchemaVersion
+import com.github.victools.jsonschema.module.jackson.JacksonModule
+import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule
 import org.jetbrains.annotations.ApiStatus
 import java.lang.reflect.Method
 import java.lang.reflect.Type
@@ -42,10 +44,19 @@ internal object VictoolsSchemaGenerator {
             SchemaVersion.DRAFT_2020_12,
             OptionPreset.PLAIN_JSON
         )
-        // Don't include $schema and $id in generated schemas
         configBuilder.without(Option.SCHEMA_VERSION_INDICATOR)
-        val config = configBuilder.build()
-        SchemaGenerator(config)
+        SchemaGenerator(configBuilder.build())
+    }
+
+    private val jacksonAwareSchemaGenerator: SchemaGenerator by lazy {
+        val configBuilder = SchemaGeneratorConfigBuilder(
+            SchemaVersion.DRAFT_2020_12,
+            OptionPreset.PLAIN_JSON
+        )
+        configBuilder.without(Option.SCHEMA_VERSION_INDICATOR)
+        configBuilder.with(JacksonModule())
+        configBuilder.with(JakartaValidationModule())
+        SchemaGenerator(configBuilder.build())
     }
 
     /**
@@ -93,6 +104,27 @@ internal object VictoolsSchemaGenerator {
         }
 
         return objectMapper.writeValueAsString(rootNode)
+    }
+
+    /**
+     * Generate a complete tool input schema for a class, reading field descriptions from
+     * [com.fasterxml.jackson.annotation.JsonPropertyDescription] annotations via the
+     * victools Jackson module.
+     *
+     * @param type The class to generate the schema for
+     * @param requiredFields Names of fields that should be marked required in the schema
+     * @return JSON schema string
+     */
+    fun generateClassInputSchema(type: Class<*>, requiredFields: Set<String>): String {
+        val schema = jacksonAwareSchemaGenerator.generateSchema(type).deepCopy() as ObjectNode
+        if (requiredFields.isEmpty()) {
+            schema.remove("required")
+        } else {
+            val requiredArray = objectMapper.createArrayNode()
+            requiredFields.sorted().forEach { requiredArray.add(it) }
+            schema.set<JsonNode>("required", requiredArray)
+        }
+        return objectMapper.writeValueAsString(schema)
     }
 
     /**

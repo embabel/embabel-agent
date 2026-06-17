@@ -19,6 +19,7 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.AgentProcess
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -234,6 +235,157 @@ class AwaitingToolsTest {
             val request = exception.awaitable as TypeRequest<*>
             assertEquals(PaymentDetails::class.java, request.type)
             assertEquals("Enter payment", request.message)
+        }
+    }
+
+    @Nested
+    inner class ConfirmationAwareToolTest {
+
+        @Test
+        fun `throws AwaitableResponseException when no confirmation pending`() {
+            every { mockAgentProcess.last(ConfirmationRequest::class.java) } returns null
+            val delegate = createMockTool()
+            val tool = ConfirmationAwareTool(delegate, { "Please confirm?" })
+
+            val exception = assertThrows<AwaitableResponseException> {
+                tool.call("{}")
+            }
+
+            assertInstanceOf(ConfirmationRequest::class.java, exception.awaitable)
+            assertEquals("Please confirm?", (exception.awaitable as ConfirmationRequest<*>).message)
+        }
+
+        @Test
+        fun `message provider receives input when awaiting`() {
+            every { mockAgentProcess.last(ConfirmationRequest::class.java) } returns null
+            val delegate = createMockTool()
+            var receivedInput: String? = null
+            val tool = ConfirmationAwareTool(delegate, { input ->
+                receivedInput = input
+                "Confirm?"
+            })
+
+            assertThrows<AwaitableResponseException> { tool.call("{\"key\": \"val\"}") }
+
+            assertEquals("{\"key\": \"val\"}", receivedInput)
+        }
+
+        @Test
+        fun `definition uses delegate schema when no confirmation pending`() {
+            every { mockAgentProcess.last(ConfirmationRequest::class.java) } returns null
+            val delegate = createMockTool("my_tool")
+            val tool = ConfirmationAwareTool(delegate, { "Confirm?" })
+
+            assertEquals("my_tool", tool.definition.name)
+            assertFalse(tool.definition.inputSchema.parameters.any { it.name == "accepted" })
+        }
+
+        @Test
+        fun `definition includes accepted parameter when confirmation pending`() {
+            val pendingRequest = ConfirmationRequest("{}", "Confirm?")
+            every { mockAgentProcess.last(ConfirmationRequest::class.java) } returns pendingRequest
+            every { mockAgentProcess.last(ConfirmationResponse::class.java) } returns null
+            val delegate = createMockTool()
+            val tool = ConfirmationAwareTool(delegate, { "Confirm?" })
+
+            val paramNames = tool.definition.inputSchema.parameters.map { it.name }
+            assertTrue(paramNames.contains("accepted"))
+        }
+
+        @Test
+        fun `executes delegate when accepted is true`() {
+            val input = "{}"
+            val pendingRequest = ConfirmationRequest(input, "Confirm?")
+            every { mockAgentProcess.last(ConfirmationRequest::class.java) } returns pendingRequest
+            every { mockAgentProcess.last(ConfirmationResponse::class.java) } returns null
+            val delegate = Tool.create("d", "desc") { Tool.Result.text("executed!") }
+            val tool = ConfirmationAwareTool(delegate, { "Confirm?" })
+
+            val result = tool.call("""{"accepted": true}""")
+
+            assertInstanceOf(Tool.Result.Text::class.java, result)
+            assertEquals("executed!", (result as Tool.Result.Text).content)
+        }
+
+        @Test
+        fun `returns cancellation when accepted is false`() {
+            val pendingRequest = ConfirmationRequest("{}", "Confirm?")
+            every { mockAgentProcess.last(ConfirmationRequest::class.java) } returns pendingRequest
+            every { mockAgentProcess.last(ConfirmationResponse::class.java) } returns null
+            val delegate = createMockTool()
+            val tool = ConfirmationAwareTool(delegate, { "Confirm?" })
+
+            val result = tool.call("""{"accepted": false}""")
+
+            assertInstanceOf(Tool.Result.Text::class.java, result)
+            assertTrue((result as Tool.Result.Text).content.contains("cancel", ignoreCase = true))
+        }
+
+        @Test
+        fun `records ConfirmationResponse on blackboard`() {
+            val pendingRequest = ConfirmationRequest("{}", "Confirm?")
+            every { mockAgentProcess.last(ConfirmationRequest::class.java) } returns pendingRequest
+            every { mockAgentProcess.last(ConfirmationResponse::class.java) } returns null
+            val delegate = createMockTool()
+            val tool = ConfirmationAwareTool(delegate, { "Confirm?" })
+
+            tool.call("""{"accepted": false}""")
+
+            verify { mockAgentProcess.plusAssign(match<Any> { it is ConfirmationResponse }) }
+        }
+
+        @Test
+        fun `passes updated parameters to delegate when provided with accepted`() {
+            val original = """{"amount": 5.0}"""
+            val pendingRequest = ConfirmationRequest(original, "Confirm?")
+            every { mockAgentProcess.last(ConfirmationRequest::class.java) } returns pendingRequest
+            every { mockAgentProcess.last(ConfirmationResponse::class.java) } returns null
+            var capturedInput: String? = null
+            val delegate = Tool.create("d", "desc") { input ->
+                capturedInput = input
+                Tool.Result.text("ok")
+            }
+            val tool = ConfirmationAwareTool(delegate, { "Confirm?" })
+
+            tool.call("""{"accepted": true, "amount": 99.0}""")
+
+            assertNotNull(capturedInput)
+            assertTrue(capturedInput!!.contains("99.0"))
+        }
+
+        @Test
+        fun `falls back to original payload when no updated parameters`() {
+            val original = """{"amount": 5.0}"""
+            val pendingRequest = ConfirmationRequest(original, "Confirm?")
+            every { mockAgentProcess.last(ConfirmationRequest::class.java) } returns pendingRequest
+            every { mockAgentProcess.last(ConfirmationResponse::class.java) } returns null
+            var capturedInput: String? = null
+            val delegate = Tool.create("d", "desc") { input ->
+                capturedInput = input
+                Tool.Result.text("ok")
+            }
+            val tool = ConfirmationAwareTool(delegate, { "Confirm?" })
+
+            tool.call("""{"accepted": true}""")
+
+            assertNotNull(capturedInput)
+            assertTrue(capturedInput!!.contains("5.0"))
+        }
+
+        @Test
+        fun `extension function withLlmConfirmation with lambda creates ConfirmationAwareTool`() {
+            val delegate = createMockTool()
+            val tool = delegate.withLlmConfirmation { "Confirm?" }
+
+            assertInstanceOf(ConfirmationAwareTool::class.java, tool)
+        }
+
+        @Test
+        fun `extension function withLlmConfirmation with message creates ConfirmationAwareTool`() {
+            val delegate = createMockTool()
+            val tool = delegate.withLlmConfirmation("Are you sure?")
+
+            assertInstanceOf(ConfirmationAwareTool::class.java, tool)
         }
     }
 }
