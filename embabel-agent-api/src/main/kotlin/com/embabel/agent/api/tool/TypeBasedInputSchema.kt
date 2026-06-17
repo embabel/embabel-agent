@@ -15,9 +15,12 @@
  */
 package com.embabel.agent.api.tool
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.annotation.JsonPropertyDescription
 import kotlin.reflect.KClass
+import kotlin.reflect.KProperty1
+import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.memberProperties
+import kotlin.reflect.jvm.javaField
 import kotlin.reflect.jvm.javaType
 
 /**
@@ -29,13 +32,19 @@ class TypeBasedInputSchema(
 ) : Tool.InputSchema {
 
     companion object {
-        private val objectMapper = ObjectMapper()
-
         @JvmStatic
         fun of(type: Class<*>): TypeBasedInputSchema = TypeBasedInputSchema(type)
 
         @JvmStatic
         fun of(type: KClass<*>): TypeBasedInputSchema = TypeBasedInputSchema(type.java)
+
+        private fun propertyDescription(prop: KProperty1<*, *>): String =
+            prop.javaField?.getAnnotation(JsonPropertyDescription::class.java)?.value
+                ?: prop.findAnnotation<JsonPropertyDescription>()?.value
+                ?: prop.name
+
+        private fun fieldDescription(field: java.lang.reflect.Field): String =
+            field.getAnnotation(JsonPropertyDescription::class.java)?.value ?: field.name
 
         private fun mapPropertyTypeToParameterType(type: Class<*>): Tool.ParameterType = when {
             type == String::class.java || type == java.lang.String::class.java ->
@@ -63,46 +72,22 @@ class TypeBasedInputSchema(
         extractParameters()
     }
 
-    override fun toJsonSchema(): String {
-        val parameterInfos = mutableListOf<VictoolsSchemaGenerator.ParameterInfo>()
+    override fun toJsonSchema(): String =
+        VictoolsSchemaGenerator.generateClassInputSchema(type, requiredFieldNames())
 
-        try {
-            // Skip Kotlin reflection for Java records - go straight to fallback
-            if (type.isRecord) {
-                throw UnsupportedOperationException("Java records require fallback reflection")
-            }
-
-            val kClass = type.kotlin
-            for (prop in kClass.memberProperties) {
-                // Use javaType to get the full generic type (e.g., List<String> not just List)
-                val javaType = prop.returnType.javaType
-                parameterInfos.add(
-                    VictoolsSchemaGenerator.ParameterInfo(
-                        name = prop.name,
-                        type = javaType,
-                        description = prop.name,
-                        required = !prop.returnType.isMarkedNullable,
-                    )
-                )
-            }
+    private fun requiredFieldNames(): Set<String> {
+        return try {
+            if (type.isRecord) throw UnsupportedOperationException()
+            type.kotlin.memberProperties
+                .filter { !it.returnType.isMarkedNullable }
+                .map { it.name }
+                .toSet()
         } catch (e: Exception) {
-            // Fallback for non-Kotlin classes or reflection failures
-            // For Java classes, try to get generic type info from fields
-            for (field in type.declaredFields) {
-                if (java.lang.reflect.Modifier.isStatic(field.modifiers)) continue
-                parameterInfos.add(
-                    VictoolsSchemaGenerator.ParameterInfo(
-                        name = field.name,
-                        type = field.genericType, // Use genericType for full type info
-                        description = field.name,
-                        required = true,
-                    )
-                )
-            }
+            type.declaredFields
+                .filter { !java.lang.reflect.Modifier.isStatic(it.modifiers) }
+                .map { it.name }
+                .toSet()
         }
-
-        // Use victools to generate schema with proper generic handling
-        return VictoolsSchemaGenerator.generateToolInputSchema(parameterInfos)
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -122,7 +107,7 @@ class TypeBasedInputSchema(
                     Tool.Parameter(
                         name = prop.name,
                         type = mapPropertyTypeToParameterType(propType),
-                        description = prop.name,
+                        description = propertyDescription(prop),
                         required = !prop.returnType.isMarkedNullable,
                     )
                 )
@@ -135,7 +120,7 @@ class TypeBasedInputSchema(
                     Tool.Parameter(
                         name = field.name,
                         type = mapPropertyTypeToParameterType(field.type),
-                        description = field.name,
+                        description = fieldDescription(field),
                         required = true,
                     )
                 )
