@@ -17,6 +17,11 @@ package com.embabel.agent.api.tool;
 
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 
+/**
+ * Test fixture: a Java record with {@link JsonPropertyDescription} annotations,
+ * used to verify that {@link TypeBasedInputSchema} reads descriptions from Java record
+ * components (which lack Kotlin metadata and fall back to Java reflection).
+ */
 public record JavaAnnotatedRecord(
         @JsonPropertyDescription("The task title")
         String title,

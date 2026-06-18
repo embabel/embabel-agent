@@ -423,6 +423,12 @@
                 REMOVE this import once we upgrade to a Tika release that ships BC >= 1.84.
             -->
             <dependency>
+                <groupId>com.github.victools</groupId>
+                <artifactId>jsonschema-module-jakarta-validation</artifactId>
+                <version>4.38.0</version>
+            </dependency>
+
+            <dependency>
                 <groupId>org.bouncycastle</groupId>
                 <artifactId>bc-jdk18on-bom</artifactId>
                 <version>${bouncycastle.version}</version>

@@ -16,6 +16,8 @@
 package com.embabel.agent.core.hitl
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.hitl.ConfirmationAwareTool
+import com.embabel.agent.api.tool.hitl.withLlmConfirmation
 import com.embabel.agent.core.AgentProcess
 import io.mockk.every
 import io.mockk.mockk

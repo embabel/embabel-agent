@@ -117,11 +117,17 @@ internal object VictoolsSchemaGenerator {
      */
     fun generateClassInputSchema(type: Class<*>, requiredFields: Set<String>): String {
         val schema = jacksonAwareSchemaGenerator.generateSchema(type).deepCopy() as ObjectNode
-        if (requiredFields.isEmpty()) {
+        // When no fields are explicitly required (e.g. all-nullable type), fall back to all
+        // property names so the schema stays compatible with native structured output providers
+        // (OpenAI et al.) which require every property to be listed in "required".
+        val effective = requiredFields.ifEmpty {
+            schema.path("properties").fieldNames().asSequence().toSet()
+        }
+        if (effective.isEmpty()) {
             schema.remove("required")
         } else {
             val requiredArray = objectMapper.createArrayNode()
-            requiredFields.sorted().forEach { requiredArray.add(it) }
+            effective.sorted().forEach { requiredArray.add(it) }
             schema.set<JsonNode>("required", requiredArray)
         }
         return objectMapper.writeValueAsString(schema)

@@ -134,11 +134,14 @@ class VictoolsSchemaGeneratorTest {
         }
 
         @Test
-        fun `no required array when requiredFields is empty`() {
+        fun `falls back to all property names when requiredFields is empty`() {
             val json = objectMapper.readTree(
                 VictoolsSchemaGenerator.generateClassInputSchema(SimpleInput::class.java, emptySet())
             )
-            assertNull(json.get("required"))
+            // Empty requiredFields → falls back to all properties for native structured output compatibility
+            val required = json.get("required").map { it.asText() }
+            assertTrue(required.contains("name"))
+            assertTrue(required.contains("age"))
         }
 
         @Test

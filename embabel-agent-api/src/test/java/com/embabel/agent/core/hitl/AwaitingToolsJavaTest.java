@@ -16,6 +16,8 @@
 package com.embabel.agent.core.hitl;
 
 import com.embabel.agent.api.tool.Tool;
+import com.embabel.agent.api.tool.hitl.ConfirmationAwareTool;
+import com.embabel.agent.api.tool.hitl.ConfirmationAwareToolKt;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -101,6 +103,36 @@ class AwaitingToolsJavaTest {
             var typeRequest = (TypeRequest<PaymentDetails>) awaitable;
             assertEquals(PaymentDetails.class, typeRequest.getType());
             assertEquals("Enter payment", typeRequest.getMessage());
+        }
+    }
+
+    @Nested
+    class ConfirmationAwareToolTests {
+
+        @Test
+        void createsWithMessageProvider() {
+            Tool delegate = createMockTool("delete");
+            var tool = new ConfirmationAwareTool(delegate, input -> "Are you sure?");
+
+            assertNotNull(tool);
+            assertEquals("delete", tool.getDefinition().getName());
+        }
+
+        @Test
+        void withLlmConfirmationExtensionIsCallableFromJava() {
+            Tool delegate = createMockTool("delete");
+            Tool wrapped = ConfirmationAwareToolKt.withLlmConfirmation(delegate, "Are you sure?");
+
+            assertNotNull(wrapped);
+            assertInstanceOf(ConfirmationAwareTool.class, wrapped);
+        }
+
+        @Test
+        void throwsAwaitableResponseExceptionOnFirstCall() {
+            Tool delegate = createMockTool("delete");
+            var tool = new ConfirmationAwareTool(delegate, input -> "Confirm delete?");
+
+            assertThrows(AwaitableResponseException.class, () -> tool.call("{}"));
         }
     }
 

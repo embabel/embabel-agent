@@ -38,11 +38,13 @@ class TypeBasedInputSchema(
         @JvmStatic
         fun of(type: KClass<*>): TypeBasedInputSchema = TypeBasedInputSchema(type.java)
 
+        /** Returns the [JsonPropertyDescription] value for [prop], falling back to the property name. */
         private fun propertyDescription(prop: KProperty1<*, *>): String =
             prop.javaField?.getAnnotation(JsonPropertyDescription::class.java)?.value
                 ?: prop.findAnnotation<JsonPropertyDescription>()?.value
                 ?: prop.name
 
+        /** Returns the [JsonPropertyDescription] value for [field], falling back to the field name. */
         private fun fieldDescription(field: java.lang.reflect.Field): String =
             field.getAnnotation(JsonPropertyDescription::class.java)?.value ?: field.name
 
@@ -75,20 +77,31 @@ class TypeBasedInputSchema(
     override fun toJsonSchema(): String =
         VictoolsSchemaGenerator.generateClassInputSchema(type, requiredFieldNames())
 
+    /**
+     * Computes non-nullable field names from Kotlin type metadata.
+     * Falls back to all non-static Java fields when Kotlin metadata is absent —
+     * e.g. Java records, synthetic classes, or classes compiled without Kotlin metadata.
+     */
     private fun requiredFieldNames(): Set<String> {
         return try {
-            if (type.isRecord) throw UnsupportedOperationException()
+            if (type.isRecord) throw UnsupportedOperationException("Java records: use field fallback")
             type.kotlin.memberProperties
                 .filter { !it.returnType.isMarkedNullable }
                 .map { it.name }
                 .toSet()
-        } catch (e: Exception) {
-            type.declaredFields
-                .filter { !java.lang.reflect.Modifier.isStatic(it.modifiers) }
-                .map { it.name }
-                .toSet()
+        } catch (e: UnsupportedOperationException) {
+            javaFieldNames()
+        } catch (e: RuntimeException) {
+            // Kotlin reflection unavailable (e.g. no kotlin.Metadata on this class)
+            javaFieldNames()
         }
     }
+
+    private fun javaFieldNames(): Set<String> =
+        type.declaredFields
+            .filter { !java.lang.reflect.Modifier.isStatic(it.modifiers) }
+            .map { it.name }
+            .toSet()
 
     @Suppress("UNCHECKED_CAST")
     private fun extractParameters(): List<Tool.Parameter> {
