@@ -74,6 +74,12 @@ class AgentPlatformProperties {
     @field:NestedConfigurationProperty
     var actionQos: ActionQosProperties = ActionQosProperties()
 
+    @field:NestedConfigurationProperty
+    var virtual: VirtualProperties = VirtualProperties()
+
+    @field:NestedConfigurationProperty
+    var threading: ThreadingProperties = ThreadingProperties()
+
     /**
      * Agent Process Type
      */
@@ -364,5 +370,47 @@ class AgentPlatformProperties {
          */
         var default: ActionProperties = ActionProperties()
 
+    }
+
+    /**
+     * Virtual threads configuration.
+     * Maps to: embabel.agent.platform.virtual.threads.*
+     */
+    class VirtualProperties {
+        @field:NestedConfigurationProperty
+        var threads: ThreadsProperties = ThreadsProperties()
+
+        /**
+         * Thread configuration
+         */
+        class ThreadsProperties {
+            /**
+             * Override the application's threading model.
+             * - false (default): Inherit from spring.threads.virtual.enabled
+             * - true: Use opposite of application (platform ↔ virtual)
+             *
+             * Property: embabel.agent.platform.virtual.threads.override
+             */
+            var override: Boolean = false
+        }
+    }
+
+    /**
+     * Threading instance configuration (shared vs isolated executor).
+     * Only applies when both application and embabel use platform threads.
+     *
+     * Maps to: embabel.agent.platform.threading.*
+     */
+    class ThreadingProperties {
+        /**
+         * Share the application's executor when both use platform threads.
+         * - false (default): Embabel uses separate platform thread pool (isolated)
+         * - true: Embabel shares application's executor (shared)
+         *
+         * Note: Ignored when virtual threads are in use (shared/isolated is moot with unbounded threads)
+         *
+         * Property: embabel.agent.platform.threading.shared
+         */
+        var shared: Boolean = false
     }
 }

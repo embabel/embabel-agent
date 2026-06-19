@@ -378,6 +378,21 @@ see <<reference.llms.custom-integration>>.
 You can specify Spring configuration, your own configuration and Embabel configuration in the regular Spring configuration files.
 Profile usage will work as expected.
 
+==== Customizing threading configuration
+
+Embabel uses a dedicated executor for agent operations. You can customize the threading model using properties in `agent-platform.properties`:
+
+[source,properties]
+----
+# Flip inherited threading model (virtual-to-platform, platform-to-virtual)
+embabel.agent.platform.virtual.threads.override=false
+
+# Share app's executor when both use the same threading model
+embabel.agent.platform.threading.shared=false
+----
+
+See <<reference.asynch-mode>> for details about the threading model and configuration options.
+
 ==== Customizing logging
 
 You can customize logging as in any Spring application.
