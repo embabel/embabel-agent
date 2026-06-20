@@ -5,13 +5,15 @@ Async Configuration is defined in _AsyncConfiguration.kt_.
 
 === Threading Model
 
-Embabel uses a dedicated executor (`embabelTaskExecutor`) for all agent operations with an inheritance-based threading model.
+Embabel uses a dedicated executor for all agent operations with an inheritance-based threading model.
+
+IMPORTANT: **Upgrade Note** - Prior to this version, Embabel set `spring.threads.virtual.enabled=true` by default, forcing all applications to use virtual threads. This has been removed to avoid interfering with host application threading configuration. Embabel now inherits the threading model from `spring.threads.virtual.enabled` (defaults to platform threads if not set). To enable virtual threads, explicitly set `spring.threads.virtual.enabled=true` in your `application.properties`.
 
 ==== Configuration Properties
 
 Two orthogonal properties control Embabel's threading behavior:
 
-1. **Threading Model Inheritance** (`embabel.agent.platform.virtual.threads.override`)
+1. **Threading Model Inheritance** (`embabel.agent.platform.threading.override`)
    - `false` (default): Inherit threading model from `spring.threads.virtual.enabled`
    - `true`: Flip the threading model (virtual→platform or platform→virtual)
 
@@ -22,7 +24,7 @@ Two orthogonal properties control Embabel's threading behavior:
 Configuration in `agent-platform.properties`:
 ----
 # Flip inherited threading model (virtual-to-platform, platform-to-virtual)
-embabel.agent.platform.virtual.threads.override=false
+embabel.agent.platform.threading.override=false
 
 # Share app's executor when both use the same threading model
 embabel.agent.platform.threading.shared=false
@@ -119,7 +121,7 @@ Also, note: modern (post 1.3) Kotlin  coroutines implementation in Dispatchers.D
 ==== Why Embabel is Safe
 
 1. Asyncer Abstraction — All parallel execution routes through ExecutorAsyncer
-2. Dedicated Executor — Uses `embabelTaskExecutor` (virtual or unbounded platform threads), not ForkJoinPool
+2. Dedicated Executor — Uses a dedicated executor (virtual or unbounded platform threads), not ForkJoinPool
 3. Unbounded Execution — Configured as unbounded to support parallel action execution
 4. Coroutine Defaults — Production code uses Dispatchers.IO, not Dispatchers.Default
 

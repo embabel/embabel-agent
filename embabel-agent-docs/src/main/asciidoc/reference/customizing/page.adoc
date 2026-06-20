@@ -385,7 +385,7 @@ Embabel uses a dedicated executor for agent operations. You can customize the th
 [source,properties]
 ----
 # Flip inherited threading model (virtual-to-platform, platform-to-virtual)
-embabel.agent.platform.virtual.threads.override=false
+embabel.agent.platform.threading.override=false
 
 # Share app's executor when both use the same threading model
 embabel.agent.platform.threading.shared=false

@@ -24,8 +24,10 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.task.TaskExecutionAutoConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import jakarta.annotation.PreDestroy
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor
 import java.util.concurrent.Executor
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 /**
@@ -55,6 +57,12 @@ class AsyncConfiguration(
         private const val VIRTUAL_THREAD_NAME_PREFIX = "embabel-virtual-"
         private const val PLATFORM_THREAD_NAME_PREFIX = "embabel-platform-"
     }
+
+    /**
+     * Tracks executor created by Embabel (for shutdown).
+     * Null when sharing app's executor.
+     */
+    private var embabelOwnedExecutor: ExecutorService? = null
 
     /**
      * Creates the Asyncer abstraction for Embabel agent operations.
@@ -87,7 +95,9 @@ class AsyncConfiguration(
             sharedExecutor
         } else {
             // Step 4: Create isolated raw JDK executor (no Spring lifecycle)
-            createExecutorWithLogging(embabelUsesVirtual)
+            createExecutorWithLogging(embabelUsesVirtual).also {
+                embabelOwnedExecutor = it as? ExecutorService
+            }
         }
 
         return ExecutorAsyncer(executor)
@@ -121,7 +131,7 @@ class AsyncConfiguration(
      * Logic: Inherit from app, then flip if override is enabled.
      */
     private fun shouldUseVirtualThreads(): Boolean =
-        if (properties.virtual.threads.override) {
+        if (properties.threading.override) {
             !appUsesVirtualThreads  // Flip: virtual → platform or platform → virtual
         } else {
             appUsesVirtualThreads   // Inherit: same as app
@@ -169,5 +179,14 @@ class AsyncConfiguration(
             ?: version.substringBefore('-').toIntOrNull()
             ?: return false
         return majorVersion >= JAVA_21_MAJOR_VERSION
+    }
+
+    /**
+     * Shuts down executor created by Embabel.
+     * Does nothing when sharing app's executor.
+     */
+    @PreDestroy
+    fun shutdownOwnedExecutor() {
+        embabelOwnedExecutor?.shutdown()
     }
 }

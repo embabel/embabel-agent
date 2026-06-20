@@ -314,7 +314,7 @@ class AsyncConfigurationTest {
         shared: Boolean = false
     ): AsyncConfiguration {
         val properties = AgentPlatformProperties()
-        properties.virtual.threads.override = override
+        properties.threading.override = override
         properties.threading.shared = shared
         return AsyncConfiguration(properties, appUsesVirtual)
     }
