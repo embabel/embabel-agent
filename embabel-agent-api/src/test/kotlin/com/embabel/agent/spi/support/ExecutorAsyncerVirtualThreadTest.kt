@@ -35,8 +35,10 @@ import kotlin.test.assertTrue
 
 /**
  * Confirms [ExecutorAsyncer] works correctly when backed by a virtual-thread executor
- * (`Executors.newVirtualThreadPerTaskExecutor()`), as used when
- * `spring.threads.virtual.enabled=true`.
+ * (`Executors.newVirtualThreadPerTaskExecutor()`), as used when Embabel is configured
+ * to use virtual threads via AsyncConfiguration (either inherited from
+ * `spring.threads.virtual.enabled=true` or flipped via
+ * `embabel.agent.platform.virtual.threads.override=true`).
  *
  * Answers the review question "Please confirm it works with virtual threads" by proving:
  * 1. work actually runs on a virtual thread,
