@@ -65,8 +65,13 @@ class ConfigurableModelProvider(
 
     private val logger = loggerFor<ConfigurableModelProvider>()
 
-    private val defaultLlm = llms.firstOrNull { it.name == properties.defaultLlm }
-        ?: throw IllegalArgumentException("Default LLM '${properties.defaultLlm}' not found in available models: ${llms.map { it.name }}")
+    private val defaultLlm =
+        if (llms.isNotEmpty())
+            llms.firstOrNull { it.name == properties.defaultLlm }
+                ?: throw IllegalArgumentException(
+                    "Default LLM '${properties.defaultLlm}' not found. Set the 'embabel.models.default-llm' property to one of the available models: ${llms.map { it.name }}.")
+        else
+            throw IllegalArgumentException("No models detected. Ensure that at least one Embabel Agent Starter (e.g. embabel-agent-starter-openai) is on the classpath.")
 
     // Compute this lazily as embedding services may not be available
     private fun defaultEmbeddingService() =
