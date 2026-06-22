@@ -16,8 +16,11 @@
 package com.embabel.agent.api.common
 
 import com.embabel.chat.ContentPart
+import com.embabel.chat.DocumentPart
 import com.embabel.chat.ImagePart
 import com.embabel.chat.TextPart
+import com.embabel.common.ai.media.mimeTypeForDocumentExtension
+import com.embabel.common.ai.media.mimeTypeForImageExtension
 import java.io.File
 import java.nio.file.Path
 
@@ -28,7 +31,8 @@ import java.nio.file.Path
  */
 data class MultimodalContent(
     val text: String,
-    val images: List<AgentImage> = emptyList()
+    val images: List<AgentImage> = emptyList(),
+    val documents: List<AgentDocument> = emptyList(),
 ) {
 
     /**
@@ -41,6 +45,9 @@ data class MultimodalContent(
         }
         images.forEach { image ->
             parts.add(ImagePart(image.mimeType, image.data))
+        }
+        documents.forEach { document ->
+            parts.add(DocumentPart(document.mimeType, document.data, document.filename))
         }
         return parts
     }
@@ -60,11 +67,25 @@ data class MultimodalContent(
             MultimodalContent(text, listOf(image))
 
         /**
+         * Create multimodal content with text and a single document
+         */
+        @JvmStatic
+        fun withDocument(text: String, document: AgentDocument): MultimodalContent =
+            MultimodalContent(text, documents = listOf(document))
+
+        /**
          * Create multimodal content with text and multiple images
          */
         @JvmStatic
         fun withImages(text: String, images: List<AgentImage>): MultimodalContent =
             MultimodalContent(text, images)
+
+        /**
+         * Create multimodal content with text and multiple documents
+         */
+        @JvmStatic
+        fun withDocuments(text: String, documents: List<AgentDocument>): MultimodalContent =
+            MultimodalContent(text, documents = documents)
     }
 }
 
@@ -94,7 +115,7 @@ data class AgentImage(
          */
         @JvmStatic
         fun fromFile(file: File): AgentImage {
-            val mimeType = detectMimeType(file.extension)
+            val mimeType = mimeTypeForImageExtension(file.extension)
             return AgentImage(mimeType, file.readBytes())
         }
 
@@ -116,22 +137,68 @@ data class AgentImage(
         @JvmStatic
         fun fromBytes(filename: String, data: ByteArray): AgentImage {
             val extension = filename.substringAfterLast('.', "")
-            val mimeType = detectMimeType(extension)
+            val mimeType = mimeTypeForImageExtension(extension)
             return AgentImage(mimeType, data)
         }
+    }
+}
 
-        private fun detectMimeType(extension: String): String {
-            return when (extension.lowercase()) {
-                "jpg", "jpeg" -> "image/jpeg"
-                "png" -> "image/png"
-                "gif" -> "image/gif"
-                "webp" -> "image/webp"
-                "bmp" -> "image/bmp"
-                else -> throw IllegalArgumentException(
-                    "Unknown image format: .$extension. Supported formats: jpg, jpeg, png, gif, webp, bmp. " +
-                    "For other formats, use AgentImage.create(mimeType, data) with an explicit MIME type."
-                )
-            }
+/**
+ * Represents a document for Agent API operations.
+ * Provides convenient constructors for common document sources.
+ */
+data class AgentDocument(
+    val mimeType: String,
+    val data: ByteArray,
+    val filename: String? = null,
+) {
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is AgentDocument) return false
+        return mimeType == other.mimeType && filename == other.filename && data.contentEquals(other.data)
+    }
+
+    override fun hashCode(): Int {
+        var result = mimeType.hashCode()
+        result = 31 * result + data.contentHashCode()
+        result = 31 * result + filename.hashCode()
+        return result
+    }
+
+    companion object {
+
+        /**
+         * Create an AgentDocument from a file, auto-detecting MIME type
+         */
+        @JvmStatic
+        fun fromFile(file: File): AgentDocument {
+            val mimeType = mimeTypeForDocumentExtension(file.extension)
+            return AgentDocument(mimeType, file.readBytes(), file.name)
+        }
+
+        /**
+         * Create an AgentDocument from a Path, auto-detecting MIME type
+         */
+        @JvmStatic
+        fun fromPath(path: Path): AgentDocument = fromFile(path.toFile())
+
+        /**
+         * Create an AgentDocument with explicit MIME type and data
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun create(mimeType: String, data: ByteArray, filename: String? = null): AgentDocument =
+            AgentDocument(mimeType, data, filename)
+
+        /**
+         * Create an AgentDocument from raw bytes, auto-detecting MIME type based on file extension
+         */
+        @JvmStatic
+        fun fromBytes(filename: String, data: ByteArray): AgentDocument {
+            val extension = filename.substringAfterLast('.', "")
+            val mimeType = mimeTypeForDocumentExtension(extension)
+            return AgentDocument(mimeType, data, filename)
         }
     }
 }
@@ -142,6 +209,7 @@ data class AgentImage(
 class MultimodalContentBuilder {
     private var text: String = ""
     private val images = mutableListOf<AgentImage>()
+    private val documents = mutableListOf<AgentDocument>()
 
     fun text(content: String): MultimodalContentBuilder {
         this.text = content
@@ -173,7 +241,32 @@ class MultimodalContentBuilder {
         return this
     }
 
-    fun build(): MultimodalContent = MultimodalContent(text, images.toList())
+    fun document(document: AgentDocument): MultimodalContentBuilder {
+        this.documents.add(document)
+        return this
+    }
+
+    fun document(mimeType: String, data: ByteArray, filename: String? = null): MultimodalContentBuilder {
+        this.documents.add(AgentDocument(mimeType, data, filename))
+        return this
+    }
+
+    fun document(file: File): MultimodalContentBuilder {
+        this.documents.add(AgentDocument.fromFile(file))
+        return this
+    }
+
+    fun document(path: Path): MultimodalContentBuilder {
+        this.documents.add(AgentDocument.fromPath(path))
+        return this
+    }
+
+    fun documents(vararg documents: AgentDocument): MultimodalContentBuilder {
+        this.documents.addAll(documents)
+        return this
+    }
+
+    fun build(): MultimodalContent = MultimodalContent(text, images.toList(), documents.toList())
 }
 
 /**

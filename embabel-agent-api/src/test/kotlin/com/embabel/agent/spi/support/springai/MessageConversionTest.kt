@@ -17,6 +17,7 @@ package com.embabel.agent.spi.support.springai
 
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.AssistantMessageWithToolCalls
+import com.embabel.chat.DocumentPart
 import com.embabel.chat.ImagePart
 import com.embabel.chat.SystemMessage
 import com.embabel.chat.TextPart
@@ -108,6 +109,80 @@ class MessageConversionTest {
 
         assertThat(springAiMessage.media[1].mimeType.toString()).isEqualTo("image/png")
         assertThat(springAiMessage.media[1].data).isNotNull()
+    }
+
+    @Test
+    fun `converts UserMessage with document`() {
+        val message = UserMessage(
+            listOf(
+                TextPart("Summarize this document:"),
+                DocumentPart("application/pdf", byteArrayOf(1, 2, 3), "report.pdf")
+            )
+        )
+
+        val springAiMessage = message.toSpringAiMessage() as SpringAiUserMessage
+
+        assertThat(springAiMessage.text).isEqualTo("Summarize this document:")
+        assertThat(springAiMessage.media).hasSize(1)
+        assertThat(springAiMessage.media[0].mimeType.toString()).isEqualTo("application/pdf")
+        assertThat(springAiMessage.media[0].data).isNotNull()
+    }
+
+    @Test
+    fun `converts UserMessage with only document no text`() {
+        val message = UserMessage(
+            listOf(
+                DocumentPart("application/pdf", byteArrayOf(1, 2, 3), "report.pdf")
+            )
+        )
+
+        val springAiMessage = message.toSpringAiMessage() as SpringAiUserMessage
+
+        assertThat(springAiMessage.text).isEqualTo(" ")
+        assertThat(springAiMessage.media).hasSize(1)
+        assertThat(springAiMessage.media[0].mimeType.toString()).isEqualTo("application/pdf")
+    }
+
+    @Test
+    fun `converts UserMessage with image and document media`() {
+        val message = UserMessage(
+            listOf(
+                TextPart("Use both inputs:"),
+                ImagePart("image/png", byteArrayOf(1, 2, 3)),
+                DocumentPart(
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    byteArrayOf(4, 5, 6),
+                    "workbook.xlsx"
+                )
+            )
+        )
+
+        val springAiMessage = message.toSpringAiMessage() as SpringAiUserMessage
+
+        assertThat(springAiMessage.text).isEqualTo("Use both inputs:")
+        assertThat(springAiMessage.media).hasSize(2)
+        assertThat(springAiMessage.media[0].mimeType.toString()).isEqualTo("image/png")
+        assertThat(springAiMessage.media[1].mimeType.toString())
+            .isEqualTo("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    }
+
+    @Test
+    fun `preserves media order when converting mixed image and document parts`() {
+        val message = UserMessage(
+            listOf(
+                DocumentPart("application/pdf", byteArrayOf(1), "first.pdf"),
+                ImagePart("image/png", byteArrayOf(2)),
+                DocumentPart("application/vnd.oasis.opendocument.text", byteArrayOf(3), "third.odt")
+            )
+        )
+
+        val springAiMessage = message.toSpringAiMessage() as SpringAiUserMessage
+
+        assertThat(springAiMessage.media.map { it.mimeType.toString() }).containsExactly(
+            "application/pdf",
+            "image/png",
+            "application/vnd.oasis.opendocument.text",
+        )
     }
 
     @Test

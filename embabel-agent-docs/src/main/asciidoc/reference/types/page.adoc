@@ -222,6 +222,43 @@ val answer = context.ai()
 <1> **Vision-capable model required**: Use Claude 3.x, GPT-4 Vision, or other multimodal LLMs
 <2> **Add image**: Images are sent with the text prompt to the LLM. Can be used multiple times for multiple images.
 
+**Working with Documents:**
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+var documentPath = java.nio.file.Paths.get("reports/quarterly-report.pdf");
+
+var message = userMessage()
+    .text("Summarize this report")
+    .document(documentPath)
+    .build();
+
+var answer = context.ai()
+    .withDefaultLlm()  // <1>
+    .withMessage(message)
+    .generateText();
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val documentPath = java.nio.file.Paths.get("reports/quarterly-report.pdf")
+val document = AgentDocument.fromPath(documentPath)
+
+val answer = context.ai()
+    .withDefaultLlm()  // <1>
+    .withDocument(document)
+    .generateText("Summarize this document")
+----
+====
+
+<1> **Document-capable model required**: The default or configured LLM must be able to consume document input. Document support depends on the selected model and provider.
+
 **Advanced Features:**
 
 - `rendering(String)`: Use <<reference.templates, Jinja>> templates for prompts (returns `Rendering` interface)
@@ -396,6 +433,56 @@ Represents an image for use with vision-capable LLMs.
 - `AgentImage.fromBytes(String, byte[])`: Create from filename and bytes (auto-detects MIME type)
 
 For uncommon image formats or if auto-detection fails, use `AgentImage.create()` with an explicit MIME type.
+
+==== AgentDocument
+
+Represents a document for use with document-capable LLMs.
+
+**Factory Methods:**
+
+- `AgentDocument.fromFile(File)`: Load from file (auto-detects MIME type from common extensions)
+- `AgentDocument.fromPath(Path)`: Load from path (auto-detects MIME type)
+- `AgentDocument.create(String, byte[], String?)`: Create with explicit MIME type, byte array, and optional filename
+- `AgentDocument.fromBytes(String, byte[])`: Create from filename and bytes (auto-detects MIME type)
+
+Common supported document formats include PDF, CSV, Microsoft Office documents (`.doc`, `.docx`, `.xlsx`), and OpenDocument files (`.odt`, `.ods`, `.odp`).
+
+For uncommon document formats or if auto-detection fails, use `AgentDocument.create()` with an explicit MIME type.
+
+**Example:**
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+var documentPath = java.nio.file.Paths.get("reports/quarterly-report.pdf");
+
+var message = userMessage()
+    .text("Summarize this report")
+    .document(documentPath)
+    .build();
+
+var answer = context.ai()
+    .withDefaultLlm()
+    .withMessage(message)
+    .generateText();
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val documentPath = java.nio.file.Paths.get("reports/quarterly-report.pdf")
+val document = AgentDocument.fromPath(documentPath)
+
+val answer = context.ai()
+    .withDefaultLlm()
+    .withDocument(document)
+    .generateText("Summarize this document")
+----
+====
 
 
 // TODO: (jasper notes) Add links to subagent and evaluateCondition

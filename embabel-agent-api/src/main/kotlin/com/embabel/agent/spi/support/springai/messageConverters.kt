@@ -74,14 +74,14 @@ fun Message.toSpringAiMessage(
             val builder = SpringAiUserMessage.builder()
 
             // Collect all media (Spring AI UserMessage.Builder.media() takes a List<Media>)
-            val mediaList = this.parts.filterIsInstance<ImagePart>().map { imagePart ->
+            val mediaList = this.parts.filterIsInstance<MediaPart>().map { mediaPart ->
                 try {
-                    val mimeType = MimeTypeUtils.parseMimeType(imagePart.mimeType)
-                    val resource = ByteArrayResource(imagePart.data)
+                    val mimeType = MimeTypeUtils.parseMimeType(mediaPart.mimeType)
+                    val resource = ByteArrayResource(mediaPart.data)
                     Media(mimeType, resource)
                 } catch (e: Exception) {
                     throw IllegalArgumentException(
-                        "Failed to process image part with MIME type: ${imagePart.mimeType}", e
+                        "Failed to process media part with MIME type: ${mediaPart.mimeType}", e
                     )
                 }
             }
