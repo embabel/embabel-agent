@@ -17,6 +17,7 @@ package com.embabel.agent.observability.metrics;
 
 import com.embabel.agent.api.common.PlannerType;
 import com.embabel.agent.api.event.*;
+import com.embabel.agent.api.event.observation.ToolCallOutcomes;
 import com.embabel.agent.core.*;
 import com.embabel.agent.observability.ObservabilityProperties;
 import com.embabel.common.ai.model.LlmMetadata;
@@ -27,9 +28,12 @@ import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -125,6 +129,80 @@ class EmbabelMetricsEventListenerTest {
 
             listener.onProcessEvent(new AgentProcessCompletedEvent(process1));
             assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(2.0);
+        }
+
+        @Test
+        @DisplayName("Stuck is non-terminal: agent stays in the active gauge (may resume)")
+        void stuck_keepsAgentActive() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "TestAgent");
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new AgentProcessStuckEvent(process));
+
+            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(1.0);
+        }
+
+        @Test
+        @DisplayName("Waiting is non-terminal: agent stays in the active gauge (may resume)")
+        void waiting_keepsAgentActive() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "TestAgent");
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new AgentProcessWaitingEvent(process));
+
+            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(1.0);
+        }
+
+        @Test
+        @DisplayName("Paused is non-terminal: agent stays in the active gauge (may resume)")
+        void paused_keepsAgentActive() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "TestAgent");
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new AgentProcessPausedEvent(process));
+
+            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(1.0);
+        }
+
+        @Test
+        @DisplayName("Human-in-the-loop: process resumes after WAITING and is decremented only on completion")
+        void waitingThenComplete_decrementsOnlyOnTerminal() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "TestAgent");
+            mockUsageAndCost(process, null, 0.0);
+
+            // Created and running
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            // Asks the user a question and waits — no new creation event is ever emitted on resume
+            listener.onProcessEvent(new AgentProcessWaitingEvent(process));
+            // Still counted as a live process while it waits for / processes the answer
+            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(1.0);
+
+            // Only the terminal event removes it
+            listener.onProcessEvent(new AgentProcessCompletedEvent(process));
+            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(0.0);
+        }
+
+        @Test
+        @DisplayName("Duplicate terminal events keep the gauge at zero (idempotent, never negative)")
+        void duplicateTerminal_staysAtZero() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "TestAgent");
+            mockUsageAndCost(process, null, 0.0);
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new AgentProcessCompletedEvent(process));
+            listener.onProcessEvent(new AgentProcessCompletedEvent(process)); // second terminal for same id
+
+            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(0.0);
         }
     }
 
@@ -268,9 +346,12 @@ class EmbabelMetricsEventListenerTest {
 
             listener.onProcessEvent(new AgentProcessCreationEvent(process));
 
-            var toolResponseEvent = createToolCallResponseEvent(
-                    process, "WebSearch", null, new RuntimeException("search failed"));
-            listener.onProcessEvent(toolResponseEvent);
+            var toolResponseEvent = createToolCallResponseEvent(process, "WebSearch");
+            try (MockedStatic<ToolCallOutcomes> outcomes = mockStatic(ToolCallOutcomes.class)) {
+                outcomes.when(() -> ToolCallOutcomes.error(toolResponseEvent))
+                        .thenReturn(new RuntimeException("search failed"));
+                listener.onProcessEvent(toolResponseEvent);
+            }
 
             Counter counter = registry.find("embabel.tool.errors.total").tag("tool", "WebSearch").tag("agent", "ToolAgent").counter();
             assertThat(counter).isNotNull();
@@ -286,9 +367,11 @@ class EmbabelMetricsEventListenerTest {
 
             listener.onProcessEvent(new AgentProcessCreationEvent(process));
 
-            var toolResponseEvent = createToolCallResponseEvent(
-                    process, "WebSearch", "result", null);
-            listener.onProcessEvent(toolResponseEvent);
+            var toolResponseEvent = createToolCallResponseEvent(process, "WebSearch");
+            try (MockedStatic<ToolCallOutcomes> outcomes = mockStatic(ToolCallOutcomes.class)) {
+                outcomes.when(() -> ToolCallOutcomes.error(toolResponseEvent)).thenReturn(null);
+                listener.onProcessEvent(toolResponseEvent);
+            }
 
             assertThat(registry.find("embabel.tool.errors.total").counter()).isNull();
         }
@@ -359,6 +442,82 @@ class EmbabelMetricsEventListenerTest {
             assertThat(timer).isNotNull();
             assertThat(timer.count()).isEqualTo(1);
         }
+
+        @Test
+        @DisplayName("Early termination should record duration with status=terminated")
+        void earlyTermination_shouldRecordDuration() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "DurationAgent");
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new EarlyTermination(
+                    process, true, "budget exceeded", mock(EarlyTerminationPolicy.class)));
+
+            Timer timer = registry.find("embabel.agent.duration")
+                    .tag("agent", "DurationAgent").tag("status", "terminated").timer();
+            assertThat(timer).isNotNull();
+            assertThat(timer.count()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("Active duration should sum action running times, excluding idle/wait time")
+        void completed_shouldRecordActiveDurationFromHistory() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "DurationAgent");
+            mockUsageAndCost(process, null, 0.0);
+            when(process.getHistory()).thenReturn(List.of(
+                    new ActionInvocation("a1", Instant.now(), Duration.ofMillis(100)),
+                    new ActionInvocation("a2", Instant.now(), Duration.ofMillis(150))));
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new AgentProcessCompletedEvent(process));
+
+            Timer timer = registry.find("embabel.agent.active_duration")
+                    .tag("agent", "DurationAgent").tag("status", "completed").timer();
+            assertThat(timer).isNotNull();
+            assertThat(timer.count()).isEqualTo(1);
+            assertThat(timer.totalTime(TimeUnit.MILLISECONDS)).isEqualTo(250.0);
+        }
+
+        @Test
+        @DisplayName("Active duration is recorded as zero when there is no action history")
+        void completed_shouldRecordZeroActiveDurationWhenNoHistory() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "DurationAgent");
+            mockUsageAndCost(process, null, 0.0);
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new AgentProcessCompletedEvent(process));
+
+            Timer timer = registry.find("embabel.agent.active_duration")
+                    .tag("agent", "DurationAgent").tag("status", "completed").timer();
+            assertThat(timer).isNotNull();
+            assertThat(timer.count()).isEqualTo(1);
+            assertThat(timer.totalTime(TimeUnit.MILLISECONDS)).isEqualTo(0.0);
+        }
+
+        @Test
+        @DisplayName("Early termination should purge the creation timestamp (no leak)")
+        void earlyTermination_shouldPurgeTimestamp() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "DurationAgent");
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new EarlyTermination(
+                    process, true, "budget exceeded", mock(EarlyTerminationPolicy.class)));
+            // A second terminal event for the same process must not re-record:
+            // the timestamp was purged on the first, proving no entry lingers.
+            listener.onProcessEvent(new EarlyTermination(
+                    process, true, "budget exceeded", mock(EarlyTerminationPolicy.class)));
+
+            Timer timer = registry.find("embabel.agent.duration")
+                    .tag("agent", "DurationAgent").tag("status", "terminated").timer();
+            assertThat(timer.count()).isEqualTo(1);
+        }
     }
 
     // ================================================================================
@@ -425,8 +584,11 @@ class EmbabelMetricsEventListenerTest {
             var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
             var process = createMockAgentProcess("run-1", "ToolAgent");
 
-            var toolResponseEvent = createToolCallResponseEvent(process, "WebSearch", "result", null);
-            listener.onProcessEvent(toolResponseEvent);
+            var toolResponseEvent = createToolCallResponseEvent(process, "WebSearch");
+            try (MockedStatic<ToolCallOutcomes> outcomes = mockStatic(ToolCallOutcomes.class)) {
+                outcomes.when(() -> ToolCallOutcomes.error(toolResponseEvent)).thenReturn(null);
+                listener.onProcessEvent(toolResponseEvent);
+            }
 
             Timer timer = registry.find("embabel.tool.duration")
                     .tag("tool", "WebSearch").tag("agent", "ToolAgent").timer();
@@ -616,18 +778,12 @@ class EmbabelMetricsEventListenerTest {
         return event;
     }
 
-    private static ToolCallResponseEvent createToolCallResponseEvent(AgentProcess process, String toolName,
-                                                                      String successResult, Throwable error) {
+    private static ToolCallResponseEvent createToolCallResponseEvent(AgentProcess process, String toolName) {
         ToolCallRequestEvent request = mock(ToolCallRequestEvent.class);
         lenient().when(request.getTool()).thenReturn(toolName);
 
-        MockResult mockResult = new MockResult(successResult, error);
-
         ToolCallResponseEvent event = mock(ToolCallResponseEvent.class, invocation -> {
             String methodName = invocation.getMethod().getName();
-            if (methodName.equals("getResult") || methodName.startsWith("getResult-")) {
-                return mockResult;
-            }
             if (methodName.equals("getAgentProcess")) {
                 return process;
             }
@@ -641,26 +797,5 @@ class EmbabelMetricsEventListenerTest {
         });
 
         return event;
-    }
-
-    /**
-     * A mock Result class that mimics Kotlin's Result&lt;T&gt;.
-     */
-    static class MockResult {
-        private final Object successValue;
-        private final Throwable error;
-
-        MockResult(Object successValue, Throwable error) {
-            this.successValue = successValue;
-            this.error = error;
-        }
-
-        public Object getOrNull() {
-            return error == null ? successValue : null;
-        }
-
-        public Throwable exceptionOrNull() {
-            return error;
-        }
     }
 }

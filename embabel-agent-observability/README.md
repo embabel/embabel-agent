@@ -1,8 +1,8 @@
 # Embabel Agent Observability
 
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.org/projects/jdk/21/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.9-brightgreen.svg)](https://spring.io/projects/spring-boot)
-[![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-2.17.0-blue.svg)](https://opentelemetry.io/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.12-brightgreen.svg)](https://spring.io/projects/spring-boot)
+[![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-1.49.0-blue.svg)](https://opentelemetry.io/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 **Unified observability for Embabel AI Agents** — Automatic tracing, metrics, and LLM call integration with zero code changes.
@@ -14,6 +14,10 @@
 ### Langfuse
 
 ![Langfuse Tracing](docs/langfuse.png)
+
+### LangSmith
+
+![LangSmith Tracing](docs/langsmith.png)
 
 ### Zipkin
 
@@ -51,10 +55,12 @@
 ```yaml
 # Embabel Observability
 embabel:
-  observability:
-    enabled: true
-    service-name: my-agent-app
-    max-attribute-length: 4000
+  agent:
+    platform:
+      observability:
+        enabled: true
+        service-name: my-agent-app
+        max-attribute-length: 4000
 
 # Spring Boot Tracing (required)
 management:
@@ -67,35 +73,40 @@ management:
 ### 3. Choose your exporter
 
 <details>
-<summary><b>Option A: Langfuse</b> (LLM-focused observability)</summary>
+<summary><b>Option A: Langfuse / LangSmith</b> (Embabel OpenTelemetry exporter — LLM-focused observability)</summary>
+
+A single exporter that sends spans to **Langfuse** and/or **LangSmith**. Enable either or both.
 
 ```xml
 <dependency>
     <groupId>com.quantpulsar</groupId>
-    <artifactId>opentelemetry-exporter-langfuse</artifactId>
-    <version>0.4.0</version>
+    <artifactId>opentelemetry-exporter-embabel</artifactId>
+    <version>0.6.0</version>
 </dependency>
 ```
 
-**For Langfuse Cloud:**
+**Langfuse** (`management.langfuse.*`):
 ```yaml
 management:
   langfuse:
     enabled: true
-    endpoint: https://cloud.langfuse.com/api/public/otel
+    endpoint: https://cloud.langfuse.com/api/public/otel  # self-hosted: http://localhost:3000/api/public/otel
     public-key: pk-lf-...
     secret-key: sk-lf-...
 ```
 
-**For local Langfuse instance (self-hosted):**
+**LangSmith** (`management.langsmith.*`):
 ```yaml
 management:
-  langfuse:
+  langsmith:
     enabled: true
-    endpoint: http://localhost:3000/api/public/otel
-    public-key: pk-lf-your-public-key
-    secret-key: sk-lf-your-secret-key
+    endpoint: https://eu.api.smith.langchain.com/otel  # US: https://api.smith.langchain.com/otel — /v1/traces is appended automatically
+    api-key: lsv2_...
+    project: my-project
+    # embabel-only: true   # optional — export only Embabel/GenAI spans
 ```
+
+The LangSmith exporter derives each span's `langsmith.span.kind` from its Embabel type (`embabel.llm` → `LLM`, `embabel.tool` → `TOOL`, embeddings → `RETRIEVER`/`EMBEDDING`, etc.) so LangSmith renders it in the right category instead of as a generic span.
 
 </details>
 
@@ -186,16 +197,19 @@ Your agents are now fully traced. No code changes required.
 
 | Feature | Description |
 |---------|-------------|
-| **Agent Lifecycle Tracing** | Full trace of agent creation, execution, completion, failures, and process kill |
+| **Agent Lifecycle Tracing** | Full trace of agent creation, execution, completion, failures, and process kill, with the turn `input.value`/`output.value` |
 | **Sub-agent Hierarchy** | Proper parent-child span relationships for sub-agents |
-| **Action Tracing** | Each action execution as a child span with duration, status, and declared inputs |
-| **LLM Call Spans** | Dedicated spans per LLM interaction with model name, hyperparameters (`temperature`, `max_tokens`, `top_p`), provider, input messages, and output |
-| **Tool Loop Tracing** | Spans for tool loop execution with iteration count, max iterations, tool list, and replan status |
-| **Tool Call Tracing** | Every tool invocation with input/output capture, correlation ID, and tool group metadata |
+| **Action Tracing** | Each action execution as a child span with duration, status, and `input.value`/`output.value` |
+| **LLM Call Spans** | A span per LLM interaction (`embabel.llm`) with model, operation, agent and action; plus an `embabel.llm.invocation` span per model round-trip carrying token usage and cost |
+| **Embedding Spans** | An `embabel.embedding` span per embedding invocation with model and token usage/cost — for in-agent embeddings and for **standalone** calls made outside an agent process (RAG/pgvector), which appear as root spans |
+| **Tool Loop Tracing** | An `embabel.tool_loop` span wrapping the tool loop (with the prompt `input.value` and result `output.value`), plus an `embabel.tool_loop.completed` point span with iteration count and replan flag |
+| **Input / Output Capture** | Agent, action and tool-loop spans carry `input.value`/`output.value` (OpenInference keys, rendered in Langfuse's input/output panels), truncated to `max-attribute-length` |
+| **Tool Call Tracing** | Every tool invocation as an `embabel.tool` span with tool name, group, correlation id, status, duration, arguments/result and error (Spring AI's native `tool call` span is suppressed in favour of this richer one) |
+| **Goal & Replan Tracing** | `embabel.goal` on goal achievement (name + result) and `embabel.replan` on replan requests (reason) |
 | **LLM Call Integration** | Spring AI ChatModel calls automatically appear as child spans via `ChatModelObservationFilter` |
-| **LLM Token Metrics** | Input/output token usage and cost via Spring AI observations |
+| **LLM Token Metrics & Cost** | `gen_ai.usage.*` tokens and `embabel.llm.cost` on per-invocation spans, plus business-metric counters |
 | **Planning Events** | Track plan formulation, replanning iterations, and replan requests with reasons |
-| **RAG Pipeline Tracing** | Full RAG event tracing: request, response, pipeline stages, and enhancement steps |
+| **RAG Tracing** | An `embabel.rag` span on RAG response with service, query, top-k, similarity threshold, result count, top score and RAGAS quality metrics |
 | **Ranking Events** | Agent routing decisions: ranking requests, choices made (with score), and failures (with confidence cutoff) |
 | **Dynamic Agent Creation Tracing** | Platform events for dynamically created agents |
 | **State Transitions** | Monitor workflow state changes |
@@ -204,7 +218,7 @@ Your agents are now fully traced. No code changes required.
 | **Automatic Metrics** | Duration and count metrics (Spring Observation mode) |
 | **Business Metrics** | Micrometer counters/gauges: active agents, LLM tokens, cost, errors, replanning |
 | **OpenTelemetry GenAI Semantic Conventions** | Consistent `gen_ai.*` attributes across all spans (`gen_ai.operation.name`, `gen_ai.request.model`, `gen_ai.tool.name`, etc.) |
-| **ChatModel Observation Filter** | Enriches Spring AI observations with prompts, completions, token counts, and model info |
+| **ChatModel Observation Filter** | Enriches Spring AI observations with token counts, model info, and (opt-in) structured GenAI message content — `gen_ai.input.messages`/`gen_ai.output.messages` plus the OpenInference `input.value`/`output.value` bridge |
 | **`@Tracked` Annotation** | Custom operation tracking with automatic span creation |
 | **MDC Log Correlation** | Automatic SLF4J MDC propagation of agent context (run ID, agent name, action name) |
 
@@ -212,7 +226,9 @@ Your agents are now fully traced. No code changes required.
 
 | Feature | Target |
 |---------|--------|
-| Pre-built Grafana Dashboards | v1.0.x |
+| Pre-built Grafana Dashboards | v1.0.x — ready-to-import dashboards for agent, LLM and tool-loop spans, token usage and cost, so you get visualizations out of the box without building panels yourself |
+| Scoped RAG span (request→response duration + enhancement children) | TBD — a span covering the full RAG request→response with enhancement steps as children; currently an `embabel.rag` point span on the response event only |
+| Guardrail span (`embabel.guardrail`, one per input/output phase) | TBD — a span per guardrail validation so a rejection is attributed to its own span and its latency timed (e.g. LLM-as-judge guardrails), while `embabel.llm` stays a success |
 
 ---
 
@@ -220,7 +236,8 @@ Your agents are now fully traced. No code changes required.
 
 | Backend | Type | Module |
 |---------|------|--------|
-| **Langfuse** | Traces | [`opentelemetry-exporter-langfuse`](https://github.com/quantpulsar/opentelemetry-exporter-langfuse) |
+| **Langfuse** | Traces | [`opentelemetry-exporter-embabel`](https://github.com/quantpulsar/opentelemetry-exporter-embabel) |
+| **LangSmith** | Traces | [`opentelemetry-exporter-embabel`](https://github.com/quantpulsar/opentelemetry-exporter-embabel) |
 | **Zipkin** | Traces | [`opentelemetry-exporter-zipkin`](https://github.com/open-telemetry/opentelemetry-java) |
 | **OTLP** (Jaeger, Tempo) | Traces | [`opentelemetry-exporter-otlp`](https://github.com/open-telemetry/opentelemetry-java) |
 | **Prometheus** | Metrics | [`micrometer-registry-prometheus`](https://github.com/micrometer-metrics/micrometer) |
@@ -232,127 +249,206 @@ Your agents are now fully traced. No code changes required.
 
 ## Configuration
 
+> ⚠️ **Migrating from an earlier version — breaking changes**
+>
+> - **Config prefix renamed:** `embabel.observability.*` → `embabel.agent.platform.observability.*`. The old prefix is **silently ignored** (no startup error), so existing config stops taking effect until you rename it. Update every property in your `application.yml`/`application.properties`.
+> - **`trace-http-details` now defaults to `false`** (was `true`). HTTP request/response bodies, headers and params are no longer captured unless you opt in with `trace-http-details: true`. This avoids capturing potentially sensitive HTTP payloads by default.
+> - **Removed properties:** `tracer-name` and `tracer-version` no longer exist.
+> - **Langfuse exporter replaced:** `com.quantpulsar:opentelemetry-exporter-langfuse:0.4.0` → the unified `com.quantpulsar:opentelemetry-exporter-embabel:0.6.0`, which exports to **both** Langfuse (`management.langfuse.*`) and LangSmith (`management.langsmith.*`). Update the dependency.
+
 | Property | Default | Description |
 |----------|---------|-------------|
-| `embabel.observability.enabled` | `true` | Enable/disable observability |
-| `embabel.observability.service-name` | `embabel-agent` | Service name in traces |
-| `embabel.observability.trace-agent-events` | `true` | Trace agent lifecycle |
-| `embabel.observability.trace-tool-calls` | `true` | Trace tool invocations (see note below) |
-| `embabel.observability.trace-tool-loop` | `true` | Trace tool loop execution |
-| `embabel.observability.trace-llm-calls` | `true` | Trace LLM calls |
-| `embabel.observability.trace-planning` | `true` | Trace planning events |
-| `embabel.observability.trace-state-transitions` | `true` | Trace state transitions |
-| `embabel.observability.trace-lifecycle-states` | `true` | Trace WAITING/PAUSED/STUCK states |
-| `embabel.observability.trace-rag` | `true` | Trace RAG events (request, response, pipeline) |
-| `embabel.observability.trace-ranking` | `true` | Trace ranking/selection events (agent routing) |
-| `embabel.observability.trace-dynamic-agent-creation` | `true` | Trace dynamic agent creation events |
-| `embabel.observability.trace-http-details` | `true` | Trace HTTP request/response details (bodies, headers) |
-| `embabel.observability.trace-tracked-operations` | `true` | Enable/disable `@Tracked` annotation aspect |
-| `embabel.observability.mdc-propagation` | `true` | Propagate agent context into SLF4J MDC for log correlation |
-| `embabel.observability.metrics-enabled` | `true` | Enable/disable Micrometer business metrics |
-| `embabel.observability.max-attribute-length` | `4000` | Max attribute length before truncation |
+| `embabel.agent.platform.observability.enabled` | `true` | Master switch for the whole module (traces **and** metrics) |
+| `embabel.agent.platform.observability.tracing-enabled` | `true` | **Umbrella switch for tracing (spans).** When `false`, no spans are produced regardless of the per-tier `trace-*` switches below. Independent of `metrics-enabled` |
+| `embabel.agent.platform.observability.metrics-enabled` | `true` | Enable/disable Micrometer business metrics (independent of tracing) |
+| `embabel.agent.platform.observability.service-name` | `embabel-agent` | Service name in traces |
+| `embabel.agent.platform.observability.trace-agent-events` | `true` | **Umbrella** for the core scoped span tier (`embabel.agent`/`embabel.action`/`embabel.tool_loop`/`embabel.llm`). When `false`, the conventions are not registered **and** all four spans are dropped by the tier filter — the whole core tier is suppressed (point spans still emit). For per-span control keep this `true` and use the four switches below |
+| `embabel.agent.platform.observability.trace-agent` | `true` | Trace the `embabel.agent` scoped span (one run turn). Effective when `trace-agent-events=true` |
+| `embabel.agent.platform.observability.trace-action` | `true` | Trace the `embabel.action` scoped span. Effective when `trace-agent-events=true` |
+| `embabel.agent.platform.observability.trace-tool-calls` | `true` | Trace tool invocations (`embabel.tool` span) |
+| `embabel.agent.platform.observability.trace-tool-loop` | `true` | Trace tool loop execution (`embabel.tool_loop` scoped span + `embabel.tool_loop.completed` point span) |
+| `embabel.agent.platform.observability.trace-tool-loop-completed` | `true` | Emit the `embabel.tool_loop.completed` point span (loop outcome: iterations, replan flag, duration). Set `false` to keep the scoped `embabel.tool_loop` span but drop the extra completion node. No effect when `trace-tool-loop` is `false` |
+| `embabel.agent.platform.observability.trace-llm-calls` | `true` | Trace LLM calls: the `embabel.llm` scoped span **and** the `embabel.llm.invocation` point span (model, tokens, cost), plus the Spring AI ChatModel filter |
+| `embabel.agent.platform.observability.trace-embedding` | `true` | Trace embedding invocations (`embabel.embedding` span: model, tokens, cost) |
+| `embabel.agent.platform.observability.trace-planning` | `true` | Trace plan formulation (`embabel.planning`) and replan requests (`embabel.replan`) |
+| `embabel.agent.platform.observability.trace-state-transitions` | `true` | Trace state transitions (`embabel.state_transition` span) |
+| `embabel.agent.platform.observability.trace-lifecycle-states` | `true` | Trace lifecycle states — COMPLETED/FAILED/KILLED/TERMINATED/WAITING/PAUSED/STUCK (`embabel.lifecycle`) and goal achievement (`embabel.goal`) |
+| `embabel.agent.platform.observability.trace-rag` | `true` | Trace RAG responses (`embabel.rag` span) |
+| `embabel.agent.platform.observability.trace-ranking` | `true` | Trace ranking/selection events — agent routing (`embabel.ranking` span) |
+| `embabel.agent.platform.observability.trace-dynamic-agent-creation` | `true` | Trace dynamic agent creation (`embabel.dynamic_agent_creation` span) |
+| `embabel.agent.platform.observability.trace-http-details` | `false` | Trace HTTP request/response details (bodies, headers) — opt-in |
+| `embabel.agent.platform.observability.trace-tracked-operations` | `true` | Enable/disable `@Tracked` annotation aspect |
+| `embabel.agent.platform.observability.mdc-propagation` | `true` | Propagate agent context into SLF4J MDC for log correlation |
+| `embabel.agent.platform.observability.max-attribute-length` | `4000` | Max attribute length before truncation |
+| `embabel.agent.platform.observability.capture-message-content` | `true` | Capture message/payload **content** across all spans: ChatModel `gen_ai.input.messages`/`gen_ai.output.messages` + the `input.value`/`output.value`/`*.result` bodies on agent/action/tool_loop spans, tool-call args/result, RAG query, planning/goal world state, replan reason, and `@Tracked` args/return. The OTel GenAI convention recommends this be opt-in as content may contain PII; set `false` to keep model/token/identity metadata while omitting every message body |
+| `embabel.agent.platform.observability.disabled-traces` | `[]` (empty) | Observation names to suppress, matched by **exact** name. Drops non-Embabel infrastructure spans you don't want exported (e.g. `tasks.scheduled.execution`, `http.server.requests`, `http.client.requests`) without code. Works for any span carrying its real name (incl. Embabel point spans like `embabel.embedding`), but **not** the four core scoped spans (`embabel.agent`/`embabel.action`/`embabel.llm`/`embabel.tool_loop`), which are placeholder-named until `start()` — use their `trace-*` flags for those. A suppressed observation becomes a no-op, so its children re-parent to the next live ancestor |
 
-### Tool Observability Note
+### Tool and tool-loop spans
 
-> **Important:** Embabel Agent already includes built-in tool observability via `ObservabilityToolCallback`, which provides Micrometer observations for tool calls.
->
-> If you prefer to use Embabel's native tool observability instead of this library's implementation, set:
-> ```yaml
-> embabel:
->   observability:
->     trace-tool-calls: false
-> ```
-> This avoids duplicate tool call spans and lets Embabel Agent handle tool tracing directly.
+Tool calls are traced by the `embabel.tool` span (rich: name, group, correlation id, status,
+duration, arguments/result, error) emitted by this module's event listener, gated by
+`trace-tool-calls`. Spring AI's thinner native `tool call` observation is therefore **always
+suppressed** to avoid a duplicate — by an `ObservationPredicate` registered in this module.
+
+The `embabel.tool_loop` span is opened directly at the work site in the agent core (so its hierarchy
+is always correct, even under parallelism). The core never reads the `trace-*` flags — that would
+couple it to this module. Instead, `trace-tool-loop=false` makes the same predicate drop the
+`embabel.tool_loop` span by matching its **context type** (`ToolLoopObservationContext`) — not its
+name: the core opens scoped spans with a placeholder name and the semantic name (`embabel.tool_loop`)
+is only applied at `start()`, after the predicate has run, so the context type is what the predicate
+can reliably match. A suppressed span becomes a no-op, so its children simply re-parent to the next
+live ancestor span. (Spring AI's `tool call` span, by contrast, carries its real name at creation and
+is dropped by name.)
+
+```yaml
+embabel:
+  agent:
+    platform:
+      observability:
+        trace-tool-calls: false   # drop the 'embabel.tool' spans
+        trace-tool-loop: false    # drop the 'embabel.tool_loop' spans
+```
+
+### Session & user grouping
+
+The `embabel.agent` span carries two ids that backends such as Langfuse use to group traces:
+
+- `gen_ai.conversation.id` — the session id, taken from the last `Conversation` on the blackboard,
+  falling back to the run id. Every turn of a conversation shares it.
+- `user.id` — the per-user id, resolved from the process identity
+  `ProcessOptions.identities.forUser` (the same source as `OperationContext.user()`), falling back
+  to the last `User` bound on the blackboard. Omitted when no user is known.
 
 ---
 
 ## How It Works
 
+Tracing uses **direct Micrometer instrumentation**: the long-scoped spans (agent turn, action,
+LLM call, tool loop) are opened and closed with `observe{}` right at the work site in the agent
+core, on the thread doing the work. This makes the span hierarchy correct *by construction* —
+including heavy parallelism (PARALLEL mode, sub-agents, async user code) — because nesting comes from
+Micrometer's current-observation mechanism and cross-thread context propagation, not from
+reconstructing relationships out of a decoupled event stream.
+
+Short-lived **point events** (LLM/embedding invocations, tool calls, planning, replan, tool-loop
+completion, RAG, ranking, state transitions, lifecycle, goal, dynamic agent creation) hold no scope,
+so they are emitted as instantaneous spans by a small event-driven listener
+(`EmbabelSpanEventListener`), nested under the current observation — or as **root spans** when there
+is none (standalone embeddings made outside an agent process, and ranking).
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      EMBABEL AGENT                          │
-│   ┌─────────┐  ┌─────────┐  ┌───────┐  ┌──────────┐        │
-│   │  Agent  │  │ Actions │  │ Tools │  │ Planning │        │
-│   └────┬────┘  └────┬────┘  └───┬───┘  └────┬─────┘        │
-└────────┼────────────┼───────────┼───────────┼──────────────┘
-         │            │           │           │
-         └────────────┴─────┬─────┴───────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                       EMBABEL AGENT CORE                       │
+│   observe{} at the work site (thin context + span name only)   │
+│   embabel.agent → embabel.action → embabel.llm                 │
+│                 → embabel.tool_loop                            │
+└───────────────┬────────────────────────────────┬──────────────┘
+                │ (long-scoped spans)             │ (events)
+                │                                 ▼
+                │                   ┌─────────────────────────────┐
+                │                   │  EmbabelSpanEventListener    │  point spans:
+                │                   │  (this module)               │  embabel.llm.invocation,
+                │                   └──────────────┬──────────────┘  embabel.embedding, embabel.tool,
+                │                                  │                 planning/replan/rag/ranking/
+                ▼                                  ▼                 state/lifecycle/goal/dynamic
+        ┌───────────────────────────────────────────────────┐
+        │            ObservationRegistry                     │
+        │  + Embabel span conventions (attributes)           │
+        │  + tier-filter ObservationPredicate (trace-* off)  │
+        └───────────────────┬───────────────────────────────┘
                             │
-                   ┌────────▼────────┐
-                   │ Event Listeners │
-                   └────────┬────────┘
-                            │
-    ┌───────────────────────┼───────────────────────┐
-    │  Tracing Listener     │   Metrics Listener    │
-    │                       │                       │
-    ▼                       ▼                       │
-┌────────────┐       ┌──────────────┐               │
-│  SPRING    │       │  MICROMETER  │               │
-│OBSERVATION │       │  BUSINESS    │               │
-│(traces +   │       │  METRICS     │               │
-│ metrics)   │       └──────┬───────┘               │
-└───┬────────┘              │                       │
-    │              ┌────────▼────────┐              │
-    │              │  MeterRegistry  │              │
-    │              │ (Prometheus...) │              │
-    │              └─────────────────┘              │
-    │                                               │
-    ▼                                               │
-┌─────────────────────┐                             │
-│   OpenTelemetry     │                             │
-│   SpanExporter      │                             │
-└─────────┬───────────┘                             │
-          │                                         │
- ┌────────┼──────────┬──────────┐                   │
- ▼        ▼          ▼          ▼                   │
-┌────────┐┌────────┐┌────────┐┌────────┐            │
-│Langfuse││ Zipkin ││  OTLP  ││ Custom │            │
-└────────┘└────────┘└────────┘└────────┘            │
-└───────────────────────────────────────────────────┘
+            ┌───────────────┴────────────────┐
+            ▼                                ▼
+  ┌──────────────────────┐        ┌────────────────────────┐
+  │ DefaultTracing       │        │ EmbabelMetricsEvent     │  (event-driven,
+  │ ObservationHandler   │        │ Listener → MeterRegistry │   independent of tracing)
+  │ → OpenTelemetry      │        └────────────────────────┘
+  └─────────┬────────────┘
+            │
+   ┌────────┼──────────┬──────────┐
+   ▼        ▼          ▼          ▼
+┌────────┐┌────────┐┌────────┐┌────────┐
+│Langfuse││ Zipkin ││  OTLP  ││ Custom │
+└────────┘└────────┘└────────┘└────────┘
 ```
 
 **Key Points:**
-- Automatically captures all Embabel Agent events (agent lifecycle, actions, LLM calls, tool loops, tools, planning, RAG, ranking, dynamic agents)
-- Spring AI LLM calls appear as children of action spans via `ChatModelObservationFilter` and `EmbabelTracingObservationHandler`
-- Proper parent-child hierarchy: Agent → Action → LLM → Tool Loop → ChatModel → Tool
-- Zero code instrumentation required
-- Multiple exporters can run simultaneously
-- OpenTelemetry GenAI semantic conventions (`gen_ai.*`) for interoperability with LLM observability platforms
+- Long-scoped spans are instrumented directly in the core; the **standard** Micrometer
+  `DefaultTracingObservationHandler` turns them into OpenTelemetry spans (no custom handler).
+- Span attributes live in this module as `GlobalObservationConvention`s; the core carries only thin
+  context wrappers + span names, so it has **no dependency on this module** and runs without it.
+- Point events become instantaneous spans via `EmbabelSpanEventListener` — children of the current
+  observation, or root spans when there is none (standalone embeddings, ranking).
+- Correct parent-child hierarchy even under parallelism, via context propagation — no event-stream
+  reconstruction, no held scopes between events.
+- Business metrics are event-driven and **independent** of tracing (`metrics-enabled`).
+- Zero code instrumentation required; multiple exporters can run simultaneously.
+- OpenTelemetry GenAI semantic conventions (`gen_ai.*`) for interoperability with LLM observability platforms.
 
 ---
 
 ## Trace Hierarchy Example
 
+Every span carries two names: the **contextual** name is the human-friendly label shown in the trace
+backend (kebab-cased by the standard handler), and the low-cardinality **meter** name (`embabel.*`,
+shown in parentheses below) is the stable identifier used for metrics. Below, the label is the
+contextual name and the parenthesised value is the meter name.
+
 ```
-Agent: CustomerServiceAgent (trace root)
-├── planning:formulated [iteration=1, actions=3]
-├── Action: AnalyzeRequest
-│   ├── llm:gpt-4 [temperature=0.7, max_tokens=4096]
-│   │   ├── tool-loop:AnalyzeRequest-RequestAnalysis-1
-│   │   │   ├── ChatModel: gpt-4 (Spring AI - via ChatModelObservationFilter)
-│   │   │   └── tool:searchKnowledgeBase [status=success]
-│   │   └── tool-loop completed [iterations=2, replan=false]
-│   └── llm completed [duration=1200ms]
-├── Action: GenerateResponse
-│   ├── llm:gpt-4
-│   │   ├── tool-loop:GenerateResponse-Response-2
-│   │   │   └── ChatModel: gpt-4 (Spring AI)
-│   │   └── tool-loop completed [iterations=1]
-│   └── llm completed [duration=800ms]
-├── goal:achieved [RequestProcessed]
-└── status: completed [duration=2340ms]
+customer-service-agent                 (embabel.agent — one run() turn)
+├── planning                           (embabel.planning) [goal=RequestProcessed, action_count=3]
+├── analyze-request                    (embabel.action)
+│   └── gpt-4o                         (embabel.llm — one LLM interaction)
+│       └── tool-loop                  (embabel.tool_loop)
+│           ├── gpt-4o                 (embabel.llm.invocation) [usage.input_tokens=…, output_tokens=…, cost=…]
+│           ├── search-knowledge-base  (embabel.tool) [status=success]
+│           └── tool-loop-completed    (embabel.tool_loop.completed) [total_iterations=2, replan_requested=false]
+├── generate-response                  (embabel.action)
+│   └── gpt-4o                         (embabel.llm)
+├── request-processed                  (embabel.goal)
+└── completed                          (embabel.lifecycle)
 ```
+
+> `embabel.ranking` (agent routing) is a platform-level decision with no enclosing agent process, so
+> it is emitted as its own root span rather than nested in a turn.
+
+### Input / Output
+
+The `embabel.agent`, `embabel.action` and `embabel.tool_loop` spans carry the step's input and output
+under the **OpenInference** keys `input.value` and `output.value` — which LLM-observability backends
+(Langfuse, etc.) render in their dedicated input/output panels:
+
+- **agent** — input: the bound `UserInput`(s); output: the run's last result.
+- **action** — input: the action's declared inputs read from the blackboard; output: the action's result.
+- **tool_loop** — input: the prompt messages; output: the loop result.
+
+Both are truncated to `embabel.agent.platform.observability.max-attribute-length`. These keys are vendor-neutral
+(OpenInference), not Langfuse-specific.
+
+For Spring AI **ChatModel** spans, the `ChatModelObservationFilter` additionally emits the structured
+OTel GenAI message attributes `gen_ai.input.messages` / `gen_ai.output.messages` (JSON arrays of
+`{role, parts:[{type, content}]}`, with `finish_reason` on output), alongside the OpenInference
+`input.value` / `output.value` bridge. All payload content — these GenAI message attributes, the
+`input.value` / `output.value` / `*.result` bodies on the agent/action/tool_loop spans, and the
+point-span bodies (tool-call args/result, RAG query, planning/goal world state, replan reason,
+`@Tracked` args/return) — is governed by
+`embabel.agent.platform.observability.capture-message-content` (default `true`); set it to `false` to keep
+model/token/identity metadata while omitting every message body (the GenAI convention recommends content
+capture be opt-in, as it may contain PII).
 
 ### Sub-agent Hierarchy
 
+A sub-agent runs its own `run()` turn, so its `embabel.agent` span nests under the parent action that
+spawned it (cross-thread parent propagation handles async spawning):
+
 ```
-Agent: OrchestratorAgent (trace root)
-├── Action: DelegateToSpecialist
-│   └── Agent: SpecialistAgent (sub-agent, child of parent action)
-│       ├── Action: SpecializedTask
-│       │   └── llm:claude-3.5-sonnet
-│       └── status: completed
-└── status: completed
+orchestrator-agent                     (embabel.agent — root turn)
+├── delegate-to-specialist             (embabel.action)
+│   └── specialist-agent               (embabel.agent — sub-agent turn)
+│       ├── specialized-task           (embabel.action)
+│       │   └── claude-3-5-sonnet      (embabel.llm)
+│       └── embabel.lifecycle          [state=COMPLETED]
+└── embabel.lifecycle                  [state=COMPLETED]
 ```
 
 ---
@@ -406,12 +502,12 @@ public PaymentResult processPayment(Order order) {
 When `@Tracked` methods are called within an agent execution, spans are automatically nested under the current action or agent span:
 
 ```
-Agent: CustomerServiceAgent
-├── Action: ProcessOrder
-│   ├── @Tracked: enrichCustomer (PROCESSING)
-│   ├── ChatModel: gpt-4
-│   └── @Tracked: callPaymentApi (EXTERNAL_CALL)
-└── status: completed
+customer-service-agent              (embabel.agent)
+├── process-order                   (embabel.action)
+│   ├── enrich-customer             (@Tracked, PROCESSING)
+│   ├── gpt-4o                      (embabel.llm)
+│   └── call-payment-api            (@Tracked, EXTERNAL_CALL)
+└── completed                       (embabel.lifecycle)
 ```
 
 ### Important: Spring AOP Proxy Limitation
@@ -492,11 +588,17 @@ This produces logs like:
 14:23:45.123 [main] INFO  c.e.MyService [runId=abc-123 agent=CustomerServiceAgent action=AnalyzeRequest] - Processing request
 ```
 
+The keys are propagated across the agent's internal thread hops (planning loop, tool loop, async
+fan-out), so log lines emitted off the calling thread keep the same `runId`/`agent`/`action`
+correlation. This works whether or not tracing is enabled.
+
 To disable MDC propagation:
 ```yaml
 embabel:
-  observability:
-    mdc-propagation: false
+  agent:
+    platform:
+      observability:
+        mdc-propagation: false
 ```
 
 ---
@@ -509,6 +611,7 @@ When a `MeterRegistry` is available (e.g. via `micrometer-registry-prometheus`),
 |--------|------|------|-------------|
 | `embabel.agent.active` | Gauge | — | Number of agent processes currently running |
 | `embabel.agent.duration` | Timer | `agent`, `status` | Agent process duration (completed/failed) |
+| `embabel.agent.active_duration` | Timer | `agent`, `status` | Agent active duration (sum of action run times, excludes idle/wait) |
 | `embabel.agent.errors.total` | Counter | `agent` | Total agent process failures |
 | `embabel.agent.stuck.total` | Counter | `agent` | Agent stuck events (unable to plan) |
 | `embabel.llm.requests.total` | Counter | `agent`, `model` | Total LLM requests |
@@ -525,8 +628,10 @@ These metrics are exploitable by **Prometheus** and **Grafana** out of the box. 
 
 ```yaml
 embabel:
-  observability:
-    metrics-enabled: false
+  agent:
+    platform:
+      observability:
+        metrics-enabled: false
 ```
 
 ---
@@ -535,16 +640,8 @@ embabel:
 
 | Phase | Version | Features |
 |-------|---------|----------|
-| **Current** | v0.3.x | Agent, Action, Tool, LLM, Tool Loop, Planning, State, RAG, Ranking, Dynamic Agent Creation tracing. Business metrics, MDC propagation, `@Tracked` annotation, ChatModel filter, GenAI semantic conventions. |
+| **Current** | v0.5.x | Agent, Action, Tool, LLM, Embedding (in-agent + standalone), Tool Loop, Planning, State, RAG, Ranking, Dynamic Agent Creation tracing. Session/user grouping, business metrics, MDC propagation, `@Tracked` annotation, ChatModel filter, GenAI semantic conventions. |
 | **Long Term** | v1.0.x | Pre-built Grafana dashboards, alerting, cost analytics |
-
----
-
-## Documentation
-
-For detailed technical documentation, architecture details, and API reference:
-
-**[Technical Guide](docs/TECHNICAL_GUIDE.md)**
 
 ---
 
@@ -552,7 +649,7 @@ For detailed technical documentation, architecture details, and API reference:
 
 - Java 21+
 - Spring Boot 3.5+
-- Embabel Agent 0.3.3+
+- Embabel Agent 0.5.0+
 
 ---
 

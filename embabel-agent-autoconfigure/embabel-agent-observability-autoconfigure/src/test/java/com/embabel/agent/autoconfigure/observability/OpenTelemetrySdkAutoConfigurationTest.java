@@ -74,7 +74,7 @@ class OpenTelemetrySdkAutoConfigurationTest {
    void resourceUsesConfiguredServiceName() {
       // Arrange
       contextRunner
-              .withPropertyValues("embabel.observability.service-name=test-service")
+              .withPropertyValues("embabel.agent.platform.observability.service-name=test-service")
               // Act
               .run(context -> {
                  // Assert

@@ -16,7 +16,10 @@
 package com.embabel.agent.observability.metrics;
 
 import com.embabel.agent.api.event.*;
+import com.embabel.agent.api.event.observation.ToolCallOutcomes;
+import com.embabel.agent.core.ActionInvocation;
 import com.embabel.agent.core.AgentProcess;
+import com.embabel.agent.core.EarlyTermination;
 import com.embabel.agent.core.Usage;
 import com.embabel.agent.observability.ObservabilityProperties;
 import io.micrometer.core.instrument.Counter;
@@ -29,8 +32,8 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Emits Micrometer business metrics for Embabel Agent processes.
@@ -43,7 +46,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   <li>{@code embabel.llm.cost.total} (counter) — estimated USD cost, tagged by {@code agent}</li>
  *   <li>{@code embabel.tool.errors.total} (counter) — tool failures, tagged by {@code tool} and {@code agent}</li>
  *   <li>{@code embabel.planning.replanning.total} (counter) — replanifications, tagged by {@code agent}</li>
- *   <li>{@code embabel.agent.duration} (timer) — agent process duration, tagged by {@code agent} and {@code status}</li>
+ *   <li>{@code embabel.agent.duration} (timer) — agent process wall-clock duration (includes idle/wait time), tagged by {@code agent} and {@code status}</li>
+ *   <li>{@code embabel.agent.active_duration} (timer) — agent process active duration (sum of action running times, excludes idle/wait time), tagged by {@code agent} and {@code status}</li>
  *   <li>{@code embabel.llm.requests.total} (counter) — LLM requests, tagged by {@code agent} and {@code model}</li>
  *   <li>{@code embabel.llm.duration} (timer) — LLM call duration, tagged by {@code model} and {@code agent}</li>
  *   <li>{@code embabel.tool.duration} (timer) — tool call duration, tagged by {@code tool} and {@code agent}</li>
@@ -60,7 +64,7 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
 
     private final MeterRegistry registry;
     private final ObservabilityProperties properties;
-    private final AtomicInteger activeAgents = new AtomicInteger(0);
+    private final Set<String> activeProcessIds = ConcurrentHashMap.newKeySet();
     private final ConcurrentHashMap<String, Instant> creationTimestamps = new ConcurrentHashMap<>();
 
     /**
@@ -72,8 +76,12 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
     public EmbabelMetricsEventListener(MeterRegistry registry, ObservabilityProperties properties) {
         this.registry = registry;
         this.properties = properties;
-        Gauge.builder("embabel.agent.active", activeAgents, AtomicInteger::get)
-                .description("Number of agent processes currently running")
+        // STUCK/WAITING/PAUSED processes stay counted: they are still live (resumable, held in
+        // the repository) and re-emit no creation event on resume. Only terminal events evict them.
+        // Abandoned ones (user never answers, stuck with no resolution) must be reaped by the
+        // application via kill(), which fires a terminal ProcessKilledEvent and decrements cleanly.
+        Gauge.builder("embabel.agent.active", activeProcessIds, Set::size)
+                .description("Number of live (non-terminated) agent processes, including those waiting for input")
                 .register(registry);
     }
 
@@ -94,23 +102,27 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
 
         switch (event) {
             case AgentProcessCreationEvent e -> {
-                activeAgents.incrementAndGet();
+                activeProcessIds.add(e.getAgentProcess().getId());
                 creationTimestamps.put(e.getAgentProcess().getId(), Instant.now());
             }
             case AgentProcessCompletedEvent e -> {
-                activeAgents.decrementAndGet();
+                activeProcessIds.remove(e.getAgentProcess().getId());
                 recordTokensAndCost(e.getAgentProcess());
                 recordAgentDuration(e.getAgentProcess(), "completed");
             }
             case AgentProcessFailedEvent e -> {
-                activeAgents.decrementAndGet();
+                activeProcessIds.remove(e.getAgentProcess().getId());
                 recordAgentError(e.getAgentProcess());
                 recordTokensAndCost(e.getAgentProcess());
                 recordAgentDuration(e.getAgentProcess(), "failed");
             }
             case ProcessKilledEvent e -> {
-                activeAgents.decrementAndGet();
+                activeProcessIds.remove(e.getAgentProcess().getId());
                 creationTimestamps.remove(e.getAgentProcess().getId());
+            }
+            case EarlyTermination e -> {
+                activeProcessIds.remove(e.getAgentProcess().getId());
+                recordAgentDuration(e.getAgentProcess(), "terminated");
             }
             case ToolCallRequestEvent e -> recordToolCall(e);
             case ToolCallResponseEvent e -> {
@@ -119,7 +131,12 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
             }
             case LlmRequestEvent e -> recordLlmRequest(e);
             case LlmResponseEvent e -> recordLlmDuration(e);
+            // WAITING/PAUSED/STUCK are NON-terminal: the process can resume via run() on the same
+            // instance without re-emitting AgentProcessCreationEvent (the normal human-in-the-loop
+            // case). Keep its id in the active set; only terminal events above remove it.
             case AgentProcessStuckEvent e -> recordAgentStuck(e);
+            case AgentProcessWaitingEvent e -> { }
+            case AgentProcessPausedEvent e -> { }
             case ToolLoopCompletedEvent e -> recordToolLoopIterations(e);
             case ReplanRequestedEvent e -> recordReplanning(e.getAgentProcess());
             default -> { }
@@ -180,7 +197,7 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
      * The counter is tagged with the tool name. No-ops when the result is successful.
      */
     private void recordToolError(ToolCallResponseEvent event) {
-        Throwable error = extractToolError(event);
+        Throwable error = ToolCallOutcomes.error(event);
         if (error != null) {
             String toolName = event.getRequest().getTool();
             Counter.builder("embabel.tool.errors.total")
@@ -209,11 +226,23 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
         if (createdAt != null) {
             var duration = Duration.between(createdAt, Instant.now());
             Timer.builder("embabel.agent.duration")
-                    .description("Agent process duration")
+                    .description("Agent process duration (wall-clock, includes time spent waiting for input)")
                     .tag("agent", process.getAgent().getName())
                     .tag("status", status)
                     .register(registry)
                     .record(duration);
+
+            // Active duration sums per-action running times, so idle gaps (WAITING/STUCK/PAUSED,
+            // e.g. a user answering in a chat) are excluded — this is compute time, not elapsed time.
+            var activeDuration = process.getHistory().stream()
+                    .map(ActionInvocation::getRunningTime)
+                    .reduce(Duration.ZERO, Duration::plus);
+            Timer.builder("embabel.agent.active_duration")
+                    .description("Agent process active duration (sum of action running times, excludes idle/wait time)")
+                    .tag("agent", process.getAgent().getName())
+                    .tag("status", status)
+                    .register(registry)
+                    .record(activeDuration);
         }
     }
 
@@ -269,44 +298,5 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
                 .tag("agent", event.getAgentProcess().getAgent().getName())
                 .register(registry)
                 .record(event.getTotalIterations());
-    }
-
-    /**
-     * Extracts the error from a Kotlin Result via reflection.
-     */
-    private Throwable extractToolError(ToolCallResponseEvent event) {
-        try {
-            java.lang.reflect.Method getResultMethod = null;
-            for (java.lang.reflect.Method m : ToolCallResponseEvent.class.getMethods()) {
-                if (m.getName().startsWith("getResult") && m.getParameterCount() == 0) {
-                    getResultMethod = m;
-                    break;
-                }
-            }
-            if (getResultMethod == null) {
-                return null;
-            }
-
-            Object result = getResultMethod.invoke(event);
-            if (result == null) {
-                return null;
-            }
-            if (result instanceof Throwable t) {
-                return t;
-            }
-
-            try {
-                java.lang.reflect.Method exceptionOrNullMethod = result.getClass().getMethod("exceptionOrNull");
-                Object error = exceptionOrNullMethod.invoke(result);
-                if (error instanceof Throwable t) {
-                    return t;
-                }
-            } catch (NoSuchMethodException e) {
-                return null;
-            }
-        } catch (Exception e) {
-            log.trace("Could not extract tool error: {}", e.getMessage());
-        }
-        return null;
     }
 }
