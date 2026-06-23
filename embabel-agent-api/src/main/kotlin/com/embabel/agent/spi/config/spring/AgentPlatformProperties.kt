@@ -74,6 +74,9 @@ class AgentPlatformProperties {
     @field:NestedConfigurationProperty
     var actionQos: ActionQosProperties = ActionQosProperties()
 
+    @field:NestedConfigurationProperty
+    var threading: ThreadingProperties = ThreadingProperties()
+
     /**
      * Agent Process Type
      */
@@ -364,5 +367,33 @@ class AgentPlatformProperties {
          */
         var default: ActionProperties = ActionProperties()
 
+    }
+
+    /**
+     * Threading configuration.
+     *
+     * Maps to: embabel.agent.platform.threading.*
+     */
+    class ThreadingProperties {
+        /**
+         * Override the application's threading model.
+         * - false (default): Inherit from spring.threads.virtual.enabled
+         * - true: Flip the threading model (platform ↔ virtual)
+         *
+         * Property: embabel.agent.platform.threading.override
+         */
+        var override: Boolean = false
+
+        /**
+         * Share the application's executor when threading models match.
+         * - false (default): Embabel creates its own executor (isolated)
+         * - true: Embabel shares application's executor when both use the same threading model
+         *
+         * Applies to both platform/platform and virtual/virtual scenarios.
+         * Ignored when threading models differ (e.g., app uses virtual, Embabel uses platform).
+         *
+         * Property: embabel.agent.platform.threading.shared
+         */
+        var shared: Boolean = false
     }
 }

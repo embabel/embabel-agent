@@ -18,7 +18,6 @@ package com.embabel.agent.api.tool
 import com.embabel.agent.spi.loop.LlmMessageResponse
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
-import com.embabel.agent.spi.support.ObservabilityToolCallback
 import com.embabel.agent.spi.support.OutputTransformingToolCallback
 import com.embabel.agent.spi.support.springai.SpringToolCallbackAdapter
 import com.embabel.agent.spi.support.springai.SpringToolCallbackWrapper
@@ -362,30 +361,6 @@ class ToolCallContextFlowTest {
             described.call("{}", ctx)
             assertNotNull(receivedContext)
             assertEquals("value", receivedContext!!.get<String>("key"))
-        }
-    }
-
-    @Nested
-    inner class ObservabilityToolCallbackContextForwarding {
-
-        @Test
-        fun `observability callback forwards ToolContext to delegate`() {
-            var receivedToolContext: ToolContext? = null
-            val delegate = object : ToolCallback {
-                override fun getToolDefinition() = builder()
-                    .name("obs_tool").description("").inputSchema("{}").build()
-                override fun call(toolInput: String) = "no-context"
-                override fun call(toolInput: String, toolContext: ToolContext?): String {
-                    receivedToolContext = toolContext
-                    return "observed"
-                }
-            }
-            val observed = ObservabilityToolCallback(delegate, ObservationRegistry.NOOP)
-            val ctx = ToolContext(mapOf("key" to "val"))
-            val result = observed.call("{}", ctx)
-            assertEquals("observed", result)
-            assertNotNull(receivedToolContext)
-            assertEquals("val", receivedToolContext!!.context["key"])
         }
     }
 

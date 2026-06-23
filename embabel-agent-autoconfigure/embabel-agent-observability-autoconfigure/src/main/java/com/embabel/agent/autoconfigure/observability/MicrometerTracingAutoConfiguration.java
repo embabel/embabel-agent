@@ -15,10 +15,6 @@
  */
 package com.embabel.agent.autoconfigure.observability;
 
-import com.embabel.agent.observability.ObservabilityProperties;
-import com.embabel.agent.observability.observation.EmbabelObservationContext;
-import com.embabel.agent.observability.observation.EmbabelTracingObservationHandler;
-import com.embabel.agent.observability.observation.NonEmbabelTracingObservationHandler;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.handler.DefaultTracingObservationHandler;
@@ -28,45 +24,40 @@ import io.opentelemetry.api.OpenTelemetry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.micrometer.observation.autoconfigure.ObservationRegistryCustomizer;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 
 /**
- * Auto-configuration for Micrometer Tracing bridge to OpenTelemetry.
+ * Auto-configuration for the Micrometer Tracing bridge to OpenTelemetry.
  *
- * <p>Provides OtelCurrentTraceContext for context propagation between Micrometer and OpenTelemetry.
+ * <p>Provides {@link OtelCurrentTraceContext} for context propagation. The observations produced by
+ * the direct instrumentation (agent turn, action, tool loop, LLM call, tool call) are turned into
+ * spans by Spring Boot's own standard {@link DefaultTracingObservationHandler} — Embabel registers no
+ * handler of its own: with direct {@code observe{}} instrumentation the span hierarchy comes from
+ * Micrometer's current-observation mechanism (no residual scope), so the stock handler suffices.
+ *
+ * <p><b>Cross-thread caveat.</b> The current-observation mechanism alone is sufficient only on a
+ * single thread. When work is dispatched to another thread (e.g. an {@code ExecutorAsyncer} pool) and
+ * the nearest live ancestor is reached through a tier suppressed by the tier filter (its observation
+ * is a no-op carrying no span), only the live span — via {@code tracer.currentSpan()} — links the
+ * child to its parent, and that thread local is not propagated by the observation accessor. The
+ * {@link EmbabelTracingContextPropagationRegistrar} registers
+ * {@code ObservationAwareSpanThreadLocalAccessor} so the live span also crosses the boundary,
+ * preventing orphaned child spans (e.g. an LLM span starting a new root trace under a dropped action).
  *
  * @see OpenTelemetrySdkAutoConfiguration
+ * @see EmbabelTracingContextPropagationRegistrar
  * @since 0.3.4
  */
-@AutoConfiguration(
-        after = OpenTelemetrySdkAutoConfiguration.class,
-        // Order relative to Spring Boot's own tracing auto-configuration so Embabel's
-        // NonEmbabelTracingObservationHandler deterministically wins the
-        // @ConditionalOnMissingBean(DefaultTracingObservationHandler) race:
-        //  - afterName: run after the OpenTelemetry Tracer (OtelTracer) bean is created,
-        //    otherwise @ConditionalOnBean(Tracer.class) below evaluates false and the
-        //    handler is never registered;
-        //  - beforeName: run before Boot registers its DefaultTracingObservationHandler,
-        //    so Boot's @ConditionalOnMissingBean backs off in favour of ours.
-        // Referenced by name so we take no compile/runtime dependency on the
-        // spring-boot-micrometer-tracing(-opentelemetry) modules; the ordering is simply
-        // ignored when those modules are absent from the classpath.
-        afterName = "org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.OpenTelemetryTracingAutoConfiguration",
-        beforeName = "org.springframework.boot.micrometer.tracing.autoconfigure.MicrometerTracingAutoConfiguration"
-)
+@AutoConfiguration(after = OpenTelemetrySdkAutoConfiguration.class)
 @ConditionalOnClass({OtelTracer.class, OpenTelemetry.class, ObservationRegistry.class})
-@ConditionalOnProperty(prefix = "embabel.observability", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "embabel.agent.platform.observability", name = {"enabled", "tracing-enabled"}, havingValue = "true", matchIfMissing = true)
 public class MicrometerTracingAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(MicrometerTracingAutoConfiguration.class);
-
-    private static final String OBSERVABILITY_TOOL_CALLBACK_OBSERVATION_NAME = "tool call";
 
     /**
      * Creates OtelCurrentTraceContext for parent-child span propagation.
@@ -81,75 +72,25 @@ public class MicrometerTracingAutoConfiguration {
     }
 
     /**
-     * Registers EmbabelTracingObservationHandler for root span creation and hierarchy management.
+     * Registers {@code ObservationAwareSpanThreadLocalAccessor} so the live span crosses thread
+     * boundaries, keeping child spans (e.g. async LLM calls under a suppressed action) in the same
+     * trace as their live ancestor. Requires a {@link Tracer}; if none is present (no tracing bridge)
+     * there is nothing to propagate.
      *
-     * @param tracerProvider the Micrometer Tracer provider
-     * @param otelProvider the OpenTelemetry provider
-     * @param properties the observability properties
-     * @return the customizer for the ObservationRegistry
+     * <p>The {@link Tracer} is resolved lazily through an {@link ObjectProvider} rather than required
+     * as a bean condition: {@code @ConditionalOnBean} across auto-configuration boundaries is
+     * order-sensitive and would silently skip this registrar if Boot's tracer bean is defined later.
+     * The provider defers resolution to instantiation time, so the registrar simply no-ops when no
+     * tracer is present.
+     *
+     * @param observationRegistry the observation registry
+     * @param tracerProvider lazy provider for the tracer whose current span must cross threads
+     * @return the registrar (registers on init, deregisters on shutdown)
      */
     @Bean
-    @ConditionalOnProperty(prefix = "embabel.observability", name = "implementation",
-            havingValue = "SPRING_OBSERVATION", matchIfMissing = true)
-    public ObservationRegistryCustomizer<ObservationRegistry> embabelTracingObservationCustomizer(
-            ObjectProvider<Tracer> tracerProvider,
-            ObjectProvider<OpenTelemetry> otelProvider,
-            ObservabilityProperties properties) {
-
-        return registry -> {
-            Tracer tracer = tracerProvider.getIfAvailable();
-            OpenTelemetry otel = otelProvider.getIfAvailable();
-
-            if (tracer == null || otel == null) {
-                log.warn("Cannot register EmbabelTracingObservationHandler: Tracer or OpenTelemetry not available");
-                return;
-            }
-
-            io.opentelemetry.api.trace.Tracer otelTracer = otel.getTracer(
-                    properties.getTracerName(),
-                    properties.getTracerVersion()
-            );
-
-            EmbabelTracingObservationHandler handler = new EmbabelTracingObservationHandler(tracer);
-            registry.observationConfig().observationHandler(handler);
-
-            log.info("Registered EmbabelTracingObservationHandler for Spring Observation API integration");
-        };
-    }
-
-    /**
-     * Replaces Spring Boot's DefaultTracingObservationHandler with NonEmbabelTracingObservationHandler.
-     *
-     * <p>This prevents Spring Boot's default handler from processing {@link EmbabelObservationContext},
-     * which should be handled exclusively by {@link EmbabelTracingObservationHandler}.
-     *
-     * @param tracer the Micrometer Tracer
-     * @return the configured observation handler
-     */
-    @Bean
-    @ConditionalOnBean(Tracer.class)
-    @ConditionalOnMissingBean(DefaultTracingObservationHandler.class)
-    @ConditionalOnProperty(prefix = "embabel.observability", name = "implementation",
-            havingValue = "SPRING_OBSERVATION", matchIfMissing = true)
-    public DefaultTracingObservationHandler defaultTracingObservationHandler(Tracer tracer) {
-        log.info("Replacing Spring Boot's DefaultTracingObservationHandler with NonEmbabelTracingObservationHandler");
-        return new NonEmbabelTracingObservationHandler(tracer);
-    }
-
-    /**
-     * Registers an ObservationPredicate to skip tool call observations from ObservabilityToolCallback
-     * when Embabel's own tool tracing is enabled.
-     *
-     * @return an ObservationRegistryCustomizer that registers the predicate
-     */
-    @Bean
-    @ConditionalOnProperty(prefix = "embabel.observability", name = "trace-tool-calls",
-            havingValue = "true", matchIfMissing = true)
-    public ObservationRegistryCustomizer<ObservationRegistry> skipObservabilityToolCallbackCustomizer() {
-        log.info("Registering ObservationPredicate to skip ObservabilityToolCallback observations " +
-                "(trace-tool-calls=true, Embabel will trace tools via events)");
-        return registry -> registry.observationConfig().observationPredicate(
-                (name, context) -> !OBSERVABILITY_TOOL_CALLBACK_OBSERVATION_NAME.equals(name)
-        );
+    @ConditionalOnMissingBean(EmbabelTracingContextPropagationRegistrar.class)
+    public EmbabelTracingContextPropagationRegistrar embabelTracingContextPropagationRegistrar(
+            ObservationRegistry observationRegistry, ObjectProvider<Tracer> tracerProvider) {
+        return new EmbabelTracingContextPropagationRegistrar(observationRegistry, tracerProvider.getIfAvailable());
     }
 }

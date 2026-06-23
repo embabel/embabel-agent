@@ -13,11 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+@file:OptIn(InternalObservabilityApi::class)
+
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.event.AgenticEventListener
+import com.embabel.agent.api.event.observation.AgentInstrumentation
+import com.embabel.agent.api.event.observation.InternalObservabilityApi
+import com.embabel.agent.api.event.observation.NoOpAgentInstrumentation
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcessRepository
 import com.embabel.agent.core.expression.LogicalExpressionParser
@@ -27,13 +32,17 @@ import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import com.embabel.agent.spi.expression.spel.SpelLogicalExpressionParser
 import com.embabel.common.textio.template.TemplateRenderer
 import tools.jackson.databind.ObjectMapper
+import io.micrometer.observation.Observation
 import io.mockk.every
 import io.mockk.mockk
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.config.BeanDefinitionCustomizer
 import org.springframework.context.ApplicationContext
+import org.springframework.context.support.GenericApplicationContext
+import java.util.function.Supplier
 
 /**
  * Unit tests for [SpringContextPlatformServices.actionQosProperties].
@@ -162,4 +171,73 @@ class SpringContextPlatformServicesActionQosTest {
             assertThat(props.default.maxAttempts).isNull()
         }
     }
+
+    @Nested
+    inner class `Instrumentation resolution` {
+
+        // Distinct AgentInstrumentation instances — identity matters for the isSameAs assertions.
+        private fun instrumentation(): AgentInstrumentation = object : AgentInstrumentation {
+            override fun <T> observe(context: () -> Observation.Context, work: () -> T): T = work()
+        }
+
+        private fun contextWith(
+            vararg beans: Pair<String, AgentInstrumentation>,
+            primary: String? = null,
+        ) = GenericApplicationContext().apply {
+            beans.forEach { (name, instr) ->
+                val customizers = if (name == primary) {
+                    arrayOf(BeanDefinitionCustomizer { it.isPrimary = true })
+                } else {
+                    emptyArray()
+                }
+                registerBean(name, AgentInstrumentation::class.java, Supplier { instr }, *customizers)
+            }
+            refresh()
+        }
+
+        @Test
+        fun `resolves the single AgentInstrumentation bean from the context`() {
+            val adapter = instrumentation()
+            val services = createServices(contextWith("adapter" to adapter))
+
+            assertThat(services.instrumentation).isSameAs(adapter)
+        }
+
+        @Test
+        fun `falls back to NoOp when no AgentInstrumentation bean is present`() {
+            val services = createServices(GenericApplicationContext().apply { refresh() })
+
+            // The master-switch guarantee: no adapter bean (module absent/disabled) => core stays NoOp.
+            assertThat(services.instrumentation).isSameAs(NoOpAgentInstrumentation)
+        }
+
+        @Test
+        fun `falls back to NoOp when the context is null`() {
+            val services = createServices(applicationContext = null)
+
+            assertThat(services.instrumentation).isSameAs(NoOpAgentInstrumentation)
+        }
+
+        @Test
+        fun `honours @Primary when several AgentInstrumentation beans exist`() {
+            val primary = instrumentation()
+            val other = instrumentation()
+            val services = createServices(
+                contextWith("other" to other, "primary" to primary, primary = "primary"),
+            )
+
+            assertThat(services.instrumentation).isSameAs(primary)
+        }
+
+        @Test
+        fun `falls back to NoOp when several beans exist with no primary`() {
+            val services = createServices(
+                contextWith("a" to instrumentation(), "b" to instrumentation()),
+            )
+
+            // Ambiguous, no primary → NoOp rather than an arbitrary pick or a thrown exception.
+            assertThat(services.instrumentation).isSameAs(NoOpAgentInstrumentation)
+        }
+    }
+
 }

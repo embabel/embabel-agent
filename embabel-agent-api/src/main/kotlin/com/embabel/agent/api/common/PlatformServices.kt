@@ -13,11 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+@file:OptIn(InternalObservabilityApi::class)
+
 package com.embabel.agent.api.common
 
 import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.event.AgenticEventListener
+import com.embabel.agent.api.event.observation.AgentInstrumentation
+import com.embabel.agent.api.event.observation.InternalObservabilityApi
+import com.embabel.agent.api.event.observation.NoOpAgentInstrumentation
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcessRepository
 import com.embabel.agent.core.expression.LogicalExpressionParser
@@ -68,6 +73,15 @@ interface PlatformServices {
     val outputChannel: OutputChannel
 
     val templateRenderer: TemplateRenderer
+
+    /**
+     * Port for direct instrumentation (`observe{}`) of the core span tree (agent turn, action,
+     * LLM call, tool loop). Defaults to [NoOpAgentInstrumentation], so the core creates no span
+     * until an observability module contributes an [AgentInstrumentation] adapter — making
+     * "no module = no embabel spans" structural rather than flag-driven.
+     */
+    val instrumentation: AgentInstrumentation
+        get() = NoOpAgentInstrumentation
 
     fun autonomy(): Autonomy
 

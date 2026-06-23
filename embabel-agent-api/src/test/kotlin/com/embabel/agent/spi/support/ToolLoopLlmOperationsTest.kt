@@ -13,11 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+@file:OptIn(InternalObservabilityApi::class)
+
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.event.LlmInvocationEvent
 import com.embabel.agent.api.event.LlmRequestEvent
+import com.embabel.agent.api.event.observation.AgentInstrumentation
+import com.embabel.agent.api.event.observation.InternalObservabilityApi
+import com.embabel.agent.api.event.observation.LlmObservationContext
+import com.embabel.agent.api.event.observation.NoOpAgentInstrumentation
+import com.embabel.agent.api.event.observation.ToolLoopObservationContext
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration
 import com.embabel.agent.core.AgentProcess
@@ -59,6 +66,7 @@ import com.embabel.common.textio.template.JinjavaTemplateRenderer
 import com.embabel.common.textio.template.TemplateRenderer
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.module.kotlin.jacksonObjectMapper
+import io.micrometer.observation.Observation
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -119,6 +127,7 @@ class ToolLoopLlmOperationsTest {
             ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
             AutoCorrectionPolicy(),
         ),
+        instrumentation: AgentInstrumentation = NoOpAgentInstrumentation,
     ): TestableToolLoopLlmOperations {
         val fakeChatModel = FakeChatModel("unused")
         val fakeLlm = SpringAiLlmService("test", "provider", fakeChatModel, DefaultOptionsConverter)
@@ -133,6 +142,7 @@ class ToolLoopLlmOperationsTest {
             outputConverter = outputConverter,
             maybeReturnConverter = maybeReturnConverter,
             toolLoopFactory = toolLoopFactory,
+            instrumentation = instrumentation,
         )
     }
 
@@ -161,6 +171,111 @@ class ToolLoopLlmOperationsTest {
             }
             override fun getFormat(): String = "Return JSON with 'success' or 'failure' field"
         } as OutputConverter<MaybeReturn<*>>
+    }
+
+    /**
+     * Every public transform path must produce the same span shape: an `embabel.llm` span
+     * ([LlmObservationContext]) wrapping an `embabel.tool_loop` span ([ToolLoopObservationContext]).
+     * Originally only [ToolLoopLlmOperations.doTransform] was instrumented; the thinking / if-possible
+     * variants produced no spans, so trace shape silently depended on the variant called (#gap).
+     */
+    @Nested
+    inner class InstrumentationParityTests {
+
+        /** Captures the context type of every observation opened by the operations. */
+        private inner class RecordingInstrumentation : AgentInstrumentation {
+            val contexts = mutableListOf<Observation.Context>()
+            override fun <T> observe(context: () -> Observation.Context, work: () -> T): T {
+                contexts.add(context())
+                return work()
+            }
+        }
+
+        private fun recordingLlmRequestEvent(): LlmRequestEvent<String> {
+            val event = mockk<LlmRequestEvent<String>>(relaxed = true)
+            every { event.agentProcess } returns mockAgentProcess
+            every { event.interaction } returns createInteraction()
+            return event
+        }
+
+        private fun RecordingInstrumentation.assertBothSpans() {
+            assertTrue(contexts.any { it is LlmObservationContext }, "embabel.llm span missing")
+            assertTrue(contexts.any { it is ToolLoopObservationContext }, "embabel.tool_loop span missing")
+        }
+
+        @Test
+        fun `doTransform opens both llm and tool-loop spans`() {
+            val recording = RecordingInstrumentation()
+            val operations = createTestableOperations(
+                TestLlmMessageSender(responses = listOf(textResponse("hi"))),
+                instrumentation = recording,
+            )
+
+            operations.testDoTransformWithEvent(
+                messages = listOf(UserMessage("go")),
+                interaction = createInteraction(),
+                outputClass = String::class.java,
+                llmRequestEvent = recordingLlmRequestEvent(),
+            )
+
+            recording.assertBothSpans()
+        }
+
+        @Test
+        fun `doTransformIfPossible opens both llm and tool-loop spans`() {
+            val recording = RecordingInstrumentation()
+            val operations = createTestableOperations(
+                TestLlmMessageSender(responses = listOf(textResponse("""{"success":"ok"}"""))),
+                maybeReturnConverter = createMaybeReturnConverter(String::class.java),
+                instrumentation = recording,
+            )
+
+            operations.testDoTransformIfPossibleWithEvent(
+                messages = listOf(UserMessage("go")),
+                interaction = createInteraction(),
+                outputClass = String::class.java,
+                llmRequestEvent = recordingLlmRequestEvent(),
+            )
+
+            recording.assertBothSpans()
+        }
+
+        @Test
+        fun `doTransformWithThinking opens both llm and tool-loop spans`() {
+            val recording = RecordingInstrumentation()
+            val operations = createTestableOperations(
+                TestLlmMessageSender(responses = listOf(textResponse("hi"))),
+                instrumentation = recording,
+            )
+
+            operations.testDoTransformWithThinkingWithEvent(
+                messages = listOf(UserMessage("go")),
+                interaction = createInteraction(),
+                outputClass = String::class.java,
+                llmRequestEvent = recordingLlmRequestEvent(),
+            )
+
+            recording.assertBothSpans()
+        }
+
+        @Test
+        fun `doTransformWithThinkingIfPossible opens both llm and tool-loop spans`() {
+            val recording = RecordingInstrumentation()
+            val operations = createTestableOperations(
+                TestLlmMessageSender(responses = listOf(textResponse("""{"success":"ok"}"""))),
+                maybeReturnConverter = createMaybeReturnConverter(String::class.java),
+                instrumentation = recording,
+            )
+
+            operations.testDoTransformWithThinkingIfPossibleWithEvent(
+                messages = listOf(UserMessage("go")),
+                interaction = createInteraction(),
+                outputClass = String::class.java,
+                llmRequestEvent = recordingLlmRequestEvent(),
+            ).getOrThrow()
+
+            recording.assertBothSpans()
+        }
     }
 
     @Nested
@@ -1970,6 +2085,7 @@ internal open class TestableToolLoopLlmOperations(
         ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
         AutoCorrectionPolicy(),
     ),
+    instrumentation: AgentInstrumentation = NoOpAgentInstrumentation,
 ) : ToolLoopLlmOperations(
     modelProvider = modelProvider,
     toolDecorator = toolDecorator,
@@ -1979,6 +2095,7 @@ internal open class TestableToolLoopLlmOperations(
     autoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
     promptsProperties = LlmOperationsPromptsProperties(),
     objectMapper = objectMapper,
+    instrumentation = instrumentation,
     templateRenderer = templateRenderer,
     toolLoopFactory = toolLoopFactory,
 ) {

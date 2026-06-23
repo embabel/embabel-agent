@@ -16,34 +16,42 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.common.Asyncer
+import io.micrometer.context.ContextSnapshotFactory
 import javax.annotation.concurrent.ThreadSafe
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
 import java.util.concurrent.Semaphore
 
 /**
- * Asyncer implementation that uses an Executor for async operations
- * with AgentProcess context propagation to worker threads.
+ * Asyncer implementation that uses an Executor for async operations, propagating to worker
+ * threads the [AgentProcess] (a domain concern, via [AgentProcessAccessor]) and the current
+ * Micrometer Observation (via the official [ContextSnapshotFactory], so spans nest across
+ * threads; a no-op when no observation is current, e.g. a NOOP registry).
  */
 @ThreadSafe
 class ExecutorAsyncer(
     private val executor: Executor,
 ) : Asyncer {
 
+    private val contextSnapshotFactory = ContextSnapshotFactory.builder().clearMissing(true).build()
+
     override fun <T> async(block: () -> T): CompletableFuture<T> {
-        // Capture AgentProcess from calling thread
+        // Capture AgentProcess and the current observation from the calling thread
         val agentProcess = AgentProcessAccessor.getValue()
+        val contextSnapshot = contextSnapshotFactory.captureAll()
 
         return CompletableFuture.supplyAsync({
-            if (agentProcess != null) {
-                AgentProcessAccessor.setValue(agentProcess)
-                try {
+            contextSnapshot.setThreadLocals().use {
+                if (agentProcess != null) {
+                    AgentProcessAccessor.setValue(agentProcess)
+                    try {
+                        block()
+                    } finally {
+                        AgentProcessAccessor.reset() // cleanup
+                    }
+                } else {
                     block()
-                } finally {
-                    AgentProcessAccessor.reset() // cleanup
                 }
-            } else {
-                block()
             }
         }, executor)
     }

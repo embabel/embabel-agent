@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.autoconfigure.observability.observation;
 
-import com.embabel.agent.observability.observation.ChatModelObservationFilter;
+import com.embabel.agent.observability.tracing.ChatModelObservationFilter;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.Tracer;
@@ -40,6 +40,7 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.observation.ChatModelObservationContext;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 
 import java.util.Collections;
@@ -73,33 +74,70 @@ class ChatModelObservationFilterTest {
         assertThat(result).isSameAs(context);
     }
 
-    // Test prompt extraction from request
+    // Test structured input messages + OpenInference bridge from request
     @Test
     void map_shouldExtractPromptFromRequest() {
         ChatModelObservationContext context = createContextWithPrompt("Hello AI");
 
         filter.map(context);
 
-        assertThat(context.getHighCardinalityKeyValues())
-                .anyMatch(kv -> kv.getKey().equals("gen_ai.prompt"));
+        String inputMessages = highCardinalityValue(context, "gen_ai.input.messages");
+        assertThat(inputMessages)
+                .as("structured GenAI input messages")
+                .contains("\"role\":\"user\"")
+                .contains("\"type\":\"text\"")
+                .contains("\"content\":\"Hello AI\"");
         assertThat(context.getHighCardinalityKeyValues())
                 .anyMatch(kv -> kv.getKey().equals("input.value"));
     }
 
-    // Test completion extraction from response
+    // Test structured output messages + OpenInference bridge from response
     @Test
     void map_shouldExtractCompletionFromResponse() {
         ChatModelObservationContext context = createContextWithResponse("AI response");
 
         filter.map(context);
 
-        assertThat(context.getHighCardinalityKeyValues())
-                .anyMatch(kv -> kv.getKey().equals("gen_ai.completion"));
+        String outputMessages = highCardinalityValue(context, "gen_ai.output.messages");
+        assertThat(outputMessages)
+                .as("structured GenAI output messages")
+                .contains("\"role\":\"assistant\"")
+                .contains("\"content\":\"AI response\"");
         assertThat(context.getHighCardinalityKeyValues())
                 .anyMatch(kv -> kv.getKey().equals("output.value"));
     }
 
-    // Test truncation of long values
+    // Content with quotes/newlines must stay valid (escaped) inside the JSON attribute
+    @Test
+    void map_shouldEscapeSpecialCharactersInMessages() {
+        ChatModelObservationContext context = createContextWithPrompt("say \"hi\"\nthen stop");
+
+        filter.map(context);
+
+        String inputMessages = highCardinalityValue(context, "gen_ai.input.messages");
+        assertThat(inputMessages)
+                .contains("\\\"hi\\\"")   // escaped double quotes
+                .contains("\\n");          // escaped newline
+    }
+
+    // When content capture is disabled, message bodies are omitted but metadata stays
+    @Test
+    void map_whenContentCaptureDisabled_shouldOmitMessageBodies() {
+        ChatModelObservationFilter noContentFilter = new ChatModelObservationFilter(100, false);
+        ChatModelObservationContext context = createContextWithResponse("AI response");
+
+        noContentFilter.map(context);
+
+        assertThat(context.getHighCardinalityKeyValues())
+                .noneMatch(kv -> kv.getKey().equals("gen_ai.input.messages"))
+                .noneMatch(kv -> kv.getKey().equals("gen_ai.output.messages"))
+                .noneMatch(kv -> kv.getKey().equals("input.value"))
+                .noneMatch(kv -> kv.getKey().equals("output.value"));
+        assertThat(context.getLowCardinalityKeyValues())
+                .anyMatch(kv -> kv.getKey().equals("gen_ai.operation.name"));
+    }
+
+    // Test truncation of long content (bounded via the OpenInference bridge value)
     @Test
     void map_shouldTruncateLongValues() {
         String longPrompt = "A".repeat(200); // Longer than max 100
@@ -107,14 +145,10 @@ class ChatModelObservationFilterTest {
 
         filter.map(context);
 
-        String prompt = context.getHighCardinalityKeyValues().stream()
-                .filter(kv -> kv.getKey().equals("gen_ai.prompt"))
-                .findFirst()
-                .map(kv -> kv.getValue())
-                .orElse("");
+        String inputValue = highCardinalityValue(context, "input.value");
 
-        assertThat(prompt).hasSize(103); // 100 + "..."
-        assertThat(prompt).endsWith("...");
+        assertThat(inputValue).hasSize(103); // 100 + "..."
+        assertThat(inputValue).endsWith("...");
     }
 
     // Test default constructor uses 4000 max length
@@ -126,13 +160,65 @@ class ChatModelObservationFilterTest {
 
         defaultFilter.map(context);
 
-        String prompt = context.getHighCardinalityKeyValues().stream()
-                .filter(kv -> kv.getKey().equals("gen_ai.prompt"))
+        String inputValue = highCardinalityValue(context, "input.value");
+
+        assertThat(inputValue).hasSize(4003); // 4000 + "..."
+    }
+
+    // gen_ai.request.top_p must be emitted (high cardinality) when set on the request options
+    @Test
+    void map_shouldEmitTopP_whenSetOnRequestOptions() {
+        ChatOptions options = ChatOptions.builder().topP(0.9).build();
+        Prompt prompt = new Prompt(List.of(new UserMessage("Hello AI")), options);
+        ChatModelObservationContext context = ChatModelObservationContext.builder()
+                .prompt(prompt)
+                .provider("test-provider")
+                .build();
+
+        filter.map(context);
+
+        assertThat(highCardinalityValue(context, "gen_ai.request.top_p"))
+                .as("gen_ai.request.top_p")
+                .isEqualTo("0.9");
+    }
+
+    // top_p is omitted when not set on the request options
+    @Test
+    void map_shouldOmitTopP_whenNotSet() {
+        ChatModelObservationContext context = createContextWithPrompt("Hello AI");
+
+        filter.map(context);
+
+        assertThat(context.getHighCardinalityKeyValues())
+                .noneMatch(kv -> kv.getKey().equals("gen_ai.request.top_p"));
+    }
+
+    // gen_ai.provider.name must be emitted (low cardinality) from the observation context metadata
+    @Test
+    void map_shouldEmitProviderName_fromContext() {
+        ChatModelObservationContext context = createContextWithPrompt("Hello AI");
+
+        filter.map(context);
+
+        assertThat(lowCardinalityValue(context, "gen_ai.provider.name"))
+                .as("gen_ai.provider.name")
+                .isEqualTo("test-provider");
+    }
+
+    private static String highCardinalityValue(ChatModelObservationContext context, String key) {
+        return context.getHighCardinalityKeyValues().stream()
+                .filter(kv -> kv.getKey().equals(key))
                 .findFirst()
                 .map(kv -> kv.getValue())
                 .orElse("");
+    }
 
-        assertThat(prompt).hasSize(4003); // 4000 + "..."
+    private static String lowCardinalityValue(ChatModelObservationContext context, String key) {
+        return context.getLowCardinalityKeyValues().stream()
+                .filter(kv -> kv.getKey().equals(key))
+                .findFirst()
+                .map(kv -> kv.getValue())
+                .orElse("");
     }
 
     // Helper: create context with prompt
@@ -185,7 +271,7 @@ class ChatModelObservationFilterTest {
         @BeforeEach
         void setUpHierarchyTests() {
             // Force clean OTel context to prevent cross-test context leakage
-            // (e.g., SpringObservationProofOfConceptTest leaves stale spans in thread-local)
+            // (e.g., ObserveTracingContractTest leaves stale spans in thread-local)
             otelRootScope = Context.root().makeCurrent();
 
             // Wire up a real OTel SDK -> Micrometer bridge -> ObservationRegistry pipeline

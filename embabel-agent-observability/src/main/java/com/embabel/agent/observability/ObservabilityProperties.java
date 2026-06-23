@@ -17,6 +17,9 @@ package com.embabel.agent.observability;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Configuration properties for Embabel Agent observability.
  *
@@ -24,7 +27,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * @since 0.3.4
  */
-@ConfigurationProperties(prefix = "embabel.observability")
+@ConfigurationProperties(prefix = "embabel.agent.platform.observability")
 public class ObservabilityProperties {
 
     /**
@@ -33,29 +36,75 @@ public class ObservabilityProperties {
     public ObservabilityProperties() {
     }
 
-    /** Enable/disable observability. */
+    /**
+     * Grand master switch for all observability. When false, neither tracing nor metrics
+     * auto-configuration is activated. Sits above {@link #tracingEnabled} and {@link #metricsEnabled},
+     * which independently gate the two pillars when observability as a whole is enabled.
+     */
     private boolean enabled = true;
+
+    /**
+     * Master switch for tracing (spans). When false, no spans are produced regardless of the
+     * per-tier {@code trace-*} switches: the tracing handler, the span conventions and all span
+     * enrichment are disabled in one shot. Independent of {@link #metricsEnabled} — aggregated
+     * metrics keep flowing.
+     */
+    private boolean tracingEnabled = true;
+
+    /** Master switch for Micrometer business metrics (counters, gauges). Independent of {@link #tracingEnabled}. */
+    private boolean metricsEnabled = true;
 
     /** Service name for traces. */
     private String serviceName = "embabel-agent";
 
-    /** Tracer instrumentation name. */
-    private String tracerName = "embabel-agent";
-
-    /** Tracer version. */
-    private String tracerVersion = "0.3.4";
-
     /** Max attribute length before truncation. */
     private int maxAttributeLength = 4000;
 
-    /** Trace agent events (agents, actions, goals). */
+    /**
+     * Whether to capture message/payload content across all Embabel spans (privacy / PII gate).
+     * This covers, in addition to the LLM chat-model spans ({@code gen_ai.input.messages} /
+     * {@code gen_ai.output.messages} and the OpenInference {@code input.value} / {@code output.value}
+     * bridge):
+     * <ul>
+     *   <li>the {@code embabel.agent} / {@code embabel.action} / {@code embabel.tool_loop} span
+     *       {@code input.value} / {@code output.value} and {@code *.result} bodies,</li>
+     *   <li>the point spans emitted by the event listener: tool-call arguments and result, RAG query,
+     *       planning/goal world-state input and output, and the replan reason,</li>
+     *   <li>{@code @Tracked} method arguments and return value.</li>
+     * </ul>
+     * The OTel GenAI semantic convention recommends content capture be opt-in because it may contain
+     * sensitive data (PII); this defaults to {@code true} to preserve historical behaviour. Set to
+     * {@code false} to keep model/token/identity metadata while omitting every message body.
+     */
+    private boolean captureMessageContent = true;
+
+    /**
+     * Umbrella switch for the core scoped span tier (agent, action, tool_loop, llm). When false, all
+     * four scoped spans are suppressed at once and their conventions are not registered. For
+     * per-span control while keeping the tier on, use {@link #traceAgent}, {@link #traceAction},
+     * {@link #traceToolLoop} and {@link #traceLlmCalls}.
+     */
     private boolean traceAgentEvents = true;
+
+    /** Trace the {@code embabel.agent} scoped span (one run turn). Requires {@link #traceAgentEvents}. */
+    private boolean traceAgent = true;
+
+    /** Trace the {@code embabel.action} scoped span. Requires {@link #traceAgentEvents}. */
+    private boolean traceAction = true;
 
     /** Trace tool calls. */
     private boolean traceToolCalls = true;
 
     /** Trace tool loop execution. */
     private boolean traceToolLoop = true;
+
+    /**
+     * Emit the {@code embabel.tool_loop.completed} point span recording the loop outcome (total
+     * iterations, replan flag, duration). This is a sibling of the scoped {@code embabel.tool_loop}
+     * span, emitted after it closes. Set false to keep the scoped tool-loop span while removing the
+     * extra completion node from the trace. Has no effect when {@link #traceToolLoop} is false.
+     */
+    private boolean traceToolLoopCompleted = true;
 
     /** Trace LLM calls. */
     private boolean traceLlmCalls = true;
@@ -69,7 +118,10 @@ public class ObservabilityProperties {
     /** Trace lifecycle states. */
     private boolean traceLifecycleStates = true;
 
-    /** Trace RAG events (request, response, pipeline). */
+    /** Trace embedding invocations (model, token usage, cost). */
+    private boolean traceEmbedding = true;
+
+    /** Trace RAG responses (query, top-k, similarity threshold, result count, top score, RAGAS quality metrics). */
     private boolean traceRag = true;
 
     /** Trace ranking/selection events (agent routing decisions). */
@@ -78,8 +130,8 @@ public class ObservabilityProperties {
     /** Trace dynamic agent creation events. */
     private boolean traceDynamicAgentCreation = true;
 
-    /** Trace HTTP request/response details including bodies, headers and params (enabled by default). */
-    private boolean traceHttpDetails = true;
+    /** Trace HTTP request/response details including bodies, headers and params (disabled by default; opt-in). */
+    private boolean traceHttpDetails = false;
 
     /** Enable @Tracked annotation aspect for custom operation tracking. */
     private boolean traceTrackedOperations = true;
@@ -87,8 +139,21 @@ public class ObservabilityProperties {
     /** Propagate Embabel context (run_id, agent name, action name) into SLF4J MDC for log correlation. */
     private boolean mdcPropagation = true;
 
-    /** Enable/disable Micrometer business metrics (counters, gauges). */
-    private boolean metricsEnabled = true;
+    /**
+     * Names of observations (spans) to suppress, matched by exact observation name. Lets you drop
+     * non-Embabel infrastructure spans you don't want exported (Langfuse, Zipkin, …) without code,
+     * e.g. {@code tasks.scheduled.execution} (@Scheduled tasks), {@code http.server.requests}
+     * (incoming HTTP), {@code http.client.requests} (outgoing HTTP). Empty by default (nothing
+     * suppressed). A suppressed observation becomes a no-op, so its children re-parent to the next
+     * live ancestor.
+     * <p>
+     * Matches by name, so it works for any span that carries its real name at creation — including
+     * Embabel point spans ({@code embabel.embedding}, {@code embabel.llm.invocation}, …). It does
+     * <em>not</em> target the four core scoped spans ({@code embabel.agent}, {@code embabel.action},
+     * {@code embabel.llm}, {@code embabel.tool_loop}): the core opens them with a placeholder name and
+     * the semantic name is applied only later, so use their {@code trace-*} flags to toggle those.
+     */
+    private List<String> disabledTraces = new ArrayList<>();
 
     // Getters and Setters
 
@@ -125,38 +190,6 @@ public class ObservabilityProperties {
     }
 
     /**
-     * Returns the tracer instrumentation name.
-     * @return the tracer name
-     */
-    public String getTracerName() {
-        return tracerName;
-    }
-
-    /**
-     * Sets the tracer instrumentation name.
-     * @param tracerName the tracer name
-     */
-    public void setTracerName(String tracerName) {
-        this.tracerName = tracerName;
-    }
-
-    /**
-     * Returns the tracer version.
-     * @return the tracer version
-     */
-    public String getTracerVersion() {
-        return tracerVersion;
-    }
-
-    /**
-     * Sets the tracer version.
-     * @param tracerVersion the tracer version
-     */
-    public void setTracerVersion(String tracerVersion) {
-        this.tracerVersion = tracerVersion;
-    }
-
-    /**
      * Returns the max attribute length before truncation.
      * @return the max attribute length
      */
@@ -173,6 +206,24 @@ public class ObservabilityProperties {
     }
 
     /**
+     * Returns whether message/payload content is captured across all Embabel spans.
+     * @return {@code true} if content bodies (prompts, tool args/results, RAG queries, world state,
+     *         results, {@code @Tracked} args/return) are captured
+     */
+    public boolean isCaptureMessageContent() {
+        return captureMessageContent;
+    }
+
+    /**
+     * Sets whether message/payload content is captured across all Embabel spans.
+     * @param captureMessageContent {@code true} to capture content bodies; {@code false} to keep
+     *                              metadata only (privacy / PII gate)
+     */
+    public void setCaptureMessageContent(boolean captureMessageContent) {
+        this.captureMessageContent = captureMessageContent;
+    }
+
+    /**
      * Returns whether agent events tracing is enabled.
      * @return true if agent events are traced
      */
@@ -186,6 +237,38 @@ public class ObservabilityProperties {
      */
     public void setTraceAgentEvents(boolean traceAgentEvents) {
         this.traceAgentEvents = traceAgentEvents;
+    }
+
+    /**
+     * Returns whether the {@code embabel.agent} scoped span is traced.
+     * @return true if the agent span is traced
+     */
+    public boolean isTraceAgent() {
+        return traceAgent;
+    }
+
+    /**
+     * Sets whether to trace the {@code embabel.agent} scoped span.
+     * @param traceAgent true to trace the agent span
+     */
+    public void setTraceAgent(boolean traceAgent) {
+        this.traceAgent = traceAgent;
+    }
+
+    /**
+     * Returns whether the {@code embabel.action} scoped span is traced.
+     * @return true if the action span is traced
+     */
+    public boolean isTraceAction() {
+        return traceAction;
+    }
+
+    /**
+     * Sets whether to trace the {@code embabel.action} scoped span.
+     * @param traceAction true to trace the action span
+     */
+    public void setTraceAction(boolean traceAction) {
+        this.traceAction = traceAction;
     }
 
     /**
@@ -218,6 +301,22 @@ public class ObservabilityProperties {
      */
     public void setTraceToolLoop(boolean traceToolLoop) {
         this.traceToolLoop = traceToolLoop;
+    }
+
+    /**
+     * Returns whether the tool loop completion point span is emitted.
+     * @return true if the {@code embabel.tool_loop.completed} point span is emitted
+     */
+    public boolean isTraceToolLoopCompleted() {
+        return traceToolLoopCompleted;
+    }
+
+    /**
+     * Sets whether to emit the tool loop completion point span.
+     * @param traceToolLoopCompleted true to emit the {@code embabel.tool_loop.completed} point span
+     */
+    public void setTraceToolLoopCompleted(boolean traceToolLoopCompleted) {
+        this.traceToolLoopCompleted = traceToolLoopCompleted;
     }
 
     /**
@@ -282,6 +381,22 @@ public class ObservabilityProperties {
      */
     public void setTraceLifecycleStates(boolean traceLifecycleStates) {
         this.traceLifecycleStates = traceLifecycleStates;
+    }
+
+    /**
+     * Returns whether embedding invocation tracing is enabled.
+     * @return true if embedding invocations are traced
+     */
+    public boolean isTraceEmbedding() {
+        return traceEmbedding;
+    }
+
+    /**
+     * Sets whether to trace embedding invocations.
+     * @param traceEmbedding true to trace embedding invocations
+     */
+    public void setTraceEmbedding(boolean traceEmbedding) {
+        this.traceEmbedding = traceEmbedding;
     }
 
     /**
@@ -394,5 +509,38 @@ public class ObservabilityProperties {
      */
     public void setMetricsEnabled(boolean metricsEnabled) {
         this.metricsEnabled = metricsEnabled;
+    }
+
+    /**
+     * Returns whether tracing (spans) is enabled. Master switch over all {@code trace-*} switches.
+     * @return true if tracing is enabled
+     */
+    public boolean isTracingEnabled() {
+        return tracingEnabled;
+    }
+
+    /**
+     * Sets whether tracing (spans) is enabled. When false, all span production is disabled
+     * regardless of the per-tier {@code trace-*} switches.
+     * @param tracingEnabled true to enable tracing
+     */
+    public void setTracingEnabled(boolean tracingEnabled) {
+        this.tracingEnabled = tracingEnabled;
+    }
+
+    /**
+     * Returns the names of observations to suppress.
+     * @return the list of disabled observation names (never null; empty means none)
+     */
+    public List<String> getDisabledTraces() {
+        return disabledTraces;
+    }
+
+    /**
+     * Sets the names of observations to suppress (matched by exact observation name).
+     * @param disabledTraces the observation names to drop
+     */
+    public void setDisabledTraces(List<String> disabledTraces) {
+        this.disabledTraces = disabledTraces == null ? new ArrayList<>() : disabledTraces;
     }
 }

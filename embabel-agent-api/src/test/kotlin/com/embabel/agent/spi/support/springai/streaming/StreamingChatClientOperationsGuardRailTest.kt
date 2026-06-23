@@ -13,11 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+@file:OptIn(InternalObservabilityApi::class)
+
 package com.embabel.agent.spi.support.springai.streaming
 
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.common.ToolsStats
 import com.embabel.agent.api.event.LlmRequestEvent
+import com.embabel.agent.api.event.observation.InternalObservabilityApi
 import com.embabel.agent.api.validation.guardrails.GuardRailViolationException
 import com.embabel.agent.api.validation.guardrails.UserInputGuardRail
 import com.embabel.agent.core.AgentProcess
