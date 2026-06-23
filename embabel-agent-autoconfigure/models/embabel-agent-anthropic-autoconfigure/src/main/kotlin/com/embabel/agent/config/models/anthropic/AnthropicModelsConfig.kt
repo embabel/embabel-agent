@@ -30,11 +30,10 @@ import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
+import org.springframework.ai.anthropic.AnthropicCacheOptions
+import org.springframework.ai.anthropic.AnthropicCacheStrategy
 import org.springframework.ai.anthropic.AnthropicChatModel
 import org.springframework.ai.anthropic.AnthropicChatOptions
-import org.springframework.ai.anthropic.api.AnthropicApi
-import org.springframework.ai.anthropic.api.AnthropicCacheOptions
-import org.springframework.ai.anthropic.api.AnthropicCacheStrategy
 import org.springframework.ai.chat.messages.MessageType
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.beans.factory.ObjectProvider
@@ -166,18 +165,20 @@ class AnthropicModelsConfig(
      * Creates an individual Anthropic model from configuration, applying full model
      * definition settings (thinking mode, token budgets, pricing, etc.) that are not
      * needed in the BYOK path.
+     *
+     * Spring AI 2.0 dropped the spring-retry `RetryTemplate` parameter on the chat model
+     * builder; retries are wrapped at the ChatClientLlmOperations layer instead.
      */
     private fun createAnthropicLlm(modelDef: AnthropicModelDefinition): LlmService<*> {
         val chatModel = AnthropicChatModel
             .builder()
-            .defaultOptions(createDefaultOptions(modelDef))
-            .anthropicApi(createAnthropicApi())
+            .options(createDefaultOptions(modelDef))
+            .anthropicClient(createAnthropicClient())
             .toolCallingManager(
                 ToolCallingManager.builder()
                     .observationRegistry(observationRegistry)
                     .build()
             )
-            .retryTemplate(properties.retryTemplate("anthropic-${modelDef.modelId}"))
             .observationRegistry(observationRegistry)
             .build()
 
@@ -201,6 +202,10 @@ class AnthropicModelsConfig(
 
     /**
      * Creates default options for a model based on YAML configuration.
+     *
+     * Spring AI 2.0 replaced the `AnthropicApi.ChatCompletionRequest.ThinkingConfig`
+     * constructor with first-class `thinkingEnabled(tokenBudget)` / `thinkingDisabled()`
+     * methods on the options builder.
      */
     private fun createDefaultOptions(modelDef: AnthropicModelDefinition): AnthropicChatOptions {
         return AnthropicChatOptions.builder()
@@ -212,19 +217,12 @@ class AnthropicModelsConfig(
                 modelDef.topK?.let { topK(it) }
 
                 // Configure thinking mode if specified
-                modelDef.thinking?.let { thinkingConfig ->
-                    thinking(
-                        AnthropicApi.ChatCompletionRequest.ThinkingConfig(
-                            AnthropicApi.ThinkingType.ENABLED,
-                            thinkingConfig.tokenBudget
-                        )
-                    )
-                } ?: thinking(
-                    AnthropicApi.ChatCompletionRequest.ThinkingConfig(
-                        AnthropicApi.ThinkingType.DISABLED,
-                        null
-                    )
-                )
+                val thinkingBudget = modelDef.thinking?.tokenBudget
+                if (thinkingBudget != null && thinkingBudget > 0) {
+                    thinkingEnabled(thinkingBudget.toLong())
+                } else {
+                    thinkingDisabled()
+                }
             }
             .build()
     }
@@ -244,15 +242,14 @@ object AnthropicOptionsConverter : OptionsConverter<AnthropicChatOptions> {
             .temperature(options.temperature)
             .topP(options.topP)
             .maxTokens(options.maxTokens ?: DEFAULT_MAX_TOKENS)
-            .thinking(
-                if (options.thinking?.enabled == true) AnthropicApi.ChatCompletionRequest.ThinkingConfig(
-                    AnthropicApi.ThinkingType.ENABLED,
-                    options.thinking!!.tokenBudget,
-                ) else AnthropicApi.ChatCompletionRequest.ThinkingConfig(
-                    AnthropicApi.ThinkingType.DISABLED,
-                    null,
-                )
-            )
+            .apply {
+                val thinkingBudget = options.thinking?.tokenBudget
+                if (options.thinking?.enabled == true && thinkingBudget != null) {
+                    thinkingEnabled(thinkingBudget.toLong())
+                } else {
+                    thinkingDisabled()
+                }
+            }
             .topK(options.topK)
 
         // Apply Anthropic caching if configured
