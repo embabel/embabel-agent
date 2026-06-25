@@ -67,4 +67,18 @@ class MimeTypeUtilsTest {
             .isInstanceOf(IllegalArgumentException::class.java)
             .hasMessageContaining("Unsupported document extension: zip")
     }
+
+    @Test
+    fun `rejects document extension used as image extension with helpful message`() {
+        assertThatThrownBy { mimeTypeForImageExtension("pdf") }
+            .isInstanceOf(IllegalArgumentException::class.java)
+            .hasMessageContaining("Extension 'pdf' is a document type; use document input APIs")
+    }
+
+    @Test
+    fun `rejects image extension used as document extension with helpful message`() {
+        assertThatThrownBy { mimeTypeForDocumentExtension("png") }
+            .isInstanceOf(IllegalArgumentException::class.java)
+            .hasMessageContaining("Extension 'png' is an image type; use image input APIs")
+    }
 }

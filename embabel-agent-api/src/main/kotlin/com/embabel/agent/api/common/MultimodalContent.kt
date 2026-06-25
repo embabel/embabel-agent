@@ -19,6 +19,8 @@ import com.embabel.chat.ContentPart
 import com.embabel.chat.DocumentPart
 import com.embabel.chat.ImagePart
 import com.embabel.chat.TextPart
+import com.embabel.common.ai.media.isDocumentMimeType
+import com.embabel.common.ai.media.isImageMimeType
 import com.embabel.common.ai.media.mimeTypeForDocumentExtension
 import com.embabel.common.ai.media.mimeTypeForImageExtension
 import java.io.File
@@ -98,6 +100,11 @@ data class AgentImage(
     val data: ByteArray
 ) {
 
+    init {
+        require(isImageMimeType(mimeType)) { "Invalid image MIME type: $mimeType" }
+        require(data.isNotEmpty()) { "Image data cannot be empty" }
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is AgentImage) return false
@@ -152,6 +159,12 @@ data class AgentDocument(
     val data: ByteArray,
     val filename: String? = null,
 ) {
+
+    init {
+        require(isDocumentMimeType(mimeType)) { "Invalid document MIME type: $mimeType" }
+        require(data.isNotEmpty()) { "Document data cannot be empty" }
+        require(filename == null || filename.isNotBlank()) { "Document filename cannot be blank" }
+    }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -246,6 +259,7 @@ class MultimodalContentBuilder {
         return this
     }
 
+    @JvmOverloads
     fun document(mimeType: String, data: ByteArray, filename: String? = null): MultimodalContentBuilder {
         this.documents.add(AgentDocument(mimeType, data, filename))
         return this

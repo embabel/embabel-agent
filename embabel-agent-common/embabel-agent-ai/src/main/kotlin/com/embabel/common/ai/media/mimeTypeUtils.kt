@@ -15,6 +15,10 @@
  */
 package com.embabel.common.ai.media
 
+import org.slf4j.LoggerFactory
+
+private val logger = LoggerFactory.getLogger("com.embabel.common.ai.media.mimeTypeUtils")
+
 /**
  * Classify a supported MIME type into the media category Embabel uses internally.
  */
@@ -40,28 +44,37 @@ fun isDocumentMimeType(mimeType: String): Boolean =
 /**
  * Resolve an image file extension to a supported MIME type.
  */
-fun mimeTypeForImageExtension(extension: String): String =
-    when (extension.lowercase()) {
-        "jpg", "jpeg" -> MimeTypes.IMAGE_JPEG
-        "png" -> MimeTypes.IMAGE_PNG
-        "gif" -> MimeTypes.IMAGE_GIF
-        "webp" -> MimeTypes.IMAGE_WEBP
-        "bmp" -> MimeTypes.IMAGE_BMP
+fun mimeTypeForImageExtension(extension: String): String {
+    val normalizedExtension = extension.lowercase()
+    return when {
+        normalizedExtension in MimeTypes.IMAGE_MIME_TYPES_BY_EXTENSION ->
+            MimeTypes.IMAGE_MIME_TYPES_BY_EXTENSION.getValue(normalizedExtension)
+
+        normalizedExtension in MimeTypes.DOCUMENT_MIME_TYPES_BY_EXTENSION -> throw IllegalArgumentException(
+            "Extension '$extension' is a document type; use document input APIs"
+        )
+
         else -> throw IllegalArgumentException("Unsupported image extension: $extension")
+    }.also { mimeType ->
+        logger.debug("Resolved image MIME type: extension={}, mimeType={}", normalizedExtension, mimeType)
     }
+}
 
 /**
  * Resolve a document file extension to a supported MIME type.
  */
-fun mimeTypeForDocumentExtension(extension: String): String =
-    when (extension.lowercase()) {
-        "pdf" -> MimeTypes.PDF
-        "xlsx" -> MimeTypes.XLSX
-        "csv" -> MimeTypes.CSV
-        "doc" -> MimeTypes.DOC
-        "docx" -> MimeTypes.DOCX
-        "odt" -> MimeTypes.ODT
-        "ods" -> MimeTypes.ODS
-        "odp" -> MimeTypes.ODP
+fun mimeTypeForDocumentExtension(extension: String): String {
+    val normalizedExtension = extension.lowercase()
+    return when {
+        normalizedExtension in MimeTypes.DOCUMENT_MIME_TYPES_BY_EXTENSION ->
+            MimeTypes.DOCUMENT_MIME_TYPES_BY_EXTENSION.getValue(normalizedExtension)
+
+        normalizedExtension in MimeTypes.IMAGE_MIME_TYPES_BY_EXTENSION -> throw IllegalArgumentException(
+            "Extension '$extension' is an image type; use image input APIs"
+        )
+
         else -> throw IllegalArgumentException("Unsupported document extension: $extension")
+    }.also { mimeType ->
+        logger.debug("Resolved document MIME type: extension={}, mimeType={}", normalizedExtension, mimeType)
     }
+}

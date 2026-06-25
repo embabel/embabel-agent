@@ -45,6 +45,7 @@ class UserMessageBuilder {
 
     fun image(path: Path): UserMessageBuilder = image(path.toFile())
 
+    @JvmOverloads
     fun document(mimeType: String, data: ByteArray, filename: String? = null): UserMessageBuilder {
         parts.add(DocumentPart(mimeType, data, filename))
         return this

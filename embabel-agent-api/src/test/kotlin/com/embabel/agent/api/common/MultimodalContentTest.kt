@@ -220,10 +220,20 @@ class MultimodalContentTest {
     }
 
     @Test
-    fun `create allows explicit MIME type for any format`() {
-        // Users can bypass format detection with explicit MIME type
-        val image = AgentImage.create("image/heic", byteArrayOf(1, 2, 3))
-        assertThat(image.mimeType).isEqualTo("image/heic")
-        assertThat(image.data).containsExactly(1, 2, 3)
+    fun `AgentImage create rejects unsupported explicit MIME type`() {
+        val exception = assertThrows<IllegalArgumentException> {
+            AgentImage.create("image/heic", byteArrayOf(1, 2, 3))
+        }
+
+        assertThat(exception.message).contains("Invalid image MIME type: image/heic")
+    }
+
+    @Test
+    fun `AgentDocument create rejects unsupported explicit MIME type`() {
+        val exception = assertThrows<IllegalArgumentException> {
+            AgentDocument.create("application/octet-stream", byteArrayOf(1, 2, 3), "payload.bin")
+        }
+
+        assertThat(exception.message).contains("Invalid document MIME type: application/octet-stream")
     }
 }

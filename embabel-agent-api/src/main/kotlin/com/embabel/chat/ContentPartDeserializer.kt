@@ -47,7 +47,7 @@ class ContentPartDeserializer : JsonDeserializer<ContentPart>() {
 
         return when (classifyMimeType(mimeType)) {
             MediaKind.IMAGE -> ImagePart(mimeType, data)
-            MediaKind.DOCUMENT -> DocumentPart(mimeType, data, node[FILENAME_FIELD]?.asText())
+            MediaKind.DOCUMENT -> DocumentPart(mimeType, data, node[FILENAME_FIELD]?.takeUnless { it.isNull }?.asText())
             null -> throw JsonMappingException.from(parser, "Unsupported media MIME type: $mimeType")
         }
     }

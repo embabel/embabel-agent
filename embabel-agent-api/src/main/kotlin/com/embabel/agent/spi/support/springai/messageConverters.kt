@@ -78,7 +78,13 @@ fun Message.toSpringAiMessage(
                 try {
                     val mimeType = MimeTypeUtils.parseMimeType(mediaPart.mimeType)
                     val resource = ByteArrayResource(mediaPart.data)
-                    Media(mimeType, resource)
+                    val builder = Media.builder()
+                        .mimeType(mimeType)
+                        .data(resource)
+                    if (mediaPart is DocumentPart && mediaPart.filename != null) {
+                        builder.name(mediaPart.filename)
+                    }
+                    builder.build()
                 } catch (e: Exception) {
                     throw IllegalArgumentException(
                         "Failed to process media part with MIME type: ${mediaPart.mimeType}", e

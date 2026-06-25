@@ -125,6 +125,7 @@ class MessageConversionTest {
         assertThat(springAiMessage.text).isEqualTo("Summarize this document:")
         assertThat(springAiMessage.media).hasSize(1)
         assertThat(springAiMessage.media[0].mimeType.toString()).isEqualTo("application/pdf")
+        assertThat(springAiMessage.media[0].name).isEqualTo("report.pdf")
         assertThat(springAiMessage.media[0].data).isNotNull()
     }
 
@@ -141,6 +142,7 @@ class MessageConversionTest {
         assertThat(springAiMessage.text).isEqualTo(" ")
         assertThat(springAiMessage.media).hasSize(1)
         assertThat(springAiMessage.media[0].mimeType.toString()).isEqualTo("application/pdf")
+        assertThat(springAiMessage.media[0].name).isEqualTo("report.pdf")
     }
 
     @Test
@@ -164,6 +166,7 @@ class MessageConversionTest {
         assertThat(springAiMessage.media[0].mimeType.toString()).isEqualTo("image/png")
         assertThat(springAiMessage.media[1].mimeType.toString())
             .isEqualTo("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        assertThat(springAiMessage.media[1].name).isEqualTo("workbook.xlsx")
     }
 
     @Test

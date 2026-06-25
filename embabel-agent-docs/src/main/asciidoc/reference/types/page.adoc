@@ -233,14 +233,13 @@ Java::
 var documentPath = java.nio.file.Paths.get("reports/quarterly-report.pdf");
 
 var message = userMessage()
-    .text("Summarize this report")
     .document(documentPath)
     .build();
 
 var answer = context.ai()
     .withDefaultLlm()  // <1>
     .withMessage(message)
-    .generateText();
+    .generateText("Summarize this report");
 ----
 
 Kotlin::
@@ -258,6 +257,8 @@ val answer = context.ai()
 ====
 
 <1> **Document-capable model required**: The default or configured LLM must be able to consume document input. Document support depends on the selected model and provider.
+
+NOTE: The `gemini-autoconfigure` provider uses Google's OpenAI-compatible endpoint, which supports text and image inputs but not document file parts. Use the native Google GenAI provider for Gemini document input.
 
 **Advanced Features:**
 
@@ -432,7 +433,7 @@ Represents an image for use with vision-capable LLMs.
 - `AgentImage.create(String, byte[])`: Create with explicit MIME type and byte array
 - `AgentImage.fromBytes(String, byte[])`: Create from filename and bytes (auto-detects MIME type)
 
-For uncommon image formats or if auto-detection fails, use `AgentImage.create()` with an explicit MIME type.
+If auto-detection fails for a supported image format, use `AgentImage.create()` with an explicit MIME type.
 
 ==== AgentDocument
 
@@ -445,9 +446,10 @@ Represents a document for use with document-capable LLMs.
 - `AgentDocument.create(String, byte[], String?)`: Create with explicit MIME type, byte array, and optional filename
 - `AgentDocument.fromBytes(String, byte[])`: Create from filename and bytes (auto-detects MIME type)
 
-Common supported document formats include PDF, CSV, Microsoft Office documents (`.doc`, `.docx`, `.xlsx`), and OpenDocument files (`.odt`, `.ods`, `.odp`).
+Embabel can identify PDF, CSV, Microsoft Office documents (`.doc`, `.docx`, `.xlsx`), and OpenDocument files (`.odt`, `.ods`, `.odp`) by MIME type.
+Provider support varies by model and adapter, so verify that the selected LLM can consume the document format you send.
 
-For uncommon document formats or if auto-detection fails, use `AgentDocument.create()` with an explicit MIME type.
+If auto-detection fails for a supported document format, use `AgentDocument.create()` with an explicit MIME type.
 
 **Example:**
 
@@ -460,14 +462,13 @@ Java::
 var documentPath = java.nio.file.Paths.get("reports/quarterly-report.pdf");
 
 var message = userMessage()
-    .text("Summarize this report")
     .document(documentPath)
     .build();
 
 var answer = context.ai()
     .withDefaultLlm()
     .withMessage(message)
-    .generateText();
+    .generateText("Summarize this report");
 ----
 
 Kotlin::

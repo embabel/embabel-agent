@@ -76,6 +76,22 @@ class MessageSerializationTest {
         }
 
         @Test
+        fun `deserializes null document filename as null`() {
+            val json = """
+                {
+                  "mimeType": "application/pdf",
+                  "data": "AQID",
+                  "filename": null
+                }
+            """.trimIndent()
+
+            val part = objectMapper.readValue(json, ContentPart::class.java)
+
+            assertThat(part).isEqualTo(DocumentPart("application/pdf", byteArrayOf(1, 2, 3), null))
+            assertThat((part as DocumentPart).filename).isNull()
+        }
+
+        @Test
         fun `deserializes xlsx document part with filename by MIME type`() {
             val json = """
                 {

@@ -59,5 +59,25 @@ class MimeTypes private constructor() {
             ODS,
             ODP,
         )
+
+        val IMAGE_MIME_TYPES_BY_EXTENSION = mapOf(
+            "jpg" to IMAGE_JPEG,
+            "jpeg" to IMAGE_JPEG,
+            "png" to IMAGE_PNG,
+            "gif" to IMAGE_GIF,
+            "webp" to IMAGE_WEBP,
+            "bmp" to IMAGE_BMP,
+        )
+
+        val DOCUMENT_MIME_TYPES_BY_EXTENSION = mapOf(
+            "pdf" to PDF,
+            "xlsx" to XLSX,
+            "csv" to CSV,
+            "doc" to DOC,
+            "docx" to DOCX,
+            "odt" to ODT,
+            "ods" to ODS,
+            "odp" to ODP,
+        )
     }
 }
