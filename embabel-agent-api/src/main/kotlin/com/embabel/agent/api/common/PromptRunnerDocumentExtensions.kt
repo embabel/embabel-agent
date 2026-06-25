@@ -54,6 +54,9 @@ fun PromptRunner.withDocument(mimeType: String, data: ByteArray, filename: Strin
 
 /**
  * Create multimodal content with text and a single document.
+ *
+ * For document files or paths, use `multimodal(text).document(fileOrPath).build()`.
+ * `multimodal(text, File)` and `multimodal(text, Path)` are image shortcuts.
  */
 fun multimodal(text: String, document: AgentDocument): MultimodalContent =
     MultimodalContent.withDocument(text, document)

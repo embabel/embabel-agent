@@ -54,13 +54,19 @@ fun multimodal(text: String, image: AgentImage): MultimodalContent =
     MultimodalContent(text, listOf(image))
 
 /**
- * Create multimodal content with text and image file
+ * Create multimodal content with text and an image file.
+ *
+ * For document files, use [multimodal] as a builder and add the file with
+ * [MultimodalContentBuilder.document].
  */
 fun multimodal(text: String, imageFile: File): MultimodalContent =
     multimodal(text, AgentImage.fromFile(imageFile))
 
 /**
- * Create multimodal content with text and image path
+ * Create multimodal content with text and an image path.
+ *
+ * For document paths, use [multimodal] as a builder and add the path with
+ * [MultimodalContentBuilder.document].
  */
 fun multimodal(text: String, imagePath: Path): MultimodalContent =
     multimodal(text, AgentImage.fromPath(imagePath))

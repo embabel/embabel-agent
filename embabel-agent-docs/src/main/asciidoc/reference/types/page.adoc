@@ -260,6 +260,8 @@ val answer = context.ai()
 
 NOTE: The `gemini-autoconfigure` provider uses Google's OpenAI-compatible endpoint, which supports text and image inputs but not document file parts. Use the native Google GenAI provider for Gemini document input.
 
+NOTE: `multimodal(text, file)` and `multimodal(text, path)` are image shortcuts. For document files or paths, use `multimodal(text).document(fileOrPath).build()` or `AgentDocument.fromFile(file)`.
+
 **Advanced Features:**
 
 - `rendering(String)`: Use <<reference.templates, Jinja>> templates for prompts (returns `Rendering` interface)
