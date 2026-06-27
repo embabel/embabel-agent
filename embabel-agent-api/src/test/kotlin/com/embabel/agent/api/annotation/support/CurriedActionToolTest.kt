@@ -22,7 +22,7 @@ import com.embabel.agent.core.IoBinding
 import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.support.AbstractAction
 import com.embabel.agent.core.support.InMemoryBlackboard
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertTrue

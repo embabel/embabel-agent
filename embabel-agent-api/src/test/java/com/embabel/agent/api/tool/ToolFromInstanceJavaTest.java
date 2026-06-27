@@ -16,7 +16,7 @@
 package com.embabel.agent.api.tool;
 
 import com.embabel.agent.api.annotation.LlmTool;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 

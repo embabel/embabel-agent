@@ -19,11 +19,9 @@ import com.embabel.agent.spi.loop.StructuredOutputRequest
 import com.embabel.agent.spi.support.springai.SpringAiNativeStructuredOutputConfigurer
 import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.LlmMetadata
-import com.fasterxml.jackson.core.type.TypeReference
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.springframework.ai.chat.prompt.ChatOptions
+import org.springframework.ai.openai.OpenAiChatModel.ResponseFormat
 import org.springframework.ai.openai.OpenAiChatOptions
-import org.springframework.ai.openai.api.ResponseFormat
 
 /**
  * OpenAI-specific native structured-output bridge.
@@ -37,8 +35,6 @@ import org.springframework.ai.openai.api.ResponseFormat
  * the source of truth for direct payload injection.
  */
 internal object OpenAiNativeStructuredOutputConfigurer : SpringAiNativeStructuredOutputConfigurer {
-
-    private val objectMapper = jacksonObjectMapper()
 
     @Suppress("UNUSED_PARAMETER")
     override fun configure(
@@ -60,21 +56,12 @@ internal object OpenAiNativeStructuredOutputConfigurer : SpringAiNativeStructure
 
         val responseFormat = ResponseFormat.builder()
             .type(ResponseFormat.Type.JSON_SCHEMA)
-            .jsonSchema(
-                ResponseFormat.JsonSchema.builder()
-                    .name(structuredOutput.name)
-                    .schema(parseSchema(structuredOutput.schema))
-                    .strict(structuredOutput.strict)
-                    .build()
-            )
+            .jsonSchema(structuredOutput.schema)
             .build()
 
-        return options.copy().also { copied ->
-            copied.responseFormat = responseFormat
-            copied.outputSchema = structuredOutput.schema
-        }
+        return options.mutate()
+            .responseFormat(responseFormat)
+            .outputSchema(structuredOutput.schema)
+            .build()
     }
-
-    private fun parseSchema(schema: String): Map<String, Any?> =
-        objectMapper.readValue(schema, object : TypeReference<Map<String, Any?>>() {})
 }

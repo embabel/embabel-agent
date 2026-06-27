@@ -16,8 +16,8 @@
 package com.embabel.agent.core.support
 
 import com.embabel.agent.api.common.InteractionId
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Test
 
 /**
@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Test
  */
 class LlmInteractionSerializationTest {
 
-    private val objectMapper = ObjectMapper().registerKotlinModule()
+    private val objectMapper = jacksonObjectMapper()
 
     @Test
     fun `LlmInteraction can be serialized to JSON without conflicting getter error`() {

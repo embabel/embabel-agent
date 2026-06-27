@@ -1130,8 +1130,8 @@ inline fun <reified T> PromptRunner.Rendering.createObject(
  * and [withoutProperties].
  * @param properties the properties that are to be included
  */
-fun <T, Any> Creating<T>.withProperties(
-    vararg properties: KProperty1<T, Any>,
+fun <T> Creating<T>.withProperties(
+    vararg properties: KProperty1<T, *>,
 ): Creating<T> =
     withProperties(*properties.map { it.name }.toTypedArray())
 
@@ -1143,7 +1143,7 @@ fun <T, Any> Creating<T>.withProperties(
  * and [withProperties].
  * @param properties the properties that are to be included
  */
-fun <T, Any> Creating<T>.withoutProperties(
-    vararg properties: KProperty1<T, Any>,
+fun <T> Creating<T>.withoutProperties(
+    vararg properties: KProperty1<T, *>,
 ): Creating<T> =
     withoutProperties(*properties.map { it.name }.toTypedArray())
