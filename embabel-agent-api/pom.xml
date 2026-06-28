@@ -4,10 +4,10 @@
     <parent>
         <groupId>com.embabel.agent</groupId>
         <artifactId>embabel-agent-parent</artifactId>
-        <version>1.0.0-RC1-SNAPSHOT</version>
+        <version>2.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-agent-api</artifactId>
-    <version>1.0.0-RC1-SNAPSHOT</version>
+    <version>2.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>Embabel Agent API</name>
     <description>Fluent DSL and Kotlin DSL for Agentic Flows</description>
@@ -22,6 +22,8 @@
 
     <properties>
         <spotbugs-annotations.version>4.9.8</spotbugs-annotations.version>
+        <!-- spring-retry was removed from the Spring Boot 4 BOM; pin a Spring-7-compatible version directly. -->
+        <spring-retry.version>2.0.12</spring-retry.version>
         <!-- Exclude test utilities from SonarQube analysis -->
         <sonar.coverage.exclusions>**/test/integration/**</sonar.coverage.exclusions>
         <sonar.cpd.exclusions>**/test/integration/**</sonar.cpd.exclusions>
@@ -110,8 +112,20 @@
             <artifactId>spring-ai-retry</artifactId>
         </dependency>
 
+        <!--
+            Spring Boot 4's BOM no longer manages spring-retry; we use the classic
+            org.springframework.retry API (RetryTemplate / RetryPolicy / RetrySynchronizationManager)
+            so we declare it directly. spring-retry 2.0.x remains binary-compatible
+            with the Spring 7 core abstractions we reference.
+        -->
         <dependency>
-            <groupId>com.fasterxml.jackson.module</groupId>
+            <groupId>org.springframework.retry</groupId>
+            <artifactId>spring-retry</artifactId>
+            <version>${spring-retry.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>tools.jackson.module</groupId>
             <artifactId>jackson-module-kotlin</artifactId>
         </dependency>
 
@@ -174,6 +188,18 @@
             <scope>test</scope>
         </dependency>
 
+        <!--
+          Spring Boot 4 split @AutoConfigureMockMvc (and the rest of the MockMvc test
+          slice) out of spring-boot-test-autoconfigure into a dedicated module under
+          a new package (org.springframework.boot.webmvc.test.autoconfigure). Tests
+          here that use @AutoConfigureMockMvc (e.g. WaitForMvcIntegrationTest) need
+          this dep on the test classpath.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
 
     </dependencies>
 

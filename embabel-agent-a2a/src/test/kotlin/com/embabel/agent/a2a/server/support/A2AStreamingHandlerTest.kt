@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.a2a.server.support
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import io.a2a.spec.Message
 import io.a2a.spec.Task
 import io.a2a.spec.TaskState

@@ -15,9 +15,9 @@
  */
 package com.embabel.agent.domain.library
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
-import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.readValue
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -58,7 +58,7 @@ class PersonTest {
     fun `should deserialize to PersonImpl from JSON`() {
         // Arrange
         val json = """{"name":"Test Person"}"""
-        val mapper = ObjectMapper().registerKotlinModule()
+        val mapper: ObjectMapper = jacksonObjectMapper()
 
         // Act
         val person: Person = mapper.readValue(json)
@@ -73,7 +73,7 @@ class PersonTest {
     fun `should serialize PersonImpl to JSON`() {
         // Arrange
         val person = PersonImpl("Serialized Person")
-        val mapper = ObjectMapper().registerKotlinModule()
+        val mapper: ObjectMapper = jacksonObjectMapper()
 
         // Act
         val json = mapper.writeValueAsString(person)

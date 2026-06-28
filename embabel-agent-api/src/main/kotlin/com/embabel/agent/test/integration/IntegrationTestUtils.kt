@@ -30,7 +30,7 @@ import com.embabel.agent.spi.config.spring.AgentPlatformProperties.ProcessType
 import com.embabel.agent.spi.support.*
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.util.concurrent.Executors
 
 object IntegrationTestUtils {

@@ -150,14 +150,16 @@ class MistralAiModelsConfig(
     private fun createMistralAiLlm(modelDef: MistralAiModelDefinition): LlmService<*> {
         val mistralChatModel = MistralAiChatModel
             .builder()
-            .defaultOptions(createDefaultOptions(modelDef))
+            .options(createDefaultOptions(modelDef))
             .mistralAiApi(createMistralAiApi())
             .toolCallingManager(
                 ToolCallingManager.builder()
                     .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
                     .build()
             )
-            .retryTemplate(properties.retryTemplate("mistral-ai-${modelDef.modelId}"))
+            // Spring AI 2.0 builder now expects org.springframework.core.retry.RetryTemplate;
+            // we wrap with spring-retry at ChatClientLlmOperations, so omitted here (defaults).
+            //.retryTemplate(properties.retryTemplate("mistral-ai-${modelDef.modelId}"))
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
             .build()
 
