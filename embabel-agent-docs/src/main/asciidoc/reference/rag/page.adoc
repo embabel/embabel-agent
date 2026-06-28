@@ -632,7 +632,7 @@ Java::
 [source,java]
 ----
 import com.embabel.agent.rag.filter.EntityFilter;
-import com.embabel.agent.rag.filter.PropertyFilter;
+import com.embabel.agent.filter.PropertyFilter;
 
 // Filter by single label
 EntityFilter personFilter = EntityFilter.hasAnyLabel("Person");
@@ -672,8 +672,8 @@ Kotlin::
 [source,kotlin]
 ----
 import com.embabel.agent.rag.filter.EntityFilter
-import com.embabel.agent.rag.filter.PropertyFilter.Companion.eq
-import com.embabel.agent.rag.filter.PropertyFilter.Companion.gte
+import com.embabel.agent.filter.PropertyFilter.Companion.eq
+import com.embabel.agent.filter.PropertyFilter.Companion.gte
 
 // Filter by single label
 val personFilter = EntityFilter.hasAnyLabel("Person")
@@ -728,7 +728,7 @@ Java::
 +
 [source,java]
 ----
-import com.embabel.agent.rag.filter.PropertyFilter;
+import com.embabel.agent.filter.PropertyFilter;
 
 // Simple filter with not operator
 PropertyFilter notDeleted = PropertyFilter.not(PropertyFilter.eq("status", "deleted"));
@@ -753,9 +753,9 @@ Kotlin::
 +
 [source,kotlin]
 ----
-import com.embabel.agent.rag.filter.PropertyFilter.Companion.eq
-import com.embabel.agent.rag.filter.PropertyFilter.Companion.gte
-import com.embabel.agent.rag.filter.PropertyFilter.Companion.ne
+import com.embabel.agent.filter.PropertyFilter.Companion.eq
+import com.embabel.agent.filter.PropertyFilter.Companion.gte
+import com.embabel.agent.filter.PropertyFilter.Companion.ne
 
 // Simple filter with not operator
 val notDeleted = !eq("status", "deleted")

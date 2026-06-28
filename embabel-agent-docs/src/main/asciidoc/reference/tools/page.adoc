@@ -3632,7 +3632,7 @@ val tool = UnfoldingTool.fromToolObject(
 ----
 ====
 
-All standard options are available:
+Use the same factory when you need to wrap a tool object with an explicit facade name and description:
 
 [tabs]
 ====
@@ -3643,9 +3643,7 @@ Java::
 var tool = UnfoldingTool.fromToolObject(
     fileTools,
     "file_write_tools",
-    "Tools for writing and managing files.",
-    false,                                          // removeOnInvoke
-    "Use writeFile for new files, appendFile for existing ones."  // childToolUsageNotes
+    "Tools for writing and managing files."
 );
 ----
 
@@ -3657,8 +3655,6 @@ val tool = UnfoldingTool.fromToolObject(
     instance = fileTools,
     name = "file_write_tools",
     description = "Tools for writing and managing files.",
-    removeOnInvoke = false,
-    childToolUsageNotes = "Use writeFile for new files, appendFile for existing ones.",
 )
 ----
 ====
@@ -4737,10 +4733,10 @@ val webTool = mcpToolFactory.unfolding(
 ----
 ====
 
-===== Controlling Facade Removal
+===== Facade Replacement
 
-After invocation, `UnfoldingTool` facades created by `McpToolFactory` are replaced by a guide tool and their inner tools.
-The `removeOnInvoke` parameter is deprecated and ignored:
+After the LLM invokes an MCP-backed `UnfoldingTool`, Embabel always replaces the facade with a guide tool and the matching inner tools.
+Use the overloads that do not pass `removeOnInvoke`.
 
 [tabs]
 ====
@@ -4748,12 +4744,10 @@ Java::
 +
 [source,java]
 ----
-// Keep facade even after invocation
-var persistentTool = mcpToolFactory.unfoldingByName(
+var wikipediaTool = mcpToolFactory.unfoldingByName(
     "wikipedia",
     "Search Wikipedia",
-    Set.of("search_wikipedia", "get_article"),
-    false  // removeOnInvoke = false
+    Set.of("search_wikipedia", "get_article")
 );
 ----
 
@@ -4761,15 +4755,15 @@ Kotlin::
 +
 [source,kotlin]
 ----
-// Keep facade even after invocation
-val persistentTool = mcpToolFactory.unfoldingByName(
+val wikipediaTool = mcpToolFactory.unfoldingByName(
     name = "wikipedia",
     description = "Search Wikipedia",
     toolNames = setOf("search_wikipedia", "get_article"),
-    removeOnInvoke = false
 )
 ----
 ====
+
+Passing the deprecated `removeOnInvoke` parameter has no effect.
 
 ===== Real-World Example: Chatbot with MCP Tools
 

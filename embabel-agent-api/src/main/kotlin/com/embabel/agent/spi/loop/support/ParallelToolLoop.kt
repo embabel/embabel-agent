@@ -40,11 +40,10 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import javax.annotation.concurrent.ThreadSafe
-import org.jetbrains.annotations.ApiStatus
 import org.slf4j.LoggerFactory
 
 /**
- * Experimental [com.embabel.agent.spi.loop.ToolLoop] implementation that executes
+ * [com.embabel.agent.spi.loop.ToolLoop] implementation that executes
  * multiple tool calls from a single LLM response in parallel.
  *
  * Reduces latency for I/O-bound tool operations by running independent tools concurrently.
@@ -66,7 +65,6 @@ import org.slf4j.LoggerFactory
  * @param parallelConfig Configuration for parallel mode (timeouts, etc.)
  */
 @ThreadSafe
-@ApiStatus.Experimental
 internal class ParallelToolLoop(
     llmMessageSender: LlmMessageSender,
     objectMapper: ObjectMapper,
