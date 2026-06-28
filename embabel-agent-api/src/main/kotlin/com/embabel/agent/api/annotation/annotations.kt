@@ -47,7 +47,7 @@ annotation class EmbabelComponent(
  * It doesn't just contribute actions, goals and conditions:
  * it is an agent in itself.
  * This is a Spring stereotype annotation, so annotated classes will be picked up on the classpath and injected
- * Either @Agent or @AgentCapabilities should be used: not both
+ * Use either @Agent or @EmbabelComponent, not both.
  * @param name Name of the agent. If not provided, the name will be the class simple name
  * @param provider provider of the agent. If not provided, will default to the package this annotation is used in
  * @param description Description of the agent. Required. This is used for documentation purposes and to choose an agent

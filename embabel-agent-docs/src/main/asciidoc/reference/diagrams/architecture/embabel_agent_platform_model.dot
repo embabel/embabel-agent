@@ -13,7 +13,7 @@ digraph AgentPlatformModel {
     AgentAnnotation [fillcolor=pink, label="@Agent\n(Component annotation)"];
     ActionAnnotation [fillcolor=lightgrey, label="@action\n(Method annotation)"];
     ConditionAnnotation [fillcolor=lightcyan, label="@condition\n(Method annotation)"];
-    CapabilitiesAnnotation [fillcolor=lavender, label="@AgentCapabilities\n(Shared capabilities)"];
+    CapabilitiesAnnotation [fillcolor=lavender, label="@EmbabelComponent\n(Shared capabilities)"];
     
     // Configuration
     ProcessOptions [fillcolor=lightpink, label="ProcessOptions\n(Runtime configuration)"];
