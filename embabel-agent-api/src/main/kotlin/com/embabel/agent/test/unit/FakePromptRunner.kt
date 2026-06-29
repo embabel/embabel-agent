@@ -406,10 +406,6 @@ data class FakePromptRunner(
     override fun withGenerateExamples(generateExamples: Boolean): PromptRunner =
         copy(generateExamples = generateExamples)
 
-    @Deprecated("Use creating().withValidation() instead")
-    override fun withValidation(validation: Boolean): PromptRunner =
-        copy(validation = validation)
-
     private fun createLlmInteraction() =
         LlmInteraction(
             llm = llm ?: LlmOptions(),

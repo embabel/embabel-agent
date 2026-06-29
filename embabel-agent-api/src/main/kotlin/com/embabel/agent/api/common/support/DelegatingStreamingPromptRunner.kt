@@ -117,10 +117,6 @@ internal data class DelegatingStreamingPromptRunner(
     override fun withGenerateExamples(generateExamples: Boolean): PromptRunner =
         copy(delegate = delegate.withGenerateExamples(generateExamples))
 
-    @Deprecated("Use creating().withValidation() instead")
-    override fun withValidation(validation: Boolean): PromptRunner =
-        copy(delegate = delegate.withValidation(validation))
-
     override fun withGuardRails(vararg guards: GuardRail): PromptRunner =
         copy(delegate = delegate.withGuardRails(*guards))
 

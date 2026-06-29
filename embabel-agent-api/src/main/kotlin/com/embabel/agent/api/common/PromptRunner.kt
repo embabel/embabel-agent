@@ -353,17 +353,6 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
     fun withGenerateExamples(generateExamples: Boolean): PromptRunner
 
     /**
-     * Set whether to validate created objects.
-     * @param validation `true` to validate created objects; `false` otherwise. Defaults to `true`.
-     * @deprecated Use creating().withValidation() instead. Will be removed when old ObjectCreator implementation is replaced.
-     */
-    @Deprecated(
-        "Use creating().withValidation() instead",
-        ReplaceWith("creating(outputClass).withValidation(validation)")
-    )
-    fun withValidation(validation: Boolean = true): PromptRunner
-
-    /**
      * Add guardrail instances to this PromptRunner (additive).
      *
      * @param guards the guardrail instances to add

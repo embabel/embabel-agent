@@ -257,10 +257,6 @@ internal data class OperationContextPromptRunner(
     override fun withGenerateExamples(generateExamples: Boolean): PromptRunner =
         copy(generateExamples = generateExamples)
 
-    @Deprecated("Use creating().withValidation() instead")
-    override fun withValidation(validation: Boolean): PromptRunner =
-        copy(validation = validation)
-
     override fun <T> creating(outputClass: Class<T>): PromptRunner.Creating<T> {
         return PromptRunnerCreating(
             promptRunner = this,
