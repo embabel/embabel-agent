@@ -316,10 +316,10 @@ internal data class OperationContextPromptRunner(
     /**
      * Create thinking-aware prompt operations that extract LLM reasoning blocks.
      *
-     * This method creates ThinkingPromptRunnerOperations that can capture both the
+     * This method creates PromptRunner.Thinking that can capture both the
      * converted results and the reasoning content that LLMs generate during processing.
      *
-     * @return ThinkingPromptRunnerOperations for executing prompts with thinking extraction
+     * @return PromptRunner.Thinking for executing prompts with thinking extraction
      * @throws UnsupportedOperationException if the underlying LLM operations don't support thinking extraction
      */
     override fun supportsThinking(): Boolean = true
