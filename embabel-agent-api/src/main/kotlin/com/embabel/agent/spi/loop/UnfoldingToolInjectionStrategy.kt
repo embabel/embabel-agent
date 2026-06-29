@@ -140,11 +140,3 @@ class UnfoldingToolInjectionStrategy : ToolInjectionStrategy {
     }
 }
 
-/**
- * @deprecated Use [ChainedToolInjectionStrategy] instead.
- */
-@Deprecated(
-    message = "Renamed to ChainedToolInjectionStrategy",
-    replaceWith = ReplaceWith("ChainedToolInjectionStrategy")
-)
-typealias CompositeToolInjectionStrategy = ChainedToolInjectionStrategy
