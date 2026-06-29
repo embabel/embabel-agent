@@ -968,35 +968,10 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
  * @param description description of the example--e.g. "good example, correct amount of detail"
  * @param value the example object
  */
-// TODO: open class because of extension by ObjectCreationExample, replace with data class once ObjectCreationExample has been removed
-open class CreationExample<T>(
+data class CreationExample<T>(
     val description: String,
     val value: T,
-) {
-    open fun copy(
-        description: String = this.description,
-        value: T = this.value,
-    ): CreationExample<T> = CreationExample(description, value)
-
-    override fun toString(): String =
-        "CreationExample(description='$description', value=$value)"
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        return if (other is CreationExample<*>) {
-            description == other.description && value == other.value
-        } else {
-            false
-        }
-    }
-
-    override fun hashCode(): Int {
-        var result = description.hashCode()
-        result = 31 * result + value.hashCode()
-        return result
-    }
-}
-
+)
 
 /**
  * Create an object of the given type

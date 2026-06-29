@@ -19,28 +19,6 @@ import com.embabel.agent.api.common.CreationExample
 import com.embabel.agent.api.common.PromptRunner
 
 /**
- * An example of creating an object of the given type.
- * Used to provide strongly typed examples to the ObjectCreator.
- * @param T the type of object to create
- * @param description description of the example--e.g. "good example, correct amount of detail"
- * @param value the example object
- */
-@Deprecated(
-    message = "Use CreationExample instead",
-    replaceWith = ReplaceWith(
-        expression = "CreationExample(description, value)",
-        imports = arrayOf("com.embabel.agent.api.common.CreationExample"),
-    )
-)
-class ObjectCreationExample<T>(
-    description: String,
-    value: T,
-) : CreationExample<T>(
-    description = description,
-    value = value
-)
-
-/**
  * Interface to create objects of the given type from a prompt or messages.
  * Allows setting strongly typed examples.
  */
