@@ -35,7 +35,7 @@ import com.embabel.agent.api.common.PromptRunner
  * val runner: PromptRunner = context.ai().autoLlm()
  * if (runner.supportsStreaming()) {
  *     val capability: StreamingCapability = runner.streaming()
- *     val operations = capability as StreamingPromptRunnerOperations (or use asStreaming extension function)
+ *     val operations = capability as StreamingPromptRunner.Streaming (or use asStreaming extension function)
  *     // Use streaming operations...
  * }
  * ```
