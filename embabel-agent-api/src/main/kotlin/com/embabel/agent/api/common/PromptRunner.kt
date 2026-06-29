@@ -353,19 +353,6 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
     fun withGenerateExamples(generateExamples: Boolean): PromptRunner
 
     /**
-     * Adds a filter that determines which properties are to be included when creating an object.
-     *
-     * Note that each predicate is applied *in addition to* previously registered predicates.
-     * @param filter the property predicate to be added
-     * @deprecated Use creating().withPropertyFilter() instead. Will be removed when old ObjectCreator implementation is replaced.
-     */
-    @Deprecated(
-        "Use creating().withPropertyFilter() instead",
-        ReplaceWith("creating(outputClass).withPropertyFilter(filter)")
-    )
-    fun withPropertyFilter(filter: Predicate<String>): PromptRunner
-
-    /**
      * Set whether to validate created objects.
      * @param validation `true` to validate created objects; `false` otherwise. Defaults to `true`.
      * @deprecated Use creating().withValidation() instead. Will be removed when old ObjectCreator implementation is replaced.

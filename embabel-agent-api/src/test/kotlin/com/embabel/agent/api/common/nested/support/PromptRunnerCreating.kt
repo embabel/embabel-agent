@@ -54,18 +54,13 @@ internal data class PromptRunnerCreating<T>(
     override fun withPropertyFilter(
         filter: Predicate<String>
     ): PromptRunner.Creating<T> {
-        return copy(
-            promptRunner = promptRunner
-                .withPropertyFilter(filter)
-        )
+        throw UnsupportedOperationException("not implemented")
     }
 
     override fun withValidation(
         validation: Boolean
     ): PromptRunner.Creating<T> {
-        return copy(
-            promptRunner = promptRunner.withValidation(validation)
-        )
+        throw UnsupportedOperationException("not implemented")
     }
 
     override fun fromMessages(

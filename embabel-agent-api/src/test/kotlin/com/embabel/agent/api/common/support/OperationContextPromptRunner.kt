@@ -257,10 +257,6 @@ internal data class OperationContextPromptRunner(
     override fun withGenerateExamples(generateExamples: Boolean): PromptRunner =
         copy(generateExamples = generateExamples)
 
-    @Deprecated("Use creating().withPropertyFilter() instead")
-    override fun withPropertyFilter(filter: Predicate<String>): PromptRunner =
-        copy(fieldFilter = this.fieldFilter.and({ filter.test(it.name) }))
-
     @Deprecated("Use creating().withValidation() instead")
     override fun withValidation(validation: Boolean): PromptRunner =
         copy(validation = validation)
