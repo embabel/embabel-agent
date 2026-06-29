@@ -79,12 +79,12 @@ open class OpenAiCompatibleModelFactory(
 
         /**
          * Returns a [ByokSpec] for DeepSeek (OpenAI-compatible endpoint).
-         * Validates against [DeepSeekModels.DEEPSEEK_CHAT] by default.
+         * Validates against [DeepSeekModels.DEEPSEEK_V4_FLASH] by default.
          *
          * Note: uses the OpenAI wire protocol, not the native Spring AI DeepSeek client.
          */
         fun deepSeek(apiKey: String): ByokSpec =
-            ByokSpec("https://api.deepseek.com", apiKey, DeepSeekModels.DEEPSEEK_CHAT, DeepSeekModels.PROVIDER)
+            ByokSpec("https://api.deepseek.com", apiKey, DeepSeekModels.DEEPSEEK_V4_FLASH, DeepSeekModels.PROVIDER)
 
         /**
          * Returns a [ByokSpec] for Mistral AI (OpenAI-compatible endpoint).

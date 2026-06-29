@@ -23,8 +23,18 @@ class DeepSeekModels {
 
     companion object {
 
+        @Deprecated(
+            message = "Use DEEPSEEK_V4_FLASH instead. This model name will be discontinued by DeepSeek after 2026/07/24.",
+            replaceWith = ReplaceWith("DEEPSEEK_V4_FLASH")
+        )
         const val DEEPSEEK_CHAT = "deepseek-chat";
+        @Deprecated(
+            message = "Use DEEPSEEK_V4_FLASH instead. This model name will be discontinued by DeepSeek after 2026/07/24.",
+            replaceWith = ReplaceWith("DEEPSEEK_V4_FLASH")
+        )
         const val DEEPSEEK_REASONER = "deepseek-reasoner";
+        const val DEEPSEEK_V4_FLASH = "deepseek-v4-flash";
+        const val DEEPSEEK_V4_PRO = "deepseek-v4-pro";
 
         const val PROVIDER = "Deepseek";
     }
