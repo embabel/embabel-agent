@@ -963,7 +963,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
 
 /**
  * An example of creating an object of the given type.
- * Used to provide strongly typed examples to the ObjectCreator.
+ * Used to provide strongly typed examples to the PromptRunner.Creating.
  * @param T the type of object to create
  * @param description description of the example--e.g. "good example, correct amount of detail"
  * @param value the example object
@@ -999,7 +999,7 @@ inline fun <reified T> PromptRunner.Rendering.createObject(
  * Includes the given properties when creating an object.
  *
  * Note that each predicate is applied *in addition to* previously registered predicates, including
- * [ObjectCreator::withPropertyFilter], [ObjectCreator::withProperties], [ObjectCreator::withoutProperties],
+ * [Creating::withPropertyFilter], [Creating::withProperties], [Creating::withoutProperties],
  * and [withoutProperties].
  * @param properties the properties that are to be included
  */
@@ -1012,7 +1012,7 @@ fun <T, Any> Creating<T>.withProperties(
  * Excludes the given properties when creating an object.
  *
  * Note that each predicate is applied *in addition to* previously registered predicates, including
- * [ObjectCreator::withPropertyFilter], [ObjectCreator::withProperties], [ObjectCreator::withoutProperties],
+ * [Creating::withPropertyFilter], [Creating::withProperties], [Creatingg::withoutProperties],
  * and [withProperties].
  * @param properties the properties that are to be included
  */
