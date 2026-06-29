@@ -475,28 +475,6 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
     fun supportsThinking(): Boolean = false
 
     /**
-     * Create a thinking-enhanced version of this prompt runner.
-     *
-     * Returns a PromptRunner where all operations (createObject, generateText, etc.)
-     * return ThinkingResponse<T> wrappers that include both results and extracted
-     * thinking blocks from the LLM response.
-     *
-     * Always check supportsThinking() first and ensure LlmOptions includes thinking configuration
-     * via withLlm(LlmOptions.withThinking(Thinking.withExtraction())).
-     *
-     * Note: Thinking and streaming capabilities are mutually exclusive.
-     *
-     * @return ThinkingCapability instance providing access to thinking-aware operations
-     * @throws UnsupportedOperationException if thinking is not supported by this implementation
-     * @throws IllegalArgumentException if thinking is not enabled in LlmOptions configuration
-     */
-    @Deprecated(
-        message = "Use thinking() instead",
-        replaceWith = ReplaceWith("thinking()")
-    )
-    fun withThinking(): Thinking = thinking()
-
-    /**
      * Return a [PromptRunner.Thinking] for extracting thinking blocks.
      * Throws an exception if the underlying LLM does not support thinking extraction.
      * Use [supportsThinking] to check availability before calling.
