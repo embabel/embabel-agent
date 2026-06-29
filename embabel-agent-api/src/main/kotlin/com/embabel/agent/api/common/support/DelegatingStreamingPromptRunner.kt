@@ -227,7 +227,7 @@ internal data class DelegatingStreamingPromptRunner(
                 """
                 Streaming not supported by underlying LLM model.
                 Model type: ${delegate.llmOperations::class.simpleName}.
-                Check supportsStreaming() before calling stream().
+                Check supportsStreaming() before calling streaming().
                 """.trimIndent()
             )
         }

@@ -486,27 +486,11 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
 
     /**
      * Check if true reactive streaming is supported by the underlying LLM model.
-     * Always check this before calling stream() to avoid exceptions.
+     * Always check this before calling streaming() to avoid exceptions.
      *
      * @return true if real-time streaming is supported, false if streaming is not available
      */
     fun supportsStreaming(): Boolean = false
-
-    /**
-     * Create streaming operations for this prompt runner configuration.
-     *
-     * This follows an explicit failure policy - if streaming is not supported by the
-     * underlying LLM implementation, this method will throw an exception rather than
-     * providing fallback behavior. Always check supportsStreaming() first for safe usage.
-     *
-     * @return StreamingCapability instance providing access to streaming operations
-     * @throws UnsupportedOperationException if streaming is not supported by this implementation
-     */
-    @Deprecated(
-        "Use streaming() instead",
-        ReplaceWith("streaming()")
-    )
-    fun stream(): StreamingCapability = streaming()
 
     /**
      * Return a [StreamingCapability] for reactive streaming operations.
@@ -519,7 +503,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
     fun streaming(): StreamingCapability {
         throw UnsupportedOperationException(
             "Streaming not supported by this PromptRunner implementation. " +
-                    "Check supportsStreaming() before calling stream()."
+                    "Check supportsStreaming() before calling streaming()."
         )
     }
 
@@ -877,7 +861,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
      * ```kotlin
      * val runner: PromptRunner = context.ai().autoLlm()
      * if (runner.supportsStreaming()) {
-     *     val capability: StreamingCapability = runner.stream()
+     *     val capability: StreamingCapability = runner.streaming()
      *     val operations = capability as StreamingPromptRunnerOperations (or use asStreaming extension function)
      *     // Use streaming operations...
      * }
