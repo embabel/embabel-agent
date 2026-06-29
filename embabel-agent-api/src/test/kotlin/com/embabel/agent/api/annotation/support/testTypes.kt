@@ -602,7 +602,7 @@ class FromPersonUsesObjectToolsViaAi {
         ai: Ai,
     ): UserInput {
         return ai.withDefaultLlm()
-            .withToolObjectInstances(ToolObject(FunnyTool()))
+            .withToolObjects(ToolObject(FunnyTool()))
             .createObject("Create a UserInput")
     }
 }

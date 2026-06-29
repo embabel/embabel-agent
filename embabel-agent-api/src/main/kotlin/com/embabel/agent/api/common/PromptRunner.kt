@@ -209,13 +209,6 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
         toolObject: ToolObject,
     ): PromptRunner
 
-    @Deprecated(
-        message = "Use withToolObjects() instead",
-        replaceWith = ReplaceWith("withToolObjects(*toolObjects)"),
-    )
-    fun withToolObjectInstances(vararg toolObjects: Any?): PromptRunner =
-        toolObjects.fold(this) { acc, toolObject -> acc.withToolObject(toolObject) }
-
     fun withToolObjects(toolObjects: List<Any>): PromptRunner =
         toolObjects.fold(this) { acc, toolObject -> acc.withToolObject(toolObject) }
 
