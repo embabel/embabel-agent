@@ -115,12 +115,12 @@ class DeepSeekModelsConfig(
             knowledgeCutoffDate = LocalDate.of(2025, 8, 21),
         )
             // https://api-docs.deepseek.com/quick_start/pricing
-            // 1M Input tokens Cache hit $0.07
-            // 1M Input tokens Cache miss $0.56
+            // 1M Input tokens Cache hit $0.0028
+            // 1M Input tokens Cache miss $0.14
             .copy(
                 pricingModel = PerTokenPricingModel(
-                    usdPer1mInputTokens = 0.56,
-                    usdPer1mOutputTokens = 1.68,
+                    usdPer1mInputTokens = 0.14,
+                    usdPer1mOutputTokens = 0.28,
                 )
             )
     }
@@ -131,12 +131,42 @@ class DeepSeekModelsConfig(
         knowledgeCutoffDate = LocalDate.of(2025, 5, 28),
     )
         // https://api-docs.deepseek.com/quick_start/pricing
-        // 1M Input tokens Cache hit $0.07
-        // 1M Input tokens Cache miss $0.56
+        // 1M Input tokens Cache hit $0.0028
+        // 1M Input tokens Cache miss $0.14
         .copy(
             pricingModel = PerTokenPricingModel(
-                usdPer1mInputTokens = 0.56,
-                usdPer1mOutputTokens = 1.68,
+                usdPer1mInputTokens = 0.14,
+                usdPer1mOutputTokens = 0.28,
+            )
+        )
+
+    @Bean
+    fun deepSeekV4Flash(): SpringAiLlmService = deepSeekLlmOf(
+        DeepSeekModels.DEEPSEEK_V4_FLASH,
+        knowledgeCutoffDate = null,
+    )
+        // https://api-docs.deepseek.com/quick_start/pricing
+        // 1M Input tokens Cache hit $0.0028
+        // 1M Input tokens Cache miss $0.14
+        .copy(
+            pricingModel = PerTokenPricingModel(
+                usdPer1mInputTokens = 0.14,
+                usdPer1mOutputTokens = 0.28,
+            )
+        )
+
+    @Bean
+    fun deepSeekV4Pro(): SpringAiLlmService = deepSeekLlmOf(
+        DeepSeekModels.DEEPSEEK_V4_PRO,
+        knowledgeCutoffDate = null,
+    )
+        // https://api-docs.deepseek.com/quick_start/pricing
+        // 1M Input tokens Cache hit $0.003625
+        // 1M Input tokens Cache miss $0.435
+        .copy(
+            pricingModel = PerTokenPricingModel(
+                usdPer1mInputTokens = 0.435,
+                usdPer1mOutputTokens = 0.87,
             )
         )
 
