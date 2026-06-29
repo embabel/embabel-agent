@@ -102,6 +102,18 @@ sealed class BaseMessage(
         get() = parts.filterIsInstance<ImagePart>()
 
     /**
+     * Returns all document parts in this message.
+     */
+    val documentParts: List<DocumentPart>
+        get() = parts.filterIsInstance<DocumentPart>()
+
+    /**
+     * Returns all binary media parts in this message.
+     */
+    val mediaParts: List<MediaPart>
+        get() = parts.filterIsInstance<MediaPart>()
+
+    /**
      * Returns true if this message contains any non-text content.
      */
     val isMultimodal: Boolean

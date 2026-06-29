@@ -28,6 +28,10 @@ public class LlmOptionsConstructionTest {
                 .withModel("gpt-4")
                 .withTemperature(0.7)
                 .withMaxTokens(1000);
+
+        assertNotNull(llmo1.getModelSelectionCriteria());
+        assertEquals(0.7, llmo1.getTemperature());
+        assertEquals(1000, llmo1.getMaxTokens());
     }
 
     @Test
@@ -36,6 +40,10 @@ public class LlmOptionsConstructionTest {
                 .fromCriteria(ModelSelectionCriteria.byRole("best"))
                 .withTemperature(0.7)
                 .withMaxTokens(1000);
+
+        assertNotNull(llmo1.getModelSelectionCriteria());
+        assertEquals(0.7, llmo1.getTemperature());
+        assertEquals(1000, llmo1.getMaxTokens());
     }
 
     @Test
@@ -44,6 +52,10 @@ public class LlmOptionsConstructionTest {
                 .withDefaults()
                 .withTemperature(0.7)
                 .withMaxTokens(1000);
+
+        assertNotNull(llmo1.getModelSelectionCriteria());
+        assertEquals(0.7, llmo1.getTemperature());
+        assertEquals(1000, llmo1.getMaxTokens());
     }
 
     @Nested

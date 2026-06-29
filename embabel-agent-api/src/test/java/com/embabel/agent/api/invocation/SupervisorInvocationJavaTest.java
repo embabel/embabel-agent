@@ -91,6 +91,9 @@ class SupervisorInvocationJavaTest {
             System.out.println("Supervisor action name: " + supervisorAction.getName());
             System.out.println("Supervisor action inputs: " + supervisorAction.getInputs());
             System.out.println("Supervisor action outputs: " + supervisorAction.getOutputs());
+
+            assertTrue(supervisorAction.getName().contains("supervisor"));
+            assertFalse(supervisorAction.getOutputs().isEmpty(), "Supervisor action should declare outputs");
         }
     }
 
@@ -174,6 +177,7 @@ class SupervisorInvocationJavaTest {
                 System.out.println("WARNING: No Meal found on blackboard!");
                 System.out.println("Tool calls: " + scriptedLlm.getToolCallsMade());
             }
+            assertTrue(hasMeal, "Supervisor should produce a Meal goal artifact");
         }
 
         @Test
@@ -196,6 +200,7 @@ class SupervisorInvocationJavaTest {
                 System.out.println(prompt);
                 System.out.println("---");
             }
+            assertFalse(scriptedLlm.getPromptsReceived().isEmpty(), "Supervisor should send at least one prompt");
         }
     }
 

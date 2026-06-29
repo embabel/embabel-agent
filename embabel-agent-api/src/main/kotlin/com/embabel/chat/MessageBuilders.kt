@@ -15,6 +15,8 @@
  */
 package com.embabel.chat
 
+import com.embabel.common.ai.media.mimeTypeForDocumentExtension
+import com.embabel.common.ai.media.mimeTypeForImageExtension
 import java.io.File
 import java.nio.file.Path
 
@@ -36,12 +38,26 @@ class UserMessageBuilder {
     }
 
     fun image(file: File): UserMessageBuilder {
-        val mimeType = detectMimeType(file.extension)
+        val mimeType = mimeTypeForImageExtension(file.extension)
         parts.add(ImagePart(mimeType, file.readBytes()))
         return this
     }
 
     fun image(path: Path): UserMessageBuilder = image(path.toFile())
+
+    @JvmOverloads
+    fun document(mimeType: String, data: ByteArray, filename: String? = null): UserMessageBuilder {
+        parts.add(DocumentPart(mimeType, data, filename))
+        return this
+    }
+
+    fun document(file: File): UserMessageBuilder {
+        val mimeType = mimeTypeForDocumentExtension(file.extension)
+        parts.add(DocumentPart(mimeType, file.readBytes(), file.name))
+        return this
+    }
+
+    fun document(path: Path): UserMessageBuilder = document(path.toFile())
 
     fun name(name: String): UserMessageBuilder {
         this.name = name
@@ -49,17 +65,6 @@ class UserMessageBuilder {
     }
 
     fun build(): UserMessage = UserMessage(parts.toList(), name)
-
-    private fun detectMimeType(extension: String): String {
-        return when (extension.lowercase()) {
-            "jpg", "jpeg" -> "image/jpeg"
-            "png" -> "image/png"
-            "gif" -> "image/gif"
-            "webp" -> "image/webp"
-            "bmp" -> "image/bmp"
-            else -> throw IllegalArgumentException("Unsupported image extension: $extension")
-        }
-    }
 }
 
 /**
