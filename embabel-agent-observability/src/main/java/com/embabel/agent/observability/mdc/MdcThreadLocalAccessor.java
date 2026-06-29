@@ -44,6 +44,7 @@ public class MdcThreadLocalAccessor implements ThreadLocalAccessor<Map<String, S
     /**
      * Stable key identifying this accessor on the {@link io.micrometer.context.ContextRegistry}.
      */
+    @SuppressWarnings("java:S1845")
     public static final String KEY = "embabel.agent.mdc";
 
     private static final List<String> EMBABEL_KEYS = List.of(
