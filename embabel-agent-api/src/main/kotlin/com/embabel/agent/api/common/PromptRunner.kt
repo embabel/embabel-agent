@@ -431,15 +431,6 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
     fun <T> creating(outputClass: Class<T>): Creating<T>
 
     /**
-     * Use operations from a given template
-     */
-    @Deprecated(
-        "Use rendering(templateName) instead",
-        ReplaceWith("rendering(templateName)")
-    )
-    fun withTemplate(templateName: String): Rendering = rendering(templateName)
-
-    /**
      * Returns [Rendering] for rendering the specified template.
      *
      * @param templateName the name of the template to render
