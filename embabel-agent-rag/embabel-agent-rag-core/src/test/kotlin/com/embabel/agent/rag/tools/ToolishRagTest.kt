@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.rag.tools
 
-import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.ContentElement
@@ -1263,7 +1262,7 @@ class ToolishRagTest {
                 searchOperations = coreSearch
             )
 
-            // When used as Tool directly, definition comes from MatryoshkaTool facade
+            // When used as Tool directly, definition comes from UnfoldingTool facade
             assertEquals("test-rag", toolishRag.definition.name)
             assertEquals("Test RAG", toolishRag.definition.description)
         }

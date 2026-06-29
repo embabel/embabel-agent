@@ -22,7 +22,7 @@ import com.embabel.chat.Message
  * Result of tool injection evaluation.
  *
  * Supports both adding new tools and removing existing ones, enabling
- * patterns like MatryoshkaTool where a facade tool is replaced by its inner tools.
+ * patterns like UnfoldingTool where a facade tool is replaced by its inner tools.
  */
 data class ToolInjectionResult(
     val toolsToAdd: List<Tool> = emptyList(),
@@ -81,7 +81,7 @@ data class ToolInjectionResult(
  * - Conditional unlocks based on agent performance
  * - Phase-based tools (planning vs execution)
  * - Skill acquisition patterns
- * - MatryoshkaTool progressive disclosure
+ * - UnfoldingTool progressive disclosure
  *
  * ## Migration Guide
  * New implementations should override [evaluate] instead of [evaluateToolResult].

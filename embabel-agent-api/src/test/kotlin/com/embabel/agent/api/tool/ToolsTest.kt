@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.tool
 
+import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.ReplanRequestedException
@@ -305,7 +306,7 @@ class ToolsTest {
                 simpleTool("query_database"),
                 simpleTool("insert_record")
             )
-            val matryoshka = MatryoshkaTool.of(
+            val matryoshka = UnfoldingTool.of(
                 name = "database_ops",
                 description = "Database operations",
                 innerTools = innerTools
@@ -324,12 +325,12 @@ class ToolsTest {
         }
 
         @Test
-        fun `formats mixed regular and MatryoshkaTools`() {
+        fun `formats mixed regular and UnfoldingTools`() {
             val dbInnerTools = listOf(
                 simpleTool("query"),
                 simpleTool("insert")
             )
-            val dbTool = MatryoshkaTool.of(
+            val dbTool = UnfoldingTool.of(
                 name = "database",
                 description = "Database ops",
                 innerTools = dbInnerTools
@@ -356,8 +357,8 @@ class ToolsTest {
         }
 
         @Test
-        fun `formats MatryoshkaTool with no inner tools`() {
-            val matryoshka = MatryoshkaTool.of(
+        fun `formats UnfoldingTool with no inner tools`() {
+            val matryoshka = UnfoldingTool.of(
                 name = "empty_group",
                 description = "Empty group",
                 innerTools = emptyList()
@@ -379,12 +380,12 @@ class ToolsTest {
                 simpleTool("deep_tool_1"),
                 simpleTool("deep_tool_2")
             )
-            val nestedMatryoshka = MatryoshkaTool.of(
+            val nestedMatryoshka = UnfoldingTool.of(
                 name = "nested_group",
                 description = "Nested group",
                 innerTools = innerMost
             )
-            val outerMatryoshka = MatryoshkaTool.of(
+            val outerMatryoshka = UnfoldingTool.of(
                 name = "outer_group",
                 description = "Outer group",
                 innerTools = listOf(simpleTool("sibling"), nestedMatryoshka)

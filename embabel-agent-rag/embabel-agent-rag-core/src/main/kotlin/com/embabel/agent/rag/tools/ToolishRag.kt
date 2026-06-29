@@ -249,7 +249,7 @@ data class ToolishRag @JvmOverloads constructor(
         .map { tool -> tool.withName(namingStrategy.transform(tool.definition.name)) }
 
     // Tool interface implementation via lazy UnfoldingTool
-    // When used directly as a Tool, wraps all inner tools in a MatryoshkaTool
+    // When used directly as a Tool, wraps all inner tools in a UnfoldingTool
     // Implements DelegatingTool so MatryoshkaToolInjectionStrategy can unwrap it
     override val delegate: Tool by lazy {
         UnfoldingTool.of(

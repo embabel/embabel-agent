@@ -60,7 +60,7 @@ import org.slf4j.LoggerFactory
  * @param injectionStrategy Strategy for dynamically injecting tools
  * @param maxIterations Maximum number of tool loop iterations (default 20)
  * @param toolDecorator Optional decorator applied to tools when they are dynamically injected.
- * This ensures injected tools (e.g., from MatryoshkaTool) receive the same decoration
+ * This ensures injected tools (e.g., from UnfoldingTool) receive the same decoration
  * as initial tools, including event publication, observability, and error handling.
  * @param toolLoopInspectors Read-only observers for tool loop lifecycle events
  * @param toolLoopTransformers Transformers for history compression, summarization, etc.

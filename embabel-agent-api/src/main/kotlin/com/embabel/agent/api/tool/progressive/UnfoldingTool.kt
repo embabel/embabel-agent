@@ -17,7 +17,6 @@ package com.embabel.agent.api.tool.progressive
 
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.UnfoldingTools
-import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.AgentProcess
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -821,16 +820,14 @@ interface UnfoldingTool : ProgressiveTool {
 
 /**
  * Simple implementation that exposes all inner tools.
- * Implements MatryoshkaTool for backward compatibility.
  */
-@Suppress("DEPRECATION")
 internal class SimpleUnfoldingTool(
     override val definition: Tool.Definition,
     override val innerTools: List<Tool>,
     override val removeOnInvoke: Boolean,
     override val childToolUsageNotes: String? = null,
     override val exclusive: Boolean = false,
-) : MatryoshkaTool {
+) : UnfoldingTool {
 
     override fun call(input: String): Tool.Result {
         // Check if the LLM tried to shortcut the two-step unfolding pattern by passing
@@ -845,9 +842,7 @@ internal class SimpleUnfoldingTool(
 
 /**
  * Implementation with custom tool selection logic.
- * Implements MatryoshkaTool for backward compatibility.
  */
-@Suppress("DEPRECATION")
 internal class SelectableUnfoldingTool(
     override val definition: Tool.Definition,
     override val innerTools: List<Tool>,
@@ -855,7 +850,7 @@ internal class SelectableUnfoldingTool(
     override val childToolUsageNotes: String? = null,
     override val exclusive: Boolean = false,
     private val selector: (String) -> List<Tool>,
-) : MatryoshkaTool {
+) : UnfoldingTool {
 
     override fun selectTools(input: String): List<Tool> = selector(input)
 
