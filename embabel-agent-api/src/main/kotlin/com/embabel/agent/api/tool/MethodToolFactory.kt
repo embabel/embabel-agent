@@ -16,7 +16,6 @@
 package com.embabel.agent.api.tool
 
 import com.embabel.agent.api.annotation.LlmTool
-import com.embabel.agent.api.annotation.MatryoshkaTools
 import com.embabel.agent.api.annotation.UnfoldingTools
 import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -92,20 +91,20 @@ interface MethodToolFactory {
     /**
      * Create Tools from all methods annotated with [LlmTool] on an instance.
      *
-     * If the instance's class is annotated with [@UnfoldingTools][UnfoldingTools] or [@MatryoshkaTools][MatryoshkaTools],
+     * If the instance's class is annotated with [@UnfoldingTools][UnfoldingTools]
      * returns a single [UnfoldingTool] containing all the inner tools.
      * Otherwise, returns individual tools for each annotated method.
      *
      * @param instance The object instance to scan for annotated methods
      * @param objectMapper ObjectMapper for JSON parsing (optional)
-     * @return List of Tools, one for each annotated method (or single UnfoldingTool if @UnfoldingTools/@MatryoshkaTools present)
+     * @return List of Tools, one for each annotated method (or single UnfoldingTool if @UnfoldingTools present)
      * @throws IllegalArgumentException if no methods are annotated with @LlmTool
      */
     fun fromInstance(
         instance: Any,
         objectMapper: ObjectMapper = jacksonObjectMapper(),
     ): List<Tool> {
-        if (instance::class.hasAnnotation<UnfoldingTools>() || instance::class.hasAnnotation<MatryoshkaTools>()) {
+        if (instance::class.hasAnnotation<UnfoldingTools>()) {
             return listOf(UnfoldingTool.fromInstance(instance, objectMapper))
         }
 

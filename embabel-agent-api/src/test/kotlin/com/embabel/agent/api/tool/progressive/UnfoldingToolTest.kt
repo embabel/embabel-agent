@@ -13,56 +13,63 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.loop
+
+package com.embabel.agent.api.tool.progressive
 
 import com.embabel.agent.api.annotation.LlmTool
-import com.embabel.agent.api.annotation.MatryoshkaTools
 import com.embabel.agent.api.annotation.UnfoldingTools
-import com.embabel.agent.api.tool.MatryoshkaTool
-import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.spi.loop.ChainedToolInjectionStrategy
+import com.embabel.agent.spi.loop.MockLlmMessageSender
+import com.embabel.agent.spi.loop.MockTool
+import com.embabel.agent.spi.loop.ToolCallResult
+import com.embabel.agent.spi.loop.ToolInjectionContext
+import com.embabel.agent.spi.loop.ToolInjectionResult
+import com.embabel.agent.spi.loop.ToolInjectionStrategy
+import com.embabel.agent.spi.loop.UnfoldingToolInjectionStrategy
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.chat.UserMessage
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import kotlin.collections.get
 
-class MatryoshkaToolTest {
+class UnfoldingToolTest {
 
     private val objectMapper = jacksonObjectMapper()
 
     @Nested
-    inner class MatryoshkaToolCreationTest {
+    inner class UnfoldingToolCreationTest {
 
         @Test
         fun `of creates tool with inner tools`() {
             val innerTool1 = MockTool("inner1", "Inner tool 1") { Tool.Result.text("1") }
             val innerTool2 = MockTool("inner2", "Inner tool 2") { Tool.Result.text("2") }
 
-            val matryoshka = MatryoshkaTool.of(
+            val matryoshka = UnfoldingTool.of(
                 name = "category",
                 description = "A category of tools",
                 innerTools = listOf(innerTool1, innerTool2),
             )
 
-            assertEquals("category", matryoshka.definition.name)
-            assertEquals("A category of tools", matryoshka.definition.description)
-            assertEquals(2, matryoshka.innerTools.size)
-            assertTrue(matryoshka.removeOnInvoke)
+            Assertions.assertEquals("category", matryoshka.definition.name)
+            Assertions.assertEquals("A category of tools", matryoshka.definition.description)
+            Assertions.assertEquals(2, matryoshka.innerTools.size)
+            Assertions.assertTrue(matryoshka.removeOnInvoke)
         }
 
         @Test
         fun `of creates tool with removeOnInvoke false`() {
-            val matryoshka = MatryoshkaTool.of(
+            val matryoshka = UnfoldingTool.of(
                 name = "persistent",
                 description = "A persistent category",
                 innerTools = emptyList(),
                 removeOnInvoke = false,
             )
 
-            assertFalse(matryoshka.removeOnInvoke)
+            Assertions.assertFalse(matryoshka.removeOnInvoke)
         }
 
         @Test
@@ -70,7 +77,7 @@ class MatryoshkaToolTest {
             val innerTool1 = MockTool("tool_a", "Tool A") { Tool.Result.text("a") }
             val innerTool2 = MockTool("tool_b", "Tool B") { Tool.Result.text("b") }
 
-            val matryoshka = MatryoshkaTool.of(
+            val matryoshka = UnfoldingTool.of(
                 name = "tools",
                 description = "Tools",
                 innerTools = listOf(innerTool1, innerTool2),
@@ -78,11 +85,11 @@ class MatryoshkaToolTest {
 
             val result = matryoshka.call("{}")
 
-            assertTrue(result is Tool.Result.Text)
+            Assertions.assertTrue(result is Tool.Result.Text)
             val text = (result as Tool.Result.Text).content
-            assertTrue(text.contains("Tools now available"))
-            assertTrue(text.contains("tool_a"))
-            assertTrue(text.contains("tool_b"))
+            Assertions.assertTrue(text.contains("Tools now available"))
+            Assertions.assertTrue(text.contains("tool_a"))
+            Assertions.assertTrue(text.contains("tool_b"))
         }
 
         @Test
@@ -90,29 +97,29 @@ class MatryoshkaToolTest {
             val innerTool1 = MockTool("inner1", "Inner 1") { Tool.Result.text("1") }
             val innerTool2 = MockTool("inner2", "Inner 2") { Tool.Result.text("2") }
 
-            val matryoshka = MatryoshkaTool.of(
+            val matryoshka = UnfoldingTool.of(
                 name = "category",
                 description = "Category",
                 innerTools = listOf(innerTool1, innerTool2),
             )
 
             val selected = matryoshka.selectTools("{}")
-            assertEquals(2, selected.size)
+            Assertions.assertEquals(2, selected.size)
         }
 
         @Test
         fun `of creates tool with childToolUsageNotes`() {
             val innerTool = MockTool("search", "Search") { Tool.Result.text("results") }
 
-            val matryoshka = MatryoshkaTool.of(
+            val matryoshka = UnfoldingTool.of(
                 name = "data_tools",
                 description = "Tools for data access",
                 innerTools = listOf(innerTool),
                 childToolUsageNotes = "Try semantic search first before falling back to keyword search.",
             )
 
-            assertEquals("data_tools", matryoshka.definition.name)
-            assertEquals(
+            Assertions.assertEquals("data_tools", matryoshka.definition.name)
+            Assertions.assertEquals(
                 "Try semantic search first before falling back to keyword search.",
                 matryoshka.childToolUsageNotes
             )
@@ -122,25 +129,25 @@ class MatryoshkaToolTest {
         fun `childToolUsageNotes defaults to null when not specified`() {
             val innerTool = MockTool("tool", "Tool") { Tool.Result.text("result") }
 
-            val matryoshka = MatryoshkaTool.of(
+            val matryoshka = UnfoldingTool.of(
                 name = "simple",
                 description = "Simple tool",
                 innerTools = listOf(innerTool),
             )
 
-            assertNull(matryoshka.childToolUsageNotes)
+            Assertions.assertNull(matryoshka.childToolUsageNotes)
         }
     }
 
     @Nested
-    inner class SelectableMatryoshkaToolTest {
+    inner class SelectableUnfoldingToolTest {
 
         @Test
         fun `selectable creates tool with custom selector`() {
             val readTool = MockTool("read", "Read files") { Tool.Result.text("read") }
             val writeTool = MockTool("write", "Write files") { Tool.Result.text("write") }
 
-            val matryoshka = MatryoshkaTool.selectable(
+            val matryoshka = UnfoldingTool.selectable(
                 name = "file_ops",
                 description = "File operations",
                 innerTools = listOf(readTool, writeTool),
@@ -151,22 +158,22 @@ class MatryoshkaToolTest {
                 if (input.contains("read")) listOf(readTool) else listOf(writeTool)
             }
 
-            assertEquals("file_ops", matryoshka.definition.name)
-            assertEquals(2, matryoshka.innerTools.size)
+            Assertions.assertEquals("file_ops", matryoshka.definition.name)
+            Assertions.assertEquals(2, matryoshka.innerTools.size)
 
             // Test selector
             val readSelected = matryoshka.selectTools("""{"mode": "read"}""")
-            assertEquals(1, readSelected.size)
-            assertEquals("read", readSelected[0].definition.name)
+            Assertions.assertEquals(1, readSelected.size)
+            Assertions.assertEquals("read", readSelected[0].definition.name)
 
             val writeSelected = matryoshka.selectTools("""{"mode": "write"}""")
-            assertEquals(1, writeSelected.size)
-            assertEquals("write", writeSelected[0].definition.name)
+            Assertions.assertEquals(1, writeSelected.size)
+            Assertions.assertEquals("write", writeSelected[0].definition.name)
         }
     }
 
     @Nested
-    inner class CategoryMatryoshkaToolTest {
+    inner class CategoryUnfoldingToolTest {
 
         @Test
         fun `byCategory creates tool with category-based selection`() {
@@ -174,7 +181,7 @@ class MatryoshkaToolTest {
             val insertTool = MockTool("insert", "Insert records") { Tool.Result.text("insert") }
             val deleteTool = MockTool("delete", "Delete records") { Tool.Result.text("delete") }
 
-            val matryoshka = MatryoshkaTool.byCategory(
+            val matryoshka = UnfoldingTool.byCategory(
                 name = "database",
                 description = "Database operations",
                 toolsByCategory = mapOf(
@@ -183,16 +190,16 @@ class MatryoshkaToolTest {
                 ),
             )
 
-            assertEquals("database", matryoshka.definition.name)
-            assertEquals(3, matryoshka.innerTools.size) // All tools
+            Assertions.assertEquals("database", matryoshka.definition.name)
+            Assertions.assertEquals(3, matryoshka.innerTools.size) // All tools
 
             // Test category selection
             val readTools = matryoshka.selectTools("""{"category": "read"}""")
-            assertEquals(1, readTools.size)
-            assertEquals("query", readTools[0].definition.name)
+            Assertions.assertEquals(1, readTools.size)
+            Assertions.assertEquals("query", readTools[0].definition.name)
 
             val writeTools = matryoshka.selectTools("""{"category": "write"}""")
-            assertEquals(2, writeTools.size)
+            Assertions.assertEquals(2, writeTools.size)
         }
 
         @Test
@@ -200,7 +207,7 @@ class MatryoshkaToolTest {
             val tool1 = MockTool("tool1", "Tool 1") { Tool.Result.text("1") }
             val tool2 = MockTool("tool2", "Tool 2") { Tool.Result.text("2") }
 
-            val matryoshka = MatryoshkaTool.byCategory(
+            val matryoshka = UnfoldingTool.byCategory(
                 name = "tools",
                 description = "Tools",
                 toolsByCategory = mapOf(
@@ -210,26 +217,26 @@ class MatryoshkaToolTest {
             )
 
             val selected = matryoshka.selectTools("""{"category": "unknown"}""")
-            assertEquals(2, selected.size)
+            Assertions.assertEquals(2, selected.size)
         }
 
         @Test
         fun `byCategory returns all tools for missing category`() {
             val tool1 = MockTool("tool1", "Tool 1") { Tool.Result.text("1") }
 
-            val matryoshka = MatryoshkaTool.byCategory(
+            val matryoshka = UnfoldingTool.byCategory(
                 name = "tools",
                 description = "Tools",
                 toolsByCategory = mapOf("cat1" to listOf(tool1)),
             )
 
             val selected = matryoshka.selectTools("{}")
-            assertEquals(1, selected.size)
+            Assertions.assertEquals(1, selected.size)
         }
 
         @Test
         fun `byCategory includes enum values in schema`() {
-            val matryoshka = MatryoshkaTool.byCategory(
+            val matryoshka = UnfoldingTool.byCategory(
                 name = "tools",
                 description = "Tools",
                 toolsByCategory = mapOf(
@@ -240,9 +247,9 @@ class MatryoshkaToolTest {
             )
 
             val schema = matryoshka.definition.inputSchema.toJsonSchema()
-            assertTrue(schema.contains("alpha"))
-            assertTrue(schema.contains("beta"))
-            assertTrue(schema.contains("gamma"))
+            Assertions.assertTrue(schema.contains("alpha"))
+            Assertions.assertTrue(schema.contains("beta"))
+            Assertions.assertTrue(schema.contains("gamma"))
         }
     }
 
@@ -250,7 +257,7 @@ class MatryoshkaToolTest {
     inner class UnfoldingToolInjectionStrategyTest {
 
         @Test
-        fun `strategy ignores non-MatryoshkaTool invocations`() {
+        fun `strategy ignores non-UnfoldingTool invocations`() {
             val regularTool = MockTool("regular", "Regular tool") { Tool.Result.text("done") }
 
             val context = ToolInjectionContext(
@@ -268,13 +275,13 @@ class MatryoshkaToolTest {
             val strategy = UnfoldingToolInjectionStrategy()
             val result = strategy.evaluate(context)
 
-            assertFalse(result.hasChanges())
+            Assertions.assertFalse(result.hasChanges())
         }
 
         @Test
-        fun `strategy replaces MatryoshkaTool with inner tools`() {
+        fun `strategy replaces UnfoldingTool with inner tools`() {
             val innerTool = MockTool("inner", "Inner tool") { Tool.Result.text("inner") }
-            val matryoshka = MatryoshkaTool.of(
+            val matryoshka = UnfoldingTool.of(
                 name = "outer",
                 description = "Outer tool",
                 innerTools = listOf(innerTool),
@@ -295,19 +302,19 @@ class MatryoshkaToolTest {
             val strategy = UnfoldingToolInjectionStrategy()
             val result = strategy.evaluate(context)
 
-            assertTrue(result.hasChanges())
+            Assertions.assertTrue(result.hasChanges())
             // Only inner tools are injected (no guide tool)
-            assertEquals(1, result.toolsToAdd.size)
-            assertTrue(result.toolsToAdd.any { it.definition.name == "inner" })
-            assertEquals(1, result.toolsToRemove.size)
-            assertEquals("outer", result.toolsToRemove[0].definition.name)
+            Assertions.assertEquals(1, result.toolsToAdd.size)
+            Assertions.assertTrue(result.toolsToAdd.any { it.definition.name == "inner" })
+            Assertions.assertEquals(1, result.toolsToRemove.size)
+            Assertions.assertEquals("outer", result.toolsToRemove[0].definition.name)
         }
 
         @Suppress("DEPRECATION")
         @Test
         fun `strategy always replaces even when removeOnInvoke is false`() {
             val innerTool = MockTool("inner", "Inner tool") { Tool.Result.text("inner") }
-            val matryoshka = MatryoshkaTool.of(
+            val matryoshka = UnfoldingTool.of(
                 name = "persistent",
                 description = "Persistent tool",
                 innerTools = listOf(innerTool),
@@ -329,19 +336,19 @@ class MatryoshkaToolTest {
             val strategy = UnfoldingToolInjectionStrategy()
             val result = strategy.evaluate(context)
 
-            assertTrue(result.hasChanges())
+            Assertions.assertTrue(result.hasChanges())
             // removeOnInvoke is deprecated and ignored — only inner tools injected
-            assertEquals(1, result.toolsToAdd.size)
-            assertTrue(result.toolsToAdd.any { it.definition.name == "inner" })
-            assertEquals(1, result.toolsToRemove.size)
+            Assertions.assertEquals(1, result.toolsToAdd.size)
+            Assertions.assertTrue(result.toolsToAdd.any { it.definition.name == "inner" })
+            Assertions.assertEquals(1, result.toolsToRemove.size)
         }
 
         @Test
-        fun `strategy uses selector for selectable MatryoshkaTool`() {
+        fun `strategy uses selector for selectable UnfoldingTool`() {
             val tool1 = MockTool("tool1", "Tool 1") { Tool.Result.text("1") }
             val tool2 = MockTool("tool2", "Tool 2") { Tool.Result.text("2") }
 
-            val matryoshka = MatryoshkaTool.selectable(
+            val matryoshka = UnfoldingTool.selectable(
                 name = "selector",
                 description = "Selects tools",
                 innerTools = listOf(tool1, tool2),
@@ -366,13 +373,13 @@ class MatryoshkaToolTest {
             val result = strategy.evaluate(context)
 
             // Only selected tool (no guide tool)
-            assertEquals(1, result.toolsToAdd.size)
-            assertTrue(result.toolsToAdd.any { it.definition.name == "tool1" })
+            Assertions.assertEquals(1, result.toolsToAdd.size)
+            Assertions.assertTrue(result.toolsToAdd.any { it.definition.name == "tool1" })
         }
 
         @Test
         fun `strategy handles empty selection gracefully`() {
-            val matryoshka = MatryoshkaTool.selectable(
+            val matryoshka = UnfoldingTool.selectable(
                 name = "empty",
                 description = "Returns empty",
                 innerTools = listOf(MockTool("x", "X") { Tool.Result.text("x") }),
@@ -395,14 +402,14 @@ class MatryoshkaToolTest {
             val result = strategy.evaluate(context)
 
             // Empty selection — no changes (nothing to unfold into)
-            assertFalse(result.hasChanges())
+            Assertions.assertFalse(result.hasChanges())
         }
 
         @Test
         fun `strategy injects inner tools`() {
             val innerTool1 = MockTool("count", "Count records") { Tool.Result.text("5") }
             val innerTool2 = MockTool("getValues", "Get distinct values") { Tool.Result.text("[]") }
-            val matryoshka = MatryoshkaTool.of(
+            val matryoshka = UnfoldingTool.of(
                 name = "composer_stats",
                 description = "Use this to find stats about composers",
                 innerTools = listOf(innerTool1, innerTool2),
@@ -424,14 +431,14 @@ class MatryoshkaToolTest {
             val result = strategy.evaluate(context)
 
             // Should inject only inner tools (no guide tool)
-            assertEquals(2, result.toolsToAdd.size)
-            assertTrue(result.toolsToAdd.any { it.definition.name == "count" })
-            assertTrue(result.toolsToAdd.any { it.definition.name == "getValues" })
+            Assertions.assertEquals(2, result.toolsToAdd.size)
+            Assertions.assertTrue(result.toolsToAdd.any { it.definition.name == "count" })
+            Assertions.assertTrue(result.toolsToAdd.any { it.definition.name == "getValues" })
         }
 
         @Test
         fun `no tools injected when no inner tools selected`() {
-            val matryoshka = MatryoshkaTool.selectable(
+            val matryoshka = UnfoldingTool.selectable(
                 name = "empty",
                 description = "Returns empty",
                 innerTools = listOf(MockTool("x", "X") { Tool.Result.text("x") }),
@@ -454,7 +461,7 @@ class MatryoshkaToolTest {
             val result = strategy.evaluate(context)
 
             // No tools when no inner tools
-            assertTrue(result.toolsToAdd.isEmpty())
+            Assertions.assertTrue(result.toolsToAdd.isEmpty())
         }
 
         @Test
@@ -483,13 +490,13 @@ class MatryoshkaToolTest {
             val strategy = UnfoldingToolInjectionStrategy()
             val result = strategy.evaluate(context)
 
-            assertTrue(result.hasChanges())
-            assertEquals(1, result.toolsToAdd.size)
-            assertTrue(result.toolsToAdd.any { it.definition.name == "inner" })
+            Assertions.assertTrue(result.hasChanges())
+            Assertions.assertEquals(1, result.toolsToAdd.size)
+            Assertions.assertTrue(result.toolsToAdd.any { it.definition.name == "inner" })
             // All current tools should be removed (both the exclusive tool and the sibling)
-            assertEquals(2, result.toolsToRemove.size)
-            assertTrue(result.toolsToRemove.any { it.definition.name == "exclusive_tool" })
-            assertTrue(result.toolsToRemove.any { it.definition.name == "sibling" })
+            Assertions.assertEquals(2, result.toolsToRemove.size)
+            Assertions.assertTrue(result.toolsToRemove.any { it.definition.name == "exclusive_tool" })
+            Assertions.assertTrue(result.toolsToRemove.any { it.definition.name == "sibling" })
         }
 
         @Test
@@ -518,12 +525,12 @@ class MatryoshkaToolTest {
             val strategy = UnfoldingToolInjectionStrategy()
             val result = strategy.evaluate(context)
 
-            assertTrue(result.hasChanges())
-            assertEquals(1, result.toolsToAdd.size)
-            assertTrue(result.toolsToAdd.any { it.definition.name == "inner" })
+            Assertions.assertTrue(result.hasChanges())
+            Assertions.assertEquals(1, result.toolsToAdd.size)
+            Assertions.assertTrue(result.toolsToAdd.any { it.definition.name == "inner" })
             // Only the parent tool should be removed, not the sibling
-            assertEquals(1, result.toolsToRemove.size)
-            assertEquals("non_exclusive_tool", result.toolsToRemove[0].definition.name)
+            Assertions.assertEquals(1, result.toolsToRemove.size)
+            Assertions.assertEquals("non_exclusive_tool", result.toolsToRemove[0].definition.name)
         }
 
     }
@@ -557,13 +564,13 @@ class MatryoshkaToolTest {
 
             val result = chained.evaluate(context)
 
-            assertEquals(2, result.toolsToAdd.size)
+            Assertions.assertEquals(2, result.toolsToAdd.size)
         }
 
         @Test
-        fun `withMatryoshka includes MatryoshkaToolInjectionStrategy`() {
+        fun `withMatryoshka includes UnfoldingToolInjectionStrategy`() {
             val innerTool = MockTool("inner", "Inner") { Tool.Result.text("inner") }
-            val matryoshka = MatryoshkaTool.of(
+            val matryoshka = UnfoldingTool.of(
                 name = "outer",
                 description = "Outer",
                 innerTools = listOf(innerTool),
@@ -586,9 +593,9 @@ class MatryoshkaToolTest {
             val result = chained.evaluate(context)
 
             // Only inner tool (no guide tool)
-            assertEquals(1, result.toolsToAdd.size)
-            assertTrue(result.toolsToAdd.any { it.definition.name == "inner" })
-            assertEquals(1, result.toolsToRemove.size)
+            Assertions.assertEquals(1, result.toolsToAdd.size)
+            Assertions.assertTrue(result.toolsToAdd.any { it.definition.name == "inner" })
+            Assertions.assertEquals(1, result.toolsToRemove.size)
         }
     }
 
@@ -598,9 +605,9 @@ class MatryoshkaToolTest {
         @Test
         fun `noChange returns empty result`() {
             val result = ToolInjectionResult.noChange()
-            assertFalse(result.hasChanges())
-            assertTrue(result.toolsToAdd.isEmpty())
-            assertTrue(result.toolsToRemove.isEmpty())
+            Assertions.assertFalse(result.hasChanges())
+            Assertions.assertTrue(result.toolsToAdd.isEmpty())
+            Assertions.assertTrue(result.toolsToRemove.isEmpty())
         }
 
         @Test
@@ -608,15 +615,15 @@ class MatryoshkaToolTest {
             val tool = MockTool("tool", "Tool") { Tool.Result.text("ok") }
             val result = ToolInjectionResult.add(tool)
 
-            assertTrue(result.hasChanges())
-            assertEquals(1, result.toolsToAdd.size)
-            assertTrue(result.toolsToRemove.isEmpty())
+            Assertions.assertTrue(result.hasChanges())
+            Assertions.assertEquals(1, result.toolsToAdd.size)
+            Assertions.assertTrue(result.toolsToRemove.isEmpty())
         }
 
         @Test
         fun `add empty list returns noChange`() {
             val result = ToolInjectionResult.add(emptyList())
-            assertFalse(result.hasChanges())
+            Assertions.assertFalse(result.hasChanges())
         }
 
         @Test
@@ -627,9 +634,9 @@ class MatryoshkaToolTest {
 
             val result = ToolInjectionResult.replace(old, listOf(new1, new2))
 
-            assertTrue(result.hasChanges())
-            assertEquals(1, result.toolsToRemove.size)
-            assertEquals(2, result.toolsToAdd.size)
+            Assertions.assertTrue(result.hasChanges())
+            Assertions.assertEquals(1, result.toolsToRemove.size)
+            Assertions.assertEquals(2, result.toolsToAdd.size)
         }
 
         @Test
@@ -637,15 +644,15 @@ class MatryoshkaToolTest {
             val tool = MockTool("tool", "Tool") { Tool.Result.text("ok") }
             val result = ToolInjectionResult.remove(listOf(tool))
 
-            assertTrue(result.hasChanges())
-            assertTrue(result.toolsToAdd.isEmpty())
-            assertEquals(1, result.toolsToRemove.size)
+            Assertions.assertTrue(result.hasChanges())
+            Assertions.assertTrue(result.toolsToAdd.isEmpty())
+            Assertions.assertEquals(1, result.toolsToRemove.size)
         }
 
         @Test
         fun `remove empty list returns noChange`() {
             val result = ToolInjectionResult.remove(emptyList())
-            assertFalse(result.hasChanges())
+            Assertions.assertFalse(result.hasChanges())
         }
     }
 
@@ -653,12 +660,12 @@ class MatryoshkaToolTest {
     inner class ToolLoopIntegrationTest {
 
         @Test
-        fun `tool loop removes MatryoshkaTool and adds inner tools`() {
+        fun `tool loop removes UnfoldingTool and adds inner tools`() {
             val innerTool = MockTool("query", "Query database") {
                 Tool.Result.text("""{"rows": 5}""")
             }
 
-            val matryoshka = MatryoshkaTool.of(
+            val matryoshka = UnfoldingTool.of(
                 name = "database",
                 description = "Database operations. Invoke to see specific tools.",
                 innerTools = listOf(innerTool),
@@ -666,7 +673,7 @@ class MatryoshkaToolTest {
 
             val mockCaller = MockLlmMessageSender(
                 responses = listOf(
-                    // First: LLM invokes the MatryoshkaTool
+                    // First: LLM invokes the UnfoldingTool
                     MockLlmMessageSender.toolCallResponse("call_1", "database", "{}"),
                     // Second: LLM uses the now-available inner tool
                     MockLlmMessageSender.toolCallResponse("call_2", "query", """{"sql": "SELECT *"}"""),
@@ -687,27 +694,27 @@ class MatryoshkaToolTest {
                 outputParser = { it }
             )
 
-            assertEquals("Found 5 rows in the database.", result.result)
+            Assertions.assertEquals("Found 5 rows in the database.", result.result)
             // Only inner tool (no guide tool)
-            assertEquals(1, result.injectedTools.size)
-            assertTrue(result.injectedTools.any { it.definition.name == "query" })
-            assertEquals(1, result.removedTools.size)
-            assertEquals("database", result.removedTools[0].definition.name)
+            Assertions.assertEquals(1, result.injectedTools.size)
+            Assertions.assertTrue(result.injectedTools.any { it.definition.name == "query" })
+            Assertions.assertEquals(1, result.removedTools.size)
+            Assertions.assertEquals("database", result.removedTools[0].definition.name)
         }
 
         @Test
-        fun `tool loop handles nested MatryoshkaTools`() {
+        fun `tool loop handles nested UnfoldingTool`() {
             val leafTool = MockTool("leaf", "Leaf tool") {
                 Tool.Result.text("leaf result")
             }
 
-            val innerMatryoshka = MatryoshkaTool.of(
+            val innerMatryoshka = UnfoldingTool.of(
                 name = "inner_category",
                 description = "Inner category",
                 innerTools = listOf(leafTool),
             )
 
-            val outerMatryoshka = MatryoshkaTool.of(
+            val outerMatryoshka = UnfoldingTool.of(
                 name = "outer_category",
                 description = "Outer category",
                 innerTools = listOf(innerMatryoshka),
@@ -738,152 +745,158 @@ class MatryoshkaToolTest {
                 outputParser = { it }
             )
 
-            assertEquals("Got leaf result", result.result)
+            Assertions.assertEquals("Got leaf result", result.result)
             // Both matryoshkas inject only their inner tools (no guide tools):
             // outer injects: inner_category
             // inner injects: leaf
-            assertEquals(2, result.injectedTools.size)
-            assertTrue(result.injectedTools.any { it.definition.name == "inner_category" })
-            assertTrue(result.injectedTools.any { it.definition.name == "leaf" })
+            Assertions.assertEquals(2, result.injectedTools.size)
+            Assertions.assertTrue(result.injectedTools.any { it.definition.name == "inner_category" })
+            Assertions.assertTrue(result.injectedTools.any { it.definition.name == "leaf" })
             // Both outer and inner matryoshkas were removed
-            assertEquals(2, result.removedTools.size)
+            Assertions.assertEquals(2, result.removedTools.size)
         }
     }
 
     @Nested
-    inner class AnnotationBasedMatryoshkaToolTest {
+    inner class AnnotationBasedUnfoldingToolTest {
 
         @Test
-        fun `fromInstance creates simple MatryoshkaTool from annotated class`() {
-            val matryoshka = MatryoshkaTool.fromInstance(SimpleDatabaseTools())
+        fun `fromInstance creates simple UnfoldingTool from annotated class`() {
+            val matryoshka = UnfoldingTool.fromInstance(SimpleDatabaseTools())
 
-            assertEquals("database_operations", matryoshka.definition.name)
-            assertEquals("Database operations. Invoke to see specific tools.", matryoshka.definition.description)
-            assertEquals(2, matryoshka.innerTools.size)
-            assertTrue(matryoshka.removeOnInvoke)
+            Assertions.assertEquals("database_operations", matryoshka.definition.name)
+            Assertions.assertEquals(
+                "Database operations. Invoke to see specific tools.",
+                matryoshka.definition.description
+            )
+            Assertions.assertEquals(2, matryoshka.innerTools.size)
+            Assertions.assertTrue(matryoshka.removeOnInvoke)
 
             val toolNames = matryoshka.innerTools.map { it.definition.name }
-            assertTrue(toolNames.contains("query"))
-            assertTrue(toolNames.contains("insert"))
+            Assertions.assertTrue(toolNames.contains("query"))
+            Assertions.assertTrue(toolNames.contains("insert"))
         }
 
         @Test
-        fun `fromInstance creates category-based MatryoshkaTool when categories are used`() {
-            val matryoshka = MatryoshkaTool.fromInstance(CategoryBasedFileTools())
+        fun `fromInstance creates category-based UnfoldingTool when categories are used`() {
+            val matryoshka = UnfoldingTool.fromInstance(CategoryBasedFileTools())
 
-            assertEquals("file_operations", matryoshka.definition.name)
-            assertEquals(4, matryoshka.innerTools.size) // 2 read + 2 write
+            Assertions.assertEquals("file_operations", matryoshka.definition.name)
+            Assertions.assertEquals(4, matryoshka.innerTools.size) // 2 read + 2 write
 
             // Verify category selection works
             val readTools = matryoshka.selectTools("""{"category": "read"}""")
-            assertEquals(2, readTools.size)
-            assertTrue(readTools.all { it.definition.name in listOf("readFile", "listDir") })
+            Assertions.assertEquals(2, readTools.size)
+            Assertions.assertTrue(readTools.all { it.definition.name in listOf("readFile", "listDir") })
 
             val writeTools = matryoshka.selectTools("""{"category": "write"}""")
-            assertEquals(2, writeTools.size)
-            assertTrue(writeTools.all { it.definition.name in listOf("writeFile", "deleteFile") })
+            Assertions.assertEquals(2, writeTools.size)
+            Assertions.assertTrue(writeTools.all { it.definition.name in listOf("writeFile", "deleteFile") })
         }
 
         @Test
         fun `fromInstance respects removeOnInvoke annotation attribute`() {
-            val matryoshka = MatryoshkaTool.fromInstance(PersistentTools())
+            val matryoshka = UnfoldingTool.fromInstance(PersistentTools())
 
-            assertEquals("persistent_tools", matryoshka.definition.name)
-            assertFalse(matryoshka.removeOnInvoke)
+            Assertions.assertEquals("persistent_tools", matryoshka.definition.name)
+            Assertions.assertFalse(matryoshka.removeOnInvoke)
         }
 
         @Test
         fun `fromInstance respects childToolUsageNotes annotation attribute`() {
-            val matryoshka = MatryoshkaTool.fromInstance(MusicSearchTools())
+            val matryoshka = UnfoldingTool.fromInstance(MusicSearchTools())
 
-            assertEquals("music_search", matryoshka.definition.name)
-            assertEquals("Search music database for artists, albums, and tracks", matryoshka.definition.description)
-            assertEquals(
+            Assertions.assertEquals("music_search", matryoshka.definition.name)
+            Assertions.assertEquals(
+                "Search music database for artists, albums, and tracks",
+                matryoshka.definition.description
+            )
+            Assertions.assertEquals(
                 "Try vector search first for semantic queries. Use text search for exact artist names.",
                 matryoshka.childToolUsageNotes
             )
         }
 
         @Test
-        fun `fromInstance throws for class without MatryoshkaTools annotation`() {
+        fun `fromInstance throws for class without UnfoldingTool annotation`() {
             val exception = assertThrows<IllegalArgumentException> {
-                MatryoshkaTool.fromInstance(NonAnnotatedClass())
+                UnfoldingTool.fromInstance(NonAnnotatedClass())
             }
-            assertTrue(exception.message!!.contains("not annotated with @MatryoshkaTools"))
+            Assertions.assertTrue(exception.message!!.contains("not annotated with @UnfoldingTool"))
         }
 
         @Test
         fun `fromInstance throws for class without LlmTool methods`() {
             val exception = assertThrows<IllegalArgumentException> {
-                MatryoshkaTool.fromInstance(NoToolMethods())
+                UnfoldingTool.fromInstance(NoToolMethods())
             }
-            assertTrue(exception.message!!.contains("no methods annotated with @LlmTool"))
+            Assertions.assertTrue(exception.message!!.contains("no methods annotated with @LlmTool"))
         }
 
         @Test
         fun `safelyFromInstance returns null for non-annotated class`() {
-            val result = MatryoshkaTool.safelyFromInstance(NonAnnotatedClass())
-            assertNull(result)
+            val result = UnfoldingTool.safelyFromInstance(NonAnnotatedClass())
+            Assertions.assertNull(result)
         }
 
         @Test
-        fun `safelyFromInstance returns MatryoshkaTool for valid class`() {
-            val result = MatryoshkaTool.safelyFromInstance(SimpleDatabaseTools())
-            assertNotNull(result)
-            assertEquals("database_operations", result!!.definition.name)
+        fun `safelyFromInstance returns UnfoldingTool for valid class`() {
+            val result = UnfoldingTool.safelyFromInstance(SimpleDatabaseTools())
+            Assertions.assertNotNull(result)
+            Assertions.assertEquals("database_operations", result!!.definition.name)
         }
 
         @Test
-        fun `category-based MatryoshkaTool includes uncategorized tools in all category`() {
-            val matryoshka = MatryoshkaTool.fromInstance(MixedCategoryTools())
+        fun `category-based UnfoldingTool includes uncategorized tools in all category`() {
+            val matryoshka = UnfoldingTool.fromInstance(MixedCategoryTools())
 
             // The "all" category should include everything
             val allTools = matryoshka.selectTools("""{"category": "all"}""")
-            assertEquals(3, allTools.size)
+            Assertions.assertEquals(3, allTools.size)
 
             // Read category should have read tool + uncategorized tool
             val readTools = matryoshka.selectTools("""{"category": "read"}""")
-            assertEquals(2, readTools.size)
+            Assertions.assertEquals(2, readTools.size)
         }
 
         @Test
         fun `tools from annotated class are callable`() {
-            val matryoshka = MatryoshkaTool.fromInstance(SimpleDatabaseTools())
+            val matryoshka = UnfoldingTool.fromInstance(SimpleDatabaseTools())
 
             val queryTool = matryoshka.innerTools.find { it.definition.name == "query" }!!
             val result = queryTool.call("""{"sql": "SELECT * FROM users"}""")
 
-            assertTrue(result is Tool.Result.Text)
-            assertTrue((result as Tool.Result.Text).content.contains("5 rows"))
+            Assertions.assertTrue(result is Tool.Result.Text)
+            Assertions.assertTrue((result as Tool.Result.Text).content.contains("5 rows"))
         }
 
         @Test
-        fun `Tool_fromInstance returns MatryoshkaTool when class has MatryoshkaTools annotation`() {
+        fun `Tool_fromInstance returns UnfoldingTool when class has UnfoldingTool annotation`() {
             val tools = Tool.fromInstance(SimpleDatabaseTools())
 
-            assertEquals(1, tools.size)
-            assertTrue(tools[0] is MatryoshkaTool)
-            assertEquals("database_operations", tools[0].definition.name)
+            Assertions.assertEquals(1, tools.size)
+            Assertions.assertTrue(tools[0] is UnfoldingTool)
+            Assertions.assertEquals("database_operations", tools[0].definition.name)
 
-            val matryoshka = tools[0] as MatryoshkaTool
-            assertEquals(2, matryoshka.innerTools.size)
+            val matryoshka = tools[0] as UnfoldingTool
+            Assertions.assertEquals(2, matryoshka.innerTools.size)
         }
 
         @Test
-        fun `Tool_fromInstance returns individual tools when class lacks MatryoshkaTools annotation`() {
+        fun `Tool_fromInstance returns individual tools when class lacks UnfoldingTool annotation`() {
             val tools = Tool.fromInstance(NonAnnotatedClass())
 
-            assertEquals(1, tools.size)
-            assertFalse(tools[0] is MatryoshkaTool)
-            assertEquals("tool", tools[0].definition.name)
+            Assertions.assertEquals(1, tools.size)
+            Assertions.assertFalse(tools[0] is UnfoldingTool)
+            Assertions.assertEquals("tool", tools[0].definition.name)
         }
 
         @Test
-        fun `Tool_safelyFromInstance returns MatryoshkaTool when class has MatryoshkaTools annotation`() {
+        fun `Tool_safelyFromInstance returns UnfoldingTool when class has UnfoldingTool annotation`() {
             val tools = Tool.safelyFromInstance(SimpleDatabaseTools())
 
-            assertEquals(1, tools.size)
-            assertTrue(tools[0] is MatryoshkaTool)
+            Assertions.assertEquals(1, tools.size)
+            Assertions.assertTrue(tools[0] is UnfoldingTool)
         }
     }
 
@@ -891,9 +904,9 @@ class MatryoshkaToolTest {
     inner class ConfiguredInnerToolsTest {
 
         @Test
-        fun `MatryoshkaTool can pass parameters to configure inner tools`() {
-            // Create a MatryoshkaTool that creates configured instances based on input
-            val matryoshka = MatryoshkaTool.selectable(
+        fun `UnfoldingTool can pass parameters to configure inner tools`() {
+            // Create a UnfoldingTool that creates configured instances based on input
+            val matryoshka = UnfoldingTool.selectable(
                 name = "database",
                 description = "Database operations. Pass 'connection' to configure tools.",
                 innerTools = emptyList(), // Inner tools will be created dynamically
@@ -928,23 +941,23 @@ class MatryoshkaToolTest {
 
             // Test that different connection strings produce differently configured tools
             val prodTools = matryoshka.selectTools("""{"connection": "prod-db.example.com"}""")
-            assertEquals(2, prodTools.size)
-            assertTrue(prodTools[0].definition.description.contains("prod-db.example.com"))
+            Assertions.assertEquals(2, prodTools.size)
+            Assertions.assertTrue(prodTools[0].definition.description.contains("prod-db.example.com"))
 
             val devTools = matryoshka.selectTools("""{"connection": "localhost:5432"}""")
-            assertEquals(2, devTools.size)
-            assertTrue(devTools[0].definition.description.contains("localhost:5432"))
+            Assertions.assertEquals(2, devTools.size)
+            Assertions.assertTrue(devTools[0].definition.description.contains("localhost:5432"))
 
             // Verify the tools are callable with the configured connection
             val result = prodTools[0].call("{}")
-            assertTrue((result as Tool.Result.Text).content.contains("prod-db.example.com"))
+            Assertions.assertTrue((result as Tool.Result.Text).content.contains("prod-db.example.com"))
         }
 
         @Test
-        fun `tool loop uses configured inner tools from MatryoshkaTool parameters`() {
-            // Create a MatryoshkaTool that configures tools based on user selection
+        fun `tool loop uses configured inner tools from UnfoldingTool parameters`() {
+            // Create a UnfoldingTool that configures tools based on user selection
             var capturedRegion = ""
-            val regionTool = MatryoshkaTool.selectable(
+            val regionTool = UnfoldingTool.selectable(
                 name = "cloud_services",
                 description = "Cloud operations. Pass 'region' to select datacenter.",
                 innerTools = emptyList(),
@@ -992,18 +1005,18 @@ class MatryoshkaToolTest {
                 outputParser = { it }
             )
 
-            assertEquals("Deployment complete", result.result)
-            assertEquals("eu-west", capturedRegion)
+            Assertions.assertEquals("Deployment complete", result.result)
+            Assertions.assertEquals("eu-west", capturedRegion)
             // Verify the injected tool was configured with the region
             val deployTool = result.injectedTools.find { it.definition.name == "deploy" }
-            assertNotNull(deployTool)
-            assertTrue(deployTool!!.definition.description.contains("eu-west"))
+            Assertions.assertNotNull(deployTool)
+            Assertions.assertTrue(deployTool!!.definition.description.contains("eu-west"))
         }
 
         @Test
-        fun `MatryoshkaTool can create stateful tool instances`() {
-            // Create a MatryoshkaTool that creates tools with captured state
-            val matryoshka = MatryoshkaTool.selectable(
+        fun `UnfoldingTool can create stateful tool instances`() {
+            // Create a UnfoldingTool that creates tools with captured state
+            val matryoshka = UnfoldingTool.selectable(
                 name = "shopping_cart",
                 description = "Shopping cart operations. Pass 'cart_id' to select cart.",
                 innerTools = emptyList(),
@@ -1045,7 +1058,7 @@ class MatryoshkaToolTest {
 
             // Get tools for a specific cart
             val cartTools = matryoshka.selectTools("""{"cart_id": "cart-123"}""")
-            assertEquals(2, cartTools.size)
+            Assertions.assertEquals(2, cartTools.size)
 
             // Add items and verify state is maintained
             val addTool = cartTools.find { it.definition.name == "add_item" }!!
@@ -1056,9 +1069,9 @@ class MatryoshkaToolTest {
 
             val result = getTool.call("{}")
             val content = (result as Tool.Result.Text).content
-            assertTrue(content.contains("apple"))
-            assertTrue(content.contains("banana"))
-            assertTrue(content.contains("cart-123"))
+            Assertions.assertTrue(content.contains("apple"))
+            Assertions.assertTrue(content.contains("banana"))
+            Assertions.assertTrue(content.contains("cart-123"))
         }
     }
 
@@ -1072,26 +1085,26 @@ class MatryoshkaToolTest {
             val leafTool2 = MockTool("leaf_insert", "Insert data") { Tool.Result.text("insert result") }
 
             // Level 2 - contains leaf tools
-            val level2 = MatryoshkaTool.of(
+            val level2 = UnfoldingTool.of(
                 name = "level2_database",
                 description = "Database operations",
                 innerTools = listOf(leafTool1, leafTool2),
             )
 
             // Level 1 - contains level 2
-            val level1 = MatryoshkaTool.of(
+            val level1 = UnfoldingTool.of(
                 name = "level1_admin",
                 description = "Admin operations",
                 innerTools = listOf(level2),
             )
 
             // Verify structure
-            assertEquals("level1_admin", level1.definition.name)
-            assertEquals(1, level1.innerTools.size)
+            Assertions.assertEquals("level1_admin", level1.definition.name)
+            Assertions.assertEquals(1, level1.innerTools.size)
 
-            val innerLevel2 = level1.innerTools[0] as MatryoshkaTool
-            assertEquals("level2_database", innerLevel2.definition.name)
-            assertEquals(2, innerLevel2.innerTools.size)
+            val innerLevel2 = level1.innerTools[0] as UnfoldingTool
+            Assertions.assertEquals("level2_database", innerLevel2.definition.name)
+            Assertions.assertEquals(2, innerLevel2.innerTools.size)
         }
 
         @Test
@@ -1101,54 +1114,54 @@ class MatryoshkaToolTest {
             val leaf2 = MockTool("deep_write", "Write data") { Tool.Result.text("write") }
 
             // Level 4
-            val level4 = MatryoshkaTool.of(
+            val level4 = UnfoldingTool.of(
                 name = "level4_io",
                 description = "I/O operations",
                 innerTools = listOf(leaf1, leaf2),
             )
 
             // Level 3
-            val level3 = MatryoshkaTool.of(
+            val level3 = UnfoldingTool.of(
                 name = "level3_storage",
                 description = "Storage operations",
                 innerTools = listOf(level4),
             )
 
             // Level 2
-            val level2 = MatryoshkaTool.of(
+            val level2 = UnfoldingTool.of(
                 name = "level2_data",
                 description = "Data operations",
                 innerTools = listOf(level3),
             )
 
             // Level 1 - top
-            val level1 = MatryoshkaTool.of(
+            val level1 = UnfoldingTool.of(
                 name = "level1_root",
                 description = "Root operations",
                 innerTools = listOf(level2),
             )
 
             // Verify the chain
-            assertEquals("level1_root", level1.definition.name)
-            val l2 = level1.innerTools[0] as MatryoshkaTool
-            assertEquals("level2_data", l2.definition.name)
-            val l3 = l2.innerTools[0] as MatryoshkaTool
-            assertEquals("level3_storage", l3.definition.name)
-            val l4 = l3.innerTools[0] as MatryoshkaTool
-            assertEquals("level4_io", l4.definition.name)
-            assertEquals(2, l4.innerTools.size)
-            assertEquals("deep_read", l4.innerTools[0].definition.name)
-            assertEquals("deep_write", l4.innerTools[1].definition.name)
+            Assertions.assertEquals("level1_root", level1.definition.name)
+            val l2 = level1.innerTools[0] as UnfoldingTool
+            Assertions.assertEquals("level2_data", l2.definition.name)
+            val l3 = l2.innerTools[0] as UnfoldingTool
+            Assertions.assertEquals("level3_storage", l3.definition.name)
+            val l4 = l3.innerTools[0] as UnfoldingTool
+            Assertions.assertEquals("level4_io", l4.definition.name)
+            Assertions.assertEquals(2, l4.innerTools.size)
+            Assertions.assertEquals("deep_read", l4.innerTools[0].definition.name)
+            Assertions.assertEquals("deep_write", l4.innerTools[1].definition.name)
         }
 
         @Test
         fun `tool loop handles five level nesting`() {
             // Build 5-level hierarchy
             val leaf = MockTool("leaf", "Leaf tool") { Tool.Result.text("leaf result") }
-            val level4 = MatryoshkaTool.of("level4", "Level 4", listOf(leaf))
-            val level3 = MatryoshkaTool.of("level3", "Level 3", listOf(level4))
-            val level2 = MatryoshkaTool.of("level2", "Level 2", listOf(level3))
-            val level1 = MatryoshkaTool.of("level1", "Level 1", listOf(level2))
+            val level4 = UnfoldingTool.of("level4", "Level 4", listOf(leaf))
+            val level3 = UnfoldingTool.of("level3", "Level 3", listOf(level4))
+            val level2 = UnfoldingTool.of("level2", "Level 2", listOf(level3))
+            val level1 = UnfoldingTool.of("level1", "Level 1", listOf(level2))
 
             val mockCaller = MockLlmMessageSender(
                 responses = listOf(
@@ -1173,12 +1186,12 @@ class MatryoshkaToolTest {
                 outputParser = { it }
             )
 
-            assertEquals("Traversed 5 levels to reach leaf", result.result)
+            Assertions.assertEquals("Traversed 5 levels to reach leaf", result.result)
             // 4 matryoshka tools removed (level1-4)
-            assertEquals(4, result.removedTools.size)
+            Assertions.assertEquals(4, result.removedTools.size)
             // 4 injected: 4 inner tools (level2-4 + leaf), no guide tools
-            assertEquals(4, result.injectedTools.size)
-            assertTrue(result.injectedTools.any { it.definition.name == "leaf" })
+            Assertions.assertEquals(4, result.injectedTools.size)
+            Assertions.assertTrue(result.injectedTools.any { it.definition.name == "leaf" })
         }
 
         @Test
@@ -1187,29 +1200,29 @@ class MatryoshkaToolTest {
             val branch1Leaf = MockTool("b1_leaf", "Branch 1 leaf") { Tool.Result.text("b1") }
             val branch2Leaf = MockTool("b2_leaf", "Branch 2 leaf") { Tool.Result.text("b2") }
 
-            val branch1 = MatryoshkaTool.of(
+            val branch1 = UnfoldingTool.of(
                 name = "branch1",
                 description = "Branch 1",
                 innerTools = listOf(branch1Leaf),
             )
 
-            val branch2 = MatryoshkaTool.of(
+            val branch2 = UnfoldingTool.of(
                 name = "branch2",
                 description = "Branch 2",
                 innerTools = listOf(branch2Leaf),
             )
 
             // Level 1 with two branches
-            val level1 = MatryoshkaTool.of(
+            val level1 = UnfoldingTool.of(
                 name = "root",
                 description = "Root with branches",
                 innerTools = listOf(branch1, branch2),
             )
 
             // Verify structure
-            assertEquals(2, level1.innerTools.size)
-            assertTrue(level1.innerTools[0] is MatryoshkaTool)
-            assertTrue(level1.innerTools[1] is MatryoshkaTool)
+            Assertions.assertEquals(2, level1.innerTools.size)
+            Assertions.assertTrue(level1.innerTools[0] is UnfoldingTool)
+            Assertions.assertTrue(level1.innerTools[1] is UnfoldingTool)
 
             // Test branch selection via tool loop
             val mockCaller = MockLlmMessageSender(
@@ -1233,11 +1246,11 @@ class MatryoshkaToolTest {
                 outputParser = { it }
             )
 
-            assertEquals("Used branch 1", result.result)
+            Assertions.assertEquals("Used branch 1", result.result)
             // root and branch1 removed, branch1+branch2+b1_leaf injected
-            assertEquals(2, result.removedTools.size)
-            assertTrue(result.removedTools.any { it.definition.name == "root" })
-            assertTrue(result.removedTools.any { it.definition.name == "branch1" })
+            Assertions.assertEquals(2, result.removedTools.size)
+            Assertions.assertTrue(result.removedTools.any { it.definition.name == "root" })
+            Assertions.assertTrue(result.removedTools.any { it.definition.name == "branch1" })
         }
     }
 
@@ -1245,56 +1258,56 @@ class MatryoshkaToolTest {
     inner class DeepNestingAnnotationTest {
 
         @Test
-        fun `creates MatryoshkaTool with nested inner class MatryoshkaTools`() {
-            val matryoshka = MatryoshkaTool.fromInstance(Level2Category())
+        fun `creates UnfoldingTool with nested inner class UnfoldingTool`() {
+            val matryoshka = UnfoldingTool.fromInstance(Level2Category())
 
-            assertEquals("level2_category", matryoshka.definition.name)
-            // Should have 1 direct tool + 1 inner MatryoshkaTool
-            assertEquals(2, matryoshka.innerTools.size)
+            Assertions.assertEquals("level2_category", matryoshka.definition.name)
+            // Should have 1 direct tool + 1 inner UnfoldingTool
+            Assertions.assertEquals(2, matryoshka.innerTools.size)
 
             val directTool = matryoshka.innerTools.find { it.definition.name == "level2Util" }
-            assertNotNull(directTool)
-            assertFalse(directTool is MatryoshkaTool)
+            Assertions.assertNotNull(directTool)
+            Assertions.assertFalse(directTool is UnfoldingTool)
 
             val innerMatryoshka = matryoshka.innerTools.find { it.definition.name == "level3_inner" }
-            assertNotNull(innerMatryoshka)
-            assertTrue(innerMatryoshka is MatryoshkaTool)
+            Assertions.assertNotNull(innerMatryoshka)
+            Assertions.assertTrue(innerMatryoshka is UnfoldingTool)
 
-            val level3 = innerMatryoshka as MatryoshkaTool
-            assertEquals(2, level3.innerTools.size)
-            assertTrue(level3.innerTools.any { it.definition.name == "innerQuery" })
-            assertTrue(level3.innerTools.any { it.definition.name == "innerInsert" })
+            val level3 = innerMatryoshka as UnfoldingTool
+            Assertions.assertEquals(2, level3.innerTools.size)
+            Assertions.assertTrue(level3.innerTools.any { it.definition.name == "innerQuery" })
+            Assertions.assertTrue(level3.innerTools.any { it.definition.name == "innerInsert" })
         }
 
         @Test
-        fun `creates three level deep MatryoshkaTool hierarchy from nested annotations`() {
-            val level1 = MatryoshkaTool.fromInstance(Level1Top())
+        fun `creates three level deep UnfoldingTool hierarchy from nested annotations`() {
+            val level1 = UnfoldingTool.fromInstance(Level1Top())
 
-            assertEquals("level1_top", level1.definition.name)
-            // 1 direct tool (status) + 1 inner MatryoshkaTool (level2_inner)
-            assertEquals(2, level1.innerTools.size)
+            Assertions.assertEquals("level1_top", level1.definition.name)
+            // 1 direct tool (status) + 1 inner UnfoldingTool (level2_inner)
+            Assertions.assertEquals(2, level1.innerTools.size)
 
             val statusTool = level1.innerTools.find { it.definition.name == "status" }
-            assertNotNull(statusTool)
+            Assertions.assertNotNull(statusTool)
 
-            val level2 = level1.innerTools.find { it.definition.name == "level2_inner" } as? MatryoshkaTool
-            assertNotNull(level2)
-            // 1 direct tool (level2Op) + 1 inner MatryoshkaTool (level3_deepest)
-            assertEquals(2, level2!!.innerTools.size)
+            val level2 = level1.innerTools.find { it.definition.name == "level2_inner" } as? UnfoldingTool
+            Assertions.assertNotNull(level2)
+            // 1 direct tool (level2Op) + 1 inner UnfoldingTool (level3_deepest)
+            Assertions.assertEquals(2, level2!!.innerTools.size)
 
             val level2Op = level2.innerTools.find { it.definition.name == "level2Op" }
-            assertNotNull(level2Op)
+            Assertions.assertNotNull(level2Op)
 
-            val level3 = level2.innerTools.find { it.definition.name == "level3_deepest" } as? MatryoshkaTool
-            assertNotNull(level3)
-            assertEquals(2, level3!!.innerTools.size)
-            assertTrue(level3.innerTools.any { it.definition.name == "deepQuery" })
-            assertTrue(level3.innerTools.any { it.definition.name == "deepMutate" })
+            val level3 = level2.innerTools.find { it.definition.name == "level3_deepest" } as? UnfoldingTool
+            Assertions.assertNotNull(level3)
+            Assertions.assertEquals(2, level3!!.innerTools.size)
+            Assertions.assertTrue(level3.innerTools.any { it.definition.name == "deepQuery" })
+            Assertions.assertTrue(level3.innerTools.any { it.definition.name == "deepMutate" })
         }
 
         @Test
         fun `tool loop traverses annotation-based nested hierarchy`() {
-            val level1 = MatryoshkaTool.fromInstance(Level1Top())
+            val level1 = UnfoldingTool.fromInstance(Level1Top())
 
             val mockCaller = MockLlmMessageSender(
                 responses = listOf(
@@ -1322,45 +1335,45 @@ class MatryoshkaToolTest {
                 outputParser = { it }
             )
 
-            assertEquals("Executed deep query", result.result)
+            Assertions.assertEquals("Executed deep query", result.result)
             // All 3 matryoshka levels removed
-            assertEquals(3, result.removedTools.size)
-            assertTrue(result.removedTools.any { it.definition.name == "level1_top" })
-            assertTrue(result.removedTools.any { it.definition.name == "level2_inner" })
-            assertTrue(result.removedTools.any { it.definition.name == "level3_deepest" })
+            Assertions.assertEquals(3, result.removedTools.size)
+            Assertions.assertTrue(result.removedTools.any { it.definition.name == "level1_top" })
+            Assertions.assertTrue(result.removedTools.any { it.definition.name == "level2_inner" })
+            Assertions.assertTrue(result.removedTools.any { it.definition.name == "level3_deepest" })
         }
 
         @Test
         fun `inner tools from nested annotations are callable`() {
-            val level1 = MatryoshkaTool.fromInstance(Level1Top())
+            val level1 = UnfoldingTool.fromInstance(Level1Top())
 
             // Get level2
-            val level2 = level1.innerTools.find { it.definition.name == "level2_inner" } as MatryoshkaTool
+            val level2 = level1.innerTools.find { it.definition.name == "level2_inner" } as UnfoldingTool
 
             // Get level3
-            val level3 = level2.innerTools.find { it.definition.name == "level3_deepest" } as MatryoshkaTool
+            val level3 = level2.innerTools.find { it.definition.name == "level3_deepest" } as UnfoldingTool
 
             // Call the deepest tool
             val deepQueryTool = level3.innerTools.find { it.definition.name == "deepQuery" }!!
             val result = deepQueryTool.call("{}")
 
-            assertTrue(result is Tool.Result.Text)
-            assertEquals("Deep query result", (result as Tool.Result.Text).content)
+            Assertions.assertTrue(result is Tool.Result.Text)
+            Assertions.assertEquals("Deep query result", (result as Tool.Result.Text).content)
         }
 
         @Test
-        fun `Tool_fromInstance detects nested MatryoshkaTools in inner classes`() {
+        fun `Tool_fromInstance detects nested UnfoldingTool in inner classes`() {
             val tools = Tool.fromInstance(Level1Top())
 
-            assertEquals(1, tools.size)
-            assertTrue(tools[0] is MatryoshkaTool)
+            Assertions.assertEquals(1, tools.size)
+            Assertions.assertTrue(tools[0] is UnfoldingTool)
 
-            val level1 = tools[0] as MatryoshkaTool
-            assertEquals("level1_top", level1.definition.name)
+            val level1 = tools[0] as UnfoldingTool
+            Assertions.assertEquals("level1_top", level1.definition.name)
 
             // Verify nested structure
-            val level2 = level1.innerTools.find { it is MatryoshkaTool && it.definition.name == "level2_inner" }
-            assertNotNull(level2)
+            val level2 = level1.innerTools.find { it is UnfoldingTool && it.definition.name == "level2_inner" }
+            Assertions.assertNotNull(level2)
         }
     }
 
@@ -1369,7 +1382,7 @@ class MatryoshkaToolTest {
 
         /**
          * Verifies that when DefaultToolLoop has a toolDecorator,
-         * injected tools from MatryoshkaTool are decorated.
+         * injected tools from UnfoldingTool are decorated.
          */
         @Test
         fun `injected tools should be decorated when toolDecorator is provided`() {
@@ -1385,7 +1398,7 @@ class MatryoshkaToolTest {
                 Tool.Result.text("child result")
             }
 
-            val matryoshka = MatryoshkaTool.of(
+            val matryoshka = UnfoldingTool.of(
                 name = "parent",
                 description = "Parent tool",
                 innerTools = listOf(childTool),
@@ -1413,7 +1426,7 @@ class MatryoshkaToolTest {
             )
 
             // Injected child tool should be decorated
-            assertTrue(
+            Assertions.assertTrue(
                 decoratedToolNames.contains("child_tool"),
                 "Child tool should be decorated, but only these were: $decoratedToolNames"
             )
@@ -1431,7 +1444,7 @@ class MatryoshkaToolTest {
             // Wrapper that marks decorated tools
             class DecoratedTool(val delegate: Tool) : Tool by delegate
 
-            val matryoshka = MatryoshkaTool.of(
+            val matryoshka = UnfoldingTool.of(
                 name = "parent",
                 description = "Parent tool",
                 innerTools = listOf(childTool),
@@ -1460,30 +1473,30 @@ class MatryoshkaToolTest {
 
             // The injected tool should be wrapped in DecoratedTool
             val injectedTool = result.injectedTools.first()
-            assertTrue(
+            Assertions.assertTrue(
                 injectedTool is DecoratedTool,
                 "Injected tool should be decorated"
             )
         }
 
         /**
-         * Verifies that nested MatryoshkaTool child tools are all decorated.
+         * Verifies that nested UnfoldingTool child tools are all decorated.
          */
         @Test
-        fun `nested MatryoshkaTool child tools are all decorated`() {
+        fun `nested UnfoldingTool child tools are all decorated`() {
             val decoratedToolNames = mutableListOf<String>()
 
             val leafTool = MockTool("leaf", "Leaf tool") {
                 Tool.Result.text("leaf result")
             }
 
-            val innerMatryoshka = MatryoshkaTool.of(
+            val innerMatryoshka = UnfoldingTool.of(
                 name = "inner",
                 description = "Inner category",
                 innerTools = listOf(leafTool),
             )
 
-            val outerMatryoshka = MatryoshkaTool.of(
+            val outerMatryoshka = UnfoldingTool.of(
                 name = "outer",
                 description = "Outer category",
                 innerTools = listOf(innerMatryoshka),
@@ -1515,8 +1528,8 @@ class MatryoshkaToolTest {
             )
 
             // Both inner matryoshka and leaf should be decorated
-            assertTrue(decoratedToolNames.contains("inner"), "inner should be decorated")
-            assertTrue(decoratedToolNames.contains("leaf"), "leaf should be decorated")
+            Assertions.assertTrue(decoratedToolNames.contains("inner"), "inner should be decorated")
+            Assertions.assertTrue(decoratedToolNames.contains("leaf"), "leaf should be decorated")
         }
     }
 
@@ -1529,7 +1542,7 @@ class MatryoshkaToolTest {
             val tool2 = MockTool("tool2", "Tool 2") { Tool.Result.text("2") }
             val tool3 = MockTool("tool3", "Tool 3") { Tool.Result.text("3") }
 
-            val initial = com.embabel.agent.api.tool.progressive.UnfoldingTool.of(
+            val initial = UnfoldingTool.of(
                 name = "combined",
                 description = "Combined tools",
                 innerTools = listOf(tool1)
@@ -1537,11 +1550,11 @@ class MatryoshkaToolTest {
 
             val combined = initial.withTools(tool2, tool3)
 
-            assertEquals("combined", combined.definition.name)
-            assertEquals(3, combined.innerTools.size)
-            assertTrue(combined.innerTools.any { it.definition.name == "tool1" })
-            assertTrue(combined.innerTools.any { it.definition.name == "tool2" })
-            assertTrue(combined.innerTools.any { it.definition.name == "tool3" })
+            Assertions.assertEquals("combined", combined.definition.name)
+            Assertions.assertEquals(3, combined.innerTools.size)
+            Assertions.assertTrue(combined.innerTools.any { it.definition.name == "tool1" })
+            Assertions.assertTrue(combined.innerTools.any { it.definition.name == "tool2" })
+            Assertions.assertTrue(combined.innerTools.any { it.definition.name == "tool3" })
         }
 
         @Test
@@ -1549,7 +1562,7 @@ class MatryoshkaToolTest {
             val tool1 = MockTool("tool1", "Tool 1") { Tool.Result.text("1") }
             val tool2 = MockTool("tool2", "Tool 2") { Tool.Result.text("2") }
 
-            val initial = com.embabel.agent.api.tool.progressive.UnfoldingTool.of(
+            val initial = UnfoldingTool.of(
                 name = "mytools",
                 description = "My tools description",
                 innerTools = listOf(tool1),
@@ -1559,17 +1572,17 @@ class MatryoshkaToolTest {
 
             val combined = initial.withTools(tool2)
 
-            assertEquals("mytools", combined.definition.name)
-            assertEquals("My tools description", combined.definition.description)
-            assertEquals(false, combined.removeOnInvoke)
-            assertEquals("Use tool1 for primary operations", combined.childToolUsageNotes)
+            Assertions.assertEquals("mytools", combined.definition.name)
+            Assertions.assertEquals("My tools description", combined.definition.description)
+            Assertions.assertEquals(false, combined.removeOnInvoke)
+            Assertions.assertEquals("Use tool1 for primary operations", combined.childToolUsageNotes)
         }
 
         @Test
         fun `withToolObject adds tools from annotated object`() {
             val tool1 = MockTool("existing", "Existing tool") { Tool.Result.text("existing") }
 
-            val initial = com.embabel.agent.api.tool.progressive.UnfoldingTool.of(
+            val initial = UnfoldingTool.of(
                 name = "combined",
                 description = "Combined tools",
                 innerTools = listOf(tool1)
@@ -1577,15 +1590,15 @@ class MatryoshkaToolTest {
 
             val combined = initial.withToolObject(BuilderTestTools())
 
-            assertEquals(3, combined.innerTools.size)
-            assertTrue(combined.innerTools.any { it.definition.name == "existing" })
-            assertTrue(combined.innerTools.any { it.definition.name == "builderSearch" })
-            assertTrue(combined.innerTools.any { it.definition.name == "builderFilter" })
+            Assertions.assertEquals(3, combined.innerTools.size)
+            Assertions.assertTrue(combined.innerTools.any { it.definition.name == "existing" })
+            Assertions.assertTrue(combined.innerTools.any { it.definition.name == "builderSearch" })
+            Assertions.assertTrue(combined.innerTools.any { it.definition.name == "builderFilter" })
         }
 
         @Test
         fun `withToolObject preserves properties`() {
-            val initial = com.embabel.agent.api.tool.progressive.UnfoldingTool.of(
+            val initial = UnfoldingTool.of(
                 name = "mytools",
                 description = "My description",
                 innerTools = emptyList(),
@@ -1595,10 +1608,10 @@ class MatryoshkaToolTest {
 
             val combined = initial.withToolObject(BuilderTestTools())
 
-            assertEquals("mytools", combined.definition.name)
-            assertEquals("My description", combined.definition.description)
-            assertEquals(false, combined.removeOnInvoke)
-            assertEquals("Custom notes", combined.childToolUsageNotes)
+            Assertions.assertEquals("mytools", combined.definition.name)
+            Assertions.assertEquals("My description", combined.definition.description)
+            Assertions.assertEquals(false, combined.removeOnInvoke)
+            Assertions.assertEquals("Custom notes", combined.childToolUsageNotes)
         }
 
         @Test
@@ -1606,7 +1619,7 @@ class MatryoshkaToolTest {
             val tool1 = MockTool("tool1", "Tool 1") { Tool.Result.text("1") }
             val tool2 = MockTool("tool2", "Tool 2") { Tool.Result.text("2") }
 
-            val initial = com.embabel.agent.api.tool.progressive.UnfoldingTool.of(
+            val initial = UnfoldingTool.of(
                 name = "chained",
                 description = "Chained tools",
                 innerTools = listOf(tool1)
@@ -1616,16 +1629,16 @@ class MatryoshkaToolTest {
                 .withTools(tool2)
                 .withToolObject(BuilderTestTools())
 
-            assertEquals(4, combined.innerTools.size)
-            assertTrue(combined.innerTools.any { it.definition.name == "tool1" })
-            assertTrue(combined.innerTools.any { it.definition.name == "tool2" })
-            assertTrue(combined.innerTools.any { it.definition.name == "builderSearch" })
-            assertTrue(combined.innerTools.any { it.definition.name == "builderFilter" })
+            Assertions.assertEquals(4, combined.innerTools.size)
+            Assertions.assertTrue(combined.innerTools.any { it.definition.name == "tool1" })
+            Assertions.assertTrue(combined.innerTools.any { it.definition.name == "tool2" })
+            Assertions.assertTrue(combined.innerTools.any { it.definition.name == "builderSearch" })
+            Assertions.assertTrue(combined.innerTools.any { it.definition.name == "builderFilter" })
         }
 
         @Test
         fun `tools added via withToolObject are callable`() {
-            val initial = com.embabel.agent.api.tool.progressive.UnfoldingTool.of(
+            val initial = UnfoldingTool.of(
                 name = "test",
                 description = "Test",
                 innerTools = emptyList()
@@ -1636,8 +1649,8 @@ class MatryoshkaToolTest {
             val searchTool = combined.innerTools.find { it.definition.name == "builderSearch" }!!
             val result = searchTool.call("""{"query": "test query"}""")
 
-            assertTrue(result is Tool.Result.Text)
-            assertTrue((result as Tool.Result.Text).content.contains("test query"))
+            Assertions.assertTrue(result is Tool.Result.Text)
+            Assertions.assertTrue((result as Tool.Result.Text).content.contains("test query"))
         }
     }
 
@@ -1646,60 +1659,60 @@ class MatryoshkaToolTest {
 
         @Test
         fun `creates UnfoldingTool from object with LlmTool methods`() {
-            val result = com.embabel.agent.api.tool.progressive.UnfoldingTool.fromToolObject(
+            val result = UnfoldingTool.fromToolObject(
                 instance = PlainToolMethods(),
                 name = "plain_tools",
                 description = "Plain tools description",
             )
 
-            assertEquals("plain_tools", result.definition.name)
-            assertEquals("Plain tools description", result.definition.description)
-            assertEquals(2, result.innerTools.size)
+            Assertions.assertEquals("plain_tools", result.definition.name)
+            Assertions.assertEquals("Plain tools description", result.definition.description)
+            Assertions.assertEquals(2, result.innerTools.size)
             val toolNames = result.innerTools.map { it.definition.name }
-            assertTrue(toolNames.contains("doSearch"))
-            assertTrue(toolNames.contains("doFilter"))
+            Assertions.assertTrue(toolNames.contains("doSearch"))
+            Assertions.assertTrue(toolNames.contains("doFilter"))
         }
 
         @Test
         fun `uses provided name and description`() {
-            val result = com.embabel.agent.api.tool.progressive.UnfoldingTool.fromToolObject(
+            val result = UnfoldingTool.fromToolObject(
                 instance = PlainToolMethods(),
                 name = "custom_name",
                 description = "Custom description",
             )
 
-            assertEquals("custom_name", result.definition.name)
-            assertEquals("Custom description", result.definition.description)
+            Assertions.assertEquals("custom_name", result.definition.name)
+            Assertions.assertEquals("Custom description", result.definition.description)
         }
 
         @Test
         fun `passes through removeOnInvoke`() {
-            val result = com.embabel.agent.api.tool.progressive.UnfoldingTool.fromToolObject(
+            val result = UnfoldingTool.fromToolObject(
                 instance = PlainToolMethods(),
                 name = "tools",
                 description = "Tools",
                 removeOnInvoke = false,
             )
 
-            assertFalse(result.removeOnInvoke)
+            Assertions.assertFalse(result.removeOnInvoke)
         }
 
         @Test
         fun `passes through childToolUsageNotes`() {
-            val result = com.embabel.agent.api.tool.progressive.UnfoldingTool.fromToolObject(
+            val result = UnfoldingTool.fromToolObject(
                 instance = PlainToolMethods(),
                 name = "tools",
                 description = "Tools",
                 childToolUsageNotes = "Use doSearch for queries, doFilter for filtering.",
             )
 
-            assertEquals("Use doSearch for queries, doFilter for filtering.", result.childToolUsageNotes)
+            Assertions.assertEquals("Use doSearch for queries, doFilter for filtering.", result.childToolUsageNotes)
         }
 
         @Test
         fun `throws on object with no LlmTool methods`() {
             assertThrows<IllegalArgumentException> {
-                com.embabel.agent.api.tool.progressive.UnfoldingTool.fromToolObject(
+                UnfoldingTool.fromToolObject(
                     instance = NoLlmToolMethods(),
                     name = "empty",
                     description = "Empty",
@@ -1709,17 +1722,17 @@ class MatryoshkaToolTest {
 
         @Test
         fun `works with interface implementation`() {
-            val result = com.embabel.agent.api.tool.progressive.UnfoldingTool.fromToolObject(
+            val result = UnfoldingTool.fromToolObject(
                 instance = ToolInterfaceImpl(),
                 name = "interface_tools",
                 description = "Tools from interface",
             )
 
-            assertEquals("interface_tools", result.definition.name)
-            assertEquals(2, result.innerTools.size)
+            Assertions.assertEquals("interface_tools", result.definition.name)
+            Assertions.assertEquals(2, result.innerTools.size)
             val toolNames = result.innerTools.map { it.definition.name }
-            assertTrue(toolNames.contains("interfaceSearch"))
-            assertTrue(toolNames.contains("interfaceCount"))
+            Assertions.assertTrue(toolNames.contains("interfaceSearch"))
+            Assertions.assertTrue(toolNames.contains("interfaceCount"))
         }
     }
 
@@ -1729,7 +1742,7 @@ class MatryoshkaToolTest {
         @Test
         fun `withToolObject with UnfoldingTools-annotated class adds as nested UnfoldingTool`() {
             val tool1 = MockTool("existing", "Existing tool") { Tool.Result.text("existing") }
-            val initial = com.embabel.agent.api.tool.progressive.UnfoldingTool.of(
+            val initial = UnfoldingTool.of(
                 name = "combined",
                 description = "Combined tools",
                 innerTools = listOf(tool1)
@@ -1737,22 +1750,22 @@ class MatryoshkaToolTest {
 
             val combined = initial.withToolObject(UnfoldingAnnotatedTools())
 
-            assertEquals(2, combined.innerTools.size)
-            assertTrue(combined.innerTools.any { it.definition.name == "existing" })
+            Assertions.assertEquals(2, combined.innerTools.size)
+            Assertions.assertTrue(combined.innerTools.any { it.definition.name == "existing" })
             val nested = combined.innerTools.find { it.definition.name == "annotated_ops" }
-            assertNotNull(nested)
-            assertTrue(nested is com.embabel.agent.api.tool.progressive.UnfoldingTool)
+            Assertions.assertNotNull(nested)
+            Assertions.assertTrue(nested is UnfoldingTool)
         }
 
         @Test
         fun `Tool fromInstance with UnfoldingTools-annotated class returns single UnfoldingTool`() {
             val tools = Tool.fromInstance(UnfoldingAnnotatedTools())
 
-            assertEquals(1, tools.size)
-            assertTrue(tools[0] is com.embabel.agent.api.tool.progressive.UnfoldingTool)
-            assertEquals("annotated_ops", tools[0].definition.name)
-            val unfolding = tools[0] as com.embabel.agent.api.tool.progressive.UnfoldingTool
-            assertEquals(2, unfolding.innerTools.size)
+            Assertions.assertEquals(1, tools.size)
+            Assertions.assertTrue(tools[0] is UnfoldingTool)
+            Assertions.assertEquals("annotated_ops", tools[0].definition.name)
+            val unfolding = tools[0] as UnfoldingTool
+            Assertions.assertEquals(2, unfolding.innerTools.size)
         }
     }
 }
@@ -1766,9 +1779,7 @@ class BuilderTestTools {
     fun builderFilter(criteria: String): String = "Filtered by: $criteria"
 }
 
-// Test fixture classes
-
-@MatryoshkaTools(
+@UnfoldingTools(
     name = "database_operations",
     description = "Database operations. Invoke to see specific tools."
 )
@@ -1781,7 +1792,7 @@ class SimpleDatabaseTools {
     fun insert(table: String, data: String): String = "Inserted record with id 123"
 }
 
-@MatryoshkaTools(
+@UnfoldingTools(
     name = "file_operations",
     description = "File operations. Pass category to select tools."
 )
@@ -1800,7 +1811,7 @@ class CategoryBasedFileTools {
     fun deleteFile(path: String): String = "Deleted"
 }
 
-@MatryoshkaTools(
+@UnfoldingTools(
     name = "persistent_tools",
     description = "Persistent tools",
     removeOnInvoke = false
@@ -1811,7 +1822,7 @@ class PersistentTools {
     fun doSomething(): String = "done"
 }
 
-@MatryoshkaTools(
+@UnfoldingTools(
     name = "music_search",
     description = "Search music database for artists, albums, and tracks",
     childToolUsageNotes = "Try vector search first for semantic queries. Use text search for exact artist names."
@@ -1825,7 +1836,7 @@ class MusicSearchTools {
     fun textSearch(query: String): String = "Text search results for: $query"
 }
 
-@MatryoshkaTools(
+@UnfoldingTools(
     name = "mixed_tools",
     description = "Mixed category tools"
 )
@@ -1846,7 +1857,7 @@ class NonAnnotatedClass {
     fun tool(): String = "result"
 }
 
-@MatryoshkaTools(
+@UnfoldingTools(
     name = "empty",
     description = "Empty"
 )
@@ -1857,7 +1868,7 @@ class NoToolMethods {
 /**
  * Level 3 - deepest level with actual tools
  */
-@MatryoshkaTools(
+@UnfoldingTools(
     name = "level3_tools",
     description = "Level 3 tools - the actual operations"
 )
@@ -1873,7 +1884,7 @@ class Level3Tools {
 /**
  * Level 2 - contains Level 3 as an inner class
  */
-@MatryoshkaTools(
+@UnfoldingTools(
     name = "level2_category",
     description = "Level 2 category - contains Level 3"
 )
@@ -1882,7 +1893,7 @@ class Level2Category {
     @LlmTool(description = "Level 2 utility function")
     fun level2Util(): String = "Level 2 utility"
 
-    @MatryoshkaTools(
+    @UnfoldingTools(
         name = "level3_inner",
         description = "Inner Level 3 tools"
     )
@@ -1899,7 +1910,7 @@ class Level2Category {
 /**
  * Level 1 - top level that contains Level 2
  */
-@MatryoshkaTools(
+@UnfoldingTools(
     name = "level1_top",
     description = "Top level - invoke to access Level 2"
 )
@@ -1908,7 +1919,7 @@ class Level1Top {
     @LlmTool(description = "Top level status")
     fun status(): String = "System status: OK"
 
-    @MatryoshkaTools(
+    @UnfoldingTools(
         name = "level2_inner",
         description = "Inner Level 2 category"
     )
@@ -1917,7 +1928,7 @@ class Level1Top {
         @LlmTool(description = "Level 2 inner operation")
         fun level2Op(): String = "Level 2 operation"
 
-        @MatryoshkaTools(
+        @UnfoldingTools(
             name = "level3_deepest",
             description = "Deepest Level 3 tools"
         )
@@ -1944,8 +1955,6 @@ class UnfoldingAnnotatedTools {
     @LlmTool(description = "Count items")
     fun count(): String = "42"
 }
-
-// Test fixtures for FromToolObjectTest
 
 class PlainToolMethods {
     @LlmTool(description = "Search for items")
