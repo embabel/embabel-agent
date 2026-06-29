@@ -221,9 +221,13 @@ class OperationContextPromptRunnerTest {
         }
 
         @Test
-        fun `test withTools with varargs`() {
+        fun `test withToolGroups with varargs`() {
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
-                .withTools("math", "file", "web")
+                .withToolGroups(
+                    "math",
+                    "file",
+                    "web"
+                )
 
             assertEquals(3, ocpr.toolGroups.size, "Must have three tool groups")
             assertTrue(ocpr.toolGroups.any { it.role == "math" }, "Math tool group not found")
@@ -232,9 +236,9 @@ class OperationContextPromptRunnerTest {
         }
 
         @Test
-        fun `test withTools with no arguments`() {
+        fun `test withToolGroups with no arguments`() {
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
-                .withTools()
+                .withToolGroups()
 
             assertEquals(0, ocpr.toolGroups.size, "Must have no tool groups when no args provided")
         }

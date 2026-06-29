@@ -174,17 +174,6 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
     fun withToolGroups(vararg toolGroups: String): PromptRunner =
         withToolGroups(toolGroups.toSet())
 
-    /**
-     * Add a set of tool groups to the PromptRunner
-     * @param toolGroups the set of named tool groups to add
-     */
-    @Deprecated(
-        message = "Use withToolGroups() instead for tool group names",
-        replaceWith = ReplaceWith("withToolGroups(*toolGroups)"),
-    )
-    fun withTools(vararg toolGroups: String): PromptRunner =
-        withToolGroups(toolGroups.toSet())
-
     fun withToolGroup(toolGroup: ToolGroupRequirement): PromptRunner
 
     /**
