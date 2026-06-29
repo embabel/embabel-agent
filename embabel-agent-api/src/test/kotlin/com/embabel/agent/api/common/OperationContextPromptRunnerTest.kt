@@ -678,13 +678,13 @@ class OperationContextPromptRunnerTest {
         }
 
         @Test
-        fun `test withFunctionTools varargs adds multiple tools`() {
+        fun `test withTools varargs adds multiple tools`() {
             val tool1 = Tool.of("vararg_tool1", "First") { _ -> Tool.Result.text("1") }
             val tool2 = Tool.of("vararg_tool2", "Second") { _ -> Tool.Result.text("2") }
             val tool3 = Tool.of("vararg_tool3", "Third") { _ -> Tool.Result.text("3") }
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
-                .withFunctionTools(tool1, tool2, tool3) as OperationContextPromptRunner
+                .withTools(tool1, tool2, tool3) as OperationContextPromptRunner
 
             val field = OperationContextPromptRunner::class.java.getDeclaredField("otherTools")
             field.isAccessible = true

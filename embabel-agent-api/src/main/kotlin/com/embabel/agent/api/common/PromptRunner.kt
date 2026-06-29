@@ -248,19 +248,6 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
         tools.fold(this) { acc, tool -> acc.withTool(tool) }
 
     /**
-     * Add multiple framework-agnostic [Tool]s to the prompt runner (varargs version).
-     *
-     * @param tools the tools to add
-     * @return PromptRunner instance with the added tools
-     */
-    @Deprecated(
-        message = "Use withTools(tool, *tools) instead",
-        replaceWith = ReplaceWith("withTools(tools[0], *tools.drop(1).toTypedArray())"),
-    )
-    fun withFunctionTools(vararg tools: Tool): PromptRunner =
-        withTools(tools.toList())
-
-    /**
      * Add multiple framework-agnostic [Tool]s to the prompt runner.
      * Uses required first parameter to avoid ambiguity with [withTools] for tool group names.
      *
