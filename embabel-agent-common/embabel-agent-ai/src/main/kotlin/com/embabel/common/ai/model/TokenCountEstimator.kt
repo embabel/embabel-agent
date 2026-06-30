@@ -30,7 +30,7 @@ import org.jetbrains.annotations.ApiStatus
  * analogous abstractions so that users coming from those frameworks find a
  * familiar API.
  */
-@ApiStatus.Experimental
+
 fun interface TokenCountEstimator<T> {
 
     fun estimate(content: T): Int
@@ -56,7 +56,6 @@ fun interface TokenCountEstimator<T> {
  * Callers working with non-Latin scripts or code may supply a
  * different ratio.
  */
-@ApiStatus.Experimental
 class CharacterHeuristicTokenCountEstimator @JvmOverloads constructor(
     val charsPerToken: Int = DEFAULT_CHARS_PER_TOKEN,
 ) : TokenCountEstimator<String> {
