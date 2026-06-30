@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.config.models.anthropic
+package com.embabel.agent.anthropic
 
 import com.embabel.chat.MessageRole
 import org.junit.jupiter.api.Assertions.*

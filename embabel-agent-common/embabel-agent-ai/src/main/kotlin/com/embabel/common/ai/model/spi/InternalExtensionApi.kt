@@ -19,7 +19,7 @@ package com.embabel.common.ai.model.spi
  * Marks APIs that are internal extension mechanisms for LlmOptions.
  *
  * These APIs are intended for use by provider-specific modules
- * (e.g., embabel-agent-anthropic-autoconfigure) to add provider-specific
+ * (e.g., embabel-agent-anthropic) to add provider-specific
  * configuration without coupling the core LlmOptions to specific providers.
  *
  * Application code should use provider-specific extension functions instead
