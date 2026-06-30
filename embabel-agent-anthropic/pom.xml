@@ -3,14 +3,13 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.embabel.agent</groupId>
-        <artifactId>embabel-agent-autoconfigure</artifactId>
+        <artifactId>embabel-agent-parent</artifactId>
         <version>1.0.0-RC1-SNAPSHOT</version>
-        <relativePath>../../pom.xml</relativePath>
     </parent>
-    <artifactId>embabel-agent-anthropic-autoconfigure</artifactId>
+    <artifactId>embabel-agent-anthropic</artifactId>
     <packaging>jar</packaging>
-    <name>Embabel Agent Autoconfiguration Models Anthropic</name>
-    <description>Anthropic Models for Embabel Agent API</description>
+    <name>Embabel Agent Anthropic</name>
+    <description>Embabel Agent Anthropic Utilities</description>
     <url>https://github.com/embabel/embabel-agent</url>
 
     <scm>
@@ -28,24 +27,33 @@
 
         <dependency>
             <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-anthropic</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-byok</artifactId>
         </dependency>
 
         <dependency>
-           <groupId>org.springframework.ai</groupId>
-           <artifactId>spring-ai-anthropic</artifactId>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-anthropic</artifactId>
         </dependency>
-
         <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-test-internal</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-maven-plugin</artifactId>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+            </plugin>
+
+        </plugins>
+    </build>
 
 </project>

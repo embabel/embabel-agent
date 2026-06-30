@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.config.models.anthropic
+package com.embabel.agent.anthropic
 
 import com.embabel.chat.MessageRole
 import com.embabel.common.ai.model.LlmOptions
@@ -78,7 +78,7 @@ data class AnthropicCachingConfig(
 /**
  * Add Anthropic caching configuration to LlmOptions.
  *
- * This extension function is only available when the embabel-agent-anthropic-autoconfigure
+ * This extension function is only available when the embabel-agent-anthropic
  * module is on the classpath.
  *
  * Example:

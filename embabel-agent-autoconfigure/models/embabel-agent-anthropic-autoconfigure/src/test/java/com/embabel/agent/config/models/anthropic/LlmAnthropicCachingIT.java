@@ -38,10 +38,12 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
+import com.embabel.agent.anthropic.AnthropicCachingConfig;
+
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.embabel.agent.config.models.anthropic.AnthropicCachingConfigKt.withAnthropicCaching;
+import static com.embabel.agent.anthropic.AnthropicCachingConfigKt.withAnthropicCaching;
 import static com.embabel.agent.config.models.anthropic.AnthropicUsage.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -74,7 +76,7 @@ import static org.junit.jupiter.api.Assertions.*;
                 "spring.main.allow-bean-definition-overriding=true",
 
                 // Debug logging for caching
-                "logging.level.com.embabel.agent.config.models.anthropic.AnthropicOptionsConverter=DEBUG",
+                "logging.level.com.embabel.agent.anthropic.AnthropicOptionsConverter=DEBUG",
                 "logging.level.org.springframework.ai.anthropic=DEBUG",
                 "logging.level.org.springframework.ai.anthropic.api=DEBUG",
                 "logging.level.com.embabel.agent.spi.support.springai.ChatClientLlmOperations=TRACE"
