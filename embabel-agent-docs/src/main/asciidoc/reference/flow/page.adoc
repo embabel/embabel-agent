@@ -192,7 +192,7 @@ Kotlin::
 ----
 @Action
 fun extractPerson(userInput: UserInput, context: OperationContext): Person? {
-    val maybeAPerson = context.promptRunner().withLlm(LlmOptions.fromModel(OpenAiModels.GPT_41)).createObjectIfPossible(
+    val maybeAPerson = context.promptRunner().withLlm(LlmOptions.withModel(OpenAiModels.GPT_41)).createObjectIfPossible(
         """
         Create a person from this user input, extracting their name:
         ${userInput.content}
