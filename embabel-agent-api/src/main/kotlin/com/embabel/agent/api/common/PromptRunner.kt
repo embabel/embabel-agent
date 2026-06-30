@@ -174,17 +174,6 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
     fun withToolGroups(vararg toolGroups: String): PromptRunner =
         withToolGroups(toolGroups.toSet())
 
-    /**
-     * Add a set of tool groups to the PromptRunner
-     * @param toolGroups the set of named tool groups to add
-     */
-    @Deprecated(
-        message = "Use withToolGroups() instead for tool group names",
-        replaceWith = ReplaceWith("withToolGroups(*toolGroups)"),
-    )
-    fun withTools(vararg toolGroups: String): PromptRunner =
-        withToolGroups(toolGroups.toSet())
-
     fun withToolGroup(toolGroup: ToolGroupRequirement): PromptRunner
 
     /**
@@ -208,13 +197,6 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
     fun withToolObject(
         toolObject: ToolObject,
     ): PromptRunner
-
-    @Deprecated(
-        message = "Use withToolObjects() instead",
-        replaceWith = ReplaceWith("withToolObjects(*toolObjects)"),
-    )
-    fun withToolObjectInstances(vararg toolObjects: Any?): PromptRunner =
-        toolObjects.fold(this) { acc, toolObject -> acc.withToolObject(toolObject) }
 
     fun withToolObjects(toolObjects: List<Any>): PromptRunner =
         toolObjects.fold(this) { acc, toolObject -> acc.withToolObject(toolObject) }
@@ -246,19 +228,6 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
      */
     fun withTools(tools: List<Tool>): PromptRunner =
         tools.fold(this) { acc, tool -> acc.withTool(tool) }
-
-    /**
-     * Add multiple framework-agnostic [Tool]s to the prompt runner (varargs version).
-     *
-     * @param tools the tools to add
-     * @return PromptRunner instance with the added tools
-     */
-    @Deprecated(
-        message = "Use withTools(tool, *tools) instead",
-        replaceWith = ReplaceWith("withTools(tools[0], *tools.drop(1).toTypedArray())"),
-    )
-    fun withFunctionTools(vararg tools: Tool): PromptRunner =
-        withTools(tools.toList())
 
     /**
      * Add multiple framework-agnostic [Tool]s to the prompt runner.
@@ -353,30 +322,6 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
     fun withGenerateExamples(generateExamples: Boolean): PromptRunner
 
     /**
-     * Adds a filter that determines which properties are to be included when creating an object.
-     *
-     * Note that each predicate is applied *in addition to* previously registered predicates.
-     * @param filter the property predicate to be added
-     * @deprecated Use creating().withPropertyFilter() instead. Will be removed when old ObjectCreator implementation is replaced.
-     */
-    @Deprecated(
-        "Use creating().withPropertyFilter() instead",
-        ReplaceWith("creating(outputClass).withPropertyFilter(filter)")
-    )
-    fun withPropertyFilter(filter: Predicate<String>): PromptRunner
-
-    /**
-     * Set whether to validate created objects.
-     * @param validation `true` to validate created objects; `false` otherwise. Defaults to `true`.
-     * @deprecated Use creating().withValidation() instead. Will be removed when old ObjectCreator implementation is replaced.
-     */
-    @Deprecated(
-        "Use creating().withValidation() instead",
-        ReplaceWith("creating(outputClass).withValidation(validation)")
-    )
-    fun withValidation(validation: Boolean = true): PromptRunner
-
-    /**
      * Add guardrail instances to this PromptRunner (additive).
      *
      * @param guards the guardrail instances to add
@@ -468,15 +413,6 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
     fun <T> creating(outputClass: Class<T>): Creating<T>
 
     /**
-     * Use operations from a given template
-     */
-    @Deprecated(
-        "Use rendering(templateName) instead",
-        ReplaceWith("rendering(templateName)")
-    )
-    fun withTemplate(templateName: String): Rendering = rendering(templateName)
-
-    /**
      * Returns [Rendering] for rendering the specified template.
      *
      * @param templateName the name of the template to render
@@ -486,27 +422,11 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
 
     /**
      * Check if true reactive streaming is supported by the underlying LLM model.
-     * Always check this before calling stream() to avoid exceptions.
+     * Always check this before calling streaming() to avoid exceptions.
      *
      * @return true if real-time streaming is supported, false if streaming is not available
      */
     fun supportsStreaming(): Boolean = false
-
-    /**
-     * Create streaming operations for this prompt runner configuration.
-     *
-     * This follows an explicit failure policy - if streaming is not supported by the
-     * underlying LLM implementation, this method will throw an exception rather than
-     * providing fallback behavior. Always check supportsStreaming() first for safe usage.
-     *
-     * @return StreamingCapability instance providing access to streaming operations
-     * @throws UnsupportedOperationException if streaming is not supported by this implementation
-     */
-    @Deprecated(
-        "Use streaming() instead",
-        ReplaceWith("streaming()")
-    )
-    fun stream(): StreamingCapability = streaming()
 
     /**
      * Return a [StreamingCapability] for reactive streaming operations.
@@ -519,7 +439,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
     fun streaming(): StreamingCapability {
         throw UnsupportedOperationException(
             "Streaming not supported by this PromptRunner implementation. " +
-                    "Check supportsStreaming() before calling stream()."
+                    "Check supportsStreaming() before calling streaming()."
         )
     }
 
@@ -535,28 +455,6 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
      * @return true if thinking extraction is supported, false if thinking is not available
      */
     fun supportsThinking(): Boolean = false
-
-    /**
-     * Create a thinking-enhanced version of this prompt runner.
-     *
-     * Returns a PromptRunner where all operations (createObject, generateText, etc.)
-     * return ThinkingResponse<T> wrappers that include both results and extracted
-     * thinking blocks from the LLM response.
-     *
-     * Always check supportsThinking() first and ensure LlmOptions includes thinking configuration
-     * via withLlm(LlmOptions.withThinking(Thinking.withExtraction())).
-     *
-     * Note: Thinking and streaming capabilities are mutually exclusive.
-     *
-     * @return ThinkingCapability instance providing access to thinking-aware operations
-     * @throws UnsupportedOperationException if thinking is not supported by this implementation
-     * @throws IllegalArgumentException if thinking is not enabled in LlmOptions configuration
-     */
-    @Deprecated(
-        message = "Use thinking() instead",
-        replaceWith = ReplaceWith("thinking()")
-    )
-    fun withThinking(): Thinking = thinking()
 
     /**
      * Return a [PromptRunner.Thinking] for extracting thinking blocks.
@@ -877,8 +775,8 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
      * ```kotlin
      * val runner: PromptRunner = context.ai().autoLlm()
      * if (runner.supportsStreaming()) {
-     *     val capability: StreamingCapability = runner.stream()
-     *     val operations = capability as StreamingPromptRunnerOperations (or use asStreaming extension function)
+     *     val capability: StreamingCapability = runner.streaming()
+     *     val operations = capability as StreamingPromptRunner.Streaming (or use asStreaming extension function)
      *     // Use streaming operations...
      * }
      * ```
@@ -1065,40 +963,15 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
 
 /**
  * An example of creating an object of the given type.
- * Used to provide strongly typed examples to the ObjectCreator.
+ * Used to provide strongly typed examples to the PromptRunner.Creating.
  * @param T the type of object to create
  * @param description description of the example--e.g. "good example, correct amount of detail"
  * @param value the example object
  */
-// TODO: open class because of extension by ObjectCreationExample, replace with data class once ObjectCreationExample has been removed
-open class CreationExample<T>(
+data class CreationExample<T>(
     val description: String,
     val value: T,
-) {
-    open fun copy(
-        description: String = this.description,
-        value: T = this.value,
-    ): CreationExample<T> = CreationExample(description, value)
-
-    override fun toString(): String =
-        "CreationExample(description='$description', value=$value)"
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        return if (other is CreationExample<*>) {
-            description == other.description && value == other.value
-        } else {
-            false
-        }
-    }
-
-    override fun hashCode(): Int {
-        var result = description.hashCode()
-        result = 31 * result + value.hashCode()
-        return result
-    }
-}
-
+)
 
 /**
  * Create an object of the given type
@@ -1126,7 +999,7 @@ inline fun <reified T> PromptRunner.Rendering.createObject(
  * Includes the given properties when creating an object.
  *
  * Note that each predicate is applied *in addition to* previously registered predicates, including
- * [ObjectCreator::withPropertyFilter], [ObjectCreator::withProperties], [ObjectCreator::withoutProperties],
+ * [Creating::withPropertyFilter], [Creating::withProperties], [Creating::withoutProperties],
  * and [withoutProperties].
  * @param properties the properties that are to be included
  */
@@ -1139,7 +1012,7 @@ fun <T, Any> Creating<T>.withProperties(
  * Excludes the given properties when creating an object.
  *
  * Note that each predicate is applied *in addition to* previously registered predicates, including
- * [ObjectCreator::withPropertyFilter], [ObjectCreator::withProperties], [ObjectCreator::withoutProperties],
+ * [Creating::withPropertyFilter], [Creating::withProperties], [Creatingg::withoutProperties],
  * and [withProperties].
  * @param properties the properties that are to be included
  */

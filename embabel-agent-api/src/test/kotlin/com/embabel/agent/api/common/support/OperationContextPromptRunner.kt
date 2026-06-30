@@ -257,14 +257,6 @@ internal data class OperationContextPromptRunner(
     override fun withGenerateExamples(generateExamples: Boolean): PromptRunner =
         copy(generateExamples = generateExamples)
 
-    @Deprecated("Use creating().withPropertyFilter() instead")
-    override fun withPropertyFilter(filter: Predicate<String>): PromptRunner =
-        copy(fieldFilter = this.fieldFilter.and({ filter.test(it.name) }))
-
-    @Deprecated("Use creating().withValidation() instead")
-    override fun withValidation(validation: Boolean): PromptRunner =
-        copy(validation = validation)
-
     override fun <T> creating(outputClass: Class<T>): PromptRunner.Creating<T> {
         return PromptRunnerCreating(
             promptRunner = this,
@@ -324,10 +316,10 @@ internal data class OperationContextPromptRunner(
     /**
      * Create thinking-aware prompt operations that extract LLM reasoning blocks.
      *
-     * This method creates ThinkingPromptRunnerOperations that can capture both the
+     * This method creates PromptRunner.Thinking that can capture both the
      * converted results and the reasoning content that LLMs generate during processing.
      *
-     * @return ThinkingPromptRunnerOperations for executing prompts with thinking extraction
+     * @return PromptRunner.Thinking for executing prompts with thinking extraction
      * @throws UnsupportedOperationException if the underlying LLM operations don't support thinking extraction
      */
     override fun supportsThinking(): Boolean = true

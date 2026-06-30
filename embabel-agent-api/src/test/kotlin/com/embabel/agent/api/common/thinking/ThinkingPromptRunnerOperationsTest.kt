@@ -246,12 +246,6 @@ class ThinkingPromptRunnerOperationsTest {
             override fun withGenerateExamples(generateExamples: Boolean): com.embabel.agent.api.common.PromptRunner =
                 this
 
-            override fun withPropertyFilter(filter: java.util.function.Predicate<String>): com.embabel.agent.api.common.PromptRunner =
-                this
-
-            override fun withValidation(validation: Boolean): com.embabel.agent.api.common.PromptRunner =
-                this
-
             override fun <T> creating(outputClass: Class<T>): com.embabel.agent.api.common.PromptRunner.Creating<T> {
                 throw UnsupportedOperationException("Not implemented for test")
             }

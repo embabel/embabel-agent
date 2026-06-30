@@ -39,7 +39,7 @@ import kotlin.test.fail
  * Tests for thinking functionality in OperationContextPromptRunner.
  *
  * Focuses on:
- * - withThinking() creates operational ThinkingPromptRunnerOperations
+ * - withThinking() creates operational PromptRunner.Thinking
  * - Error handling for incompatible LlmOperations implementations
  */
 class OperationContextPromptRunnerThinkingTest {
@@ -105,7 +105,7 @@ class OperationContextPromptRunnerThinkingTest {
         val thinkingOps = thinkingRunner.thinking()
         assertNotNull(thinkingOps)
 
-        // All should create valid, operational ThinkingPromptRunnerOperations
+        // All should create valid, operational PromptRunner.Thinking
         // The fact they were created without exceptions validates the internal setup
     }
 

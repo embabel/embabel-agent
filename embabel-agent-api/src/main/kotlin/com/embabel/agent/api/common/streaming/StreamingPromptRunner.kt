@@ -30,7 +30,7 @@ import reactor.core.publisher.Flux
  * Usage:
  * ```kotlin
  * val streamingRunner = context.ai().withAutoLlm() as StreamingPromptRunner
- * val restaurantStream = streamingRunner.stream()
+ * val restaurantStream = streamingRunner.streaming()
  *     .withPrompt("Find 5 restaurants in Paris")
  *     .createObjectStream(Restaurant::class.java)
  * ```

@@ -133,10 +133,10 @@ class AgentInvocationKotlinTest {
         }
 
         @Test
-        fun withResultType() {
+        fun returning() {
             val invocation: AgentInvocation<Foo> = AgentInvocation.create(agentPlatform)
             val resultType = Bar::class.java
-            val invocation2 = invocation.withResultType(resultType) as DefaultAgentInvocation<Bar>
+            val invocation2 = invocation.returning(resultType) as DefaultAgentInvocation<Bar>
 
             assertSame(expected = resultType, actual = invocation2.resultType)
         }

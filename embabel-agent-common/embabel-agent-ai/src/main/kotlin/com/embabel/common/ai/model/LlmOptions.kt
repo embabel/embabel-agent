@@ -252,17 +252,6 @@ data class LlmOptions @JvmOverloads constructor(
             modelSelectionCriteria = PlatformDefault,
         )
 
-        @Deprecated(
-            "Use 'withModel' instead",
-            ReplaceWith("withModel(model)"),
-        )
-        @JvmStatic
-        fun fromModel(
-            model: String,
-        ): LlmOptions = LlmOptions(
-            modelSelectionCriteria = byName(model),
-        )
-
         /**
          * Create an LlmOptions instance with a specific model.
          * @param model The name of the model to use.

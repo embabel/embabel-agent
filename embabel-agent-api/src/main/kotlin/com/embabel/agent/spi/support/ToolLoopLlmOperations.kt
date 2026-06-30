@@ -253,7 +253,7 @@ open class ToolLoopLlmOperations(
             if (text.isNotBlank()) converter.convert(text)!! else MaybeReturn.noOutput()
         }
 
-        // Create a decorator for dynamically injected tools (e.g., from MatryoshkaTool)
+        // Create a decorator for dynamically injected tools (e.g., from UnfoldingTool)
         val injectedToolDecorator: ((Tool) -> Tool) = { tool: Tool ->
             toolDecorator.decorate(
                 tool = tool,
@@ -811,7 +811,7 @@ open class ToolLoopLlmOperations(
     // ========== Private helper methods to reduce duplication ==========
 
     /**
-     * Create a decorator for dynamically injected tools (e.g., from MatryoshkaTool).
+     * Create a decorator for dynamically injected tools (e.g., from UnfoldingTool).
      */
     private fun createInjectedToolDecorator(
         llmRequestEvent: LlmRequestEvent<*>?,
