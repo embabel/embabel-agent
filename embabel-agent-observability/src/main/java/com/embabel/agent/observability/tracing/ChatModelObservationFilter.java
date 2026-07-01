@@ -211,9 +211,6 @@ public class ChatModelObservationFilter implements ObservationFilter {
      */
     private String buildInputMessages(ChatModelObservationContext chatContext) {
         var request = chatContext.getRequest();
-        if (request == null) {
-            return null;
-        }
         var instructions = request.getInstructions();
         if (instructions == null || instructions.isEmpty()) {
             return null;
@@ -277,10 +274,6 @@ public class ChatModelObservationFilter implements ObservationFilter {
      */
     private String extractPrompt(ChatModelObservationContext chatContext) {
         var request = chatContext.getRequest();
-        if (request == null) {
-            return null;
-        }
-
         var instructions = request.getInstructions();
         if (instructions == null || instructions.isEmpty()) {
             return null;
