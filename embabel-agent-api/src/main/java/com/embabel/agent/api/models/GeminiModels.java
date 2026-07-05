@@ -25,7 +25,11 @@ public final class GeminiModels {
         // Utility class - prevent instantiation
     }
 
+    // Gemini 3.5 Family (Latest - Stable)
+    public static final String GEMINI_3_5_FLASH = "gemini-3.5-flash";
+
     // Gemini 3.1 Family (Latest)
+    public static final String GEMINI_3_1_FLASH_LITE = "gemini-3.1-flash-lite";
     public static final String GEMINI_3_1_PRO_PREVIEW = "gemini-3.1-pro-preview";
     public static final String GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS = "gemini-3.1-pro-preview-customtools";
     public static final String GEMINI_3_1_FLASH_LITE_PREVIEW = "gemini-3.1-flash-lite-preview";
@@ -40,7 +44,15 @@ public final class GeminiModels {
     public static final String GEMINI_2_5_FLASH_LITE = "gemini-2.5-flash-lite";
 
     // Gemini 2.0 Family (Previous Generation)
+    /**
+     * @deprecated gemini-2.0-flash was shut down by Google on 2026-06-01 and now returns 404. Use {@link #GEMINI_3_5_FLASH}.
+     */
+    @Deprecated
     public static final String GEMINI_2_0_FLASH = "gemini-2.0-flash";
+    /**
+     * @deprecated gemini-2.0-flash-lite was shut down by Google on 2026-06-01 and now returns 404. Use {@link #GEMINI_3_1_FLASH_LITE}.
+     */
+    @Deprecated
     public static final String GEMINI_2_0_FLASH_LITE = "gemini-2.0-flash-lite";
 
 
