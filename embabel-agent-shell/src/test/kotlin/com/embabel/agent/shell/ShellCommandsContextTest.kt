@@ -28,8 +28,8 @@ import com.embabel.agent.shell.config.ShellProperties
 import com.embabel.agent.spi.logging.ColorPalette
 import com.embabel.agent.spi.logging.LoggingPersonality
 import com.embabel.common.ai.model.ModelProvider
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.*
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach

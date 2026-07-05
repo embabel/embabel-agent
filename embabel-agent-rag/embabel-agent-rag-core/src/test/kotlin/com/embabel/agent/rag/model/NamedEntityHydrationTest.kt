@@ -18,8 +18,8 @@ package com.embabel.agent.rag.model
 import com.embabel.agent.core.DynamicType
 import com.embabel.agent.core.JvmType
 import com.embabel.agent.rag.model.NamedEntityData.Companion.ENTITY_LABEL
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -76,7 +76,7 @@ class NamedEntityHydrationTest {
 
     @BeforeEach
     fun setup() {
-        objectMapper = ObjectMapper().registerKotlinModule()
+        objectMapper = jacksonObjectMapper()
     }
 
     @Nested
@@ -285,8 +285,16 @@ class NamedEntityHydrationTest {
         }
 
         @Test
-        fun `toTypedInstance uses default for missing primitive field`() {
-            // Jackson defaults missing Int to 0
+        fun `toTypedInstance returns null when required primitive field is missing`() {
+            // Jackson 2's kotlin module quietly defaulted missing Int parameters to 0, so
+            // hydration of TestPersonWithAge with no birthYear used to succeed (with
+            // birthYear = 0). Jackson 3's KotlinValueInstantiator is stricter: it throws
+            // MismatchedInputException("Missing required creator property 'birthYear'")
+            // for any non-nullable constructor parameter that lacks both an explicit
+            // Kotlin default and a value in the input. toTypedInstance catches the
+            // exception and returns null, which is the new (and arguably more honest)
+            // contract — callers that want a zero default should add it explicitly to
+            // their domain class.
             val entityData = SimpleNamedEntityData(
                 id = "person-6",
                 name = "Frank",
@@ -298,8 +306,7 @@ class NamedEntityHydrationTest {
 
             val person: TestPersonWithAge? = entityData.toTypedInstance(objectMapper)
 
-            assertNotNull(person)
-            assertEquals(0, person!!.birthYear) // Jackson defaults to 0
+            assertNull(person)
         }
 
         @Test

@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.agent</groupId>
         <artifactId>embabel-agent-autoconfigure</artifactId>
-        <version>1.0.0-RC1-SNAPSHOT</version>
+        <version>1.5.0-SNAPSHOT</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
     <artifactId>embabel-agent-anthropic-autoconfigure</artifactId>
@@ -39,6 +39,16 @@
         <dependency>
            <groupId>org.springframework.ai</groupId>
            <artifactId>spring-ai-anthropic</artifactId>
+        </dependency>
+
+        <!--
+          Spring AI 2.0's spring-ai-anthropic depends only on anthropic-java-core, not the OkHttp
+          client. AnthropicModelFactory uses AnthropicOkHttpClient directly, so declare the client
+          artifact explicitly. Version is managed by the embabel-build BOM (anthropic-java.version).
+        -->
+        <dependency>
+            <groupId>com.anthropic</groupId>
+            <artifactId>anthropic-java-client-okhttp</artifactId>
         </dependency>
 
         <dependency>

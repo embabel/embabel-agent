@@ -32,7 +32,7 @@ import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import com.embabel.chat.ConversationFactoryProvider
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 
 /**
  * Services used by the platform and available to user-authored code.

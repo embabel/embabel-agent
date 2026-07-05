@@ -17,16 +17,16 @@ package com.embabel.agent.spi.support
 
 import com.embabel.common.textio.template.CompiledTemplate
 import com.embabel.common.textio.template.TemplateRenderer
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.BeanProperty
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.fasterxml.jackson.databind.deser.ContextualDeserializer
-import com.fasterxml.jackson.databind.deser.std.StdDeserializer
-import com.fasterxml.jackson.databind.exc.MismatchedInputException
-import com.fasterxml.jackson.databind.type.TypeFactory
+import tools.jackson.core.JsonParser
+import tools.jackson.databind.BeanProperty
+import tools.jackson.databind.DeserializationContext
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ValueDeserializer
+import tools.jackson.databind.annotation.JsonDeserialize
+import tools.jackson.databind.deser.std.StdDeserializer
+import tools.jackson.databind.exc.MismatchedInputException
+import tools.jackson.databind.node.NullNode
+import tools.jackson.databind.type.TypeFactory
 
 /**
  * Common reusable artifacts for LlmOperations implementations.
@@ -99,25 +99,29 @@ internal data class MaybeReturn<T>(
  * | `{}` (neither field) | `failure("Neither success nor failure field provided")` |
  *
  * ## Note on Empty String Input
- * Empty string `""` is not valid JSON and causes [com.fasterxml.jackson.core.JsonParseException]
+ * Empty string `""` is not valid JSON and causes [tools.jackson.core.JsonParseException]
  * before this deserializer is invoked. Empty string handling must be done at the outputParser
  * level using [MaybeReturn.noOutput].
  *
  * @param T the type of the success value
  */
 internal class MaybeReturnDeserializer<T> private constructor(
-    private val valueType: com.fasterxml.jackson.databind.JavaType,
-) : StdDeserializer<MaybeReturn<T>>(MaybeReturn::class.java), ContextualDeserializer {
+    private val valueType: tools.jackson.databind.JavaType,
+) : StdDeserializer<MaybeReturn<T>>(MaybeReturn::class.java) {
 
     /**
      * Required no-arg constructor for Jackson.
+     * In Jackson 3, TypeFactory.defaultInstance() is gone; use createDefaultInstance().
      */
-    constructor() : this(TypeFactory.defaultInstance().constructType(Any::class.java))
+    constructor() : this(TypeFactory.createDefaultInstance().constructType(Any::class.java))
 
+    /**
+     * Jackson 3 merged ContextualDeserializer into ValueDeserializer; override directly.
+     */
     override fun createContextual(
         ctxt: DeserializationContext,
         property: BeanProperty?,
-    ): JsonDeserializer<*> {
+    ): ValueDeserializer<*> {
         val wrapperType = ctxt.contextualType
         val innerType = if (wrapperType.containedTypeCount() > 0) {
             wrapperType.containedType(0)
@@ -131,16 +135,17 @@ internal class MaybeReturnDeserializer<T> private constructor(
         parser: JsonParser,
         ctxt: DeserializationContext,
     ): MaybeReturn<T> {
-        val node = parser.codec.readTree<JsonNode>(parser)
+        // Jackson 3: JsonParser.codec is gone; read via DeserializationContext.
+        val node: JsonNode = ctxt.readTree(parser)
 
         // node.get("field") returns non-null if the field EXISTS in JSON (even if value is null)
-        // node.isNull returns true if the JSON value is the literal `null`
+        // (node is NullNode) is the Jackson-3 way to check for the literal JSON `null`
         // Combined: hasValue = field exists AND value is not JSON null
         val successNode = node[FIELD_SUCCESS]
         val failureNode = node[FIELD_FAILURE]
         val bothFieldsExist = successNode != null && failureNode != null
-        val hasSuccessValue = successNode != null && !successNode.isNull
-        val hasFailureValue = failureNode != null && !failureNode.isNull
+        val hasSuccessValue = successNode != null && successNode !is NullNode
+        val hasFailureValue = failureNode != null && failureNode !is NullNode
 
         return when {
             // Both fields have non-null values - ambiguous
@@ -161,14 +166,14 @@ internal class MaybeReturnDeserializer<T> private constructor(
     }
 
     private fun deserializeFailure(failureNode: JsonNode): MaybeReturn<T> = when {
-        failureNode.isNull -> MaybeReturn.failure(ERROR_FAILURE_NULL)
+        failureNode is NullNode -> MaybeReturn.failure(ERROR_FAILURE_NULL)
         !failureNode.isTextual -> MaybeReturn.failure(ERROR_FAILURE_NOT_STRING)
         failureNode.asText().isBlank() -> MaybeReturn.failure(ERROR_FAILURE_EMPTY)
         else -> MaybeReturn.failure(failureNode.asText())
     }
 
     private fun deserializeSuccess(successNode: JsonNode, ctxt: DeserializationContext): MaybeReturn<T> {
-        if (successNode.isNull) {
+        if (successNode is NullNode) {
             return MaybeReturn.failure(ERROR_SUCCESS_NULL)
         }
 
@@ -180,7 +185,7 @@ internal class MaybeReturnDeserializer<T> private constructor(
             val errorMessage = when (e) {
                 is MismatchedInputException -> {
                     // Extract field name from path if available (covers missing required fields)
-                    val fieldName = e.path.lastOrNull()?.fieldName
+                    val fieldName = e.path.lastOrNull()?.propertyName
                     if (fieldName != null && e.message?.contains("missing") == true) {
                         "$ERROR_MISSING_FIELD$fieldName"
                     } else {

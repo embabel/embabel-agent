@@ -28,8 +28,8 @@ import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.UnfoldingToolInjectionStrategy
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.chat.UserMessage
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import org.junit.jupiter.api.Assertions
+import tools.jackson.module.kotlin.jacksonObjectMapper
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows

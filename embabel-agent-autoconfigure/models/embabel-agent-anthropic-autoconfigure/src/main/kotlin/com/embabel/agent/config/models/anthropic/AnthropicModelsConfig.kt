@@ -29,9 +29,11 @@ import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
+import org.springframework.ai.anthropic.AnthropicCacheOptions
+import org.springframework.ai.anthropic.AnthropicCacheStrategy
 import org.springframework.ai.anthropic.AnthropicChatModel
 import org.springframework.ai.anthropic.AnthropicChatOptions
-import org.springframework.ai.anthropic.api.AnthropicApi
+import org.springframework.ai.chat.messages.MessageType
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
@@ -162,18 +164,20 @@ class AnthropicModelsConfig(
      * Creates an individual Anthropic model from configuration, applying full model
      * definition settings (thinking mode, token budgets, pricing, etc.) that are not
      * needed in the BYOK path.
+     *
+     * Spring AI 2.0 dropped the spring-retry `RetryTemplate` parameter on the chat model
+     * builder; retries are wrapped at the ChatClientLlmOperations layer instead.
      */
     private fun createAnthropicLlm(modelDef: AnthropicModelDefinition): LlmService<*> {
         val chatModel = AnthropicChatModel
             .builder()
-            .defaultOptions(createDefaultOptions(modelDef))
-            .anthropicApi(createAnthropicApi())
+            .options(createDefaultOptions(modelDef))
+            .anthropicClient(createAnthropicClient())
             .toolCallingManager(
                 ToolCallingManager.builder()
                     .observationRegistry(observationRegistry)
                     .build()
             )
-            .retryTemplate(properties.retryTemplate("anthropic-${modelDef.modelId}"))
             .observationRegistry(observationRegistry)
             .build()
 
@@ -197,6 +201,10 @@ class AnthropicModelsConfig(
 
     /**
      * Creates default options for a model based on YAML configuration.
+     *
+     * Spring AI 2.0 replaced the `AnthropicApi.ChatCompletionRequest.ThinkingConfig`
+     * constructor with first-class `thinkingEnabled(tokenBudget)` / `thinkingDisabled()`
+     * methods on the options builder.
      */
     private fun createDefaultOptions(modelDef: AnthropicModelDefinition): AnthropicChatOptions {
         return AnthropicChatOptions.builder()
@@ -208,20 +216,93 @@ class AnthropicModelsConfig(
                 modelDef.topK?.let { topK(it) }
 
                 // Configure thinking mode if specified
-                modelDef.thinking?.let { thinkingConfig ->
-                    thinking(
-                        AnthropicApi.ChatCompletionRequest.ThinkingConfig(
-                            AnthropicApi.ThinkingType.ENABLED,
-                            thinkingConfig.tokenBudget
-                        )
-                    )
-                } ?: thinking(
-                    AnthropicApi.ChatCompletionRequest.ThinkingConfig(
-                        AnthropicApi.ThinkingType.DISABLED,
-                        null
-                    )
-                )
+                val thinkingBudget = modelDef.thinking?.tokenBudget
+                if (thinkingBudget != null && thinkingBudget > 0) {
+                    thinkingEnabled(thinkingBudget.toLong())
+                } else {
+                    thinkingDisabled()
+                }
             }
             .build()
+    }
+}
+
+object AnthropicOptionsConverter : OptionsConverter<AnthropicChatOptions> {
+
+    private val logger = org.slf4j.LoggerFactory.getLogger(AnthropicOptionsConverter::class.java)
+
+    /**
+     * Anthropic's default is too low and results in truncated responses.
+     */
+    const val DEFAULT_MAX_TOKENS = 8192
+
+    override fun convertOptions(options: LlmOptions): AnthropicChatOptions {
+        val builder = AnthropicChatOptions.builder()
+            .temperature(options.temperature)
+            .topP(options.topP)
+            .maxTokens(options.maxTokens ?: DEFAULT_MAX_TOKENS)
+            .apply {
+                val thinkingBudget = options.thinking?.tokenBudget
+                if (options.thinking?.enabled == true && thinkingBudget != null) {
+                    thinkingEnabled(thinkingBudget.toLong())
+                } else {
+                    thinkingDisabled()
+                }
+            }
+            .topK(options.topK)
+
+        // Apply Anthropic caching if configured
+        options.getAnthropicCaching()?.let { caching ->
+            val strategy = resolveStrategy(caching)
+            logger.debug("Applying Anthropic caching: config={}, strategy={}", caching, strategy)
+
+            val cacheOptionsBuilder = AnthropicCacheOptions.builder()
+                .strategy(strategy)
+
+            // Apply message type minimum content lengths
+            caching.messageTypeMinContentLengths.forEach { (role, minLength) ->
+                cacheOptionsBuilder.messageTypeMinContentLength(toMessageType(role), minLength)
+            }
+
+            // Apply message type TTLs
+            caching.messageTypeTtls.forEach { (role, ttl) ->
+                cacheOptionsBuilder.messageTypeTtl(toMessageType(role), ttl)
+            }
+
+            builder.cacheOptions(cacheOptionsBuilder.build())
+        }
+
+        return builder.build()
+    }
+
+    /**
+     * Resolve Anthropic cache strategy from caching configuration.
+     *
+     * Strategy selection follows this priority:
+     * 1. CONVERSATION_HISTORY - if conversation caching enabled
+     * 2. SYSTEM_AND_TOOLS - if both system and tools enabled
+     * 3. SYSTEM_ONLY - if only system enabled
+     * 4. TOOLS_ONLY - if only tools enabled
+     * 5. NONE - if nothing enabled
+     */
+    private fun resolveStrategy(config: AnthropicCachingConfig): AnthropicCacheStrategy {
+        return when {
+            config.conversationHistory -> AnthropicCacheStrategy.CONVERSATION_HISTORY
+            config.systemPrompt && config.tools -> AnthropicCacheStrategy.SYSTEM_AND_TOOLS
+            config.systemPrompt -> AnthropicCacheStrategy.SYSTEM_ONLY
+            config.tools -> AnthropicCacheStrategy.TOOLS_ONLY
+            else -> AnthropicCacheStrategy.NONE
+        }
+    }
+
+    /**
+     * Convert MessageRole to Spring AI's MessageType.
+     */
+    private fun toMessageType(role: MessageRole): MessageType {
+        return when (role) {
+            MessageRole.SYSTEM -> MessageType.SYSTEM
+            MessageRole.USER -> MessageType.USER
+            MessageRole.ASSISTANT -> MessageType.ASSISTANT
+        }
     }
 }

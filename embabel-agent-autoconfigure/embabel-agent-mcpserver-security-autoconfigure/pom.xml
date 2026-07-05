@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.agent</groupId>
         <artifactId>embabel-agent-autoconfigure</artifactId>
-        <version>1.0.0-RC1-SNAPSHOT</version>
+        <version>1.5.0-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-agent-mcpserver-security-autoconfigure</artifactId>
     <packaging>jar</packaging>
@@ -44,6 +44,29 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-oauth2-jose</artifactId>
+        </dependency>
+
+        <!--
+            Spring Boot 4 split the security autoconfigurations out of
+            spring-boot-autoconfigure into dedicated modules:
+              - spring-boot-security (SecurityAutoConfiguration; package moved to
+                org.springframework.boot.security.autoconfigure.servlet)
+              - spring-boot-security-oauth2-resource-server
+                (OAuth2ResourceServerAutoConfiguration; package moved to
+                org.springframework.boot.security.oauth2.server.resource.autoconfigure.servlet)
+            Both are referenced by AgentMcpServerSecurityAutoConfigurationTest's
+            AutoConfigurations.of(...) list.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-security</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-security-oauth2-resource-server</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

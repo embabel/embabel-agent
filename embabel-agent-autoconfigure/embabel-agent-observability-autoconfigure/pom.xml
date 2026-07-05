@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.agent</groupId>
         <artifactId>embabel-agent-autoconfigure</artifactId>
-        <version>1.0.0-RC1-SNAPSHOT</version>
+        <version>1.5.0-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-agent-observability-autoconfigure</artifactId>
     <packaging>jar</packaging>
@@ -39,10 +39,22 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- Spring AOP for @Tracked aspect support -->
+        <!--
+            Spring Boot 4 moved ObservationRegistryCustomizer out of
+            spring-boot-actuator-autoconfigure into the dedicated
+            spring-boot-micrometer-observation artifact and renamed its package
+            (org.springframework.boot.micrometer.observation.autoconfigure).
+        -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-aop</artifactId>
+            <artifactId>spring-boot-micrometer-observation</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- AspectJ weaver for @Tracked aspect support (direct dep, not spring-boot-starter-aspectj); provides org.aspectj.lang.* -->
+        <dependency>
+            <groupId>org.aspectj</groupId>
+            <artifactId>aspectjweaver</artifactId>
             <optional>true</optional>
         </dependency>
 

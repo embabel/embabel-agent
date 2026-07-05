@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.agent</groupId>
         <artifactId>embabel-agent-parent</artifactId>
-        <version>1.0.0-RC1-SNAPSHOT</version>
+        <version>1.5.0-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-agent-openai</artifactId>
     <packaging>jar</packaging>
@@ -34,6 +34,39 @@
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-openai</artifactId>
         </dependency>
+
+        <!--
+          Spring AI 2.0 swapped its hand-rolled OpenAiApi for the openai-java SDK.
+          The factory references OpenAIClient / OpenAIOkHttpClient directly, so we
+          need both on the compile classpath. Versions pinned inline (matching
+          spring-ai-openai 2.0.0-M8's compile-time expectation) to keep this module
+          self-contained — the parent BOM's `openai-java` entry is for older tests
+          and is scope=test by default, which would hide OpenAIClient from main.
+        -->
+        <dependency>
+            <groupId>com.openai</groupId>
+            <artifactId>openai-java</artifactId>
+            <version>4.36.0</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.openai</groupId>
+            <artifactId>openai-java-client-okhttp</artifactId>
+            <version>4.36.0</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <!--
+          The factory's constructor signature still types `webClientBuilder` against
+          `WebClient.Builder` for source compatibility with subclasses. Spring AI 2.0's
+          spring-ai-openai dropped its spring-webflux dep when it removed the WebClient
+          code path, so we add it back explicitly. The parameter is otherwise unused.
+        -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webflux</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-test-internal</artifactId>
