@@ -41,7 +41,16 @@ class GoogleGenAiModels {
         const val GEMINI_2_5_FLASH_LITE = "gemini-2.5-flash-lite"
 
         // Gemini 2.0 Family (Previous Generation)
+        @Deprecated(
+            message = "gemini-2.0-flash was shut down by Google on 2026-06-01 and now returns 404. Use GEMINI_3_5_FLASH.",
+            replaceWith = ReplaceWith("GEMINI_3_5_FLASH")
+        )
         const val GEMINI_2_0_FLASH = "gemini-2.0-flash"
+
+        @Deprecated(
+            message = "gemini-2.0-flash-lite was shut down by Google on 2026-06-01 and now returns 404. Use GEMINI_3_1_FLASH_LITE.",
+            replaceWith = ReplaceWith("GEMINI_3_1_FLASH_LITE")
+        )
         const val GEMINI_2_0_FLASH_LITE = "gemini-2.0-flash-lite"
 
         // Embedding Models
