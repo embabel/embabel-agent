@@ -114,24 +114,6 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
     }
 
     /**
-     * Convert this reference to a MatryoshkaReference,
-     * exposing a single tool object that supports nesting.
-     * Do not rewrap a MatryoshkaReference. Thus
-     * repeated calls to this method are safe.
-     */
-    @Deprecated(
-        replaceWith = ReplaceWith(
-            expression = "withUnfoldingTool()",
-        ),
-        message = "Use withUnfoldingTool()",
-        level = DeprecationLevel.WARNING,
-    )
-    fun asMatryoshka(): LlmReference = when (this) {
-        is UnfoldingReference -> this
-        else -> UnfoldingReference(this)
-    }
-
-    /**
      * Convert this reference to a reference exposing a single unfolding tool.
      * Does not rewrap an unfolding reference. Thus
      * repeated calls to this method are safe.

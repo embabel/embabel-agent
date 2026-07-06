@@ -117,14 +117,6 @@ internal data class DelegatingStreamingPromptRunner(
     override fun withGenerateExamples(generateExamples: Boolean): PromptRunner =
         copy(delegate = delegate.withGenerateExamples(generateExamples))
 
-    @Deprecated("Use creating().withPropertyFilter() instead")
-    override fun withPropertyFilter(filter: Predicate<String>): PromptRunner =
-        copy(delegate = delegate.withFieldFilter { filter.test(it.name) })
-
-    @Deprecated("Use creating().withValidation() instead")
-    override fun withValidation(validation: Boolean): PromptRunner =
-        copy(delegate = delegate.withValidation(validation))
-
     override fun withGuardRails(vararg guards: GuardRail): PromptRunner =
         copy(delegate = delegate.withGuardRails(*guards))
 
@@ -227,7 +219,7 @@ internal data class DelegatingStreamingPromptRunner(
                 """
                 Streaming not supported by underlying LLM model.
                 Model type: ${delegate.llmOperations::class.simpleName}.
-                Check supportsStreaming() before calling stream().
+                Check supportsStreaming() before calling streaming().
                 """.trimIndent()
             )
         }

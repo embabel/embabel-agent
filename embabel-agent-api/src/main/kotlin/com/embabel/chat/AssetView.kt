@@ -33,7 +33,7 @@ interface AssetView {
      * References will be converted to matryoshka tools
      */
     fun references(): List<LlmReference> =
-        assets.map { it.reference().asMatryoshka() }
+        assets.map { it.reference().withUnfolding() }
 
     /**
      * Assets timestamped since the given instant

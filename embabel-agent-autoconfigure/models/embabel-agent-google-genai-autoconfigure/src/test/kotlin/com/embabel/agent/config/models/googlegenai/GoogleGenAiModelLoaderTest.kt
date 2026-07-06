@@ -388,12 +388,12 @@ class GoogleGenAiModelLoaderTest {
         val result = loader.loadAutoConfigMetadata()
 
         // Assert
-        assertEquals(11, result.models.size, "Should load exactly 11 Google GenAI models")
+        assertEquals(9, result.models.size, "Should load exactly 9 Google GenAI models")
 
         val expectedModels = listOf(
             "gemini_3_1_pro_preview", "gemini_3_1_pro_preview_customtools",
             "gemini_3_flash_preview", "gemini_3_1_flash_lite_preview", "gemini_25_pro", "gemini_25_flash",
-            "gemini_25_flash_lite", "gemini_20_flash", "gemini_20_flash_lite",
+            "gemini_25_flash_lite",
             "gemini_3_5_flash", "gemini_3_1_flash_lite"
         )
 

@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  *  @see [PromptContributor]
@@ -128,7 +129,7 @@ class PromptContributorTest {
     fun `KnowledgeCutoffDate should respect custom formatter`() {
         // Create with a custom formatter
         val date = LocalDate.of(2025, 4, 1)
-        val formatter = DateTimeFormatter.ofPattern("MMMM yyyy")
+        val formatter = DateTimeFormatter.ofPattern("MMMM yyyy").withLocale(Locale.ENGLISH)
         val cutoffDate = KnowledgeCutoffDate(date, formatter)
 
         // Check content uses custom format

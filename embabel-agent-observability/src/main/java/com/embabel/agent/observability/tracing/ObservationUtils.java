@@ -58,7 +58,7 @@ final class ObservationUtils {
         StringBuilder sb = new StringBuilder();
         for (Message m : messages) {
             if (sb.length() > 0) sb.append("\n");
-            String role = m.getRole() == null ? "null" : m.getRole().name().toLowerCase(Locale.ROOT);
+            String role = m.getRole().name().toLowerCase(Locale.ROOT);
             sb.append("[").append(role).append("]: ").append(m.getContent());
         }
         return sb.toString();

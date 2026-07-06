@@ -34,7 +34,7 @@ import kotlin.test.assertEquals
  * Unit tests for StreamingPromptRunnerOperationsImpl.
  *
  * Tests the delegation/bridge behavior that connects the API layer
- * (StreamingPromptRunnerOperations) to the SPI layer (StreamingLlmOperations).
+ * (StreamingPromptRunner.Streaming) to the SPI layer (StreamingLlmOperations).
  * This implementation enables polymorphic access through the StreamingCapability
  * tag interface while maintaining clean separation between API and SPI layers.
  *

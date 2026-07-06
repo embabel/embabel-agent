@@ -49,7 +49,7 @@ interface ActionMethodManager {
     /**
      * Create an Action from a method
      * @param method the method to create an action from
-     * @param instance instance of Agent or AgentCapabilities-annotated class
+     * @param instance instance of Agent or EmbabelComponent-annotated class
      * @param toolsOnInstance tools to use from instance level
      * @param costMethods map of cost method name to CostMethodInfo for dynamic cost/value computation
      */

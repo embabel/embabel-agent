@@ -36,9 +36,6 @@ interface AgentInvocation<T : Any> : TypedInvocation<T, AgentInvocation<T>> {
 
     fun withAgentPlatform(agentPlatform: AgentPlatform): AgentInvocation<T>
 
-    @Deprecated("Use returning instead", ReplaceWith("returning(resultType)"))
-    fun <U : Any> withResultType(resultType: Class<U>): AgentInvocation<U> = returning(resultType)
-
     fun <U : Any> returning(resultType: Class<U>): AgentInvocation<U>
 
     companion object {
