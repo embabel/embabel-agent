@@ -22,11 +22,13 @@ import com.embabel.agent.spi.LlmService
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DynamicTest
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.opentest4j.TestAbortedException
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.context.annotation.Import
 import org.springframework.test.context.ActiveProfiles
 import java.util.stream.Stream
 
@@ -60,7 +62,7 @@ import java.util.stream.Stream
     ]
 )
 @ActiveProfiles("google-genai-chat-test")
-@org.springframework.context.annotation.Import(
+@Import(
     GoogleGenAiChatTestConfig::class,
     AgentGoogleGenAiAutoConfiguration::class,
 )
@@ -79,7 +81,7 @@ class GoogleGenAiAllModelsIT(
      * registered [LlmService]. Catches registration failures and YAML/constant drift before we
      * ever spend a token.
      */
-    @org.junit.jupiter.api.Test
+    @Test
     fun everyDeclaredChatModelIsRegistered() {
         val registered = registeredGoogleModelIds().toSet()
         val missing = EXPECTED_CHAT_MODELS.filterNot { it in registered }
