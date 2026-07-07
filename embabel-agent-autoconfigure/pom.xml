@@ -39,6 +39,7 @@
         <module>models/embabel-agent-google-genai-autoconfigure</module>
         <module>models/embabel-agent-oci-genai-autoconfigure</module>
         <module>models/embabel-agent-minimax-autoconfigure</module>
+        <module>models/embabel-agent-zai-autoconfigure</module>
         <module>models/embabel-agent-mistral-ai-autoconfigure</module>
         <module>models/embabel-agent-onnx-autoconfigure</module>
     </modules>
