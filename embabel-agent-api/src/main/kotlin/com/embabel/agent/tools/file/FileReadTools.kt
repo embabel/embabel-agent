@@ -20,11 +20,13 @@ import com.embabel.agent.api.common.support.SelfToolPublisher
 import com.embabel.agent.tools.DirectoryBased
 import com.embabel.common.util.StringTransformer
 import com.embabel.common.util.loggerFor
+import java.io.File
 import java.io.IOException
 import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.regex.Pattern
 
 /**
  * LLM-ready ToolCallbacks and convenience methods for file operations.
@@ -115,13 +117,15 @@ interface FileReadTools : DirectoryBased, FileReadLog, FileAccessLog, SelfToolPu
         findHighest: Boolean,
     ): List<String> {
         val basePath = Paths.get(root).toAbsolutePath().normalize()
-        val syntaxAndPattern = if (glob.startsWith("glob:") || glob.startsWith("regex:")) glob else "glob:$glob"
-        val matcher = FileSystems.getDefault().getPathMatcher(syntaxAndPattern)
+        // Ripgrep/gitignore '**' semantics ('**/' matches zero or more directories), preserving every
+        // other NIO glob feature ({...}, [...], ?). See Globs.
+        val matches = globMatcher(glob)
         val results = mutableListOf<String>()
 
         if (!findHighest) {
             return Files.walk(basePath).use { paths ->
-                paths.filter { matcher.matches(basePath.relativize(it)) }
+                paths.filter { Files.isRegularFile(it) }
+                    .filter { matches(basePath.relativize(it)) }
                     .map { it.toAbsolutePath().toString() }
                     .toList()
             }
@@ -143,7 +147,7 @@ interface FileReadTools : DirectoryBased, FileReadLog, FileAccessLog, SelfToolPu
             processedDirs.add(dirStr)
 
             // First, check if this directory itself matches
-            if (Files.isRegularFile(dir) && matcher.matches(basePath.relativize(dir))) {
+            if (Files.isRegularFile(dir) && matches(basePath.relativize(dir))) {
                 results.add(dirStr)
                 continue
             }
@@ -157,7 +161,7 @@ interface FileReadTools : DirectoryBased, FileReadLog, FileAccessLog, SelfToolPu
                     stream.forEach { entry ->
                         if (Files.isDirectory(entry)) {
                             subdirs.add(entry)
-                        } else if (matcher.matches(basePath.relativize(entry))) {
+                        } else if (matches(basePath.relativize(entry))) {
                             matchesInDir.add(entry.toAbsolutePath().toString())
                         }
                     }
@@ -257,3 +261,109 @@ internal class DefaultFileReadTools(
     override val root: String,
     override val fileContentTransformers: List<StringTransformer> = emptyList(),
 ) : FileReadTools, FileReadLog by DefaultFileReadLog()
+
+/**
+ * A predicate matching relative paths against [pattern] with ripgrep/gitignore glob semantics.
+ *
+ * The glob is translated to a single regular expression (see [globToRegex]), so a double-star-slash
+ * segment matches ZERO or more directories independently, however many appear in one pattern:
+ * "a/&#42;&#42;/b/&#42;&#42;/c" matches every 0/1/n combination in a single pass. Every other glob feature is
+ * preserved: "*" and "?" stay within a path segment, braces "{a,b}" and character classes "[a-z]"/"[!a]"
+ * keep working. `regex:` patterns are matched verbatim via the platform [PathMatcher].
+ */
+fun globMatcher(pattern: String): (Path) -> Boolean {
+    if (pattern.startsWith("regex:")) {
+        val nio = FileSystems.getDefault().getPathMatcher(pattern)
+        return { path -> nio.matches(path) }
+    }
+    val regex = Pattern.compile(globToRegex(pattern.removePrefix("glob:")))
+    return { path -> regex.matcher(path.toString().replace(File.separatorChar, '/')).matches() }
+}
+
+/** Regex metacharacters that must be escaped when they appear literally in a glob. */
+private const val REGEX_META = ".^$+{}[]()|"
+
+/**
+ * Translate a glob to a regex, mirroring the JDK glob translator (sun.nio.fs.Globs) with ONE change:
+ * a double-star-slash segment becomes "(?:[^/]+/)*" (zero or more directory segments) instead of
+ * forcing a literal separator. That literal separator is exactly why NIO skipped direct children and
+ * root-level files. A bare or trailing double-star (not isolated before a slash) still becomes ".*",
+ * crossing directories like NIO. "*" and "?" stay inside one segment; braces and classes are preserved.
+ */
+private fun globToRegex(glob: String): String {
+    val regex = StringBuilder()
+    var inGroup = false
+    var i = 0
+    while (i < glob.length) {
+        when (val c = glob[i++]) {
+            '\\' -> {
+                require(i < glob.length) { "No character to escape at end of glob: $glob" }
+                val next = glob[i++]
+                if (next in REGEX_META || next in "\\*?[{") regex.append('\\')
+                regex.append(next)
+            }
+
+            '/' -> regex.append('/')
+
+            '[' -> {
+                regex.append('[')
+                when {
+                    i < glob.length && glob[i] == '!' -> {
+                        regex.append('^'); i++
+                    }
+
+                    i < glob.length && glob[i] == '^' -> {
+                        regex.append("\\^"); i++
+                    }
+                }
+                while (i < glob.length && glob[i] != ']') {
+                    when (val cc = glob[i++]) {
+                        '\\' -> {
+                            regex.append('\\'); if (i < glob.length) regex.append(glob[i++])
+                        }
+
+                        '&' -> regex.append("\\&")
+                        else -> regex.append(cc)
+                    }
+                }
+                require(i < glob.length && glob[i] == ']') { "Missing ']' in glob: $glob" }
+                regex.append(']'); i++
+            }
+
+            '{' -> {
+                require(!inGroup) { "Nested '{' in glob: $glob" }
+                inGroup = true
+                regex.append("(?:")
+            }
+
+            '}' -> if (inGroup) {
+                regex.append(')'); inGroup = false
+            } else regex.append('}')
+
+            ',' -> if (inGroup) regex.append('|') else regex.append(',')
+
+            '*' -> {
+                if (i < glob.length && glob[i] == '*') {
+                    i++ // consume the second '*'
+                    if (i < glob.length && glob[i] == '/') {
+                        i++ // consume the slash: '**/' -> zero or more directory segments
+                        regex.append("(?:[^/]+/)*")
+                    } else {
+                        regex.append(".*") // bare/trailing '**' crosses directories
+                    }
+                } else {
+                    regex.append("[^/]*")
+                }
+            }
+
+            '?' -> regex.append("[^/]")
+
+            else -> {
+                if (c in REGEX_META) regex.append('\\')
+                regex.append(c)
+            }
+        }
+    }
+    require(!inGroup) { "Missing '}' in glob: $glob" }
+    return regex.toString()
+}
