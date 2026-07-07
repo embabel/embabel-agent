@@ -27,6 +27,8 @@ class MistralAiModels {
 
 		const val MISTRAL_MEDIUM_31 = "mistral-medium-2508"
 
+        const val MISTRAL_MEDIUM_35 = "mistral-medium-2604"
+
         const val MISTRAL_SMALL_32 = "mistral-small-2506"
 
         const val MINISTRAL_8B = "ministral-8b-2410"

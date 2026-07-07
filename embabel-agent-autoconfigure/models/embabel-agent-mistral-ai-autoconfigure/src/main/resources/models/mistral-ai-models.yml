@@ -15,6 +15,14 @@ models:
       usd_per1m_input_tokens: 0.4
       usd_per1m_output_tokens: 2.0
 
+  - name: "mistral-medium-2604"
+    model_id: "mistral-medium-2604"
+    display_name: "Mistral Medium 3.5"
+    max_tokens: 131072
+    pricing_model:
+      usd_per1m_input_tokens: 1.5
+      usd_per1m_output_tokens: 7.5
+
   - name: "ministral-3b-2410"
     model_id: "ministral-3b-2410"
     display_name: "Ministral 3B"
