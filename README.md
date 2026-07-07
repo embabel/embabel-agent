@@ -1426,4 +1426,4 @@ This file also informs coding agent behavior.
 
 
 --------------------
-(c) Embabel Software Inc 2024-2025.
+(c) Embabel Software Inc 2024-2026.
