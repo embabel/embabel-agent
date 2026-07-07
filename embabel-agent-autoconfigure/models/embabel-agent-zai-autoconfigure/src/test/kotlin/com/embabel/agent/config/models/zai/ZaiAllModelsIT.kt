@@ -21,7 +21,6 @@ import com.embabel.agent.autoconfigure.models.zai.AgentZaiAutoConfiguration
 import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.Thinking
-import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DynamicTest
@@ -156,28 +155,26 @@ class ZaiAllModelsIT(
     }
 
     /**
-     * No-network guard, one case per model declared in `zai-models.yml`: the runtime thinking
-     * capability advertised by each registered model must match its declared `thinking` flag.
-     * Catches a YAML entry claiming `thinking: true` for a model that does not actually wire the
-     * native reasoning path (or vice-versa).
+     * No-network guard, one case per registered model: every GLM model exposed by Z.ai must
+     * advertise native reasoning ("thinking") support, which the provider declares statically.
+     * Catches a model that fails to wire the reasoning path.
      */
     @TestFactory
-    fun everyModelAdvertisesDeclaredThinkingSupport(): Stream<DynamicTest> {
-        val definitions = ZaiModelLoader().loadAutoConfigMetadata().models
+    fun everyRegisteredModelAdvertisesThinkingSupport(): Stream<DynamicTest> {
+        val modelIds = registeredZaiModelIds()
         assertTrue(
-            definitions.isNotEmpty(),
-            "Expected zai-models.yml to declare at least one model, found none",
+            modelIds.isNotEmpty(),
+            "Expected at least one Z.ai model to be registered, found none",
         )
 
-        return definitions.stream().map { def ->
-            DynamicTest.dynamicTest("model '${def.modelId}' advertises thinking=${def.thinking}") {
+        return modelIds.stream().map { modelId ->
+            DynamicTest.dynamicTest("model '$modelId' advertises thinking support") {
                 val runner = ai.withLlm(
-                    LlmOptions(def.modelId).withThinking(Thinking.withExtraction())
+                    LlmOptions(modelId).withThinking(Thinking.withExtraction())
                 )
-                assertEquals(
-                    def.thinking,
+                assertTrue(
                     runner.supportsThinking(),
-                    "Model ${def.modelId} thinking support should match zai-models.yml (declared thinking=${def.thinking})",
+                    "Expected Z.ai model $modelId to advertise thinking support",
                 )
             }
         }

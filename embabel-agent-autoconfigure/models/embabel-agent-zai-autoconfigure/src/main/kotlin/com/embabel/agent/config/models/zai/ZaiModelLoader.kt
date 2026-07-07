@@ -49,7 +49,6 @@ data class ZaiModelDefinitions(
  * @property maxTokens maximum tokens for completion
  * @property temperature default sampling temperature, in (0.0, 1.0]
  * @property topP nucleus sampling parameter
- * @property thinking whether the model natively supports reasoning ("thinking")
  */
 data class ZaiModelDefinition(
     override val name: String,
@@ -60,7 +59,6 @@ data class ZaiModelDefinition(
     val maxTokens: Int = 32768,
     val temperature: Double = 0.7,
     val topP: Double? = null,
-    val thinking: Boolean = false,
 ) : LlmAutoConfigMetadata
 
 /**

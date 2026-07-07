@@ -189,7 +189,9 @@ class ZaiModelsConfig(
             provider = ZaiModels.PROVIDER,
             optionsConverter = ZaiOptionsConverter,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
-            thinkingSupported = modelDef.thinking,
+            // All GLM models exposed by Z.ai support native reasoning ("thinking"),
+            // matching the GoogleGenAi provider which also declares this statically.
+            thinkingSupported = true,
             pricingModel = modelDef.pricingModel?.let {
                 PerTokenPricingModel(
                     usdPer1mInputTokens = it.usdPer1mInputTokens,

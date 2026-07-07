@@ -15,7 +15,6 @@ models:
     knowledge_cutoff_date: "2025-04-01"
     max_tokens: 32768
     temperature: 0.7
-    thinking: true
     pricing_model:
       usd_per1m_input_tokens: 1.40
       usd_per1m_output_tokens: 4.40
@@ -27,7 +26,6 @@ models:
     knowledge_cutoff_date: "2025-04-01"
     max_tokens: 32768
     temperature: 0.7
-    thinking: true
     pricing_model:
       usd_per1m_input_tokens: 0.60
       usd_per1m_output_tokens: 2.20
@@ -39,7 +37,6 @@ models:
     knowledge_cutoff_date: "2025-04-01"
     max_tokens: 32768
     temperature: 0.7
-    thinking: true
     pricing_model:
       usd_per1m_input_tokens: 0.60
       usd_per1m_output_tokens: 2.20
@@ -51,7 +48,6 @@ models:
     knowledge_cutoff_date: "2025-04-01"
     max_tokens: 32768
     temperature: 0.7
-    thinking: true
     pricing_model:
       usd_per1m_input_tokens: 0.20
       usd_per1m_output_tokens: 1.10
@@ -63,7 +59,6 @@ models:
     knowledge_cutoff_date: "2025-04-01"
     max_tokens: 32768
     temperature: 0.7
-    thinking: true
     pricing_model:
       usd_per1m_input_tokens: 0.0
       usd_per1m_output_tokens: 0.0
