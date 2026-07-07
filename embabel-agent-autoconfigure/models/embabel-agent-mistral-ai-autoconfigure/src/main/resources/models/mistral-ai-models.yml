@@ -19,6 +19,7 @@ models:
     model_id: "mistral-medium-2604"
     display_name: "Mistral Medium 3.5"
     max_tokens: 131072
+    thinking: true
     pricing_model:
       usd_per1m_input_tokens: 1.5
       usd_per1m_output_tokens: 7.5
@@ -83,6 +84,7 @@ models:
     model_id: "mistral-small-2603"
     display_name: "Mistral Small 4"
     max_tokens: 262144
+    thinking: true
     pricing_model:
       usd_per1m_input_tokens: 0.15
       usd_per1m_output_tokens: 0.6
