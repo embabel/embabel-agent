@@ -16,17 +16,11 @@
 package com.embabel.agent.autoconfigure.models.mistralai;
 
 import com.embabel.agent.spi.support.springai.SpringAiLlmService;
-import com.sun.net.httpserver.HttpServer;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import java.io.IOException;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -38,10 +32,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * string!} otherwise). Reasoning models ({@code magistral-*}) return structured "thinking"/"text"
  * chunks, so every call throws.
  *
- * <p>This test serves a canned magistral response (content is a chunk array) from a local server and
- * asserts the model returns the final text {@code "READY"}. It fails before the fix (with the
- * {@code IllegalStateException}) and passes once the Mistral client flattens reasoning content to plain
- * text before Spring AI parses it.
+ * <p>Serves a canned magistral response (content is a chunk array) from a local server and asserts the
+ * model returns the final text {@code "READY"}. Fails before the fix, passes once the client flattens
+ * reasoning content to plain text before Spring AI parses it. The parser itself is unit-tested in
+ * {@code MistralReasoningContentFlattenTest}; this test covers the end-to-end wiring.
  */
 class MistralAiReasoningContentTest {
 
@@ -56,49 +50,26 @@ class MistralAiReasoningContentTest {
             {"type":"text","text":"READY"}\
             ]}}]}""";
 
-    private HttpServer server;
-    private int port;
-
-    @BeforeEach
-    void startServer() throws IOException {
-        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/", exchange -> {
-            var bytes = MAGISTRAL_RESPONSE.getBytes(StandardCharsets.UTF_8);
-            exchange.getResponseHeaders().add("Content-Type", "application/json");
-            exchange.sendResponseHeaders(200, bytes.length);
-            try (OutputStream os = exchange.getResponseBody()) {
-                os.write(bytes);
-            }
-        });
-        server.start();
-        port = server.getAddress().getPort();
-    }
-
-    @AfterEach
-    void stopServer() {
-        if (server != null) {
-            server.stop(0);
-        }
-    }
-
     @Test
-    void reasoningModelContentIsFlattenedToPlainText() {
-        new ApplicationContextRunner()
-                .withConfiguration(AutoConfigurations.of(AgentMistralAiAutoConfiguration.class))
-                .withPropertyValues(
-                        "embabel.agent.platform.models.mistralai.api-key=test-key",
-                        "embabel.agent.platform.models.mistralai.base-url=http://127.0.0.1:" + port,
-                        "embabel.agent.platform.models.mistralai.max-attempts=1"
-                )
-                .run(context -> {
-                    var magistral = context.getBeansOfType(SpringAiLlmService.class).values().stream()
-                            .filter(s -> "magistral-medium-2509".equals(s.getName()))
-                            .findFirst()
-                            .orElseThrow(() -> new AssertionError("magistral-medium-2509 not registered"));
+    void reasoningModelContentIsFlattenedToPlainText() throws IOException {
+        try (var server = StubMistralServer.replyingWith(MAGISTRAL_RESPONSE)) {
+            new ApplicationContextRunner()
+                    .withConfiguration(AutoConfigurations.of(AgentMistralAiAutoConfiguration.class))
+                    .withPropertyValues(
+                            "embabel.agent.platform.models.mistralai.api-key=test-key",
+                            "embabel.agent.platform.models.mistralai.base-url=" + server.baseUrl(),
+                            "embabel.agent.platform.models.mistralai.max-attempts=1"
+                    )
+                    .run(context -> {
+                        var magistral = context.getBeansOfType(SpringAiLlmService.class).values().stream()
+                                .filter(s -> "magistral-medium-2509".equals(s.getName()))
+                                .findFirst()
+                                .orElseThrow(() -> new AssertionError("magistral-medium-2509 not registered"));
 
-                    var response = magistral.getChatModel().call("Reply READY.");
+                        var response = magistral.getChatModel().call("Reply READY.");
 
-                    assertThat(response).isEqualTo("READY");
-                });
+                        assertThat(response).isEqualTo("READY");
+                    });
+        }
     }
 }

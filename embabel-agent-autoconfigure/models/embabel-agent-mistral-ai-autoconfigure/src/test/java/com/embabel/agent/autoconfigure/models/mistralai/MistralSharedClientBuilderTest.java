@@ -16,9 +16,6 @@
 package com.embabel.agent.autoconfigure.models.mistralai;
 
 import com.embabel.agent.spi.support.springai.SpringAiLlmService;
-import com.sun.net.httpserver.HttpServer;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -27,9 +24,6 @@ import org.springframework.web.client.RestClient;
 import reactor.netty.http.client.HttpClient;
 
 import java.io.IOException;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,46 +40,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class MistralSharedClientBuilderTest {
 
-    private static final String RESPONSE = """
-            {"id":"cmpl-test","created":1700000000,"model":"mistral-small-2603","object":"chat.completion",\
-            "usage":{"prompt_tokens":1,"total_tokens":2,"completion_tokens":1},\
-            "choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"OK"}}]}""";
-
     private static final Duration SERVER_DELAY = Duration.ofSeconds(3);
     private static final Duration SHARED_BUILDER_TIMEOUT = Duration.ofMillis(300);
-
-    private HttpServer slowServer;
-    private int port;
-
-    @BeforeEach
-    void startSlowServer() throws IOException {
-        slowServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        slowServer.createContext("/", exchange -> {
-            try {
-                Thread.sleep(SERVER_DELAY.toMillis());
-                var bytes = RESPONSE.getBytes(StandardCharsets.UTF_8);
-                exchange.getResponseHeaders().add("Content-Type", "application/json");
-                exchange.sendResponseHeaders(200, bytes.length);
-                try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(bytes);
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                exchange.close();
-            } catch (IOException e) {
-                exchange.close();
-            }
-        });
-        slowServer.start();
-        port = slowServer.getAddress().getPort();
-    }
-
-    @AfterEach
-    void stopServer() {
-        if (slowServer != null) {
-            slowServer.stop(0);
-        }
-    }
 
     /** A shared platform builder whose reactor-netty client aborts any reply slower than 300ms. */
     private static RestClient.Builder shortTimeoutSharedBuilder() {
@@ -94,31 +50,33 @@ class MistralSharedClientBuilderTest {
     }
 
     @Test
-    void usesTheSharedPlatformRestClientBuilder() {
-        new ApplicationContextRunner()
-                .withConfiguration(AutoConfigurations.of(AgentMistralAiAutoConfiguration.class))
-                .withBean("aiModelRestClientBuilder", RestClient.Builder.class,
-                        MistralSharedClientBuilderTest::shortTimeoutSharedBuilder)
-                .withPropertyValues(
-                        "embabel.agent.platform.models.mistralai.api-key=test-key",
-                        "embabel.agent.platform.models.mistralai.base-url=http://127.0.0.1:" + port,
-                        "embabel.agent.platform.models.mistralai.max-attempts=1"
-                )
-                .run(context -> {
-                    var model = context.getBeansOfType(SpringAiLlmService.class).values().stream()
-                            .filter(s -> "mistral-small-2603".equals(s.getName()))
-                            .findFirst()
-                            .orElseThrow(() -> new AssertionError("mistral-small-2603 model not registered"));
+    void usesTheSharedPlatformRestClientBuilder() throws IOException {
+        try (var server = StubMistralServer.replyingAfter(SERVER_DELAY, StubMistralServer.OK_RESPONSE)) {
+            new ApplicationContextRunner()
+                    .withConfiguration(AutoConfigurations.of(AgentMistralAiAutoConfiguration.class))
+                    .withBean("aiModelRestClientBuilder", RestClient.Builder.class,
+                            MistralSharedClientBuilderTest::shortTimeoutSharedBuilder)
+                    .withPropertyValues(
+                            "embabel.agent.platform.models.mistralai.api-key=test-key",
+                            "embabel.agent.platform.models.mistralai.base-url=" + server.baseUrl(),
+                            "embabel.agent.platform.models.mistralai.max-attempts=1"
+                    )
+                    .run(context -> {
+                        var model = context.getBeansOfType(SpringAiLlmService.class).values().stream()
+                                .filter(s -> "mistral-small-2603".equals(s.getName()))
+                                .findFirst()
+                                .orElseThrow(() -> new AssertionError("mistral-small-2603 model not registered"));
 
-                    var start = System.nanoTime();
-                    assertThatThrownBy(() -> model.getChatModel().call("hello"))
-                            .as("the shared builder's 300ms timeout must abort the 3s reply")
-                            .isNotNull();
-                    var elapsed = Duration.ofNanos(System.nanoTime() - start);
+                        var start = System.nanoTime();
+                        assertThatThrownBy(() -> model.getChatModel().call("hello"))
+                                .as("the shared builder's 300ms timeout must abort the 3s reply")
+                                .hasStackTraceContaining("ReadTimeout");
+                        var elapsed = Duration.ofNanos(System.nanoTime() - start);
 
-                    assertThat(elapsed)
-                            .as("aborted via the injected shared builder, not after the full 3s server delay")
-                            .isLessThan(Duration.ofSeconds(2));
-                });
+                        assertThat(elapsed)
+                                .as("aborted via the injected shared builder, not after the full 3s server delay")
+                                .isLessThan(Duration.ofSeconds(2));
+                    });
+        }
     }
 }
