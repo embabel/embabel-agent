@@ -21,6 +21,7 @@ import com.embabel.agent.autoconfigure.models.zai.AgentZaiAutoConfiguration
 import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.Thinking
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DynamicTest
@@ -149,6 +150,77 @@ class ZaiAllModelsIT(
                 assertTrue(
                     response.contains("READY", ignoreCase = true),
                     "Expected $modelId to reply with READY, got: $response",
+                )
+            }
+        }
+    }
+
+    /**
+     * No-network guard, one case per model declared in `zai-models.yml`: the runtime thinking
+     * capability advertised by each registered model must match its declared `thinking` flag.
+     * Catches a YAML entry claiming `thinking: true` for a model that does not actually wire the
+     * native reasoning path (or vice-versa).
+     */
+    @TestFactory
+    fun everyModelAdvertisesDeclaredThinkingSupport(): Stream<DynamicTest> {
+        val definitions = ZaiModelLoader().loadAutoConfigMetadata().models
+        assertTrue(
+            definitions.isNotEmpty(),
+            "Expected zai-models.yml to declare at least one model, found none",
+        )
+
+        return definitions.stream().map { def ->
+            DynamicTest.dynamicTest("model '${def.modelId}' advertises thinking=${def.thinking}") {
+                val runner = ai.withLlm(
+                    LlmOptions(def.modelId).withThinking(Thinking.withExtraction())
+                )
+                assertEquals(
+                    def.thinking,
+                    runner.supportsThinking(),
+                    "Model ${def.modelId} thinking support should match zai-models.yml (declared thinking=${def.thinking})",
+                )
+            }
+        }
+    }
+
+    /**
+     * One **live** reasoning round-trip per registered Z.ai chat model. Proves that every model
+     * flagged for thinking actually completes a request with reasoning enabled (not just that it
+     * advertises support). Skips (aborts) when the key lacks access to a model; a genuine crash
+     * still fails.
+     */
+    @TestFactory
+    fun everyRegisteredModelCompletesThinkingRoundTrip(): Stream<DynamicTest> {
+        val modelIds = registeredZaiModelIds()
+        assertTrue(
+            modelIds.isNotEmpty(),
+            "Expected at least one Z.ai model to be registered, found none",
+        )
+
+        return modelIds.stream().map { modelId ->
+            DynamicTest.dynamicTest("GLM model '$modelId' completes a reasoning round-trip") {
+                val response = try {
+                    ai.withLlm(LlmOptions(modelId).withThinking(Thinking.withExtraction()))
+                        .generateText(SMOKE_PROMPT)
+                        .trim()
+                } catch (ex: Exception) {
+                    if (isModelAccessError(ex)) {
+                        throw TestAbortedException(
+                            "ZAI_API_KEY is set, but it does not have access to (or balance for) $modelId",
+                            ex,
+                        )
+                    }
+                    throw ex
+                }
+
+                assertNotNull(response, "Expected a response object from $modelId with thinking enabled")
+                assertTrue(
+                    response.isNotBlank(),
+                    "Expected non-empty response from $modelId with thinking enabled",
+                )
+                assertTrue(
+                    response.contains("READY", ignoreCase = true),
+                    "Expected $modelId to reply with READY (thinking enabled), got: $response",
                 )
             }
         }

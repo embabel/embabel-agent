@@ -18,7 +18,8 @@ package com.embabel.agent.api.models
 /**
  * Provides constants for Z.ai (Zhipu AI) GLM model identifiers.
  * Z.ai offers the GLM family of large language models, including models with
- * up to 1M token context windows, via an OpenAI-compatible API.
+ * up to 1M token context windows, accessed via the native ZhiPuAI client
+ * (spring-ai-zhipuai) pointed at Z.ai's international endpoint.
  *
  * @see <a href="https://z.ai">Z.ai</a>
  */
