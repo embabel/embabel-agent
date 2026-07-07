@@ -36,6 +36,14 @@
 			<artifactId>embabel-agent-test-internal</artifactId>
 			<scope>test</scope>
 		</dependency>
+
+		<!-- Reproduces the production classpath: presence of reactor-netty makes RestClient.builder()
+		     select ReactorClientHttpRequestFactory, whose default HttpClient carries a 10s responseTimeout. -->
+		<dependency>
+			<groupId>io.projectreactor.netty</groupId>
+			<artifactId>reactor-netty-http</artifactId>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 </project>

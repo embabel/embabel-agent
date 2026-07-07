@@ -107,6 +107,7 @@ models:
     model_id: "magistral-medium-2509"
     display_name: "Magistral Medium 1.2"
     max_tokens: 131072
+    thinking: true
     pricing_model:
       usd_per1m_input_tokens: 2.0
       usd_per1m_output_tokens: 5.0
@@ -115,6 +116,7 @@ models:
     model_id: "magistral-small-2509"
     display_name: "Magistral Small 1.2"
     max_tokens: 131072
+    thinking: true
     pricing_model:
       usd_per1m_input_tokens: 0.5
       usd_per1m_output_tokens: 1.5
