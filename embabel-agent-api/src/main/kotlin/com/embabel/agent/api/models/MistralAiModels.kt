@@ -27,6 +27,8 @@ class MistralAiModels {
 
 		const val MISTRAL_MEDIUM_31 = "mistral-medium-2508"
 
+        const val MISTRAL_MEDIUM_35 = "mistral-medium-2604"
+
         const val MISTRAL_SMALL_32 = "mistral-small-2506"
 
         const val MINISTRAL_8B = "ministral-8b-2410"
@@ -35,10 +37,22 @@ class MistralAiModels {
 
         const val CODESTRAL = "codestral-2508"
 
+        @Deprecated(
+            message = "devstral-medium-2507 (Devstral Medium 1.0) was retired by Mistral on 2026-05-31 and now returns 400 (invalid model). Use DEVSTRAL_2.",
+            replaceWith = ReplaceWith("DEVSTRAL_2")
+        )
         const val DEVSTRAL_MEDIUM_10 = "devstral-medium-2507"
 
+        @Deprecated(
+            message = "devstral-small-2507 (Devstral Small 1.1) was retired by Mistral on 2026-05-31 and now returns 400 (invalid model). Use DEVSTRAL_2.",
+            replaceWith = ReplaceWith("DEVSTRAL_2")
+        )
         const val DEVSTRAL_SMALL_11 = "devstral-small-2507"
 
+        @Deprecated(
+            message = "mistral-large-2411 (Mistral Large 2.1) was retired by Mistral on 2026-05-31 and now returns 400 (invalid model). Use MISTRAL_LARGE_3.",
+            replaceWith = ReplaceWith("MISTRAL_LARGE_3")
+        )
         const val MISTRAL_LARGE_21 = "mistral-large-2411"
 
         const val MISTRAL_LARGE_3 = "mistral-large-2512"
