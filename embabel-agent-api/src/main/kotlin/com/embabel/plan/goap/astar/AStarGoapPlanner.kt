@@ -54,6 +54,8 @@ internal class AStarGoapPlanner(worldStateDeterminer: WorldStateDeterminer) :
 
         // Early reachability check to avoid expensive A* search for unreachable goals
         if (!isGoalReachable(startState, actions, goal)) {
+            logger.error("Some of the conditions {} of goal '{}' are not satisfied." +
+                    " Make sure to add them as the output/post condition of any one of the action that leads to the goal.", goal.preconditions.keys, goal.name)
             return null
         }
 
@@ -297,9 +299,6 @@ internal class AStarGoapPlanner(worldStateDeterminer: WorldStateDeterminer) :
 
             // If no action can produce this effect, goal is unreachable
             if ((key to value) !in producibleEffects) {
-                logger.error("Condition '{}' is not produced by any of the action that leads to the goal {}." +
-                        " Make sure to add it as the output/post condition of any one of the action that leads to the goal.", key, goal.name)
-
                 return false
             }
         }
