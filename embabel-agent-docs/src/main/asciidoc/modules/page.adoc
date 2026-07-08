@@ -254,6 +254,12 @@ The following are modules intended for direct use (versus supporting infrastruct
 | Quick start with Mistral
 | Stable
 
+| `embabel-agent-starter-zai`
+| This repo
+| Z.ai (Zhipu GLM) starter
+| Quick start with Z.ai GLM models
+| Stable
+
 | `embabel-agent-starter-dockermodels`
 | This repo
 | Docker Models starter
