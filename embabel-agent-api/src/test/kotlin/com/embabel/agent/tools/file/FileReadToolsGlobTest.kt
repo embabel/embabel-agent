@@ -159,6 +159,37 @@ class FileReadToolsGlobTest {
         fun `negated character class must keep working`() {
             assertEquals(setOf("src/B.sol"), find("src/[!A].sol")) // single char, not 'A'; excludes Foo
         }
+
+        @Test
+        fun `character range must keep working`() {
+            // [A-C] matches a single char in A..C: A.sol and B.sol (no C.sol at src root), not Foo.sol.
+            assertEquals(setOf("src/A.sol", "src/B.sol"), find("src/[A-C].sol"))
+        }
+    }
+
+    @Nested
+    inner class LiteralsAndEscaping {
+
+        @Test
+        fun `a literal pattern with no wildcards matches exactly that one file`() {
+            assertEquals(setOf("top.sol"), find("top.sol"))
+            assertEquals(setOf("src/A.sol"), find("src/A.sol"))
+        }
+
+        @Test
+        fun `dot is matched literally, not as a regex any-char`() {
+            // Trap: if '.' were not escaped, the glob regex '[^/]*.md' would also grab this file.
+            Files.writeString(tempDir.resolve("READMEXmd"), "// trap")
+            assertEquals(setOf("README.md"), find("*.md"))
+        }
+
+        @Test
+        fun `a backslash escapes a glob metacharacter to match it literally`() {
+            // '{' is legal in filenames on every platform (unlike '*'/'?'); '\{' must match a literal
+            // brace, not open a brace group.
+            Files.writeString(tempDir.resolve("a{b.sol"), "// literal brace")
+            assertEquals(setOf("a{b.sol"), find("a\\{b.sol"))
+        }
     }
 
     @Nested
