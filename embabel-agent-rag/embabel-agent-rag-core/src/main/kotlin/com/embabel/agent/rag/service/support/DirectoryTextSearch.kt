@@ -99,7 +99,7 @@ class DirectoryTextSearch @JvmOverloads constructor(
     private val logger = LoggerFactory.getLogger(DirectoryTextSearch::class.java)
     private val fileReadTools = FileTools.readOnly(directory)
     private val rootPath = Path.of(directory).toAbsolutePath().normalize()
-    // Ripgrep/gitignore '**' semantics ('**/' matches zero or more directories). See globMatcher.
+    // Same '**' rules as ripgrep and .gitignore: '**/' matches zero or more folders. See globMatcher.
     private val globMatch: ((Path) -> Boolean)? = config.fileGlob?.let { globMatcher(it) }
 
     override val luceneSyntaxNotes: String = "Not supported"

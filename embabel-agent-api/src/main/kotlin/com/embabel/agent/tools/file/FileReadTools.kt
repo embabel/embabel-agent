@@ -263,13 +263,14 @@ internal class DefaultFileReadTools(
 ) : FileReadTools, FileReadLog by DefaultFileReadLog()
 
 /**
- * A predicate matching relative paths against [pattern] with ripgrep/gitignore glob semantics.
+ * Builds a test that tells whether a path matches [pattern], using the same glob rules as
+ * ripgrep and .gitignore.
  *
- * The glob is translated to a single regular expression (see [globToRegex]), so a double-star-slash
- * segment matches ZERO or more directories independently, however many appear in one pattern:
- * "a/&#42;&#42;/b/&#42;&#42;/c" matches every 0/1/n combination in a single pass. Every other glob feature is
- * preserved: "*" and "?" stay within a path segment, braces "{a,b}" and character classes "[a-z]"/"[!a]"
- * keep working. `regex:` patterns are matched verbatim via the platform [PathMatcher].
+ * The glob is turned into one regular expression (see [globToRegex]). Because of that, every
+ * "&#42;&#42;/" in the pattern matches zero or more folders on its own, however many there are:
+ * "a/&#42;&#42;/b/&#42;&#42;/c" matches "a/b/c", "a/x/b/c", "a/b/y/c", and so on, all at once. The rest of the
+ * glob works as usual: "*" and "?" stay inside one folder or file name, and "{a,b}" choices and
+ * "[a-z]"/"[!a]" character sets keep working. A pattern starting with "regex:" is used as-is.
  */
 fun globMatcher(pattern: String): (Path) -> Boolean {
     if (pattern.startsWith("regex:")) {
@@ -283,19 +284,33 @@ fun globMatcher(pattern: String): (Path) -> Boolean {
 /** Regex metacharacters that must be escaped when they appear literally in a glob. */
 private const val REGEX_META = ".^$+{}[]()|"
 
-/**
- * Translate a glob to a regex, mirroring the JDK glob translator (sun.nio.fs.Globs) with ONE change:
- * a double-star-slash segment becomes "(?:[^/]+/)*" (zero or more directory segments) instead of
- * forcing a literal separator. That literal separator is exactly why NIO skipped direct children and
- * root-level files. A bare or trailing double-star (not isolated before a slash) still becomes ".*",
- * crossing directories like NIO. "*" and "?" stay inside one segment; braces and classes are preserved.
- */
+// Translate a glob to a regex, mirroring the JDK glob translator (sun.nio.fs.Globs) with ONE change:
+// "**/" matches zero or more directories, so a file needs no folder in front of it to match.
+//
+//     root/
+//     ├── top.sol          ← root-level file
+//     ├── README.md        ← root-level file
+//     ├── src/
+//     │   ├── Foo.sol      ← direct child of src/
+//     │   └── sub/
+//     │       └── C.sol    ← nested
+//
+// "**/*.sol" (leading double-star) catches files at the root: top.sol, README.md.
+// "src/**/*.sol" catches the direct children of src/: src/Foo.sol (0 dirs between src/ and the file)
+// and src/sub/C.sol (nested — already worked). JDK always required a directory after "**", so it
+// missed the 0-directory cases: top.sol (0 slashes) and src/Foo.sol (1 slash).
+//
+// A "**" on its own or at the end (not right before a slash) becomes ".*" and reaches into any
+// folder, like the JDK does. A single "*" and "?" stay inside one folder or file name; "{a,b}"
+// choices and "[...]" character sets are kept.
 private fun globToRegex(glob: String): String {
     val regex = StringBuilder()
-    var inGroup = false
-    var i = 0
+    var inGroup = false        // true while we are inside a "{a,b}" choice
+    var i = 0                  // where we are in the glob
+    // Read the glob one character at a time and append the matching regex piece.
     while (i < glob.length) {
         when (val c = glob[i++]) {
+            // "\x": keep x as a plain character (add a backslash if regex would treat it specially).
             '\\' -> {
                 require(i < glob.length) { "No character to escape at end of glob: $glob" }
                 val next = glob[i++]
@@ -303,17 +318,19 @@ private fun globToRegex(glob: String): String {
                 regex.append(next)
             }
 
+            // "/": a folder separator, the same in both.
             '/' -> regex.append('/')
 
+            // "[...]": a set of allowed characters. Glob writes "not these" as "[!..]", regex as "[^..]".
             '[' -> {
                 regex.append('[')
                 when {
                     i < glob.length && glob[i] == '!' -> {
-                        regex.append('^'); i++
+                        regex.append('^'); i++         // "[!..]" (none of these) -> "[^..]"
                     }
 
                     i < glob.length && glob[i] == '^' -> {
-                        regex.append("\\^"); i++
+                        regex.append("\\^"); i++        // a real '^' here must be kept as a plain char
                     }
                 }
                 while (i < glob.length && glob[i] != ']') {
@@ -322,7 +339,7 @@ private fun globToRegex(glob: String): String {
                             regex.append('\\'); if (i < glob.length) regex.append(glob[i++])
                         }
 
-                        '&' -> regex.append("\\&")
+                        '&' -> regex.append("\\&")     // '&' has a meaning inside Java "[...]", so keep it plain
                         else -> regex.append(cc)
                     }
                 }
@@ -330,6 +347,7 @@ private fun globToRegex(glob: String): String {
                 regex.append(']'); i++
             }
 
+            // "{a,b}": match a or b. Open the group, and turn its commas into "or" ("|").
             '{' -> {
                 require(!inGroup) { "Nested '{' in glob: $glob" }
                 inGroup = true
@@ -338,26 +356,29 @@ private fun globToRegex(glob: String): String {
 
             '}' -> if (inGroup) {
                 regex.append(')'); inGroup = false
-            } else regex.append('}')
+            } else regex.append('}')                     // a plain '}' when we are not in a "{a,b}"
 
             ',' -> if (inGroup) regex.append('|') else regex.append(',')
 
+            // Stars: the one place we change the JDK behaviour (see the note above the function).
             '*' -> {
                 if (i < glob.length && glob[i] == '*') {
                     i++ // consume the second '*'
                     if (i < glob.length && glob[i] == '/') {
-                        i++ // consume the slash: '**/' -> zero or more directory segments
+                        i++ // consume the slash: "**/" -> zero or more folders
                         regex.append("(?:[^/]+/)*")
                     } else {
-                        regex.append(".*") // bare/trailing '**' crosses directories
+                        regex.append(".*") // "**" on its own reaches into any folder
                     }
                 } else {
-                    regex.append("[^/]*")
+                    regex.append("[^/]*") // one "*" stays inside a single folder or file name
                 }
             }
 
+            // "?": any one character except the folder separator.
             '?' -> regex.append("[^/]")
 
+            // Anything else is itself; add a backslash if regex would treat it specially.
             else -> {
                 if (c in REGEX_META) regex.append('\\')
                 regex.append(c)
