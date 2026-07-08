@@ -157,7 +157,7 @@ class ZaiModelsConfig(
 
                     logger.info("Registered Z.ai model bean: {} -> {}", modelDef.name, modelDef.modelId)
                 } catch (e: Exception) {
-                    logger.error("Failed to create model: {} ({})", modelDef.name, modelDef.modelId, e)
+                    logger.error("Failed to create model: {} ({})", modelDef.name, modelDef.modelId)
                     throw e
                 }
             }
