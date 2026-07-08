@@ -365,8 +365,17 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
      * @param relationship The relationship data (type and properties)
      */
     fun mergeRelationship(a: RetrievableIdentifier, b: RetrievableIdentifier, relationship: RelationshipData) {
-        // Default implementation falls back to createRelationship for backwards compatibility
-        createRelationship(a, b, relationship)
+        // Idempotent default: create the edge only if one of this type to `b` doesn't
+        // already exist, so re-running a projection can't accumulate duplicate edges.
+        // Composes existing primitives (findRelated + createRelationship), so it adds no
+        // contract and — unlike the old bare-createRelationship fallback — cannot silently
+        // duplicate. It does NOT update properties on an already-existing edge: the base
+        // interface exposes no edge-mutation primitive, so implementations that store edge
+        // properties (e.g. DrivineNamedEntityDataRepository, via MERGE ... SET) override
+        // this for a full upsert. Making the in-memory double store edge properties + do a
+        // real merge is tracked separately (see notes/followups.md).
+        val exists = findRelated(a, relationship.name, RelationshipDirection.OUTGOING).any { it.id == b.id }
+        if (!exists) createRelationship(a, b, relationship)
     }
 
     /**
