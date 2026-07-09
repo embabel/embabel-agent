@@ -271,6 +271,10 @@ internal class DefaultFileReadTools(
  * "a/&#42;&#42;/b/&#42;&#42;/c" matches "a/b/c", "a/x/b/c", "a/b/y/c", and so on, all at once. The rest of the
  * glob works as usual: "*" and "?" stay inside one folder or file name, and "{a,b}" choices and
  * "[a-z]"/"[!a]" character sets keep working. A pattern starting with "regex:" is used as-is.
+ *
+ * Matching is case-sensitive on every platform, for cross-platform determinism: results depend
+ * only on the pattern, not the host OS. (NIO's getPathMatcher was case-insensitive on Windows.)
+ * For case-insensitivity, spell it out in the glob, e.g. "*.{kt,KT}".
  */
 fun globMatcher(pattern: String): (Path) -> Boolean {
     if (pattern.startsWith("regex:")) {
@@ -284,8 +288,9 @@ fun globMatcher(pattern: String): (Path) -> Boolean {
 /** Regex metacharacters that must be escaped when they appear literally in a glob. */
 private const val REGEX_META = ".^$+{}[]()|"
 
-// Translate a glob to a regex, mirroring the JDK glob translator (sun.nio.fs.Globs) with ONE change:
-// "**/" matches zero or more directories, so a file needs no folder in front of it to match.
+// Translate a glob to a regex, mirroring the JDK glob translator (sun.nio.fs.Globs) except for three
+// deliberate deviations. (1) "**/" matches zero or more directories, so a file needs no folder in
+// front of it to match.
 //
 //     root/
 //     ├── top.sol          ← root-level file
@@ -303,6 +308,11 @@ private const val REGEX_META = ".^$+{}[]()|"
 // A "**" on its own or at the end (not right before a slash) becomes ".*" and reaches into any
 // folder, like the JDK does. A single "*" and "?" stay inside one folder or file name; "{a,b}"
 // choices and "[...]" character sets are kept.
+//
+// The other two deviations from the JDK: (2) matching is case-sensitive on every platform (see
+// globMatcher) rather than case-insensitive on Windows; (3) a literal "/" inside a "[...]" class is
+// accepted and neutralised (it can never match, thanks to the "[^/]" intersection) instead of
+// raising a PatternSyntaxException.
 private fun globToRegex(glob: String): String {
     val regex = StringBuilder()
     var inGroup = false        // true while we are inside a "{a,b}" choice
@@ -323,7 +333,9 @@ private fun globToRegex(glob: String): String {
 
             // "[...]": a set of allowed characters. Glob writes "not these" as "[!..]", regex as "[^..]".
             '[' -> {
-                regex.append('[')
+                // Intersect with "[^/]" so a class never matches the path separator, even when negated:
+                // "[!x]" -> "[[^/]&&[^x]]" stays within one segment (JDK sun.nio.fs.Globs does the same).
+                regex.append("[[^/]&&[")
                 when {
                     i < glob.length && glob[i] == '!' -> {
                         regex.append('^'); i++         // "[!..]" (none of these) -> "[^..]"
@@ -339,12 +351,15 @@ private fun globToRegex(glob: String): String {
                             regex.append('\\'); if (i < glob.length) regex.append(glob[i++])
                         }
 
-                        '&' -> regex.append("\\&")     // '&' has a meaning inside Java "[...]", so keep it plain
+                        // '[' and '&' have a meaning inside a Java "[...]" class, so keep them literal
+                        // (the JDK glob translator escapes '\', '[' and "&&" the same way).
+                        '[' -> regex.append("\\[")
+                        '&' -> regex.append("\\&")
                         else -> regex.append(cc)
                     }
                 }
                 require(i < glob.length && glob[i] == ']') { "Missing ']' in glob: $glob" }
-                regex.append(']'); i++
+                regex.append("]]"); i++                 // close the inner class and the outer intersection
             }
 
             // "{a,b}": match a or b. Open the group, and turn its commas into "or" ("|").

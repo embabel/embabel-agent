@@ -165,6 +165,24 @@ class FileReadToolsGlobTest {
             // [A-C] matches a single char in A..C: A.sol and B.sol (no C.sol at src root), not Foo.sol.
             assertEquals(setOf("src/A.sol", "src/B.sol"), find("src/[A-C].sol"))
         }
+
+        @Test
+        fun `character class matches a single char and must not cross a directory boundary`() {
+            // A class '[...]' stands for ONE char within a segment; like the JDK glob it must never
+            // match the path separator. 'foo[!x]bar' must match 'fooZbar' but NOT 'foo/bar'.
+            Files.writeString(tempDir.resolve("fooZbar"), "// same-segment match")
+            Files.createDirectories(tempDir.resolve("foo"))
+            Files.writeString(tempDir.resolve("foo/bar"), "// separator must not be swallowed")
+            assertEquals(setOf("fooZbar"), find("foo[!x]bar"))
+        }
+
+        @Test
+        fun `a literal bracket inside a class must match a bracket file name`() {
+            // '[[]' is a class containing a literal '['; like the JDK glob it must match a file named
+            // '[' rather than throwing. NIO's getPathMatcher accepts it, so we must too.
+            Files.writeString(tempDir.resolve("["), "// literal bracket")
+            assertEquals(setOf("["), find("[[]"))
+        }
     }
 
     @Nested
