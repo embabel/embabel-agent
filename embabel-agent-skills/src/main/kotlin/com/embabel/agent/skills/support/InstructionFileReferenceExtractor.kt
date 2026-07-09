@@ -52,7 +52,7 @@ object InstructionFileReferenceExtractor {
     // not real file references, and validating them as files turns any
     // skill teaching code into a footgun.
     private val FENCED_CODE_BLOCK = Regex(
-        """(?ms)^[ \t]{0,3}(`{3,}|~{3,})[^\n]*(?:\n|$)(?:.*?(?:\n[ \t]{0,3}\1[ \t]*(?:\n|$)|\z))?"""
+        """(?ms)^[ \t]{0,3}(`{3,}|~{3,}).*?(?:^[ \t]{0,3}\1[ \t]*$|\z)"""
     )
 
     /**
