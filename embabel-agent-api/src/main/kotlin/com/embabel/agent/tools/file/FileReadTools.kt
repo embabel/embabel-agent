@@ -278,8 +278,12 @@ internal class DefaultFileReadTools(
  */
 fun globMatcher(pattern: String): (Path) -> Boolean {
     if (pattern.startsWith("regex:")) {
-        val nio = FileSystems.getDefault().getPathMatcher(pattern)
-        return { path -> nio.matches(path) }
+        // Match against a forward-slash path string on every platform. NIO's path matcher runs against
+        // the OS-native Path, whose toString() uses '\' on Windows, so a pattern like "src/[AB]\.sol"
+        // would never match "src\A.sol". Normalising here keeps regex matching deterministic across OSes,
+        // consistent with the glob branch below.
+        val regex = Pattern.compile(pattern.removePrefix("regex:"))
+        return { path -> regex.matcher(path.toString().replace(File.separatorChar, '/')).matches() }
     }
     val regex = Pattern.compile(globToRegex(pattern.removePrefix("glob:")))
     return { path -> regex.matcher(path.toString().replace(File.separatorChar, '/')).matches() }
