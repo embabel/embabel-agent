@@ -92,7 +92,7 @@ class UnReachableGoalTest {
 
         // Agent is stuck as the condition could not meet.
         assertEquals( AgentProcessStatusCode.STUCK, result.status);
-        assertTrue(output.out.contains("Some of the conditions [hasRun_com.embabel.plan.goap.astar.UnReachableGoalTest\$AgentWithUnreachableGoal.goal, firstCondition, it:java.lang.String] of goal 'com.embabel.plan.goap.astar.UnReachableGoalTest\$AgentWithUnreachableGoal.goal' are not satisfied. Make sure to add them as the output/post condition of any one of the action that leads to the goal."),
+        assertTrue(output.out.contains("""Some of the conditions [hasRun_com.embabel.plan.goap.astar.UnReachableGoalTest${'$'}AgentWithUnreachableGoal.goal, firstCondition, it:java.lang.String] of goal 'com.embabel.plan.goap.astar.UnReachableGoalTest${'$'}AgentWithUnreachableGoal.goal' are not satisfied. Make sure to add them as the output/post condition of any one of the action that leads to the goal."""),
             "firstCondition is produced unexpectedly.")
     }
 
@@ -142,7 +142,7 @@ class UnReachableGoalTest {
 
        agentProcess.run()
 
-        assertFalse(output.out.contains("Some of the conditions [hasRun_com.embabel.plan.goap.astar.UnReachableGoalTest\$AgentWithReachableGoal.goal, firstCondition, it:java.lang.String] of goal 'com.embabel.plan.goap.astar.UnReachableGoalTest\$AgentWithReachableGoal.goal' are not satisfied. Make sure to add them as the output/post condition of any one of the action that leads to the goal."),
+        assertFalse(output.out.contains("""Some of the conditions [hasRun_com.embabel.plan.goap.astar.UnReachableGoalTest${'$'}AgentWithReachableGoal.goal, firstCondition, it:java.lang.String] of goal 'com.embabel.plan.goap.astar.UnReachableGoalTest${'$'}AgentWithReachableGoal.goal' are not satisfied. Make sure to add them as the output/post condition of any one of the action that leads to the goal."""),
              "firstCondition is not produced as expected.")
     }
 }
