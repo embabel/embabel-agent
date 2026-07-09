@@ -293,4 +293,43 @@ class InstructionFileReferenceExtractorTest {
 
         assertEquals(setOf("references/docs.md"), result)
     }
+
+    @Test
+    fun `ignores fenced code block indented under a list item`() {
+        // Fences nested inside a list item are indented several spaces (four
+        // here). They must still be stripped — otherwise the in-fence sample
+        // leaks as a reference, reintroducing the original bug in the most
+        // common skill-authoring layout. Explicit newlines keep the exact
+        // indentation (trimIndent would collapse the relative indent).
+        val instructions =
+            "1. Run the helper:\n" +
+                "\n" +
+                "    ```bash\n" +
+                "    scripts/legacy.py\n" +
+                "    ```\n" +
+                "\n" +
+                "Then read [the guide](references/guide.md)."
+
+        val result = InstructionFileReferenceExtractor.extract(instructions)
+
+        // Only the prose link — the indented in-fence script is not a reference.
+        assertEquals(setOf("references/guide.md"), result)
+    }
+
+    @Test
+    fun `strips fenced code block with CRLF line endings`() {
+        // Windows-authored skills use CRLF. The JVM treats \r\n as a single
+        // line terminator, so the ^…$ fence anchors must still match.
+        val instructions =
+            "See [guide](references/guide.md).\r\n" +
+                "\r\n" +
+                "```bash\r\n" +
+                "scripts/legacy.py\r\n" +
+                "```\r\n"
+
+        val result = InstructionFileReferenceExtractor.extract(instructions)
+
+        // The in-fence resource path must not leak despite the CRLF endings.
+        assertEquals(setOf("references/guide.md"), result)
+    }
 }
