@@ -604,6 +604,34 @@ class DirectoryTextSearchTest {
         }
     }
 
+    @Nested
+    inner class EncodingTests {
+
+        /**
+         * `content.lowercase()` can change the string length for some Unicode characters
+         * (e.g. 'İ' U+0130 lowercases to two chars). Match positions computed on the
+         * lowercased content must not be used to slice the original content, otherwise
+         * the chunk is shifted and no longer contains the matched term.
+         */
+        @Test
+        fun `chunk should contain the matched term even with length-changing lowercase chars`() {
+            // 'İ'.lowercase() == "i̇" (2 chars), so each prefix char shifts positions by +1.
+            val prefix = "İ".repeat(600)
+            val content = prefix + "machine" + "y".repeat(600)
+            createFile("unicode.txt", content)
+
+            // File is > default chunk size (1000) so chunking (substring) is exercised.
+            val request = RagRequest.query("machine").withSimilarityThreshold(0.0).withTopK(100)
+            val results = search.textSearch(request, Chunk::class.java)
+
+            assertTrue(results.isNotEmpty(), "Should match the file containing 'machine'")
+            assertTrue(
+                results.any { it.match.text.contains("machine") },
+                "At least one chunk should actually contain the matched term",
+            )
+        }
+    }
+
     // Helper methods
 
     private fun createFile(relativePath: String, content: String) {
