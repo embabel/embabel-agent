@@ -181,6 +181,31 @@ From `AgentPlatformProperties.ScanningConfig` - configures scanning of the class
 
 |===
 
+===== Planner Configuration
+
+Controls how the GOAP planner processes annotated agents during startup.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.planner.restricted-goals`
+|Boolean
+|`false`
+|When `false` (default), allows `@Agent` to declare multiple `@AchievesGoal` actions with different distinct return types, enabling the planner to gate actions by mutually exclusive `@Condition` annotations. When `true`, restricts to a single unique return type across all `@AchievesGoal` actions; any `@Agent` violating this is rejected at startup.
+
+|===
+
+.Example - opt-in restriction for strict single-goal enforcement
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      planner:
+        restricted-goals: true
+----
+
 ===== Ranking Configuration
 
 From `AgentPlatformProperties.RankingConfig` - configures ranking of agents and goals based on user input when the platform should choose the agent or goal.
