@@ -16,6 +16,8 @@
 package com.embabel.agent.mcpserver
 
 import com.embabel.agent.mcpserver.domain.McpExecutionMode
+import com.embabel.agent.mcpserver.health.McpServerInitializationState
+import com.embabel.agent.mcpserver.health.McpServerInitializationTracker
 import com.embabel.agent.spi.support.AgentScanningBeanPostProcessorEvent
 import io.mockk.every
 import io.mockk.mockk
@@ -183,6 +185,41 @@ class AbstractMcpServerConfigurationTest {
         assertFalse(configuration.testShouldPreserveTool("HELLOBANNER"))
     }
 
+    @Test
+    fun `exposeMcpFunctionality should mark tracker ready on success`() {
+        val tracker = McpServerInitializationTracker()
+        every { mockServerStrategy.executionMode } returns McpExecutionMode.SYNC
+        every { mockServerStrategy.getToolRegistry() } returns mockToolRegistry
+        every { mockToolRegistry.getToolNames() } returns emptyList()
+        every { mockServerStrategy.addTool(any()) } returns Mono.empty()
+        every { mockServerStrategy.addResource(any()) } returns Mono.empty()
+        every { mockServerStrategy.addPrompt(any()) } returns Mono.empty()
+
+        configuration.mockServerStrategy = mockServerStrategy
+        configuration.mockTracker = tracker
+
+        configuration.exposeMcpFunctionality()
+
+        assertEquals(McpServerInitializationState.READY, tracker.state)
+    }
+
+    @Test
+    fun `exposeMcpFunctionality should mark tracker failed on sync error`() {
+        val tracker = McpServerInitializationTracker()
+        every { mockServerStrategy.executionMode } returns McpExecutionMode.SYNC
+        every { mockServerStrategy.getToolRegistry() } throws RuntimeException("Test error")
+
+        configuration.mockServerStrategy = mockServerStrategy
+        configuration.mockTracker = tracker
+
+        assertDoesNotThrow {
+            configuration.exposeMcpFunctionality()
+        }
+
+        assertEquals(McpServerInitializationState.FAILED, tracker.state)
+        assertTrue(tracker.issues.any { it.contains("Test error") })
+    }
+
     // Test implementation of abstract class
     inner class TestAbstractMcpServerConfiguration(
         applicationContext: ConfigurableApplicationContext,
@@ -197,6 +234,7 @@ class AbstractMcpServerConfigurationTest {
         var mockResourceSpecs: List<Any> = emptyList()
         var mockPromptSpecs: List<Any> = emptyList()
         var mockExecutionMode: String = "SYNC"
+        var mockTracker: McpServerInitializationTracker? = null
 
         override fun createServerStrategy(): McpServerStrategy {
             createServerStrategyCalled = true
@@ -226,6 +264,8 @@ class AbstractMcpServerConfigurationTest {
         }
 
         override fun getExecutionMode(): String = mockExecutionMode
+
+        override fun initializationTracker(): McpServerInitializationTracker? = mockTracker
 
         // Expose protected methods for testing
         fun testShouldPreserveTool(toolName: String): Boolean = shouldPreserveTool(toolName)
