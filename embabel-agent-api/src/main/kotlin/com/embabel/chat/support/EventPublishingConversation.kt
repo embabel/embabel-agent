@@ -16,7 +16,6 @@
 package com.embabel.chat.support
 
 import com.embabel.agent.api.identity.User
-import com.embabel.chat.AssetTracker
 import com.embabel.chat.Conversation
 import com.embabel.chat.Message
 import com.embabel.chat.event.MessageEvent
@@ -58,18 +57,7 @@ class EventPublishingConversation(
     private val eventPublisher: ApplicationEventPublisher,
     private val fromUserId: String? = null,
     private val toUserId: String? = null
-) : Conversation {
-
-    override val id: String
-        get() = delegate.id
-
-    override val messages: List<Message>
-        get() = delegate.messages
-
-    override val assetTracker: AssetTracker
-        get() = delegate.assetTracker
-
-    override fun persistent(): Boolean = delegate.persistent()
+) : Conversation by delegate {
 
     /**
      * Add a message and publish a [MessageEvent] with status ADDED.
@@ -78,13 +66,13 @@ class EventPublishingConversation(
      */
     override fun addMessage(message: Message): Message {
         return delegate.addMessage(message).also { added ->
-            eventPublisher.publishEvent(MessageEvent.added(id, added, fromUserId, toUserId))
+            eventPublisher.publishEvent(MessageEvent.added(delegate.id, added, fromUserId, toUserId))
         }
     }
 
     override fun addMessageFrom(message: Message, author: User?): Message {
         return delegate.addMessageFrom(message, author).also { added ->
-            eventPublisher.publishEvent(MessageEvent.added(id, added, author?.id ?: fromUserId, toUserId))
+            eventPublisher.publishEvent(MessageEvent.added(delegate.id, added, author?.id ?: fromUserId, toUserId))
         }
     }
 
@@ -94,11 +82,7 @@ class EventPublishingConversation(
         to: User?
     ): Message {
         return delegate.addMessageFromTo(message, from, to).also { added ->
-            eventPublisher.publishEvent(MessageEvent.added(id, added, from?.id ?: fromUserId, to?.id ?: toUserId))
+            eventPublisher.publishEvent(MessageEvent.added(delegate.id, added, from?.id ?: fromUserId, to?.id ?: toUserId))
         }
-    }
-
-    override fun last(n: Int): Conversation {
-        return delegate.last(n)
     }
 }
