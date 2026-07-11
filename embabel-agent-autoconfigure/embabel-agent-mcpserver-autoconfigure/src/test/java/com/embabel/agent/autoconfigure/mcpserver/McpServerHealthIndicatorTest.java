@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.Status;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,7 +39,7 @@ class McpServerHealthIndicatorTest {
         tracker.markInitializing();
         McpServerHealthEvaluator evaluator = mock(McpServerHealthEvaluator.class);
         when(evaluator.evaluate()).thenReturn(new ServerHealthStatus(
-                false, McpExecutionMode.SYNC, 0, List.of("MCP server is still initializing")));
+                false, McpExecutionMode.SYNC, 0, List.of("MCP server is still initializing"), Instant.now()));
 
         Health health = new McpServerHealthIndicator(evaluator, tracker).health();
 
@@ -57,7 +58,7 @@ class McpServerHealthIndicatorTest {
         tracker.markReady();
         McpServerHealthEvaluator evaluator = mock(McpServerHealthEvaluator.class);
         when(evaluator.evaluate()).thenReturn(new ServerHealthStatus(
-                true, McpExecutionMode.ASYNC, 3, List.of()));
+                true, McpExecutionMode.ASYNC, 3, List.of(), Instant.now()));
 
         Health health = new McpServerHealthIndicator(evaluator, tracker).health();
 
@@ -74,7 +75,7 @@ class McpServerHealthIndicatorTest {
         tracker.markFailed("boom");
         McpServerHealthEvaluator evaluator = mock(McpServerHealthEvaluator.class);
         when(evaluator.evaluate()).thenReturn(new ServerHealthStatus(
-                false, McpExecutionMode.SYNC, 1, List.of("boom")));
+                false, McpExecutionMode.SYNC, 1, List.of("boom"), Instant.now()));
 
         Health health = new McpServerHealthIndicator(evaluator, tracker).health();
 
@@ -89,7 +90,7 @@ class McpServerHealthIndicatorTest {
         tracker.markReady();
         McpServerHealthEvaluator evaluator = mock(McpServerHealthEvaluator.class);
         when(evaluator.evaluate()).thenReturn(new ServerHealthStatus(
-                false, McpExecutionMode.SYNC, 0, List.of("Registered tool count 0 is below minimum 1")));
+                false, McpExecutionMode.SYNC, 0, List.of("Registered tool count 0 is below minimum 1"), Instant.now()));
 
         Health health = new McpServerHealthIndicator(evaluator, tracker).health();
 
