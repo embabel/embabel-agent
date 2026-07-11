@@ -113,7 +113,7 @@ data class ToolishRag @JvmOverloads constructor(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    private data class ToolishRagInitState(
+    private class ToolishRagInitState(
         val toolObjects: List<Any>,
         val validHints: List<PromptContributor>,
     )
