@@ -503,6 +503,49 @@ Every MCP server includes a built-in `helloBanner` tool that displays server inf
 }
 ----
 
+====== Health (Spring Boot Actuator)
+
+When `spring-boot-starter-actuator` is on the classpath, Embabel registers an `mcpServer`
+health component. It reports execution mode, registered tool count, initialization state,
+and any issues collected during MCP server startup.
+
+[source,yaml]
+----
+management:
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+embabel:
+  agent:
+    mcpserver:
+      health:
+        enabled: true
+        min-tools: 1
+----
+
+`min-tools` marks the component `DOWN` after initialization when fewer tools are registered
+than the threshold. Use that for readiness probes that should wait until agent tools are
+exported (the built-in `helloBanner` tool alone may not be enough for your deployment).
+
+Kubernetes example:
+
+[source,yaml]
+----
+livenessProbe:
+  httpGet:
+    path: /actuator/health/liveness
+    port: 8080
+readinessProbe:
+  httpGet:
+    path: /actuator/health/readiness
+    port: 8080
+----
+
+While the MCP exposure pipeline is still running, the `mcpServer` component reports
+`OUT_OF_SERVICE`. After a failed initialization it reports `DOWN`.
+
 [[reference.integrations__mcp_security]]
 ===== Security
 

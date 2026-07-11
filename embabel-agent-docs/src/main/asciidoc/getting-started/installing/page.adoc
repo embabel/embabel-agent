@@ -721,10 +721,14 @@ See the configuration reference for the full OCI property list.
 
 ===== Mistral AI
 
+Uses the native Spring AI Mistral client for Mistral's chat, code (Codestral, Devstral) and reasoning (Magistral) models.
+
 * Required:
 - `MISTRAL_API_KEY`: API key for Mistral AI services
 * Optional:
 - `MISTRAL_BASE_URL`: base URL for Mistral AI API (default: `https://api.mistral.ai`)
+
+NOTE: Mistral's reasoning models (the Magistral family, plus the reasoning-capable Mistral Medium and Mistral Small releases) return their final answer as plain text; their intermediate reasoning is not exposed through Embabel's thinking API. As they can take longer to respond, increase `embabel.agent.platform.http-client.read-timeout` if you hit timeouts.
 
 Alternatively, configure via `application.yml`:
 
@@ -772,6 +776,33 @@ dependencies {
 }
 ----
 ====
+
+Available LLM models include:
+
+* `mistral-large-2512` - Mistral Large 3, top-tier flagship
+* `mistral-medium-2604` - Mistral Medium 3.5, reasoning-capable mid tier
+* `mistral-medium-2508` - Mistral Medium 3.1
+* `mistral-small-2603` - Mistral Small 4, reasoning-capable small tier
+* `mistral-small-2506` - Mistral Small 3.2
+* `magistral-medium-2509` - Magistral Medium 1.2, dedicated reasoning model
+* `magistral-small-2509` - Magistral Small 1.2, dedicated reasoning model
+* `codestral-2508` - Codestral, code generation
+* `devstral-2512` - Devstral 2, agentic coding
+* `ministral-8b-2512` - Ministral 8B, lightweight
+* `ministral-3b-2512` - Ministral 3B, lightweight
+
+Example configuration in `application.yml`:
+
+[source,yaml]
+----
+embabel:
+  models:
+    default-llm: mistral-medium-2508
+    llms:
+      fast: mistral-small-2506
+      best: mistral-large-2512
+      reasoning: magistral-medium-2509
+----
 
 ===== LM Studio
 

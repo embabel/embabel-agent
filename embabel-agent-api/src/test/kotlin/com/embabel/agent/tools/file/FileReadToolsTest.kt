@@ -61,31 +61,30 @@ class FileReadToolsTest {
         }
 
         @Test
-        fun `should find files by extension excluding root`() {
+        fun `should find files by extension at any depth including root`() {
+            // '**/' matches zero or more directories (ripgrep/gitignore semantics), so a root-level
+            // file is included alongside the nested ones.
             val result = fileReadTools.findFiles("**/*.txt")
 
-            assertEquals(3, result.size)
+            assertEquals(4, result.size, "Should find .txt files at every depth including root")
 
             val paths = result.toPaths()
 
+            assertTrue(paths.any { it.endsWith(Paths.get("file1.txt")) })
             assertTrue(paths.any { it.endsWith(Paths.get("dir1", "file3.txt")) })
             assertTrue(paths.any { it.endsWith(Paths.get("dir2", "file4.txt")) })
             assertTrue(paths.any { it.endsWith(Paths.get("dir2", "subdir", "file5.txt")) })
-            assertTrue(
-                paths.none { it.endsWith(Paths.get("dir1")) }, "" +
-                        "Expected file1.txt NOT to be found:\n${result.joinToString("\n")}"
-            )
         }
 
         @Test
         fun `should find files by extension in root`() {
             val result = fileReadTools.findFiles("*.txt")
-            assertEquals(1, result.size)
+            assertEquals(1, result.size, "'*' must not cross directories, so only the root .txt matches")
 
             val paths = result.toPaths()
             assertTrue(
-                paths.any { it.endsWith(Paths.get("file1.txt")) }, "" +
-                        "Expected file1.txt to be found:\n${result.joinToString("\n")}"
+                paths.any { it.endsWith(Paths.get("file1.txt")) },
+                "Expected file1.txt to be found:\n${result.joinToString("\n")}"
             )
         }
 
@@ -137,10 +136,10 @@ class FileReadToolsTest {
             Files.createDirectories(tempDir.resolve("that"))
             Files.createDirectories(tempDir.resolve(Paths.get("that", "foo")))
             Files.writeString(tempDir.resolve(Paths.get("thing", "pom.xml")), "maven stuff")
-            // Not parallel
+            // Sibling branch: not nested under thing/pom.xml
             Files.writeString(tempDir.resolve(Paths.get("that", "foo", "pom.xml")), "maven stuff")
-            val result = fileReadTools.findFiles("**/pom.xml")
-            assertEquals(2, result.size, "Should not exclude when not nested")
+            val result = fileReadTools.findFiles("**/pom.xml", findHighest = true)
+            assertEquals(2, result.size, "Should keep highest match in each parallel branch")
         }
     }
 

@@ -35,6 +35,8 @@ include::bedrock/page.adoc[]
 
 include::minimax/page.adoc[]
 
+include::zai/page.adoc[]
+
 include::streaming/page.adoc[]
 
 include::thinking/page.adoc[]

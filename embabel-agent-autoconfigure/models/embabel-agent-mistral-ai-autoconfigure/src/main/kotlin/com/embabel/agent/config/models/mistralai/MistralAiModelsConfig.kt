@@ -33,14 +33,19 @@ import org.springframework.ai.mistralai.MistralAiChatOptions
 import org.springframework.ai.mistralai.api.MistralAiApi
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.boot.convert.DurationStyle
+import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder
+import org.springframework.boot.http.client.ClientHttpRequestFactorySettings
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
+import java.time.Duration
 
 /**
  * Configuration properties for Mistral AI models.
@@ -99,6 +104,12 @@ class MistralAiModelsConfig(
     private val properties: MistralAiProperties,
     private val observationRegistry: ObjectProvider<ObservationRegistry>,
     private val configurableBeanFactory: ConfigurableBeanFactory,
+    @param:Qualifier("aiModelRestClientBuilder")
+    private val restClientBuilderProvider: ObjectProvider<RestClient.Builder>,
+    @param:Qualifier("aiModelWebClientBuilder")
+    private val webClientBuilderProvider: ObjectProvider<WebClient.Builder>,
+    @param:Value("\${embabel.agent.platform.http-client.read-timeout:5m}")
+    private val httpReadTimeout: String,
     private val modelLoader: LlmAutoConfigMetadataLoader<MistralAiModelDefinitions> = MistralAiModelLoader(),
 ) {
     private val logger = LoggerFactory.getLogger(MistralAiModelsConfig::class.java)
@@ -151,7 +162,7 @@ class MistralAiModelsConfig(
         val mistralChatModel = MistralAiChatModel
             .builder()
             .defaultOptions(createDefaultOptions(modelDef))
-            .mistralAiApi(createMistralAiApi())
+            .mistralAiApi(mistralAiApiFor(modelDef))
             .toolCallingManager(
                 ToolCallingManager.builder()
                     .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
@@ -190,25 +201,67 @@ class MistralAiModelsConfig(
             .build()
     }
 
-    private fun createMistralAiApi(): MistralAiApi {
-        val builder = MistralAiApi.builder().apiKey(apiKey)
+    /**
+     * A [MistralAiApi] is stateless and model-agnostic — the model id and options live on
+     * [MistralAiChatOptions], not on the API — so all models share one instance, exactly as
+     * [org.springframework.ai.openai.api.OpenAiApi] is shared across providers built on
+     * OpenAiCompatibleModelFactory. Only two variants exist: the plain API for the 16 standard models and
+     * [ReasoningFlatteningMistralAiApi] for the "magistral" reasoning models. Built lazily so an unused
+     * variant is never created.
+     */
+    private val plainMistralAiApi: MistralAiApi by lazy { buildMistralAiApi(thinking = false) }
+    private val reasoningMistralAiApi: MistralAiApi by lazy { buildMistralAiApi(thinking = true) }
+
+    private fun mistralAiApiFor(modelDef: MistralAiModelDefinition): MistralAiApi =
+        if (modelDef.thinking) reasoningMistralAiApi else plainMistralAiApi
+
+    private fun buildMistralAiApi(thinking: Boolean): MistralAiApi {
         if (!baseUrl.isNullOrBlank()) {
             logger.info("Using custom Mistral AI base URL: {}", baseUrl)
+        }
+
+        // Build the HTTP client from the shared platform builder (aiModelRestClientBuilder /
+        // aiModelWebClientBuilder), like every other model provider, so the platform read/connect timeouts
+        // and the use-reactor-netty opt-out live in one place (NettyClientAutoConfiguration). Clone so adding
+        // the observation registry never mutates the shared singleton. When that bean is absent (e.g. an app
+        // without the netty client autoconfigure), fall back to a builder that still honours the platform read
+        // timeout rather than the ~10s ReactorClientHttpRequestFactory default, which otherwise aborts slow
+        // generations (e.g. reasoning models) with a ReadTimeoutException.
+        val restClientBuilder = restClientBuilderProvider.getIfAvailable(::fallbackRestClientBuilder)
+            .clone()
+            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+        val webClientBuilder = webClientBuilderProvider.getIfAvailable(WebClient::builder)
+            .clone()
+            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+
+        // Reasoning models ("magistral") return structured "thinking" content that Spring AI 1.1.7 cannot
+        // parse (it assumes string content). Decorate the API to flatten it to plain text on the typed
+        // response, at the Spring AI boundary — leaving the 16 plain models on the plain builder. Superseded
+        // by the Spring AI 2.0.0 upgrade, which supports reasoning content natively.
+        if (thinking) {
+            return ReasoningFlatteningMistralAiApi(baseUrl, apiKey, restClientBuilder, webClientBuilder)
+        }
+
+        val builder = MistralAiApi.builder()
+            .apiKey(apiKey)
+            .restClientBuilder(restClientBuilder)
+            .webClientBuilder(webClientBuilder)
+        if (!baseUrl.isNullOrBlank()) {
             builder.baseUrl(baseUrl)
         }
-        // add observation registry to rest and web client builders
-        builder
-            .restClientBuilder(
-                RestClient.builder()
-                    .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-            )
-        builder
-            .webClientBuilder(
-                WebClient.builder()
-                    .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-            )
-
         return builder.build()
+    }
+
+    /**
+     * Fallback client builder for contexts where the shared [aiModelRestClientBuilder] bean is absent.
+     * Applies the platform read timeout ([httpReadTimeout]) so a slow response is not aborted at the
+     * ~10s ReactorClientHttpRequestFactory default.
+     */
+    private fun fallbackRestClientBuilder(): RestClient.Builder {
+        val readTimeout: Duration = DurationStyle.detectAndParse(httpReadTimeout)
+        val requestFactory = ClientHttpRequestFactoryBuilder.detect()
+            .build(ClientHttpRequestFactorySettings.defaults().withReadTimeout(readTimeout))
+        return RestClient.builder().requestFactory(requestFactory)
     }
 }
 

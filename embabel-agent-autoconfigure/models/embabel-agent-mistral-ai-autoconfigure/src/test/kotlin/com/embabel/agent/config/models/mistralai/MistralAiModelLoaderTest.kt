@@ -74,12 +74,12 @@ class MistralAiModelLoaderTest {
         val result = loader.loadAutoConfigMetadata()
 
         // Assert
-        assertEquals(18, result.models.size, "Should load exactly 18 Mistral AI models")
+        assertEquals(16, result.models.size, "Should load exactly 16 Mistral AI models")
 
         val expectedModels = listOf(
-            "mistral-medium-2508", "mistral-small-2506", "codestral-2508", "devstral-small-2507",
-            "devstral-medium-2507", "open-mistral-nemo-2407", "mistral-medium-2505",
-            "mistral-large-2411", "mistral-large-2512", "mistral-small-2603",
+            "mistral-medium-2508", "mistral-medium-2604", "mistral-small-2506", "codestral-2508",
+            "open-mistral-nemo-2407", "mistral-medium-2505",
+            "mistral-large-2512", "mistral-small-2603",
             "magistral-medium-2509", "magistral-small-2509", "ministral-14b-2512",
             "ministral-8b-2512", "ministral-3b-2512", "ministral-3b-2410",
             "ministral-8b-2410", "devstral-2512"

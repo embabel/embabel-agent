@@ -49,6 +49,9 @@ data class MistralAiModelDefinitions(
  * @property maxTokens maximum tokens for completion (default 8192)
  * @property temperature sampling temperature (default 1.0)
  * @property topP nucleus sampling parameter
+ * @property thinking whether this is a reasoning ("magistral") model that returns structured
+ *   thinking/text content. When true, the blocking client flattens that content to plain text so
+ *   spring-ai-mistral-ai:1.1.7 (which assumes string content) can parse it. Superseded by Spring AI 2.0.0.
  */
 data class MistralAiModelDefinition(
 	override val name: String,
@@ -59,6 +62,7 @@ data class MistralAiModelDefinition(
 	val maxTokens: Int = 32768,
 	val temperature: Double = 1.0,
 	val topP: Double? = null,
+	val thinking: Boolean = false,
 ) : LlmAutoConfigMetadata
 
 class MistralAiModelLoader(

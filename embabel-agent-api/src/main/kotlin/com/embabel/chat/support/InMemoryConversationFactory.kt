@@ -18,16 +18,29 @@ package com.embabel.chat.support
 import com.embabel.chat.Conversation
 import com.embabel.chat.ConversationFactory
 import com.embabel.chat.ConversationStoreType
+import org.springframework.context.ApplicationEventPublisher
 
 /**
- * Factory for creating [InMemoryConversation] instances.
+ * Factory for creating in-memory [Conversation] instances.
  *
- * Messages are stored in memory only and not persisted.
- * Suitable for testing and ephemeral sessions.
+ * Messages are stored in memory only and not persisted; suitable for testing and
+ * ephemeral sessions. When an [eventPublisher] is supplied, created conversations are
+ * wrapped in an [EventPublishingConversation] so message events are fired.
+ *
+ * @param eventPublisher optional event publisher for firing message events
  */
-class InMemoryConversationFactory : ConversationFactory {
+class InMemoryConversationFactory(
+    private val eventPublisher: ApplicationEventPublisher? = null,
+) : ConversationFactory {
 
     override val storeType: ConversationStoreType = ConversationStoreType.IN_MEMORY
 
-    override fun create(id: String): Conversation = InMemoryConversation(id = id)
+    override fun create(id: String): Conversation {
+        val conversation = InMemoryConversation(id = id)
+        return if (eventPublisher != null) {
+            EventPublishingConversation(conversation, eventPublisher)
+        } else {
+            conversation
+        }
+    }
 }

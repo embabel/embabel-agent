@@ -149,6 +149,64 @@ class ToolishRagTest {
         )
 
     @Nested
+    inner class LazyInitTests {
+
+        @Test
+        fun `tools are stable - repeated calls return same tool names`() {
+            val vectorSearch = mockk<VectorSearch>()
+            val rag = ToolishRag(name = "test-rag", description = "Test RAG", searchOperations = vectorSearch)
+
+            val first = rag.tools().map { it.definition.name }
+            val second = rag.tools().map { it.definition.name }
+
+            assertEquals(first, second)
+        }
+
+        @Test
+        fun `copy via withHint does not change tool structure of original`() {
+            val vectorSearch = mockk<VectorSearch>()
+            val rag = ToolishRag(name = "test-rag", description = "Test RAG", searchOperations = vectorSearch)
+
+            val toolsBefore = rag.tools().map { it.definition.name }
+            rag.withHint(TryHyDE(context = "ctx"))
+            val toolsAfter = rag.tools().map { it.definition.name }
+
+            assertEquals(toolsBefore, toolsAfter)
+        }
+
+        @Test
+        fun `copy via withHint produces correctly initialized independent tools`() {
+            val vectorSearch = mockk<VectorSearch>()
+            val rag = ToolishRag(name = "test-rag", description = "Test RAG", searchOperations = vectorSearch)
+            val copy = rag.withHint(TryHyDE(context = "ctx"))
+
+            val originalToolNames = rag.tools().map { it.definition.name }
+            val copyToolNames = copy.tools().map { it.definition.name }
+
+            assertEquals(originalToolNames, copyToolNames)
+            assertNotSame(rag.tools(), copy.tools())
+        }
+
+        @Test
+        fun `validHints are cached consistently with toolObjects`() {
+            val vectorSearch = mockk<VectorSearch>()
+            val hint = TryHyDE(context = "test context")
+            val rag = ToolishRag(
+                name = "test-rag",
+                description = "Test RAG",
+                searchOperations = vectorSearch,
+                hints = listOf(hint),
+            )
+
+            val notes1 = rag.notes()
+            val notes2 = rag.notes()
+
+            assertEquals(notes1, notes2)
+            assertTrue(notes1.contains("test context"))
+        }
+    }
+
+    @Nested
     inner class ToolsTests {
 
         @Test
