@@ -16,8 +16,11 @@
 package com.embabel.chat.support
 
 import com.embabel.chat.ConversationStoreType
+import com.embabel.chat.UserMessage
+import com.embabel.chat.event.MessageEvent
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import org.springframework.context.ApplicationEventPublisher
 
 class InMemoryConversationFactoryTest {
 
@@ -59,5 +62,27 @@ class InMemoryConversationFactoryTest {
         val conversation = factory.create("test-id")
 
         assertFalse(conversation.persistent())
+    }
+
+    @Test
+    fun `create without event publisher returns a plain InMemoryConversation`() {
+        val factory = InMemoryConversationFactory()
+
+        assertTrue(factory.create("test-id") is InMemoryConversation)
+    }
+
+    @Test
+    fun `create with event publisher wraps conversation and fires message events`() {
+        val events = mutableListOf<Any>()
+        val publisher = ApplicationEventPublisher { event -> events.add(event) }
+        val factory = InMemoryConversationFactory(publisher)
+
+        val conversation = factory.create("test-id")
+        assertTrue(conversation is EventPublishingConversation)
+
+        conversation.addMessage(UserMessage("Hello"))
+
+        val messageEvent = events.filterIsInstance<MessageEvent>().single()
+        assertEquals("test-id", messageEvent.conversationId)
     }
 }
