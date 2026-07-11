@@ -586,6 +586,9 @@ Otherwise the actions needed to respond to chat may not be available in the sess
 By default, chatbots use **in-memory conversations** that are lost when the session ends.
 For production applications, you typically want to **persist conversations** to a backing store.
 
+NOTE: Message events (`MessageEvent`) and the in-memory conversation types live in `embabel-agent-api`, so they are available without the `embabel-chat-store` dependency.
+In-memory conversations can also publish `MessageEvent`s (status `ADDED`) by passing a Spring `ApplicationEventPublisher` to `InMemoryConversationFactory`.
+
 ===== Storage Types
 
 Embabel supports two conversation storage types via `ConversationStoreType`:
@@ -681,7 +684,7 @@ This provides:
 
 - `StoredConversationFactory` - creates conversations that persist to Neo4j
 - `StoredConversation` - conversation implementation with async persistence
-- Message lifecycle events (`MessageEvent`) for UI updates
+- Persistence lifecycle events (`MessageEvent` with `PERSISTED` / `PERSISTENCE_FAILED` status) for UI updates
 - Title generation for conversation sessions
 
 ===== Restoring Conversations
