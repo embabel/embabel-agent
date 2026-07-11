@@ -460,6 +460,26 @@ World"""
     }
 
     @Nested
+    inner class ParseFailureTests {
+
+        @Test
+        fun `convert throws RuntimeException and logs warn on invalid JSON`() {
+            val converter = JacksonOutputConverter(SimpleObject::class.java, objectMapper)
+            assertThrows<RuntimeException> {
+                converter.convert("this is not json at all")
+            }
+        }
+
+        @Test
+        fun `convert throws RuntimeException on structurally invalid JSON`() {
+            val converter = JacksonOutputConverter(SimpleObject::class.java, objectMapper)
+            assertThrows<RuntimeException> {
+                converter.convert("{ this is completely malformed JSON")
+            }
+        }
+    }
+
+    @Nested
     inner class KotlinAndDateTypeTests {
 
         @Test

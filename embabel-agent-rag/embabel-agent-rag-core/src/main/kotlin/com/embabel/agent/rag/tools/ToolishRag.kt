@@ -113,10 +113,24 @@ data class ToolishRag @JvmOverloads constructor(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    private val validHints = hints.toMutableList()
+    private class ToolishRagInitState(
+        val toolObjects: List<Any>,
+        val validHints: List<PromptContributor>,
+    )
 
-    private val toolObjects: List<Any> = run {
-        buildList {
+    /**
+     * Lazily initialized state grouping [toolObjects] and [validHints].
+     *
+     * [ToolishRag] is a data class — every [copy] call (e.g. [withHint], [withEagerSearchAbout])
+     * creates a new instance and would re-run any eager initializer, needlessly rebuilding
+     * [VectorSearchTools], [TextSearchTools] etc. even when only [hints] changed.
+     *
+     * Lazy deferral means initialization runs exactly once per instance, on first access to
+     * [tools] or [notes], not on construction or copy.
+     */
+    private val initState: ToolishRagInitState by lazy {
+        val mutableHints = hints.toMutableList()
+        val tools = buildList {
             // If the search operations already implement SearchTools, use them directly
             if (searchOperations is SearchTools) {
                 logger.info("Adding existing SearchTools to ToolishRag '{}'", name)
@@ -140,7 +154,7 @@ data class ToolishRag @JvmOverloads constructor(
                         "HyDE hint provided but no VectorSearch available in ToolishRag: Removing this hint {}",
                         name
                     )
-                    validHints.removeIf { it is TryHyDE }
+                    mutableHints.removeIf { it is TryHyDE }
                 }
             }
             if (searchOperations is TextSearch) {
@@ -156,7 +170,11 @@ data class ToolishRag @JvmOverloads constructor(
                 add(RegexSearchTools(searchOperations, metadataFilter, entityFilter, listener))
             }
         }
+        ToolishRagInitState(tools, mutableHints.toList())
     }
+
+    private val toolObjects: List<Any> get() = initState.toolObjects
+    private val validHints: List<PromptContributor> get() = initState.validHints
 
     /**
      * Set the types to search for with vector and text search

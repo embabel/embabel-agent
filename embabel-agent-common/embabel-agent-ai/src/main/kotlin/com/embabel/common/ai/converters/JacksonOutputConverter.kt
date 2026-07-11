@@ -148,7 +148,7 @@ open class JacksonOutputConverter<T> protected constructor(
         try {
             return lenientMapper.readValue<Any?>(unwrapped, lenientMapper.constructType(this.type)) as T?
         } catch (e: JsonProcessingException) {
-            logger.error(
+            logger.warn(
                 LoggingMarkers.SENSITIVE_DATA_MARKER,
                 "Could not parse the given text to the desired target type: \"{}\" into {}", unwrapped, this.type
             )

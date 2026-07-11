@@ -301,10 +301,10 @@ open class LoggingAgenticEventListener(
         "[${e.processId}] executed action ${e.action.name} in ${e.actionStatus.runningTime}"
 
     protected open fun getToolLoopStartMessage(e: ToolLoopStartEvent): String =
-        "[${e.processId}] (${e.action?.shortName()}) starting tool loop [${e.toolNames.joinToString(", ")}] max=${e.maxIterations}"
+        "[${e.processId}] (${e.action?.shortName() ?: e.outputClass.simpleName.ifEmpty { e.outputClass.name }}) starting tool loop [${e.toolNames.joinToString(", ")}] max=${e.maxIterations}"
 
     protected open fun getToolLoopCompletedMessage(e: ToolLoopCompletedEvent): String =
-        "[${e.processId}] (${e.action?.shortName()}) tool loop completed in ${e.runningTime.toMillis()}ms iterations=${e.totalIterations} replan=${e.replanRequested}"
+        "[${e.processId}] (${e.action?.shortName() ?: e.outputClass.simpleName.ifEmpty { e.outputClass.name }}) tool loop completed in ${e.runningTime.toMillis()}ms iterations=${e.totalIterations} replan=${e.replanRequested}"
 
     protected open fun getProgressUpdateEventMessage(e: ProgressUpdateEvent): String =
         "[${e.processId}] progress: ${e.createProgressBar(length = 50).color(LumonColorPalette.MEMBRANE)}"
