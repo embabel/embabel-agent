@@ -65,6 +65,29 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
+    // Dedicated, engine-owned directory where produced artifacts are kept. It is a
+    // generated temp dir (never the user's working directory), and the engine trusts
+    // it as an input source so a previous skill's artifact can be reused by the next.
+    private val artifactsRoot: Path = Files.createTempDirectory("skill-artifacts-")
+    private val artifactsFileTools: FileTools = FileTools.readWrite(artifactsRoot.toString())
+
+    /**
+     * Resolve an input file. Validated against the user root first.
+     *
+     * The fallback to the engine's artifacts root fires ONLY on [SecurityException] —
+     * i.e. the path is *outside* the user root, a definitive signal that it isn't a
+     * user file. A path that is under the user root but missing throws
+     * [IllegalArgumentException] instead ("file not found"), which is NOT caught here
+     * and stays a normal error — so an LLM fumbling a working-dir path is unaffected.
+     * Anything outside both roots is rejected.
+     */
+    private fun resolveInputFile(path: Path): Path =
+        try {
+            fileTools.resolveAndValidateFile(path.toString())
+        } catch (e: SecurityException) {
+            artifactsFileTools.resolveAndValidateFile(path.toString())
+        }
+
     override fun supportedLanguages(): Set<ScriptLanguage> = supportedLanguages
 
     override fun validate(script: SkillScript): ScriptExecutionResult.Denied? {
@@ -99,7 +122,7 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
         val resolvedInputFiles = mutableListOf<Path>()
         for (inputFile in inputFiles) {
             try {
-                resolvedInputFiles.add(fileTools.resolveAndValidateFile(inputFile.toString()))
+                resolvedInputFiles.add(resolveInputFile(inputFile))
             } catch (e: SecurityException) {
                 return ScriptExecutionResult.Denied("Path traversal not allowed: $inputFile")
             } catch (e: IllegalArgumentException) {
@@ -117,9 +140,10 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
             // Stage the script file into its own mount directory
             Files.copy(script.scriptPath, scriptDir.resolve(script.fileName))
 
-            // Stage input files
+            // Stage input files (unique names so same-named inputs from different
+            // folders don't collide).
             for (inputFile in resolvedInputFiles) {
-                Files.copy(inputFile, inputDir.resolve(inputFile.fileName))
+                copyIntoUniqueName(inputFile, inputDir)
             }
 
             val interpreter = interpreterFor(script.language)
@@ -243,8 +267,9 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
 
     private fun collectArtifacts(outputDir: Path): List<ScriptArtifact> {
         if (!Files.isDirectory(outputDir)) return emptyList()
-        // Copy artifacts out of outputDir before the temp tree is deleted
-        val artifactsStaging = Files.createTempDirectory("skills-artifacts-")
+        // Copy artifacts out of outputDir (before the temp tree is deleted) into the
+        // engine's artifacts root, so a subsequent skill can reuse them as input.
+        val artifactsStaging = Files.createTempDirectory(artifactsRoot, "run-")
         return Files.list(outputDir).use { files ->
             files
                 .filter { Files.isRegularFile(it) }
@@ -299,6 +324,19 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
         const val DEFAULT_IMAGE = "embabel/agent-sandbox:latest"
 
         private val logger = LoggerFactory.getLogger(DockerSkillScriptExecutionEngine::class.java)
+
+        /**
+         * Create an engine confined to [root]: input files are resolved against [root]
+         * and anything outside it (absolute paths, `..` traversal) is rejected.
+         *
+         * Java-friendly entry point. Kotlin callers can pass `fileTools` directly via the
+         * constructor's named argument; Java cannot reach it (the leading `Duration`
+         * value-class parameter makes the deeper constructor overloads synthetic), so this
+         * factory exposes the one knob a per-request/multi-tenant caller needs.
+         */
+        @JvmStatic
+        fun confinedTo(root: String): DockerSkillScriptExecutionEngine =
+            DockerSkillScriptExecutionEngine(fileTools = FileTools.readWrite(root))
 
         /** Check if Docker is available on this system. */
         fun isDockerAvailable(): Boolean = try {
