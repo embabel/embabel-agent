@@ -19,10 +19,12 @@ import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.mcpserver.domain.McpExecutionMode
 import com.embabel.agent.mcpserver.domain.ServerInfo
 import com.embabel.agent.mcpserver.domain.ToolSpecification
+import com.embabel.agent.mcpserver.health.McpServerInitializationTracker
 import com.embabel.agent.spi.support.AgentScanningBeanPostProcessorEvent
 import org.slf4j.Logger
 import org.springframework.ai.tool.ToolCallbackProvider
 import org.springframework.ai.tool.annotation.Tool
+import org.springframework.beans.factory.getBeanProvider
 import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.context.event.EventListener
 import reactor.core.publisher.Flux
@@ -52,23 +54,35 @@ abstract class AbstractMcpServerConfiguration(
      */
     @EventListener(AgentScanningBeanPostProcessorEvent::class)
     fun exposeMcpFunctionality() {
-        val strategy = createServerStrategy()
-
-        logger.info("Initializing {} MCP Server", strategy.executionMode)
+        val tracker = initializationTracker()
+        tracker?.markInitializing()
 
         try {
+            val strategy = createServerStrategy()
+
+            logger.info("Initializing {} MCP Server", strategy.executionMode)
+
             initializeServer(strategy)
                 .doOnSuccess {
+                    tracker?.markReady()
                     logger.info("{} MCP Server initialization completed successfully", strategy.executionMode)
                 }
                 .doOnError { error ->
+                    tracker?.markFailed(error.message ?: error.javaClass.simpleName)
                     logger.error("${strategy.executionMode} MCP Server initialization failed", error)
                 }
                 .subscribe()
         } catch (e: Exception) {
+            tracker?.markFailed(e.message ?: e.javaClass.simpleName)
             logger.error("Failed to initialize MCP server", e)
         }
     }
+
+    /**
+     * Optional initialization tracker for health / readiness reporting.
+     */
+    protected open fun initializationTracker(): McpServerInitializationTracker? =
+        applicationContext.getBeanProvider<McpServerInitializationTracker>().ifAvailable
 
     /**
      * Initializes the MCP server by cleaning up tools and exposing new ones.

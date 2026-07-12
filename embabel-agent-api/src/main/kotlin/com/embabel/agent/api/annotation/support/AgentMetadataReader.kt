@@ -37,6 +37,7 @@ import com.embabel.common.util.loggerFor
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.cglib.proxy.Enhancer
 import org.springframework.stereotype.Service
 import org.springframework.util.ClassUtils
@@ -112,6 +113,8 @@ class AgentMetadataReader(
     agentStructureValidator: AgentStructureAgentValidator = AgentStructureAgentValidator.PERMIT_ALL,
     pathToCompletionValidator: PathToCompletionAgentValidator = GoapPathToCompletionValidator(),
     private val requireInterfaceDeserializationAnnotations: Boolean = false,
+    @Value("\${embabel.agent.platform.planner.restricted-goals:false}")
+    private val restrictedGoals: Boolean = false,
 ) {
 
     private val supervisorAgentFactory = SupervisorAgentFactory()
@@ -258,12 +261,20 @@ class AgentMetadataReader(
             } else {
                 val distinctGoalTypes = goalActions.map { it.returnType }.toSet()
                 if (distinctGoalTypes.size > 1) {
-                    logger.warn(
-                        "Agent {} has {} @AchievesGoal actions, while one is supported",
+                    val typeNames = distinctGoalTypes.joinToString { it.simpleName.ifEmpty { it.name } }
+                    if (restrictedGoals) {
+                        logger.warn(
+                            "Agent {} has @AchievesGoal actions returning distinct types [{}] - rejected. Set embabel.agent.platform.planner.restricted-goals=false to allow",
+                            targetType.name,
+                            typeNames,
+                        )
+                        return null
+                    }
+                    logger.debug(
+                        "Agent {} has @AchievesGoal actions returning distinct types [{}] - allowing (restricted-goals=false)",
                         targetType.name,
-                        goalActions.size,
+                        typeNames,
                     )
-                    return null
                 }
                 CoreAgent(
                     name = agenticInfo.agentName(),

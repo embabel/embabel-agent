@@ -19,14 +19,17 @@ import com.embabel.chat.AssetTracker
 import com.embabel.chat.Conversation
 import com.embabel.chat.Message
 import com.embabel.common.core.MobyNameGenerator
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Simple in-memory implementation of [Conversation] for testing and ephemeral use cases.
+ *
+ * Thread-safe: uses [CopyOnWriteArrayList] for message storage.
  */
 class InMemoryConversation private constructor(
     override val id: String = MobyNameGenerator.generateName(),
     private val persistent: Boolean = false,
-    private val _messages: MutableList<Message> = mutableListOf(),
+    private val _messages: MutableList<Message> = CopyOnWriteArrayList(),
     override val assetTracker: AssetTracker = InMemoryAssetTracker(),
 ) : Conversation {
 
@@ -39,7 +42,7 @@ class InMemoryConversation private constructor(
     ) : this(
         id = id,
         persistent = persistent,
-        _messages = messages.toMutableList(),
+        _messages = CopyOnWriteArrayList(messages),
         assetTracker = assets,
     )
 
@@ -57,7 +60,7 @@ class InMemoryConversation private constructor(
         InMemoryConversation(
             id = this.id,
             persistent = false,
-            _messages = this._messages.takeLast(n).toMutableList(),
+            _messages = CopyOnWriteArrayList(this._messages.takeLast(n)),
             assetTracker = this.assetTracker,
         )
 

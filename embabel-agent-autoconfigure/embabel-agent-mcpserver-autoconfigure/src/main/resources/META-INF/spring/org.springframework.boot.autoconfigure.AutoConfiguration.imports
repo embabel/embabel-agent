@@ -14,3 +14,4 @@
 # limitations under the License.
 #
 com.embabel.agent.autoconfigure.mcpserver.AgentMcpServerAutoConfiguration
+com.embabel.agent.autoconfigure.mcpserver.McpServerActuatorAutoConfiguration
