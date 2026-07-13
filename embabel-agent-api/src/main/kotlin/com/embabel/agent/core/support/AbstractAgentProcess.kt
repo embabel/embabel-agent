@@ -341,7 +341,7 @@ abstract class AbstractAgentProcess(
      */
     private fun executeTurn(): AgentProcess {
         if (agent.goals.isEmpty() && processOptions.plannerType.needsGoals) {
-            logger.info("🛑 Process {} has no goals: {}", this.id, agent.goals)
+            logger.error("🛑 Process {} has no goals", this.id)
             error("Agent ${agent.name} has no goals: ${agent.infoString(verbose = true)}")
         }
 

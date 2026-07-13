@@ -27,6 +27,9 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import kotlin.test.assertNull
 import com.embabel.agent.core.Agent as CoreAgent
 
@@ -35,6 +38,7 @@ import com.embabel.agent.core.Agent as CoreAgent
  * Test for metadata extraction from annotations,
  * not invocation
  */
+@ExtendWith(OutputCaptureExtension::class)
 class AgentMetadataReaderMetadataTest {
 
     @Nested
@@ -51,6 +55,29 @@ class AgentMetadataReaderMetadataTest {
         fun `no methods`() {
             val reader = AgentMetadataReader()
             assertNull(reader.createAgentMetadata(NoMethods()))
+        }
+
+        @Test
+        fun `agent with no methods is not registered and logs explicit warning`(output: CapturedOutput) {
+            val reader = AgentMetadataReader()
+            assertNull(reader.createAgentMetadata(AgentWithNoMethods()))
+            assertTrue(
+                output.all.contains("AgentWithNoMethods is not registered"),
+                "Expected explicit not-registered warning, got: ${output.all}",
+            )
+        }
+
+        @Test
+        fun `agent that fails structure validation is not registered`(output: CapturedOutput) {
+            val reader = AgentMetadataReader()
+            assertNull(
+                reader.createAgentMetadata(AgentWithGoalButNoActions()),
+                "Agent with goals but no actions must not be registered (issue #1741)",
+            )
+            assertTrue(
+                output.all.contains("is not registered"),
+                "Expected not-registered warning for validation failure, got: ${output.all}",
+            )
         }
 
         @Test

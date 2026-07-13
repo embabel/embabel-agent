@@ -54,6 +54,19 @@ data class PersonWithReverseTool(val name: String) {
 @EmbabelComponent
 class NoMethods
 
+@Agent(description = "agent with no actions, conditions, or goals")
+class AgentWithNoMethods
+
+@Agent(description = "agent with a goal property but no actions")
+class AgentWithGoalButNoActions {
+
+    val orphanGoal = Goal.createInstance(
+        name = "orphanGoal",
+        description = "Goal with no path because there are no actions",
+        type = PersonWithReverseTool::class.java,
+    )
+}
+
 @EmbabelComponent
 class OneGoalOnly {
 

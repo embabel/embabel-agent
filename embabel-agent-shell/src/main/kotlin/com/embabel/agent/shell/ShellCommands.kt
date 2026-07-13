@@ -189,13 +189,16 @@ class ShellCommands(
 
     @ShellMethod("List agents")
     fun agents(): String {
+        val agents = agentPlatform.agents()
+        if (agents.isEmpty()) {
+            return "No agents registered"
+        }
         val detail = "${"Agents:".bold()}\n${
-            agentPlatform.agents()
-                .joinToString(separator = "\n${"-".repeat(shellProperties.lineLength)}\n") {
-                    it.infoString(verbose = true, indent = 1)
-                }
+            agents.joinToString(separator = "\n${"-".repeat(shellProperties.lineLength)}\n") {
+                it.infoString(verbose = true, indent = 1)
+            }
         }"
-        return detail + "\n\nTL;DR\n${agentPlatform.agents().joinToString("\n") { "${it.name}: ${it.description}" }}"
+        return detail + "\n\nSummary\n${agents.joinToString("\n") { "${it.name}: ${it.description}" }}"
     }
 
     @ShellMethod("List actions")
@@ -204,7 +207,7 @@ class ShellCommands(
             agentPlatform.actions
                 .joinToString(separator = "\n") { it.infoString(verbose = true, indent = 1) }
         }"
-        return detail + "\n\nTL;DR\n${agentPlatform.actions.joinToString("\n") { "${it.name}: ${it.description}" }}"
+        return detail + "\n\nSummary\n${agentPlatform.actions.joinToString("\n") { "${it.name}: ${it.description}" }}"
     }
 
     @ShellMethod("List conditions")
