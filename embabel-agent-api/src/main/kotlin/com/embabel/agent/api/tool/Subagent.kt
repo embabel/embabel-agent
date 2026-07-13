@@ -244,7 +244,7 @@ class Subagent private constructor(
             parentAgentProcess.id
         )
         return ProcessOptions(
-            verbosity = Verbosity(showPrompts = true),
+            verbosity = parentAgentProcess.processOptions.verbosity,
             blackboard = blackboard,
             outputChannel = parentOutputChannel,
             identities = parentAgentProcess.processOptions.identities,

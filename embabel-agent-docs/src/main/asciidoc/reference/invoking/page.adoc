@@ -190,6 +190,10 @@ val plan = invocation.invoke(travelRequest)
 ----
 ====
 
+NOTE: Verbosity set on `ProcessOptions` is inherited by `Subagent` invocations.
+A subagent runs with the same `Verbosity` as the process that triggered it - set it once at the top level and it flows through the entire call tree.
+`GoalTool` and `AgentTool` are entry points and default to `showPrompts = true` regardless of any parent context.
+
 ===== Passing Tool Call Context at Invocation Time
 
 Use `ProcessOptions.withToolCallContext()` to attach out-of-band metadata that flows through the entire agent run to every tool invoked — including remote MCP tools, where it becomes MCP `_meta` on the wire.
