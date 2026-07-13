@@ -382,6 +382,31 @@ cat "${'$'}INPUT_DIR/data.txt"
         assertNotNull(engine)
     }
 
+    @Test
+    @EnabledIf("isDockerAvailable")
+    fun `a text-transform skill must not deadlock and must process all of a large input`() {
+        // Same scenario as the process engine: a streaming filter (tr) that reads stdin
+        // and writes stdout. If the engine writes ALL of stdin before draining the
+        // container's stdout, the stdout pipe fills, tr stops reading stdin, and the stdin
+        // write blocks forever -> deadlock (before waitFor(timeout) is ever reached).
+        // assertTimeoutPreemptively turns that hang into a failure; the content assertions
+        // prove the full 1MB round-tripped, not just that the call returned.
+        val engine = DockerSkillScriptExecutionEngine(image = TEST_IMAGE, user = null)
+        val script = createScript("upper.sh", ScriptLanguage.BASH, "#!/bin/bash\ntr 'a-z' 'A-Z'\n")
+
+        val bigInput = "y".repeat(1048576) // ~1MB, all lowercase
+
+        var result: ScriptExecutionResult? = null
+        assertTimeoutPreemptively(java.time.Duration.ofSeconds(60)) {
+            result = engine.execute(script, stdin = bigInput)
+        }
+
+        assertTrue(result is ScriptExecutionResult.Success, "Expected success but got: $result")
+        val success = result as ScriptExecutionResult.Success
+        assertEquals(bigInput.length, success.stdout.length, "The whole input must be transformed")
+        assertTrue(success.stdout.all { it == 'Y' }, "Every character must be uppercased")
+    }
+
     private fun createScript(
         fileName: String,
         language: ScriptLanguage,

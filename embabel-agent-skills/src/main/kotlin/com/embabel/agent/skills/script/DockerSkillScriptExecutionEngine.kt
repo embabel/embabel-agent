@@ -17,6 +17,7 @@ package com.embabel.agent.skills.script
 
 import com.embabel.agent.tools.file.FileTools
 import org.slf4j.LoggerFactory
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.TimeUnit
@@ -72,14 +73,25 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
     private val artifactsFileTools: FileTools = FileTools.readWrite(artifactsRoot.toString())
 
     /**
-     * Resolve an input file. Validated against the user root first.
+     * Resolve an input file against the two allowed roots, in order:
      *
-     * The fallback to the engine's artifacts root fires ONLY on [SecurityException] —
-     * i.e. the path is *outside* the user root, a definitive signal that it isn't a
-     * user file. A path that is under the user root but missing throws
-     * [IllegalArgumentException] instead ("file not found"), which is NOT caught here
-     * and stays a normal error — so an LLM fumbling a working-dir path is unaffected.
-     * Anything outside both roots is rejected.
+     *  1. the user root ([fileTools]) — where the user's own files live;
+     *  2. the engine's artifacts root ([artifactsFileTools]) — where outputs produced by a
+     *     previous run are kept, so a later skill can reuse them as input.
+     *
+     * Both roots reject path traversal (any path escaping the root).
+     *
+     * We fall back to root 2 ONLY when root 1 throws [SecurityException]. This relies on
+     * [FileTools.resolveAndValidateFile] reporting two failures distinctly:
+     *
+     *  - [SecurityException]        -> the path is *outside* the root. That means "not a user
+     *                                  file", so it is worth retrying against the artifacts root.
+     *  - [IllegalArgumentException] -> the path is *inside* the root but the file is missing
+     *                                  ("file not found"). That is a genuine error, NOT a
+     *                                  wrong-root signal, so we let it propagate unchanged.
+     *
+     * Consequence: a mere typo on a user-dir path stays a clear "file not found" instead of
+     * silently falling through to the artifacts root. A path outside both roots is rejected.
      */
     private fun resolveInputFile(path: Path): Path =
         try {
@@ -171,7 +183,9 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
         outputDir: Path,
     ): List<String> {
         return buildList {
-            add("docker"); add("run"); add("--rm")
+            // -i keeps the container's stdin open so a provided stdin is actually
+            // delivered; without it Docker attaches stdin to /dev/null and drops it.
+            add("docker"); add("run"); add("--rm"); add("-i")
 
             memoryLimit?.let { addAll(listOf("--memory", it)) }
             cpuLimit?.let { addAll(listOf("--cpus", it)) }
@@ -212,18 +226,28 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
             .redirectErrorStream(false)
             .start()
 
-        if (stdin != null) {
-            process.outputStream.bufferedWriter().use { it.write(stdin) }
-        } else {
-            process.outputStream.close()
-        }
-
         var stdout = ""
         var stderr = ""
+        // Start draining stdout/stderr BEFORE writing stdin, so a script that produces
+        // output while still consuming stdin cannot deadlock on a full pipe.
         val stdoutThread = Thread { stdout = process.inputStream.bufferedReader().readText() }
             .apply { isDaemon = true; start() }
         val stderrThread = Thread { stderr = process.errorStream.bufferedReader().readText() }
             .apply { isDaemon = true; start() }
+
+        // Write stdin on its own thread so a large stdin can't block, and a container that
+        // stops reading early (broken pipe) doesn't fail the whole execution.
+        val stdinThread = Thread {
+            try {
+                if (stdin != null) {
+                    process.outputStream.bufferedWriter().use { it.write(stdin) }
+                } else {
+                    process.outputStream.close()
+                }
+            } catch (e: IOException) {
+                // The container may close its stdin / exit before consuming all input.
+            }
+        }.apply { isDaemon = true; start() }
 
         val completed: Boolean
         val duration = measureTime {
@@ -232,6 +256,7 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
 
         if (!completed) {
             process.destroyForcibly()
+            stdinThread.join(1_000)
             stdoutThread.join(1_000)
             stderrThread.join(1_000)
             logger.warn("Script {} timed out after {}", scriptFileName, timeout)
@@ -243,6 +268,7 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
             )
         }
 
+        stdinThread.join()
         stdoutThread.join()
         stderrThread.join()
 

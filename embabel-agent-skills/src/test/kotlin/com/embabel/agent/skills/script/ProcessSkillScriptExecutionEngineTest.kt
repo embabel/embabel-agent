@@ -462,16 +462,13 @@ ls -1 "${'$'}INPUT_DIR" | wc -l | tr -d ' '
     @EnabledOnOs(OS.MAC, OS.LINUX)
     fun `a script must not inherit host environment secrets`() {
         // EMBABEL_TEST_SECRET is set in the test JVM env (surefire config), standing in
-        // for a real secret like an API key. A skill script must NOT be able to read it.
-        //
-        // EXPECTED (after fix): the script sees nothing (only a safe allowlist is passed).
-        // CURRENT (buggy): the engine inherits the full host env, so the script prints the
-        // secret -> this FAILS.
+        // for a real secret like an API key. With inheritEnvironment = false a skill script
+        // must NOT be able to read it: only the safe allowlist is passed through.
         assertNotNull(
             System.getenv("EMBABEL_TEST_SECRET"),
             "EMBABEL_TEST_SECRET must be set in the test JVM env (surefire)",
         )
-        val engine = ProcessSkillScriptExecutionEngine()
+        val engine = ProcessSkillScriptExecutionEngine(inheritEnvironment = false)
         val script = createScript(
             "leak.sh",
             ScriptLanguage.BASH,
@@ -496,6 +493,7 @@ ls -1 "${'$'}INPUT_DIR" | wc -l | tr -d ' '
         // with a built-in default.)
         val engine = ProcessSkillScriptExecutionEngine(
             interpreters = mapOf(ScriptLanguage.BASH to listOf("/bin/bash")),
+            inheritEnvironment = false,
             environmentAllowlist = emptySet(),
         )
         val script = createScript(
@@ -523,6 +521,7 @@ ls -1 "${'$'}INPUT_DIR" | wc -l | tr -d ' '
         // EMBABEL_TEST_SECRET — while HOME (which IS in the default allowlist) is dropped
         // because it is not listed here.
         val engine = ProcessSkillScriptExecutionEngine(
+            inheritEnvironment = false,
             environmentAllowlist = setOf("PATH", "EMBABEL_TEST_SECRET"),
         )
         val script = createScript(
