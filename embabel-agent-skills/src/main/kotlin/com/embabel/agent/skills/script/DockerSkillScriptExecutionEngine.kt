@@ -17,7 +17,6 @@ package com.embabel.agent.skills.script
 
 import com.embabel.agent.tools.file.FileTools
 import org.slf4j.LoggerFactory
-import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.TimeUnit
@@ -25,7 +24,7 @@ import kotlin.io.path.absolutePathString
 import kotlin.io.path.exists
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.measureTime
+import kotlin.time.measureTimedValue
 
 /**
  * Script execution engine that runs scripts inside a Docker container for sandboxed execution.
@@ -226,53 +225,19 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
             .redirectErrorStream(false)
             .start()
 
-        var stdout = ""
-        var stderr = ""
-        // Start draining stdout/stderr BEFORE writing stdin, so a script that produces
-        // output while still consuming stdin cannot deadlock on a full pipe.
-        val stdoutThread = Thread { stdout = process.inputStream.bufferedReader().readText() }
-            .apply { isDaemon = true; start() }
-        val stderrThread = Thread { stderr = process.errorStream.bufferedReader().readText() }
-            .apply { isDaemon = true; start() }
+        val (io, duration) = measureTimedValue { process.pumpIo(stdin, timeout) }
 
-        // Write stdin on its own thread so a large stdin can't block, and a container that
-        // stops reading early (broken pipe) doesn't fail the whole execution.
-        val stdinThread = Thread {
-            try {
-                if (stdin != null) {
-                    process.outputStream.bufferedWriter().use { it.write(stdin) }
-                } else {
-                    process.outputStream.close()
-                }
-            } catch (e: IOException) {
-                // The container may close its stdin / exit before consuming all input.
-            }
-        }.apply { isDaemon = true; start() }
-
-        val completed: Boolean
-        val duration = measureTime {
-            completed = process.waitFor(timeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
-        }
-
-        if (!completed) {
-            process.destroyForcibly()
-            stdinThread.join(1_000)
-            stdoutThread.join(1_000)
-            stderrThread.join(1_000)
+        if (io.timedOut) {
             logger.warn("Script {} timed out after {}", scriptFileName, timeout)
             return ScriptExecutionResult.Failure(
                 error = "Script execution timed out after $timeout",
-                stderr = stderr.takeIf { it.isNotBlank() },
+                stderr = io.stderr.takeIf { it.isNotBlank() },
                 timedOut = true,
                 duration = duration,
             )
         }
 
-        stdinThread.join()
-        stdoutThread.join()
-        stderrThread.join()
-
-        val exitCode = process.exitValue()
+        val exitCode = io.exitCode!!
         val artifacts = collectArtifacts(outputDir)
 
         logger.debug(
@@ -281,8 +246,8 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
         )
 
         return ScriptExecutionResult.Success(
-            stdout = stdout,
-            stderr = stderr,
+            stdout = io.stdout,
+            stderr = io.stderr,
             exitCode = exitCode,
             duration = duration,
             artifacts = artifacts,

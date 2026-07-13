@@ -18,10 +18,8 @@ package com.embabel.agent.skills.script
 import com.embabel.agent.tools.file.FileTools
 import org.slf4j.LoggerFactory
 import java.io.File
-import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
@@ -355,57 +353,17 @@ class ProcessSkillScriptExecutionEngine @JvmOverloads constructor(
             // Add OUTPUT_DIR for scripts to write artifacts
             env["OUTPUT_DIR"] = outputDir.toAbsolutePath().toString()
 
-            val process = processBuilder.start()
+            val io = processBuilder.start().pumpIo(stdin, timeout)
 
-            var stdout = ""
-            var stderr = ""
-
-            // Start draining stdout/stderr BEFORE writing stdin, so a script that
-            // produces output while still consuming stdin cannot deadlock on a full pipe.
-            val stdoutThread = Thread {
-                stdout = process.inputStream.bufferedReader().readText()
-            }.apply { start() }
-
-            val stderrThread = Thread {
-                stderr = process.errorStream.bufferedReader().readText()
-            }.apply { start() }
-
-            // Write stdin on its own thread so a large stdin can't block, and a script
-            // that stops reading early (broken pipe) doesn't fail the whole execution.
-            val stdinThread = Thread {
-                try {
-                    if (stdin != null) {
-                        process.outputStream.bufferedWriter().use { it.write(stdin) }
-                    } else {
-                        process.outputStream.close()
-                    }
-                } catch (e: IOException) {
-                    // The process may close its stdin / exit before consuming all input.
-                }
-            }.apply { start() }
-
-            // Wait for process with timeout
-            val completed = process.waitFor(timeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
-
-            if (!completed) {
-                process.destroyForcibly()
-                stdinThread.join(1000)
-                stdoutThread.join(1000)
-                stderrThread.join(1000)
-
-                return ProcessResult.TimedOut(stderr)
+            if (io.timedOut) {
+                ProcessResult.TimedOut(io.stderr)
+            } else {
+                ProcessResult.Completed(
+                    exitCode = io.exitCode!!,
+                    stdout = io.stdout,
+                    stderr = io.stderr,
+                )
             }
-
-            // Wait for the stdin writer and output readers to complete
-            stdinThread.join()
-            stdoutThread.join()
-            stderrThread.join()
-
-            ProcessResult.Completed(
-                exitCode = process.exitValue(),
-                stdout = stdout,
-                stderr = stderr,
-            )
         } catch (e: Exception) {
             ProcessResult.Failed(e.message ?: "Unknown error starting process")
         }
