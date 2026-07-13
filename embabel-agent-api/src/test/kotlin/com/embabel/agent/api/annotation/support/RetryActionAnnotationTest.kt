@@ -87,7 +87,7 @@ internal class AgentWithTwoRetryActions {
 
     @AchievesGoal(description = "Process the input")
     @Action(actionRetryPolicyExpression = "\${retry-twice}")
-    fun firstAction(input: RetryTestInput?): RetryTestOutput {
+    fun firstAction(input: RetryTestInput): RetryTestOutput {
         retryInvocations.incrementAndGet()
         if (retryInvocations.get() == 1) throw RuntimeException("Failed!")
 
