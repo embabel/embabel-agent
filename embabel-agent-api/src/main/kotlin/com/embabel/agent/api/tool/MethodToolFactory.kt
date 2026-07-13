@@ -21,8 +21,12 @@ import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory
+import org.springframework.aop.framework.AopProxyUtils
+import org.springframework.cglib.proxy.Enhancer
 import org.springframework.core.KotlinDetector
+import org.springframework.util.ClassUtils
 import java.lang.reflect.Method
+import java.lang.reflect.Proxy
 import kotlin.reflect.KFunction
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.functions
@@ -104,23 +108,32 @@ interface MethodToolFactory {
         instance: Any,
         objectMapper: ObjectMapper = jacksonObjectMapper(),
     ): List<Tool> {
-        if (instance::class.hasAnnotation<UnfoldingTools>()) {
+        // A CGLIB proxy's own class never carries the @LlmTool annotations -- they're on the
+        // class it subclasses. Reflect over that target class, but still invoke on the proxy
+        // instance (below, via fromMethod) so any AOP advice on the proxy actually runs.
+        val targetClass: Class<*> = if (Enhancer.isEnhanced(instance.javaClass)) {
+            ClassUtils.getUserClass(instance.javaClass)
+        } else {
+            instance.javaClass
+        }
+
+        if (targetClass.kotlin.hasAnnotation<UnfoldingTools>()) {
             return listOf(UnfoldingTool.fromInstance(instance, objectMapper))
         }
 
-        val tools = if (KotlinDetector.isKotlinReflectPresent() && KotlinDetector.isKotlinType(instance.javaClass)) {
-            instance::class.functions
+        val tools = if (KotlinDetector.isKotlinReflectPresent() && KotlinDetector.isKotlinType(targetClass)) {
+            targetClass.kotlin.functions
                 .filter { it.hasAnnotation<LlmTool>() }
                 .map { fromMethod(instance, it, objectMapper) }
         } else {
-            instance.javaClass.declaredMethods
+            targetClass.declaredMethods
                 .filter { it.isAnnotationPresent(LlmTool::class.java) }
                 .map { fromMethod(instance, it, objectMapper) }
         }
 
         if (tools.isEmpty()) {
             throw IllegalArgumentException(
-                "No methods annotated with @LlmTool found on ${instance::class.simpleName}"
+                "No methods annotated with @LlmTool found on ${targetClass.simpleName}"
             )
         }
 
@@ -142,6 +155,7 @@ interface MethodToolFactory {
         return try {
             fromInstance(instance, objectMapper)
         } catch (e: IllegalArgumentException) {
+            warnIfLlmToolsHiddenBehindJdkProxy(instance)
             logger.debug("No @LlmTool annotations found on {}: {}", instance::class.simpleName, e.message)
             emptyList()
         } catch (e: Throwable) {
@@ -152,6 +166,30 @@ interface MethodToolFactory {
                 e.message,
             )
             emptyList()
+        }
+    }
+
+    /**
+     * JDK dynamic proxies can't be unwrapped for discovery -- a method taken from the target
+     * class can't be invoked on an interface proxy. So if a JDK proxy's target class does have
+     * @LlmTool methods, warn that they're invisible instead of just quietly finding nothing.
+     */
+    private fun warnIfLlmToolsHiddenBehindJdkProxy(instance: Any) {
+        if (!Proxy.isProxyClass(instance.javaClass)) {
+            return
+        }
+        val targetClass = AopProxyUtils.ultimateTargetClass(instance)
+        val hasLlmToolMethods = if (KotlinDetector.isKotlinReflectPresent() && KotlinDetector.isKotlinType(targetClass)) {
+            targetClass.kotlin.functions.any { it.hasAnnotation<LlmTool>() }
+        } else {
+            targetClass.declaredMethods.any { it.isAnnotationPresent(LlmTool::class.java) }
+        }
+        if (hasLlmToolMethods) {
+            logger.warn(
+                "{} has @LlmTool methods but is only reachable through a JDK dynamic proxy, so they " +
+                    "can't be discovered. Use class-based (CGLIB) proxying instead, e.g. spring.aop.proxy-target-class=true.",
+                targetClass.name,
+            )
         }
     }
 
