@@ -22,6 +22,7 @@ import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.shell.config.ShellProperties
 import com.embabel.agent.spi.logging.ColorPalette
+import com.embabel.agent.spi.logging.DefaultColorPalette
 import com.embabel.agent.spi.logging.LoggingPersonality
 import com.embabel.common.ai.model.ModelProvider
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -48,10 +49,7 @@ class ShellCommandsAgentsTest {
     private val terminalServices: TerminalServices = mockk(relaxed = true)
     private val environment: ConfigurableEnvironment = mockk(relaxed = true)
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
-    private val colorPalette: ColorPalette = object : ColorPalette {
-        override val highlight: Int = 0xbeb780
-        override val color2: Int = 0x7da17e
-    }
+    private val colorPalette: ColorPalette = DefaultColorPalette()
     private val loggingPersonality: LoggingPersonality = mockk(relaxed = true) {
         every { logger } returns mockk(relaxed = true)
         every { colorPalette } returns this@ShellCommandsAgentsTest.colorPalette
