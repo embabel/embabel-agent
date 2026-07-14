@@ -144,6 +144,11 @@ fun PropertyFilter.toSpringAiExpression(): Filter.Expression = when (this) {
         Filter.Value(value)
     )
 
+    is PropertyFilter.HasElement -> throw UnsupportedOperationException(
+        "HasElement filter (membership in a list-valued property) cannot be translated to a " +
+                "Spring AI filter expression. Use in-memory filtering instead."
+    )
+
     // String filters not natively supported by Spring AI - require in-memory filtering
     is PropertyFilter.ContainsIgnoreCase -> throw UnsupportedOperationException(
         "ContainsIgnoreCase filter cannot be translated to Spring AI filter expression. " +
