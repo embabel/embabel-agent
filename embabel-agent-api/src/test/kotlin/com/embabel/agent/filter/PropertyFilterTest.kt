@@ -25,6 +25,38 @@ class PropertyFilterTest {
     inner class InMemoryMatchingTests {
 
         @Test
+        fun `HasElement matches when list property contains the value`() {
+            val filter = PropertyFilter.HasElement("visibleTo", "bob")
+            val metadata = mapOf("visibleTo" to listOf("alice", "bob"), "type" to "document")
+
+            assertTrue(InMemoryPropertyFilter.matches(filter, metadata))
+        }
+
+        @Test
+        fun `HasElement does not match when list property lacks the value`() {
+            val filter = PropertyFilter.HasElement("visibleTo", "carol")
+            val metadata = mapOf("visibleTo" to listOf("alice", "bob"))
+
+            assertFalse(InMemoryPropertyFilter.matches(filter, metadata))
+        }
+
+        @Test
+        fun `HasElement does not match when key is missing`() {
+            val filter = PropertyFilter.HasElement("visibleTo", "bob")
+            val metadata = mapOf("type" to "document")
+
+            assertFalse(InMemoryPropertyFilter.matches(filter, metadata))
+        }
+
+        @Test
+        fun `HasElement does not match a scalar property`() {
+            val filter = PropertyFilter.HasElement("visibleTo", "bob")
+            val metadata = mapOf("visibleTo" to "bob")
+
+            assertFalse(InMemoryPropertyFilter.matches(filter, metadata))
+        }
+
+        @Test
         fun `Eq matches when key equals value`() {
             val filter = PropertyFilter.Eq("owner", "alice")
             val metadata = mapOf("owner" to "alice", "type" to "document")
