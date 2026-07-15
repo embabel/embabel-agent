@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.skills.script
 
+import com.embabel.agent.tools.file.FileTools
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.condition.EnabledOnOs
@@ -294,7 +295,7 @@ echo "Some content here" > "${'$'}OUTPUT_DIR/output.txt"
     @Test
     @EnabledOnOs(OS.MAC, OS.LINUX)
     fun `execute makes input files available in INPUT_DIR`() {
-        val engine = ProcessSkillScriptExecutionEngine()
+        val engine = ProcessSkillScriptExecutionEngine(fileTools = FileTools.readWrite(tempDir.toString()))
         val script = createScript(
             "test.sh",
             ScriptLanguage.BASH,
@@ -325,7 +326,7 @@ cat "${'$'}INPUT_DIR/input.txt" > "${'$'}OUTPUT_DIR/output.txt"
     @Test
     @EnabledOnOs(OS.MAC, OS.LINUX)
     fun `execute handles multiple input files`() {
-        val engine = ProcessSkillScriptExecutionEngine()
+        val engine = ProcessSkillScriptExecutionEngine(fileTools = FileTools.readWrite(tempDir.toString()))
         val script = createScript(
             "test.sh",
             ScriptLanguage.BASH,
@@ -352,7 +353,7 @@ ls -1 "${'$'}INPUT_DIR" | wc -l | tr -d ' '
 
     @Test
     fun `execute returns Denied for non-existent input file`() {
-        val engine = ProcessSkillScriptExecutionEngine()
+        val engine = ProcessSkillScriptExecutionEngine(fileTools = FileTools.readWrite(tempDir.toString()))
         val script = createScript("test.sh", ScriptLanguage.BASH, "#!/bin/bash\necho ok")
 
         val nonExistentFile = tempDir.resolve("does-not-exist.txt")
@@ -360,6 +361,249 @@ ls -1 "${'$'}INPUT_DIR" | wc -l | tr -d ' '
 
         assertTrue(result is ScriptExecutionResult.Denied)
         assertTrue((result as ScriptExecutionResult.Denied).reason.contains("does not exist"))
+    }
+
+    @Test
+    @EnabledOnOs(OS.MAC, OS.LINUX)
+    fun `execute must deny input files located outside the confinement root`() {
+        // Regression test for the input-path-confinement gap (issue #1754).
+        //
+        // The engine should confine input files to a configured root - as
+        // DockerSkillScriptExecutionEngine already does via
+        // FileTools.resolveAndValidateFile(...) - and deny anything outside it.
+        //
+        // The input below lives under the JUnit @TempDir, i.e. under the system
+        // temp dir, which is OUTSIDE the process working directory that the
+        // engine's default root should be.
+        //
+        // EXPECTED (after fix): Denied.
+        // CURRENT (buggy): the engine copies the out-of-root file into INPUT_DIR and
+        // runs the script over it, returning Success - so this assertion FAILS, which
+        // is exactly what confirms the vulnerability.
+        val engine = ProcessSkillScriptExecutionEngine()
+        val script = createScript(
+            "leak.sh",
+            ScriptLanguage.BASH,
+            "#!/bin/bash\ncat \"${'$'}INPUT_DIR\"/*",
+        )
+
+        val outsideRoot = tempDir.resolve("secret.txt")
+        Files.writeString(outsideRoot, "TOP_SECRET")
+
+        val result = engine.execute(script, inputFiles = listOf(outsideRoot))
+
+        assertTrue(
+            result is ScriptExecutionResult.Denied,
+            "Input file outside the confinement root must be denied, but got: $result",
+        )
+    }
+
+    @Test
+    @EnabledOnOs(OS.MAC, OS.LINUX)
+    fun `a text-transform skill must not deadlock and must process all of a large input`() {
+        // Realistic scenario: a "transform this text" skill (read stdin -> write stdout),
+        // e.g. uppercasing a large pasted document. `tr` streams (reads a block -> writes
+        // a block), so read and write interleave, like any Unix filter.
+        //
+        // The engine used to write ALL of stdin before starting the stdout readers, so
+        // once the filter's stdout pipe filled it blocked (parent not draining), stopped
+        // reading stdin, and the parent blocked writing stdin -> deadlock, before
+        // waitFor(timeout).
+        //
+        // assertTimeoutPreemptively turns a deadlock into a failure instead of hanging the
+        // suite; the content assertions prove the full 1MB round-tripped (not just that
+        // the call returned).
+        val engine = ProcessSkillScriptExecutionEngine()
+        val script = createScript("upper.sh", ScriptLanguage.BASH, "#!/bin/bash\ntr 'a-z' 'A-Z'\n")
+
+        val bigInput = "y".repeat(1048576) // ~1MB, all lowercase
+
+        var result: ScriptExecutionResult? = null
+        assertTimeoutPreemptively(java.time.Duration.ofSeconds(10)) {
+            result = engine.execute(script, stdin = bigInput)
+        }
+
+        assertTrue(result is ScriptExecutionResult.Success, "Expected success but got: $result")
+        val success = result as ScriptExecutionResult.Success
+        assertEquals(bigInput.length, success.stdout.length, "The whole input must be transformed")
+        assertTrue(success.stdout.all { it == 'Y' }, "Every character must be uppercased")
+    }
+
+    @Test
+    @EnabledOnOs(OS.MAC, OS.LINUX)
+    fun `an artifact produced by one skill can be reused as input to the next skill`() {
+        // A produces a file; B must be able to take it as input (chaining).
+        val engine = ProcessSkillScriptExecutionEngine(fileTools = FileTools.readWrite(tempDir.toString()))
+
+        val producer = createScript(
+            "produce.sh",
+            ScriptLanguage.BASH,
+            "#!/bin/bash\necho \"PDF_CONTENT\" > \"${'$'}OUTPUT_DIR/result.pdf\"\n",
+        )
+        val produced = engine.execute(producer)
+        assertTrue(produced is ScriptExecutionResult.Success, "Producer failed: $produced")
+        val artifact = (produced as ScriptExecutionResult.Success).artifacts.single()
+
+        val consumer = createScript(
+            "consume.sh",
+            ScriptLanguage.BASH,
+            "#!/bin/bash\ncat \"${'$'}INPUT_DIR/result.pdf\"\n",
+        )
+        val consumed = engine.execute(consumer, inputFiles = listOf(artifact.path))
+
+        assertTrue(consumed is ScriptExecutionResult.Success, "Consumer failed: $consumed")
+        assertTrue(
+            (consumed as ScriptExecutionResult.Success).stdout.contains("PDF_CONTENT"),
+            "The next skill should read the artifact content, but stdout was: ${consumed.stdout}",
+        )
+    }
+
+    @Test
+    @EnabledOnOs(OS.MAC, OS.LINUX)
+    fun `a script must not inherit host environment secrets`() {
+        // EMBABEL_TEST_SECRET is set in the test JVM env (surefire config), standing in
+        // for a real secret like an API key. With inheritEnvironment = false a skill script
+        // must NOT be able to read it: only the safe allowlist is passed through.
+        assertNotNull(
+            System.getenv("EMBABEL_TEST_SECRET"),
+            "EMBABEL_TEST_SECRET must be set in the test JVM env (surefire)",
+        )
+        val engine = ProcessSkillScriptExecutionEngine(inheritEnvironment = false)
+        val script = createScript(
+            "leak.sh",
+            ScriptLanguage.BASH,
+            "#!/bin/bash\nprintenv EMBABEL_TEST_SECRET || true\n",
+        )
+
+        val result = engine.execute(script)
+
+        assertTrue(result is ScriptExecutionResult.Success, "got: $result")
+        assertFalse(
+            (result as ScriptExecutionResult.Success).stdout.contains("s3cr3t-do-not-leak"),
+            "Host secret leaked into the script: ${result.stdout}",
+        )
+    }
+
+    @Test
+    @EnabledOnOs(OS.MAC, OS.LINUX)
+    fun `an empty allowlist passes no host variables - not even PATH`() {
+        // Max-lockdown posture: environmentAllowlist = emptySet() drops every host var,
+        // including PATH. An absolute interpreter path lets the process still start.
+        // (printenv reads the real environment, unlike echo ${'$'}PATH which bash fills
+        // with a built-in default.)
+        val engine = ProcessSkillScriptExecutionEngine(
+            interpreters = mapOf(ScriptLanguage.BASH to listOf("/bin/bash")),
+            inheritEnvironment = false,
+            environmentAllowlist = emptySet(),
+        )
+        val script = createScript(
+            "env.sh",
+            ScriptLanguage.BASH,
+            "#!/bin/bash\n" +
+                "echo \"PATH=[\$(printenv PATH)]\"\n" +
+                "echo \"HOME=[\$(printenv HOME)]\"\n" +
+                "printenv EMBABEL_TEST_SECRET || true\n",
+        )
+
+        val result = engine.execute(script)
+
+        assertTrue(result is ScriptExecutionResult.Success, "got: $result")
+        val stdout = (result as ScriptExecutionResult.Success).stdout
+        assertTrue(stdout.contains("PATH=[]"), "PATH must be empty, stdout: $stdout")
+        assertTrue(stdout.contains("HOME=[]"), "HOME must be empty, stdout: $stdout")
+        assertFalse(stdout.contains("s3cr3t-do-not-leak"), "secret leaked: $stdout")
+    }
+
+    @Test
+    @EnabledOnOs(OS.MAC, OS.LINUX)
+    fun `a custom allowlist passes exactly the listed host variables`() {
+        // Custom posture: pass PATH (so the script runs) and, deliberately,
+        // EMBABEL_TEST_SECRET — while HOME (which IS in the default allowlist) is dropped
+        // because it is not listed here.
+        val engine = ProcessSkillScriptExecutionEngine(
+            inheritEnvironment = false,
+            environmentAllowlist = setOf("PATH", "EMBABEL_TEST_SECRET"),
+        )
+        val script = createScript(
+            "env.sh",
+            ScriptLanguage.BASH,
+            "#!/bin/bash\n" +
+                "echo \"SECRET=[\$(printenv EMBABEL_TEST_SECRET)]\"\n" +
+                "echo \"HOME=[\$(printenv HOME)]\"\n",
+        )
+
+        val result = engine.execute(script)
+
+        assertTrue(result is ScriptExecutionResult.Success, "got: $result")
+        val stdout = (result as ScriptExecutionResult.Success).stdout
+        assertTrue(stdout.contains("SECRET=[s3cr3t-do-not-leak]"), "listed var must pass, stdout: $stdout")
+        assertTrue(stdout.contains("HOME=[]"), "unlisted var must be dropped, stdout: $stdout")
+    }
+
+    @Test
+    @EnabledOnOs(OS.MAC, OS.LINUX)
+    fun `two input files with the same name from different folders are both made available`() {
+        // Realistic scenario: "merge the monthly report.csv from January and February".
+        // Both files are named report.csv but live in different folders — the LLM passes
+        // both. They must both reach the script; today the second copy collides on the
+        // same target name and the run fails with a confusing "Unexpected error".
+        // EXPECTED (after fix): Success, the script sees 2 files.
+        val engine = ProcessSkillScriptExecutionEngine(fileTools = FileTools.readWrite(tempDir.toString()))
+
+        val jan = tempDir.resolve("jan").resolve("report.csv")
+        val feb = tempDir.resolve("feb").resolve("report.csv")
+        Files.createDirectories(jan.parent)
+        Files.createDirectories(feb.parent)
+        Files.writeString(jan, "month,total\njan,100\n")
+        Files.writeString(feb, "month,total\nfeb,200\n")
+
+        // A "merge reports" script: count how many input files it received.
+        val script = createScript(
+            "merge.sh",
+            ScriptLanguage.BASH,
+            "#!/bin/bash\nls -1 \"${'$'}INPUT_DIR\" | wc -l | tr -d ' '\n",
+        )
+
+        val result = engine.execute(script, inputFiles = listOf(jan, feb))
+
+        assertTrue(result is ScriptExecutionResult.Success, "Run failed on duplicate input names: $result")
+        assertEquals(
+            "2",
+            (result as ScriptExecutionResult.Success).stdout.trim(),
+            "Both report.csv files must reach the script",
+        )
+    }
+
+    @Test
+    @EnabledOnOs(OS.MAC, OS.LINUX)
+    fun `same-name inputs are disambiguated even when the suffixed name is also taken`() {
+        // Two files named report.csv AND one already named report-1.csv: the suffix loop
+        // must keep incrementing (report.csv, report-1.csv, report-1-1.csv) — never
+        // crash, never overwrite.
+        val engine = ProcessSkillScriptExecutionEngine(fileTools = FileTools.readWrite(tempDir.toString()))
+
+        val a = tempDir.resolve("a").resolve("report.csv")
+        val b = tempDir.resolve("b").resolve("report.csv")
+        val c = tempDir.resolve("c").resolve("report-1.csv")
+        listOf(a, b, c).forEach {
+            Files.createDirectories(it.parent)
+            Files.writeString(it, "x")
+        }
+
+        val script = createScript(
+            "count.sh",
+            ScriptLanguage.BASH,
+            "#!/bin/bash\nls -1 \"${'$'}INPUT_DIR\" | wc -l | tr -d ' '\n",
+        )
+
+        val result = engine.execute(script, inputFiles = listOf(a, b, c))
+
+        assertTrue(result is ScriptExecutionResult.Success, "got: $result")
+        assertEquals(
+            "3",
+            (result as ScriptExecutionResult.Success).stdout.trim(),
+            "All three inputs must be present with distinct names",
+        )
     }
 
     private fun createScript(

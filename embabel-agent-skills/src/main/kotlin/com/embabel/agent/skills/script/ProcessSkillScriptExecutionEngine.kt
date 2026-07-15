@@ -15,11 +15,11 @@
  */
 package com.embabel.agent.skills.script
 
+import com.embabel.agent.tools.file.FileTools
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
@@ -39,26 +39,63 @@ import kotlin.time.measureTimedValue
  * - Development and testing environments
  * - Scenarios where OS-level user permissions provide adequate isolation
  *
- * For untrusted scripts, consider using [DockerSkillScriptExecutionEngine] or
- * [GraalVMExecutionEngine] which provide stronger isolation.
+ * For untrusted scripts, consider using [DockerSkillScriptExecutionEngine], which
+ * provides stronger isolation.
  *
  * @param timeout maximum execution time before the process is killed
  * @param supportedLanguages languages this engine will execute (defaults to all)
  * @param interpreters map of language to interpreter command
- * @param environment environment variables to pass to scripts (defaults to inheriting current env)
- * @param inheritEnvironment whether to inherit the current process environment
+ * @param environment environment variables to pass to scripts (always passed through)
+ * @param inheritEnvironment whether to inherit the FULL host environment. Defaults to
+ * true (scripts see the host env, including any secrets). Set false to restrict scripts
+ * to [environmentAllowlist] (a safe subset, e.g. PATH/HOME) so they can find interpreters
+ * without seeing host secrets (API keys, etc.).
+ * @param environmentAllowlist host variables passed through when [inheritEnvironment] is
+ * false (defaults to [SAFE_ENV_ALLOWLIST]); override to add or restrict variables
+ * @param fileTools resolves and validates input file paths against a root, rejecting path
+ * traversal and files outside the root (defaults to the current working directory)
  */
-class ProcessSkillScriptExecutionEngine(
+class ProcessSkillScriptExecutionEngine @JvmOverloads constructor(
     private val timeout: Duration = 30.seconds,
     private val supportedLanguages: Set<ScriptLanguage> = ScriptLanguage.entries.toSet(),
     private val interpreters: Map<ScriptLanguage, List<String>> = defaultInterpreters,
     private val environment: Map<String, String> = emptyMap(),
     private val inheritEnvironment: Boolean = true,
+    private val environmentAllowlist: Set<String> = SAFE_ENV_ALLOWLIST,
+    private val fileTools: FileTools = FileTools.readWrite(System.getProperty("user.dir")),
 ) : SkillScriptExecutionEngine {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
+    // Confines input files to the user root (rejecting path traversal) and stages produced
+    // artifacts so a later skill can reuse them as input.
+    private val inputs = ConfinedInputResolver(fileTools)
+
     companion object {
+        /**
+         * Create an engine confined to [root]: input files are resolved against [root]
+         * and anything outside it (absolute paths, `..` traversal) is rejected.
+         *
+         * Java-friendly entry point. Kotlin callers can pass `fileTools` directly via the
+         * constructor's named argument; Java cannot reach it (the leading `Duration`
+         * value-class parameter makes the deeper constructor overloads synthetic), so this
+         * factory exposes the one knob a per-request/multi-tenant caller needs.
+         */
+        @JvmStatic
+        fun confinedTo(root: String): ProcessSkillScriptExecutionEngine =
+            ProcessSkillScriptExecutionEngine(fileTools = FileTools.readWrite(root))
+
+        /**
+         * Environment variables passed through to scripts when the full host environment
+         * is not inherited. Enough to locate and run interpreters, without leaking host
+         * secrets (API keys, tokens, ...).
+         */
+        val SAFE_ENV_ALLOWLIST: Set<String> = setOf(
+            "PATH", "HOME", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TERM", "TZ",
+            // Windows equivalents
+            "SystemRoot", "SystemDrive", "TEMP", "TMP", "USERPROFILE", "PATHEXT",
+        )
+
         /**
          * Default interpreters for each language.
          * The script path will be appended to this command.
@@ -115,14 +152,14 @@ class ProcessSkillScriptExecutionEngine(
         // Validate first
         validate(script)?.let { return it }
 
-        // Validate input files exist
-        for (inputFile in inputFiles) {
-            if (!Files.exists(inputFile)) {
-                return ScriptExecutionResult.Denied("Input file does not exist: $inputFile")
-            }
-            if (!Files.isRegularFile(inputFile)) {
-                return ScriptExecutionResult.Denied("Input path is not a file: $inputFile")
-            }
+        // Resolve and validate input files, confining them to the fileTools root
+        // (rejects path traversal and files outside the root, like the Docker engine).
+        val resolvedInputFiles = try {
+            inputFiles.map { inputs.resolve(it) }
+        } catch (e: SecurityException) {
+            return ScriptExecutionResult.Denied("Path traversal not allowed: ${e.message}")
+        } catch (e: IllegalArgumentException) {
+            return ScriptExecutionResult.Denied("Input file error: ${e.message}")
         }
 
         val interpreter = interpreters[script.language]!!
@@ -137,10 +174,10 @@ class ProcessSkillScriptExecutionEngine(
         logger.debug("Created output directory: {}", outputDir)
 
         return try {
-            // Copy input files to input directory
-            for (inputFile in inputFiles) {
-                val targetPath = inputDir.resolve(inputFile.fileName)
-                Files.copy(inputFile, targetPath)
+            // Copy input files to input directory (unique names so same-named inputs
+            // from different folders don't collide).
+            for (inputFile in resolvedInputFiles) {
+                val targetPath = copyIntoUniqueName(inputFile, inputDir)
                 logger.debug("Copied input file {} to {}", inputFile, targetPath)
             }
 
@@ -158,7 +195,7 @@ class ProcessSkillScriptExecutionEngine(
 
             when (result) {
                 is ProcessResult.Completed -> {
-                    val artifacts = collectArtifacts(outputDir)
+                    val artifacts = inputs.stageArtifacts(outputDir)
                     logger.debug(
                         "Script {} completed with exit code {} in {}, produced {} artifacts",
                         script.fileName,
@@ -166,8 +203,10 @@ class ProcessSkillScriptExecutionEngine(
                         duration,
                         artifacts.size
                     )
-                    // Clean up input directory (no longer needed)
+                    // Artifacts are copied to the artifacts root, so both temp dirs
+                    // can be cleaned up now.
                     cleanupDirectory(inputDir)
+                    cleanupDirectory(outputDir)
                     ScriptExecutionResult.Success(
                         stdout = result.stdout,
                         stderr = result.stderr,
@@ -210,28 +249,6 @@ class ProcessSkillScriptExecutionEngine(
     }
 
     /**
-     * Collect artifacts from the output directory.
-     */
-    private fun collectArtifacts(outputDir: Path): List<ScriptArtifact> {
-        if (!Files.isDirectory(outputDir)) {
-            return emptyList()
-        }
-
-        return Files.list(outputDir)
-            .filter { Files.isRegularFile(it) }
-            .map { file ->
-                ScriptArtifact(
-                    name = file.fileName.toString(),
-                    path = file.toAbsolutePath(),
-                    mimeType = ScriptArtifact.inferMimeType(file.fileName.toString()),
-                    sizeBytes = Files.size(file),
-                )
-            }
-            .toList()
-            .sortedBy { it.name }
-    }
-
-    /**
      * Clean up a temporary directory.
      */
     private fun cleanupDirectory(dir: Path) {
@@ -259,7 +276,12 @@ class ProcessSkillScriptExecutionEngine(
             // Set up environment
             val env = processBuilder.environment()
             if (!inheritEnvironment) {
+                // Secure default: don't hand the full host environment (API keys, other
+                // secrets) to scripts. Keep only a safe allowlist — enough to locate and
+                // run interpreters.
+                val allowed = env.filterKeys { it in environmentAllowlist }
                 env.clear()
+                env.putAll(allowed)
             }
             env.putAll(environment)
 
@@ -269,49 +291,17 @@ class ProcessSkillScriptExecutionEngine(
             // Add OUTPUT_DIR for scripts to write artifacts
             env["OUTPUT_DIR"] = outputDir.toAbsolutePath().toString()
 
-            val process = processBuilder.start()
+            val io = processBuilder.start().pumpIo(stdin, timeout)
 
-            // Write stdin if provided
-            if (stdin != null) {
-                process.outputStream.bufferedWriter().use { writer ->
-                    writer.write(stdin)
-                }
+            if (io.timedOut) {
+                ProcessResult.TimedOut(io.stderr)
             } else {
-                process.outputStream.close()
+                ProcessResult.Completed(
+                    exitCode = io.exitCode!!,
+                    stdout = io.stdout,
+                    stderr = io.stderr,
+                )
             }
-
-            // Read stdout and stderr concurrently to avoid blocking
-            var stdout = ""
-            var stderr = ""
-
-            val stdoutThread = Thread {
-                stdout = process.inputStream.bufferedReader().readText()
-            }.apply { start() }
-
-            val stderrThread = Thread {
-                stderr = process.errorStream.bufferedReader().readText()
-            }.apply { start() }
-
-            // Wait for process with timeout
-            val completed = process.waitFor(timeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
-
-            if (!completed) {
-                process.destroyForcibly()
-                stdoutThread.join(1000)
-                stderrThread.join(1000)
-
-                return ProcessResult.TimedOut(stderr)
-            }
-
-            // Wait for output readers to complete
-            stdoutThread.join()
-            stderrThread.join()
-
-            ProcessResult.Completed(
-                exitCode = process.exitValue(),
-                stdout = stdout,
-                stderr = stderr,
-            )
         } catch (e: Exception) {
             ProcessResult.Failed(e.message ?: "Unknown error starting process")
         }

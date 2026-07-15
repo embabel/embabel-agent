@@ -82,6 +82,13 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- A fake secret in the test JVM env, used to assert that skill
+                         scripts do NOT inherit host environment variables. -->
+                    <environmentVariables>
+                        <EMBABEL_TEST_SECRET>s3cr3t-do-not-leak</EMBABEL_TEST_SECRET>
+                    </environmentVariables>
+                </configuration>
             </plugin>
 
         </plugins>

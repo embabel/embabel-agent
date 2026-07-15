@@ -30,10 +30,9 @@ import java.nio.file.Path
  * ## Sandboxing Strategies
  *
  * Different implementations may provide varying levels of isolation:
- * - **NoOpExecutionEngine**: Denies all execution (safe default)
- * - **ProcessExecutionEngine**: Runs scripts as subprocesses with OS-level isolation
- * - **DockerExecutionEngine**: Runs scripts in ephemeral containers (strongest isolation)
- * - **GraalVMExecutionEngine**: Uses GraalVM polyglot sandboxing for JS/Python
+ * - [NoOpExecutionEngine]: Denies all execution (safe default)
+ * - [ProcessSkillScriptExecutionEngine]: Runs scripts as subprocesses with OS-level isolation
+ * - [DockerSkillScriptExecutionEngine]: Runs scripts in ephemeral containers (strongest isolation)
  *
  * @see ScriptExecutionResult
  * @see SkillScript
