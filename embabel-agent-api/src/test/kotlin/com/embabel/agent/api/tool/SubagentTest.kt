@@ -19,8 +19,14 @@ import com.embabel.agent.api.annotation.Action
 import com.embabel.agent.api.annotation.AchievesGoal
 import com.embabel.agent.api.annotation.Agent
 import com.embabel.agent.core.AgentPlatform
+import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.Blackboard
+import com.embabel.agent.core.ProcessContext
+import com.embabel.agent.core.ProcessOptions
+import com.embabel.agent.core.Verbosity
 import io.mockk.every
 import io.mockk.mockk
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -299,6 +305,51 @@ class SubagentTest {
             // The schema should contain the TestInput structure
             assertTrue(schemaJson.isNotBlank())
             assertTrue(schemaJson.contains("message"))
+        }
+    }
+
+    @Nested
+    inner class VerbosityTests {
+
+        @Test
+        fun `createProcessOptions inherits verbosity from parent process`() {
+            val parentVerbosity = Verbosity(showPrompts = true, showLlmResponses = true)
+            val mockParentProcess = mockk<AgentProcess>(relaxed = true)
+            val mockContext = mockk<ProcessContext>(relaxed = true)
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+
+            every { mockParentProcess.processContext } returns mockContext
+            every { mockContext.blackboard } returns mockBlackboard
+            every { mockBlackboard.spawn() } returns mockk(relaxed = true)
+            every { mockParentProcess.processOptions } returns ProcessOptions(verbosity = parentVerbosity)
+
+            val subagent = Subagent.ofClass(TestAgent::class.java).consuming(TestInput::class.java)
+            val method = Subagent::class.java.getDeclaredMethod("createProcessOptions", AgentProcess::class.java)
+            method.isAccessible = true
+
+            val result = method.invoke(subagent, mockParentProcess) as ProcessOptions
+
+            assertThat(result.verbosity).isEqualTo(parentVerbosity)
+        }
+
+        @Test
+        fun `createProcessOptions with DEFAULT parent verbosity produces quiet process options`() {
+            val mockParentProcess = mockk<AgentProcess>(relaxed = true)
+            val mockContext = mockk<ProcessContext>(relaxed = true)
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+
+            every { mockParentProcess.processContext } returns mockContext
+            every { mockContext.blackboard } returns mockBlackboard
+            every { mockBlackboard.spawn() } returns mockk(relaxed = true)
+            every { mockParentProcess.processOptions } returns ProcessOptions(verbosity = Verbosity.DEFAULT)
+
+            val subagent = Subagent.ofClass(TestAgent::class.java).consuming(TestInput::class.java)
+            val method = Subagent::class.java.getDeclaredMethod("createProcessOptions", AgentProcess::class.java)
+            method.isAccessible = true
+
+            val result = method.invoke(subagent, mockParentProcess) as ProcessOptions
+
+            assertThat(result.verbosity).isEqualTo(Verbosity.DEFAULT)
         }
     }
 

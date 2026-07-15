@@ -23,6 +23,7 @@ import org.springframework.ai.chat.model.ToolContext
 import org.springframework.ai.tool.ToolCallback
 import org.springframework.ai.tool.definition.DefaultToolDefinition
 import org.springframework.ai.tool.definition.ToolDefinition
+import org.springframework.ai.tool.execution.ToolExecutionException
 import org.springframework.ai.tool.metadata.DefaultToolMetadata
 import org.springframework.ai.tool.metadata.ToolMetadata
 
@@ -64,18 +65,26 @@ class SpringToolCallbackAdapter(
     override fun call(toolInput: String, toolContext: ToolContext?): String {
         logger.debug("Executing tool '{}' with input: {}", tool.definition.name, toolInput)
         val context = toolContext?.let { ToolCallContext.of(it.context) } ?: ToolCallContext.EMPTY
-        return try {
-            when (val result = tool.call(toolInput, context)) {
-                is Tool.Result.Text -> result.content
-                is Tool.Result.WithArtifact -> result.content
-                is Tool.Result.Error -> {
-                    logger.warn("Tool '{}' returned error: {}", tool.definition.name, result.message)
-                    "ERROR: ${result.message}"
-                }
-            }
+        // Only the tool invocation itself is guarded here, so the Result.Error
+        // branch below can throw without landing back in this same catch.
+        val result = try {
+            tool.call(toolInput, context)
+        } catch (e: ToolExecutionException) {
+            throw e
+        } catch (e: RuntimeException) {
+            logger.error("Tool '{}' threw exception: {}", tool.definition.name, e.message, e)
+            throw ToolExecutionException(toolDefinition, e)
         } catch (e: Exception) {
             logger.error("Tool '{}' threw exception: {}", tool.definition.name, e.message, e)
-            "ERROR: ${e.message ?: "Unknown error"}"
+            throw ToolExecutionException(toolDefinition, RuntimeException(e.message ?: "Unknown error", e))
+        }
+        return when (result) {
+            is Tool.Result.Text -> result.content
+            is Tool.Result.WithArtifact -> result.content
+            is Tool.Result.Error -> {
+                logger.warn("Tool '{}' returned error: {}", tool.definition.name, result.message)
+                throw ToolExecutionException(toolDefinition, RuntimeException(result.message, result.cause))
+            }
         }
     }
 }

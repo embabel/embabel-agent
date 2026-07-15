@@ -44,6 +44,11 @@ object InMemoryPropertyFilter {
         is PropertyFilter.StartsWith -> properties[filter.key]?.toString()?.startsWith(filter.value) == true
         is PropertyFilter.EndsWith -> properties[filter.key]?.toString()?.endsWith(filter.value) == true
         is PropertyFilter.Like -> matchesRegex(properties[filter.key], filter.pattern)
+        is PropertyFilter.HasElement -> when (val actual = properties[filter.key]) {
+            is Collection<*> -> filter.value in actual
+            is Array<*> -> filter.value in actual
+            else -> false
+        }
         is PropertyFilter.And -> filter.filters.all { matches(it, properties) }
         is PropertyFilter.Or -> filter.filters.any { matches(it, properties) }
         is PropertyFilter.Not -> !matches(filter.filter, properties)
