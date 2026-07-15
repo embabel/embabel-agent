@@ -18,8 +18,6 @@ package com.embabel.agent.rag.tools
 import com.embabel.agent.rag.service.*
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.core.types.ZeroToOne
-import org.jetbrains.annotations.ApiStatus
-
 @Deprecated("RAG pipeline is legacy. Use agentic RAG via ToolishRag.")
 data class DualShotConfig(
     val summaryWords: Int = 100,
@@ -35,7 +33,6 @@ data class DualShotConfig(
  * @param dualShot whether to use dual-shot RAG,
  * where the first tool returns a summary and the second tool returns detailed results.
  */
-@ApiStatus.Experimental
 data class RagOptions @JvmOverloads constructor(
     val ragService: RagService,
     override val similarityThreshold: ZeroToOne = 0.7,

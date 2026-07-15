@@ -23,7 +23,6 @@ import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.core.types.SimilarityResult
 import com.embabel.common.core.types.SimpleSimilaritySearchResult
 import com.embabel.common.core.types.TextSimilaritySearchRequest
-import org.jetbrains.annotations.ApiStatus
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -36,7 +35,6 @@ import java.util.concurrent.ConcurrentHashMap
  * @param assetView The asset view to search
  * @param embeddingService Optional embedding service for vector search; if null, only text search is available
  */
-@ApiStatus.Experimental
 class AssetViewSearchOperations(
     val assetView: AssetView,
     private val embeddingService: EmbeddingService? = null,
