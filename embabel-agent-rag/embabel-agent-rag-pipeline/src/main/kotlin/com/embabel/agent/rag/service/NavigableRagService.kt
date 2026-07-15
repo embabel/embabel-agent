@@ -16,8 +16,6 @@
 package com.embabel.agent.rag.service
 
 import com.embabel.agent.rag.model.Retrievable
-import org.jetbrains.annotations.ApiStatus
-
 sealed interface ExplorationRequest
 
 data class DepthExplorationRequest(
@@ -33,7 +31,6 @@ data class PathsExplorationRequest(
  * This may not be supported by all RAG services.
  * It need not be a graph but could be implemented by a relational database or other structure.
  */
-@ApiStatus.Experimental
 interface NavigableRagService : RagService {
 
     /**
