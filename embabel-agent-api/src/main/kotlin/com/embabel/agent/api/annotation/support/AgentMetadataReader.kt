@@ -81,7 +81,7 @@ internal data class AgenticInfo(
             errors += "Both @Agentic and @Agent annotations found on ${targetType.name}. Treating class as Agent, but both should not be used"
         }
         if (agentAnnotation != null && agentAnnotation.description.isBlank()) {
-            errors + "No description provided for @${Agent::class.java.simpleName} on ${targetType.name}"
+            errors += "No description provided for @${Agent::class.java.simpleName} on ${targetType.name}"
         }
         return errors
     }
