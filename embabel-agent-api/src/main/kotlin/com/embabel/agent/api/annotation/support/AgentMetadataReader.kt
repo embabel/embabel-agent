@@ -307,7 +307,7 @@ class AgentMetadataReader(
             if (!validationResult.isValid) {
                 logger.warn(
                     "❓Agent {} is not registered due to validation failure:\n{}",
-                    agent.name,
+                    agenticInfo.agentName(),
                     validationResult.errors.joinToString("\n"),
                 )
                 return null
