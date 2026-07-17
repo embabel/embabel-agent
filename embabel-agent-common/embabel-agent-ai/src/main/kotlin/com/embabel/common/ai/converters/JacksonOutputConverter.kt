@@ -149,6 +149,17 @@ open class JacksonOutputConverter<T> protected constructor(
             return lenientMapper.readValue<Any?>(unwrapped, lenientMapper.constructType(this.type)) as T?
         } catch (e: JsonProcessingException) {
             logger.warn(
+                "Could not parse the given text to the desired target type. Don't panic: will try to fix it for you",
+                e
+            )
+        }
+        // Fix malformed escaped quotes - this is the one issue Jackson can't handle
+        // because `"key": \"value\"` is fundamentally broken syntax
+        val fixed = fixMalformedEscapedQuotes(unwrapped)
+        try {
+            return lenientMapper.readValue<Any?>(fixed, lenientMapper.constructType(this.type)) as T?
+        } catch (e: JsonProcessingException) {
+            logger.warn(
                 LoggingMarkers.SENSITIVE_DATA_MARKER,
                 "Could not parse the given text to the desired target type: \"{}\" into {}", unwrapped, this.type
             )
@@ -166,10 +177,6 @@ open class JacksonOutputConverter<T> protected constructor(
                 .removeSuffix("```")
                 .trim()
         }
-
-        // Fix malformed escaped quotes - this is the one issue Jackson can't handle
-        // because `"key": \"value\"` is fundamentally broken syntax
-        result = fixMalformedEscapedQuotes(result)
 
         return result
     }
