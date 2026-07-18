@@ -487,6 +487,20 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
         error("Implementation error: supportsThinking() returned true but withThinking() not overridden")
     }
 
+    /**
+     * Return a [PromptRunner.Thinking] for extracting thinking blocks with a custom reasoning tag.
+     * When a tag is specified, the framework auto-injects a system instruction telling the LLM
+     * to generate reasoning inside <tag>...</tag> tags.
+     *
+     * This ensures the LLM produces thinking blocks even when the user's prompt
+     * does not explicitly ask for reasoning.
+     *
+     * @param tag The XML tag name the LLM should use for its reasoning (e.g. think, "analysis", "decision_reasoning")
+     * @return thinking operations returning results with extracted reasoning
+     * @throws UnsupportedOperationException if thinking is not supported
+     */
+    fun thinking(tag: String): Thinking = thinking()
+
     override fun respond(
         messages: List<Message>,
     ): AssistantMessage =
