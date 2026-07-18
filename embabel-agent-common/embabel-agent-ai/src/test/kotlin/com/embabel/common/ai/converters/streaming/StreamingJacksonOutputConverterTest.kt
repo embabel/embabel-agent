@@ -19,6 +19,7 @@ import com.embabel.common.core.streaming.StreamingEvent
 import com.embabel.common.core.streaming.ThinkingState
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 class StreamingJacksonOutputConverterTest {
@@ -580,5 +581,71 @@ class StreamingJacksonOutputConverterTest {
         assertEquals("llama format", thinkingEvents[2].content)
         assertEquals("xml reasoning format", thinkingEvents[3].content)
         assertEquals("legacy format", thinkingEvents[4].content)
+    }
+
+    @Nested
+    inner class FenceFilter {
+
+        private val converter = StreamingJacksonOutputConverter(SimpleItem::class.java, objectMapper)
+
+        @Test
+        fun `drops backtick-json fence marker`() {
+            val result = converter.convertStreamWithThinking("```json").collectList().block()
+            assertNotNull(result)
+            assertTrue(result!!.isEmpty(), "Standalone ```json line must produce no events")
+        }
+
+        @Test
+        fun `drops bare backtick fence marker`() {
+            val result = converter.convertStreamWithThinking("```").collectList().block()
+            assertNotNull(result)
+            assertTrue(result!!.isEmpty(), "Standalone ``` line must produce no events")
+        }
+
+        @Test
+        fun `drops backtick-python fence marker`() {
+            val result = converter.convertStreamWithThinking("```python").collectList().block()
+            assertNotNull(result)
+            assertTrue(result!!.isEmpty(), "Standalone ```python line must produce no events")
+        }
+
+        @Test
+        fun `keeps fence marker with content on same line`() {
+            val result = converter.convertStreamWithThinking("```python def foo(): pass").collectList().block()
+            assertNotNull(result)
+            assertEquals(1, result!!.size, "Fence with trailing content should be kept as reasoning")
+            assertTrue(result[0] is StreamingEvent.Thinking)
+        }
+
+        @Test
+        fun `keeps normal reasoning text`() {
+            val result = converter.convertStreamWithThinking("This is normal reasoning text").collectList().block()
+            assertNotNull(result)
+            assertEquals(1, result!!.size, "Normal reasoning text must not be filtered")
+            assertTrue(result[0] is StreamingEvent.Thinking)
+            assertEquals("This is normal reasoning text", (result[0] as StreamingEvent.Thinking).content)
+        }
+
+        @Test
+        fun `drops fence between thinking block and JSON`() {
+            val content = "<think>reasoning here</think>\n```json\n{\"name\": \"result\"}"
+            val events = converter.convertStreamWithThinking(content).collectList().block()
+            assertNotNull(events)
+            assertEquals(2, events!!.size, "Should have 1 thinking + 1 object; fence must be dropped")
+            assertTrue(events[0] is StreamingEvent.Thinking)
+            assertEquals("reasoning here", (events[0] as StreamingEvent.Thinking).content)
+            assertTrue(events[1] is StreamingEvent.Object<*>)
+            assertEquals("result", (events[1] as StreamingEvent.Object<SimpleItem>).item.name)
+        }
+
+        @Test
+        fun `drops closing fence after JSON`() {
+            val content = "```json\n{\"name\": \"item\"}\n```"
+            val events = converter.convertStreamWithThinking(content).collectList().block()
+            assertNotNull(events)
+            assertEquals(1, events!!.size, "Only the JSON object should survive; both fences must be dropped")
+            assertTrue(events[0] is StreamingEvent.Object<*>)
+            assertEquals("item", (events[0] as StreamingEvent.Object<SimpleItem>).item.name)
+        }
     }
 }
