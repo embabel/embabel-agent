@@ -98,9 +98,12 @@ class StreamingJacksonOutputConverter<T> : FilteringJacksonOutputConverter<T> {
                             }
                         }
                         else -> {
-                            // Line contains thinking content with detected state
-                            val thinkingContent = ThinkingDetector.extractThinkingContent(line)
-                            sink.next(StreamingEvent.Thinking(thinkingContent, thinkingState))
+                            // Standalone code fence markers (```json, ```) between thinking and JSON
+                            // are format artifacts — drop them to prevent leaking into reasoning blocks.
+                            if (!line.trim().matches(Regex("^```\\w*$"))) {
+                                val thinkingContent = ThinkingDetector.extractThinkingContent(line)
+                                sink.next(StreamingEvent.Thinking(thinkingContent, thinkingState))
+                            }
                         }
                     }
                 } catch (e: Exception) {
