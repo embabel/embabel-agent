@@ -107,9 +107,9 @@ abstract class AbstractLlmOperations(
             future.get(timeoutMillis, TimeUnit.MILLISECONDS)
         } catch (e: TimeoutException) {
             future.cancel(true)
-            logger.warn(LLM_TIMEOUT_MESSAGE, interactionId, attempt, timeoutMillis)
+            logger.warn(LLM_TIMEOUT_MESSAGE, interactionId, attempt, "%,d".format(timeoutMillis))
             throw RuntimeException(
-                "LLM call for interaction $interactionId timed out after ${timeoutMillis}ms",
+                "LLM call for interaction $interactionId timed out after ${"%,d".format(timeoutMillis)}ms",
                 e
             )
         } catch (e: InterruptedException) {

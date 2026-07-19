@@ -59,7 +59,7 @@ internal class DefaultPlanLister(
             "Achievable plans given {} actions and {} goals in {}ms from bindings {} : {}\n{}",
             planningSystem.actions.size,
             planningSystem.goals.size,
-            ms,
+            "%,d".format(ms),
             bindings,
             plans.joinToString("\n") { it.infoString(verbose = true, indent = 1) },
             planningSystem.infoString(verbose = true, indent = 1),

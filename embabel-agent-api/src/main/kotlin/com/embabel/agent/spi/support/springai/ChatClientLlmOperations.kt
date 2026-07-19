@@ -172,7 +172,7 @@ internal class ChatClientLlmOperations(
         logger.info(
             "Current LLM settings: maxAttempts={}, fixedBackoffMillis={}ms, timeout={}s",
             dataBindingProperties.maxAttempts,
-            dataBindingProperties.fixedBackoffMillis,
+            "%,d".format(dataBindingProperties.fixedBackoffMillis),
             promptsProperties.defaultTimeout.seconds,
         )
     }
@@ -796,9 +796,9 @@ internal class ChatClientLlmOperations(
         when (e) {
             is TimeoutException -> {
                 future.cancel(true)
-                logger.warn(LLM_TIMEOUT_MESSAGE, interaction.id.value, attempt, timeoutMillis)
+                logger.warn(LLM_TIMEOUT_MESSAGE, interaction.id.value, attempt, "%,d".format(timeoutMillis))
                 throw RuntimeException(
-                    "ChatClient call for interaction ${interaction.id.value} timed out after ${timeoutMillis}ms",
+                    "ChatClient call for interaction ${interaction.id.value} timed out after ${"%,d".format(timeoutMillis)}ms",
                     e
                 )
             }
@@ -849,10 +849,10 @@ internal class ChatClientLlmOperations(
         return when (e) {
             is TimeoutException -> {
                 future.cancel(true)
-                logger.warn(LLM_TIMEOUT_MESSAGE, interaction.id.value, attempt, timeoutMillis)
+                logger.warn(LLM_TIMEOUT_MESSAGE, interaction.id.value, attempt, "%,d".format(timeoutMillis))
                 Result.failure(
                     ThinkingException(
-                        message = "ChatClient call for interaction ${interaction.id.value} timed out after ${timeoutMillis}ms",
+                        message = "ChatClient call for interaction ${interaction.id.value} timed out after ${"%,d".format(timeoutMillis)}ms",
                         thinkingBlocks = emptyList()
                     )
                 )

@@ -127,7 +127,7 @@ internal class ParallelToolLoop(
                 .exceptionally { e ->
                     when (val cause = e.cause ?: e) {
                         is TimeoutException -> {
-                            logger.warn("Tool '{}' timed out after {}ms", toolCall.name, perToolTimeoutMs)
+                            logger.warn("Tool '{}' timed out after {}ms", toolCall.name, "%,d".format(perToolTimeoutMs))
                             ParallelToolResult.Timeout(toolCall)
                         }
                         // Termination signals - capture for processing after all tools complete
@@ -163,7 +163,7 @@ internal class ParallelToolLoop(
         }
 
         val duration = System.currentTimeMillis() - startTime
-        logger.debug("All {} tools completed in {}ms", toolCalls.size, duration)
+        logger.debug("All {} tools completed in {}ms", toolCalls.size, "%,d".format(duration))
 
         // 3. Check for control flow signals (priority: agent > action > unhandled > replan)
         propagateControlFlowSignals(results)
