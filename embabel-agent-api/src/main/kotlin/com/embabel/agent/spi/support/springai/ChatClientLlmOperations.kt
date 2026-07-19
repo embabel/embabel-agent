@@ -68,6 +68,7 @@ import jakarta.annotation.PostConstruct
 import jakarta.validation.Validator
 import org.springframework.beans.factory.annotation.Value
 import java.lang.reflect.ParameterizedType
+import java.util.Locale
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
@@ -796,9 +797,9 @@ internal class ChatClientLlmOperations(
         when (e) {
             is TimeoutException -> {
                 future.cancel(true)
-                logger.warn(LLM_TIMEOUT_MESSAGE, interaction.id.value, attempt, "%,d".format(timeoutMillis))
+                logger.warn(LLM_TIMEOUT_MESSAGE, interaction.id.value, attempt, "%,d".format(Locale.ROOT, timeoutMillis))
                 throw RuntimeException(
-                    "ChatClient call for interaction ${interaction.id.value} timed out after ${"%,d".format(timeoutMillis)}ms",
+                    "ChatClient call for interaction ${interaction.id.value} timed out after ${"%,d".format(Locale.ROOT, timeoutMillis)}ms",
                     e
                 )
             }
@@ -849,10 +850,10 @@ internal class ChatClientLlmOperations(
         return when (e) {
             is TimeoutException -> {
                 future.cancel(true)
-                logger.warn(LLM_TIMEOUT_MESSAGE, interaction.id.value, attempt, "%,d".format(timeoutMillis))
+                logger.warn(LLM_TIMEOUT_MESSAGE, interaction.id.value, attempt, "%,d".format(Locale.ROOT, timeoutMillis))
                 Result.failure(
                     ThinkingException(
-                        message = "ChatClient call for interaction ${interaction.id.value} timed out after ${"%,d".format(timeoutMillis)}ms",
+                        message = "ChatClient call for interaction ${interaction.id.value} timed out after ${"%,d".format(Locale.ROOT, timeoutMillis)}ms",
                         thinkingBlocks = emptyList()
                     )
                 )

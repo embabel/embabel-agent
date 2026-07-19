@@ -45,6 +45,7 @@ import jakarta.validation.ConstraintViolation
 import jakarta.validation.Validator
 import java.lang.reflect.Field
 import java.time.Duration
+import java.util.Locale
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -107,9 +108,9 @@ abstract class AbstractLlmOperations(
             future.get(timeoutMillis, TimeUnit.MILLISECONDS)
         } catch (e: TimeoutException) {
             future.cancel(true)
-            logger.warn(LLM_TIMEOUT_MESSAGE, interactionId, attempt, "%,d".format(timeoutMillis))
+            logger.warn(LLM_TIMEOUT_MESSAGE, interactionId, attempt, "%,d".format(Locale.ROOT, timeoutMillis))
             throw RuntimeException(
-                "LLM call for interaction $interactionId timed out after ${"%,d".format(timeoutMillis)}ms",
+                "LLM call for interaction $interactionId timed out after ${"%,d".format(Locale.ROOT, timeoutMillis)}ms",
                 e
             )
         } catch (e: InterruptedException) {
