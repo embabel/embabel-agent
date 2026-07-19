@@ -717,7 +717,7 @@ class ChatClientLlmOperationsThinkingTest {
         testHandleFutureException(
             exception = TimeoutException("Test timeout"),
             interactionId = "timeout-test",
-            expectedMessageContains = "timed out after 5000ms"
+            expectedMessageContains = "timed out after 5,000ms"
         )
     }
 
