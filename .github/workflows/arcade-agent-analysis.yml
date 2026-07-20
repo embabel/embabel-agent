@@ -14,11 +14,33 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: lemduc/arcade-agent/actions/analyze@v0.1.1
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
         with:
-          arcade-agent-version: "0.1.1"
-          source-path: "."
-          language: "java"
-          primary-algorithm: pkg
-          run-secondary-analyses: "true"
-          repo-name: "embabel-agent"
+          python-version: "3.12"
+
+      # Polyglot Java+Kotlin (arcade roadmap #18). Pin the multilang branch until released.
+      - name: Install arcade-agent with language extras
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            "arcade-agent[languages] @ git+https://github.com/lemduc/arcade-agent.git@feature/multilang-parse"
+
+      - name: Run PKG architecture analysis (java+kotlin)
+        run: |
+          arcade-self-analysis \
+            --source . \
+            --languages java,kotlin \
+            --repo-name embabel-agent \
+            --algorithm pkg \
+            --output-json arcade_analysis_results.json \
+            --output-html arcade_analysis_report.html
+
+      - name: Upload analysis artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: arcade-agent-analysis
+          path: |
+            arcade_analysis_results.json
+            arcade_analysis_report.html

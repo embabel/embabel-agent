@@ -1,0 +1,28 @@
+---
+description: Use arcade-agent MCP for architecture checks and structural alignment with embabel-agent
+alwaysApply: true
+---
+
+# Arcade architecture alignment
+
+When checking architecture, modularity, smells, blast radius, or placing new code so it aligns with the current project structure, use the `user-arcade-agent` MCP tools before guessing from file trees alone.
+
+## Default workflow
+
+1. `summarize` or `parse` on the repo root with `languages: ["java", "kotlin"]` via `arcade-self-analysis --languages java,kotlin` (or MCP `language: "java"` / `"kotlin"`). Embabel is a JVM polyglot repo — do not analyze Java alone for the project baseline.
+2. Reuse returned `session_id` values for `recover` → `detect_smells` / `compute_metrics` / `explain_component` / `query`.
+3. For a concrete change, prefer `context_for_task`, `diff_impact`, or `dependency_cone` to find the right package/component and dependents.
+4. Prefer existing recovered components from the current polyglot PKG baseline over inventing new top-level modules unless the task requires it.
+
+## When to call it
+
+- Architecture review, smell/cycle questions, cohesion/coupling metrics
+- Deciding where a class/package should live
+- Assessing impact of a refactor or new feature across modules
+- Aligning new code with recovered component boundaries
+
+## Notes
+
+- Pass session IDs between tools; call `get_full_result` only when the summary is insufficient.
+- Previous Java-only BalancedArchitectureScore baseline was **0.6312** (PKG, ~303 entities). Current polyglot Java+Kotlin PKG baseline (2026-07-20): **BalancedArchitectureScore 0.4146**, 5543 entities / 33552 edges / 6 components (Agent, Chat, Coding, Common, Plan, Ux). Compare multilang runs against that number, not the Java-only score.
+- Keep tool outputs token-budgeted via `max_tokens` when possible.

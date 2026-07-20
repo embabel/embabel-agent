@@ -48,3 +48,6 @@ arcade_analysis_*.html
 arcade_analysis_baseline.json
 pr_comment.md
 .arcade-cache/
+
+# local arcade-agent venv
+.arcade-venv/
