@@ -186,16 +186,17 @@ class ToolGroupsConfiguration(
         if (properties.lazyInit) {
             // Accessing serverInfo on an un-initialized McpSyncClient triggers the
             // MCP handshake, defeating lazy init. Log client count only.
-            logger.info(
+            logger.debug(
                 "MCP is available (lazy-init mode). Found {} client(s). " +
                     "Tool groups will be initialized on first use.",
                 mcpSyncClients.size,
             )
         } else {
-            logger.info(
-                "MCP is available. Found {} clients: {}",
+            logger.debug(
+                "MCP is available. Found {} clients{}",
                 mcpSyncClients.size,
-                mcpSyncClients.map { it.serverInfo }.joinToString("\n"),
+                mcpSyncClients.map { it.serverInfo }
+                    .joinToString("\n", prefix = if (mcpSyncClients.isEmpty()) "." else ": "),
             )
         }
     }

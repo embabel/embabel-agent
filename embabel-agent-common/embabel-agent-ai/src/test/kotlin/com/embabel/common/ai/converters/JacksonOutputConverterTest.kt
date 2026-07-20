@@ -294,6 +294,22 @@ class JacksonOutputConverterTest {
         }
 
         @Test
+        fun `preserves valid escaped quotes inside mermaid diagram`() {
+            val converter = JacksonOutputConverter(SimpleObject::class.java, objectMapper)
+            val validJson = """{
+                    "name": "flowchart LR\n  a[\"A\"]\n  b[\"B\"]\n  a --> b",
+                    "value": 42
+                }""".trimIndent()
+
+            // Jackson can handle the valid JSON without any changes
+            val actual = objectMapper.readValue(validJson, SimpleObject::class.java)
+            assertThat(actual.name).isEqualTo("flowchart LR\n  a[\"A\"]\n  b[\"B\"]\n  a --> b")
+
+            val result = converter.convert(validJson)
+            assertThat(result?.name).isEqualTo("flowchart LR\n  a[\"A\"]\n  b[\"B\"]\n  a --> b")
+        }
+
+        @Test
         fun `handles mixed valid and malformed escapes`() {
             val converter = JacksonOutputConverter(Proposition::class.java, objectMapper)
             // Mix of valid escaped quotes inside string and malformed at delimiters

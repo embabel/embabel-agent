@@ -166,19 +166,19 @@ class SeveranceLoggingAgenticEventListener : LoggingAgenticEventListener(
         "[${e.processId}] Perpetuity wing: object bound: ${e.name}:${if (e.agentProcess.processContext.processOptions.verbosity.debug) e.value else e.value::class.java.simpleName}"
 
     override fun getToolCallRequestEventMessage(e: ToolCallRequestEvent): String =
-        "[${e.processId}] ${highlight("VERVE")}: (${e.action?.shortName()}) calling tool ${e.tool}(${e.toolInput})"
+        "[${e.processId}] ${highlight("VERVE")}:${e.action?.let { " (${it.shortName()})" } ?: ""} calling tool ${e.tool}(${e.toolInput})"
 
     override fun getToolCallSuccessResponseEventMessage(
         e: ToolCallResponseEvent,
         resultToShow: String,
     ): String =
-        "[${e.processId}] ${highlight("VISION")}: (${e.request.action?.shortName()}) tool ${e.request.tool} returned $resultToShow in ${e.runningTime.toMillis()}ms with payload ${e.request.toolInput}"
+        "[${e.processId}] ${highlight("VISION")}:${e.request.action?.let { " (${it.shortName()})" } ?: ""} tool ${e.request.tool} returned $resultToShow in ${"%,d".format(e.runningTime.toMillis())}ms with payload ${e.request.toolInput}"
 
     override fun getToolCallFailureResponseEventMessage(
         e: ToolCallResponseEvent,
         throwable: Throwable?,
     ): String =
-        "[${e.processId}] ${highlight("WOE")}: (${e.request.action?.shortName()}) tool ${e.request.tool} failed $throwable in ${e.runningTime.toMillis()}ms with payload ${e.request.toolInput}"
+        "[${e.processId}] ${highlight("WOE")}:${e.request.action?.let { " (${it.shortName()})" } ?: ""} tool ${e.request.tool} failed $throwable in ${"%,d".format(e.runningTime.toMillis())}ms with payload ${e.request.toolInput}"
 
     override fun getLlmRequestEventMessage(e: LlmRequestEvent<*>): String =
         "[${e.processId}] (${e.interaction.id.value}) \uD83D\uDDA5\uFE0F MACRODATA REFINEMENT using LLM ${e.llmMetadata.name}, creating ${e.outputClass.simpleName}: ${e.interaction.llm} with tools ${e.interaction.tools.joinToString { it.definition.name }}"

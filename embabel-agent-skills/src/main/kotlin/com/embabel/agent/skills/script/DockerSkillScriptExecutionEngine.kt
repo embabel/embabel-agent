@@ -24,7 +24,7 @@ import kotlin.io.path.absolutePathString
 import kotlin.io.path.exists
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.measureTime
+import kotlin.time.measureTimedValue
 
 /**
  * Script execution engine that runs scripts inside a Docker container for sandboxed execution.
@@ -65,6 +65,10 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
+    // Confines input files to the user root (rejecting path traversal) and stages produced
+    // artifacts so a later skill can reuse them as input.
+    private val inputs = ConfinedInputResolver(fileTools)
+
     override fun supportedLanguages(): Set<ScriptLanguage> = supportedLanguages
 
     override fun validate(script: SkillScript): ScriptExecutionResult.Denied? {
@@ -95,16 +99,14 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
     ): ScriptExecutionResult {
         validate(script)?.let { return it }
 
-        // Resolve and validate input file paths securely via FileTools
-        val resolvedInputFiles = mutableListOf<Path>()
-        for (inputFile in inputFiles) {
-            try {
-                resolvedInputFiles.add(fileTools.resolveAndValidateFile(inputFile.toString()))
-            } catch (e: SecurityException) {
-                return ScriptExecutionResult.Denied("Path traversal not allowed: $inputFile")
-            } catch (e: IllegalArgumentException) {
-                return ScriptExecutionResult.Denied("Input file error: ${e.message}")
-            }
+        // Resolve and validate input files, confining them to the user root
+        // (rejects path traversal and files outside the root).
+        val resolvedInputFiles = try {
+            inputFiles.map { inputs.resolve(it) }
+        } catch (e: SecurityException) {
+            return ScriptExecutionResult.Denied("Path traversal not allowed: ${e.message}")
+        } catch (e: IllegalArgumentException) {
+            return ScriptExecutionResult.Denied("Input file error: ${e.message}")
         }
 
         // Temp directories: script mount, input files, output artifacts
@@ -117,9 +119,10 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
             // Stage the script file into its own mount directory
             Files.copy(script.scriptPath, scriptDir.resolve(script.fileName))
 
-            // Stage input files
+            // Stage input files (unique names so same-named inputs from different
+            // folders don't collide).
             for (inputFile in resolvedInputFiles) {
-                Files.copy(inputFile, inputDir.resolve(inputFile.fileName))
+                copyIntoUniqueName(inputFile, inputDir)
             }
 
             val interpreter = interpreterFor(script.language)
@@ -147,7 +150,9 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
         outputDir: Path,
     ): List<String> {
         return buildList {
-            add("docker"); add("run"); add("--rm")
+            // -i keeps the container's stdin open so a provided stdin is actually
+            // delivered; without it Docker attaches stdin to /dev/null and drops it.
+            add("docker"); add("run"); add("--rm"); add("-i")
 
             memoryLimit?.let { addAll(listOf("--memory", it)) }
             cpuLimit?.let { addAll(listOf("--cpus", it)) }
@@ -188,42 +193,20 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
             .redirectErrorStream(false)
             .start()
 
-        if (stdin != null) {
-            process.outputStream.bufferedWriter().use { it.write(stdin) }
-        } else {
-            process.outputStream.close()
-        }
+        val (io, duration) = measureTimedValue { process.pumpIo(stdin, timeout) }
 
-        var stdout = ""
-        var stderr = ""
-        val stdoutThread = Thread { stdout = process.inputStream.bufferedReader().readText() }
-            .apply { isDaemon = true; start() }
-        val stderrThread = Thread { stderr = process.errorStream.bufferedReader().readText() }
-            .apply { isDaemon = true; start() }
-
-        val completed: Boolean
-        val duration = measureTime {
-            completed = process.waitFor(timeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
-        }
-
-        if (!completed) {
-            process.destroyForcibly()
-            stdoutThread.join(1_000)
-            stderrThread.join(1_000)
+        if (io.timedOut) {
             logger.warn("Script {} timed out after {}", scriptFileName, timeout)
             return ScriptExecutionResult.Failure(
                 error = "Script execution timed out after $timeout",
-                stderr = stderr.takeIf { it.isNotBlank() },
+                stderr = io.stderr.takeIf { it.isNotBlank() },
                 timedOut = true,
                 duration = duration,
             )
         }
 
-        stdoutThread.join()
-        stderrThread.join()
-
-        val exitCode = process.exitValue()
-        val artifacts = collectArtifacts(outputDir)
+        val exitCode = io.exitCode!!
+        val artifacts = inputs.stageArtifacts(outputDir)
 
         logger.debug(
             "Script {} completed: exit={}, duration={}, artifacts={}",
@@ -231,36 +214,12 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
         )
 
         return ScriptExecutionResult.Success(
-            stdout = stdout,
-            stderr = stderr,
+            stdout = io.stdout,
+            stderr = io.stderr,
             exitCode = exitCode,
             duration = duration,
             artifacts = artifacts,
         )
-    }
-
-    // --- Artifact collection ---
-
-    private fun collectArtifacts(outputDir: Path): List<ScriptArtifact> {
-        if (!Files.isDirectory(outputDir)) return emptyList()
-        // Copy artifacts out of outputDir before the temp tree is deleted
-        val artifactsStaging = Files.createTempDirectory("skills-artifacts-")
-        return Files.list(outputDir).use { files ->
-            files
-                .filter { Files.isRegularFile(it) }
-                .map { file ->
-                    val dest = artifactsStaging.resolve(file.fileName)
-                    Files.copy(file, dest)
-                    ScriptArtifact(
-                        name = file.fileName.toString(),
-                        path = dest.toAbsolutePath(),
-                        mimeType = ScriptArtifact.inferMimeType(file.fileName.toString()),
-                        sizeBytes = Files.size(dest),
-                    )
-                }
-                .toList()
-                .sortedBy { it.name }
-        }
     }
 
     // --- Interpreter selection ---
@@ -300,9 +259,22 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
 
         private val logger = LoggerFactory.getLogger(DockerSkillScriptExecutionEngine::class.java)
 
-        /** Check if Docker is available on this system. */
-        fun isDockerAvailable(): Boolean = try {
-            val process = ProcessBuilder("docker", "version")
+        /**
+         * Create an engine confined to [root]: input files are resolved against [root]
+         * and anything outside it (absolute paths, `..` traversal) is rejected.
+         *
+         * Java-friendly entry point. Kotlin callers can pass `fileTools` directly via the
+         * constructor's named argument; Java cannot reach it (the leading `Duration`
+         * value-class parameter makes the deeper constructor overloads synthetic), so this
+         * factory exposes the one knob a per-request/multi-tenant caller needs.
+         */
+        @JvmStatic
+        fun confinedTo(root: String): DockerSkillScriptExecutionEngine =
+            DockerSkillScriptExecutionEngine(fileTools = FileTools.readWrite(root))
+
+        /** Run `docker <args>`, returning true if it exits 0 within 5 seconds. */
+        private fun dockerCommandSucceeds(vararg args: String): Boolean = try {
+            val process = ProcessBuilder(listOf("docker", *args))
                 .redirectErrorStream(true)
                 .start()
             process.waitFor(5, TimeUnit.SECONDS) && process.exitValue() == 0
@@ -310,15 +282,11 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
             false
         }
 
+        /** Check if Docker is available on this system. */
+        fun isDockerAvailable(): Boolean = dockerCommandSucceeds("version")
+
         /** Check if a Docker image exists locally. */
-        fun imageExists(image: String): Boolean = try {
-            val process = ProcessBuilder("docker", "image", "inspect", image)
-                .redirectErrorStream(true)
-                .start()
-            process.waitFor(5, TimeUnit.SECONDS) && process.exitValue() == 0
-        } catch (e: Exception) {
-            false
-        }
+        fun imageExists(image: String): Boolean = dockerCommandSucceeds("image", "inspect", image)
 
         /**
          * Ensure the default sandbox image exists, logging build instructions if not.

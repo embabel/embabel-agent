@@ -29,9 +29,11 @@ import org.springframework.ai.mcp.SyncMcpToolCallbackProvider
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.ai.model.ModelOptionsUtils
 import org.springframework.ai.tool.ToolCallback
 import org.springframework.ai.tool.definition.DefaultToolDefinition
+import org.springframework.ai.tool.execution.ToolExecutionException
 import org.springframework.ai.tool.metadata.DefaultToolMetadata
 
 class SpringToolCallbackAdapterTest {
@@ -101,10 +103,9 @@ class SpringToolCallbackAdapterTest {
             }
 
             val callback = SpringToolCallbackAdapter(tool)
-            val result = callback.call("{}")
+            val exception = assertThrows<ToolExecutionException> { callback.call("{}") }
 
-            assertTrue(result.startsWith("ERROR:"))
-            assertTrue(result.contains("Something went wrong"))
+            assertEquals("Something went wrong", exception.message)
         }
 
         @Test
@@ -132,10 +133,9 @@ class SpringToolCallbackAdapterTest {
             }
 
             val callback = SpringToolCallbackAdapter(tool)
-            val result = callback.call("{}")
+            val exception = assertThrows<ToolExecutionException> { callback.call("{}") }
 
-            assertTrue(result.startsWith("ERROR:"))
-            assertTrue(result.contains("Unexpected error"))
+            assertEquals("Unexpected error", exception.message)
         }
 
         @Test

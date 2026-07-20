@@ -145,19 +145,19 @@ The standard repository for all knowledge and wisdom in the universe
         "[${e.processId}] Object bound to the Guide: ${e.name}:${if (e.agentProcess.processContext.processOptions.verbosity.debug) e.value else e.value::class.java.simpleName}"
 
     override fun getToolCallRequestEventMessage(e: ToolCallRequestEvent): String =
-        "[${e.processId}] ${highlight("INFINITE IMPROBABILITY")}: (${e.action?.shortName()}) calling tool ${e.tool}(${e.toolInput})"
+        "[${e.processId}] ${highlight("INFINITE IMPROBABILITY")}:${e.action?.let { " (${it.shortName()})" } ?: ""} calling tool ${e.tool}(${e.toolInput})"
 
     override fun getToolCallSuccessResponseEventMessage(
         e: ToolCallResponseEvent,
         resultToShow: String,
     ): String =
-        "[${e.processId}] ${highlight("HEART OF GOLD")}: (${e.request.action?.shortName()}) tool ${e.request.tool} returned $resultToShow in ${e.runningTime.toMillis()}ms with payload ${e.request.toolInput}"
+        "[${e.processId}] ${highlight("HEART OF GOLD")}:${e.request.action?.let { " (${it.shortName()})" } ?: ""} tool ${e.request.tool} returned $resultToShow in ${"%,d".format(e.runningTime.toMillis())}ms with payload ${e.request.toolInput}"
 
     override fun getToolCallFailureResponseEventMessage(
         e: ToolCallResponseEvent,
         throwable: Throwable?,
     ): String =
-        "[${e.processId}] ${highlight("DISASTER AREA")}: (${e.request.action?.shortName()}) tool ${e.request.tool} failed $throwable in ${e.runningTime.toMillis()}ms with payload ${e.request.toolInput}"
+        "[${e.processId}] ${highlight("DISASTER AREA")}:${e.request.action?.let { " (${it.shortName()})" } ?: ""} tool ${e.request.tool} failed $throwable in ${"%,d".format(e.runningTime.toMillis())}ms with payload ${e.request.toolInput}"
 
     override fun getLlmRequestEventMessage(e: LlmRequestEvent<*>): String =
         "[${e.processId}] 🧠 DEEP THOUGHT: calculating LLM ${e.llmMetadata.name} to transform ${e.interaction.id.value} from ${e.outputClass.simpleName} -> ${e.interaction.llm} using ${e.interaction.tools.joinToString { it.definition.name }}"

@@ -129,6 +129,16 @@ sealed interface PropertyFilter {
     data class Like(val key: String, val pattern: String) : PropertyFilter
 
     /**
+     * Element membership in a collection-valued property: value in properties[key].
+     *
+     * The inverse direction of [In]: where `In` tests a scalar property against a
+     * given list of values, `HasElement` tests a given value against a LIST property
+     * (e.g. a `visibleTo` array of principal ids on a node). A missing key or a
+     * non-collection property does not match.
+     */
+    data class HasElement(val key: String, val value: Any) : PropertyFilter
+
+    /**
      * Logical AND: all filters must match
      */
     data class And(val filters: List<PropertyFilter>) : PropertyFilter {
@@ -167,6 +177,7 @@ sealed interface PropertyFilter {
         fun startsWith(key: String, value: String) = StartsWith(key, value)
         fun endsWith(key: String, value: String) = EndsWith(key, value)
         fun like(key: String, pattern: String) = Like(key, pattern)
+        fun hasElement(key: String, value: Any) = HasElement(key, value)
         fun and(vararg filters: PropertyFilter) = And(filters.toList())
         fun or(vararg filters: PropertyFilter) = Or(filters.toList())
         fun not(filter: PropertyFilter) = Not(filter)

@@ -21,12 +21,10 @@ import com.embabel.common.core.types.SimilarityCutoff
 import com.embabel.common.core.types.TextSimilaritySearchRequest
 import com.embabel.common.core.types.Timestamped
 import com.embabel.common.core.types.ZeroToOne
-import org.jetbrains.annotations.ApiStatus
 import java.time.Instant
 
 interface RetrievalFilters<T : RetrievalFilters<T>> : SimilarityCutoff {
 
-    @get:ApiStatus.Experimental
     val entitySearch: EntitySearch?
 
     val contentElementSearch: ContentElementSearch
@@ -152,7 +150,6 @@ data class RagRequest(
         return this.copy(hints = hints + hint)
     }
 
-    @ApiStatus.Experimental
     override fun withEntitySearch(entitySearch: EntitySearch): RagRequest {
         return this.copy(entitySearch = entitySearch)
     }

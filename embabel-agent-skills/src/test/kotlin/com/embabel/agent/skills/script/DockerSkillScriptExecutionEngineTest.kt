@@ -228,6 +228,105 @@ echo "Done"
 
     @Test
     @EnabledIf("isDockerAvailable")
+    fun `an artifact produced by one skill must be usable as input to the next skill`() {
+        // Chaining scenario: skill A produces a file (e.g. a PDF), skill B takes it as
+        // input (e.g. to email it). The engine must keep A's artifact reachable by its
+        // confined file access so B can consume it. Guards against artifacts landing in
+        // a temp dir outside any trusted root.
+        val engine = DockerSkillScriptExecutionEngine(
+            image = TEST_IMAGE,
+            user = null,
+            fileTools = FileTools.readWrite(tempDir.toString()),
+        )
+
+        // Skill A: produce an artifact.
+        val producer = createScript(
+            "produce.sh",
+            ScriptLanguage.BASH,
+            "#!/bin/bash\necho \"PDF_CONTENT\" > \"${'$'}OUTPUT_DIR/result.pdf\"\n",
+        )
+        val produced = engine.execute(producer)
+        assertTrue(produced is ScriptExecutionResult.Success, "Producer failed: $produced")
+        val artifact = (produced as ScriptExecutionResult.Success).artifacts.single()
+
+        // Skill B: consume A's artifact as an input file and echo its content.
+        val consumer = createScript(
+            "consume.sh",
+            ScriptLanguage.BASH,
+            "#!/bin/bash\ncat \"${'$'}INPUT_DIR/result.pdf\"\n",
+        )
+        val consumed = engine.execute(consumer, inputFiles = listOf(artifact.path))
+
+        assertTrue(
+            consumed is ScriptExecutionResult.Success,
+            "The next skill must be able to consume the produced artifact, but got: $consumed",
+        )
+        assertTrue(
+            (consumed as ScriptExecutionResult.Success).stdout.contains("PDF_CONTENT"),
+            "The next skill should read the artifact content, but stdout was: ${consumed.stdout}",
+        )
+    }
+
+    @Test
+    @EnabledIf("isDockerAvailable")
+    fun `a container must not inherit host environment secrets`() {
+        // EMBABEL_TEST_SECRET is set in the test JVM env (surefire config), standing in for
+        // a real secret like an API key. The container must not receive host env vars.
+        // Docker isolates the container env, so this passes.
+        val engine = DockerSkillScriptExecutionEngine(image = TEST_IMAGE, user = null)
+        val script = createScript(
+            "leak.sh",
+            ScriptLanguage.BASH,
+            "#!/bin/bash\nprintenv EMBABEL_TEST_SECRET || true\n",
+        )
+
+        val result = engine.execute(script)
+
+        assertTrue(result is ScriptExecutionResult.Success, "got: $result")
+        assertFalse(
+            (result as ScriptExecutionResult.Success).stdout.contains("s3cr3t-do-not-leak"),
+            "Host secret leaked into the container: ${result.stdout}",
+        )
+    }
+
+    @Test
+    @EnabledIf("isDockerAvailable")
+    fun `two input files with the same name from different folders are both made available`() {
+        // Realistic scenario: "merge the monthly report.csv from January and February".
+        // Both files are named report.csv but live in different folders; the LLM passes
+        // both. They must both reach the script; today the second copy collides on the
+        // same target name and the run fails with a confusing "Unexpected error".
+        val engine = DockerSkillScriptExecutionEngine(
+            image = TEST_IMAGE,
+            user = null,
+            fileTools = FileTools.readWrite(tempDir.toString()),
+        )
+
+        val jan = tempDir.resolve("jan").resolve("report.csv")
+        val feb = tempDir.resolve("feb").resolve("report.csv")
+        Files.createDirectories(jan.parent)
+        Files.createDirectories(feb.parent)
+        Files.writeString(jan, "month,total\njan,100\n")
+        Files.writeString(feb, "month,total\nfeb,200\n")
+
+        val script = createScript(
+            "merge.sh",
+            ScriptLanguage.BASH,
+            "#!/bin/bash\nls -1 \"${'$'}INPUT_DIR\" | wc -l | tr -d ' '\n",
+        )
+
+        val result = engine.execute(script, inputFiles = listOf(jan, feb))
+
+        assertTrue(result is ScriptExecutionResult.Success, "Run failed on duplicate input names: $result")
+        assertEquals(
+            "2",
+            (result as ScriptExecutionResult.Success).stdout.trim(),
+            "Both report.csv files must reach the script",
+        )
+    }
+
+    @Test
+    @EnabledIf("isDockerAvailable")
     fun `execute makes input files available in INPUT_DIR`() {
         val engine = DockerSkillScriptExecutionEngine(
             image = TEST_IMAGE,
@@ -281,6 +380,31 @@ cat "${'$'}INPUT_DIR/data.txt"
 
         // Just verify it's created - detailed behavior is tested in integration tests
         assertNotNull(engine)
+    }
+
+    @Test
+    @EnabledIf("isDockerAvailable")
+    fun `a text-transform skill must not deadlock and must process all of a large input`() {
+        // Same scenario as the process engine: a streaming filter (tr) that reads stdin
+        // and writes stdout. If the engine writes ALL of stdin before draining the
+        // container's stdout, the stdout pipe fills, tr stops reading stdin, and the stdin
+        // write blocks forever -> deadlock (before waitFor(timeout) is ever reached).
+        // assertTimeoutPreemptively turns that hang into a failure; the content assertions
+        // prove the full 1MB round-tripped, not just that the call returned.
+        val engine = DockerSkillScriptExecutionEngine(image = TEST_IMAGE, user = null)
+        val script = createScript("upper.sh", ScriptLanguage.BASH, "#!/bin/bash\ntr 'a-z' 'A-Z'\n")
+
+        val bigInput = "y".repeat(1048576) // ~1MB, all lowercase
+
+        var result: ScriptExecutionResult? = null
+        assertTimeoutPreemptively(java.time.Duration.ofSeconds(60)) {
+            result = engine.execute(script, stdin = bigInput)
+        }
+
+        assertTrue(result is ScriptExecutionResult.Success, "Expected success but got: $result")
+        val success = result as ScriptExecutionResult.Success
+        assertEquals(bigInput.length, success.stdout.length, "The whole input must be transformed")
+        assertTrue(success.stdout.all { it == 'Y' }, "Every character must be uppercased")
     }
 
     private fun createScript(

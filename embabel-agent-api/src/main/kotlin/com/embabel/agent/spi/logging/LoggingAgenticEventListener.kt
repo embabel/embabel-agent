@@ -221,19 +221,19 @@ open class LoggingAgenticEventListener(
         "[${e.processId}] goal ${e.goal.name} achieved in ${e.agentProcess.runningTime}"
 
     protected open fun getToolCallRequestEventMessage(e: ToolCallRequestEvent): String =
-        "[${e.processId}] (${e.action?.shortName()}) calling tool ${e.tool}(${e.toolInput})"
+        "[${e.processId}]${e.action?.let { " (${it.shortName()})" } ?: ""} calling tool ${e.tool}(${e.toolInput})"
 
     protected open fun getToolCallSuccessResponseEventMessage(
         e: ToolCallResponseEvent,
         resultToShow: String,
     ): String =
-        "[${e.processId}] (${e.request.action?.shortName()}) tool ${e.request.tool} returned $resultToShow in ${e.runningTime.toMillis()}ms with payload ${e.request.toolInput}"
+        "[${e.processId}]${e.request.action?.let { " (${it.shortName()})" } ?: ""} tool ${e.request.tool} returned $resultToShow in ${"%,d".format(e.runningTime.toMillis())}ms with payload ${e.request.toolInput}"
 
     protected open fun getToolCallFailureResponseEventMessage(
         e: ToolCallResponseEvent,
         throwable: Throwable?,
     ): String =
-        "[${e.processId}] (${e.request.action?.shortName()}) failed tool ${e.request.tool} -> $throwable in ${e.runningTime.toMillis()}ms with payload ${e.request.toolInput}"
+        "[${e.processId}]${e.request.action?.let { " (${it.shortName()})" } ?: ""} failed tool ${e.request.tool} -> $throwable in ${"%,d".format(e.runningTime.toMillis())}ms with payload ${e.request.toolInput}"
 
     protected open fun getProcessCompletionMessage(e: AgentProcessFinishedEvent): String =
         "[${e.processId}] completed in ${e.agentProcess.runningTime}"
@@ -304,7 +304,7 @@ open class LoggingAgenticEventListener(
         "[${e.processId}] (${e.action?.shortName() ?: e.outputClass.simpleName.ifEmpty { e.outputClass.name }}) starting tool loop [${e.toolNames.joinToString(", ")}] max=${e.maxIterations}"
 
     protected open fun getToolLoopCompletedMessage(e: ToolLoopCompletedEvent): String =
-        "[${e.processId}] (${e.action?.shortName() ?: e.outputClass.simpleName.ifEmpty { e.outputClass.name }}) tool loop completed in ${e.runningTime.toMillis()}ms iterations=${e.totalIterations} replan=${e.replanRequested}"
+        "[${e.processId}] (${e.action?.shortName() ?: e.outputClass.simpleName.ifEmpty { e.outputClass.name }}) tool loop completed in ${"%,d".format(e.runningTime.toMillis())}ms iterations=${e.totalIterations} replan=${e.replanRequested}"
 
     protected open fun getProgressUpdateEventMessage(e: ProgressUpdateEvent): String =
         "[${e.processId}] progress: ${e.createProgressBar(length = 50).color(LumonColorPalette.MEMBRANE)}"

@@ -294,6 +294,20 @@ class InMemoryContentChunker(
         var currentChunk = StringBuilder()
 
         for (paragraph in paragraphs) {
+            // A table paragraph too long for one chunk splits by ROWS with the header
+            // repeated in every piece — "sentences" have no meaning inside a table, and
+            // a row severed from its header row is retrieved next to the wrong label.
+            // Handled BEFORE the finalize-with-overlap below: table pieces are
+            // self-contained, so no overlap is seeded into them.
+            if (paragraph.length > config.maxChunkSize && isTableParagraph(paragraph)) {
+                if (currentChunk.isNotEmpty()) {
+                    chunks.add(currentChunk.toString().trim())
+                    currentChunk = StringBuilder()
+                }
+                chunks.addAll(splitTableByRows(paragraph))
+                continue
+            }
+
             // If adding this paragraph would exceed the limit, finalize current chunk
             if (currentChunk.isNotEmpty() &&
                 currentChunk.length + paragraph.length + 2 > config.maxChunkSize
@@ -420,6 +434,11 @@ class InMemoryContentChunker(
             return ""
         }
 
+        // If the overlap window lands inside a markdown table, snap to whole rows and
+        // re-attach the table's header — a headerless row fragment is retrieved next to
+        // the wrong label, which is worse than no overlap at all.
+        tableAwareOverlap(previousChunk)?.let { return it }
+
         // Try to get overlap at a sentence boundary
         val overlap = previousChunk.takeLast(config.overlapSize)
         val sentenceStart = overlap.indexOf(". ") + 2
@@ -435,6 +454,84 @@ class InMemoryContentChunker(
                 ""
             }
         }
+    }
+
+    /**
+     * If the last [ContentChunker.Config.overlapSize] characters of [previousChunk] begin inside a
+     * markdown table, return an overlap of complete table rows with the table's header row(s)
+     * prepended. Returns null when the overlap window does not start inside a table.
+     */
+    private fun tableAwareOverlap(previousChunk: String): String? {
+        val raw = previousChunk.takeLast(config.overlapSize)
+        // Snap to whole lines: drop the (possibly partial) first line of the window.
+        val snapped = if (raw.contains('\n')) raw.substringAfter('\n') else raw
+        val firstContent = snapped.lineSequence().firstOrNull { it.isNotBlank() } ?: return null
+        if (!isTableLine(firstContent)) {
+            return null
+        }
+        // `snapped` starts right after a newline, so its lines align with the tail of the chunk's lines.
+        val prevLines = previousChunk.lines()
+        var idx = prevLines.size - snapped.lines().size
+        while (idx < prevLines.size && prevLines[idx].isBlank()) {
+            idx++
+        }
+        // Walk back to the start of the table block the overlap begins in.
+        var blockStart = idx
+        while (blockStart > 0 && isTableLine(prevLines[blockStart - 1])) {
+            blockStart--
+        }
+        if (blockStart == idx) {
+            // The window happens to start at the table's first row — header already present.
+            return snapped.trim()
+        }
+        val header = tableHeaderOf(prevLines.subList(blockStart, prevLines.size))
+        return (header + prevLines.subList(idx, prevLines.size)).joinToString("\n").trim()
+    }
+
+    /**
+     * Split an oversized markdown table into pieces of complete rows, each carrying the table's
+     * header row(s), so every piece reads as a self-contained table.
+     */
+    private fun splitTableByRows(table: String): List<String> {
+        val lines = table.lines().filter { it.isNotBlank() }
+        val header = tableHeaderOf(lines)
+        val rows = lines.drop(header.size)
+        val headerSize = header.sumOf { it.length + 1 }
+
+        val pieces = mutableListOf<String>()
+        val currentRows = mutableListOf<String>()
+        var currentSize = headerSize
+        for (row in rows) {
+            if (currentRows.isNotEmpty() && currentSize + row.length + 1 > config.maxChunkSize) {
+                pieces.add((header + currentRows).joinToString("\n"))
+                currentRows.clear()
+                currentSize = headerSize
+            }
+            currentRows.add(row)
+            currentSize += row.length + 1
+        }
+        if (currentRows.isNotEmpty()) {
+            pieces.add((header + currentRows).joinToString("\n"))
+        }
+        return pieces
+    }
+
+    /** The header row plus its separator row (`|---|…`) if present; else just the first line. */
+    private fun tableHeaderOf(tableLines: List<String>): List<String> =
+        if (tableLines.size >= 2 && isSeparatorLine(tableLines[1])) {
+            tableLines.take(2)
+        } else {
+            tableLines.take(1)
+        }
+
+    private fun isTableLine(line: String): Boolean = line.trimStart().startsWith("|")
+
+    private fun isSeparatorLine(line: String): Boolean =
+        isTableLine(line) && line.contains('-') && line.all { it in "|-: \t" }
+
+    private fun isTableParagraph(paragraph: String): Boolean {
+        val lines = paragraph.lines().filter { it.isNotBlank() }
+        return lines.isNotEmpty() && lines.all { isTableLine(it) }
     }
 
 }

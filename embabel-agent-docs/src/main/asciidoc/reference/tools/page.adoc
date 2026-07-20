@@ -1730,6 +1730,45 @@ This means:
 * Objects added by the subagent are available to the parent after the subagent completes
 * The subagent operates in its own process context but shares state appropriately
 
+===== Verbosity Inheritance
+
+A `Subagent` automatically inherits the verbosity settings from its parent `AgentProcess`.
+If the parent runs with `showPrompts = true`, the subagent shows prompts too.
+If the parent runs quietly, the subagent is quiet.
+
+There is no separate verbosity setting on `Subagent` - it mirrors the parent's `ProcessOptions.verbosity` exactly.
+To control subagent verbosity, set it once on the top-level `ProcessOptions`:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Quiet parent = quiet subagent
+var processOptions = new ProcessOptions()
+    .withVerbosity(new Verbosity());
+
+// Verbose parent = verbose subagent (prompts visible in both)
+var processOptions = new ProcessOptions()
+    .withVerbosity(new Verbosity().withShowPrompts(true));
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Quiet parent = quiet subagent
+val processOptions = ProcessOptions(verbosity = Verbosity())
+
+// Verbose parent = verbose subagent (prompts visible in both)
+val processOptions = ProcessOptions(verbosity = Verbosity(showPrompts = true))
+----
+====
+
+NOTE: `GoalTool` and `AgentTool` are entry points - they default to `showPrompts = true` and do not inherit from any parent.
+To override their verbosity, pass a custom `Verbosity` via `GoalTool.withVerbosity()` or via the `processOptionsCreator` lambda on `AgentTool`.
+
 ===== When to Use Subagent
 
 |===

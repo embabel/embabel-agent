@@ -15,16 +15,79 @@
  */
 package com.embabel.agent.spi.config.spring
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.embabel.agent.spi.common.Constants.EMBABEL_PROVIDER
+import com.embabel.agent.tools.mcp.ToolCallContextMcpMetaConverter
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 import org.springframework.ai.tool.ToolCallback
 import org.springframework.ai.tool.definition.ToolDefinition
+import org.springframework.beans.factory.ObjectProvider
 
 class ToolGroupsConfigurationTest {
+
+    @Test
+    fun `empty MCP client list logs without dangling colon`() {
+        val logger = LoggerFactory.getLogger(ToolGroupsConfiguration::class.java) as Logger
+        val originalLevel = logger.level
+        val appender = ListAppender<ILoggingEvent>().apply { start() }
+
+        logger.level = Level.DEBUG
+        logger.addAppender(appender)
+
+        try {
+            ToolGroupsConfiguration(
+                mcpSyncClients = emptyList(),
+                properties = ToolGroupsProperties(),
+                metaConverterProvider = mockk<ObjectProvider<ToolCallContextMcpMetaConverter>>(),
+            )
+
+            val event = appender.list.single {
+                it.formattedMessage.startsWith("MCP is available.")
+            }
+
+            assertEquals(Level.DEBUG, event.level)
+            assertEquals("MCP is available. Found 0 clients.", event.formattedMessage)
+        } finally {
+            logger.detachAppender(appender)
+            logger.level = originalLevel
+            appender.stop()
+        }
+    }
+
+    @Test
+    fun `MCP availability is not logged at info level`() {
+        val logger = LoggerFactory.getLogger(ToolGroupsConfiguration::class.java) as Logger
+        val originalLevel = logger.level
+        val appender = ListAppender<ILoggingEvent>().apply { start() }
+
+        logger.level = Level.INFO
+        logger.addAppender(appender)
+
+        try {
+            ToolGroupsConfiguration(
+                mcpSyncClients = emptyList(),
+                properties = ToolGroupsProperties(),
+                metaConverterProvider = mockk<ObjectProvider<ToolCallContextMcpMetaConverter>>(),
+            )
+
+            assertFalse(
+                appender.list.any { it.formattedMessage.startsWith("MCP is available.") },
+                "MCP availability should only be logged when debug logging is enabled",
+            )
+        } finally {
+            logger.detachAppender(appender)
+            logger.level = originalLevel
+            appender.stop()
+        }
+    }
 
     // -------------------------------------------------------------------------
     // GroupConfig

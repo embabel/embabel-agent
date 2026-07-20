@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.agent</groupId>
         <artifactId>embabel-agent-autoconfigure</artifactId>
-        <version>1.0.0-RC1-SNAPSHOT</version>
+        <version>1.0.1-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-agent-shell-autoconfigure</artifactId>
     <packaging>jar</packaging>
