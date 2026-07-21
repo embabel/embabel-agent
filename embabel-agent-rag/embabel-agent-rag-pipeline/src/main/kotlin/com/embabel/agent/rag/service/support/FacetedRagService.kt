@@ -52,9 +52,9 @@ class FacetedRagService(
             request = ragRequest,
             service = name,
             results = allResults
-                .distinctBy { it.match.id }
                 .filter { it.score >= ragRequest.similarityThreshold }
                 .sortedByDescending { it.score }
+                .distinctBy { it.match.id }
                 .take(ragRequest.topK)
         )
         logger.info("RagResponse: {}", ragResponse)
