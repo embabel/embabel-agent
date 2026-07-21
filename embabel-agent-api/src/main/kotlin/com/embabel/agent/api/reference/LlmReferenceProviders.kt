@@ -15,10 +15,10 @@
  */
 package com.embabel.agent.api.reference
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
-import com.fasterxml.jackson.module.kotlin.readValue
-import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.dataformat.yaml.YAMLMapper
+import tools.jackson.module.kotlin.readValue
+import tools.jackson.module.kotlin.kotlinModule
 import org.springframework.core.io.DefaultResourceLoader
 import org.springframework.core.io.ResourceLoader
 
@@ -27,7 +27,7 @@ import org.springframework.core.io.ResourceLoader
  */
 object LlmReferenceProviders {
 
-    private val yamlMapper = ObjectMapper(YAMLFactory()).registerKotlinModule()
+    private val yamlMapper = YAMLMapper.builder().addModule(kotlinModule()).build()
 
     /**
      * Parse a YML file at the given resource location into a list of LlmReference

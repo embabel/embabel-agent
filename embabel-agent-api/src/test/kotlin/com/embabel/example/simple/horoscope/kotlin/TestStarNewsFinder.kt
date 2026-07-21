@@ -33,7 +33,7 @@ import com.embabel.example.simple.horoscope.TestHoroscopeService
 import com.embabel.ux.form.Text
 import com.fasterxml.jackson.annotation.JsonClassDescription
 import com.fasterxml.jackson.annotation.JsonPropertyDescription
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import tools.jackson.databind.annotation.JsonDeserialize
 import org.springframework.beans.factory.annotation.Value
 
 /**

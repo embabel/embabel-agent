@@ -23,7 +23,7 @@ import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.*
 import com.embabel.common.ai.prompt.KnowledgeCutoffDate
 import com.embabel.common.ai.prompt.PromptContributor
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
+import tools.jackson.databind.annotation.JsonSerialize
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatModel

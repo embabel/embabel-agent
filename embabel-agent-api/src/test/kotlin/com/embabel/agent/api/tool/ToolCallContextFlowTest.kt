@@ -27,7 +27,8 @@ import com.embabel.chat.Message
 import com.embabel.chat.ToolCall
 import com.embabel.chat.UserMessage
 import com.embabel.common.util.StringTransformer
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
+import io.micrometer.observation.ObservationRegistry
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test

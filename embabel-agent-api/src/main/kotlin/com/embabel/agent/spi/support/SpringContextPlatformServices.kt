@@ -35,7 +35,7 @@ import com.embabel.agent.spi.expression.spel.SpelLogicalExpressionParser
 import com.embabel.chat.ConversationFactoryProvider
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import org.springframework.beans.factory.getBean
 import org.springframework.beans.factory.getBeanProvider
 import org.springframework.beans.factory.getBeansOfType

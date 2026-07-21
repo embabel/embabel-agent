@@ -22,7 +22,7 @@ import com.embabel.agent.mcpserver.health.McpServerInitializationTracker;
 import io.modelcontextprotocol.server.McpAsyncServer;
 import io.modelcontextprotocol.server.McpSyncServer;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.actuate.health.HealthIndicator;
+import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 

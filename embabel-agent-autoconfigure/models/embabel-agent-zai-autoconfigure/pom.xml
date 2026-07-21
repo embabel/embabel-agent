@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.agent</groupId>
         <artifactId>embabel-agent-autoconfigure</artifactId>
-        <version>1.0.1-SNAPSHOT</version>
+        <version>1.5.0-SNAPSHOT</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -28,8 +28,13 @@
         </dependency>
 
         <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-openai</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-zhipuai</artifactId>
+            <artifactId>spring-ai-openai</artifactId>
         </dependency>
 
         <dependency>

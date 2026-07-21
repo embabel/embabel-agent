@@ -17,15 +17,13 @@ package com.embabel.agent.config.models.zai
 
 import com.embabel.agent.test.models.OptionsConverterTestSupport
 import com.embabel.common.ai.model.LlmOptions
-import com.embabel.common.ai.model.Thinking
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.springframework.ai.zhipuai.ZhiPuAiChatOptions
+import org.springframework.ai.openai.OpenAiChatOptions
 
-class ZaiOptionsConverterTest : OptionsConverterTestSupport<ZhiPuAiChatOptions>(
+class ZaiOptionsConverterTest : OptionsConverterTestSupport<OpenAiChatOptions>(
     optionsConverter = ZaiOptionsConverter
 ) {
     @Test
@@ -63,20 +61,5 @@ class ZaiOptionsConverterTest : OptionsConverterTestSupport<ZhiPuAiChatOptions>(
     fun `should preserve topP`() {
         val options = optionsConverter.convertOptions(LlmOptions().withTopP(0.9))
         assertEquals(0.9, options.topP)
-    }
-
-    @Test
-    fun `should enable native thinking when requested`() {
-        val options = optionsConverter.convertOptions(
-            LlmOptions().withThinking(Thinking.withTokenBudget(1024))
-        )
-        assertNotNull(options.thinking, "Thinking should be set when enabled")
-        assertEquals("enabled", options.thinking.type())
-    }
-
-    @Test
-    fun `should not set thinking by default`() {
-        val options = optionsConverter.convertOptions(LlmOptions())
-        assertNull(options.thinking, "Thinking should be null when not requested")
     }
 }

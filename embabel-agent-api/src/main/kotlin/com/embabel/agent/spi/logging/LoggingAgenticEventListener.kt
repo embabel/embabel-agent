@@ -52,8 +52,7 @@ import com.embabel.common.util.AnsiColor
 import com.embabel.common.util.color
 import com.embabel.common.util.indentLines
 import com.embabel.common.util.trim
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.messages.AssistantMessage as SpringAiAssistantMessage
@@ -122,7 +121,7 @@ open class LoggingAgenticEventListener(
         }
     }
 
-    private val objectMapper = jacksonObjectMapper().registerModule(JavaTimeModule())
+    private val objectMapper = jacksonObjectMapper()
 
     protected open fun getAgentDeploymentEventMessage(e: AgentDeploymentEvent): String =
         "Deployed agent ${e.agent.name}\n\tdescription: ${e.agent.description}"

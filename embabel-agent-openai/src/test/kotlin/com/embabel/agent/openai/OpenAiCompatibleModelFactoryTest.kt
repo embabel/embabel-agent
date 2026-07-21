@@ -59,8 +59,12 @@ class OpenAiCompatibleModelFactoryTest {
     @Test
     fun `custom base url`() {
 
+        // openai-java 4.36.0 (used by Spring AI 2.0) eagerly parses the baseUrl in
+        // OpenAIOkHttpClient.build() and routes through AzureUrlCategory.categorizeBaseUrl,
+        // which NPEs on URLs without a host. Use a syntactically-valid URL so the factory
+        // construction succeeds — the URL doesn't need to be reachable for this test.
         val mf = OpenAiCompatibleModelFactory(
-            baseUrl = "foobar",
+            baseUrl = "http://foobar.example",
             apiKey = null,
             completionsPath = null,
             embeddingsPath = null,

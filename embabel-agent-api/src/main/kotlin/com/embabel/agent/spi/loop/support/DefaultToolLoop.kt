@@ -49,7 +49,7 @@ import com.embabel.chat.Message
 import com.embabel.chat.ToolCall
 import com.embabel.chat.ToolResultMessage
 import com.embabel.chat.UserMessage
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 
 /**

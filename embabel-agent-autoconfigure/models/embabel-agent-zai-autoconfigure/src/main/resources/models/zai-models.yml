@@ -2,7 +2,7 @@
 # zai-models.yml
 # ============================================
 # Z.ai (Zhipu AI) GLM models configuration
-# Using native Spring AI ZhiPuAI support (spring-ai-zhipuai)
+# Served via Z.ai's OpenAI-compatible API (OpenAiCompatibleModelFactory)
 #
 # GLM models require temperature in the range (0.0, 1.0]; the
 # ZaiOptionsConverter clamps runtime values into that range.
