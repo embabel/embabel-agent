@@ -64,9 +64,9 @@ data class AdaptivePipelineRagResponseEnhancer @JvmOverloads constructor(
                     elapsedMs > desiredMaxLatency.duration.toMillis() -> {
                         logger.info(
                             "Skipping enhancer {} as elapsed time is {}ms with latency limit of {}ms",
-                            estimate,
                             enhancer.name,
-                            desiredMaxLatency,
+                            elapsedMs,
+                            desiredMaxLatency.duration.toMillis(),
                         )
                         break
                     }

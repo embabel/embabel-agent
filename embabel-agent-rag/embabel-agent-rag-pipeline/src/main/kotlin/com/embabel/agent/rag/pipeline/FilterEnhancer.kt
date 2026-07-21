@@ -23,20 +23,20 @@ import com.embabel.agent.rag.service.*
  */
 object FilterEnhancer : RagResponseEnhancer {
 
-    override val name: String = "dedupe"
+    override val name: String = "filter"
 
     override val enhancementType: EnhancementType
-        get() = EnhancementType.DEDUPLICATION
+        get() = EnhancementType.CUSTOM
 
     override fun enhance(response: RagResponse): RagResponse {
-        val dedupedResults = response.results.filter {
+        val filteredResults = response.results.filter {
             it.score >= response.request.similarityThreshold
         }.sortedByDescending { it.score }
             .take(response.request.topK)
-        return if (dedupedResults.size == response.results.size) {
+        return if (filteredResults == response.results) {
             response
         } else {
-            response.copy(results = dedupedResults)
+            response.copy(results = filteredResults)
         }
     }
 
