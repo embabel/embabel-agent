@@ -675,7 +675,7 @@ class SpringAiLlmMessageSenderTest {
         }
 
         @Test
-        fun `merges thought and answer so thinking extraction can see both`() {
+        fun `prefers answer-only content for structured parse`() {
             // Prepare
             val thoughtGeneration = Generation(
                 SpringAiAssistantMessage.builder()
