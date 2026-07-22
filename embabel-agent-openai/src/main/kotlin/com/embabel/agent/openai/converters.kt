@@ -39,9 +39,9 @@ fun OptionsConverter<*>.withOpenAiModel(model: String): OptionsConverter<OpenAiC
         "OpenAI-compatible model must not be blank"
     }
     return OptionsConverter { options ->
-        val converted: Any = convertOptions(options)
+        val converted: Any? = convertOptions(options)
         require(converted is OpenAiChatOptions) {
-            val type = converted.let { it::class.qualifiedName } ?: "null"
+            val type = converted?.let { it::class.qualifiedName } ?: "null"
             "OpenAI-compatible options converter must return OpenAiChatOptions for model '$model', but returned $type"
         }
         converted.mutate()
