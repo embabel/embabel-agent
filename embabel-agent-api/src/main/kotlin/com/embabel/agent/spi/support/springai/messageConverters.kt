@@ -147,11 +147,13 @@ fun SpringAiAssistantMessage.toEmbabelMessage(): Message {
     val toolCalls = this.toolCalls
     val content = this.text ?: ""
     val metadata = this.metadata ?: emptyMap()
+    val hasProviderMetadata = metadata.keys.any { it != "messageType" }
     return if (toolCalls.isNullOrEmpty()) {
-        // AssistantMessage requires non-empty content (TextPart validation).
-        // For empty content, use AssistantMessageWithToolCalls which handles empty content gracefully.
-        if (content.isEmpty()) {
-            AssistantMessageWithToolCalls(content = "", toolCalls = emptyList(), metadata = metadata)
+
+        // AssistantMessage requires non-empty content and does not carry provider metadata. Use
+        // AssistantMessageWithToolCalls with an empty tool-call list when metadata must survive.
+        if (content.isEmpty() || hasProviderMetadata) {
+            AssistantMessageWithToolCalls(content = content, toolCalls = emptyList(), metadata = metadata)
         } else {
             AssistantMessage(content = content)
         }

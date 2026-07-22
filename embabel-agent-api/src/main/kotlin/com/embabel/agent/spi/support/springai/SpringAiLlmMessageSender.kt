@@ -26,6 +26,7 @@ import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.util.loggerFor
 import com.embabel.agent.spi.support.nativeoutput.shouldUseNativeStructuredOutput
+import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.prompt.ChatOptions
@@ -96,12 +97,15 @@ internal class SpringAiLlmMessageSender(
 
         logger.debug("Prompt: {}\nResponse: {}", prompt, response)
 
-        // Convert response to Embabel message
-        // Note: Some providers (e.g., Bedrock) may return multiple generations where
-        // the first is empty and the second contains tool calls. We need to find the
-        // generation with tool calls, or fall back to the first one if none have them.
-        // See: https://github.com/embabel/embabel-agent/issues/1350
-        val assistantMessage = findGenerationWithToolCalls(response) ?: response.result!!.output
+        // Convert response to Embabel message.
+
+        // Providers may return multiple generations in one ChatResponse:
+        // - Bedrock: empty first generation, tool calls on a later one (#1350)
+        // - Google GenAI includeThoughts: thought parts first (isThought=true), answer later.
+
+        // Using only ChatResponse.result (first generation) discards later answer text
+        // and breaks structured output / createObject after thought-signature support.
+        val assistantMessage = resolveAssistantMessage(response)
         val embabelMessage = assistantMessage.toEmbabelMessage()
 
         // Extract usage information
@@ -115,58 +119,127 @@ internal class SpringAiLlmMessageSender(
     }
 
     /**
-     * Find the best generation to use from the response.
+     * Resolve a Spring AI response into the assistant message Embabel should store and inspect.
      *
-     * Some providers (e.g., Bedrock) may return multiple generations where
-     * the first is empty and a subsequent one contains tool calls.
+     * Spring AI exposes provider response parts as generations. For providers that split a
+     * single answer across generations, this method preserves the pieces Embabel needs while
+     * avoiding unsafe concatenation of alternative structured answers.
      *
      * Strategy:
-     * 1. Collect all tool calls from all generations
-     * 2. Collect all text content from all generations
-     * 3. If there are tool calls, create a merged AssistantMessage with all tool calls and combined text
-     * 4. If no tool calls, return null to fall back to first generation
      *
-     * This ensures we don't lose valuable content (text or tool calls) from any generation.
-     *
-     * @return A merged AssistantMessage with all tool calls and text, or null if no tool calls found
+     * 1. Collect tool calls and metadata from every generation.
+     * 2. Prefer non-thought text (Google GenAI sets metadata `isThought=true` on thought parts).
+     *    Fall back to the first non-blank generation text when `isThought` is absent.
+     * 3. If tool calls exist, return a merged message with all tool calls and selected text.
+     * 4. If only text exists, return selected answer text with merged metadata.
      */
-    private fun findGenerationWithToolCalls(response: ChatResponse): org.springframework.ai.chat.messages.AssistantMessage? {
+    private fun resolveAssistantMessage(
+        response: ChatResponse,
+    ): AssistantMessage {
         val allOutputs = response.results.map { it.output }
+        require(allOutputs.isNotEmpty()) { "ChatResponse contained no generations" }
 
-        // Collect all tool calls from all generations
-        val allToolCalls = allOutputs
-            .flatMap { it.toolCalls ?: emptyList() }
-
-        if (allToolCalls.isEmpty()) {
-            return null // No tool calls found, let caller use first generation
-        }
-
-        // Collect all metadata from all generations
+        val allToolCalls = allOutputs.flatMap { it.toolCalls ?: emptyList() }
         val allMetaData: Map<String, Any> = allOutputs
             .mapNotNull { it.metadata }
             .fold(emptyMap()) { acc, metadata -> acc + metadata }
 
-        // Collect all non-empty text from all generations
-        val allText = allOutputs
-            .mapNotNull { it.text?.takeIf { text -> text.isNotBlank() } }
-            .joinToString("\n")
-
-        // Log if we're merging content from multiple generations
+        val answerText = if (allToolCalls.isNotEmpty()) {
+            selectToolCallText(allOutputs)
+        } else {
+            selectAnswerText(allOutputs)
+        }
         val generationsWithToolCalls = allOutputs.count { !it.toolCalls.isNullOrEmpty() }
         val generationsWithText = allOutputs.count { !it.text.isNullOrBlank() }
         if (generationsWithToolCalls > 1 || generationsWithText > 1) {
             logger.debug(
-                "Merging content from multiple generations: {} with tool calls, {} with text",
+                "Resolving multi-generation ChatResponse: {} with tool calls, {} with text, selected answer length={}",
                 generationsWithToolCalls,
-                generationsWithText
+                generationsWithText,
+                answerText.length,
             )
         }
 
-        return org.springframework.ai.chat.messages.AssistantMessage.builder()
-            .content(allText)
-            .toolCalls(allToolCalls)
+        if (allToolCalls.isNotEmpty()) {
+            return AssistantMessage.builder()
+                .content(answerText)
+                .toolCalls(allToolCalls)
+                .properties(allMetaData)
+                .build()
+        }
+
+        return AssistantMessage.builder()
+            .content(answerText)
             .properties(allMetaData)
             .build()
+    }
+
+    /**
+     * Select text that should be treated as the model answer for structured conversion.
+     *
+     * Google GenAI with includeThoughts emits one generation per part; thought parts are
+     * marked with metadata isThought=true and must not be used alone as the JSON payload.
+     * When multiple non-thought texts are present, the first one is selected because those
+     * generations may be alternative candidates rather than chunks of one JSON document.
+     */
+    private fun selectAnswerText(
+        allOutputs: List<AssistantMessage>,
+    ): String {
+        val nonThoughtTexts = allOutputs
+            .filterNot { isThoughtGeneration(it) }
+            .mapNotNull { it.text?.takeIf { text -> text.isNotBlank() } }
+        if (nonThoughtTexts.isNotEmpty()) {
+            return nonThoughtTexts.first()
+        }
+        // No non-thought text (or provider does not mark thoughts): use first non-blank content
+        return allOutputs
+            .mapNotNull { it.text?.takeIf { text -> text.isNotBlank() } }
+            .firstOrNull()
+            ?: ""
+    }
+
+    /**
+     * Select text for responses that include tool calls.
+     *
+     * Tool-call responses need to keep tool calls from all generations. Text handling is more
+     * conservative: if no generation is marked as thought, all non-blank text is joined to
+     * preserve Bedrock-style split responses. If thought markers are present, thought text is
+     * removed so structured answer content and tool continuation metadata stay coherent.
+     */
+    private fun selectToolCallText(
+        allOutputs: List<AssistantMessage>,
+    ): String {
+        val textOutputs = allOutputs.mapNotNull { it.text?.takeIf { text -> text.isNotBlank() } }
+        if (allOutputs.none { isThoughtGeneration(it) }) {
+            return textOutputs.joinToString("\n")
+        }
+        return allOutputs
+            .filterNot { isThoughtGeneration(it) }
+            .mapNotNull { it.text?.takeIf { text -> text.isNotBlank() } }
+            .joinToString("\n")
+    }
+
+    /**
+     * Return true when a generation is provider-marked as model thinking rather than final
+     * assistant answer text.
+     *
+     * Spring AI's Google GenAI adapter uses Boolean `true`; trimmed string values are accepted
+     * so metadata copied through less strongly typed paths is still filtered correctly.
+     */
+    private fun isThoughtGeneration(
+        message: AssistantMessage,
+    ): Boolean = when (val isThought = message.metadata?.get(IS_THOUGHT_METADATA_KEY)) {
+        true -> true
+        is String -> isThought.trim().equals("true", ignoreCase = true)
+        else -> false
+    }
+
+    companion object {
+        /**
+         * Metadata key set by Spring AI Google GenAI on thought parts
+         * (`GoogleGenAiChatModel.responseCandidateToGeneration`).
+         */
+        const val IS_THOUGHT_METADATA_KEY: String = "isThought"
     }
 
     /**
