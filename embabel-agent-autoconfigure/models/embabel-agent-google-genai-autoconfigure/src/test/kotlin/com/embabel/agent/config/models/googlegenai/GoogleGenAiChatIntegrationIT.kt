@@ -188,9 +188,7 @@ class GoogleGenAiChatIntegrationIT(
             }
 
             // Verify
-            assertNotNull(result)
-            assertTrue(result.name.lowercase() in setOf("july", "august"), "Expected plausible month, got: ${result.name}",)
-            assertNotNull(result.temperature)
+            assertTrue(result.name.lowercase() in setOf("july", "august"), "Expected plausible month, got: ${result.name}")
             assertTrue(result.temperature!! in 70..110, "Expected plausible temp, got: ${result.temperature}")
         }
 
