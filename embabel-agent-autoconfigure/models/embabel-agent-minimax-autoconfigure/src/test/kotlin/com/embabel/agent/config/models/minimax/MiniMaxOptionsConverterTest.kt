@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.config.models.minimax
 
+import com.embabel.agent.openai.withOpenAiModel
 import com.embabel.agent.test.models.OptionsConverterTestSupport
 import com.embabel.common.ai.model.LlmOptions
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -76,5 +77,19 @@ class MiniMaxOptionsConverterTest : OptionsConverterTestSupport<OpenAiChatOption
     fun `should preserve frequencyPenalty`() {
         val options = optionsConverter.convertOptions(LlmOptions().withFrequencyPenalty(0.3))
         assertEquals(0.3, options.frequencyPenalty)
+    }
+
+    @Test
+    fun `should bind configured MiniMax model`() {
+        // Prepare
+        val converter = MiniMaxOptionsConverter.withOpenAiModel("MiniMax-M1")
+        val llmOptions = LlmOptions().withTopP(0.8)
+
+        // Execute
+        val options = converter.convertOptions(llmOptions)
+
+        // Verify
+        assertEquals("MiniMax-M1", options.model)
+        assertEquals(0.8, options.topP)
     }
 }

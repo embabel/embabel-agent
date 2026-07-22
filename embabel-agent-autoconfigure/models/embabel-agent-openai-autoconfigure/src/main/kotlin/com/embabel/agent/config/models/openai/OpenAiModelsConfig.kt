@@ -20,6 +20,7 @@ import com.embabel.agent.config.models.openai.OpenAiProperties.Companion.PREFIX
 import com.embabel.agent.openai.Gpt5ChatOptionsConverter
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.openai.StandardOpenAiOptionsConverter
+import com.embabel.agent.openai.withOpenAiModel
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
@@ -220,7 +221,7 @@ class OpenAiModelsConfig(
             name = modelDef.modelId,
             chatModel = chatModel,
             provider = OpenAiModels.PROVIDER,
-            optionsConverter = optionsConverter,
+            optionsConverter = optionsConverter.withOpenAiModel(modelDef.modelId),
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
             pricingModel = pricingModel,
             thinkingSupported = true,

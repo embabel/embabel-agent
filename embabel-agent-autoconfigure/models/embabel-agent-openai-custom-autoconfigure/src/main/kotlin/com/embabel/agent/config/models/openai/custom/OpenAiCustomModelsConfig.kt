@@ -18,6 +18,7 @@ package com.embabel.agent.config.models.openai.custom
 import com.embabel.agent.config.models.openai.custom.OpenAiCustomProperties.Companion.PREFIX
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.openai.StandardOpenAiOptionsConverter
+import com.embabel.agent.openai.withOpenAiModel
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
@@ -209,7 +210,7 @@ class OpenAiCustomModelsConfig(
             name = modelId,
             chatModel = chatModel,
             provider = CUSTOM_PROVIDER,
-            optionsConverter = StandardOpenAiOptionsConverter,
+            optionsConverter = StandardOpenAiOptionsConverter.withOpenAiModel(modelId),
         )
     }
 

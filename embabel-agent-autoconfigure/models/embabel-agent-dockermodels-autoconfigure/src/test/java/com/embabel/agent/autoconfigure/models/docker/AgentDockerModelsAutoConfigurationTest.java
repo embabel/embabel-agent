@@ -18,10 +18,18 @@ package com.embabel.agent.autoconfigure.models.docker;
 import com.embabel.agent.config.models.docker.DockerConnectionProperties;
 import com.embabel.agent.config.models.docker.DockerLocalModelsConfig;
 import com.embabel.agent.config.models.docker.DockerRetryProperties;
+import com.embabel.agent.spi.support.springai.SpringAiLlmService;
 import com.embabel.common.ai.autoconfig.ProviderInitialization;
+import com.embabel.common.ai.model.LlmOptions;
+import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -155,6 +163,39 @@ class AgentDockerModelsAutoConfigurationTest {
          assertThat(initialization.getRegisteredLlms()).isEmpty();
          assertThat(initialization.getRegisteredEmbeddings()).isEmpty();
       });
+   }
+
+   /**
+    * Verifies that a model discovered from a Docker OpenAI-compatible endpoint binds its discovered id onto request-level options.
+    */
+   @Test
+   void discoveredDockerModelServiceBindsConfiguredModelOnRequestOptions() throws IOException {
+      // Prepare
+      final HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+      server.createContext("/engines/v1/models", exchange -> {
+         final byte[] body = """
+                 {"object":"list","data":[{"id":"docker-test-model"}]}
+                 """.getBytes(StandardCharsets.UTF_8);
+         exchange.getResponseHeaders().add("Content-Type", "application/json");
+         exchange.sendResponseHeaders(200, body.length);
+         exchange.getResponseBody().write(body);
+         exchange.close();
+      });
+      server.start();
+      try {
+         // Execute
+         final String baseUrl = "http://localhost:" + server.getAddress().getPort() + "/engines";
+         contextRunner.withPropertyValues("embabel.agent.models.docker.base-url=" + baseUrl).run(context -> {
+            final SpringAiLlmService service = context.getBean("dockerModel-docker-test-model", SpringAiLlmService.class);
+            final OpenAiChatOptions options = (OpenAiChatOptions) service.getOptionsConverter().convertOptions(new LlmOptions());
+
+            // Verify
+            assertThat(options.getModel()).isEqualTo("docker-test-model");
+         });
+      }
+      finally {
+         server.stop(0);
+      }
    }
 
    @Override
