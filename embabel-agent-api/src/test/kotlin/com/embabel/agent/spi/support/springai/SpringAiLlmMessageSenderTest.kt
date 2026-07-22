@@ -1116,9 +1116,7 @@ class SpringAiLlmMessageSenderTest {
             )
             val sender = senderFor(listOf(thoughtGeneration, answerGeneration), resultGeneration = thoughtGeneration)
 
-            // Execute
-            val response = sender.call(messages = listOf(UserMessage("q")),tools = emptyList(),)
-
+            val response = sender.call(messages = listOf(UserMessage("q")), tools = emptyList(),)
             // Verify
             assertThat(response.textContent).isEqualTo(answerJson)
 
