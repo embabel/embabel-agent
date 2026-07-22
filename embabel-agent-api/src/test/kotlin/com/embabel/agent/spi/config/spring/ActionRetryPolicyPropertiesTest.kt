@@ -174,7 +174,7 @@ internal class JavaAgentWithTwoRetryPropertiesActions {
 
     @AchievesGoal(description = "Process the input")
     @Action(actionRetryPolicyExpression = "\${retry-twice}")
-    fun perform(input: JavaRetryTestInput?): JavaRetryTestOutput {
+    fun perform(input: JavaRetryTestInput): JavaRetryTestOutput {
         retryInvocations.incrementAndGet()
         if (retryInvocations.get() == 1) throw RuntimeException("Failed!")
 

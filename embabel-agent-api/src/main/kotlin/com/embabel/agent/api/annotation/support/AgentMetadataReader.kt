@@ -81,7 +81,7 @@ internal data class AgenticInfo(
             errors += "Both @Agentic and @Agent annotations found on ${targetType.name}. Treating class as Agent, but both should not be used"
         }
         if (agentAnnotation != null && agentAnnotation.description.isBlank()) {
-            errors + "No description provided for @${Agent::class.java.simpleName} on ${targetType.name}"
+            errors += "No description provided for @${Agent::class.java.simpleName} on ${targetType.name}"
         }
         return errors
     }
@@ -216,8 +216,9 @@ class AgentMetadataReader(
         }
 
         if (actionMethods.isEmpty() && goals.isEmpty() && conditionMethods.isEmpty()) {
-            logger.warn(
-                "❓No methods annotated with @{} or @{} and no goals defined on {}",
+            logger.warn("❓{} {} is not registered due to no methods annotated with @{} or @{} and no goals defined on {}",
+                if (agenticInfo.isAgent()) "Agent" else "Agentic component",
+                agenticInfo.agentName(),
                 Action::class.simpleName,
                 Condition::class.simpleName,
                 targetType.name,
@@ -230,15 +231,16 @@ class AgentMetadataReader(
             if (plannerType == PlannerType.SUPERVISOR) {
                 // Find the goal action (the action with @AchievesGoal)
                 if (goalActions.isEmpty()) {
-                    logger.warn(
-                        "SUPERVISOR planner requires at least one @AchievesGoal action on {}",
+                    logger.warn("❓Agent {} is not registered: SUPERVISOR planner requires at least one @AchievesGoal action on {}",
+                        agenticInfo.agentName(),
                         targetType.name,
                     )
                     return null
                 }
                 if (goalActions.size > 1) {
                     logger.warn(
-                        "SUPERVISOR planner currently supports only one @AchievesGoal action, found {} on {}",
+                        "❓Agent {} is not registered: SUPERVISOR planner currently supports only one @AchievesGoal action, found {} on {}",
+                        agenticInfo.agentName(),
                         goalActions.size,
                         targetType.name,
                     )
@@ -264,8 +266,8 @@ class AgentMetadataReader(
                     val typeNames = distinctGoalTypes.joinToString { it.simpleName.ifEmpty { it.name } }
                     if (restrictedGoals) {
                         logger.warn(
-                            "Agent {} has @AchievesGoal actions returning distinct types [{}] - rejected. Set embabel.agent.platform.planner.restricted-goals=false to allow",
-                            targetType.name,
+                            "❓Agent {} is not registered due to @AchievesGoal actions returning distinct types [{}]. Set embabel.agent.platform.planner.restricted-goals=false to allow",
+                            agenticInfo.agentName(),
                             typeNames,
                         )
                         return null
@@ -303,9 +305,12 @@ class AgentMetadataReader(
         if (plannerType == PlannerType.GOAP && agenticInfo.isAgent()) {
             val validationResult = agentValidationManager.validate(agent)
             if (!validationResult.isValid) {
-                logger.warn("Agent validation failed:\n${validationResult.errors.joinToString("\n")}")
-                // TODO: Uncomment to strengthen validation and refactor the test if needed. Because some tests might fail.
-                // return null
+                logger.warn(
+                    "❓Agent {} is not registered due to validation failure:\n{}",
+                    agenticInfo.agentName(),
+                    validationResult.errors.joinToString("\n"),
+                )
+                return null
             }
         }
 
