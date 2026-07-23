@@ -234,12 +234,12 @@ class AdaptivePipelineRagResponseEnhancerTest {
         }
 
         @Test
-        fun `quality and latency boundaries remain inclusive`() {
+        fun `quality and expensive latency thresholds remain inclusive`() {
             val qualityBoundary = FixedEnhancer(
                 name = "quality-boundary",
                 estimate = EnhancementEstimate(0.1, 1501, 0, EnhancementRecommendation.APPLY),
             )
-            val latencyBoundary = FixedEnhancer(
+            val expensiveLatencyBoundary = FixedEnhancer(
                 name = "latency-boundary",
                 estimate = EnhancementEstimate(0.1, 1000, 0, EnhancementRecommendation.APPLY),
             )
@@ -260,14 +260,14 @@ class AdaptivePipelineRagResponseEnhancerTest {
                 listener = RecordingRagListener(),
             ).enhance(response(quality = qualityAtThreshold))
             AdaptivePipelineRagResponseEnhancer(
-                enhancers = listOf(latencyBoundary),
+                enhancers = listOf(expensiveLatencyBoundary),
                 adaptiveExecution = true,
                 qualityThreshold = 0.7,
                 listener = RecordingRagListener(),
             ).enhance(response(quality = highQuality))
 
             assertEquals(1, qualityBoundary.enhancementCalls)
-            assertEquals(1, latencyBoundary.enhancementCalls)
+            assertEquals(1, expensiveLatencyBoundary.enhancementCalls)
         }
 
         @Test
@@ -279,9 +279,8 @@ class AdaptivePipelineRagResponseEnhancerTest {
                 adaptiveExecution = true,
                 listener = listener,
             )
-            val request = RagRequest("q").withHint(
-                DesiredMaxLatency(duration = Duration.ofMillis(-1)),
-            )
+            val exhaustedLatencyBudget = DesiredMaxLatency(duration = Duration.ofMillis(-1))
+            val request = RagRequest("q").withHint(exhaustedLatencyBudget)
             val original = response(results = listOf(chunk("base")), request = request)
 
             val enhanced = pipeline.enhance(original)

@@ -20,7 +20,8 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.domain.library.HasContent
 import com.embabel.agent.domain.library.InternetResource
 import com.embabel.agent.domain.library.InternetResources
-import com.embabel.agent.spi.logging.ColorPalette
+import com.embabel.agent.spi.logging.DefaultColorPalette
+import com.embabel.common.util.color
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
@@ -32,10 +33,7 @@ import kotlin.test.assertTrue
 /** Verifies [formatProcessOutput] formatting for JSON, text, Markdown, links, and line wrapping. */
 class FormatProcessOutputTest {
 
-    private val palette = object : ColorPalette {
-        override val highlight: Int = 0xbeb780
-        override val color2: Int = 0x7da17e
-    }
+    private val palette = DefaultColorPalette()
 
     private fun execution(output: Any, basis: Any = "user question"): AgentProcessExecution {
         val process = mockk<AgentProcess>(relaxed = true)
@@ -61,13 +59,25 @@ class FormatProcessOutputTest {
                 objectMapper = jacksonObjectMapper(),
                 lineLength = 80,
             )
+            val prettyJson = """
+                {
+                  "answer" : 42
+                }
+            """.trimIndent()
+            val expectedFragments = listOf(
+                "process-info",
+                "user question",
+                prettyJson,
+                "cost-info",
+                "tools-info",
+            )
+            val fragmentIndexes = expectedFragments.map(result::indexOf)
 
-            assertTrue(result.contains("process-info"))
-            assertTrue(result.contains("user question"))
-            assertTrue(result.contains("\"answer\""))
-            assertTrue(result.contains("42"))
-            assertTrue(result.contains("cost-info"))
-            assertTrue(result.contains("tools-info"))
+            assertTrue(fragmentIndexes.all { it >= 0 }, "Missing expected fragment")
+            assertTrue(
+                fragmentIndexes.zipWithNext().all { (first, second) -> first < second },
+                "Fragments are out of order",
+            )
         }
     }
 
@@ -75,7 +85,7 @@ class FormatProcessOutputTest {
     inner class HasContentOutput {
 
         @Test
-        fun `wraps plain content without markdown heading conversion`() {
+        fun `formats plain content`() {
             val output = object : HasContent {
                 override val content: String = "plain text answer without heading"
             }
@@ -88,11 +98,11 @@ class FormatProcessOutputTest {
             )
 
             assertTrue(result.contains("plain text answer without heading"))
-            assertFalse(result.contains("\n#"))
+            assertFalse(result.contains("\u001B[36m\u001B[1m"))
         }
 
         @Test
-        fun `converts markdown headings when content contains hash`() {
+        fun `converts markdown heading to ANSI styling`() {
             val output = object : HasContent {
                 override val content: String = "# Title\nBody text"
             }
@@ -104,8 +114,7 @@ class FormatProcessOutputTest {
                 lineLength = 80,
             )
 
-            assertTrue(result.contains("Title"))
-            assertTrue(result.contains("Body text"))
+            assertTrue(result.contains("\u001B[36m\u001B[1m# Title\u001B[22m\u001B[0m\nBody text"))
         }
 
         @Test
@@ -129,12 +138,12 @@ class FormatProcessOutputTest {
                 objectMapper = jacksonObjectMapper(),
                 lineLength = 80,
             )
+            val expectedLinks = """
+                - https://example.com: ${"Example".color(palette.color2)}
+                - https://example.org: ${"Second".color(palette.color2)}
+            """.trimIndent()
 
-            assertTrue(result.contains("https://example.com"))
-            assertTrue(result.contains("Example"))
-            assertTrue(result.contains("https://example.org"))
-            assertTrue(result.contains("Second"))
-            assertTrue(result.indexOf("https://example.com") < result.indexOf("https://example.org"))
+            assertTrue(result.contains(expectedLinks))
         }
 
         @Test

@@ -19,13 +19,21 @@ import com.embabel.common.core.types.TextSimilaritySearchRequest
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
 
-/** Verifies the [EagerSearch] text overload, including request defaults and boundary values. */
+/** Verifies the [EagerSearch] text overload, including request defaults and forwarded inputs. */
 class EagerSearchTest {
+
+    private fun mockEagerSearch(): TestEagerSearch {
+        val search = mockk<TestEagerSearch>()
+        every { search.withEagerSearchAbout(any<TextSimilaritySearchRequest>()) } returns search
+        every { search.withEagerSearchAbout(any<String>(), any()) } answers { callOriginal() }
+        return search
+    }
 
     @Nested
     inner class DefaultWithEagerSearchAbout {
@@ -33,27 +41,25 @@ class EagerSearchTest {
         @Test
         fun `string overload builds request with zero threshold and given topK`() {
             val capturedRequest = slot<TextSimilaritySearchRequest>()
-            val search = mockk<TestEagerSearch>()
-            every { search.withEagerSearchAbout(capture(capturedRequest)) } returns search
-            every { search.withEagerSearchAbout(any<String>(), any()) } answers { callOriginal() }
+            val search = mockEagerSearch()
 
             val result = search.withEagerSearchAbout("find related APIs", limit = 5)
 
             assertSame(search, result)
+            verify(exactly = 1) { search.withEagerSearchAbout(capture(capturedRequest)) }
             assertEquals("find related APIs", capturedRequest.captured.query)
             assertEquals(0.0, capturedRequest.captured.similarityThreshold)
             assertEquals(5, capturedRequest.captured.topK)
         }
 
         @Test
-        fun `string overload preserves boundary inputs without coercion`() {
+        fun `string overload forwards empty query and zero limit`() {
             val capturedRequest = slot<TextSimilaritySearchRequest>()
-            val search = mockk<TestEagerSearch>()
-            every { search.withEagerSearchAbout(capture(capturedRequest)) } returns search
-            every { search.withEagerSearchAbout(any<String>(), any()) } answers { callOriginal() }
+            val search = mockEagerSearch()
 
             search.withEagerSearchAbout("", limit = 0)
 
+            verify(exactly = 1) { search.withEagerSearchAbout(capture(capturedRequest)) }
             assertEquals("", capturedRequest.captured.query)
             assertEquals(0.0, capturedRequest.captured.similarityThreshold)
             assertEquals(0, capturedRequest.captured.topK)
