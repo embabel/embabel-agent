@@ -22,7 +22,7 @@ import com.embabel.agent.a2a.server.support.AutonomyA2ARequestHandler;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.api.event.AgenticEventListener;
 import com.embabel.agent.core.AgentPlatform;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;

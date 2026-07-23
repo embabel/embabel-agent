@@ -40,7 +40,7 @@ import com.embabel.common.ai.model.ModelSelectionCriteria
 import com.embabel.common.ai.model.PreResolvedModelSelectionCriteria
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.util.time
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import jakarta.validation.ConstraintViolation
 import jakarta.validation.Validator
 import java.lang.reflect.Field

@@ -18,10 +18,9 @@ package com.embabel.agent.anthropic
 import com.embabel.chat.MessageRole
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
+import org.springframework.ai.anthropic.AnthropicCacheOptions
+import org.springframework.ai.anthropic.AnthropicCacheStrategy
 import org.springframework.ai.anthropic.AnthropicChatOptions
-import org.springframework.ai.anthropic.api.AnthropicApi
-import org.springframework.ai.anthropic.api.AnthropicCacheOptions
-import org.springframework.ai.anthropic.api.AnthropicCacheStrategy
 import org.springframework.ai.chat.messages.MessageType
 
 object AnthropicOptionsConverter : OptionsConverter<AnthropicChatOptions> {
@@ -38,15 +37,16 @@ object AnthropicOptionsConverter : OptionsConverter<AnthropicChatOptions> {
             .temperature(options.temperature)
             .topP(options.topP)
             .maxTokens(options.maxTokens ?: DEFAULT_MAX_TOKENS)
-            .thinking(
-                if (options.thinking?.enabled == true) AnthropicApi.ChatCompletionRequest.ThinkingConfig(
-                    AnthropicApi.ThinkingType.ENABLED,
-                    options.thinking!!.tokenBudget,
-                ) else AnthropicApi.ChatCompletionRequest.ThinkingConfig(
-                    AnthropicApi.ThinkingType.DISABLED,
-                    null,
-                )
-            )
+            .apply {
+                // Spring AI 2.0 replaced AnthropicApi.ChatCompletionRequest.ThinkingConfig with
+                // first-class thinkingEnabled(tokenBudget) / thinkingDisabled() builder methods.
+                val thinkingBudget = options.thinking?.tokenBudget
+                if (options.thinking?.enabled == true && thinkingBudget != null) {
+                    thinkingEnabled(thinkingBudget.toLong())
+                } else {
+                    thinkingDisabled()
+                }
+            }
             .topK(options.topK)
 
         // Apply Anthropic caching if configured

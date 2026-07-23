@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.openai.OpenAiChatOptions
-import org.springframework.ai.openai.api.ResponseFormat
+import org.springframework.ai.openai.OpenAiChatModel.ResponseFormat
 import io.mockk.mockk
 
 class OpenAiNativeStructuredOutputConfigurerTest {
@@ -66,9 +66,8 @@ class OpenAiNativeStructuredOutputConfigurerTest {
             assertThat(configured).isInstanceOf(OpenAiChatOptions::class.java)
             val configuredOptions = configured as OpenAiChatOptions
             assertThat(configuredOptions.responseFormat?.type).isEqualTo(ResponseFormat.Type.JSON_SCHEMA)
-            assertThat(configuredOptions.responseFormat?.jsonSchema?.name).isEqualTo("custom_schema")
-            assertThat(configuredOptions.responseFormat?.jsonSchema?.strict).isTrue()
-            assertThat(configuredOptions.responseFormat?.jsonSchema?.schema?.get("type")).isEqualTo("object")
+            assertThat(configuredOptions.responseFormat?.jsonSchema).isEqualTo(request.schema)
+            assertThat(configuredOptions.outputSchema).isEqualTo(request.schema)
         }
     }
 

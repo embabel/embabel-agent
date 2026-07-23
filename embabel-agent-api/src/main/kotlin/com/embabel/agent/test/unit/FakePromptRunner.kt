@@ -115,7 +115,7 @@ data class FakePromptRunner(
         override val templateRenderer: com.embabel.common.textio.template.TemplateRenderer
             get() = context.agentPlatform().platformServices.templateRenderer
 
-        override val objectMapper: com.fasterxml.jackson.databind.ObjectMapper
+        override val objectMapper: tools.jackson.databind.ObjectMapper
             get() = context.agentPlatform().platformServices.objectMapper
 
         override val llm: LlmOptions?
