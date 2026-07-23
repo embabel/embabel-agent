@@ -3,6 +3,15 @@
 :sectids:
 :sectanchors:
 
+// The book carries the authors in its front matter, from index.adoc.
+// Hub has no front matter, so it gets them here, as a byline under the title.
+// asciidoctor always defines `backend`; downdoc never does, so this is hub-only.
+ifndef::backend[]
+
+include::../authors.adoc[]
+
+endif::[]
+
 Agentic AI is the use of large language (and other multi-modal) models not just to generate text, but to act as
 reasoning, goal-driven agents that can plan, call tools, and adapt their actions to deliver outcomes.
 
