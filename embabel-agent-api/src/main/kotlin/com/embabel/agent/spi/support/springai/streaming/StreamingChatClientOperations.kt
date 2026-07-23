@@ -174,7 +174,7 @@ internal class StreamingChatClientOperations(
         val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
         validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
 
-        val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
+        val chatOptions = requireSpringAiLlm(llm).buildChatOptions(interaction.llm)
 
         // Resolve tool groups and decorate tools
         val tools = chatClientLlmOperations.resolveAndDecorateTools(interaction, agentProcess, action)
@@ -346,7 +346,7 @@ internal class StreamingChatClientOperations(
         // Chat Client
         val chatClient = chatClientLlmOperations.createChatClient(llm)
         // Chat Options, additional potential option "streaming"
-        val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
+        val chatOptions = requireSpringAiLlm(llm).buildChatOptions(interaction.llm)
 
         // Spring AI 2.0's StreamingJacksonOutputConverter requires T : Any;
         // erase O via Class<Any> for the construction, cast result back at use sites.

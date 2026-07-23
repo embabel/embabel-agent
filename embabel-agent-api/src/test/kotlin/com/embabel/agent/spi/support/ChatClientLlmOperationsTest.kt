@@ -49,6 +49,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import jakarta.validation.Validation
 import jakarta.validation.constraints.Pattern
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -1320,6 +1321,28 @@ class ChatClientLlmOperationsTest {
             } catch (e: InvalidLlmReturnTypeException) {
                 assertTrue(e.constraintViolations.any { it.propertyPath.toString() == "eats" })
             }
+        }
+    }
+
+    @Nested
+    inner class ModelBinding {
+
+        @Test
+        fun `model name from SpringAiLlmService reaches ChatModel call`() {
+            val duke = Dog("Duke")
+            val fakeChatModel = FakeChatModel(jacksonObjectMapper().writeValueAsString(duke))
+            val setup = createChatClientLlmOperations(fakeChatModel)
+
+            setup.llmOperations.createObject(
+                messages = listOf(UserMessage("prompt")),
+                interaction = LlmInteraction(id = InteractionId("id"), llm = LlmOptions()),
+                outputClass = Dog::class.java,
+                action = SimpleTestAgent.actions.first(),
+                agentProcess = setup.mockAgentProcess,
+            )
+
+            assertThat(fakeChatModel.optionsPassed).isNotEmpty()
+            assertThat(fakeChatModel.optionsPassed[0].model).isEqualTo("fake")
         }
     }
 

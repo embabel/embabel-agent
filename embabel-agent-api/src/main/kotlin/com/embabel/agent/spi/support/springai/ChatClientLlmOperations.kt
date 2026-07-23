@@ -189,7 +189,7 @@ internal class ChatClientLlmOperations(
     ): LlmMessageSender {
         if (llmRequestEvent != null) {
             val springAiLlm = requireSpringAiLlm(llm)
-            val chatOptions = springAiLlm.optionsConverter.convertOptions(options)
+            val chatOptions = springAiLlm.buildChatOptions(options)
             val instrumentedModel = InstrumentedChatModel(springAiLlm.chatModel, llmRequestEvent)
             return SpringAiLlmMessageSender(
                 chatModel = instrumentedModel,
@@ -348,7 +348,7 @@ internal class ChatClientLlmOperations(
 
         val schemaFormat = converter?.getFormat()
 
-        val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
+        val chatOptions = requireSpringAiLlm(llm).buildChatOptions(interaction.llm)
         val timeoutMillis = getTimeoutMillis(interaction.llm)
 
         val basePrompt = if (schemaFormat != null) {
@@ -507,7 +507,7 @@ internal class ChatClientLlmOperations(
             // Get the complete format (examples + JSON schema)
             val schemaFormat = converter.getFormat()
 
-            val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
+            val chatOptions = requireSpringAiLlm(llm).buildChatOptions(interaction.llm)
             val timeoutMillis = getTimeoutMillis(interaction.llm)
 
             val basePrompt = buildPromptWithMaybeReturnAndSchema(
