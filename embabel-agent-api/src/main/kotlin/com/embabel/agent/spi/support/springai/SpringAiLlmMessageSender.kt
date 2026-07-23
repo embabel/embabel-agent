@@ -111,6 +111,7 @@ internal class SpringAiLlmMessageSender(
             message = embabelMessage,
             textContent = assistantMessage.text ?: "",
             usage = usage,
+            model = response.metadata?.model,
         )
     }
 

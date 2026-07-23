@@ -30,6 +30,8 @@ import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.prompt.Prompt
+import org.springframework.ai.model.tool.ToolCallingChatOptions
+import reactor.core.publisher.Flux
 
 /**
  * Regression tests for the generic model-binding performed by [SpringAiLlmService].
@@ -49,7 +51,7 @@ class SpringAiLlmServiceModelBindingTest {
         return mockk {
             every { result } returns generation
             every { results } returns listOf(generation)
-            every { metadata } returns mockk<ChatResponseMetadata> { every { usage } returns null }
+            every { metadata } returns mockk<ChatResponseMetadata>(relaxed = true) { every { usage } returns null }
         }
     }
 
@@ -83,6 +85,64 @@ class SpringAiLlmServiceModelBindingTest {
         val sentOptions = capturedPrompt.captured.options
         assertThat(sentOptions.model).isEqualTo("gpt-4.1")
         assertThat(sentOptions.temperature).isEqualTo(0.5)
+    }
+
+    @Test
+    fun `binds model onto a generic ToolCallingChatOptions converter (Bedrock-shape)`() {
+        // Bedrock's converter returns a generic ToolCallingChatOptions carrying no model; the
+        // model lives only on the ChatModel. Verify binding sets it while preserving the type.
+        val configuredOptions = ToolCallingChatOptions.builder().model("anthropic.claude-sonnet").build()
+        val converterOutput = ToolCallingChatOptions.builder().build()
+        val capturedPrompt = slot<Prompt>()
+        val chatResponse = chatResponseStub()
+        val chatModel = mockk<ChatModel> {
+            every { options } returns configuredOptions
+            every { call(capture(capturedPrompt)) } returns chatResponse
+        }
+        val service = SpringAiLlmService(
+            name = "anthropic.claude-sonnet",
+            provider = "Bedrock",
+            chatModel = chatModel,
+            optionsConverter = OptionsConverter { converterOutput },
+        )
+
+        // Execute
+        service.createMessageSender(LlmOptions())
+            .call(messages = listOf(UserMessage("Hi")), tools = emptyList())
+
+        // Verify: concrete generic type preserved and the configured model bound.
+        val sentOptions = capturedPrompt.captured.options
+        assertThat(sentOptions).isInstanceOf(ToolCallingChatOptions::class.java)
+        assertThat(sentOptions.model).isEqualTo("anthropic.claude-sonnet")
+    }
+
+    @Test
+    fun `createMessageStreamer binds the configured model onto the streamed request`() {
+        // Prepare
+        val configuredOptions = ChatOptions.builder().model("gpt-4.1").build()
+        val converterOutput = ChatOptions.builder().model("gpt-5-mini").build()
+        val capturedPrompt = slot<Prompt>()
+        // Use a real ChatResponse: the ChatClient streaming aggregator reads metadata the mock
+        // stub does not provide.
+        val chatModel = mockk<ChatModel> {
+            every { options } returns configuredOptions
+            every { stream(capture(capturedPrompt)) } returns
+                Flux.just(ChatResponse(listOf(Generation(SpringAiAssistantMessage("chunk")))))
+        }
+        val service = SpringAiLlmService(
+            name = "gpt-4.1",
+            provider = "Test",
+            chatModel = chatModel,
+            optionsConverter = OptionsConverter { converterOutput },
+        )
+
+        // Execute
+        service.createMessageStreamer(LlmOptions())
+            .stream(messages = listOf(UserMessage("Hi")), tools = emptyList(), toolCallInspectors = emptyList())
+            .blockLast()
+
+        // Verify
+        assertThat(capturedPrompt.captured.options.model).isEqualTo("gpt-4.1")
     }
 
     @Test

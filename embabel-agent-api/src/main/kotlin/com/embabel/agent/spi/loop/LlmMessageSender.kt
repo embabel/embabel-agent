@@ -68,11 +68,14 @@ data class LlmMessageRequest @JvmOverloads constructor(
  * @param message The full message object from the LLM
  * @param textContent The text content of the message
  * @param usage Optional usage information (tokens, etc.)
+ * @param model The model that actually served the request, as reported by the provider
+ *        (from the response metadata). Null/blank if the provider does not report it.
  */
 data class LlmMessageResponse(
     val message: Message,
     val textContent: String,
     val usage: Usage? = null,
+    val model: String? = null,
 )
 
 /**

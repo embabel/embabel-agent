@@ -54,7 +54,7 @@ class AnthropicModelBindingTest {
         val chatResponse = mockk<ChatResponse> {
             every { result } returns generation
             every { results } returns listOf(generation)
-            every { metadata } returns mockk<ChatResponseMetadata> { every { usage } returns null }
+            every { metadata } returns mockk<ChatResponseMetadata>(relaxed = true) { every { usage } returns null }
         }
         val chatModel = mockk<ChatModel> {
             every { options } returns configuredOptions
