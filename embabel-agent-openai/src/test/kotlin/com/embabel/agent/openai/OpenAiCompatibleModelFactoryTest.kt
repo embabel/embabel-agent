@@ -16,15 +16,25 @@
 package com.embabel.agent.openai
 
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.chat.UserMessage
+import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PricingModel
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.slot
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.springframework.ai.chat.messages.AssistantMessage
+import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
+import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.openai.OpenAiChatModel
+import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.web.client.RestClient
 import java.util.function.Supplier
@@ -78,6 +88,68 @@ class OpenAiCompatibleModelFactoryTest {
         assertEquals("foo", llm.name)
         assertEquals("Test", llm.provider)
         assertTrue(llm.model is OpenAiChatModel)
+    }
+
+    @Test
+    fun `factory bakes the service model into the chat model options`() {
+        // SpringAiLlmService binds the model configured on the ChatModel onto request options,
+        // so the factory must set the selected model there for it to reach the wire.
+        val llm = openAiCompatibleLlm(
+            model = "gemini-2.5-flash",
+            optionsConverter = OpenAiChatOptionsConverter,
+        )
+
+        assertEquals("gemini-2.5-flash", llm.model.options.model)
+    }
+
+    @Test
+    fun `message sender prompt includes the service model`() {
+        // Prepare
+        val promptSlot = slot<Prompt>()
+        val chatModel = mockk<ChatModel> {
+            // Mirror the production chat model, which carries the selected model in its options.
+            every { options } returns OpenAiChatOptions.builder().model("gemini-2.5-flash").build()
+            every { call(capture(promptSlot)) } returns ChatResponse(
+                listOf(Generation(AssistantMessage("done")))
+            )
+        }
+        val llm = SpringAiLlmService(
+            name = "gemini-2.5-flash",
+            provider = "Test",
+            chatModel = chatModel,
+            optionsConverter = OpenAiChatOptionsConverter,
+        )
+
+        // Execute
+        llm.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())
+
+        // Verify
+        assertEquals("gemini-2.5-flash", promptSlot.captured.options.model)
+    }
+
+    /**
+     * Creates an OpenAI-compatible [SpringAiLlmService] through the production factory path
+     * while allowing tests to supply the delegate options converter under test.
+     */
+    private fun openAiCompatibleLlm(
+        model: String,
+        optionsConverter: OptionsConverter<*>,
+    ): SpringAiLlmService {
+        val mf = OpenAiCompatibleModelFactory(
+            baseUrl = "http://foobar.example",
+            apiKey = null,
+            completionsPath = null,
+            embeddingsPath = null,
+            observationRegistry = mockk(),
+            restClientBuilder = restClientBuilder,
+        )
+        return mf.openAiCompatibleLlm(
+            model = model,
+            pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+            provider = "Test",
+            knowledgeCutoffDate = null,
+            optionsConverter = optionsConverter,
+        ) as SpringAiLlmService
     }
 
 }

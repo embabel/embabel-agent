@@ -25,7 +25,9 @@ import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.*
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.openai.client.OpenAIClient
+import com.openai.client.OpenAIClientAsync
 import com.openai.client.okhttp.OpenAIOkHttpClient
+import com.openai.client.okhttp.OpenAIOkHttpClientAsync
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.ai.document.MetadataMode
@@ -140,6 +142,20 @@ class DockerLocalModelsConfig(
             .build()
     }
 
+    /**
+     * Async counterpart to [openAiClient]. Spring AI 2.0's `OpenAiChatModel.Builder.build()`
+     * builds an async client via `OpenAiSetup.setupAsyncClient(...)` unless one is supplied,
+     * and that fallback requires a credential from the environment (`OPENAI_API_KEY`). Docker
+     * local endpoints have no key, so we build the async client explicitly with the same
+     * placeholder and wire it into the chat model to stay credential-independent.
+     */
+    private val openAiClientAsync: OpenAIClientAsync by lazy {
+        OpenAIOkHttpClientAsync.builder()
+            .baseUrl(dockerConnectionProperties.baseUrl)
+            .apiKey("no-auth")
+            .build()
+    }
+
     private fun loadModels(): List<Model> =
         try {
             val restClient = RestClient.create()
@@ -230,6 +246,7 @@ class DockerLocalModelsConfig(
     private fun dockerLlmOf(model: Model): SpringAiLlmService {
         val chatModel = OpenAiChatModel.builder()
             .openAiClient(openAiClient)
+            .openAiClientAsync(openAiClientAsync)
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
             .toolCallingManager(
                 ToolCallingManager.builder()

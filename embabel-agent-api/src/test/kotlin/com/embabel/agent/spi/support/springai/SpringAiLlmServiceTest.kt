@@ -24,6 +24,7 @@ import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.ai.prompt.KnowledgeCutoffDate
 import com.embabel.common.ai.prompt.PromptContributor
+import io.mockk.every
 import io.mockk.mockk
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
@@ -34,7 +35,11 @@ import java.time.LocalDate
 
 class SpringAiLlmServiceTest {
 
-    private val mockChatModel: ChatModel = mockk()
+    private val mockChatModel: ChatModel = mockk {
+        // SpringAiLlmService reads the model configured on the ChatModel to bind it onto
+        // request options; empty options (null model) make binding a no-op for these tests.
+        every { options } returns ChatOptions.builder().build()
+    }
 
     @Nested
     inner class ConstructorTests {

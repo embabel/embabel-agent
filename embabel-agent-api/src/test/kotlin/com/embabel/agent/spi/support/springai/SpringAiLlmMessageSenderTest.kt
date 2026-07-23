@@ -51,7 +51,7 @@ class SpringAiLlmMessageSenderTest {
             val configuredOptions = testChatOptions()
             val capturedPrompt = slot<Prompt>()
             val generation = Generation(SpringAiAssistantMessage("done"))
-            val mockMetadata = mockk<ChatResponseMetadata> {
+            val mockMetadata = mockk<ChatResponseMetadata>(relaxed = true) {
                 every { usage } returns null
             }
             val chatResponse = mockk<ChatResponse> {
@@ -106,7 +106,7 @@ class SpringAiLlmMessageSenderTest {
             val configuredOptions = testChatOptions()
             val capturedPrompt = slot<Prompt>()
             val generation = Generation(SpringAiAssistantMessage("done"))
-            val mockMetadata = mockk<ChatResponseMetadata> {
+            val mockMetadata = mockk<ChatResponseMetadata>(relaxed = true) {
                 every { usage } returns null
             }
             val chatResponse = mockk<ChatResponse> {
@@ -157,7 +157,7 @@ class SpringAiLlmMessageSenderTest {
             val originalOptions = testChatOptions()
             val capturedPrompt = slot<Prompt>()
             val generation = Generation(SpringAiAssistantMessage("done"))
-            val mockMetadata = mockk<ChatResponseMetadata> {
+            val mockMetadata = mockk<ChatResponseMetadata>(relaxed = true) {
                 every { usage } returns null
             }
             val chatResponse = mockk<ChatResponse> {
@@ -240,7 +240,7 @@ class SpringAiLlmMessageSenderTest {
                     .build()
             )
 
-            val mockMetadata = mockk<ChatResponseMetadata> {
+            val mockMetadata = mockk<ChatResponseMetadata>(relaxed = true) {
                 every { usage } returns mockk(relaxed = true)
             }
             val chatResponse = mockk<ChatResponse> {
@@ -313,7 +313,7 @@ class SpringAiLlmMessageSenderTest {
                     .build()
             )
 
-            val mockMetadata = mockk<ChatResponseMetadata> {
+            val mockMetadata = mockk<ChatResponseMetadata>(relaxed = true) {
                 every { usage } returns mockk(relaxed = true)
             }
             val chatResponse = mockk<ChatResponse> {
@@ -374,7 +374,7 @@ class SpringAiLlmMessageSenderTest {
                     .build()
             )
 
-            val mockMetadata = mockk<ChatResponseMetadata> {
+            val mockMetadata = mockk<ChatResponseMetadata>(relaxed = true) {
                 every { usage } returns mockk(relaxed = true)
             }
             val chatResponse = mockk<ChatResponse> {
@@ -439,7 +439,7 @@ class SpringAiLlmMessageSenderTest {
                     .build()
             )
 
-            val mockMetadata = mockk<ChatResponseMetadata> {
+            val mockMetadata = mockk<ChatResponseMetadata>(relaxed = true) {
                 every { usage } returns mockk(relaxed = true)
             }
             val chatResponse = mockk<ChatResponse> {
@@ -503,7 +503,7 @@ class SpringAiLlmMessageSenderTest {
                     .build()
             )
 
-            val mockMetadata = mockk<ChatResponseMetadata> {
+            val mockMetadata = mockk<ChatResponseMetadata>(relaxed = true) {
                 every { usage } returns mockk(relaxed = true)
             }
             val chatResponse = mockk<ChatResponse> {
@@ -581,7 +581,7 @@ class SpringAiLlmMessageSenderTest {
                     .build()
             )
 
-            val mockMetadata = mockk<ChatResponseMetadata> {
+            val mockMetadata = mockk<ChatResponseMetadata>(relaxed = true) {
                 every { usage } returns null
             }
             val chatResponse = mockk<ChatResponse> {

@@ -377,7 +377,6 @@ object OpenAiChatOptionsConverter : OptionsConverter<OpenAiChatOptions> {
             .maxTokens(options.maxTokens)
             .presencePenalty(options.presencePenalty)
             .frequencyPenalty(options.frequencyPenalty)
-            .topP(options.topP)
             //.streamUsage(true)  additional feature note
             .build()
 }
