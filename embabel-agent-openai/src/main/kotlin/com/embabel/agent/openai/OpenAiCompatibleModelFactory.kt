@@ -266,7 +266,7 @@ open class OpenAiCompatibleModelFactory(
             name = model,
             chatModel = chatModelOf(model),
             provider = provider,
-            optionsConverter = optionsConverter.withOpenAiModel(model),
+            optionsConverter = optionsConverter,
             pricingModel = pricingModel,
             knowledgeCutoffDate = knowledgeCutoffDate,
         )

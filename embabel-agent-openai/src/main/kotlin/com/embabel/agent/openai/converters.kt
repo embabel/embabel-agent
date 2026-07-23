@@ -15,40 +15,10 @@
  */
 package com.embabel.agent.openai
 
-import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.util.loggerFor
-import org.springframework.ai.openai.OpenAiChatModel
 import org.springframework.ai.openai.OpenAiChatOptions
-
-/**
- * Wrap this converter so every request-level [OpenAiChatOptions] carries the resolved
- * OpenAI-compatible wire model id for its [SpringAiLlmService].
- *
- * Spring AI 2.0 does not merge an [OpenAiChatModel]'s default model when runtime
- * [OpenAiChatOptions] are present, so OpenAI-compatible providers need the model bound
- * directly onto the request options produced by Embabel converters.
- *
- * @param model provider wire model id to force onto every converted request.
- * @throws IllegalArgumentException if [model] is blank or the delegate does not return
- * [OpenAiChatOptions].
- */
-fun OptionsConverter<*>.withOpenAiModel(model: String): OptionsConverter<OpenAiChatOptions> {
-    require(model.isNotBlank()) {
-        "OpenAI-compatible model must not be blank"
-    }
-    return OptionsConverter { options ->
-        val converted: Any? = convertOptions(options)
-        require(converted is OpenAiChatOptions) {
-            val type = converted?.let { it::class.qualifiedName } ?: "null"
-            "OpenAI-compatible options converter must return OpenAiChatOptions for model '$model', but returned $type"
-        }
-        converted.mutate()
-            .model(model)
-            .build()
-    }
-}
 
 /**
  * Options converter for GPT-5 models that don't support temperature adjustment.

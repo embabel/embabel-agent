@@ -18,7 +18,6 @@ package com.embabel.agent.config.models.docker
 import com.embabel.agent.api.models.DockerLocalModels.Companion.PROVIDER
 import com.embabel.agent.config.models.docker.DockerRetryProperties.Companion.PREFIX
 import com.embabel.agent.openai.OpenAiChatOptionsConverter
-import com.embabel.agent.openai.withOpenAiModel
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.ProviderInitialization
@@ -264,7 +263,7 @@ class DockerLocalModelsConfig(
             name = model.id,
             chatModel = chatModel,
             provider = PROVIDER,
-            optionsConverter = OpenAiChatOptionsConverter.withOpenAiModel(model.id),
+            optionsConverter = OpenAiChatOptionsConverter,
             knowledgeCutoffDate = null,
             pricingModel = PricingModel.ALL_YOU_CAN_EAT,
         )

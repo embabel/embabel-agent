@@ -16,9 +16,7 @@
 package com.embabel.agent.autoconfigure.models.openai;
 
 import com.embabel.agent.spi.support.springai.SpringAiLlmService;
-import com.embabel.common.ai.model.LlmOptions;
 import org.junit.jupiter.api.Test;
-import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -34,7 +32,8 @@ class AgentOpenAiAutoConfigurationTest {
            .withPropertyValues("embabel.agent.platform.models.openai.api-key=test-key");
 
    /**
-    * Verifies that the standard OpenAI auto-configuration binds the configured catalog model id onto request-level options.
+    * Verifies that the standard OpenAI auto-configuration configures the catalog model id on the chat model, which
+    * {@link SpringAiLlmService} binds onto request-level options at call time.
     */
    @Test
    void openAiModelServiceBindsConfiguredModelOnRequestOptions() {
@@ -45,10 +44,9 @@ class AgentOpenAiAutoConfigurationTest {
       // Execute
       contextRunner.run(context -> {
          final SpringAiLlmService service = context.getBean(beanName, SpringAiLlmService.class);
-         final OpenAiChatOptions options = (OpenAiChatOptions) service.getOptionsConverter().convertOptions(new LlmOptions());
 
          // Verify
-         assertThat(options.getModel()).isEqualTo(expectedModel);
+         assertThat(service.getChatModel().getOptions().getModel()).isEqualTo(expectedModel);
       });
    }
 }

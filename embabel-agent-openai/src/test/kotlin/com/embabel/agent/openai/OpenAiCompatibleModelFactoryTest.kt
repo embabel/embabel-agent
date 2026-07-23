@@ -91,44 +91,15 @@ class OpenAiCompatibleModelFactoryTest {
     }
 
     @Test
-    fun `request options include the service model`() {
-        // Prepare
+    fun `factory bakes the service model into the chat model options`() {
+        // SpringAiLlmService binds the model configured on the ChatModel onto request options,
+        // so the factory must set the selected model there for it to reach the wire.
         val llm = openAiCompatibleLlm(
             model = "gemini-2.5-flash",
             optionsConverter = OpenAiChatOptionsConverter,
         )
 
-        // Execute
-        val chatOptions = llm.optionsConverter.convertOptions(LlmOptions()) as OpenAiChatOptions
-
-        // Verify
-        assertEquals("gemini-2.5-flash", chatOptions.model)
-    }
-
-    @Test
-    fun `request options preserve delegate values when binding service model`() {
-        // Prepare
-        val llm = openAiCompatibleLlm(
-            model = "gemini-2.5-flash",
-            optionsConverter = OpenAiChatOptionsConverter,
-        )
-        val llmOptions = LlmOptions()
-            .withTemperature(0.7)
-            .withTopP(0.9)
-            .withMaxTokens(1000)
-            .withPresencePenalty(0.5)
-            .withFrequencyPenalty(0.3)
-
-        // Execute
-        val chatOptions = llm.optionsConverter.convertOptions(llmOptions) as OpenAiChatOptions
-
-        // Verify
-        assertEquals("gemini-2.5-flash", chatOptions.model)
-        assertEquals(0.7, chatOptions.temperature)
-        assertEquals(0.9, chatOptions.topP)
-        assertEquals(1000, chatOptions.maxTokens)
-        assertEquals(0.5, chatOptions.presencePenalty)
-        assertEquals(0.3, chatOptions.frequencyPenalty)
+        assertEquals("gemini-2.5-flash", llm.model.options.model)
     }
 
     @Test
@@ -146,7 +117,7 @@ class OpenAiCompatibleModelFactoryTest {
             name = "gemini-2.5-flash",
             provider = "Test",
             chatModel = chatModel,
-            optionsConverter = OpenAiChatOptionsConverter.withOpenAiModel("gemini-2.5-flash"),
+            optionsConverter = OpenAiChatOptionsConverter,
         )
 
         // Execute

@@ -20,10 +20,8 @@ import com.embabel.agent.config.models.docker.DockerLocalModelsConfig;
 import com.embabel.agent.config.models.docker.DockerRetryProperties;
 import com.embabel.agent.spi.support.springai.SpringAiLlmService;
 import com.embabel.common.ai.autoconfig.ProviderInitialization;
-import com.embabel.common.ai.model.LlmOptions;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
-import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -166,7 +164,8 @@ class AgentDockerModelsAutoConfigurationTest {
    }
 
    /**
-    * Verifies that a model discovered from a Docker OpenAI-compatible endpoint binds its discovered id onto request-level options.
+    * Verifies that a model discovered from a Docker OpenAI-compatible endpoint configures its discovered id on the chat model, which
+    * {@link SpringAiLlmService} then binds onto request-level options at call time.
     */
    @Test
    void discoveredDockerModelServiceBindsConfiguredModelOnRequestOptions() throws IOException {
@@ -187,10 +186,10 @@ class AgentDockerModelsAutoConfigurationTest {
          final String baseUrl = "http://localhost:" + server.getAddress().getPort() + "/engines";
          contextRunner.withPropertyValues("embabel.agent.models.docker.base-url=" + baseUrl).run(context -> {
             final SpringAiLlmService service = context.getBean("dockerModel-docker-test-model", SpringAiLlmService.class);
-            final OpenAiChatOptions options = (OpenAiChatOptions) service.getOptionsConverter().convertOptions(new LlmOptions());
 
-            // Verify
-            assertThat(options.getModel()).isEqualTo("docker-test-model");
+            // Verify: the discovered id is configured on the chat model, which SpringAiLlmService
+            // binds onto request options at call time.
+            assertThat(service.getChatModel().getOptions().getModel()).isEqualTo("docker-test-model");
          });
       }
       finally {
