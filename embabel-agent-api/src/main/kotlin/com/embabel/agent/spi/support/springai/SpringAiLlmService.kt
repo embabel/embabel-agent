@@ -28,6 +28,7 @@ import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.prompt.Prompt
 import reactor.core.publisher.Flux
 import java.time.Duration
@@ -123,11 +124,13 @@ data class SpringAiLlmService @JvmOverloads constructor(
      */
     override val model: ChatModel get() = chatModel
 
+    fun buildChatOptions(llmOptions: LlmOptions): ChatOptions =
+        optionsConverter.convertOptions(llmOptions).mutate().model(name).build()
+
     override fun createMessageSender(options: LlmOptions): LlmMessageSender {
-        val chatOptions = optionsConverter.convertOptions(options)
         return SpringAiLlmMessageSender(
             chatModel = chatModel,
-            chatOptions = chatOptions,
+            chatOptions = buildChatOptions(options),
             toolResponseContentAdapter = toolResponseContentAdapter,
             nativeStructuredOutputConfigurer = nativeStructuredOutputConfigurer,
             nativeSupport = nativeSupport,
@@ -136,9 +139,8 @@ data class SpringAiLlmService @JvmOverloads constructor(
     }
 
     override fun createMessageStreamer(options: LlmOptions): LlmMessageStreamer {
-        val chatOptions = optionsConverter.convertOptions(options)
         val chatClient = ChatClient.create(chatModel)
-        return SpringAiLlmMessageStreamer(chatClient, chatOptions)
+        return SpringAiLlmMessageStreamer(chatClient, buildChatOptions(options))
     }
 
     override fun supportsStreaming(): Boolean = StreamingCapabilityVerifier.supportsStreaming(chatModel)
