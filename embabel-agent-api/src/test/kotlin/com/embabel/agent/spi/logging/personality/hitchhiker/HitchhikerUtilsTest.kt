@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 
+/** Verifies [guide] styling, including empty text. */
 class HitchhikerUtilsTest {
 
     @Nested

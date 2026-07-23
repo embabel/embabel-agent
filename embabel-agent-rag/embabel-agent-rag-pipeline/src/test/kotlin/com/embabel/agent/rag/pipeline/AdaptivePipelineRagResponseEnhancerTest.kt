@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.rag.pipeline
 
+import com.embabel.agent.event.RagEvent
 import com.embabel.agent.event.RagEventListener
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.pipeline.event.EnhancementCompletedRagPipelineEvent
@@ -314,7 +315,7 @@ class AdaptivePipelineRagResponseEnhancerTest {
         val starting = CopyOnWriteArrayList<EnhancementStartingRagPipelineEvent>()
         val completed = CopyOnWriteArrayList<EnhancementCompletedRagPipelineEvent>()
 
-        override fun onRagEvent(event: com.embabel.agent.event.RagEvent) {
+        override fun onRagEvent(event: RagEvent) {
             when (event) {
                 is EnhancementStartingRagPipelineEvent -> starting += event
                 is EnhancementCompletedRagPipelineEvent -> completed += event

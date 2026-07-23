@@ -27,6 +27,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotSame
 import kotlin.test.assertSame
 
+/** Verifies [DeduplicatingEnhancer] metadata and first-occurrence ordering by chunk ID. */
 class DeduplicatingEnhancerTest {
 
     private fun chunk(id: String, score: Double = 0.9) = SimpleSimilaritySearchResult(

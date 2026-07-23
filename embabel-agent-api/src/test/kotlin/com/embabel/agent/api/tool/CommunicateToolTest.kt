@@ -32,6 +32,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
+/** Verifies [CommunicateTool] definition, delivery, and failure handling with and without an active process. */
 class CommunicateToolTest {
 
     private fun mockAgentProcess(outputChannel: OutputChannel): AgentProcess =
@@ -48,7 +49,13 @@ class CommunicateToolTest {
             val tool = CommunicateTool.create()
 
             assertEquals(CommunicateTool.NAME, tool.definition.name)
-            assertTrue(tool.definition.description.contains("permanent message"))
+            assertEquals(
+                "Send a permanent message to the user. " +
+                    "Use this to report results, share links (e.g., PR URLs), " +
+                    "or inform the user of important outcomes. " +
+                    "Unlike progress, this creates a visible chat message.",
+                tool.definition.description,
+            )
             assertEquals(1, tool.definition.inputSchema.parameters.size)
             val parameter = tool.definition.inputSchema.parameters.single()
             assertEquals("message", parameter.name)

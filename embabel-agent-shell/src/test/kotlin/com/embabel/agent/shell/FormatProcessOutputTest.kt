@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
+/** Verifies [formatProcessOutput] formatting for JSON, text, Markdown, links, and line wrapping. */
 class FormatProcessOutputTest {
 
     private val palette = object : ColorPalette {

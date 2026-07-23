@@ -24,6 +24,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
+/** Verifies [EntityFilter] construction and entity matching by labels and properties. */
 class EntityFilterTest {
 
     private fun entity(vararg labels: String) = SimpleNamedEntityData(
