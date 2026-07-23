@@ -16,7 +16,7 @@
 package com.embabel.agent.a2a.server.support
 
 import com.embabel.agent.a2a.server.AgentCardHandler
-import tools.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
 import io.a2a.spec.AgentCard
 import io.a2a.spec.CancelTaskRequest
 import io.a2a.spec.GetTaskRequest

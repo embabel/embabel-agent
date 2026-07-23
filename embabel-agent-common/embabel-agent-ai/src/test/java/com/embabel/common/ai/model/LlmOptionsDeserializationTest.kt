@@ -1,6 +1,6 @@
 package com.embabel.common.ai.model
 
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Test
 
 class LlmOptionsDeserializationTest {

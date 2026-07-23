@@ -24,7 +24,7 @@ import com.embabel.agent.shell.config.ShellProperties;
 import com.embabel.agent.spi.logging.ColorPalette;
 import com.embabel.agent.spi.logging.LoggingPersonality;
 import com.embabel.common.ai.model.ModelProvider;
-import tools.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jline.terminal.Terminal;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;

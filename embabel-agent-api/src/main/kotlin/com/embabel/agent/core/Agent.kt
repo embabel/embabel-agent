@@ -21,7 +21,7 @@ import com.embabel.common.util.ComputerSaysNoSerializer
 import com.embabel.common.util.indentLines
 import com.embabel.plan.PlanningSystem
 import com.embabel.plan.common.condition.ConditionPlanningSystem
-import tools.jackson.databind.annotation.JsonSerialize
+import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import org.slf4j.LoggerFactory
 
 /**

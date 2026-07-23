@@ -24,7 +24,7 @@ import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.PricingModel
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
-import tools.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider

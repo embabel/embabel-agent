@@ -17,7 +17,7 @@ package com.embabel.agent.api.tool
 
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.LlmTool.Param
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test

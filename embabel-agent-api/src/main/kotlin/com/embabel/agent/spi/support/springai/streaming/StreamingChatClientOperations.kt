@@ -348,17 +348,12 @@ internal class StreamingChatClientOperations(
         // Chat Options, additional potential option "streaming"
         val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
 
-        // Spring AI 2.0's StreamingJacksonOutputConverter requires T : Any;
-        // erase O via Class<Any> for the construction, cast result back at use sites.
-        @Suppress("UNCHECKED_CAST")
-        val outputClassAny = outputClass as Class<Any>
-        @Suppress("UNCHECKED_CAST")
-        val streamingConverter = StreamingJacksonOutputConverter<Any>(
-            clazz = outputClassAny,
+        val streamingConverter = StreamingJacksonOutputConverter(
+            clazz = outputClass,
             objectMapper = chatClientLlmOperations.objectMapper,
             fieldFilter = interaction.fieldFilter,
             thinkingEnabled = interaction.llm.thinking?.enabled ?: false,
-        ) as StreamingJacksonOutputConverter<O>  // signature compatibility for downstream Flux<O>/StreamingEvent<O> uses
+        )
 
         // Build prompt using helper methods, including streaming format instructions
         val promptContributions = buildPromptContributions(interaction, llm)
@@ -493,22 +488,10 @@ internal class StreamingChatClientOperations(
             val streamerMessages = buildMessagesWithContributions(messages, promptContributions)
             SpringAiLlmMessageStreamer(chatClient, chatOptions).stream(streamerMessages, tools, toolCallInspectors)
         } else {
-            // Spring AI 2.0: bake toolCallbacks into ToolCallingChatOptions AND pass them via
-            // .toolCallbacks() on the request spec. The former preserves the ToolCallingChatOptions
-            // subtype through the chatModel-defaults merge; the latter survives the merge that
-            // would otherwise reset prompt.options.toolCallbacks to the model's empty default.
-            val springAiToolCallbacks = tools.toSpringToolCallbacks()
-            val effectiveOptions = if (chatOptions is org.springframework.ai.model.tool.ToolCallingChatOptions) {
-                chatOptions.mutate()
-                    .toolCallbacks(springAiToolCallbacks)
-                    .build()
-            } else {
-                chatOptions
-            }
-            val promptWithOptions = Prompt(springAiPrompt.instructions, effectiveOptions)
             chatClient
-                .prompt(promptWithOptions)
-                .toolCallbacks(springAiToolCallbacks)
+                .prompt(springAiPrompt)
+                .toolCallbacks(tools.toSpringToolCallbacks())
+                .options(chatOptions)
                 .stream()
                 .content()
         }

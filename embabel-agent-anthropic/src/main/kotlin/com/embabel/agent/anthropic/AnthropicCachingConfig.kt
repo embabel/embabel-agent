@@ -18,7 +18,7 @@ package com.embabel.agent.anthropic
 import com.embabel.chat.MessageRole
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.spi.InternalExtensionApi
-import org.springframework.ai.anthropic.AnthropicCacheTtl
+import org.springframework.ai.anthropic.api.AnthropicCacheTtl
 
 /**
  * Extension key for Anthropic caching configuration in LlmOptions.extensions.

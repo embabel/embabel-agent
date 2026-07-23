@@ -27,7 +27,7 @@ import com.embabel.chat.Message
 import com.embabel.chat.ToolCall
 import com.embabel.chat.ToolResultMessage
 import com.embabel.chat.UserMessage
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*

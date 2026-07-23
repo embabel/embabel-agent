@@ -15,9 +15,10 @@
  */
 package com.embabel.common.ai.autoconfig
 
-import tools.jackson.databind.PropertyNamingStrategies
-import tools.jackson.dataformat.yaml.YAMLMapper
-import tools.jackson.module.kotlin.kotlinModule
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.PropertyNamingStrategies
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
+import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import org.slf4j.LoggerFactory
 import org.springframework.core.io.DefaultResourceLoader
 import org.springframework.core.io.ResourceLoader
@@ -39,11 +40,10 @@ abstract class AbstractYamlModelLoader<T : LlmAutoConfigProvider<*>>(
 
     protected val logger = LoggerFactory.getLogger(this::class.java)
 
-    protected val yamlMapper = YAMLMapper.builder()
-        .addModule(kotlinModule())
-        .findAndAddModules()
-        .propertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
-        .build()
+    protected val yamlMapper = ObjectMapper(YAMLFactory())
+        .registerKotlinModule()
+        .findAndRegisterModules()
+        .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
 
     /**
      * Loads model definitions from YAML configuration.

@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.domain.library
 
-import tools.jackson.databind.annotation.JsonDeserialize
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 
 @JsonDeserialize(`as` = PersonImpl::class)
 interface Person {

@@ -17,7 +17,7 @@ package com.embabel.agent.api.annotation.support
 
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.*
-import tools.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 
 /**

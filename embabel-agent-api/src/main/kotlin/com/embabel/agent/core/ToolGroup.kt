@@ -21,7 +21,7 @@ import com.embabel.common.core.types.AssetCoordinates
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.Semver
 import com.embabel.common.util.indent
-import tools.jackson.databind.annotation.JsonDeserialize
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 
 interface ToolGroupDescription {
 

@@ -47,7 +47,8 @@ import com.embabel.common.core.validation.ValidationLocation
 import com.embabel.common.core.validation.ValidationResult
 import com.embabel.common.core.validation.ValidationSeverity
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -69,14 +70,12 @@ import org.springframework.ai.chat.messages.AssistantMessage as SpringAssistantM
  */
 class StreamingGuardRailTestFakeChatModel(
     val responses: List<String>,
-    // Spring AI 2.0: ChatClient merges via getDefaultOptions; use ToolCallingChatOptions so
-    // the subtype survives the merge.
-    private val options: ChatOptions = ToolCallingChatOptions.builder().build(),
+    private val options: ChatOptions = DefaultChatOptions(),
 ) : ChatModel {
 
     constructor(
         response: String,
-        options: ChatOptions = ToolCallingChatOptions.builder().build(),
+        options: ChatOptions = DefaultChatOptions(),
     ) : this(
         listOf(response), options
     )
@@ -86,15 +85,15 @@ class StreamingGuardRailTestFakeChatModel(
     private var index = 0
 
     val promptsPassed = mutableListOf<Prompt>()
-    val optionsPassed = mutableListOf<ChatOptions>()
+    val optionsPassed = mutableListOf<ToolCallingChatOptions>()
 
     override fun getDefaultOptions(): ChatOptions = options
 
     override fun call(prompt: Prompt): ChatResponse {
         promptsPassed.add(prompt)
-        // Spring AI 2.0's ChatClient merge does not preserve the ToolCallingChatOptions subtype;
-        // a real ChatModel receives a plain ChatOptions here (tools flow via the ToolCallingAdvisor).
-        optionsPassed.add(prompt.options)
+        val options = prompt.options as? ToolCallingChatOptions
+            ?: throw IllegalArgumentException("Expected ToolCallingChatOptions")
+        optionsPassed.add(options)
         return ChatResponse(
             listOf(
                 Generation(SpringAssistantMessage(responses[index])).also {
@@ -107,9 +106,9 @@ class StreamingGuardRailTestFakeChatModel(
 
     override fun stream(prompt: Prompt): Flux<ChatResponse> {
         promptsPassed.add(prompt)
-        // Spring AI 2.0's ChatClient merge does not preserve the ToolCallingChatOptions subtype;
-        // a real ChatModel receives a plain ChatOptions here (tools flow via the ToolCallingAdvisor).
-        optionsPassed.add(prompt.options)
+        val options = prompt.options as? ToolCallingChatOptions
+            ?: throw IllegalArgumentException("Expected ToolCallingChatOptions")
+        optionsPassed.add(options)
 
         // Create streaming chunks from response
         val response = responses[index]
@@ -172,7 +171,7 @@ class StreamingChatClientOperationsGuardRailTest {
             validator = Validation.buildDefaultValidatorFactory().validator,
             validationPromptGenerator = DefaultValidationPromptGenerator(),
             templateRenderer = JinjavaTemplateRenderer(),
-            objectMapper = jacksonObjectMapper(),
+            objectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
             dataBindingProperties = dataBindingProperties,
             asyncer = com.embabel.agent.spi.support.ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
         )

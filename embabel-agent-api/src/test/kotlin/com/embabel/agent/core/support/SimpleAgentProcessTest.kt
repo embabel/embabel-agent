@@ -40,12 +40,13 @@ import com.embabel.agent.support.Dog
 import com.embabel.agent.support.SimpleTestAgent
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyPlatformServices
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import java.io.IOException
 
 @com.embabel.agent.api.annotation.Agent(
     description = "waiting agent",
@@ -183,8 +184,7 @@ class SimpleAgentProcessTest {
                 plannerFactory = DefaultPlannerFactory,
                 parentId = null,
             )
-            // Jackson 3 throws IllegalArgumentException for unserializable graphs instead of IOException.
-            assertThrows<RuntimeException> {
+            assertThrows<IOException> {
                 jacksonObjectMapper().writeValueAsString(sap)
             }
         }

@@ -16,7 +16,7 @@
 package com.embabel.agent.prompt.persona
 
 import com.embabel.common.ai.prompt.PromptContributor
-import tools.jackson.databind.annotation.JsonDeserialize
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 
 /**
  * Interface for Persona, when we can't use data class directly

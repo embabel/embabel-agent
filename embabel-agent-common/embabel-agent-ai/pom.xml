@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.agent</groupId>
         <artifactId>embabel-agent-common</artifactId>
-        <version>1.5.0-SNAPSHOT</version>
+        <version>1.0.1-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-agent-ai</artifactId>
     <packaging>jar</packaging>
@@ -41,12 +41,12 @@
         </dependency>
 
         <dependency>
-            <groupId>tools.jackson.module</groupId>
+            <groupId>com.fasterxml.jackson.module</groupId>
             <artifactId>jackson-module-kotlin</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>tools.jackson.dataformat</groupId>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
         </dependency>
 

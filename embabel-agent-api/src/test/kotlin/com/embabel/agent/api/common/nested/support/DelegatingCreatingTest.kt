@@ -22,7 +22,7 @@ import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.textio.template.CompiledTemplate
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot

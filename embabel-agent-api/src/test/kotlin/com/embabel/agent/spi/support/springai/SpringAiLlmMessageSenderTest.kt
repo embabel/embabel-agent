@@ -241,7 +241,7 @@ class SpringAiLlmMessageSenderTest {
             )
 
             val mockMetadata = mockk<ChatResponseMetadata> {
-                every { usage } returns mockk(relaxed = true)
+                every { usage } returns null
             }
             val chatResponse = mockk<ChatResponse> {
                 every { result } returns emptyGeneration // First generation is empty
@@ -314,7 +314,7 @@ class SpringAiLlmMessageSenderTest {
             )
 
             val mockMetadata = mockk<ChatResponseMetadata> {
-                every { usage } returns mockk(relaxed = true)
+                every { usage } returns null
             }
             val chatResponse = mockk<ChatResponse> {
                 every { result } returns emptyGeneration
@@ -375,7 +375,7 @@ class SpringAiLlmMessageSenderTest {
             )
 
             val mockMetadata = mockk<ChatResponseMetadata> {
-                every { usage } returns mockk(relaxed = true)
+                every { usage } returns null
             }
             val chatResponse = mockk<ChatResponse> {
                 every { result } returns generation
@@ -440,7 +440,7 @@ class SpringAiLlmMessageSenderTest {
             )
 
             val mockMetadata = mockk<ChatResponseMetadata> {
-                every { usage } returns mockk(relaxed = true)
+                every { usage } returns null
             }
             val chatResponse = mockk<ChatResponse> {
                 every { result } returns textOnlyGeneration
@@ -504,7 +504,7 @@ class SpringAiLlmMessageSenderTest {
             )
 
             val mockMetadata = mockk<ChatResponseMetadata> {
-                every { usage } returns mockk(relaxed = true)
+                every { usage } returns null
             }
             val chatResponse = mockk<ChatResponse> {
                 every { result } returns generation1

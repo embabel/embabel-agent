@@ -21,12 +21,12 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.Thinking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.springframework.ai.anthropic.AnthropicCacheStrategy
-import org.springframework.ai.anthropic.AnthropicCacheTtl
 import org.springframework.ai.anthropic.AnthropicChatOptions
+import org.springframework.ai.anthropic.api.AnthropicApi
+import org.springframework.ai.anthropic.api.AnthropicCacheStrategy
+import org.springframework.ai.anthropic.api.AnthropicCacheTtl
 
 class AnthropicOptionsConverterTest : OptionsConverterTestSupport<AnthropicChatOptions>(
     optionsConverter = AnthropicOptionsConverter
@@ -35,17 +35,14 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport<AnthropicChatO
     @Test
     fun `should default to no thinking`() {
         val options = optionsConverter.convertOptions(LlmOptions())
-        // Spring AI 2.0 replaced AnthropicApi.ThinkingType with anthropic-java's
-        // ThinkingConfigParam (a sealed union of enabled/disabled/adaptive).
-        // isDisabled() / isEnabled() are functions (not Kotlin properties), so call them.
-        assertTrue(options.thinking.isDisabled(), "expected thinking to be disabled")
+        assertEquals(AnthropicApi.ThinkingType.DISABLED, options.thinking.type)
     }
 
     @Test
     fun `should set thinking`() {
         val options = optionsConverter.convertOptions(LlmOptions().withThinking(Thinking.withTokenBudget(2000)))
-        assertTrue(options.thinking.isEnabled(), "expected thinking to be enabled")
-        assertEquals(2000L, options.thinking.asEnabled().budgetTokens())
+        assertEquals(AnthropicApi.ThinkingType.ENABLED, options.thinking.type)
+        assertEquals(2000, options.thinking.budgetTokens())
     }
 
     @Test

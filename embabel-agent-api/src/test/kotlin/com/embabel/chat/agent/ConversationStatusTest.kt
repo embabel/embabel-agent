@@ -16,15 +16,16 @@
 package com.embabel.chat.agent
 
 import com.embabel.chat.AssistantMessage
-import tools.jackson.databind.ObjectMapper
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 class ConversationStatusTest {
 
-    private val objectMapper: ObjectMapper = jacksonObjectMapper()
+    private val objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule())
 
     @Nested
     inner class ConversationContinuesTest {

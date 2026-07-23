@@ -106,36 +106,27 @@ class OciGenAiChatOptions internal constructor(
 
     override fun getToolCallbacks(): List<ToolCallback> = toolCallbacks
 
-    fun setToolCallbacks(toolCallbacks: List<ToolCallback>) {
+    override fun setToolCallbacks(toolCallbacks: MutableList<ToolCallback>) {
         this.toolCallbacks = toolCallbacks
     }
 
-    // toolNames removed from Spring AI 2.0 ToolCallingChatOptions; kept as an OCI-internal property.
-    fun getToolNames(): Set<String> = toolNames
+    override fun getToolNames(): Set<String> = toolNames
 
-    fun setToolNames(toolNames: Set<String>) {
+    override fun setToolNames(toolNames: MutableSet<String>) {
         this.toolNames = toolNames
     }
 
-    // internalToolExecutionEnabled removed from Spring AI 2.0 ToolCallingChatOptions; kept as an OCI-internal property.
-    fun getInternalToolExecutionEnabled(): Boolean? = internalToolExecutionEnabled
+    override fun getInternalToolExecutionEnabled(): Boolean? = internalToolExecutionEnabled
 
-    fun setInternalToolExecutionEnabled(internalToolExecutionEnabled: Boolean?) {
+    override fun setInternalToolExecutionEnabled(internalToolExecutionEnabled: Boolean?) {
         this.internalToolExecutionEnabled = internalToolExecutionEnabled
     }
 
     override fun getToolContext(): Map<String, Any> = toolContext
 
-    fun setToolContext(toolContext: Map<String, Any>) {
+    override fun setToolContext(toolContext: MutableMap<String, Any>) {
         this.toolContext = toolContext
     }
-
-    /**
-     * Spring AI 2.0 contract: return a builder seeded with this instance's state.
-     * Preserves OCI-specific fields (compartmentId, servingMode, endpointId, apiFormat)
-     * in addition to the standard chat/tool-calling options.
-     */
-    override fun mutate(): ToolCallingChatOptions.Builder<*> = Builder(copy<OciGenAiChatOptions>())
 
     fun merge(runtimeOptions: ChatOptions?): OciGenAiChatOptions {
         val merged = copy<OciGenAiChatOptions>()
@@ -163,10 +154,6 @@ class OciGenAiChatOptions internal constructor(
             if (runtimeOptions.apiFormatExplicit) {
                 merged.apiFormat = runtimeOptions.apiFormat
             }
-            if (runtimeOptions.toolNames.isNotEmpty()) {
-                merged.toolNames = runtimeOptions.toolNames
-            }
-            runtimeOptions.internalToolExecutionEnabled?.let { merged.internalToolExecutionEnabled = it }
         }
         return merged
     }
@@ -178,16 +165,17 @@ class OciGenAiChatOptions internal constructor(
         if (runtimeOptions.toolCallbacks.isNotEmpty()) {
             merged.toolCallbacks = runtimeOptions.toolCallbacks
         }
+        if (runtimeOptions.toolNames.isNotEmpty()) {
+            merged.toolNames = runtimeOptions.toolNames
+        }
         if (runtimeOptions.toolContext.isNotEmpty()) {
             merged.toolContext = merged.toolContext + runtimeOptions.toolContext
         }
-        // toolNames / internalToolExecutionEnabled were removed from Spring AI 2.0 ToolCallingChatOptions;
-        // they are OCI-internal now and merged in merge() when both sides are OciGenAiChatOptions.
+        runtimeOptions.internalToolExecutionEnabled?.let { merged.internalToolExecutionEnabled = it }
     }
 
-    // ChatOptions.copy() was removed in Spring AI 2.0; kept as an OCI-internal deep-copy helper.
     @Suppress("UNCHECKED_CAST")
-    fun <T : ChatOptions> copy(): T =
+    override fun <T : ChatOptions> copy(): T =
         OciGenAiChatOptions(
             model = model,
             compartmentId = compartmentId,
@@ -211,71 +199,40 @@ class OciGenAiChatOptions internal constructor(
         fun builder() = Builder()
     }
 
-    class Builder internal constructor(
-        private var options: OciGenAiChatOptions = OciGenAiChatOptions(),
-    ) : ToolCallingChatOptions.Builder<Builder> {
+    class Builder {
+        private val options = OciGenAiChatOptions()
 
-        // OCI-specific options (not part of the Spring AI builder contract)
+        fun model(model: String?) = apply { options.setModel(model) }
 
-        fun compartmentId(compartmentId: String?): Builder = apply { options.compartmentId = compartmentId }
+        fun compartmentId(compartmentId: String?) = apply { options.compartmentId = compartmentId }
 
-        fun servingMode(servingMode: OciGenAiServingMode): Builder = apply { options.servingMode = servingMode }
+        fun servingMode(servingMode: OciGenAiServingMode) = apply { options.servingMode = servingMode }
 
-        fun endpointId(endpointId: String?): Builder = apply { options.endpointId = endpointId }
+        fun endpointId(endpointId: String?) = apply { options.endpointId = endpointId }
 
-        fun apiFormat(apiFormat: OciGenAiApiFormat): Builder = apply { options.apiFormat = apiFormat }
+        fun apiFormat(apiFormat: OciGenAiApiFormat) = apply { options.apiFormat = apiFormat }
 
-        // ChatOptions.Builder contract
+        fun maxTokens(maxTokens: Int?) = apply { options.setMaxTokens(maxTokens) }
 
-        override fun model(model: String?): Builder = apply { options.setModel(model) }
+        fun temperature(temperature: Double?) = apply { options.setTemperature(temperature) }
 
-        override fun frequencyPenalty(frequencyPenalty: Double?): Builder =
-            apply { options.setFrequencyPenalty(frequencyPenalty) }
+        fun topP(topP: Double?) = apply { options.setTopP(topP) }
 
-        override fun maxTokens(maxTokens: Int?): Builder = apply { options.setMaxTokens(maxTokens) }
+        fun topK(topK: Int?) = apply { options.setTopK(topK) }
 
-        override fun presencePenalty(presencePenalty: Double?): Builder =
-            apply { options.setPresencePenalty(presencePenalty) }
+        fun frequencyPenalty(frequencyPenalty: Double?) = apply { options.setFrequencyPenalty(frequencyPenalty) }
 
-        override fun stopSequences(stopSequences: List<String>?): Builder =
-            apply { options.setStopSequences(stopSequences) }
+        fun presencePenalty(presencePenalty: Double?) = apply { options.setPresencePenalty(presencePenalty) }
 
-        override fun temperature(temperature: Double?): Builder = apply { options.setTemperature(temperature) }
+        fun stopSequences(stopSequences: List<String>?) = apply { options.setStopSequences(stopSequences) }
 
-        override fun topK(topK: Int?): Builder = apply { options.setTopK(topK) }
+        fun toolCallbacks(toolCallbacks: List<ToolCallback>?) = apply {
+            options.setToolCallbacks(toolCallbacks?.toMutableList() ?: mutableListOf())
+        }
 
-        override fun topP(topP: Double?): Builder = apply { options.setTopP(topP) }
-
-        override fun combineWith(other: ChatOptions.Builder<*>): Builder =
-            apply { options = options.merge(other.build()) }
-
-        override fun clone(): Builder = Builder(options.copy())
-
-        // ToolCallingChatOptions.Builder contract
-
-        override fun toolCallbacks(toolCallbacks: List<ToolCallback>): Builder =
-            apply { options.setToolCallbacks(toolCallbacks) }
-
-        override fun toolCallbacks(vararg toolCallbacks: ToolCallback): Builder =
-            apply { options.setToolCallbacks(toolCallbacks.toList()) }
-
-        // toolNames / internalToolExecutionEnabled removed from Spring AI 2.0 ToolCallingChatOptions.Builder;
-        // kept as OCI-internal builder methods.
-        fun toolNames(toolNames: Set<String>): Builder =
-            apply { options.setToolNames(toolNames) }
-
-        fun toolNames(vararg toolNames: String): Builder =
-            apply { options.setToolNames(toolNames.toSet()) }
-
-        fun internalToolExecutionEnabled(internalToolExecutionEnabled: Boolean?): Builder =
+        fun internalToolExecutionEnabled(internalToolExecutionEnabled: Boolean?) =
             apply { options.setInternalToolExecutionEnabled(internalToolExecutionEnabled) }
 
-        override fun toolContext(toolContext: Map<String, Any>): Builder =
-            apply { options.setToolContext(toolContext) }
-
-        override fun toolContext(key: String, value: Any): Builder =
-            apply { options.setToolContext(options.toolContext + (key to value)) }
-
-        override fun build(): OciGenAiChatOptions = options.copy()
+        fun build(): OciGenAiChatOptions = options.copy()
     }
 }

@@ -22,12 +22,12 @@ import java.util.Collections.emptyIterator
 
 object ObjectProviders {
     @Suppress("UNCHECKED_CAST")
-    fun <T : Any> empty(): ObjectProvider<T> = EmptyObjectProvider as ObjectProvider<T>
+    fun <T> empty(): ObjectProvider<T> = EmptyObjectProvider as ObjectProvider<T>
 
     private object EmptyObjectProvider : ObjectProvider<Any> {
         override fun getObject(): Any = throw NoSuchBeanDefinitionException("No bean")
         override fun getIfAvailable(): Any? = null
         override fun getIfUnique(): Any? = null
-        override fun iterator(): MutableIterator<Any> = emptyIterator()
+        override fun iterator(): MutableIterator<Any?> = emptyIterator()
     }
 }

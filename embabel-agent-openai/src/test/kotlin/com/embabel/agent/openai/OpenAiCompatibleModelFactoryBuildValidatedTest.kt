@@ -66,10 +66,7 @@ class OpenAiCompatibleModelFactoryBuildValidatedTest {
 
     @Test
     fun `buildValidated throws InvalidApiKeyException on 401`() {
-        // Wildcard root handler — Spring AI 2.0 + openai-java 4.x may hit any of
-        // /v1/chat/completions, /v1/responses, or /chat/completions depending on
-        // the SDK's endpoint routing; we don't care which path is used for this probe.
-        server.createContext("/") { exchange ->
+        server.createContext("/v1/chat/completions") { exchange ->
             exchange.requestBody.use { it.readBytes() }
             val body = """{"error":{"message":"Invalid API key","type":"invalid_request_error"}}""".toByteArray()
             exchange.sendResponseHeaders(401, body.size.toLong())
@@ -89,8 +86,7 @@ class OpenAiCompatibleModelFactoryBuildValidatedTest {
 
     @Test
     fun `buildValidated returns LlmService on 200`() {
-        // Wildcard root handler — same reasoning as the 401 test above.
-        server.createContext("/") { exchange ->
+        server.createContext("/v1/chat/completions") { exchange ->
             exchange.requestBody.use { it.readBytes() }
             val body = """
                 {

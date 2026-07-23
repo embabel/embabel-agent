@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.rag.model
 
-import tools.jackson.databind.ObjectMapper
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import com.embabel.agent.rag.model.NamedEntityData.Companion.ENTITY_LABEL
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
@@ -252,7 +252,7 @@ class NamedEntityProxyTest {
 
     @Test
     fun `toTypedInstance works with interface type`() {
-        val objectMapper = jacksonObjectMapper()
+        val objectMapper = ObjectMapper().registerKotlinModule()
         val entityData = SimpleNamedEntityData(
             id = "place-1",
             name = "Blue Note",

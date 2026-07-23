@@ -31,7 +31,8 @@ import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.domain.io.UserInput
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.BeforeEach
@@ -46,7 +47,7 @@ import kotlin.test.assertEquals
 @Agent(description = "Parent agent")
 class ParentAgentWithToolishSubagentTest {
 
-    private val mapper = jacksonObjectMapper()
+    private val mapper = jacksonObjectMapper().registerModule(JavaTimeModule())
 
     @Action
     fun start(

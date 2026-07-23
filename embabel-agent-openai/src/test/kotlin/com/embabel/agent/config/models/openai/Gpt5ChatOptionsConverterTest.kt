@@ -30,11 +30,7 @@ class Gpt5ChatOptionsConverterTest(
     fun `ignores temperature`() {
         val llmo = LlmOptions().withTemperature(temperature = 0.5)
         val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
-        // Spring AI 2.0's OpenAiChatOptions package is @NullMarked, so Kotlin treats
-        // getTemperature() as returning non-null Double — direct property access
-        // would NPE on a null runtime value. Read into a Double? local to bypass.
-        val temperature: Double? = options.temperature
-        assertNull(temperature, "Custom temperature should be ignored for GPT-5")
+        assertEquals(null, options.temperature, "Custom temperature should be ignored for GPT-5")
     }
 
     @Test
@@ -42,9 +38,7 @@ class Gpt5ChatOptionsConverterTest(
         val llmo = LlmOptions.withModel(OpenAiModels.GPT_5).withTopK(10).withTopP(.2)
         val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
         assertEquals(llmo.topP, options.topP, "Top P should be preserved for GPT-5")
-        // Same @NullMarked workaround as in `ignores temperature` above.
-        val temperature: Double? = options.temperature
-        assertNull(temperature, "Temperature should not be set for GPT-5")
+        assertNull(options.temperature, "Temperature should not be set for GPT-5")
     }
 
     @Disabled("We not support thinking effort yet")

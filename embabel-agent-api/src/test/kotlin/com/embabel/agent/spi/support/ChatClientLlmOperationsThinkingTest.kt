@@ -44,7 +44,8 @@ import com.embabel.common.core.thinking.ThinkingResponse
 import org.junit.jupiter.api.Nested
 import com.embabel.common.core.validation.ValidationResult
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -117,7 +118,7 @@ class ChatClientLlmOperationsThinkingTest {
             validator = Validation.buildDefaultValidatorFactory().validator,
             validationPromptGenerator = DefaultValidationPromptGenerator(),
             templateRenderer = JinjavaTemplateRenderer(),
-            objectMapper = jacksonObjectMapper(),
+            objectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
             dataBindingProperties = dataBindingProperties,
             asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
         )
@@ -264,16 +265,12 @@ class ChatClientLlmOperationsThinkingTest {
                 llmRequestEvent = null
             )
         } catch (e: Exception) {
-            // Expected - malformed JSON should cause parsing exception.
-            // Jackson 3 wording differs (e.g. "StreamReadException", "Unexpected character", "Invalid LLM return").
+            // Expected - malformed JSON should cause parsing exception
             assertTrue("Exception should be related to parsing: ${e.message}") {
                 val message = e.message ?: ""
                 message.contains("parsing", ignoreCase = true) ||
                         message.contains("format", ignoreCase = true) ||
-                        message.contains("JsonParseException", ignoreCase = true) ||
-                        message.contains("StreamReadException", ignoreCase = true) ||
-                        message.contains("Unexpected character", ignoreCase = true) ||
-                        message.contains("Invalid LLM return", ignoreCase = true)
+                        message.contains("JsonParseException", ignoreCase = true)
             }
         }
     }

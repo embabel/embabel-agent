@@ -15,7 +15,7 @@
  */
 package com.embabel.common.ai.converters
 
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -39,7 +39,7 @@ class FilteringJacksonOutputConverterTest {
             fieldFilter = { it.name == "name" || it.name == "age" }
         )
 
-        val schema = converter.getJsonSchema()
+        val schema = converter.jsonSchema
 
         assertTrue(schema.contains("name"))
         assertTrue(schema.contains("age"))
@@ -55,7 +55,7 @@ class FilteringJacksonOutputConverterTest {
             fieldFilter = { it.name != "email" && it.name != "address" }
         )
 
-        val schema = converter.getJsonSchema()
+        val schema = converter.jsonSchema
 
         assertTrue(schema.contains("name"))
         assertTrue(schema.contains("age"))

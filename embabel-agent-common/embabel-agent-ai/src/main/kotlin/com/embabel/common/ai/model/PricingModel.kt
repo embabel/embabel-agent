@@ -15,7 +15,7 @@
  */
 package com.embabel.common.ai.model
 
-import tools.jackson.databind.annotation.JsonDeserialize
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import org.springframework.ai.chat.metadata.Usage
 
 const val ONE_MILLION = 1000000.0

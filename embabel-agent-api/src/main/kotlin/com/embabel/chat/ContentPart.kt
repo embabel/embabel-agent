@@ -18,7 +18,7 @@ package com.embabel.chat
 import com.embabel.common.ai.media.MimeTypes
 import com.embabel.common.ai.media.isDocumentMimeType
 import com.embabel.common.ai.media.isImageMimeType
-import tools.jackson.databind.annotation.JsonDeserialize
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 
 /**
  * Represents a part of a multimodal message.

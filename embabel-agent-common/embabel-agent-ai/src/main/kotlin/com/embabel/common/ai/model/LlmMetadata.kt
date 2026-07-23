@@ -15,7 +15,7 @@
  */
 package com.embabel.common.ai.model
 
-import tools.jackson.databind.annotation.JsonDeserialize
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import java.time.LocalDate
 
 /**

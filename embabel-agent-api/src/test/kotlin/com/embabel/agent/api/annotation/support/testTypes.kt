@@ -42,7 +42,7 @@ import com.embabel.agent.core.last
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.support.Dog
 import com.embabel.common.ai.model.LlmOptions
-import tools.jackson.databind.annotation.JsonDeserialize
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 
 data class PersonWithReverseTool(val name: String) {
 

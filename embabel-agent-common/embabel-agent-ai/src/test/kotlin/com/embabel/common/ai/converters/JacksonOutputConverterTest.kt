@@ -15,11 +15,12 @@
  */
 package com.embabel.common.ai.converters
 
-import tools.jackson.core.JacksonException
-import tools.jackson.databind.cfg.DateTimeFeature
-import tools.jackson.databind.json.JsonMapper
-import tools.jackson.module.kotlin.jacksonObjectMapper
-import tools.jackson.module.kotlin.kotlinModule
+import com.fasterxml.jackson.databind.JsonMappingException
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.SerializationFeature
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.fasterxml.jackson.module.kotlin.KotlinModule
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -32,10 +33,10 @@ import java.time.LocalDateTime
 
 class JacksonOutputConverterTest {
 
-    private val objectMapper = JsonMapper.builder()
-        .addModule(kotlinModule())
-        .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
-        .build()
+    private val objectMapper = jacksonObjectMapper().apply {
+        registerModule(JavaTimeModule())
+        disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+    }
 
     data class SimpleObject(
         val name: String,
@@ -91,7 +92,7 @@ class JacksonOutputConverterTest {
         @Test
         fun `marks Kotlin non-null properties as required`() {
             val converter = JacksonOutputConverter(KotlinRequiredParent::class.java, objectMapper)
-            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+            val schema = jacksonObjectMapper().readTree(converter.jsonSchema)
 
             assertThat(schema.requiredFieldNames()).containsExactlyInAnyOrder("child", "title")
             assertThat(schema.path("properties").path("optional").requiredFieldNames()).isEmpty()
@@ -105,7 +106,7 @@ class JacksonOutputConverterTest {
                 objectMapper,
                 requiredFieldNormalization = RequiredFieldNormalization.DISABLED,
             )
-            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+            val schema = jacksonObjectMapper().readTree(converter.jsonSchema)
 
             assertThat(schema.requiredFieldNames()).isEmpty()
             assertThat(schema.path("properties").path("child").requiredFieldNames()).isEmpty()
@@ -119,7 +120,7 @@ class JacksonOutputConverterTest {
                 fieldFilter = { true },
                 requiredFieldNormalization = RequiredFieldNormalization.DISABLED,
             )
-            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+            val schema = jacksonObjectMapper().readTree(converter.jsonSchema)
 
             assertThat(schema.requiredFieldNames()).isEmpty()
             assertThat(schema.path("properties").path("child").requiredFieldNames()).isEmpty()
@@ -130,7 +131,7 @@ class JacksonOutputConverterTest {
             val javaType = Class.forName("com.embabel.common.ai.converters.JavaStructuredOutputFixtures\$Parent")
                 as Class<Any>
             val converter = JacksonOutputConverter(javaType, objectMapper)
-            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+            val schema = jacksonObjectMapper().readTree(converter.jsonSchema)
 
             assertThat(schema.requiredFieldNames()).containsExactlyInAnyOrder(
                 "primitiveCount",
@@ -454,8 +455,10 @@ World"""
             val messyJson = """{"name":"$name", "value": 42}"""
 
             // Parse the malformed json string without the lenient mapper.
-            val mapper = jacksonObjectMapper()
-            val exception = assertThrows<JacksonException> {
+            val mapper = ObjectMapper().registerModule(
+                KotlinModule.Builder().build()
+            )
+            val exception = assertThrows<JsonMappingException> {
                 mapper.readValue(messyJson, SimpleObject::class.java)
             }
 
@@ -605,8 +608,8 @@ World"""
     }
 }
 
-private fun tools.jackson.databind.JsonNode.requiredFieldNamesOrRefResolved(
-    rootSchema: tools.jackson.databind.JsonNode,
+private fun com.fasterxml.jackson.databind.JsonNode.requiredFieldNamesOrRefResolved(
+    rootSchema: com.fasterxml.jackson.databind.JsonNode,
 ): Set<String> {
     val ref = get("\$ref")?.takeIf { it.isTextual }?.asText()
     if (ref != null && ref.startsWith("#/")) {

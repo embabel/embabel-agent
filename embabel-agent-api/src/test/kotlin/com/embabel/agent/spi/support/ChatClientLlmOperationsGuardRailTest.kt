@@ -46,7 +46,8 @@ import com.embabel.common.core.validation.ValidationLocation
 import com.embabel.common.core.validation.ValidationResult
 import com.embabel.common.core.validation.ValidationSeverity
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -67,14 +68,12 @@ import org.springframework.ai.chat.messages.AssistantMessage as SpringAssistantM
  */
 class GuardRailTestFakeChatModel(
     val responses: List<String>,
-    // Spring AI 2.0: ChatClient merges via getDefaultOptions; use ToolCallingChatOptions
-    // so the subtype survives the merge into the final Prompt.
-    private val options: ChatOptions = ToolCallingChatOptions.builder().build(),
+    private val options: ChatOptions = DefaultChatOptions(),
 ) : ChatModel {
 
     constructor(
         response: String,
-        options: ChatOptions = ToolCallingChatOptions.builder().build(),
+        options: ChatOptions = DefaultChatOptions(),
     ) : this(
         listOf(response), options
     )
@@ -156,7 +155,7 @@ class ChatClientLlmOperationsGuardRailTest {
             validator = Validation.buildDefaultValidatorFactory().validator,
             validationPromptGenerator = DefaultValidationPromptGenerator(),
             templateRenderer = JinjavaTemplateRenderer(),
-            objectMapper = jacksonObjectMapper(),
+            objectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
             dataBindingProperties = dataBindingProperties,
             asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
         )

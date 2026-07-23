@@ -35,7 +35,7 @@ import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolNotFoundAction
 import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.chat.ToolCall
-import tools.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
 import java.util.Locale
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit

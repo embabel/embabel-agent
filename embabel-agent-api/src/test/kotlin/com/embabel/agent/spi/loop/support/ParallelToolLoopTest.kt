@@ -42,7 +42,7 @@ import com.embabel.chat.ToolCall
 import com.embabel.chat.ToolResultMessage
 import com.embabel.chat.UserMessage
 import com.embabel.agent.spi.support.ExecutorAsyncer
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Nested

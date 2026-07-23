@@ -48,7 +48,7 @@ class OciGenAiOptionsConverterTest : OptionsConverterTestSupport<OciGenAiChatOpt
 
         assertNull(options.model)
         assertNull(options.compartmentId)
-        assertFalse(options.getInternalToolExecutionEnabled() ?: true)
+        assertFalse(options.internalToolExecutionEnabled ?: true)
     }
 
     @Test

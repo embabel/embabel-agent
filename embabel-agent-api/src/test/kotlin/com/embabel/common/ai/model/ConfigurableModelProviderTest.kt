@@ -18,7 +18,7 @@ package com.embabel.common.ai.model
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ModelProvider.Companion.BEST_ROLE
 import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested

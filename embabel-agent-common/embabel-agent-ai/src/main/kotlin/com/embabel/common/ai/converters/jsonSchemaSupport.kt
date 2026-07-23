@@ -16,12 +16,11 @@
 package com.embabel.common.ai.converters
 
 import com.fasterxml.jackson.annotation.JsonProperty
-import tools.jackson.databind.JavaType
-import tools.jackson.databind.JsonNode
-import tools.jackson.databind.ObjectMapper
-import tools.jackson.databind.introspect.BeanPropertyDefinition
-import tools.jackson.databind.json.JsonMapper
-import tools.jackson.databind.node.ObjectNode
+import com.fasterxml.jackson.databind.JavaType
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition
+import com.fasterxml.jackson.databind.node.ObjectNode
 import jakarta.validation.constraints.NotNull
 import java.lang.reflect.Field
 import java.lang.reflect.Modifier
@@ -29,7 +28,7 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.Metadata
 import kotlin.reflect.full.memberProperties
 
-private val jsonSchemaObjectMapper = JsonMapper.builder().build()
+private val jsonSchemaObjectMapper = ObjectMapper()
 
 private val unsupportedJsonSchemaKeywords = setOf(
     "\$ref",
@@ -150,7 +149,7 @@ private fun normalizeObjectSchema(
     val propertiesByName = resolveSchemaPropertyMetadata(javaType, objectMapper)
     val propertiesNode = objectNode.propertiesNode() as? ObjectNode
 
-    propertiesNode?.propertyNames()?.forEach { propertyName ->
+    propertiesNode?.fieldNames()?.forEach { propertyName ->
         val propertySchema = propertiesNode.get(propertyName) as? ObjectNode ?: return@forEach
         val property = propertiesByName[propertyName] ?: return@forEach
 
@@ -166,7 +165,7 @@ private fun normalizeObjectSchema(
     if (required.isEmpty()) {
         objectNode.remove("required")
     } else {
-        objectNode.set("required", objectMapper.valueToTree<JsonNode>(required))
+        objectNode.set<JsonNode>("required", objectMapper.valueToTree(required))
     }
 
     objectNode.additionalPropertiesNode()?.let { additionalProperties ->
@@ -226,12 +225,7 @@ private fun resolveKotlinSchemaPropertyMetadata(
     objectMapper: ObjectMapper,
 ): Map<String, SchemaPropertyMetadata> {
     val rawType = javaType.rawClass
-    // Jackson 3 replaced SerializationConfig.introspect(JavaType) with a ClassIntrospector chain.
-    // classIntrospectorInstance() is already operation-scoped (it calls forOperation internally).
-    val config = objectMapper.serializationConfig()
-    val introspector = config.classIntrospectorInstance()
-    val annotatedClass = introspector.introspectClassAnnotations(javaType)
-    val beanDescription = introspector.introspectForSerialization(javaType, annotatedClass)
+    val beanDescription = objectMapper.serializationConfig.introspect(javaType)
     return beanDescription.findProperties().associate { property ->
         property.name to property.toSchemaPropertyMetadata(rawType)
     }
@@ -275,7 +269,7 @@ private fun Field.toSchemaPropertyMetadata(objectMapper: ObjectMapper): SchemaPr
     )
 }
 
-private fun hasTrustedRequiredAnnotation(member: tools.jackson.databind.introspect.AnnotatedMember?): Boolean {
+private fun hasTrustedRequiredAnnotation(member: com.fasterxml.jackson.databind.introspect.AnnotatedMember?): Boolean {
     return member != null && (
         member.getAnnotation(JsonProperty::class.java)?.required == true ||
             member.hasAnnotation(NotNull::class.java)
@@ -310,10 +304,10 @@ fun JsonNode.hasUnsupportedJsonSchemaKeywords(): Boolean {
     }
 
     return when {
-        isObject -> propertyNames().asSequence().any { fieldName ->
+        isObject -> fieldNames().asSequence().any { fieldName ->
             get(fieldName)?.hasUnsupportedJsonSchemaKeywords() == true
         }
-        isArray -> values().asSequence().any { it.hasUnsupportedJsonSchemaKeywords() }
+        isArray -> elements().asSequence().any { it.hasUnsupportedJsonSchemaKeywords() }
         else -> false
     }
 }

@@ -17,11 +17,11 @@ package com.embabel.chat
 
 import com.embabel.common.ai.media.MediaKind
 import com.embabel.common.ai.media.classifyMimeType
-import tools.jackson.core.JsonParser
-import tools.jackson.databind.DeserializationContext
-import tools.jackson.databind.JsonNode
-import tools.jackson.databind.ValueDeserializer
-import tools.jackson.databind.exc.MismatchedInputException
+import com.fasterxml.jackson.core.JsonParser
+import com.fasterxml.jackson.databind.DeserializationContext
+import com.fasterxml.jackson.databind.JsonDeserializer
+import com.fasterxml.jackson.databind.JsonMappingException
+import com.fasterxml.jackson.databind.JsonNode
 
 /**
  * Deserializes [ContentPart] values without requiring synthetic type metadata.
@@ -30,34 +30,25 @@ import tools.jackson.databind.exc.MismatchedInputException
  * `mimeType` and `data`, then routed to the appropriate [MediaPart] subtype using MIME
  * classification.
  */
-class ContentPartDeserializer : ValueDeserializer<ContentPart>() {
+class ContentPartDeserializer : JsonDeserializer<ContentPart>() {
 
     override fun deserialize(parser: JsonParser, context: DeserializationContext): ContentPart {
-        val node: JsonNode = context.readTree(parser)
+        val node = parser.codec.readTree<JsonNode>(parser)
 
         node[TEXT_FIELD]?.asText()?.let { text ->
             return TextPart(text)
         }
 
         val mimeType = node[MIME_TYPE_FIELD]?.asText()
-            ?: throw MismatchedInputException.from(
-                parser, ContentPart::class.java,
-                "Content part must contain '$TEXT_FIELD' or '$MIME_TYPE_FIELD'",
-            )
+            ?: throw JsonMappingException.from(parser, "Content part must contain '$TEXT_FIELD' or '$MIME_TYPE_FIELD'")
         val dataNode = node[DATA_FIELD]
-            ?: throw MismatchedInputException.from(
-                parser, ContentPart::class.java,
-                "Media content part must contain '$DATA_FIELD'",
-            )
+            ?: throw JsonMappingException.from(parser, "Media content part must contain '$DATA_FIELD'")
         val data = dataNode.binaryValue()
 
         return when (classifyMimeType(mimeType)) {
             MediaKind.IMAGE -> ImagePart(mimeType, data)
             MediaKind.DOCUMENT -> DocumentPart(mimeType, data, node[FILENAME_FIELD]?.takeUnless { it.isNull }?.asText())
-            null -> throw MismatchedInputException.from(
-                parser, ContentPart::class.java,
-                "Unsupported media MIME type: $mimeType",
-            )
+            null -> throw JsonMappingException.from(parser, "Unsupported media MIME type: $mimeType")
         }
     }
 

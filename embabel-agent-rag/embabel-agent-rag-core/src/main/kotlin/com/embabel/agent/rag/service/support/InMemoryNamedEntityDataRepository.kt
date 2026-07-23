@@ -28,8 +28,8 @@ import com.embabel.agent.rag.service.RetrievableIdentifier
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.core.types.SimilarityResult
 import com.embabel.common.core.types.TextSimilaritySearchRequest
-import tools.jackson.databind.ObjectMapper
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.sqrt
 
@@ -53,7 +53,7 @@ import kotlin.math.sqrt
 open class InMemoryNamedEntityDataRepository @JvmOverloads constructor(
     override val dataDictionary: DataDictionary,
     private val embeddingService: EmbeddingService? = null,
-    override val objectMapper: ObjectMapper = jacksonObjectMapper(),
+    override val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule(),
     override val nativeFinder: NativeFinder = NativeFinder.NONE,
 ) : NamedEntityDataRepository {
 

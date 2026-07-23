@@ -25,7 +25,7 @@ import com.embabel.common.ai.converters.propertiesNode
 import com.embabel.common.ai.converters.requiredFieldNames
 import com.embabel.common.ai.converters.schemaType
 import com.embabel.common.ai.model.NativeStructuredOutputMode
-import tools.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.JsonNode
 
 /**
  * Provider-neutral policy for deciding whether native structured output should be used.
@@ -95,7 +95,7 @@ private fun JsonNode.hasCompatibleObjectProperties(properties: JsonNode): Boolea
         return false
     }
 
-    val propertyNames = properties.propertyNames().asSequence().toSet()
+    val propertyNames = properties.fieldNames().asSequence().toSet()
     return requiredFieldNames().containsAll(propertyNames) &&
         propertyNames.all { propertyName ->
             properties.get(propertyName)?.isConservativelyCompatibleSchemaNode() == true

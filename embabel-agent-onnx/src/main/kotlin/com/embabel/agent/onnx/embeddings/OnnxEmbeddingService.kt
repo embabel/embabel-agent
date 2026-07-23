@@ -22,7 +22,7 @@ import ai.onnxruntime.OrtSession
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.EmbeddingServiceMetadata
 import com.embabel.common.ai.model.PricingModel
-import tools.jackson.databind.annotation.JsonSerialize
+import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import java.nio.LongBuffer
 import java.nio.file.Path
 

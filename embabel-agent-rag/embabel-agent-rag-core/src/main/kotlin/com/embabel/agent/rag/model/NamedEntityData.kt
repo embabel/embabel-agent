@@ -19,7 +19,7 @@ import com.embabel.agent.core.DomainType
 import com.embabel.agent.core.JvmType
 import com.embabel.agent.rag.model.NamedEntityData.Companion.ENTITY_LABEL
 import com.embabel.common.util.indent
-import tools.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
 import io.swagger.v3.oas.annotations.media.Schema
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Proxy

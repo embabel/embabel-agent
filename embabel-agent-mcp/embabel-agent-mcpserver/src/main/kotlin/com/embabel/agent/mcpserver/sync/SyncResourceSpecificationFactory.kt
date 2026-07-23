@@ -45,20 +45,15 @@ object SyncResourceSpecificationFactory {
     ): McpServerFeatures.SyncResourceSpecification {
 
         return McpServerFeatures.SyncResourceSpecification(
-            // MCP SDK update: Resource constructor added title, size, meta (+ optional icons).
-            // We don't track those — pass name as title, 0 for size, null for meta.
             McpSchema.Resource(
                 uri,
                 name,
-                /* title = */ name,
                 description,
                 mimeType,
-                /* size = */ 0L,
                 McpSchema.Annotations(
                     listOf(McpSchema.Role.ASSISTANT),
                     1.0,
-                ),
-                /* meta = */ null,
+                )
             )
         ) { exchange, readResourceRequest ->
             McpSchema.ReadResourceResult(

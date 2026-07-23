@@ -15,20 +15,19 @@
  */
 package com.embabel.common.ai.converters
 
-import tools.jackson.core.JacksonException
-import tools.jackson.core.json.JsonReadFeature
-import tools.jackson.core.util.DefaultIndenter
-import tools.jackson.core.util.DefaultPrettyPrinter
-import tools.jackson.databind.JsonNode
-import tools.jackson.databind.ObjectMapper
-import tools.jackson.databind.json.JsonMapper
+import com.fasterxml.jackson.core.JsonProcessingException
+import com.fasterxml.jackson.core.json.JsonReadFeature
+import com.fasterxml.jackson.core.util.DefaultIndenter
+import com.fasterxml.jackson.core.util.DefaultPrettyPrinter
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.github.victools.jsonschema.generator.*
 import com.github.victools.jsonschema.module.jackson.JacksonModule
 import com.github.victools.jsonschema.module.jackson.JacksonOption
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.ai.converter.StructuredOutputConverter
-import org.slf4j.MarkerFactory
+import org.springframework.ai.util.LoggingMarkers
 import org.springframework.core.ParameterizedTypeReference
 import java.lang.reflect.Type
 
@@ -39,7 +38,7 @@ import java.lang.reflect.Type
  * text for LLMs. Native structured-output payloads need the schema itself.
  */
 interface JsonSchemaProvider {
-    fun getJsonSchema(): String
+    val jsonSchema: String
 }
 
 /**
@@ -54,7 +53,7 @@ enum class RequiredFieldNormalization {
  * A Kotlin version of [org.springframework.ai.converter.BeanOutputConverter] that allows for customization
  * of the used schema via [postProcessSchema]
  */
-open class JacksonOutputConverter<T : Any> protected constructor(
+open class JacksonOutputConverter<T> protected constructor(
     private val type: Type,
     val objectMapper: ObjectMapper,
     private val requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
@@ -86,19 +85,18 @@ open class JacksonOutputConverter<T : Any> protected constructor(
      * World"}""" is valid.
      */
     private val lenientMapper: ObjectMapper by lazy {
-        // Jackson 3: ObjectMapper is immutable; reconfigure via rebuild() builder.
-        // JsonReadFeature is JSON-specific and used directly (no mappedFeature() in Jackson 3).
-        (objectMapper as JsonMapper).rebuild()
-            .enable(JsonReadFeature.ALLOW_TRAILING_COMMA)
-            .enable(JsonReadFeature.ALLOW_SINGLE_QUOTES)
-            .enable(JsonReadFeature.ALLOW_UNQUOTED_PROPERTY_NAMES)
-            .enable(JsonReadFeature.ALLOW_JAVA_COMMENTS)
-            .enable(JsonReadFeature.ALLOW_YAML_COMMENTS)
-            .enable(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS)
-            .build()
+        objectMapper.copy().apply {
+            // Enable lenient JSON parsing features for LLM output
+            enable(JsonReadFeature.ALLOW_TRAILING_COMMA.mappedFeature())
+            enable(JsonReadFeature.ALLOW_SINGLE_QUOTES.mappedFeature())
+            enable(JsonReadFeature.ALLOW_UNQUOTED_FIELD_NAMES.mappedFeature())
+            enable(JsonReadFeature.ALLOW_JAVA_COMMENTS.mappedFeature())
+            enable(JsonReadFeature.ALLOW_YAML_COMMENTS.mappedFeature())
+            enable(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS.mappedFeature())
+        }
     }
 
-    private val jsonSchemaValue: String by lazy {
+    override val jsonSchema: String by lazy {
         val config = schemaGeneratorConfigBuilder().build()
         val generator = SchemaGenerator(config)
         val jsonNode: JsonNode = generator.generateSchema(this.type)
@@ -106,14 +104,13 @@ open class JacksonOutputConverter<T : Any> protected constructor(
             jsonNode.normalizeRequiredFields(this.type, this.objectMapper)
         }
         postProcessSchema(jsonNode)
-        val objectWriter = this.objectMapper.writer()
-            .with(
-                DefaultPrettyPrinter()
-                    .withObjectIndenter(DefaultIndenter().withLinefeed(System.lineSeparator()))
-            )
+        val objectWriter = this.objectMapper.writer(
+            DefaultPrettyPrinter()
+                .withObjectIndenter(DefaultIndenter().withLinefeed(System.lineSeparator()))
+        )
         try {
             objectWriter.writeValueAsString(jsonNode)
-        } catch (e: JacksonException) {
+        } catch (e: JsonProcessingException) {
             logger.error("Could not pretty print json schema for jsonNode: {}", jsonNode)
             throw RuntimeException("Could not pretty print json schema for " + this.type, e)
         }
@@ -146,27 +143,24 @@ open class JacksonOutputConverter<T : Any> protected constructor(
      */
     protected open fun postProcessSchema(jsonNode: JsonNode) = Unit
 
-    override fun convert(text: String): T {
+    override fun convert(text: String): T? {
         val unwrapped = unwrapJson(text)
         try {
-            return lenientMapper.readValue<Any?>(unwrapped, lenientMapper.constructType(this.type)) as T
-        } catch (e: JacksonException) {
-            // Some LLMs escape the very quotes that delimit a string value (e.g. `"key": \"value\"`),
-            // which Jackson cannot parse. Retry once with those delimiter quotes repaired. Applied only
-            // as a fallback so valid JSON containing legitimately escaped quotes (e.g. `["\"A\""]`) is
-            // never altered.
-            val repaired = fixMalformedEscapedQuotes(unwrapped)
-            if (repaired != unwrapped) {
-                try {
-                    return lenientMapper.readValue<Any?>(repaired, lenientMapper.constructType(this.type)) as T
-                } catch (_: JacksonException) {
-                    // fall through and report the original failure below
-                }
-            }
-            logger.error(
-                // Spring AI 2.0 removed org.springframework.ai.util.LoggingMarkers; reproduce the
-                // same SLF4J marker ("SENSITIVE") so existing sensitive-data log filtering still applies.
-                MarkerFactory.getMarker("SENSITIVE"),
+            return lenientMapper.readValue<Any?>(unwrapped, lenientMapper.constructType(this.type)) as T?
+        } catch (e: JsonProcessingException) {
+            logger.warn(
+                "Could not parse the given text to the desired target type. Don't panic: will try to fix it for you",
+                e
+            )
+        }
+        // Fix malformed escaped quotes - this is the one issue Jackson can't handle
+        // because `"key": \"value\"` is fundamentally broken syntax
+        val fixed = fixMalformedEscapedQuotes(unwrapped)
+        try {
+            return lenientMapper.readValue<Any?>(fixed, lenientMapper.constructType(this.type)) as T?
+        } catch (e: JsonProcessingException) {
+            logger.warn(
+                LoggingMarkers.SENSITIVE_DATA_MARKER,
                 "Could not parse the given text to the desired target type: \"{}\" into {}", unwrapped, this.type
             )
             throw RuntimeException(e)
@@ -206,8 +200,6 @@ open class JacksonOutputConverter<T : Any> protected constructor(
             .replace(Regex("""\\"(\s*])"""), "\"$1") // Fix `\" ]` -> `" ]`
     }
 
-    override fun getJsonSchema(): String = jsonSchemaValue
-
     override fun getFormat(): String =
         """|
            |Your response should be in JSON format.
@@ -215,6 +207,6 @@ open class JacksonOutputConverter<T : Any> protected constructor(
            |Do not include markdown code blocks in your response.
            |Remove the ```json markdown from the output.
            |Here is the JSON Schema instance your output must adhere to:
-           |```${getJsonSchema()}```
+           |```${jsonSchema}```
            |""".trimMargin()
 }

@@ -17,7 +17,7 @@ package com.embabel.common.ai.converters.streaming
 
 import com.embabel.common.core.streaming.StreamingEvent
 import com.embabel.common.core.streaming.ThinkingState
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -72,7 +72,7 @@ class StreamingJacksonOutputConverterTest {
         val result = converter.convertStream("")
 
         // Then
-        val items = result.collectList().block()!!
+        val items = result.collectList().block()
         assertNotNull(items)
         assertTrue(items!!.isEmpty())
     }
@@ -92,7 +92,7 @@ class StreamingJacksonOutputConverterTest {
         val result = converter.convertStream(jsonlWithBlanks)
 
         // Then
-        val items = result.collectList().block()!!
+        val items = result.collectList().block()
         assertNotNull(items)
         assertEquals(2, items!!.size)
     }
@@ -110,7 +110,7 @@ class StreamingJacksonOutputConverterTest {
         val result = converter.convertStream(validJsonl)
 
         // Then
-        val items = result.collectList().block()!!
+        val items = result.collectList().block()
         assertNotNull(items)
         assertEquals(2, items!!.size)
         assertEquals("test1", items[0].name)
@@ -130,7 +130,7 @@ class StreamingJacksonOutputConverterTest {
         val result = converter.convertStreamWithThinking(mixedContent)
 
         // Then
-        val events = result.collectList().block()!!
+        val events = result.collectList().block()
         assertNotNull(events)
         assertEquals(2, events!!.size)
 
@@ -155,7 +155,7 @@ class StreamingJacksonOutputConverterTest {
         val result = converter.convertStreamWithThinking(content)
 
         // Then
-        val events = result.collectList().block()!!
+        val events = result.collectList().block()
         assertNotNull(events)
         assertEquals(3, events!!.size) // 2 thinking + 1 object
     }
@@ -170,7 +170,7 @@ class StreamingJacksonOutputConverterTest {
         val result = converter.convertStreamWithThinking(thinkingLine)
 
         // Then
-        val events = result.collectList().block()!!
+        val events = result.collectList().block()
         assertNotNull(events)
         assertEquals(1, events!!.size)
 
@@ -188,7 +188,7 @@ class StreamingJacksonOutputConverterTest {
         val result = converter.convertStreamWithThinking(legacyThinkingLine)
 
         // Then
-        val events = result.collectList().block()!!
+        val events = result.collectList().block()
         assertNotNull(events)
         assertEquals(1, events!!.size)
 
@@ -206,7 +206,7 @@ class StreamingJacksonOutputConverterTest {
         val result = converter.convertStreamWithThinking(objectLine)
 
         // Then
-        val events = result.collectList().block()!!
+        val events = result.collectList().block()
         assertNotNull(events)
         assertEquals(1, events!!.size)
 
@@ -224,7 +224,7 @@ class StreamingJacksonOutputConverterTest {
         val result = converter.convertStream(invalidJson)
 
         // Then - no objects should be emitted (malformed JSON becomes thinking which is filtered)
-        val items = result.collectList().block()!!
+        val items = result.collectList().block()
         assertNotNull(items)
         assertTrue(items!!.isEmpty())
     }
@@ -242,7 +242,7 @@ class StreamingJacksonOutputConverterTest {
         val result = converter.convertStreamWithThinking(mixedContent)
 
         // Then - should get 2 thinking events: explicit + continuation
-        val events = result.collectList().block()!!
+        val events = result.collectList().block()
         assertNotNull(events)
         assertEquals(2, events!!.size)
 
@@ -263,7 +263,7 @@ class StreamingJacksonOutputConverterTest {
         )
 
         // When
-        val schema = converter.getJsonSchema()
+        val schema = converter.jsonSchema
 
         // Then
         assertTrue(schema.contains("name"))
@@ -291,7 +291,7 @@ class StreamingJacksonOutputConverterTest {
         val result = converter.convertStream(jsonlInput)
 
         // Then
-        val people = result.collectList().block()!!
+        val people = result.collectList().block()
         assertNotNull(people)
         assertEquals(2, people!!.size)
 
@@ -358,7 +358,7 @@ class StreamingJacksonOutputConverterTest {
         val result = converter.convertStream(validJsonl)
 
         // Then
-        val items = result.collectList().block()!!
+        val items = result.collectList().block()
         assertNotNull(items)
         assertEquals(2, items!!.size)
         assertEquals("test1", items[0].name)
@@ -444,7 +444,7 @@ class StreamingJacksonOutputConverterTest {
         val result = converter.convertStreamWithThinking(multiLineContent)
 
         // Then - should get 4 thinking events + 1 object
-        val events = result.collectList().block()!!
+        val events = result.collectList().block()
         assertNotNull(events)
 
 
@@ -495,7 +495,7 @@ class StreamingJacksonOutputConverterTest {
         val result = converter.convertStreamWithThinking(mixedStatesContent)
 
         // Then
-        val events = result.collectList().block()!!
+        val events = result.collectList().block()
         assertNotNull(events)
 
 
@@ -532,7 +532,7 @@ class StreamingJacksonOutputConverterTest {
         val result = converter.convertStreamWithThinking(mixedContent)
 
         // Then
-        val events = result.collectList().block()!!
+        val events = result.collectList().block()
         assertNotNull(events)
 
         val objectEvents = events!!.filterIsInstance<StreamingEvent.Object<*>>()
@@ -569,7 +569,7 @@ class StreamingJacksonOutputConverterTest {
         val result = converter.convertStreamWithThinking(allFormatsContent)
 
         // Then
-        val events = result.collectList().block()!!
+        val events = result.collectList().block()
         assertNotNull(events)
         assertEquals(5, events!!.size)
 

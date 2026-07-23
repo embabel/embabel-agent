@@ -14,20 +14,14 @@
  * limitations under the License.
  */
 @file:JvmName("AnthropicUsage")
-
 package com.embabel.agent.config.models.anthropic
 
-import com.anthropic.models.messages.Usage as AnthropicSdkUsage
 import com.embabel.agent.core.Usage
+import org.springframework.ai.anthropic.api.AnthropicApi
 
 /**
  * Extension functions for convenient access to Anthropic-specific usage metrics,
  * particularly prompt caching information.
- *
- * Spring AI 2.0 swapped its hand-rolled `AnthropicApi.Usage` (with `int` accessors) for
- * the anthropic-java SDK's [AnthropicSdkUsage] (with `Optional<Long>` accessors). The
- * extensions below preserve the previous return type (`Int?`) for API stability —
- * callers see the same shape, with absent values surfaced as null.
  */
 
 /**
@@ -38,8 +32,7 @@ import com.embabel.agent.core.Usage
  * over regular input tokens.
  */
 fun Usage.anthropicCacheCreationTokens(): Int? {
-    val sdkUsage = nativeUsage as? AnthropicSdkUsage ?: return null
-    return sdkUsage.cacheCreationInputTokens().orElse(null)?.toInt()
+    return (nativeUsage as? AnthropicApi.Usage)?.cacheCreationInputTokens()
 }
 
 /**
@@ -49,8 +42,7 @@ fun Usage.anthropicCacheCreationTokens(): Int? {
  * Cache read tokens cost 90% less than regular input tokens, providing significant savings.
  */
 fun Usage.anthropicCacheReadTokens(): Int? {
-    val sdkUsage = nativeUsage as? AnthropicSdkUsage ?: return null
-    return sdkUsage.cacheReadInputTokens().orElse(null)?.toInt()
+    return (nativeUsage as? AnthropicApi.Usage)?.cacheReadInputTokens()
 }
 
 /**

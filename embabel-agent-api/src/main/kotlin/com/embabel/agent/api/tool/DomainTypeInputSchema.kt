@@ -20,7 +20,7 @@ import com.embabel.agent.core.DomainType
 import com.embabel.agent.core.DomainTypePropertyDefinition
 import com.embabel.agent.core.PropertyDefinition
 import com.embabel.agent.core.ValuePropertyDefinition
-import tools.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
 
 /**
  * InputSchema implementation that generates JSON schema from a [DomainType].

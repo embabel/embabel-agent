@@ -20,7 +20,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.springframework.ai.mcp.server.webmvc.transport.WebMvcSseServerTransportProvider
+import io.modelcontextprotocol.server.transport.WebMvcSseServerTransportProvider
 import org.springframework.context.event.ContextClosedEvent
 import reactor.core.publisher.Mono
 import java.time.Duration

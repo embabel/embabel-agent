@@ -23,7 +23,7 @@ import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyAgentPlatform
 import com.embabel.agent.test.integration.ScriptedLlmOperations
-import tools.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import com.embabel.agent.core.Agent as CoreAgent

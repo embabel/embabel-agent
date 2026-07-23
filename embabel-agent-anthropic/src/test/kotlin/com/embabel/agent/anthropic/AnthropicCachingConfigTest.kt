@@ -18,7 +18,7 @@ package com.embabel.agent.anthropic
 import com.embabel.chat.MessageRole
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
-import org.springframework.ai.anthropic.AnthropicCacheTtl
+import org.springframework.ai.anthropic.api.AnthropicCacheTtl
 
 class AnthropicCachingConfigTest {
 

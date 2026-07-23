@@ -440,9 +440,8 @@ class ThinkingPromptRunnerOperationsExtractionTest {
         val stakeholderAlignment: String
     )
 
-    // Helper method to execute thinking extraction consistently across tests.
-    // Bound to <T : Any> so SuppressThinkingConverter (Spring AI 2.0, requires T : Any) accepts it.
-    private fun <T : Any> executeThinkingExtraction(
+    // Helper method to execute thinking extraction consistently across tests
+    private fun <T> executeThinkingExtraction(
         rawLlmResponse: String,
         operationName: String,
         outputClass: Class<T>

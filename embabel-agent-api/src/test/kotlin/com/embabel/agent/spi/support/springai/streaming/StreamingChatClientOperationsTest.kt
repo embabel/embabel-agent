@@ -22,7 +22,7 @@ import com.embabel.agent.core.internal.streaming.StreamingLlmOperations
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify

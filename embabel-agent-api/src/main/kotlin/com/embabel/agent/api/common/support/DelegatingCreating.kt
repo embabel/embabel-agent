@@ -21,7 +21,7 @@ import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.textio.template.TemplateRenderer
-import tools.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
 import java.lang.reflect.Field
 import java.util.function.Predicate
 

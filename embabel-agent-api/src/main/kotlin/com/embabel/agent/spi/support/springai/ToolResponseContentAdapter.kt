@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.spi.support.springai
 
-import tools.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
 
 /**
  * Adapts tool response content to meet provider-specific format requirements

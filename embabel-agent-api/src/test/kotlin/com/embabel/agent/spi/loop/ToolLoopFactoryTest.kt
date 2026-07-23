@@ -21,7 +21,7 @@ import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ToolLoopType
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.agent.spi.loop.support.ParallelToolLoop
 import com.embabel.agent.spi.support.ExecutorAsyncer
-import tools.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
 import io.mockk.mockk
 import java.util.concurrent.Executors
 import org.junit.jupiter.api.Assertions.assertNotNull

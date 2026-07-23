@@ -39,7 +39,7 @@ import com.embabel.agent.test.domain.Frog
 import com.embabel.agent.test.dsl.SnakeMeal
 import com.embabel.agent.test.dsl.evenMoreEvilWizard
 import com.embabel.common.ai.model.LlmOptions
-import tools.jackson.databind.annotation.JsonDeserialize
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import org.springframework.ai.tool.annotation.Tool
 
 /**

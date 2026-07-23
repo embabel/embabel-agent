@@ -16,8 +16,8 @@
 package com.embabel.agent.a2a.server.support
 
 import com.embabel.agent.domain.library.HasContent
-import tools.jackson.databind.ObjectMapper
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.a2a.spec.DataPart
 import io.a2a.spec.TextPart
 import org.junit.jupiter.api.Assertions.*
@@ -50,7 +50,7 @@ class HasContentArtifactTest {
     )
 
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
-          // Registers JSR310 module for Instant support
+        .findAndRegisterModules()  // Registers JSR310 module for Instant support
 
     @Test
     fun `should extract content as TextPart when object implements HasContent`() {

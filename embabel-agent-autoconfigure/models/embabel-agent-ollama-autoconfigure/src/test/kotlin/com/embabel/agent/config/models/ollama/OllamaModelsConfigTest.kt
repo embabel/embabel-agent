@@ -89,12 +89,6 @@ class OllamaModelsConfigTest {
         every { mockRequestHeadersSpec.accept(MediaType.APPLICATION_JSON) } returns mockRequestHeadersSpec
         every { mockRequestHeadersSpec.retrieve() } returns mockResponseSpec
 
-        // Spring 7's `org.springframework.web.client.body` reified Kotlin extension now
-        // invokes `.hint(KType, T)` on the ResponseSpec before `.body(...)` so converters
-        // can pick up the Kotlin reified type. Stub it to return the same mock so the
-        // chain proceeds to `.body(...)`.
-        every { mockResponseSpec.hint(any(), any()) } returns mockResponseSpec
-
         // Mock the body method using any() matcher to avoid type issues
         every { mockResponseSpec.body(any<ParameterizedTypeReference<Any>>()) } returns testModels
     }

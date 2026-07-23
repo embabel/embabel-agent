@@ -24,7 +24,7 @@ import com.embabel.common.core.types.Timestamped
 import com.embabel.common.util.ComputerSaysNoSerializer
 import com.embabel.plan.Planner
 import com.embabel.plan.WorldState
-import tools.jackson.databind.annotation.JsonSerialize
+import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import java.time.Duration
 import java.time.Instant
 

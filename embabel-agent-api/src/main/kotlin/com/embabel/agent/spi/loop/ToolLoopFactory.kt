@@ -26,7 +26,7 @@ import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ToolLoopType
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.agent.spi.loop.support.ParallelToolLoop
 
-import tools.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
 
 /**
  * Factory for creating [ToolLoop] instances.

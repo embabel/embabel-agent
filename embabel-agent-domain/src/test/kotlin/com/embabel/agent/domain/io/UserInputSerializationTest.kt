@@ -15,13 +15,14 @@
  */
 package com.embabel.agent.domain.io
 
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 
 class UserInputSerializationTest {
 
-    private val objectMapper = jacksonObjectMapper()
+    private val objectMapper = jacksonObjectMapper().registerModule(JavaTimeModule())
 
     @Test
     fun `can deserialize`() {

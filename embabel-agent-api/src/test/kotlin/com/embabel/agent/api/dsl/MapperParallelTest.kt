@@ -20,6 +20,8 @@ import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertTimeoutPreemptively
+import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
 
 class MapperParallelTest {
@@ -42,16 +44,14 @@ class MapperParallelTest {
             val maxConcurrent = AtomicInteger(0)
             val concurrencyLevel = 4
 
-            // Each task records the peak number of simultaneously-running tasks while it
-            // holds the 100ms sleep. Serial execution would only ever reach 1, so the
-            // maxConcurrent assertion below deterministically proves parallelism without
-            // relying on a wall-clock timeout (which flaked on loaded CI runners).
-            val results = list.parallelMap(context, concurrencyLevel) { elt ->
-                val current = started.incrementAndGet()
-                maxConcurrent.updateAndGet { it.coerceAtLeast(current) }
-                Thread.sleep(100)
-                started.decrementAndGet()
-                elt * 2
+            val results = assertTimeoutPreemptively(Duration.ofMillis(300)) {
+                list.parallelMap(context, concurrencyLevel) { elt ->
+                    val current = started.incrementAndGet()
+                    maxConcurrent.updateAndGet { it.coerceAtLeast(current) }
+                    Thread.sleep(100)
+                    started.decrementAndGet()
+                    elt * 2
+                }
             }
             assertEquals(
                 list.map { it * 2 },

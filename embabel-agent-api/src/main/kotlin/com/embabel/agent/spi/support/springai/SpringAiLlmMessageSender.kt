@@ -101,7 +101,7 @@ internal class SpringAiLlmMessageSender(
         // the first is empty and the second contains tool calls. We need to find the
         // generation with tool calls, or fall back to the first one if none have them.
         // See: https://github.com/embabel/embabel-agent/issues/1350
-        val assistantMessage = findGenerationWithToolCalls(response) ?: response.result!!.output
+        val assistantMessage = findGenerationWithToolCalls(response) ?: response.result.output
         val embabelMessage = assistantMessage.toEmbabelMessage()
 
         // Extract usage information
@@ -198,20 +198,16 @@ internal class SpringAiLlmMessageSender(
         // If chatOptions already implements ToolCallingChatOptions (e.g., AnthropicChatOptions,
         // OpenAiChatOptions, etc.), use its copy() method to preserve all provider-specific settings
         if (chatOptions is ToolCallingChatOptions) {
-            // Spring AI 2.0 GA: toolCallbacks are read-only on ToolCallingChatOptions, so use
-            // mutate() to derive a new instance, preserving the provider-specific subtype (e.g.
-            // Anthropic cache settings) while attaching our tool callbacks. The per-request
-            // internalToolExecutionEnabled flag was removed in 2.0.0; disabling Spring AI's
-            // automatic tool execution is now configured on the ChatModel (ToolCallingManager /
-            // ToolExecutionEligibilityPredicate) so embabel's DefaultToolLoop stays in control.
-            return chatOptions.mutate()
-                .toolCallbacks(toolCallbacks)
-                .build()
+            val copied: ChatOptions = chatOptions.copy()
+            if (copied is ToolCallingChatOptions) {
+                copied.toolCallbacks = toolCallbacks
+                copied.internalToolExecutionEnabled = false
+            }
+            return copied
         }
 
-        // Fallback: Create generic ToolCallingChatOptions.
-        // We handle tools ourselves in DefaultToolLoop. Spring AI 2.0 GA removed the per-request
-        // internalToolExecutionEnabled flag; internal execution is disabled on the ChatModel.
+        // Fallback: Create generic ToolCallingChatOptions
+        // IMPORTANT: Disable internal tool execution - we handle tools ourselves in DefaultToolLoop
         return ToolCallingChatOptions.builder()
             .model(chatOptions.model)
             .temperature(chatOptions.temperature)
@@ -222,6 +218,7 @@ internal class SpringAiLlmMessageSender(
             .presencePenalty(chatOptions.presencePenalty)
             .stopSequences(chatOptions.stopSequences)
             .toolCallbacks(toolCallbacks)
+            .internalToolExecutionEnabled(false)
             .build()
     }
 }

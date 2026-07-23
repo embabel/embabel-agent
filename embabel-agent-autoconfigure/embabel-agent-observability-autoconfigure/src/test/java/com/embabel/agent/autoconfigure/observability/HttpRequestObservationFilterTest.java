@@ -142,7 +142,7 @@ class HttpRequestObservationFilterTest {
             var filter = new HttpRequestObservationFilter(4000);
             var inner = new MockHttpServletRequest();
             inner.setContent("{\"name\":\"test\"}".getBytes(StandardCharsets.UTF_8));
-            var wrapper = new ContentCachingRequestWrapper(inner, Integer.MAX_VALUE);
+            var wrapper = new ContentCachingRequestWrapper(inner);
             // Read the input stream to populate the cache
             try { wrapper.getInputStream().readAllBytes(); } catch (Exception ignored) {}
             var response = new MockHttpServletResponse();
@@ -212,7 +212,7 @@ class HttpRequestObservationFilterTest {
             var filter = new HttpRequestObservationFilter(10);
             var inner = new MockHttpServletRequest();
             inner.setContent("abcdefghijklmnopqrstuvwxyz".getBytes(StandardCharsets.UTF_8));
-            var wrapper = new ContentCachingRequestWrapper(inner, Integer.MAX_VALUE);
+            var wrapper = new ContentCachingRequestWrapper(inner);
             try { wrapper.getInputStream().readAllBytes(); } catch (Exception ignored) {}
             var response = new MockHttpServletResponse();
             var context = new ServerRequestObservationContext(wrapper, response);

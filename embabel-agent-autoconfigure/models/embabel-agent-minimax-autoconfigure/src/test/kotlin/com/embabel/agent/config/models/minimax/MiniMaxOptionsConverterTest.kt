@@ -53,11 +53,7 @@ class MiniMaxOptionsConverterTest : OptionsConverterTestSupport<OpenAiChatOption
     @Test
     fun `should handle null temperature`() {
         val options = optionsConverter.convertOptions(LlmOptions())
-        // Spring AI 2.0's OpenAiChatOptions package is @NullMarked, so Kotlin treats
-        // getTemperature() as non-null Double — direct property access NPEs on a null
-        // runtime value. Read into a Double? local to bypass. (Migration doc §5.11.)
-        val temperature: Double? = options.temperature
-        assertEquals(null, temperature)
+        assertEquals(null, options.temperature)
     }
 
     @Test

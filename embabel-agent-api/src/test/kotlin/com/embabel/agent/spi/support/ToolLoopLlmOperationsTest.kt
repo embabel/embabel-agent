@@ -64,8 +64,9 @@ import com.embabel.common.ai.model.withNativeStructuredOutput
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
 import com.embabel.common.textio.template.TemplateRenderer
-import tools.jackson.databind.ObjectMapper
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.micrometer.observation.Observation
 import io.mockk.every
 import io.mockk.mockk
@@ -90,7 +91,7 @@ class ToolLoopLlmOperationsTest {
     private lateinit var mockProcessContext: ProcessContext
     private lateinit var eventListener: EventSavingAgenticEventListener
     private lateinit var mutableLlmInvocationHistory: MutableLlmInvocationHistory
-    private val objectMapper: ObjectMapper = jacksonObjectMapper()
+    private val objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule())
 
     @BeforeEach
     fun setup() {

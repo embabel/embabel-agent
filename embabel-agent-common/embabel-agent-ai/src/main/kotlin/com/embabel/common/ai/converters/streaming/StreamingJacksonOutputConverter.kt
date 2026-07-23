@@ -19,7 +19,7 @@ import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
 import com.embabel.common.ai.converters.streaming.support.ThinkingDetector
 import com.embabel.common.core.streaming.StreamingEvent
 import com.embabel.common.core.streaming.ThinkingState
-import tools.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.core.ParameterizedTypeReference
 import reactor.core.publisher.Flux
 import java.lang.reflect.Field
@@ -42,7 +42,7 @@ import java.util.function.Predicate
  * The converter requests JSONL format from LLMs and parses each line as a separate
  * JSON object, emitting them as reactive stream events as they become available.
  */
-class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConverter<T> {
+class StreamingJacksonOutputConverter<T> : FilteringJacksonOutputConverter<T> {
 
     private val thinkingEnabled: Boolean
 
@@ -147,7 +147,7 @@ class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConverter
            |$thinkingInstructions
            |
            |Here is the JSON Schema instance each JSON object must adhere to:
-           |```${getJsonSchema()}```
+           |```${jsonSchema}```
            |$exampleFormat
            |""".trimMargin()
     }

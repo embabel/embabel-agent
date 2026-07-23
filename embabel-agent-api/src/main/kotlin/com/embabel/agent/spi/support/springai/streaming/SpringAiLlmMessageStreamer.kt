@@ -52,22 +52,12 @@ internal class SpringAiLlmMessageStreamer(
     ): Flux<String> {
         val springAiMessages = messages.map { it.toSpringAiMessage() }
         val toolCallbacks = tools.toSpringToolCallbacks().withInspectors(toolCallInspectors)
-        // Spring AI 2.0: bake toolCallbacks into ToolCallingChatOptions AND pass them on the
-        // request spec. The former preserves the ToolCallingChatOptions subtype through the
-        // chatModel-defaults merge; the latter survives the merge that would otherwise reset
-        // prompt.options.toolCallbacks to the model's empty default.
-        val effectiveOptions = if (chatOptions is org.springframework.ai.model.tool.ToolCallingChatOptions) {
-            chatOptions.mutate()
-                .toolCallbacks(toolCallbacks)
-                .build()
-        } else {
-            chatOptions
-        }
-        val prompt = Prompt(springAiMessages, effectiveOptions)
+        val prompt = Prompt(springAiMessages)
 
         return chatClient
             .prompt(prompt)
             .toolCallbacks(toolCallbacks)
+            .options(chatOptions)
             .stream()
             .content()
     }

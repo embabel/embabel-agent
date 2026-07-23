@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.mcpserver
 
-import org.springframework.ai.mcp.server.webmvc.transport.WebMvcSseServerTransportProvider
+import io.modelcontextprotocol.server.transport.WebMvcSseServerTransportProvider
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.context.ApplicationListener

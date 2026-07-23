@@ -29,7 +29,7 @@ import com.embabel.agent.rag.model.RelationshipNavigator
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.common.core.types.SimilarityResult
 import com.embabel.common.core.types.TextSimilaritySearchRequest
-import tools.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
 
 /**
  * Named relationship that may have properties.

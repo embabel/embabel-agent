@@ -50,7 +50,7 @@ typealias ThinkBlockFinder = (String) -> String?
  *
  * @param T The target type that the delegate converter produces
  */
-class SuppressThinkingConverter<T : Any>(
+class SuppressThinkingConverter<T>(
     /**
      * The underlying converter that will process the sanitized output.
      * This delegate handles the actual conversion from the cleaned string to the target type T.
@@ -71,7 +71,7 @@ class SuppressThinkingConverter<T : Any>(
      * @param source The raw string output from the LLM, potentially containing thinking blocks
      * @return The converted object of type T, or null if conversion fails
      */
-    override fun convert(source: String): T {
+    override fun convert(source: String): T? {
         val sanitization = identifyThinkBlock(source)
         sanitization.thinkBlock?.let {
             logger.trace(

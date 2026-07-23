@@ -16,7 +16,7 @@
 package com.embabel.common.ai.model
 
 import com.embabel.common.util.indent
-import tools.jackson.databind.annotation.JsonSerialize
+import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import org.springframework.ai.embedding.EmbeddingModel
 
 /**

@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.api.tool
 
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -247,12 +247,7 @@ class TypeBasedInputSchemaTest {
             assertNotNull(required)
             assertTrue(required.isArray)
 
-            // Jackson 3 / victools 5 may produce nested arrays; flatten before extracting strings.
-            val requiredFields = mutableListOf<String>()
-            required.forEach { node ->
-                if (node.isArray) node.forEach { requiredFields.add(it.asString()) }
-                else requiredFields.add(node.asString())
-            }
+            val requiredFields = required.map { it.asText() }
             assertTrue(requiredFields.contains("requiredField"))
             assertFalse(requiredFields.contains("optionalField"))
         }

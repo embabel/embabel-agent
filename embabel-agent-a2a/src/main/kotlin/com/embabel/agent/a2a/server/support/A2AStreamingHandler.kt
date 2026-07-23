@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.a2a.server.support
 
-import tools.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.beans.factory.annotation.Qualifier
 import io.a2a.spec.Message
 import io.a2a.spec.SendStreamingMessageResponse

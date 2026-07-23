@@ -58,10 +58,11 @@ import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.thinking.spi.InternalThinkingApi
 import com.embabel.common.core.thinking.spi.extractAllThinkingBlocks
 import com.embabel.common.textio.template.TemplateRenderer
-import tools.jackson.databind.DatabindException
-import tools.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.DatabindException
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.beans.factory.annotation.Qualifier
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.micrometer.observation.ObservationRegistry
 import jakarta.annotation.PostConstruct
 import jakarta.validation.Validator
@@ -81,7 +82,6 @@ import org.springframework.ai.chat.client.observation.DefaultChatClientObservati
 import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.UserMessage as SpringAiUserMessage
 import org.springframework.ai.chat.model.ChatResponse
-import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.beans.factory.getBeansOfType
 import org.springframework.context.ApplicationContext
@@ -121,7 +121,7 @@ internal class ChatClientLlmOperations(
     private val applicationContext: ApplicationContext? = null,
     autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
     @Qualifier("embabelJacksonObjectMapper")
-    objectMapper: ObjectMapper = jacksonObjectMapper(),
+    objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
     // Drives ONLY Spring AI's own ChatClient/advisor observations (see createChatClient). The embabel
     // master-switch (`tracing-enabled`) gates the [instrumentation] adapter — i.e. the embabel core
     // spans — NOT this registry: disabling tracing stops embabel spans but leaves Spring AI's native
@@ -207,30 +207,23 @@ internal class ChatClientLlmOperations(
         outputClass: Class<O>,
         interaction: LlmInteraction,
     ): OutputConverter<O> {
-        // Spring AI 2.0's StructuredOutputConverter<T> requires T : Any in its converter chain.
-        // Our enclosing <O> is unbounded; erase via Class<Any> for the construction, then cast back.
-        @Suppress("UNCHECKED_CAST")
-        val outputClassAny = outputClass as Class<Any>
-        // Keep a reference to the JSON converter so it can supply the schema for native
-        // structured output (#1715); FilteringJacksonOutputConverter is a JsonSchemaProvider.
-        val jsonConverter = FilteringJacksonOutputConverter<Any>(
-            clazz = outputClassAny,
+        val jsonConverter = FilteringJacksonOutputConverter(
+            clazz = outputClass,
             objectMapper = objectMapper,
             fieldFilter = interaction.fieldFilter,
         )
-        val springAiConverter = ExceptionWrappingConverter<Any>(
-            expectedType = outputClassAny,
-            delegate = WithExampleConverter<Any>(
-                delegate = SuppressThinkingConverter<Any>(
+        val springAiConverter = ExceptionWrappingConverter(
+            expectedType = outputClass,
+            delegate = WithExampleConverter(
+                delegate = SuppressThinkingConverter(
                     jsonConverter
                 ),
-                outputClass = outputClassAny,
+                outputClass = outputClass,
                 ifPossible = false,
                 generateExamples = shouldGenerateExamples(interaction),
             )
         )
-        @Suppress("UNCHECKED_CAST")
-        return SpringAiOutputConverterAdapter(springAiConverter, jsonConverter) as OutputConverter<O>
+        return SpringAiOutputConverterAdapter(springAiConverter, jsonConverter)
     }
 
     override fun sanitizeStringOutput(text: String): String {
@@ -324,22 +317,19 @@ internal class ChatClientLlmOperations(
         val chatClient = createChatClient(llm, llmRequestEvent)
         val promptContributions = buildPromptContributions(interaction, llm)
 
-        // Create converter chain once for both schema format and actual conversion.
-        // Spring AI 2.0's converters require T : Any; erase O via Class<Any> for construction.
-        @Suppress("UNCHECKED_CAST")
-        val outputClassAny = outputClass as Class<Any>
+        // Create converter chain once for both schema format and actual conversion
         val converter = if (outputClass != String::class.java) {
-            ExceptionWrappingConverter<Any>(
-                expectedType = outputClassAny,
-                delegate = WithExampleConverter<Any>(
-                    delegate = SuppressThinkingConverter<Any>(
-                        FilteringJacksonOutputConverter<Any>(
-                            clazz = outputClassAny,
+            ExceptionWrappingConverter(
+                expectedType = outputClass,
+                delegate = WithExampleConverter(
+                    delegate = SuppressThinkingConverter(
+                        FilteringJacksonOutputConverter(
+                            clazz = outputClass,
                             objectMapper = objectMapper,
                             fieldFilter = interaction.fieldFilter,
                         )
                     ),
-                    outputClass = outputClassAny,
+                    outputClass = outputClass,
                     ifPossible = false,
                     generateExamples = shouldGenerateExamples(interaction),
                 )
@@ -348,35 +338,21 @@ internal class ChatClientLlmOperations(
 
         val schemaFormat = converter?.getFormat()
 
-        val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
-        val timeoutMillis = getTimeoutMillis(interaction.llm)
-
-        val basePrompt = if (schemaFormat != null) {
+        val springAiPrompt = if (schemaFormat != null) {
             buildPromptWithSchema(promptContributions, messages, schemaFormat)
         } else {
             buildBasicPrompt(promptContributions, messages)
         }
+
         // Guardrails: Pre-validation of user input
         val userMessages = messages.filterIsInstance<UserMessage>()
         validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
 
+        val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
+        val timeoutMillis = getTimeoutMillis(interaction.llm)
+
         // Resolve tool groups and decorate tools
         val tools = resolveAndDecorateTools(interaction, agentProcess, action)
-
-        // Spring AI 2.0: ChatClient merges chatModel.getDefaultOptions() with prompt.options
-        // and adds spec-level toolCallbacks last. We bake toolCallbacks into the ToolCallingChatOptions
-        // (preserving the subtype through the merge) AND also pass them via .toolCallbacks() on the
-        // request spec — the latter survives Spring AI's options merge that would otherwise reset
-        // prompt.options.toolCallbacks to the model's empty default.
-        val springAiToolCallbacks = tools.toSpringToolCallbacks()
-        val effectiveOptions = if (chatOptions is ToolCallingChatOptions) {
-            chatOptions.mutate()
-                .toolCallbacks(springAiToolCallbacks)
-                .build()
-        } else {
-            chatOptions
-        }
-        val springAiPrompt = Prompt(basePrompt.instructions, effectiveOptions)
 
         return dataBindingProperties.retryTemplate(interaction.id.value)
             .execute<ThinkingResponse<O>, DatabindException> {
@@ -385,7 +361,8 @@ internal class ChatClientLlmOperations(
                 val future = asyncer.async {
                     chatClient
                         .prompt(springAiPrompt)
-                        .toolCallbacks(springAiToolCallbacks)
+                        .toolCallbacks(tools.toSpringToolCallbacks())
+                        .options(chatOptions)
                         .call()
                 }
 
@@ -404,7 +381,7 @@ internal class ChatClientLlmOperations(
                 if (outputClass == String::class.java) {
                     val chatResponse = requireChatResponse(callResponse, interaction)
                     recordUsage(llm, chatResponse, llmRequestEvent)
-                    val rawText = chatResponse.result!!.output.text as String
+                    val rawText = chatResponse.result.output.text as String
 
                     val thinkingBlocks = extractAllThinkingBlocks(rawText)
                     logger.debug("Extracted {} thinking blocks for String response", thinkingBlocks.size)
@@ -422,7 +399,7 @@ internal class ChatClientLlmOperations(
                     // Extract thinking blocks from raw response text FIRST
                     val chatResponse = requireChatResponse(callResponse, interaction)
                     recordUsage(llm, chatResponse, llmRequestEvent)
-                    val rawText = chatResponse.result!!.output.text ?: ""
+                    val rawText = chatResponse.result.output.text ?: ""
 
                     val thinkingBlocks = extractAllThinkingBlocks(rawText)
                     logger.debug(
@@ -507,10 +484,7 @@ internal class ChatClientLlmOperations(
             // Get the complete format (examples + JSON schema)
             val schemaFormat = converter.getFormat()
 
-            val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
-            val timeoutMillis = getTimeoutMillis(interaction.llm)
-
-            val basePrompt = buildPromptWithMaybeReturnAndSchema(
+            val springAiPrompt = buildPromptWithMaybeReturnAndSchema(
                 promptContributions,
                 messages,
                 maybeReturnPromptContribution,
@@ -521,29 +495,19 @@ internal class ChatClientLlmOperations(
             val userMessages = messages.filterIsInstance<UserMessage>()
             validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
 
+            val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
+            val timeoutMillis = getTimeoutMillis(interaction.llm)
+
             // Resolve tool groups and decorate tools
             val tools = resolveAndDecorateTools(interaction, agentProcess, action)
-
-            // Spring AI 2.0: bake toolCallbacks into the ToolCallingChatOptions AND set them on
-            // the request spec (.toolCallbacks). The former preserves the subtype through the
-            // chatModel-defaults merge; the latter survives Spring AI's options merge that would
-            // otherwise reset prompt.options.toolCallbacks to the model's empty default.
-            val springAiToolCallbacks = tools.toSpringToolCallbacks()
-            val effectiveOptions = if (chatOptions is ToolCallingChatOptions) {
-                chatOptions.mutate()
-                    .toolCallbacks(springAiToolCallbacks)
-                    .build()
-            } else {
-                chatOptions
-            }
-            val springAiPrompt = Prompt(basePrompt.instructions, effectiveOptions)
 
             val result = dataBindingProperties.retryTemplate(interaction.id.value)
                 .execute<Result<ThinkingResponse<O>>, DatabindException> {
                     val future = asyncer.async {
                         chatClient
                             .prompt(springAiPrompt)
-                            .toolCallbacks(springAiToolCallbacks)
+                            .toolCallbacks(tools.toSpringToolCallbacks())
+                            .options(chatOptions)
                             .call()
                     }
 
@@ -560,7 +524,7 @@ internal class ChatClientLlmOperations(
                     // Extract thinking blocks from raw text FIRST
                     val chatResponse = requireChatResponse(callResponse, interaction)
                     recordUsage(llm, chatResponse, llmRequestEvent)
-                    val rawText = chatResponse.result!!.output.text ?: ""
+                    val rawText = chatResponse.result.output.text ?: ""
                     val thinkingBlocks = extractAllThinkingBlocks(rawText)
 
                     // Execute converter chain manually instead of using responseEntity
@@ -969,5 +933,5 @@ private class SpringAiOutputConverterAdapter<T>(
 ) : OutputConverter<T> {
     override fun convert(source: String): T? = delegate.convert(source)
     override fun getFormat(): String? = delegate.format
-    override fun getJsonSchema(): String? = jsonSchemaProvider?.getJsonSchema()
+    override fun getJsonSchema(): String? = jsonSchemaProvider?.jsonSchema
 }

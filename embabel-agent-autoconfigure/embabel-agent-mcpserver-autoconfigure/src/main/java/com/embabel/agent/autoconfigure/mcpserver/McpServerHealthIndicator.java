@@ -19,8 +19,8 @@ import com.embabel.agent.mcpserver.domain.ServerHealthStatus;
 import com.embabel.agent.mcpserver.health.McpServerHealthEvaluator;
 import com.embabel.agent.mcpserver.health.McpServerInitializationState;
 import com.embabel.agent.mcpserver.health.McpServerInitializationTracker;
-import org.springframework.boot.health.contributor.Health;
-import org.springframework.boot.health.contributor.HealthIndicator;
+import org.springframework.boot.actuate.health.Health;
+import org.springframework.boot.actuate.health.HealthIndicator;
 
 /**
  * Actuator health indicator for the Embabel MCP server.

@@ -23,7 +23,7 @@ import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.Verbosity
-import tools.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 
 /**
