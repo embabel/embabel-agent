@@ -94,7 +94,7 @@ class HttpBodyCachingFilterTest {
         // already wrapped it), the filter should pass it through as-is to avoid double wrapping
         @Test
         void shouldNotRewrapAlreadyWrappedRequest() throws ServletException, IOException {
-            var request = new ContentCachingRequestWrapper(new MockHttpServletRequest());
+            var request = new ContentCachingRequestWrapper(new MockHttpServletRequest(), Integer.MAX_VALUE);
             var response = new MockHttpServletResponse();
             var chain = mock(FilterChain.class);
 

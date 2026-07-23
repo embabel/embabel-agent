@@ -38,7 +38,7 @@ import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.ai.google.genai.GoogleGenAiChatModel
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions
-import org.springframework.ai.google.genai.GoogleGenAiEmbeddingConnectionDetails
+import org.springframework.ai.google.genai.embedding.GoogleGenAiEmbeddingConnectionDetails
 import org.springframework.ai.google.genai.text.GoogleGenAiTextEmbeddingModel
 import org.springframework.ai.google.genai.text.GoogleGenAiTextEmbeddingOptions
 import org.springframework.ai.model.tool.ToolCallingManager
@@ -215,7 +215,10 @@ class GoogleGenAiModelsConfig(
             ToolCallingManager.builder()
                 .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
                 .build(),
-            properties.retryTemplate("googlegenai-${modelDef.modelId}"),
+            // Spring AI 2.0 now requires org.springframework.core.retry.RetryTemplate here;
+            // we wrap calls with spring-retry at the ChatClientLlmOperations layer, so this
+            // model-internal retry is redundant — pass an empty core.retry instance.
+            org.springframework.core.retry.RetryTemplate(),
             observationRegistry.getIfUnique { ObservationRegistry.NOOP }
         )
 

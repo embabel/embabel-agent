@@ -41,3 +41,10 @@ replay_pid*
 
 # Personal documentation
 my-doc/
+
+# arcade-agent local analysis outputs
+arcade_analysis_*.json
+arcade_analysis_*.html
+arcade_analysis_baseline.json
+pr_comment.md
+.arcade-cache/
