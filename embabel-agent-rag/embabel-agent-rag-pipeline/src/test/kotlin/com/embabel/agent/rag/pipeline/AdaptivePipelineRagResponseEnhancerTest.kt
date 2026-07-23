@@ -38,6 +38,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
+/** Verifies adaptive and sequential enhancer execution, including skips, failures, and lifecycle events. */
 class AdaptivePipelineRagResponseEnhancerTest {
 
     private fun response(
@@ -269,20 +270,25 @@ class AdaptivePipelineRagResponseEnhancerTest {
         }
 
         @Test
-        fun `breaks before remaining enhancers when latency budget exhausted`() {
+        fun `skips enhancers when latency budget is exhausted`() {
             val listener = RecordingRagListener()
+            val skipped = FixedEnhancer(name = "never")
             val pipeline = AdaptivePipelineRagResponseEnhancer(
-                enhancers = listOf(SleepingEnhancer("slow", 25), AppendingEnhancer("never")),
+                enhancers = listOf(skipped),
                 adaptiveExecution = true,
                 listener = listener,
             )
-            val request = RagRequest("q").withHint(DesiredMaxLatency(Duration.ofMillis(5)))
+            val request = RagRequest("q").withHint(
+                DesiredMaxLatency(duration = Duration.ofMillis(-1)),
+            )
+            val original = response(results = listOf(chunk("base")), request = request)
 
-            val enhanced = pipeline.enhance(response(listOf(chunk("base")), request = request))
+            val enhanced = pipeline.enhance(original)
 
-            assertEquals(listOf("base", "slow"), enhanced.results.map { it.match.id })
-            assertEquals(listOf("slow"), listener.starting.map { it.enhancerName })
-            assertEquals(listOf("slow"), listener.completed.map { it.enhancerName })
+            assertSame(original, enhanced)
+            assertEquals(0, skipped.enhancementCalls)
+            assertTrue(listener.starting.isEmpty())
+            assertTrue(listener.completed.isEmpty())
         }
 
         @Test
@@ -350,25 +356,6 @@ class AdaptivePipelineRagResponseEnhancerTest {
 
         override fun estimateImpact(response: RagResponse): EnhancementEstimate =
             EnhancementEstimate(0.1, 0, 0, EnhancementRecommendation.APPLY)
-    }
-
-    private class SleepingEnhancer(
-        override val name: String,
-        private val sleepMs: Long,
-    ) : RagResponseEnhancer {
-        override val enhancementType: EnhancementType = EnhancementType.CUSTOM
-        override fun enhance(response: RagResponse): RagResponse {
-            Thread.sleep(sleepMs)
-            return response.copy(
-                results = response.results + SimpleSimilaritySearchResult(
-                    match = Chunk(id = name, text = name, parentId = "doc", metadata = emptyMap()),
-                    score = 0.5,
-                ),
-            )
-        }
-
-        override fun estimateImpact(response: RagResponse): EnhancementEstimate =
-            EnhancementEstimate(0.1, sleepMs, 0, EnhancementRecommendation.APPLY)
     }
 
     private object ThrowingEnhancer : RagResponseEnhancer {

@@ -18,16 +18,15 @@ package com.embabel.agent.api.tool
 import com.embabel.agent.api.channel.MessageOutputChannelEvent
 import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.channel.OutputChannelEvent
+import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.AgentProcess.Companion.withCurrent
 import com.embabel.agent.core.ProcessOptions
-import com.embabel.agent.core.support.InMemoryBlackboard
-import com.embabel.agent.core.support.SimpleAgentProcess
-import com.embabel.agent.spi.support.DefaultPlannerFactory
-import com.embabel.agent.support.SimpleTestAgent
-import com.embabel.agent.test.integration.IntegrationTestUtils.dummyPlatformServices
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.slot
+import io.mockk.verify
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
@@ -35,16 +34,11 @@ import kotlin.test.assertTrue
 
 class CommunicateToolTest {
 
-    private fun createAgentProcess(outputChannel: OutputChannel = RecordingOutputChannel()) =
-        SimpleAgentProcess(
-            id = "communicate-test",
-            agent = SimpleTestAgent,
-            processOptions = ProcessOptions(outputChannel = outputChannel),
-            blackboard = InMemoryBlackboard(),
-            platformServices = dummyPlatformServices(),
-            plannerFactory = DefaultPlannerFactory,
-            parentId = null,
-        )
+    private fun mockAgentProcess(outputChannel: OutputChannel): AgentProcess =
+        mockk {
+            every { id } returns "communicate-test"
+            every { processOptions } returns ProcessOptions(outputChannel = outputChannel)
+        }
 
     @Nested
     inner class ToolDefinition {
@@ -92,8 +86,9 @@ class CommunicateToolTest {
 
         @Test
         fun `sends assistant message on output channel`() {
-            val channel = RecordingOutputChannel()
-            val process = createAgentProcess(channel)
+            val channel = mockk<OutputChannel>(relaxed = true)
+            val event = slot<OutputChannelEvent>()
+            val process = mockAgentProcess(outputChannel = channel)
 
             process.withCurrent {
                 val result = CommunicateTool.create().call("""{"message":"PR ready at https://example.com"}""")
@@ -102,17 +97,16 @@ class CommunicateToolTest {
                 assertEquals("Message sent to user.", text.content)
             }
 
-            assertEquals(1, channel.events.size)
-            val event = channel.events.single()
-            val messageEvent = assertIs<MessageOutputChannelEvent>(event)
+            verify(exactly = 1) { channel.send(capture(event)) }
+            val messageEvent = assertIs<MessageOutputChannelEvent>(event.captured)
             assertEquals(process.id, messageEvent.processId)
             assertEquals("PR ready at https://example.com", messageEvent.message.content)
         }
 
         @Test
         fun `rejects empty message content when process is active`() {
-            val channel = RecordingOutputChannel()
-            val process = createAgentProcess(channel)
+            val channel = mockk<OutputChannel>(relaxed = true)
+            val process = mockAgentProcess(outputChannel = channel)
 
             process.withCurrent {
                 assertFailsWith<IllegalArgumentException> {
@@ -120,18 +114,14 @@ class CommunicateToolTest {
                 }
             }
 
-            assertTrue(channel.events.isEmpty())
+            verify(exactly = 0) { channel.send(any()) }
         }
 
         @Test
         fun `propagates output channel failure instead of reporting success`() {
-            val process = createAgentProcess(
-                outputChannel = object : OutputChannel {
-                    override fun send(event: OutputChannelEvent) {
-                        throw IllegalStateException("channel unavailable")
-                    }
-                },
-            )
+            val channel = mockk<OutputChannel>()
+            every { channel.send(any()) } throws IllegalStateException("channel unavailable")
+            val process = mockAgentProcess(outputChannel = channel)
 
             val failure = assertFailsWith<IllegalStateException> {
                 process.withCurrent {
@@ -140,13 +130,6 @@ class CommunicateToolTest {
             }
 
             assertEquals("channel unavailable", failure.message)
-        }
-    }
-
-    private class RecordingOutputChannel : OutputChannel {
-        val events = CopyOnWriteArrayList<OutputChannelEvent>()
-        override fun send(event: OutputChannelEvent) {
-            events += event
         }
     }
 }

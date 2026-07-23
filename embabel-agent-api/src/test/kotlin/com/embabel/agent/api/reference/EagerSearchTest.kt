@@ -16,11 +16,15 @@
 package com.embabel.agent.api.reference
 
 import com.embabel.common.core.types.TextSimilaritySearchRequest
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.slot
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
 
+/** Verifies the [EagerSearch] text overload, including request defaults and boundary values. */
 class EagerSearchTest {
 
     @Nested
@@ -28,41 +32,33 @@ class EagerSearchTest {
 
         @Test
         fun `string overload builds request with zero threshold and given topK`() {
-            val stub = RecordingEagerSearch()
+            val capturedRequest = slot<TextSimilaritySearchRequest>()
+            val search = mockk<TestEagerSearch>()
+            every { search.withEagerSearchAbout(capture(capturedRequest)) } returns search
+            every { search.withEagerSearchAbout(any<String>(), any()) } answers { callOriginal() }
 
-            val result = stub.withEagerSearchAbout("find related APIs", limit = 5)
+            val result = search.withEagerSearchAbout("find related APIs", limit = 5)
 
-            assertSame(stub, result)
-            val request = checkNotNull(stub.lastRequest)
-            assertEquals("find related APIs", request.query)
-            assertEquals(0.0, request.similarityThreshold)
-            assertEquals(5, request.topK)
+            assertSame(search, result)
+            assertEquals("find related APIs", capturedRequest.captured.query)
+            assertEquals(0.0, capturedRequest.captured.similarityThreshold)
+            assertEquals(5, capturedRequest.captured.topK)
         }
 
         @Test
         fun `string overload preserves boundary inputs without coercion`() {
-            val stub = RecordingEagerSearch()
+            val capturedRequest = slot<TextSimilaritySearchRequest>()
+            val search = mockk<TestEagerSearch>()
+            every { search.withEagerSearchAbout(capture(capturedRequest)) } returns search
+            every { search.withEagerSearchAbout(any<String>(), any()) } answers { callOriginal() }
 
-            stub.withEagerSearchAbout("", limit = 0)
+            search.withEagerSearchAbout("", limit = 0)
 
-            val request = checkNotNull(stub.lastRequest)
-            assertEquals("", request.query)
-            assertEquals(0.0, request.similarityThreshold)
-            assertEquals(0, request.topK)
+            assertEquals("", capturedRequest.captured.query)
+            assertEquals(0.0, capturedRequest.captured.similarityThreshold)
+            assertEquals(0, capturedRequest.captured.topK)
         }
     }
 
-    private class RecordingEagerSearch : EagerSearch<RecordingEagerSearch> {
-        var lastRequest: TextSimilaritySearchRequest? = null
-
-        override val name: String = "recording"
-        override val description: String = "test stub"
-
-        override fun withEagerSearchAbout(request: TextSimilaritySearchRequest): RecordingEagerSearch {
-            lastRequest = request
-            return this
-        }
-
-        override fun notes(): String = ""
-    }
+    private interface TestEagerSearch : EagerSearch<TestEagerSearch>
 }

@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.rag.filter
 
+import com.embabel.agent.filter.PropertyFilter
 import com.embabel.agent.rag.model.SimpleNamedEntityData
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -120,8 +121,8 @@ class EntityFilterTest {
                 properties = mapOf("role" to "admin"),
             )
 
-            assertTrue(entity.matchesEntityFilter(com.embabel.agent.filter.PropertyFilter.Eq("role", "admin")))
-            assertFalse(entity.matchesEntityFilter(com.embabel.agent.filter.PropertyFilter.Eq("role", "guest")))
+            assertTrue(entity.matchesEntityFilter(PropertyFilter.Eq(key = "role", value = "admin")))
+            assertFalse(entity.matchesEntityFilter(PropertyFilter.Eq(key = "role", value = "guest")))
         }
     }
 }
