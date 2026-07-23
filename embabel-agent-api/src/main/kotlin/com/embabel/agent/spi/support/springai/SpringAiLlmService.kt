@@ -28,6 +28,7 @@ import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.prompt.Prompt
 import reactor.core.publisher.Flux
 import java.time.Duration
@@ -123,8 +124,22 @@ data class SpringAiLlmService @JvmOverloads constructor(
      */
     override val model: ChatModel get() = chatModel
 
+    /**
+     * Binds the model configured on the underlying [ChatModel] onto per-request options.
+     *
+     * Spring AI 2.0 no longer merges a model's configured options into a prompt that already
+     * carries options (OpenAiChatModel/AnthropicChatModel `buildRequestPrompt` returns the
+     * prompt unchanged when `getOptions() != null`). Because Embabel always supplies
+     * per-request options — and provider option types coerce a null model to a hard-coded
+     * default in their constructor (e.g. `gpt-5-mini`, `claude-haiku-4-5`) — the selected
+     * model would otherwise be ignored on every call. Binding the [ChatModel]'s own
+     * configured model restores the pre-2.0 merge semantics for every provider at once.
+     */
+    private fun bindConfiguredModel(chatOptions: ChatOptions): ChatOptions =
+        bindModel(chatOptions, chatModel.options?.model)
+
     override fun createMessageSender(options: LlmOptions): LlmMessageSender {
-        val chatOptions = optionsConverter.convertOptions(options)
+        val chatOptions = bindConfiguredModel(optionsConverter.convertOptions(options))
         return SpringAiLlmMessageSender(
             chatModel = chatModel,
             chatOptions = chatOptions,
@@ -136,7 +151,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
     }
 
     override fun createMessageStreamer(options: LlmOptions): LlmMessageStreamer {
-        val chatOptions = optionsConverter.convertOptions(options)
+        val chatOptions = bindConfiguredModel(optionsConverter.convertOptions(options))
         val chatClient = ChatClient.create(chatModel)
         return SpringAiLlmMessageStreamer(chatClient, chatOptions)
     }
@@ -160,3 +175,13 @@ data class SpringAiLlmService @JvmOverloads constructor(
     fun withOptionsConverter(converter: OptionsConverter<*>): SpringAiLlmService =
         copy(optionsConverter = converter)
 }
+
+/**
+ * Binds [model] onto [options], preserving the concrete provider option type and all other
+ * fields via each provider's overridden `mutate()` (dynamic dispatch keeps e.g.
+ * `OpenAiChatOptions`/`AnthropicChatOptions` intact). Returns [options] unchanged when
+ * [model] is null or blank, so models that expose no configured default (bare test doubles,
+ * exotic providers) keep the converter's output.
+ */
+internal fun bindModel(options: ChatOptions, model: String?): ChatOptions =
+    if (model.isNullOrBlank()) options else options.mutate().model(model).build()

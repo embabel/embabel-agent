@@ -136,6 +136,8 @@ class OpenAiCompatibleModelFactoryTest {
         // Prepare
         val promptSlot = slot<Prompt>()
         val chatModel = mockk<ChatModel> {
+            // Mirror the production chat model, which carries the selected model in its options.
+            every { options } returns OpenAiChatOptions.builder().model("gemini-2.5-flash").build()
             every { call(capture(promptSlot)) } returns ChatResponse(
                 listOf(Generation(AssistantMessage("done")))
             )
