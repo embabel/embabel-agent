@@ -423,9 +423,10 @@ open class ToolLoopLlmOperations(
 
         // Accumulate thinking blocks from ALL assistant messages across all iterations
         // Filter by role to catch both AssistantMessage and AssistantMessageWithToolCalls
-        val allThinkingBlocks = result.conversationHistory
-            .filter { it.role == com.embabel.chat.Role.ASSISTANT }
-            .flatMap { extractAllThinkingBlocks(it.content) }
+        val allThinkingBlocks = accumulateThinkingBlocks(
+            conversationHistory = result.conversationHistory,
+            providerThinkingContent = result.thinkingContent,
+        )
 
         // Merge accumulated thinking blocks with the final result
         val thinkingResponse = ThinkingResponse(
@@ -552,7 +553,10 @@ open class ToolLoopLlmOperations(
 
             // Accumulate thinking blocks from ALL assistant messages across all iterations
             // Filter by role to catch both AssistantMessage and AssistantMessageWithToolCalls
-            val allThinkingBlocks = accumulateThinkingBlocks(result.conversationHistory)
+            val allThinkingBlocks = accumulateThinkingBlocks(
+                conversationHistory = result.conversationHistory,
+                providerThinkingContent = result.thinkingContent,
+            )
 
             // Merge accumulated thinking blocks with the final result (success or failure path)
             val thinkingResult = mergeThinkingBlocksWithResult(finalIterationResult, allThinkingBlocks)
@@ -944,10 +948,21 @@ open class ToolLoopLlmOperations(
      * Filters by ASSISTANT role to catch both AssistantMessage and AssistantMessageWithToolCalls.
      */
     @OptIn(InternalThinkingApi::class)
-    private fun accumulateThinkingBlocks(conversationHistory: List<Message>): List<ThinkingBlock> {
-        return conversationHistory
+    private fun accumulateThinkingBlocks(
+        conversationHistory: List<Message>,
+        providerThinkingContent: List<String>,
+    ): List<ThinkingBlock> {
+        val providerBlocks = providerThinkingContent.map {
+            ThinkingBlock(
+                content = it,
+                tagType = com.embabel.common.core.thinking.ThinkingTagType.NO_PREFIX,
+                tagValue = "",
+            )
+        }
+        val taggedBlocks = conversationHistory
             .filter { it.role == com.embabel.chat.Role.ASSISTANT }
             .flatMap { extractAllThinkingBlocks(it.content) }
+        return providerBlocks + taggedBlocks
     }
 
     /**

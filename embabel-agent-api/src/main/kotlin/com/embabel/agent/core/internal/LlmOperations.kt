@@ -66,6 +66,22 @@ interface LlmOperations {
     )
 
     /**
+     * Generate text and return any thinking content supplied by the model.
+     */
+    fun generateWithThinking(
+        prompt: String,
+        interaction: LlmInteraction,
+        agentProcess: AgentProcess,
+        action: Action?,
+    ): ThinkingResponse<String> = createObjectWithThinking(
+        messages = listOf(UserMessage(prompt)),
+        interaction = interaction,
+        outputClass = String::class.java,
+        agentProcess = agentProcess,
+        action = action,
+    )
+
+    /**
      * Create an output object, in the context of an AgentProcess.
      * @param messages messages in the conversation so far. Could just be user message.
      * @param interaction Llm options and tool callbacks to use, plus unique identifier

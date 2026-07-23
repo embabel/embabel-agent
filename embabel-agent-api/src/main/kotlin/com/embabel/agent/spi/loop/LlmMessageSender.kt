@@ -69,10 +69,11 @@ data class LlmMessageRequest @JvmOverloads constructor(
  * @param textContent The text content of the message
  * @param usage Optional usage information (tokens, etc.)
  */
-data class LlmMessageResponse(
+data class LlmMessageResponse @JvmOverloads constructor(
     val message: Message,
     val textContent: String,
     val usage: Usage? = null,
+    val thinkingContent: List<String> = emptyList(),
 )
 
 /**

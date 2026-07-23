@@ -22,6 +22,7 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
+import com.embabel.agent.spi.loop.streaming.LlmStreamChunk
 import com.embabel.agent.core.internal.streaming.StreamingLlmOperations
 import com.embabel.agent.spi.support.PROMPT_ELEMENT_SEPARATOR
 import com.embabel.agent.spi.support.buildConsolidatedPromptMessages
@@ -29,8 +30,12 @@ import com.embabel.agent.spi.support.buildPromptContributionsString
 import com.embabel.agent.spi.support.guardrails.validateUserInput
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.agent.spi.support.springai.toLlmStreamChunks
 import com.embabel.agent.spi.support.springai.toSpringAiMessage
 import com.embabel.agent.spi.support.springai.toSpringToolCallbacks
+import com.embabel.agent.spi.support.streaming.ThinkingStreamItem
+import com.embabel.agent.spi.support.streaming.toTaggedThinkingEvents
+import com.embabel.agent.spi.support.streaming.toThinkingStreamItems
 import com.embabel.chat.Message
 import com.embabel.common.ai.converters.streaming.StreamingJacksonOutputConverter
 import com.embabel.common.core.streaming.StreamingEvent
@@ -113,6 +118,14 @@ internal class StreamingChatClientOperations(
         return doTransformStream(messages, interaction, null, agentProcess, action)
     }
 
+    override fun generateStreamWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        agentProcess: AgentProcess,
+        action: Action?,
+    ): Flux<StreamingEvent<String>> =
+        doTransformStreamWithThinking(messages, interaction, null, agentProcess, action)
+
     override fun <O> createObjectStream(
         messages: List<Message>,
         interaction: LlmInteraction,
@@ -188,6 +201,33 @@ internal class StreamingChatClientOperations(
             chatOptions = chatOptions,
             springAiPrompt = springAiPrompt,
         )
+    }
+
+    override fun doTransformStreamWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        llmRequestEvent: LlmRequestEvent<String>?,
+        agentProcess: AgentProcess?,
+        action: Action?,
+    ): Flux<StreamingEvent<String>> {
+        val llm = chatClientLlmOperations.getLlm(interaction)
+        val chatClient = chatClientLlmOperations.createChatClient(llm)
+        val promptContributions = buildPromptContributions(interaction, llm)
+        val springAiPrompt = buildSpringAiPrompt(messages, promptContributions)
+        val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
+        validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
+        val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
+        val tools = chatClientLlmOperations.resolveAndDecorateTools(interaction, agentProcess, action)
+
+        return createStructuredStreamInternal(
+            chatClient = chatClient,
+            messages = messages,
+            promptContributions = promptContributions,
+            tools = tools,
+            toolCallInspectors = interaction.toolCallInspectors,
+            chatOptions = chatOptions,
+            springAiPrompt = springAiPrompt,
+        ).toTaggedThinkingEvents()
     }
 
     /**
@@ -378,8 +418,8 @@ internal class StreamingChatClientOperations(
         // Resolve tool groups and decorate tools
         val tools = chatClientLlmOperations.resolveAndDecorateTools(interaction, agentProcess, action)
 
-        // Step 1: Original raw chunk stream from LLM
-        val rawChunkFlux: Flux<String> = createStreamInternal(
+        // Step 1: Structured chunks preserve provider thinking metadata.
+        val rawChunkFlux: Flux<LlmStreamChunk> = createStructuredStreamInternal(
             chatClient = chatClient,
             messages = messages,
             promptContributions = fullPromptContributions,
@@ -387,19 +427,16 @@ internal class StreamingChatClientOperations(
             toolCallInspectors = interaction.toolCallInspectors,
             chatOptions = chatOptions,
             springAiPrompt = springAiPrompt,
-        ).filter { it.isNotEmpty() }
-            .doOnNext { chunk -> logger.trace("RAW CHUNK: '${chunk.replace("\n", "\\n")}'") }
+        ).filter { it.textContent.isNotEmpty() || it.thinkingContent.any { thinking -> thinking.isNotBlank() } }
+            .doOnNext { chunk -> logger.trace("RAW STRUCTURED CHUNK: $chunk") }
 
-        // Step 2: Transform raw chunks to complete newline-delimited lines
-        val lineFlux: Flux<String> = rawChunkFlux
-            .transform { chunkFlux -> rawChunksToLines(chunkFlux) }
-            .doOnNext { line -> logger.trace("COMPLETE LINE: '$line'") }
-
-        // Step 3: Final flux of StreamingEvent (thinking + objects)
-        val event = lineFlux
-            .concatMap { line -> streamingConverter.convertStreamWithThinking(line) }
-
-        return event
+        return rawChunkFlux.toThinkingStreamItems()
+            .concatMap { item ->
+                when (item) {
+                    is ThinkingStreamItem.Thinking -> Flux.just(StreamingEvent.Thinking(item.content))
+                    is ThinkingStreamItem.Text -> streamingConverter.convertStreamWithThinking(item.content)
+                }
+            }
     }
 
     /**
@@ -511,6 +548,38 @@ internal class StreamingChatClientOperations(
                 .toolCallbacks(springAiToolCallbacks)
                 .stream()
                 .content()
+        }
+    }
+
+    private fun createStructuredStreamInternal(
+        chatClient: org.springframework.ai.chat.client.ChatClient,
+        messages: List<Message>,
+        promptContributions: String,
+        tools: List<com.embabel.agent.api.tool.Tool>,
+        toolCallInspectors: List<ToolCallInspector>,
+        chatOptions: org.springframework.ai.chat.prompt.ChatOptions,
+        springAiPrompt: Prompt,
+    ): Flux<LlmStreamChunk> {
+        return if (useMessageStreamer) {
+            val streamerMessages = buildMessagesWithContributions(messages, promptContributions)
+            SpringAiLlmMessageStreamer(chatClient, chatOptions)
+                .streamWithThinking(streamerMessages, tools, toolCallInspectors)
+        } else {
+            val springAiToolCallbacks = tools.toSpringToolCallbacks()
+            val effectiveOptions = if (chatOptions is org.springframework.ai.model.tool.ToolCallingChatOptions) {
+                chatOptions.mutate()
+                    .toolCallbacks(springAiToolCallbacks)
+                    .build()
+            } else {
+                chatOptions
+            }
+            val promptWithOptions = Prompt(springAiPrompt.instructions, effectiveOptions)
+            chatClient
+                .prompt(promptWithOptions)
+                .toolCallbacks(springAiToolCallbacks)
+                .stream()
+                .chatResponse()
+                .concatMapIterable { it.toLlmStreamChunks() }
         }
     }
 }

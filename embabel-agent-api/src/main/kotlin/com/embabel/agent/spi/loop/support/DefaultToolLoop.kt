@@ -49,6 +49,9 @@ import com.embabel.chat.Message
 import com.embabel.chat.ToolCall
 import com.embabel.chat.ToolResultMessage
 import com.embabel.chat.UserMessage
+import com.embabel.common.core.thinking.ThinkingBlock
+import com.embabel.common.core.thinking.ThinkingException
+import com.embabel.common.core.thinking.ThinkingTagType
 import tools.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 
@@ -116,6 +119,7 @@ internal open class DefaultToolLoop(
 
             val callResult = llmMessageSender.call(state.conversationHistory, state.availableTools)
             accumulateUsage(callResult.usage, state)
+            state.thinkingContent.addAll(callResult.thinkingContent)
 
             /* -------------------------------------------------
              * Apply afterLlmCall callbacks - START
@@ -254,18 +258,36 @@ internal open class DefaultToolLoop(
         finalText: String,
         outputParser: (String) -> O,
         state: LoopState,
-    ): ToolLoopResult<O> = ToolLoopResult(
-        result = outputParser(finalText),
-        rawResponseText = finalText,
-        conversationHistory = state.conversationHistory,
-        totalIterations = state.iterations,
-        injectedTools = state.injectedTools,
-        removedTools = state.removedTools,
-        totalUsage = state.accumulatedUsage,
-        replanRequested = state.replanRequested,
-        replanReason = state.replanReason,
-        blackboardUpdater = state.blackboardUpdater,
-    )
+    ): ToolLoopResult<O> {
+        val parsedResult = try {
+            outputParser(finalText)
+        } catch (exception: ThinkingException) {
+            val providerBlocks = state.thinkingContent.map {
+                ThinkingBlock(
+                    content = it,
+                    tagType = ThinkingTagType.NO_PREFIX,
+                    tagValue = "",
+                )
+            }
+            throw ThinkingException(
+                message = exception.message ?: "Output conversion failed",
+                thinkingBlocks = providerBlocks + exception.thinkingBlocks,
+            )
+        }
+        return ToolLoopResult(
+            result = parsedResult,
+            rawResponseText = finalText,
+            conversationHistory = state.conversationHistory,
+            totalIterations = state.iterations,
+            injectedTools = state.injectedTools,
+            removedTools = state.removedTools,
+            totalUsage = state.accumulatedUsage,
+            replanRequested = state.replanRequested,
+            replanReason = state.replanReason,
+            blackboardUpdater = state.blackboardUpdater,
+            thinkingContent = state.thinkingContent.toList(),
+        )
+    }
 
     /**
      * Process all tool calls from a single LLM response.
@@ -487,6 +509,7 @@ internal open class DefaultToolLoop(
         var replanRequested: Boolean = false,
         var replanReason: String? = null,
         var blackboardUpdater: BlackboardUpdater = BlackboardUpdater {},
+        val thinkingContent: MutableList<String> = mutableListOf(),
         /** When set, the tool loop returns this content directly without sending it back to the LLM. */
         var returnDirectContent: String? = null,
     )

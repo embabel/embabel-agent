@@ -99,6 +99,24 @@ class DelegatingStreamingTest {
     }
 
     @Nested
+    inner class GenerateStreamWithThinkingTest {
+
+        @Test
+        fun `should delegate to delegate generateStreamWithThinking`() {
+            val mockStream = Flux.just(
+                StreamingEvent.Thinking("Reasoning"),
+                StreamingEvent.Object("Answer"),
+            )
+            every { mockDelegate.generateStreamWithThinking() } returns mockStream
+
+            val result = createStreamingOperations().generateStreamWithThinking()
+
+            verify { mockDelegate.generateStreamWithThinking() }
+            assertEquals(mockStream.collectList().block(), result.collectList().block())
+        }
+    }
+
+    @Nested
     inner class CreateObjectStreamTest {
 
         @Test

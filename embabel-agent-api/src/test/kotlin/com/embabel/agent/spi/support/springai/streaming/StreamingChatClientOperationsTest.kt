@@ -22,6 +22,7 @@ import com.embabel.agent.core.internal.streaming.StreamingLlmOperations
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
+import com.embabel.common.core.streaming.StreamingEvent
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
@@ -32,6 +33,10 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.chat.messages.AssistantMessage
+import org.springframework.ai.chat.metadata.ChatGenerationMetadata
+import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.tool.ToolCallback
 import reactor.core.publisher.Flux
@@ -356,6 +361,34 @@ class StreamingChatClientOperationsTest {
     }
 
     @Test
+    fun `thinking text stream preserves metadata on direct Spring AI path`() {
+        mockChatClientForStructuredStreaming(
+            Flux.just(
+                ChatResponse(
+                    listOf(
+                        generation(
+                            text = "answer",
+                            properties = mapOf("reasoningContent" to "provider reasoning"),
+                        )
+                    )
+                )
+            )
+        )
+
+        val result = streamingOperations.generateStreamWithThinking(
+            listOf(UserMessage("test")),
+            mockInteraction,
+            mockAgentProcess,
+            mockAction,
+        )
+
+        StepVerifier.create(result)
+            .expectNext(StreamingEvent.Thinking("provider reasoning"))
+            .expectNext(StreamingEvent.Object("answer"))
+            .verifyComplete()
+    }
+
+    @Test
     fun `should handle real streaming with reactive callbacks`() {
         // Given: Mixed content with multiple events
         val chunkFlux = Flux.just(
@@ -477,8 +510,31 @@ class StreamingChatClientOperationsTest {
         every { mockRequestSpec.options(any()) } returns mockRequestSpec
         every { mockRequestSpec.stream() } returns mockContentStreamSpec
         every { mockContentStreamSpec.content() } returns chunkFlux
+        every { mockContentStreamSpec.chatResponse() } returns chunkFlux.map { chunk ->
+            ChatResponse(listOf(generation(text = chunk)))
+        }
 
     }
+
+    private fun mockChatClientForStructuredStreaming(responseFlux: Flux<ChatResponse>) {
+        val mockRequestSpec = mockk<ChatClient.ChatClientRequestSpec>(relaxed = true)
+        val mockResponseSpec = mockk<ChatClient.StreamResponseSpec>(relaxed = true)
+
+        every { mockChatClient.prompt(any<Prompt>()) } returns mockRequestSpec
+        every { mockRequestSpec.toolCallbacks(any<List<ToolCallback>>()) } returns mockRequestSpec
+        every { mockRequestSpec.options(any()) } returns mockRequestSpec
+        every { mockRequestSpec.stream() } returns mockResponseSpec
+        every { mockResponseSpec.chatResponse() } returns responseFlux
+    }
+
+    private fun generation(
+        text: String,
+        properties: Map<String, Any> = emptyMap(),
+        metadata: Map<String, Any> = emptyMap(),
+    ): Generation = Generation(
+        AssistantMessage.builder().content(text).properties(properties).build(),
+        ChatGenerationMetadata.builder().metadata(metadata).build(),
+    )
 
     /**
      * Tests for useMessageStreamer=true (decoupled streaming path via LlmMessageStreamer).
@@ -563,6 +619,35 @@ class StreamingChatClientOperationsTest {
                 }
                 .expectComplete()
                 .verify(Duration.ofSeconds(1))
+        }
+
+        @Test
+        fun `should preserve metadata in structured message streamer path`() {
+            mockChatClientForStructuredStreaming(
+                Flux.just(
+                    ChatResponse(
+                        listOf(
+                            generation(
+                                text = "{\"name\":\"Test\",\"value\":42}\n",
+                                metadata = mapOf("thinking" to "provider reasoning"),
+                            )
+                        )
+                    )
+                )
+            )
+
+            val result = streamingOpsWithStreamer.createObjectStreamWithThinking(
+                messages = listOf(UserMessage("test")),
+                interaction = mockInteraction,
+                outputClass = TestItem::class.java,
+                agentProcess = mockAgentProcess,
+                action = mockAction,
+            )
+
+            StepVerifier.create(result)
+                .expectNext(StreamingEvent.Thinking("provider reasoning"))
+                .expectNext(StreamingEvent.Object(TestItem("Test", 42)))
+                .verifyComplete()
         }
     }
 }

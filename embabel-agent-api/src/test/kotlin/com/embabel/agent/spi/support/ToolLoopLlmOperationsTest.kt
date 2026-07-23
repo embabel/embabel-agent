@@ -997,6 +997,32 @@ class ToolLoopLlmOperationsTest {
         }
 
         @Test
+        fun `doTransformWithThinking includes provider thinking from the message sender`() {
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(
+                    LlmMessageResponse(
+                        message = AssistantMessage("final answer"),
+                        textContent = "final answer",
+                        thinkingContent = listOf("provider reasoning", "provider reasoning"),
+                    )
+                )
+            )
+            val operations = createTestableOperations(messageSender)
+
+            val result = operations.testDoTransformWithThinking(
+                messages = listOf(UserMessage("question")),
+                interaction = createInteraction(),
+                outputClass = String::class.java,
+            )
+
+            assertEquals("final answer", result.result)
+            assertEquals(
+                listOf("provider reasoning", "provider reasoning"),
+                result.thinkingBlocks.map { it.content },
+            )
+        }
+
+        @Test
         fun `doTransformWithThinking returns structured output with thinking blocks extracted`() {
             data class TestOutput(val message: String)
 

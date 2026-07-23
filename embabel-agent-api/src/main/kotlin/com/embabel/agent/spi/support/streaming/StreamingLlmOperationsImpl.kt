@@ -17,12 +17,14 @@ package com.embabel.agent.spi.support.streaming
 
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
+import com.embabel.agent.spi.loop.streaming.LlmStreamChunk
 import com.embabel.agent.core.internal.streaming.StreamingLlmOperations
 import com.embabel.agent.spi.support.PROMPT_ELEMENT_SEPARATOR
 import com.embabel.agent.spi.support.ToolResolutionHelper
@@ -36,7 +38,6 @@ import com.embabel.common.core.streaming.StreamingEvent
 import tools.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import reactor.core.publisher.Flux
-import reactor.core.publisher.Mono
 
 /**
  * Vendor-neutral implementation of [StreamingLlmOperations].
@@ -74,6 +75,14 @@ internal class StreamingLlmOperationsImpl(
     ): Flux<String> {
         return doTransformStream(messages, interaction, null, agentProcess, action)
     }
+
+    override fun generateStreamWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        agentProcess: AgentProcess,
+        action: Action?,
+    ): Flux<StreamingEvent<String>> =
+        doTransformStreamWithThinking(messages, interaction, null, agentProcess, action)
 
     override fun <O> createObjectStream(
         messages: List<Message>,
@@ -120,21 +129,34 @@ internal class StreamingLlmOperationsImpl(
         agentProcess: AgentProcess?,
         action: Action?,
     ): Flux<String> {
-        // Build prompt contributions
-        val promptContributions = buildPromptContributions(interaction)
+        return streamResponse(
+            messages = messages,
+            interaction = interaction,
+            llmRequestEvent = llmRequestEvent,
+            agentProcess = agentProcess,
+            action = action,
+        ) { preparedMessages, tools, inspectors ->
+            messageStreamer.stream(preparedMessages, tools, inspectors)
+        }
+    }
 
-        // Guardrails: Pre-validation of user input
-        val userMessages = messages.filterIsInstance<UserMessage>()
-        validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
-
-        // Resolve and decorate tools
-        val tools = resolveTools(interaction, agentProcess, action)
-
-        // Build messages with contributions
-        val messagesWithContributions = buildMessagesWithContributions(messages, promptContributions)
-
-        // Stream raw chunks from LLM
-        return messageStreamer.stream(messagesWithContributions, tools, interaction.toolCallInspectors)
+    override fun doTransformStreamWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        llmRequestEvent: LlmRequestEvent<String>?,
+        agentProcess: AgentProcess?,
+        action: Action?,
+    ): Flux<StreamingEvent<String>> {
+        val chunks: Flux<LlmStreamChunk> = streamResponse(
+            messages = messages,
+            interaction = interaction,
+            llmRequestEvent = llmRequestEvent,
+            agentProcess = agentProcess,
+            action = action,
+        ) { preparedMessages, tools, inspectors ->
+            messageStreamer.streamWithThinking(preparedMessages, tools, inspectors)
+        }
+        return chunks.toTaggedThinkingEvents()
     }
 
     override fun <O> doTransformObjectStream(
@@ -183,8 +205,8 @@ internal class StreamingLlmOperationsImpl(
      * Internal unified streaming implementation that handles the complete transformation pipeline.
      *
      * Pipeline:
-     * 1. Raw LLM chunks from [LlmMessageStreamer]
-     * 2. Line buffering via [rawChunksToLines]
+     * 1. Structured LLM chunks from [LlmMessageStreamer]
+     * 2. Per-subscription line buffering via [toThinkingStreamItems]
      * 3. Event generation via [StreamingJacksonOutputConverter]
      */
     private fun <O> doTransformObjectStreamInternal(
@@ -229,18 +251,35 @@ internal class StreamingLlmOperationsImpl(
         // Build messages with contributions
         val messagesWithContributions = buildMessagesWithContributions(messages, fullPromptContributions)
 
-        // Step 1: Raw chunk stream from LLM
-        val rawChunkFlux: Flux<String> = messageStreamer.stream(messagesWithContributions, tools, interaction.toolCallInspectors)
-            .filter { it.isNotEmpty() }
-            .doOnNext { chunk -> logger.trace("RAW CHUNK: '${chunk.replace("\n", "\\n")}'") }
+        // Provider thinking is kept as an ordered event before text from the same chunk.
+        val rawChunkFlux = messageStreamer.streamWithThinking(messagesWithContributions, tools, interaction.toolCallInspectors)
+            .filter { it.textContent.isNotEmpty() || it.thinkingContent.any { thinking -> thinking.isNotBlank() } }
+            .doOnNext { chunk -> logger.trace("RAW STRUCTURED CHUNK: $chunk") }
 
-        // Step 2: Transform raw chunks to complete newline-delimited lines
-        val lineFlux: Flux<String> = rawChunkFlux
-            .transform { chunkFlux -> rawChunksToLines(chunkFlux) }
-            .doOnNext { line -> logger.trace("COMPLETE LINE: '$line'") }
+        return rawChunkFlux.toThinkingStreamItems()
+            .doOnNext { item -> logger.trace("STREAM ITEM: $item") }
+            .concatMap { item ->
+                when (item) {
+                    is ThinkingStreamItem.Thinking -> Flux.just(StreamingEvent.Thinking(item.content))
+                    is ThinkingStreamItem.Text -> streamingConverter.convertStreamWithThinking(item.content)
+                }
+            }
+    }
 
-        // Step 3: Convert lines to StreamingEvent (thinking + objects)
-        return lineFlux.concatMap { line -> streamingConverter.convertStreamWithThinking(line) }
+    private fun <T> streamResponse(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        llmRequestEvent: LlmRequestEvent<*>?,
+        agentProcess: AgentProcess?,
+        action: Action?,
+        stream: (List<Message>, List<Tool>, List<ToolCallInspector>) -> Flux<T>,
+    ): Flux<T> {
+        val promptContributions = buildPromptContributions(interaction)
+        val userMessages = messages.filterIsInstance<UserMessage>()
+        validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
+        val tools = resolveTools(interaction, agentProcess, action)
+        val messagesWithContributions = buildMessagesWithContributions(messages, promptContributions)
+        return stream(messagesWithContributions, tools, interaction.toolCallInspectors)
     }
 
     // ========================================
@@ -273,33 +312,4 @@ internal class StreamingLlmOperationsImpl(
         return ToolResolutionHelper.resolveAndDecorate(interaction, agentProcess, action, toolDecorator)
     }
 
-    /**
-     * Convert raw streaming chunks to NDJSON lines.
-     * Handles all cases: multiple \n in one chunk, no \n in chunk, line spanning many chunks.
-     */
-    private fun rawChunksToLines(raw: Flux<String>): Flux<String> {
-        val buffer = StringBuilder()
-        return raw.concatMap { chunk ->
-            buffer.append(chunk)
-            val lines = mutableListOf<String>()
-            while (true) {
-                val idx = buffer.indexOf('\n')
-                if (idx < 0) break
-                val line = buffer.substring(0, idx).trim()
-                if (line.isNotEmpty()) lines.add(line)
-                buffer.delete(0, idx + 1)
-            }
-            Flux.fromIterable(lines)
-        }.doOnComplete {
-            if (buffer.isNotEmpty()) {
-                val finalLine = buffer.toString().trim()
-                if (finalLine.isNotEmpty()) {
-                    logger.trace("FINAL LINE: '$finalLine'")
-                }
-            }
-        }.concatWith(
-            Mono.fromSupplier { buffer.toString().trim() }
-                .filter { it.isNotEmpty() }
-        )
-    }
 }
