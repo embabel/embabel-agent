@@ -69,6 +69,33 @@ class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport<GoogleGenAiC
     }
 
     @Test
+    fun `should set include thoughts false for Thinking NONE`() {
+        // Prepare
+        val llmOptions = LlmOptions().withThinking(Thinking.NONE)
+
+        // Execute
+        val options = optionsConverter.convertOptions(llmOptions)
+
+        // Verify
+        // None has extractThinking=false; converter always writes includeThoughts when thinking != null
+        assertEquals(false, options.includeThoughts)
+        assertNull(options.thinkingBudget)
+    }
+
+    @Test
+    fun `should leave include thoughts unset when thinking is null`() {
+        // Prepare
+        val llmOptions = LlmOptions()
+
+        // Execute
+        val options = optionsConverter.convertOptions(llmOptions)
+
+        // Verify
+        // applyThinking early-returns when thinking is null; it does not force includeThoughts=false
+        assertNull(options.includeThoughts)
+    }
+
+    @Test
     fun `should not set thinking budget when thinking is null`() {
         val options = optionsConverter.convertOptions(LlmOptions())
         assertNull(options.thinkingBudget)

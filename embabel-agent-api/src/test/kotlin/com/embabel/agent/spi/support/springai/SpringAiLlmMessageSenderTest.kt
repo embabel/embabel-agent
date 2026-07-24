@@ -27,6 +27,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.AssistantMessage as SpringAiAssistantMessage
@@ -617,6 +618,659 @@ class SpringAiLlmMessageSenderTest {
             assertThat(signatures).hasSize(1)
             assertThat(signatures!![0]).isInstanceOf(ByteArray::class.java)
             assertThat(signatures[0] as ByteArray).containsExactly(3, 4)
+        }
+    }
+
+    /**
+     * Google GenAI (and similar providers) emit one Spring AI generation per response part.
+     * With includeThoughts enabled, thought parts arrive first (metadata isThought=true)
+     * and the final answer is a later non-thought generation. Using only ChatResponse.result
+     * would discard the structured answer and break createObject/thinking structured output.
+     *
+     * See commit 04a45394 (thought signatures / includeThoughts) and Spring AI
+     * GoogleGenAiChatModel.responseCandidateToGeneration.
+     */
+    @Nested
+    inner class GoogleGenAiThoughtAndAnswerGenerationsTests {
+
+        @Test
+        fun `uses non-thought generation for structured answer when first generation is thought`() {
+            // Prepare
+            val thoughtGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("Let me reason carefully about Florida climate...")
+                    .properties(mapOf("isThought" to true, "candidateIndex" to 0))
+                    .build()
+            )
+            val answerJson = """{"name":"July","temperature":91}"""
+            val answerGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content(answerJson)
+                    .properties(mapOf("isThought" to false, "candidateIndex" to 0))
+                    .build()
+            )
+
+            val mockMetadata = mockk<ChatResponseMetadata> {
+                every { usage } returns mockk(relaxed = true)
+            }
+            val chatResponse = mockk<ChatResponse> {
+                every { result } returns thoughtGeneration
+                every { results } returns listOf(thoughtGeneration, answerGeneration)
+                every { metadata } returns mockMetadata
+            }
+            val chatModel = mockk<ChatModel> {
+                every { call(any<Prompt>()) } returns chatResponse
+            }
+            val sender = SpringAiLlmMessageSender(chatModel, testChatOptions())
+
+            // Execute
+            val response = sender.call(
+                messages = listOf(UserMessage("Hottest month in Florida?")),
+                tools = emptyList(),
+            )
+
+            // Verify
+            assertThat(response.textContent).isEqualTo(answerJson)
+            assertThat(response.textContent).doesNotContain("Let me reason carefully")
+        }
+
+        @Test
+        fun `prefers answer-only content for structured parse`() {
+            // Prepare
+            val thoughtGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("Internal analysis of seasonal temperatures.")
+                    .properties(mapOf("isThought" to true))
+                    .build()
+            )
+            val answerJson = """{"name":"August","temperature":90}"""
+            val answerGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content(answerJson)
+                    .properties(mapOf("isThought" to false))
+                    .build()
+            )
+
+            val mockMetadata = mockk<ChatResponseMetadata> {
+                every { usage } returns mockk(relaxed = true)
+            }
+            val chatResponse = mockk<ChatResponse> {
+                every { result } returns thoughtGeneration
+                every { results } returns listOf(thoughtGeneration, answerGeneration)
+                every { metadata } returns mockMetadata
+            }
+            val chatModel = mockk<ChatModel> {
+                every { call(any<Prompt>()) } returns chatResponse
+            }
+            // Prefer answer-only content for structured parse; do not require thought prefix.
+            val sender = SpringAiLlmMessageSender(chatModel, testChatOptions())
+
+            // Execute
+            val response = sender.call(
+                messages = listOf(UserMessage("Hottest month?")),
+                tools = emptyList(),
+            )
+
+            // Verify
+            assertThat(response.textContent).contains(answerJson)
+            assertThat(response.textContent.trim()).isEqualTo(answerJson)
+        }
+
+        @Test
+        fun `falls back to first non-empty generation when isThought metadata is absent`() {
+            // Prepare
+            val emptyGeneration = Generation(SpringAiAssistantMessage(""))
+            val answerGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("""{"ok":true}""")
+                    .build()
+            )
+
+            val mockMetadata = mockk<ChatResponseMetadata> {
+                every { usage } returns mockk(relaxed = true)
+            }
+            val chatResponse = mockk<ChatResponse> {
+                every { result } returns emptyGeneration
+                every { results } returns listOf(emptyGeneration, answerGeneration)
+                every { metadata } returns mockMetadata
+            }
+            val chatModel = mockk<ChatModel> {
+                every { call(any<Prompt>()) } returns chatResponse
+            }
+            val sender = SpringAiLlmMessageSender(chatModel, testChatOptions())
+
+            // Execute
+            val response = sender.call(
+                messages = listOf(UserMessage("status")),
+                tools = emptyList(),
+            )
+
+            // Verify
+            assertThat(response.textContent).isEqualTo("""{"ok":true}""")
+        }
+
+        @Test
+        fun `returns thought text when only thought generations are present`() {
+            // Prepare
+            val thoughtGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("Still thinking, no final answer part yet.")
+                    .properties(mapOf("isThought" to true))
+                    .build()
+            )
+            val emptyAnswer = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("")
+                    .properties(mapOf("isThought" to false))
+                    .build()
+            )
+
+            val mockMetadata = mockk<ChatResponseMetadata> {
+                every { usage } returns mockk(relaxed = true)
+            }
+            val chatResponse = mockk<ChatResponse> {
+                every { result } returns thoughtGeneration
+                every { results } returns listOf(thoughtGeneration, emptyAnswer)
+                every { metadata } returns mockMetadata
+            }
+            val chatModel = mockk<ChatModel> {
+                every { call(any<Prompt>()) } returns chatResponse
+            }
+            val sender = SpringAiLlmMessageSender(chatModel, testChatOptions())
+
+            // Execute
+            val response = sender.call(
+                messages = listOf(UserMessage("question")),
+                tools = emptyList(),
+            )
+
+            // Verify
+            // Prefer non-thought when present; if none, fall back to any non-blank text (thought).
+            assertThat(response.textContent).isEqualTo("Still thinking, no final answer part yet.")
+        }
+
+        @Test
+        fun `uses first non-thought answer generation for structured safety`() {
+            // Prepare
+            val thoughtGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("reasoning")
+                    .properties(mapOf("isThought" to true))
+                    .build()
+            )
+            val answerPart1 = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("""{"name":"July"}""")
+                    .properties(mapOf("isThought" to false))
+                    .build()
+            )
+            val answerPart2 = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("""{"temperature":91}""")
+                    .properties(mapOf("isThought" to false))
+                    .build()
+            )
+
+            val mockMetadata = mockk<ChatResponseMetadata> {
+                every { usage } returns mockk(relaxed = true)
+            }
+            val chatResponse = mockk<ChatResponse> {
+                every { result } returns thoughtGeneration
+                every { results } returns listOf(thoughtGeneration, answerPart1, answerPart2)
+                every { metadata } returns mockMetadata
+            }
+            val chatModel = mockk<ChatModel> {
+                every { call(any<Prompt>()) } returns chatResponse
+            }
+            val sender = SpringAiLlmMessageSender(chatModel, testChatOptions())
+
+            // Execute
+            val response = sender.call(
+                messages = listOf(UserMessage("question")),
+                tools = emptyList(),
+            )
+
+            // Verify
+            assertThat(response.textContent).isEqualTo("""{"name":"July"}""")
+            assertThat(response.textContent).doesNotContain("reasoning")
+            assertThat(response.textContent).doesNotContain("temperature")
+        }
+
+        @Test
+        fun `prefers non-thought text when multi-gen includes tools and thought parts`() {
+            // Prepare
+            val thoughtGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("I should call a tool")
+                    .properties(mapOf("isThought" to true, "thoughtSignatures" to listOf(byteArrayOf(1))))
+                    .build()
+            )
+            val toolGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("""{"status":"calling"}""")
+                    .toolCalls(
+                        listOf(
+                            SpringAiAssistantMessage.ToolCall(
+                                "call-1",
+                                "function",
+                                "lookup_climate",
+                                """{"region":"Florida"}""",
+                            )
+                        )
+                    )
+                    .properties(
+                        mapOf(
+                            "isThought" to false,
+                            "thoughtSignatures" to listOf(byteArrayOf(9, 9)),
+                        )
+                    )
+                    .build()
+            )
+
+            val mockMetadata = mockk<ChatResponseMetadata> {
+                every { usage } returns mockk(relaxed = true)
+            }
+            val chatResponse = mockk<ChatResponse> {
+                every { result } returns thoughtGeneration
+                every { results } returns listOf(thoughtGeneration, toolGeneration)
+                every { metadata } returns mockMetadata
+            }
+            val chatModel = mockk<ChatModel> {
+                every { call(any<Prompt>()) } returns chatResponse
+            }
+            val sender = SpringAiLlmMessageSender(chatModel, testChatOptions())
+
+            // Execute
+            val response = sender.call(
+                messages = listOf(UserMessage("climate?")),
+                tools = emptyList(),
+            )
+
+            // Verify
+            assertThat(response.message).isInstanceOf(AssistantMessageWithToolCalls::class.java)
+            val withTools = response.message as AssistantMessageWithToolCalls
+            assertThat(withTools.toolCalls).hasSize(1)
+            assertThat(withTools.toolCalls[0].name).isEqualTo("lookup_climate")
+            // Non-thought answer text is preferred over thought prose for structured conversion.
+            assertThat(response.textContent).isEqualTo("""{"status":"calling"}""")
+            // Metadata map merge is last-wins for thoughtSignatures (documented current contract).
+            val signatures = withTools.metadata["thoughtSignatures"] as? List<*>
+            assertThat(signatures).isNotNull
+            assertThat(signatures!![0] as ByteArray).containsExactly(9, 9)
+        }
+    }
+
+    /**
+     * Regression tests for multi-generation ChatResponse handling after Google GenAI
+     * thought-signature support (#1691) and non-thought answer selection (#1813).
+     */
+    @Nested
+    inner class MultiGenerationRegressionTests {
+
+        @Test
+        fun `n-best or multi non-thought texts use first non-thought only for structured safety`() {
+            // Prepare
+            // Avoid joining two JSON payloads with newline (breaks Jackson).
+            // Prefer first non-blank non-thought generation when no isThought=true parts exist.
+            val candidateA = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("""{"name":"July","temperature":91}""")
+                    .build()
+            )
+            val candidateB = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("""{"name":"August","temperature":90}""")
+                    .build()
+            )
+            val sender = senderFor(listOf(candidateA, candidateB), resultGeneration = candidateA)
+
+            // Execute
+            val response = sender.call(
+                messages = listOf(UserMessage("hottest month?")),
+                tools = emptyList(),
+            )
+
+            // Verify
+            assertThat(response.textContent)
+                .describedAs("multi non-thought generations must not be newline-joined for structured bind safety")
+                .isEqualTo("""{"name":"July","temperature":91}""")
+            assertThat(response.textContent).doesNotContain("August")
+        }
+
+        @Test
+        fun `isThought string true is treated as thought not answer`() {
+            // Prepare
+            // Robust against adapters that store isThought as String "true".
+            val thoughtGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("string-typed thought prose only")
+                    .properties(mapOf("isThought" to "true"))
+                    .build()
+            )
+            val answerJson = """{"ok":true}"""
+            val answerGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content(answerJson)
+                    .properties(mapOf("isThought" to "false"))
+                    .build()
+            )
+            val sender = senderFor(listOf(thoughtGeneration, answerGeneration), resultGeneration = thoughtGeneration)
+
+            // Execute
+            val response = sender.call(
+                messages = listOf(UserMessage("q")),
+                tools = emptyList(),
+            )
+
+            // Verify
+            assertThat(response.textContent)
+                .describedAs("isThought=\"true\" (String) must not be treated as answer text")
+                .isEqualTo(answerJson)
+            assertThat(response.textContent).doesNotContain("string-typed thought")
+        }
+
+        @Test
+        fun `isThought string true with surrounding whitespace is treated as thought not answer`() {
+            // Prepare
+            val thoughtGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("whitespace-padded thought prose")
+                    .properties(mapOf("isThought" to " TRUE "))
+                    .build()
+            )
+            val answerJson = """{"ok":true}"""
+            val answerGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content(answerJson)
+                    .properties(mapOf("isThought" to "false"))
+                    .build()
+            )
+            val sender = senderFor(listOf(thoughtGeneration, answerGeneration), resultGeneration = thoughtGeneration)
+
+            // Execute
+            val response = sender.call(
+                messages = listOf(UserMessage("q")),
+                tools = emptyList(),
+            )
+
+            // Verify
+            assertThat(response.textContent).isEqualTo(answerJson)
+            assertThat(response.textContent).doesNotContain("whitespace-padded thought")
+        }
+
+        @Test
+        fun `thought then empty non-thought then JSON selects JSON only`() {
+            // Prepare
+            val thoughtGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("reasoning about climate")
+                    .properties(mapOf("isThought" to true))
+                    .build()
+            )
+            val emptyNonThought = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("   ")
+                    .properties(mapOf("isThought" to false))
+                    .build()
+            )
+            val answerJson = """{"name":"July","temperature":91}"""
+            val answerGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content(answerJson)
+                    .properties(mapOf("isThought" to false))
+                    .build()
+            )
+            val sender = senderFor(
+                listOf(thoughtGeneration, emptyNonThought, answerGeneration),
+                resultGeneration = thoughtGeneration,
+            )
+
+            // Execute
+            val response = sender.call(
+                messages = listOf(UserMessage("q")),
+                tools = emptyList(),
+            )
+
+            // Verify
+            assertThat(response.textContent).isEqualTo(answerJson)
+            assertThat(response.textContent).doesNotContain("reasoning")
+        }
+
+        @Test
+        fun `thought prose containing JSON-like snippets does not leak into structured answer text`() {
+            // Prepare
+            val thoughtGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("""Maybe the answer shape is {"name":"Fake","temperature":0}.""")
+                    .properties(mapOf("isThought" to true))
+                    .build()
+            )
+            val answerJson = """{"name":"July","temperature":91}"""
+            val answerGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content(answerJson)
+                    .properties(mapOf("isThought" to false))
+                    .build()
+            )
+            val sender = senderFor(listOf(thoughtGeneration, answerGeneration), resultGeneration = thoughtGeneration)
+
+            // Execute
+            val response = sender.call(
+                messages = listOf(UserMessage("q")),
+                tools = emptyList(),
+            )
+
+            // Verify
+            assertThat(response.textContent).isEqualTo(answerJson)
+            assertThat(response.textContent).doesNotContain("Fake")
+        }
+
+        @Test
+        fun `empty ChatResponse results fail fast with clear error`() {
+            // Prepare
+            val mockMetadata = mockk<ChatResponseMetadata>(relaxed = true)
+            val chatResponse = mockk<ChatResponse> {
+                every { result } returns null
+                every { results } returns emptyList()
+                every { metadata } returns mockMetadata
+            }
+            val chatModel = mockk<ChatModel> {
+                every { call(any<Prompt>()) } returns chatResponse
+            }
+            val sender = SpringAiLlmMessageSender(chatModel, testChatOptions())
+
+            // Execute
+            val thrown = assertThatThrownBy {
+                sender.call(messages = listOf(UserMessage("q")), tools = emptyList())
+            }
+
+            // Verify
+            thrown
+                .isInstanceOf(IllegalArgumentException::class.java)
+                .hasMessageContaining("no generations")
+        }
+
+        @Test
+        fun `thoughtSignatures from thought gen survive when answer gen is selected without tools`() {
+            // Prepare
+            // Selecting non-thought answer text must not drop Google thoughtSignatures
+            // needed for later tool turns (metadata merge across multi-part response).
+            val signatures = listOf(byteArrayOf(1, 2, 3, 4))
+            val thoughtGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("internal thought")
+                    .properties(
+                        mapOf(
+                            "isThought" to true,
+                            "thoughtSignatures" to signatures,
+                        )
+                    )
+                    .build()
+            )
+            val answerJson = """{"name":"July"}"""
+            val answerGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content(answerJson)
+                    .properties(mapOf("isThought" to false))
+                    .build()
+            )
+            val sender = senderFor(listOf(thoughtGeneration, answerGeneration), resultGeneration = thoughtGeneration)
+
+            val response = sender.call(messages = listOf(UserMessage("q")), tools = emptyList(),)
+            // Verify
+            assertThat(response.textContent).isEqualTo(answerJson)
+
+            // After toEmbabelMessage, signatures must still be reachable for Google continuation.
+            val embabelMeta = when (val msg = response.message) {
+                is AssistantMessageWithToolCalls -> msg.metadata
+                else -> emptyMap()
+            }
+            val preserved = embabelMeta["thoughtSignatures"] as? List<*>
+            assertThat(preserved)
+                .describedAs("thoughtSignatures from thought parts must survive answer selection without tools")
+                .isNotNull
+            assertThat(preserved!![0] as ByteArray).containsExactly(1, 2, 3, 4)
+        }
+
+        @Test
+        fun `duplicate thoughtSignatures use last generation metadata`() {
+            // Prepare
+            val thoughtGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("internal thought")
+                    .properties(
+                        mapOf(
+                            "isThought" to true,
+                            "thoughtSignatures" to listOf(byteArrayOf(1, 1)),
+                        )
+                    )
+                    .build()
+            )
+            val answerGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("""{"name":"July"}""")
+                    .properties(
+                        mapOf(
+                            "isThought" to false,
+                            "thoughtSignatures" to listOf(byteArrayOf(2, 2)),
+                        )
+                    )
+                    .build()
+            )
+            val sender = senderFor(listOf(thoughtGeneration, answerGeneration), resultGeneration = thoughtGeneration)
+
+            // Execute
+            val response = sender.call(
+                messages = listOf(UserMessage("q")),
+                tools = emptyList(),
+            )
+
+            // Verify
+            val embabelMeta = when (val msg = response.message) {
+                is AssistantMessageWithToolCalls -> msg.metadata
+                else -> emptyMap()
+            }
+            val preserved = embabelMeta["thoughtSignatures"] as? List<*>
+            assertThat(preserved).isNotNull
+            assertThat(preserved!![0] as ByteArray).containsExactly(2, 2)
+        }
+
+        @Test
+        fun `tools on thought-marked gen still surface tool calls with non-thought answer text preferred`() {
+            // Prepare
+            val thoughtWithTools = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("I will call a tool")
+                    .toolCalls(
+                        listOf(
+                            SpringAiAssistantMessage.ToolCall(
+                                "call-thought",
+                                "function",
+                                "from_thought_part",
+                                "{}",
+                            )
+                        )
+                    )
+                    .properties(mapOf("isThought" to true))
+                    .build()
+            )
+            val answerGeneration = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("""{"phase":"answer"}""")
+                    .properties(mapOf("isThought" to false))
+                    .build()
+            )
+            val sender = senderFor(listOf(thoughtWithTools, answerGeneration), resultGeneration = thoughtWithTools)
+
+            // Execute
+            val response = sender.call(messages = listOf(UserMessage("q")), tools = emptyList(),)
+
+            // Verify
+            assertThat(response.message).isInstanceOf(AssistantMessageWithToolCalls::class.java)
+
+            val withTools = response.message as AssistantMessageWithToolCalls
+            assertThat(withTools.toolCalls.map { it.name }).contains("from_thought_part")
+            assertThat(response.textContent)
+                .describedAs("answer text should prefer non-thought generation even when tools sit on thought gen")
+                .isEqualTo("""{"phase":"answer"}""")
+        }
+
+        @Test
+        fun `tool calls survive when only available text is thought prose`() {
+            // Prepare
+            val thoughtWithTools = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("I should call a tool and not expose this thought")
+                    .toolCalls(
+                        listOf(
+                            SpringAiAssistantMessage.ToolCall(
+                                "call-thought-only",
+                                "function",
+                                "from_thought_only_part",
+                                "{}",
+                            )
+                        )
+                    )
+                    .properties(mapOf("isThought" to true))
+                    .build()
+            )
+            val sender = senderFor(listOf(thoughtWithTools), resultGeneration = thoughtWithTools)
+
+            // Execute
+            val response = sender.call(
+                messages = listOf(UserMessage("q")),
+                tools = emptyList(),
+            )
+
+            // Verify
+            assertThat(response.message).isInstanceOf(AssistantMessageWithToolCalls::class.java)
+
+            val withTools = response.message as AssistantMessageWithToolCalls
+            assertThat(withTools.toolCalls.map { it.name }).contains("from_thought_only_part")
+            assertThat(response.textContent).isBlank()
+        }
+
+        /**
+         * Build a sender backed by a mocked [ChatModel] that returns exactly the supplied
+         * generations. This keeps each regression test focused on response resolution policy
+         * instead of repeating the same Spring AI mock setup.
+         */
+        private fun senderFor(
+            generations: List<Generation>,
+            resultGeneration: Generation,
+        ): SpringAiLlmMessageSender {
+            val mockMetadata = mockk<ChatResponseMetadata> {
+                every { usage } returns mockk(relaxed = true)
+            }
+            val chatResponse = mockk<ChatResponse> {
+                every { result } returns resultGeneration
+                every { results } returns generations
+                every { metadata } returns mockMetadata
+            }
+            val chatModel = mockk<ChatModel> {
+                every { call(any<Prompt>()) } returns chatResponse
+            }
+            return SpringAiLlmMessageSender(chatModel, testChatOptions())
         }
     }
 
