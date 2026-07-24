@@ -19,6 +19,7 @@ import com.embabel.chat.AssistantMessage
 import com.embabel.chat.UserMessage
 import com.embabel.common.core.thinking.ThinkingBlock
 import com.embabel.common.core.thinking.ThinkingResponse
+import com.embabel.common.core.thinking.ThinkingTagInjector
 import com.embabel.common.core.thinking.ThinkingTagType
 import io.mockk.every
 import io.mockk.mockk
@@ -223,4 +224,67 @@ class DelegatingThinkingTest {
     }
 
     data class TestItem(val name: String, val value: Int)
+
+    @Nested
+    inner class ThinkingTagTest {
+
+        @Test
+        fun `should inject ThinkingTagInjector when thinkingTag is set`() {
+            // Given
+            val thinkingTag = "decision_reasoning"
+            val messages = listOf(UserMessage("test prompt"))
+            val outputClass = String::class.java
+            val thinkingBlocks = listOf(
+                ThinkingBlock(
+                    content = "test thinking",
+                    tagType = ThinkingTagType.TAG,
+                    tagValue = thinkingTag
+                )
+            )
+            val expectedResponse = ThinkingResponse<String?>(
+                result = "test result",
+                thinkingBlocks = thinkingBlocks
+            )
+
+            every { mockDelegate.withPromptContributors(any()) } returns mockDelegate
+            every {
+                mockDelegate.createObjectIfPossibleWithThinking(messages, outputClass)
+            } returns expectedResponse
+
+            // When: Use thinking with a custom tag
+            val operations = DelegatingThinking(
+                delegate = mockDelegate,
+                thinkingTag = thinkingTag,
+            )
+            val result = operations.createObjectIfPossible(messages, outputClass)
+
+            // Then: Should have called withPromptContributors with ThinkingTagInjector
+            verify { mockDelegate.withPromptContributors(any()) }
+            assertEquals(expectedResponse, result)
+            assertEquals("test result", result.result)
+        }
+
+        @Test
+        fun `should not inject tag when thinkingTag is null`() {
+            // Given
+            val messages = listOf(UserMessage("test prompt"))
+            val outputClass = String::class.java
+            val expectedResponse = ThinkingResponse<String?>(
+                result = "test result",
+                thinkingBlocks = emptyList()
+            )
+
+            every {
+                mockDelegate.createObjectIfPossibleWithThinking(messages, outputClass)
+            } returns expectedResponse
+
+            // When: Use thinking without a tag (default)
+            val operations = DelegatingThinking(delegate = mockDelegate)
+            val result = operations.createObjectIfPossible(messages, outputClass)
+
+            // Then: Should NOT have called withPromptContributors
+            verify(exactly = 0) { mockDelegate.withPromptContributors(any()) }
+            assertEquals(expectedResponse, result)
+        }
+    }
 }

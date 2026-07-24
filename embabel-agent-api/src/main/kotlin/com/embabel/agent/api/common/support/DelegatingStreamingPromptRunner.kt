@@ -235,4 +235,10 @@ internal data class DelegatingStreamingPromptRunner(
         DelegatingThinking(
             delegate = delegate,
         )
+
+    override fun thinking(tag: String): PromptRunner.Thinking =
+        DelegatingThinking(
+            delegate = delegate,
+            thinkingTag = tag,
+        )
 }
