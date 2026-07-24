@@ -31,6 +31,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.toJavaDuration
 
+/** Verifies [AdaptivePipelineRagResponseEnhancer] latency-budget skip logs expose the enhancer and numeric timings. */
 class AdaptivePipelineRagResponseEnhancerLoggingTest {
 
     @Test

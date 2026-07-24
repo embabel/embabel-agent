@@ -24,6 +24,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
+/** Verifies [FacetedRagService] merges, ranks, filters, and deduplicates facet results while preserving requests. */
 class FacetedRagServiceTest {
 
     private fun chunkResult(id: String, score: Double) = SimpleSimilaritySearchResult(

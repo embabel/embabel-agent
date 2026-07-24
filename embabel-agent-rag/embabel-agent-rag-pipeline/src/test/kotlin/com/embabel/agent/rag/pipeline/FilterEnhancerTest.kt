@@ -28,6 +28,7 @@ import kotlin.test.assertNotSame
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
+/** Verifies [FilterEnhancer] metadata plus threshold, ranking, top-K, and no-op result handling. */
 class FilterEnhancerTest {
 
     private fun chunk(id: String, score: Double) = SimpleSimilaritySearchResult(
