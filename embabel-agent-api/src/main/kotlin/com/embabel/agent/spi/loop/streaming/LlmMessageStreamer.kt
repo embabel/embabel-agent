@@ -23,6 +23,14 @@ import com.embabel.chat.Message
 import reactor.core.publisher.Flux
 
 /**
+ * Provider-neutral content from one streaming response chunk.
+ */
+data class LlmStreamChunk @JvmOverloads constructor(
+    val textContent: String,
+    val thinkingContent: List<String> = emptyList(),
+)
+
+/**
  * Framework-agnostic interface for streaming LLM inference.
  *
  * Streaming counterpart of [LlmMessageSender]. Implementations handle the actual
@@ -56,4 +64,16 @@ fun interface LlmMessageStreamer {
         tools: List<Tool>,
         toolCallInspectors: List<ToolCallInspector>,
     ): Flux<String>
+
+    /**
+     * Stream text and separately supplied provider thinking content.
+     *
+     * The default keeps existing text-only implementations source compatible.
+     */
+    fun streamWithThinking(
+        messages: List<Message>,
+        tools: List<Tool>,
+        toolCallInspectors: List<ToolCallInspector>,
+    ): Flux<LlmStreamChunk> =
+        stream(messages, tools, toolCallInspectors).map { LlmStreamChunk(it) }
 }

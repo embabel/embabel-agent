@@ -58,6 +58,21 @@ interface StreamingLlmOperations {
     ): Flux<String>
 
     /**
+     * Generate text and thinking events from messages.
+     *
+     * The default wraps the existing text-only stream so third-party
+     * implementations remain source compatible.
+     */
+    fun generateStreamWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        agentProcess: AgentProcess,
+        action: Action?,
+    ): Flux<StreamingEvent<String>> =
+        generateStream(messages, interaction, agentProcess, action)
+            .map { StreamingEvent.Object(it) }
+
+    /**
      * Create a streaming list of objects from JSONL response in the context of an AgentProcess.
      * Each line in the LLM response should be a valid JSON object matching the output class.
      * Objects are emitted to the Flux as they are parsed from individual lines.
@@ -141,6 +156,21 @@ interface StreamingLlmOperations {
         agentProcess: AgentProcess? = null,
         action: Action? = null,
     ): Flux<String>
+
+    /**
+     * Low level text and thinking stream with optional platform context.
+     *
+     * The default wraps [doTransformStream] for source compatibility.
+     */
+    fun doTransformStreamWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        llmRequestEvent: LlmRequestEvent<String>?,
+        agentProcess: AgentProcess? = null,
+        action: Action? = null,
+    ): Flux<StreamingEvent<String>> =
+        doTransformStream(messages, interaction, llmRequestEvent, agentProcess, action)
+            .map { StreamingEvent.Object(it) }
 
     /**
      * Low level object streaming transform with optional platform context.

@@ -34,8 +34,9 @@ import com.embabel.chat.Message
  * @param replanRequested True if the loop terminated due to a tool requesting replanning
  * @param replanReason Human-readable explanation of why replan was requested
  * @param blackboardUpdater Callback to update the blackboard before replanning
+ * @param thinkingContent Thinking content collected across all LLM calls in the loop
  */
-data class ToolLoopResult<O>(
+data class ToolLoopResult<O> @JvmOverloads constructor(
     val result: O,
     val rawResponseText: String = "",
     val conversationHistory: List<Message>,
@@ -46,4 +47,5 @@ data class ToolLoopResult<O>(
     val replanRequested: Boolean = false,
     val replanReason: String? = null,
     val blackboardUpdater: BlackboardUpdater = BlackboardUpdater {},
+    val thinkingContent: List<String> = emptyList(),
 )

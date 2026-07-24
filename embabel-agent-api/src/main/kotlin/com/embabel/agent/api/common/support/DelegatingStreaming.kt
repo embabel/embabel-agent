@@ -38,6 +38,9 @@ internal data class DelegatingStreaming(
         return delegate.generateStream()
     }
 
+    override fun generateStreamWithThinking(): Flux<StreamingEvent<String>> =
+        delegate.generateStreamWithThinking()
+
     override fun <T> createObjectStream(itemClass: Class<T>): Flux<T> =
         delegate.createObjectStream(itemClass)
 

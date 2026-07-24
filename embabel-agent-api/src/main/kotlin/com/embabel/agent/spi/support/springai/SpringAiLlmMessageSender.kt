@@ -101,7 +101,8 @@ internal class SpringAiLlmMessageSender(
         // the first is empty and the second contains tool calls. We need to find the
         // generation with tool calls, or fall back to the first one if none have them.
         // See: https://github.com/embabel/embabel-agent/issues/1350
-        val assistantMessage = findGenerationWithToolCalls(response) ?: response.result!!.output
+        val normalizedGenerations = response.results.map { it.normalizedContent() }
+        val assistantMessage = selectAssistantMessage(normalizedGenerations)
         val embabelMessage = assistantMessage.toEmbabelMessage()
 
         // Extract usage information
@@ -111,6 +112,7 @@ internal class SpringAiLlmMessageSender(
             message = embabelMessage,
             textContent = assistantMessage.text ?: "",
             usage = usage,
+            thinkingContent = normalizedGenerations.flatMap { it.thinkingContent },
         )
     }
 
@@ -124,21 +126,25 @@ internal class SpringAiLlmMessageSender(
      * 1. Collect all tool calls from all generations
      * 2. Collect all text content from all generations
      * 3. If there are tool calls, create a merged AssistantMessage with all tool calls and combined text
-     * 4. If no tool calls, return null to fall back to first generation
+     * 4. If no tool calls, return the first non-thinking generation
      *
      * This ensures we don't lose valuable content (text or tool calls) from any generation.
      *
-     * @return A merged AssistantMessage with all tool calls and text, or null if no tool calls found
+     * @return A merged tool-call message, the first non-thinking message, or an empty message
      */
-    private fun findGenerationWithToolCalls(response: ChatResponse): org.springframework.ai.chat.messages.AssistantMessage? {
-        val allOutputs = response.results.map { it.output }
+    private fun selectAssistantMessage(
+        generations: List<SpringAiGenerationContent>,
+    ): org.springframework.ai.chat.messages.AssistantMessage {
+        val contentGenerations = generations.filterNot { it.thinkingOnly }
+        val allOutputs = contentGenerations.map { it.output }
 
         // Collect all tool calls from all generations
         val allToolCalls = allOutputs
             .flatMap { it.toolCalls ?: emptyList() }
 
         if (allToolCalls.isEmpty()) {
-            return null // No tool calls found, let caller use first generation
+            return allOutputs.firstOrNull()
+                ?: org.springframework.ai.chat.messages.AssistantMessage.builder().content("").build()
         }
 
         // Collect all metadata from all generations

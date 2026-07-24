@@ -99,6 +99,17 @@ interface StreamingPromptRunner : PromptRunner {
          */
         fun generateStream(): Flux<String>
 
+        /**
+         * Generate a reactive stream containing text and thinking events.
+         *
+         * The default preserves compatibility for streaming implementations that
+         * only provide text chunks.
+         *
+         * @return Flux emitting thinking and text events in response order
+         */
+        fun generateStreamWithThinking(): Flux<StreamingEvent<String>> =
+            generateStream().map { StreamingEvent.Object(it) }
+
     }
 }
 

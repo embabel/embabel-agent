@@ -18,7 +18,9 @@ package com.embabel.agent.spi.support.springai.streaming
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
+import com.embabel.agent.spi.loop.streaming.LlmStreamChunk
 import com.embabel.agent.spi.support.springai.SpringAiLlmMessageSender
+import com.embabel.agent.spi.support.springai.toLlmStreamChunks
 import com.embabel.agent.spi.support.springai.toSpringAiMessage
 import com.embabel.agent.spi.support.springai.toSpringToolCallbacks
 import com.embabel.agent.spi.support.springai.withInspectors
@@ -70,5 +72,28 @@ internal class SpringAiLlmMessageStreamer(
             .toolCallbacks(toolCallbacks)
             .stream()
             .content()
+    }
+
+    override fun streamWithThinking(
+        messages: List<Message>,
+        tools: List<Tool>,
+        toolCallInspectors: List<ToolCallInspector>,
+    ): Flux<LlmStreamChunk> {
+        val springAiMessages = messages.map { it.toSpringAiMessage() }
+        val toolCallbacks = tools.toSpringToolCallbacks().withInspectors(toolCallInspectors)
+        val effectiveOptions = if (chatOptions is org.springframework.ai.model.tool.ToolCallingChatOptions) {
+            chatOptions.mutate()
+                .toolCallbacks(toolCallbacks)
+                .build()
+        } else {
+            chatOptions
+        }
+        val prompt = Prompt(springAiMessages, effectiveOptions)
+        return chatClient
+            .prompt(prompt)
+            .toolCallbacks(toolCallbacks)
+            .stream()
+            .chatResponse()
+            .concatMapIterable { it.toLlmStreamChunks() }
     }
 }
