@@ -28,6 +28,8 @@ import org.springframework.ai.anthropic.AnthropicCacheStrategy
 import org.springframework.ai.anthropic.AnthropicCacheTtl
 import org.springframework.ai.anthropic.AnthropicChatOptions
 
+// Calls the deprecated 1-arg convertOptions() directly to verify field mapping in isolation.
+// Model stamping is not tested here — it is covered by OptionsConverter.convertOptions(options, model).
 class AnthropicOptionsConverterTest : OptionsConverterTestSupport<AnthropicChatOptions>(
     optionsConverter = AnthropicOptionsConverter
 ) {

@@ -251,38 +251,38 @@ class SpringAiLlmServiceTest {
     }
 
     @Nested
-    inner class BuildChatOptionsTests {
+    inner class ConvertOptionsTests {
 
         @Test
-        fun `buildChatOptions stamps service name as model`() {
+        fun `convertOptions stamps service name as model`() {
             val service = SpringAiLlmService(
                 name = "my-model",
                 provider = "Provider",
                 chatModel = mockChatModel,
             )
-            assertThat(service.buildChatOptions(LlmOptions()).model).isEqualTo("my-model")
+            assertThat(service.convertOptions(LlmOptions()).model).isEqualTo("my-model")
         }
 
         @Test
-        fun `buildChatOptions overrides converter default model with service name`() {
+        fun `convertOptions overrides converter default model with service name`() {
             val service = SpringAiLlmService(
                 name = "my-model",
                 provider = "Provider",
                 chatModel = mockChatModel,
             )
-            val result = service.buildChatOptions(LlmOptions())
+            val result = service.convertOptions(LlmOptions())
             assertThat(result.model).isEqualTo("my-model")
             assertThat(result.model).isNotEqualTo("some-default-model")
         }
 
         @Test
-        fun `buildChatOptions preserves converter fields alongside model`() {
+        fun `convertOptions preserves converter fields alongside model`() {
             val service = SpringAiLlmService(
                 name = "my-model",
                 provider = "Provider",
                 chatModel = mockChatModel,
             )
-            val result = service.buildChatOptions(LlmOptions().withTemperature(0.5).withMaxTokens(100))
+            val result = service.convertOptions(LlmOptions().withTemperature(0.5).withMaxTokens(100))
             assertThat(result.model).isEqualTo("my-model")
             assertThat(result.temperature).isEqualTo(0.5)
             assertThat(result.maxTokens).isEqualTo(100)

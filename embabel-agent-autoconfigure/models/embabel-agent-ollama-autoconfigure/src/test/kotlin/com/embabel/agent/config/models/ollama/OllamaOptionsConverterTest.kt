@@ -23,6 +23,8 @@ import org.junit.jupiter.api.Test
 import org.springframework.ai.ollama.api.OllamaChatOptions
 import org.springframework.ai.ollama.api.ThinkOption
 
+// Calls the deprecated 1-arg convertOptions() directly to verify field mapping in isolation.
+// Model stamping is not tested here — it is covered by OptionsConverter.convertOptions(options, model).
 class OllamaOptionsConverterTest : OptionsConverterTestSupport<OllamaChatOptions>(
     optionsConverter = OllamaOptionsConverter
 ) {

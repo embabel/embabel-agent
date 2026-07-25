@@ -27,12 +27,12 @@ import org.springframework.ai.anthropic.AnthropicChatOptions
  * [AnthropicOptionsConverter] never calls .model(), so its [AnthropicChatOptions] carry
  * DEFAULT_MODEL ("claude-haiku-4-5"). Spring AI 2.0 no longer merges the ChatModel bean's
  * configured model into per-request options, so haiku would go on the wire silently.
- * [SpringAiLlmService.buildChatOptions] now stamps the service name explicitly.
+ * [SpringAiLlmService.convertOptions] now stamps the service name explicitly.
  */
 class AnthropicModelBindingTest {
 
     @Test
-    fun `buildChatOptions stamps configured model not AnthropicChatOptions haiku default`() {
+    fun `convertOptions stamps configured model not AnthropicChatOptions haiku default`() {
         val service = SpringAiLlmService(
             name = "claude-sonnet-4-5",
             provider = "Anthropic",
@@ -40,7 +40,7 @@ class AnthropicModelBindingTest {
             optionsConverter = AnthropicOptionsConverter,
         )
 
-        val result = service.buildChatOptions(LlmOptions())
+        val result = service.convertOptions(LlmOptions())
 
         assertThat(result).isInstanceOf(AnthropicChatOptions::class.java)
         assertThat(result.model).isEqualTo("claude-sonnet-4-5")
@@ -48,7 +48,7 @@ class AnthropicModelBindingTest {
     }
 
     @Test
-    fun `buildChatOptions preserves AnthropicChatOptions fields alongside model`() {
+    fun `convertOptions preserves AnthropicChatOptions fields alongside model`() {
         val service = SpringAiLlmService(
             name = "claude-sonnet-4-5",
             provider = "Anthropic",
@@ -56,7 +56,7 @@ class AnthropicModelBindingTest {
             optionsConverter = AnthropicOptionsConverter,
         )
 
-        val result = service.buildChatOptions(LlmOptions().withMaxTokens(500))
+        val result = service.convertOptions(LlmOptions().withMaxTokens(500))
 
         assertThat(result).isInstanceOf(AnthropicChatOptions::class.java)
         assertThat(result.model).isEqualTo("claude-sonnet-4-5")
@@ -64,7 +64,7 @@ class AnthropicModelBindingTest {
     }
 
     @Test
-    fun `buildChatOptions result type is AnthropicChatOptions not generic fallback`() {
+    fun `convertOptions result type is AnthropicChatOptions not generic fallback`() {
         val service = SpringAiLlmService(
             name = "claude-haiku-4-5",
             provider = "Anthropic",
@@ -72,7 +72,7 @@ class AnthropicModelBindingTest {
             optionsConverter = AnthropicOptionsConverter,
         )
 
-        val result = service.buildChatOptions(LlmOptions())
+        val result = service.convertOptions(LlmOptions())
 
         assertThat(result).isInstanceOf(AnthropicChatOptions::class.java)
         assertThat(result.model).isEqualTo("claude-haiku-4-5")

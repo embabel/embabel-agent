@@ -86,7 +86,9 @@ private object StreamingCapabilityVerifier {
  * @param name Name of the LLM
  * @param provider Name of the provider (e.g., "OpenAI", "Anthropic")
  * @param chatModel The Spring AI ChatModel to use for LLM calls
- * @param optionsConverter Function to convert [LlmOptions] to Spring AI ChatOptions
+ * @param optionsConverter Function to convert [LlmOptions] to Spring AI ChatOptions.
+ *        Do not call [OptionsConverter.convertOptions] directly — use [SpringAiLlmService.convertOptions]
+ *        which also stamps the configured model name.
  * @param knowledgeCutoffDate Model's knowledge cutoff date, if known
  * @param promptContributors List of prompt contributors for this model.
  *        Knowledge cutoff is automatically included if knowledgeCutoffDate is set.
@@ -124,13 +126,13 @@ data class SpringAiLlmService @JvmOverloads constructor(
      */
     override val model: ChatModel get() = chatModel
 
-    fun buildChatOptions(llmOptions: LlmOptions): ChatOptions =
-        optionsConverter.convertOptions(llmOptions).mutate().model(name).build()
+    fun convertOptions(llmOptions: LlmOptions): ChatOptions =
+        optionsConverter.convertOptions(llmOptions, name)
 
     override fun createMessageSender(options: LlmOptions): LlmMessageSender {
         return SpringAiLlmMessageSender(
             chatModel = chatModel,
-            chatOptions = buildChatOptions(options),
+            chatOptions = convertOptions(options),
             toolResponseContentAdapter = toolResponseContentAdapter,
             nativeStructuredOutputConfigurer = nativeStructuredOutputConfigurer,
             nativeSupport = nativeSupport,
@@ -140,7 +142,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
 
     override fun createMessageStreamer(options: LlmOptions): LlmMessageStreamer {
         val chatClient = ChatClient.create(chatModel)
-        return SpringAiLlmMessageStreamer(chatClient, buildChatOptions(options))
+        return SpringAiLlmMessageStreamer(chatClient, convertOptions(options))
     }
 
     override fun supportsStreaming(): Boolean = StreamingCapabilityVerifier.supportsStreaming(chatModel)

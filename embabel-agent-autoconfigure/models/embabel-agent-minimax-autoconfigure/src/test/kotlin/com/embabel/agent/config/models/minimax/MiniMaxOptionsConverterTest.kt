@@ -22,6 +22,8 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.ai.openai.OpenAiChatOptions
 
+// Calls the deprecated 1-arg convertOptions() directly to verify field mapping in isolation.
+// Model stamping is not tested here — it is covered by OptionsConverter.convertOptions(options, model).
 class MiniMaxOptionsConverterTest : OptionsConverterTestSupport<OpenAiChatOptions>(
     optionsConverter = MiniMaxOptionsConverter
 ) {
