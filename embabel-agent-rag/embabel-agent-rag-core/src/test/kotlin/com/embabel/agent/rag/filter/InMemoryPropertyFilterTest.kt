@@ -156,8 +156,12 @@ class InMemoryPropertyFilterTest {
 
         @Test
         fun `returns every result when the filter is null`() {
-            val results = listOf(SimpleSimilaritySearchResult(match = entity("1"), score = 0.9))
+            val results = listOf(
+                SimpleSimilaritySearchResult(match = entity("1", properties = mapOf("owner" to "alice")), score = 0.9),
+                SimpleSimilaritySearchResult(match = entity("2", properties = mapOf("owner" to "bob")), score = 0.8),
+            )
 
+            // A null filter is a pass-through: every result is retained, unchanged and in order.
             assertEquals(results, InMemoryPropertyFilter.filterByProperties(results, null))
         }
 
