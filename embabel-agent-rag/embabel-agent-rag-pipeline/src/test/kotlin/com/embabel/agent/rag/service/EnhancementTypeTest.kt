@@ -48,6 +48,15 @@ class EnhancementTypeTest {
     }
 
     @Test
+    fun `should have FILTERING value`() {
+        // Act
+        val type = EnhancementType.FILTERING
+
+        // Assert
+        assertEquals("FILTERING", type.name)
+    }
+
+    @Test
     fun `should have ENTITY_EXTRACTION value`() {
         // Act
         val type = EnhancementType.ENTITY_EXTRACTION
@@ -102,12 +111,12 @@ class EnhancementTypeTest {
     }
 
     @Test
-    fun `should have exactly 9 values`() {
+    fun `should have exactly 10 values`() {
         // Act
         val values = EnhancementType.values()
 
         // Assert
-        assertEquals(9, values.size)
+        assertEquals(10, values.size)
     }
 
     @Test
@@ -135,6 +144,15 @@ class EnhancementTypeTest {
 
         // Assert
         assertEquals(EnhancementType.DEDUPLICATION, type)
+    }
+
+    @Test
+    fun `should support valueOf for FILTERING`() {
+        // Act
+        val type = EnhancementType.valueOf("FILTERING")
+
+        // Assert
+        assertEquals(EnhancementType.FILTERING, type)
     }
 
     @Test
@@ -230,7 +248,7 @@ class EnhancementTypeTest {
 
         // Assert
         assertEquals(0, compression.ordinal)
-        assertEquals(8, custom.ordinal)
+        assertEquals(9, custom.ordinal)
     }
 
     @Test
@@ -242,6 +260,7 @@ class EnhancementTypeTest {
         assertTrue(values.contains(EnhancementType.COMPRESSION))
         assertTrue(values.contains(EnhancementType.RERANKING))
         assertTrue(values.contains(EnhancementType.DEDUPLICATION))
+        assertTrue(values.contains(EnhancementType.FILTERING))
         assertTrue(values.contains(EnhancementType.ENTITY_EXTRACTION))
         assertTrue(values.contains(EnhancementType.FACT_CHECKING))
         assertTrue(values.contains(EnhancementType.QUALITY_ASSESSMENT))
