@@ -19,6 +19,8 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import org.junit.jupiter.api.Assertions.assertEquals
 
+// Calls the deprecated 1-arg convertOptions() directly to verify field mapping in isolation.
+// Model stamping is not tested here — it is covered by OptionsConverter.convertOptions(options, model).
 fun checkOptionsConverterPreservesCoreValues(optionsConverter: OptionsConverter<*>) {
     val llmo = LlmOptions().withTemperature(temperature = 0.5).withTopK(10).withTopP(.2).withFrequencyPenalty(.2)
     val options = optionsConverter.convertOptions(llmo)

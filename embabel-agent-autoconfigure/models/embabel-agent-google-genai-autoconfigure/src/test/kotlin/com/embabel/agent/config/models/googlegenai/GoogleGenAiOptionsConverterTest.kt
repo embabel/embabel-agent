@@ -23,6 +23,8 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 
+// Calls the deprecated 1-arg convertOptions() directly to verify field mapping in isolation.
+// Model stamping is not tested here — it is covered by OptionsConverter.convertOptions(options, model).
 class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport<GoogleGenAiChatOptions>(
     optionsConverter = GoogleGenAiOptionsConverter
 ) {

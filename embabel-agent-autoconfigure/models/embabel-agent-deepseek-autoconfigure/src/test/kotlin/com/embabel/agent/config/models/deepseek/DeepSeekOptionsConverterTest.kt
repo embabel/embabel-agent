@@ -21,6 +21,8 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.springframework.ai.deepseek.DeepSeekChatOptions
 
+// Calls the deprecated 1-arg convertOptions() directly to verify field mapping in isolation.
+// Model stamping is not tested here — it is covered by OptionsConverter.convertOptions(options, model).
 class DeepSeekOptionsConverterTest : OptionsConverterTestSupport<DeepSeekChatOptions>(
     optionsConverter = DeepSeekOptionsConverter
 ) {
