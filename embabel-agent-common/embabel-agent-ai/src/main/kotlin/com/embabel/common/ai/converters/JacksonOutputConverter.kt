@@ -152,9 +152,9 @@ open class JacksonOutputConverter<T : Any> protected constructor(
             return lenientMapper.readValue<Any?>(unwrapped, lenientMapper.constructType(this.type)) as T
         } catch (e: JacksonException) {
             // Some LLMs escape the very quotes that delimit a string value (e.g. `"key": \"value\"`),
-            // which Jackson cannot parse. Retry once with those delimiter quotes repaired. Applied only
-            // as a fallback so valid JSON containing legitimately escaped quotes (e.g. `["\"A\""]`) is
-            // never altered.
+            // which Jackson cannot parse. Retry once with those delimiter quotes repaired. The repair
+            // rewrites `\"` only at string delimiter positions, so valid JSON containing legitimately
+            // escaped quotes (e.g. `["\"A\""]`) is never altered, even on this fallback path.
             val repaired = fixMalformedEscapedQuotes(unwrapped)
             if (repaired != unwrapped) {
                 try {
@@ -187,25 +187,6 @@ open class JacksonOutputConverter<T : Any> protected constructor(
         return result
     }
 
-    /**
-     * Fix malformed JSON where the LLM has incorrectly escaped quote characters
-     * that should be JSON string delimiters.
-     *
-     * This fixes cases like: `"span": \"Glazunov's violin concerto\",`
-     * where the LLM escapes the quotes that delimit the string value itself.
-     *
-     * Note: Jackson's lenient features can't handle this because the backslash
-     * before the opening quote makes it syntactically invalid in a way no parser
-     * can interpret correctly.
-     */
-    private fun fixMalformedEscapedQuotes(json: String): String {
-        return json
-            .replace(Regex(""":\s*\\""""), ": \"")   // Fix `: \"` -> `: "`
-            .replace(Regex("""\\","""), "\",")       // Fix `\",` -> `",`
-            .replace(Regex("""\\"(\s*})"""), "\"$1") // Fix `\" }` -> `" }`
-            .replace(Regex("""\\"(\s*])"""), "\"$1") // Fix `\" ]` -> `" ]`
-    }
-
     override fun getJsonSchema(): String = jsonSchemaValue
 
     override fun getFormat(): String =
@@ -217,4 +198,76 @@ open class JacksonOutputConverter<T : Any> protected constructor(
            |Here is the JSON Schema instance your output must adhere to:
            |```${getJsonSchema()}```
            |""".trimMargin()
+}
+
+/**
+ * Fix malformed JSON where the LLM has incorrectly escaped quote characters
+ * that should be JSON string delimiters.
+ *
+ * This fixes cases like: `"span": \"Glazunov's violin concerto\",`
+ * where the LLM escapes the quotes that delimit the string value itself.
+ * Jackson's lenient features can't handle this because the backslash before
+ * the opening quote makes it syntactically invalid.
+ *
+ * The input is scanned tracking string boundaries, so `\"` is rewritten only
+ * where a delimiter can occur: after `{`, `[`, `:` or `,` it opens a string,
+ * and inside a string opened that way it closes the string when followed by
+ * `:`, `,`, `}`, `]` or end of input. Escape sequences inside properly
+ * delimited strings are never touched, so valid JSON is returned unchanged.
+ */
+internal fun fixMalformedEscapedQuotes(json: String): String {
+    val repaired = StringBuilder(json.length)
+    var inString = false
+    var openedByEscapedQuote = false
+    var atDelimiterPosition = true
+    var i = 0
+    while (i < json.length) {
+        val c = json[i]
+        val escapedQuote = c == '\\' && i + 1 < json.length && json[i + 1] == '"'
+        when {
+            !inString && c == '"' -> {
+                inString = true
+                openedByEscapedQuote = false
+                repaired.append(c)
+            }
+            !inString && escapedQuote && atDelimiterPosition -> {
+                inString = true
+                openedByEscapedQuote = true
+                repaired.append('"')
+                i++
+            }
+            !inString -> {
+                if (!c.isWhitespace()) {
+                    atDelimiterPosition = c in "{[:,"
+                }
+                repaired.append(c)
+            }
+            c == '"' -> {
+                inString = false
+                atDelimiterPosition = false
+                repaired.append(c)
+            }
+            escapedQuote && openedByEscapedQuote && closesString(json, i + 2) -> {
+                inString = false
+                atDelimiterPosition = false
+                repaired.append('"')
+                i++
+            }
+            c == '\\' && i + 1 < json.length -> {
+                repaired.append(c).append(json[i + 1])
+                i++
+            }
+            else -> repaired.append(c)
+        }
+        i++
+    }
+    return repaired.toString()
+}
+
+private fun closesString(json: String, index: Int): Boolean {
+    var i = index
+    while (i < json.length && json[i].isWhitespace()) {
+        i++
+    }
+    return i == json.length || json[i] in ":,}]"
 }
