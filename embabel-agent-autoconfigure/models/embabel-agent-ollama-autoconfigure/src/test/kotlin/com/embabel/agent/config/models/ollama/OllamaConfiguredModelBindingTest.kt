@@ -28,6 +28,7 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.MediaType
+import org.springframework.util.ClassUtils
 import org.springframework.web.client.RestClient
 import kotlin.test.assertEquals
 
@@ -56,10 +57,14 @@ class OllamaConfiguredModelBindingTest {
     private val mockResponseSpec = mockk<RestClient.ResponseSpec>()
 
     // Use reflection to access the actual internal ModelResponse class from OllamaModelsConfig
-    private val modelResponseClass =
-        Class.forName("com.embabel.agent.config.models.ollama.OllamaModelsConfig\$ModelResponse")
-    private val modelDetailsClass =
-        Class.forName("com.embabel.agent.config.models.ollama.OllamaModelsConfig\$ModelDetails")
+    private val modelResponseClass = ClassUtils.forName(
+        "com.embabel.agent.config.models.ollama.OllamaModelsConfig\$ModelResponse",
+        OllamaModelsConfig::class.java.classLoader,
+    )
+    private val modelDetailsClass = ClassUtils.forName(
+        "com.embabel.agent.config.models.ollama.OllamaModelsConfig\$ModelDetails",
+        OllamaModelsConfig::class.java.classLoader,
+    )
 
     private val testModels by lazy {
         val modelDetailsConstructor =
