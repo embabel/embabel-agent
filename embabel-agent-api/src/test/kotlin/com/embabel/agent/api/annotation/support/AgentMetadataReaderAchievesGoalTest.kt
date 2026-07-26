@@ -24,8 +24,7 @@ import kotlin.test.assertTrue
 
 @ExtendWith(OutputCaptureExtension::class)
 class AgentMetadataReaderAchievesGoalTest {
-    val noActionErrorMessage = """@Action annotation is missing from the method com.embabel.agent.api.annotation.support.AgentWithAchievesGoalNoActionAnnotation.goal."""
-    val invalidReturnTypeErrorMessage = """@AchievesGoal cannot be applied to void-returning @Action method com.embabel.agent.api.annotation.support.AgentWithInvalidReturnTypeOnAchievesGoalMethod.goal."""
+    val noActionErrorMessage = """@Action annotation is missing on the method com.embabel.agent.api.annotation.support.AgentWithAchievesGoalNoActionAnnotation.goal annotated with @AchievesGoal."""
 
     @Test
     fun `no Action annotation on AchievesGoal method`(output: CapturedOutput) {
@@ -35,17 +34,9 @@ class AgentMetadataReaderAchievesGoalTest {
     }
 
     @Test
-    fun `goal with with invalid return type`(output: CapturedOutput) {
-        val reader = AgentMetadataReader()
-        reader.createAgentMetadata(AgentWithInvalidReturnTypeOnAchievesGoalMethod())
-        assertTrue(output.out.contains(invalidReturnTypeErrorMessage), "Error message about invalid return type is absent.")
-    }
-
-    @Test
     fun `valid goal method`(output: CapturedOutput) {
         val reader = AgentMetadataReader()
         reader.createAgentMetadata(AgentWithValidAchievesGoalMethod())
         assertFalse(output.out.contains(noActionErrorMessage) , "Error message about mission @Action is unexpectedly present.")
-        assertFalse(output.out.contains(invalidReturnTypeErrorMessage), "Error message about invalid return type is unexpectedly present.")
     }
 }

@@ -174,11 +174,8 @@ class AgentMetadataReader(
 
         val plannerType = agenticInfo.agentAnnotation?.planner ?: PlannerType.GOAP
 
-        // Verify goal method based on the plan.
-        if(plannerType.needsGoals) {
-            if(!isValidAchievesGoalMethod(targetType, instance)) {
+        if(!isAchievesGoalMethodValid(targetType, instance)) {
                 return null
-            }
         }
 
         val getterGoals = findGoalGetters(targetType).map { getGoal(it, instance) }
@@ -235,14 +232,6 @@ class AgentMetadataReader(
         val agent = if (agenticInfo.agentAnnotation != null) {
             val goalActions = actionMethods.filter { it.isAnnotationPresent(AchievesGoal::class.java) }
             if (plannerType == PlannerType.SUPERVISOR) {
-                // Find the goal action (the action with @AchievesGoal)
-                if (goalActions.isEmpty()) {
-                    logger.warn(
-                        "SUPERVISOR planner requires at least one @AchievesGoal action on {}",
-                        targetType.name,
-                    )
-                    return null
-                }
                 if (goalActions.size > 1) {
                     logger.warn(
                         "SUPERVISOR planner currently supports only one @AchievesGoal action, found {} on {}",
@@ -477,7 +466,7 @@ class AgentMetadataReader(
         )
     }
 
-    private fun isValidAchievesGoalMethod(type: Class<*>,instance: Any): Boolean {
+    private fun isAchievesGoalMethodValid(type: Class<*>, instance: Any): Boolean {
         val invalidAchievesGoalMethods = mutableListOf<Method>()
         ReflectionUtils.doWithMethods(
             type,
@@ -485,19 +474,12 @@ class AgentMetadataReader(
                 if(!isActionMethod(method, type)) {
                     // AchievesGoal must be an action method.
                     logger.error(
-                        "@Action annotation is missing from the method {}.{}. that is annotated with @AchievesGoal.",
+                        "@Action annotation is missing on the method {}.{} annotated with @AchievesGoal.",
                         instance.javaClass.name,
                         method.name,
                     )
                     invalidAchievesGoalMethods.add(method)
-                } else if (method.returnType == Void.TYPE) {
-                logger.error(
-                    "@AchievesGoal cannot be applied to void-returning @Action method {}.{}.",
-                    instance.javaClass.name,
-                    method.name,
-                )
-                    invalidAchievesGoalMethods.add(method)
-            }
+                }
             },
             { method -> isMethodAnnotatedWithAchievesGoal(method) })
         return invalidAchievesGoalMethods.isEmpty()
@@ -743,6 +725,14 @@ class AgentMetadataReader(
     ): AgentCoreGoal? {
         val actionAnnotation = method.getAnnotation(Action::class.java)
         val goalAnnotation = method.getAnnotation(AchievesGoal::class.java) ?: return null
+        if (method.returnType == Void.TYPE) {
+            logger.error(
+                "@AchievesGoal cannot be applied to void-returning @Action method {}.{}.",
+                instance.javaClass.name,
+                method.name,
+            )
+            return null
+        }
         val inputBinding = IoBinding(
             name = actionAnnotation.outputBinding,
             type = method.returnType.name,
