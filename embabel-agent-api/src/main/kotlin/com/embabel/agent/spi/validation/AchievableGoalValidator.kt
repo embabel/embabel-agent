@@ -18,6 +18,7 @@ import java.lang.reflect.Method
  */
 open class AchievableGoalValidator {
     private val logger = LoggerFactory.getLogger(AchievableGoalValidator::class.java)
+
     fun validate(agentName: String, agentClass: Class<*>, agentInstance: Any,
                  requireInterfaceDeserializationAnnotations: Boolean): ValidationResult {
         val errors = mutableListOf<ValidationError>()
@@ -42,7 +43,6 @@ open class AchievableGoalValidator {
             },
             { method -> isMethodAnnotatedWithAchievesGoal(method) })
         return ValidationResult(errors.isEmpty(), errors)
-
     }
 
     private fun isMethodAnnotatedWithAchievesGoal(
