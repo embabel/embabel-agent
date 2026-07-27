@@ -356,6 +356,25 @@ class StreamingChatClientOperationsTest {
     }
 
     @Test
+    fun `generateStreamWithThinking extracts tagged content from the text stream`() {
+        mockChatClientForStreaming(
+            Flux.just("<thi", "nk>reasoning</think>answer")
+        )
+
+        val result = streamingOperations.generateStreamWithThinking(
+            messages = listOf(UserMessage("test")),
+            interaction = mockInteraction,
+            agentProcess = mockAgentProcess,
+            action = mockAction,
+        )
+
+        StepVerifier.create(result)
+            .expectNextMatches { it.isThinking() && it.getThinking() == "reasoning" }
+            .expectNextMatches { it.isObject() && it.getObject() == "answer" }
+            .verifyComplete()
+    }
+
+    @Test
     fun `should handle real streaming with reactive callbacks`() {
         // Given: Mixed content with multiple events
         val chunkFlux = Flux.just(

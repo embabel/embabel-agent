@@ -139,6 +139,9 @@ internal interface PromptExecutionDelegate : LlmUse {
 
     fun generateStream(): Flux<String>
 
+    fun generateStreamWithThinking(): Flux<StreamingEvent<String>> =
+        generateStream().map { StreamingEvent.Object(it) }
+
     fun <T> createObjectStream(itemClass: Class<T>): Flux<T>
 
     fun <T> createObjectStreamWithThinking(itemClass: Class<T>): Flux<StreamingEvent<T>>

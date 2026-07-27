@@ -80,6 +80,14 @@ internal class StreamingLlmOperationsImpl(
         return doTransformStream(messages, interaction, null, agentProcess, action)
     }
 
+    override fun generateStreamWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        agentProcess: AgentProcess,
+        action: Action?,
+    ): Flux<StreamingEvent<String>> =
+        doTransformStreamWithThinking(messages, interaction, null, agentProcess, action)
+
     override fun <O> createObjectStream(
         messages: List<Message>,
         interaction: LlmInteraction,
@@ -141,6 +149,16 @@ internal class StreamingLlmOperationsImpl(
         // Stream raw chunks from LLM
         return streamWithToolLoop(messagesWithContributions, tools, interaction, agentProcess, action)
     }
+
+    override fun doTransformStreamWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        llmRequestEvent: LlmRequestEvent<String>?,
+        agentProcess: AgentProcess?,
+        action: Action?,
+    ): Flux<StreamingEvent<String>> =
+        doTransformStream(messages, interaction, llmRequestEvent, agentProcess, action)
+            .toTaggedThinkingEvents()
 
     override fun <O> doTransformObjectStream(
         messages: List<Message>,
