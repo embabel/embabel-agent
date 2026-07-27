@@ -31,6 +31,7 @@ import org.springframework.http.MediaType
 import org.springframework.util.ClassUtils
 import org.springframework.web.client.RestClient
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 
 /**
  * Regression test for https://github.com/embabel/embabel-agent/issues/1735.
@@ -110,12 +111,15 @@ class OllamaConfiguredModelBindingTest {
         // Given - a single discovered model "gemma3:latest" registered via default mode
         val config = createConfig("http://localhost:11434")
         config.ollamaModelsInitializer()
-        val llm = registeredBeans["ollamaModel-gemma3-latest"] as SpringAiLlmService
+        val llm = assertIs<SpringAiLlmService>(
+            registeredBeans["ollamaModel-gemma3-latest"],
+            "expected an ollamaModel-gemma3-latest bean; registered: ${registeredBeans.keys}",
+        )
 
         // When - per-request options are built exactly as ChatClientLlmOperations does
         // (post-#1818: SpringAiLlmService.convertOptions stamps the registered model
         // name onto the converter output)
-        val chatOptions = llm.convertOptions(LlmOptions()) as OllamaChatOptions
+        val chatOptions = assertIs<OllamaChatOptions>(llm.convertOptions(LlmOptions()))
 
         // Then - the request options must target the model the service was registered for,
         // not the OllamaChatOptions "mistral" fallback
