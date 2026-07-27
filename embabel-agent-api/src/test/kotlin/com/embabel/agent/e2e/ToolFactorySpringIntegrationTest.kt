@@ -29,6 +29,7 @@ import com.embabel.agent.core.Export
 import com.embabel.agent.tools.agent.GoalTool
 import com.embabel.agent.tools.agent.PerGoalToolFactory
 import com.embabel.agent.tools.agent.PromptedTextCommunicator
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -38,7 +39,6 @@ import org.springframework.context.annotation.Import
 import org.springframework.test.context.ActiveProfiles
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 const val REMOTE_GOAL_NAME = "remotelyExportedWizardGoal"
@@ -119,6 +119,12 @@ class ToolFactorySpringIntegrationTest(
         toolFactory.goalTools(remoteOnly = true, listeners = emptyList())
             .single { it.goal.name == REMOTE_GOAL_NAME }
 
+    /**
+     * A goal tool is what the platform publishes for one exported goal: one tool per goal,
+     * per starting input type it accepts. Calling it starts an agent process whose objective
+     * is that goal, and returns whatever that process produced. This is the layer an MCP
+     * server exports, without the protocol on top.
+     */
     @Nested
     inner class GoalToolExecution {
 
@@ -126,7 +132,7 @@ class ToolFactorySpringIntegrationTest(
         fun `calling a goal tool runs an agent process and returns its result`() {
             val result = remoteWizardTool().call("""{"name": "Hamish"}""")
 
-            val text = assertNotNull(result as? Tool.Result.Text, "Expected a text result, got $result")
+            val text = assertInstanceOf(Tool.Result.Text::class.java, result)
             assertTrue(
                 text.content.contains("SnakeMeal"),
                 "Result should be the goal output SnakeMeal: ${text.content}"
@@ -138,10 +144,10 @@ class ToolFactorySpringIntegrationTest(
         }
 
         @Test
-        fun `malformed tool input is reported as an error result rather than thrown`() {
+        fun `malformed tool input is reported as an error result`() {
             val result = remoteWizardTool().call("not json at all")
 
-            val error = assertNotNull(result as? Tool.Result.Error, "Expected an error result, got $result")
+            val error = assertInstanceOf(Tool.Result.Error::class.java, result)
             assertTrue(
                 error.message.contains("BAD INPUT ERROR"),
                 "Error should tell the caller to retry with valid input: ${error.message}"
@@ -159,7 +165,7 @@ class ToolFactorySpringIntegrationTest(
 
             val result = remoteWizardTool().withListener(listener).call("""{"name": "Hamish"}""")
 
-            assertTrue(result is Tool.Result.Text, "Expected a text result, got $result")
+            assertInstanceOf(Tool.Result.Text::class.java, result)
             assertTrue(
                 processEvents.isNotEmpty(),
                 "Listener should have been propagated to the agent process started by the tool"

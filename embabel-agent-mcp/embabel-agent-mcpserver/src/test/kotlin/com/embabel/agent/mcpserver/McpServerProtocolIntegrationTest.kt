@@ -36,6 +36,7 @@ import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.TestInstance
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Value
@@ -45,7 +46,6 @@ import org.springframework.context.annotation.Import
 import org.springframework.test.context.ActiveProfiles
 import java.time.Duration
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -90,6 +90,10 @@ private fun mcpLocallyExportedWizard() = wizard(
  * Drives a real MCP server over its wire protocol: an in-process Spring Boot server on a
  * loopback port, reached by an MCP client that performs the initialize handshake,
  * `tools/list` and `tools/call`.
+ *
+ * The server runs in-process on a port assigned by the OS (RANDOM_PORT) and is reached
+ * over loopback, so nothing leaves the machine and parallel CI jobs cannot clash on a
+ * fixed port.
  *
  * This is the only test that exercises the full export path — deployed goal to
  * [PerGoalMcpExportToolCallbackPublisher] to `McpSyncServer` registration to protocol
@@ -171,8 +175,7 @@ class McpServerProtocolIntegrationTest(
             val tool = client.listTools().named(REMOTE_GOAL_NAME)
 
             assertEquals("object", tool.inputSchema()["type"], "Input schema must be a JSON Schema object")
-            @Suppress("UNCHECKED_CAST")
-            val properties = tool.inputSchema()["properties"] as? Map<String, Any>
+            val properties = tool.inputSchema()["properties"] as? Map<*, *>
             assertNotNull(properties, "Input schema must declare properties: ${tool.inputSchema()}")
             assertTrue(
                 properties.containsKey("name"),
@@ -230,7 +233,7 @@ class McpServerProtocolIntegrationTest(
 
         @Test
         fun `calling an unknown tool is rejected as a protocol error`() {
-            val thrown = assertFailsWith<McpError> {
+            val thrown = assertThrows<McpError> {
                 client.callTool(McpSchema.CallToolRequest("no_such_tool_at_all", emptyMap()))
             }
 
