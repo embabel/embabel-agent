@@ -39,45 +39,63 @@ package com.embabel.common.ai.converters
  *
  * - `{"title": "Hello \"World\", \"How\" are you?"}` (issue #1804)
  * - `{"name": "flowchart LR\n  a[\"A\"]\n  b[\"B\"]"}` (mermaid, issue #1788)
+ *
+ * Single pass over the input, no regular expressions; only invoked on the
+ * fallback path of [JacksonOutputConverter.convert] after a failed parse.
  */
 internal fun fixMalformedEscapedQuotes(json: String): String {
     val repaired = StringBuilder(json.length)
+    // Scanner state: outside any string, inside a string opened by a plain `"`,
+    // or inside a string opened by a malformed `\"` (openedByEscapedQuote = true).
     var inString = false
     var openedByEscapedQuote = false
+    // True when a string may start at the current position, i.e. at the start of
+    // input or after `{`, `[`, `:` or `,`.
     var atDelimiterPosition = true
     var i = 0
     while (i < json.length) {
         val c = json[i]
         val escapedQuote = c == '\\' && i + 1 < json.length && json[i + 1] == '"'
         when {
+            // A plain quote opens a string normally.
             !inString && c == '"' -> {
                 inString = true
                 openedByEscapedQuote = false
                 repaired.append(c)
             }
+            // `\"` where a string may start: the LLM escaped the opening
+            // delimiter. Drop the backslash and remember how the string opened.
             !inString && escapedQuote && atDelimiterPosition -> {
                 inString = true
                 openedByEscapedQuote = true
                 repaired.append('"')
                 i++
             }
+            // Any other character between strings: copy it and track whether
+            // the next position is one where a string may start.
             !inString -> {
                 if (!c.isWhitespace()) {
                     atDelimiterPosition = c in "{[:,"
                 }
                 repaired.append(c)
             }
+            // From here on we are inside a string. A plain quote closes it.
             c == '"' -> {
                 inString = false
                 atDelimiterPosition = false
                 repaired.append(c)
             }
+            // `\"` in a string opened by `\"`, followed by a structural character
+            // or end of input: the matching malformed closing delimiter. Drop the
+            // backslash. In a string opened by a plain quote this never fires, so
+            // legitimate escaped quotes in valid JSON are preserved.
             escapedQuote && openedByEscapedQuote && closesString(json, i + 2) -> {
                 inString = false
                 atDelimiterPosition = false
                 repaired.append('"')
                 i++
             }
+            // Any other escape pair inside a string is copied as is.
             c == '\\' && i + 1 < json.length -> {
                 repaired.append(c).append(json[i + 1])
                 i++
