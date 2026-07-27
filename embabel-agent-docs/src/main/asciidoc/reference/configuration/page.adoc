@@ -815,17 +815,17 @@ From `LlmOperationsPromptsProperties` - properties for ChatClientLlmOperations o
 |===
 |Property |Type |Default |Description
 
-|`embabel.llm-operations.prompts.maybe-prompt-template`
+|`embabel.agent.platform.llm-operations.prompts.maybe-prompt-template`
 |String
 |`maybe_prompt_contribution`
 |Template to use for the "maybe" prompt, which can enable a failure result if the LLM does not have enough information to create the desired output structure
 
-|`embabel.llm-operations.prompts.generate-examples-by-default`
+|`embabel.agent.platform.llm-operations.prompts.generate-examples-by-default`
 |Boolean
 |`true`
 |Whether to generate examples by default
 
-|`embabel.llm-operations.prompts.default-timeout`
+|`embabel.agent.platform.llm-operations.prompts.default-timeout`
 |Duration
 |`60s`
 |Default timeout for operations
