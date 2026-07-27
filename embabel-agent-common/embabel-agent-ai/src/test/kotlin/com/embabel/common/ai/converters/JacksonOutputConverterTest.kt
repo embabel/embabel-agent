@@ -206,6 +206,10 @@ class JacksonOutputConverterTest {
                 """{"name": "test"}""",
             ),
             Arguments.of(
+                """[\"a\", \"b\"]""",
+                """["a", "b"]""",
+            ),
+            Arguments.of(
                 """{"a": \"\", "b": 1}""",
                 """{"a": "", "b": 1}""",
             ),
