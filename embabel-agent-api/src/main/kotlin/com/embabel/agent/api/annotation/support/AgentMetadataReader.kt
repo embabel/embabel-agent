@@ -27,15 +27,16 @@ import com.embabel.agent.core.Export
 import com.embabel.agent.core.support.NIRVANA
 import com.embabel.agent.core.support.Rerun
 import com.embabel.agent.core.support.safelyGetToolsFrom
+import com.embabel.agent.spi.validation.AchievableGoalValidator
 import com.embabel.agent.spi.validation.AgentStructureAgentValidator
 import com.embabel.agent.spi.validation.DefaultAgentValidationManager
 import com.embabel.agent.spi.validation.GoapPathToCompletionValidator
 import com.embabel.agent.spi.validation.PathToCompletionAgentValidator
+import com.embabel.agent.spi.validation.isActionMethod
+import com.embabel.agent.spi.validation.isConditionMethod
+import com.embabel.agent.spi.validation.isMethodFromSupertype
 import com.embabel.common.core.types.Semver
 import com.embabel.common.util.NameUtils
-import com.embabel.common.util.loggerFor
-import com.fasterxml.jackson.annotation.JsonTypeInfo
-import tools.jackson.databind.annotation.JsonDeserialize
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.cglib.proxy.Enhancer
@@ -174,8 +175,11 @@ class AgentMetadataReader(
 
         val plannerType = agenticInfo.agentAnnotation?.planner ?: PlannerType.GOAP
 
-        if(!isAchievesGoalMethodValid(targetType, instance)) {
-                return null
+        val achievableGoalValidationResult = AchievableGoalValidator().validate(agenticInfo.agentName(), targetType, instance, requireInterfaceDeserializationAnnotations)
+        if(!achievableGoalValidationResult.isValid) {
+            val errorMsg = achievableGoalValidationResult.errors.map { it.message }.joinToString { it }
+            logger.error(errorMsg)
+            return null
         }
 
         val getterGoals = findGoalGetters(targetType).map { getGoal(it, instance) }
@@ -336,7 +340,7 @@ class AgentMetadataReader(
                     stateClass,
                 )
                 allActions.add(action)
-                createGoalFromStateActionMethod(actionMethod, action, stateClass, agentInstance)?.let {
+                createGoalFromStateActionMethod(actionMethod, action, stateClass)?.let {
                     allGoals.add(it)
                 }
                 // Recursively unroll if this action also returns a @State type
@@ -427,7 +431,6 @@ class AgentMetadataReader(
         method: Method,
         action: CoreAction,
         stateClass: Class<*>,
-        agentInstance: Any,
     ): AgentCoreGoal? {
         val actionAnnotation = method.getAnnotation(Action::class.java)
         val goalAnnotation = method.getAnnotation(AchievesGoal::class.java) ?: return null
@@ -464,31 +467,6 @@ class AgentMetadataReader(
                 startingInputTypes = goalAnnotation.export.startingInputTypes.map { it.java }.toSet(),
             )
         )
-    }
-
-    private fun isAchievesGoalMethodValid(type: Class<*>, instance: Any): Boolean {
-        val invalidAchievesGoalMethods = mutableListOf<Method>()
-        ReflectionUtils.doWithMethods(
-            type,
-            { method ->
-                if(!isActionMethod(method, type)) {
-                    // AchievesGoal must be an action method.
-                    logger.error(
-                        "@Action annotation is missing on the method {}.{} annotated with @AchievesGoal.",
-                        instance.javaClass.name,
-                        method.name,
-                    )
-                    invalidAchievesGoalMethods.add(method)
-                }
-            },
-            { method -> isMethodAnnotatedWithAchievesGoal(method) })
-        return invalidAchievesGoalMethods.isEmpty()
-    }
-
-    private fun isMethodAnnotatedWithAchievesGoal(
-        method: Method,
-    ): Boolean {
-        return method.isAnnotationPresent(AchievesGoal::class.java)
     }
 
     private fun findConditionMethods(type: Class<*>): List<Method> {
@@ -532,66 +510,11 @@ class AgentMetadataReader(
             type,
             { method -> actionMethods.add(method) },
             // Get annotated methods from this type and interfaces
-            { method -> isActionMethod(method, type) })
+            { method -> isActionMethod(logger,method, type, requireInterfaceDeserializationAnnotations) })
         if (actionMethods.isEmpty()) {
             logger.debug("No methods annotated with @{} found in {}", Action::class.simpleName, type)
         }
         return actionMethods
-    }
-
-    private fun isActionMethod(
-        method: Method,
-        type: Class<*>,
-    ): Boolean {
-        return method.isAnnotationPresent(Action::class.java) &&
-                (type.declaredMethods.contains(method) || isMethodFromSupertype(method, type)) &&
-                (!method.returnType.isInterface || !requireInterfaceDeserializationAnnotations || hasRequiredJsonDeserializeAnnotationOnInterfaceReturnType(
-                    method
-                ))
-    }
-
-    private fun isConditionMethod(
-        method: Method,
-        type: Class<*>,
-    ): Boolean {
-        return method.isAnnotationPresent(Condition::class.java) &&
-                (type.declaredMethods.contains(method) || isMethodFromSupertype(method, type))
-    }
-
-    private fun isMethodFromSupertype(
-        method: Method,
-        type: Class<*>,
-    ): Boolean {
-        // Check interfaces
-        if (type.interfaces.any { interfaceType ->
-                interfaceType.declaredMethods.any { interfaceMethod ->
-                    methodSignaturesMatch(method, interfaceMethod)
-                }
-            }) {
-            return true
-        }
-
-        // Check superclasses
-        var superclass = type.superclass
-        while (superclass != null && superclass != Any::class.java) {
-            if (superclass.declaredMethods.any { superMethod ->
-                    methodSignaturesMatch(method, superMethod)
-                }) {
-                return true
-            }
-            superclass = superclass.superclass
-        }
-
-        return false
-    }
-
-    private fun methodSignaturesMatch(
-        method1: Method,
-        method2: Method,
-    ): Boolean {
-        return method1.name == method2.name &&
-                method1.parameterTypes.contentEquals(method2.parameterTypes) &&
-                method1.returnType == method2.returnType
     }
 
     private fun findGoalGetters(type: Class<*>): List<Method> {
@@ -801,23 +724,4 @@ private fun rejectOperationContextConstructorInjection(agentClass: Class<*>) {
                 "fun myAction(input: UserInput, ai: Ai): MyOutput"
         )
     }
-}
-
-/**
- * Checks if a method returning an interface returns a type with a @JsonDeserialize annotation.
- * @param method The Java method to check.
- * @return true if the return type has a @JsonDeserialize annotation, false otherwise
- */
-private fun hasRequiredJsonDeserializeAnnotationOnInterfaceReturnType(method: Method): Boolean {
-    val hasRequiredAnnotation = method.returnType.isAnnotationPresent(JsonDeserialize::class.java) ||
-            method.returnType.isAnnotationPresent(JsonTypeInfo::class.java)
-    if (!hasRequiredAnnotation) {
-        loggerFor<AgentMetadataReader>().warn(
-            "❓Interface {} used as return type of {}.{} must have @JsonDeserialize or @JsonTypeInfo annotation",
-            method.returnType.name,
-            method.declaringClass.name,
-            method.name,
-        )
-    }
-    return hasRequiredAnnotation
 }

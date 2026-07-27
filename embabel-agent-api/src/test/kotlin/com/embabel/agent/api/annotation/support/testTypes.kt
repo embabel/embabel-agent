@@ -880,7 +880,7 @@ class AgentWithAchievesGoalNoActionAnnotation {
 class AgentWithValidAchievesGoalMethod {
     @Action
     @AchievesGoal(description = "goal")
-    fun goal(input: UserInput) {
-        return
+    fun goal(input: UserInput): String {
+        return "dummy"
     }
 }
