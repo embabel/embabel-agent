@@ -31,6 +31,7 @@ import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.support.springai.toSpringAiMessage
 import com.embabel.agent.spi.support.springai.toSpringToolCallbacks
+import com.embabel.agent.spi.support.streaming.toTaggedThinkingEvents
 import com.embabel.chat.Message
 import com.embabel.common.ai.converters.streaming.StreamingJacksonOutputConverter
 import com.embabel.common.core.streaming.StreamingEvent
@@ -113,6 +114,14 @@ internal class StreamingChatClientOperations(
         return doTransformStream(messages, interaction, null, agentProcess, action)
     }
 
+    override fun generateStreamWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        agentProcess: AgentProcess,
+        action: Action?,
+    ): Flux<StreamingEvent<String>> =
+        doTransformStreamWithThinking(messages, interaction, null, agentProcess, action)
+
     override fun <O> createObjectStream(
         messages: List<Message>,
         interaction: LlmInteraction,
@@ -189,6 +198,16 @@ internal class StreamingChatClientOperations(
             springAiPrompt = springAiPrompt,
         )
     }
+
+    override fun doTransformStreamWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        llmRequestEvent: LlmRequestEvent<String>?,
+        agentProcess: AgentProcess?,
+        action: Action?,
+    ): Flux<StreamingEvent<String>> =
+        doTransformStream(messages, interaction, llmRequestEvent, agentProcess, action)
+            .toTaggedThinkingEvents()
 
     /**
      * Creates a stream of typed objects from LLM JSONL responses, with thinking content suppressed.
