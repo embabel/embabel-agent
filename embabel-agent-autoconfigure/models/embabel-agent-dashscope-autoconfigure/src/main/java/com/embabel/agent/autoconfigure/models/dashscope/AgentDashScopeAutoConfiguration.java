@@ -13,25 +13,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.autoconfigure.models.openai.custom;
+package com.embabel.agent.autoconfigure.models.dashscope;
 
-import com.embabel.agent.config.models.openai.custom.OpenAiCustomModelsConfig;
+import com.embabel.agent.config.models.dashscope.DashScopeModelsConfig;
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.context.annotation.Import;
 
 /**
- * Autoconfiguration for OpenAI Custom models in the Embabel Agent system.
+ * Autoconfiguration for Alibaba Cloud DashScope models
+ * in the Embabel Agent system.
  * <p>
  * This class serves as a Spring Boot autoconfiguration entry point that:
- * - Scans for configuration properties in the "com.embabel.agent" package
- * - Imports the {@link OpenAiCustomModelsConfig} configuration to register OpenAI model beans
+ * - Imports the {@link DashScopeModelsConfig} configuration to register DashScope model beans
  * <p>
- * The configuration is automatically activated when the OpenAI models
- * dependencies are present on the classpath.
+ * The configuration is automatically activated when the DashScope
+ * dependencies are present on the classpath and the DASHSCOPE_API_KEY
+ * environment variable is set.
  */
 @AutoConfiguration
 @AutoConfigureBefore(name = {"com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration"})
-@Import(OpenAiCustomModelsConfig.class)
-public class AgentOpenAiCustomAutoConfiguration {
+@Import(DashScopeModelsConfig.class)
+public class AgentDashScopeAutoConfiguration {
+    private static final Logger logger = LoggerFactory.getLogger(AgentDashScopeAutoConfiguration.class);
+
+    @PostConstruct
+    public void logEvent() {
+        logger.info("AgentDashScopeAutoConfiguration about to proceed...");
+    }
 }
