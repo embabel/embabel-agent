@@ -70,7 +70,7 @@ class SpringAiLlmMessageStreamerTest {
         // survives Spring AI's options merge that would otherwise reset the toolCallbacks
         // list to the chat model's empty default.
         every { mockChatClient.prompt(capture(capturedPrompt)) } returns mockRequestSpec
-        every { mockRequestSpec.toolCallbacks(any<List<ToolCallback>>()) } returns mockRequestSpec
+        every { mockRequestSpec.tools(any<List<ToolCallback>>()) } returns mockRequestSpec
         every { mockRequestSpec.stream() } returns mockStreamSpec
     }
 
@@ -87,7 +87,7 @@ class SpringAiLlmMessageStreamerTest {
 
         // Then
         verify { mockChatClient.prompt(any<Prompt>()) }
-        verify { mockRequestSpec.toolCallbacks(any<List<ToolCallback>>()) }
+        verify { mockRequestSpec.tools(any<List<ToolCallback>>()) }
         verify { mockRequestSpec.stream() }
         // Spring AI 2.0: prompt.options is the rebuilt ToolCallingChatOptions.
         assertTrue(capturedPrompt.captured.options is ToolCallingChatOptions)
