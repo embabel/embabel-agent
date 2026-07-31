@@ -207,7 +207,7 @@ class TypeBasedInputSchemaTest {
             val jsonSchema = schema.toJsonSchema()
             val parsed = objectMapper.readTree(jsonSchema)
 
-            assertEquals("object", parsed.get("type").asText())
+            assertEquals("object", parsed.get("type").asString())
         }
 
         @Test
@@ -231,9 +231,9 @@ class TypeBasedInputSchemaTest {
             val parsed = objectMapper.readTree(jsonSchema)
             val properties = parsed.get("properties")
 
-            assertEquals("string", properties.get("stringField").get("type").asText())
-            assertEquals("integer", properties.get("intField").get("type").asText())
-            assertEquals("boolean", properties.get("booleanField").get("type").asText())
+            assertEquals("string", properties.get("stringField").get("type").asString())
+            assertEquals("integer", properties.get("intField").get("type").asString())
+            assertEquals("boolean", properties.get("booleanField").get("type").asString())
         }
 
         @Test
@@ -265,10 +265,10 @@ class TypeBasedInputSchemaTest {
             val parsed = objectMapper.readTree(jsonSchema)
             val properties = parsed.get("properties")
 
-            assertEquals("integer", properties.get("intField").get("type").asText())
-            assertEquals("integer", properties.get("longField").get("type").asText())
-            assertEquals("number", properties.get("doubleField").get("type").asText())
-            assertEquals("number", properties.get("floatField").get("type").asText())
+            assertEquals("integer", properties.get("intField").get("type").asString())
+            assertEquals("integer", properties.get("longField").get("type").asString())
+            assertEquals("number", properties.get("doubleField").get("type").asString())
+            assertEquals("number", properties.get("floatField").get("type").asString())
         }
 
         @Test
@@ -282,7 +282,7 @@ class TypeBasedInputSchemaTest {
             // List may be detected as object due to type erasure
             assertNotNull(properties.get("listField"))
             // Array types are correctly detected
-            assertEquals("array", properties.get("arrayField").get("type").asText())
+            assertEquals("array", properties.get("arrayField").get("type").asString())
         }
 
         @Test
@@ -293,7 +293,7 @@ class TypeBasedInputSchemaTest {
             val parsed = objectMapper.readTree(jsonSchema)
             val properties = parsed.get("properties")
 
-            assertEquals("object", properties.get("nested").get("type").asText())
+            assertEquals("object", properties.get("nested").get("type").asString())
         }
     }
 
@@ -310,7 +310,7 @@ class TypeBasedInputSchemaTest {
             assertNotNull(jsonSchema)
 
             val parsed = objectMapper.readTree(jsonSchema)
-            assertEquals("object", parsed.get("type").asText())
+            assertEquals("object", parsed.get("type").asString())
         }
     }
 
@@ -329,12 +329,12 @@ class TypeBasedInputSchemaTest {
             val parsed = objectMapper.readTree(jsonSchema)
             val tagsProperty = parsed.get("properties").get("tags")
 
-            assertEquals("array", tagsProperty.get("type").asText())
+            assertEquals("array", tagsProperty.get("type").asString())
 
             // This is the key assertion - arrays MUST have items property
             val items = tagsProperty.get("items")
             assertNotNull(items, "Array schema must have 'items' property for OpenAI compatibility")
-            assertEquals("string", items.get("type").asText())
+            assertEquals("string", items.get("type").asString())
         }
 
         @Test
@@ -345,11 +345,11 @@ class TypeBasedInputSchemaTest {
             val parsed = objectMapper.readTree(jsonSchema)
             val scoresProperty = parsed.get("properties").get("scores")
 
-            assertEquals("array", scoresProperty.get("type").asText())
+            assertEquals("array", scoresProperty.get("type").asString())
 
             val items = scoresProperty.get("items")
             assertNotNull(items, "Array schema must have 'items' property for OpenAI compatibility")
-            assertEquals("integer", items.get("type").asText())
+            assertEquals("integer", items.get("type").asString())
         }
 
         @Test
@@ -360,12 +360,12 @@ class TypeBasedInputSchemaTest {
             val parsed = objectMapper.readTree(jsonSchema)
             val itemsProperty = parsed.get("properties").get("items")
 
-            assertEquals("array", itemsProperty.get("type").asText())
+            assertEquals("array", itemsProperty.get("type").asString())
 
             // Array items should have a nested object schema
             val items = itemsProperty.get("items")
             assertNotNull(items, "Array schema must have 'items' property for OpenAI compatibility")
-            assertEquals("object", items.get("type").asText())
+            assertEquals("object", items.get("type").asString())
 
             // The nested object should have its own properties defined
             val nestedProperties = items.get("properties")
@@ -383,22 +383,22 @@ class TypeBasedInputSchemaTest {
 
             // Top-level properties
             val properties = parsed.get("properties")
-            assertEquals("string", properties.get("title").get("type").asText())
-            assertEquals("integer", properties.get("count").get("type").asText())
+            assertEquals("string", properties.get("title").get("type").asString())
+            assertEquals("integer", properties.get("count").get("type").asString())
 
             // Entries array
             val entriesProperty = properties.get("entries")
-            assertEquals("array", entriesProperty.get("type").asText())
+            assertEquals("array", entriesProperty.get("type").asString())
 
             val items = entriesProperty.get("items")
             assertNotNull(items, "Array schema must have 'items' property")
-            assertEquals("object", items.get("type").asText())
+            assertEquals("object", items.get("type").asString())
 
             // Nested properties in the array items
             val nestedProperties = items.get("properties")
             assertNotNull(nestedProperties)
-            assertEquals("string", nestedProperties.get("name").get("type").asText())
-            assertEquals("integer", nestedProperties.get("value").get("type").asText())
+            assertEquals("string", nestedProperties.get("name").get("type").asString())
+            assertEquals("integer", nestedProperties.get("value").get("type").asString())
         }
     }
 }

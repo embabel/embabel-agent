@@ -209,7 +209,7 @@ class UnfoldingShortcutTest {
                 ),
             ) { input ->
                 val parsed = tools.jackson.module.kotlin.jacksonObjectMapper().readTree(input)
-                taskName = parsed.get("name")?.asText()
+                taskName = parsed.get("name")?.asString()
                 Tool.Result.text("Task '$taskName' created")
             }
             val listTasks = Tool.of("list_tasks", "List tasks") { Tool.Result.text("No tasks") }

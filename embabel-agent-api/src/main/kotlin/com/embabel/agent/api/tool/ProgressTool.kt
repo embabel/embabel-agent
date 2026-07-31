@@ -40,7 +40,7 @@ object ProgressTool {
         ),
     ) { input ->
         val parsed = tools.jackson.databind.ObjectMapper().readTree(input)
-        val status = parsed.get("status")?.asText()
+        val status = parsed.get("status")?.asString()
             ?: return@of Tool.Result.error("Missing 'status' parameter")
 
         val process = AgentProcess.get()
