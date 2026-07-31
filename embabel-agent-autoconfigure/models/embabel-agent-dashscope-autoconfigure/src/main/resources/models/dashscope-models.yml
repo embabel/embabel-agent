@@ -4,7 +4,7 @@
 # Alibaba Cloud DashScope models configuration
 # Served via DashScope's OpenAI-compatible API (OpenAiCompatibleModelFactory)
 #
-# DashScope supports temperature in the range [0.0, 2.0]; the
+# DashScope supports temperature in the range [0.0, 2.0); the
 # DashScopeOptionsConverter clamps runtime values into that range.
 
 models:

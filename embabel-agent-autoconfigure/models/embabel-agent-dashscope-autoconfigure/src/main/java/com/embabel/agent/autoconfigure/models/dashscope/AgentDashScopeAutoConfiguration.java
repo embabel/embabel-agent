@@ -33,6 +33,8 @@ import org.springframework.context.annotation.Import;
  * The configuration is automatically activated when the DashScope
  * dependencies are present on the classpath and the DASHSCOPE_API_KEY
  * environment variable is set.
+ *
+ * @since 1.5.0
  */
 @AutoConfiguration
 @AutoConfigureBefore(name = {"com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration"})
