@@ -5,6 +5,9 @@ on:
   push:
   workflow_dispatch:
 
+env:
+  ARCADE_AGENT_VERSION: "0.2.0"
+
 jobs:
   analyze:
     runs-on: ubuntu-latest
@@ -23,7 +26,7 @@ jobs:
       - name: Install arcade-agent with language extras
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "arcade-agent[languages]==0.2.0"
+          python -m pip install "arcade-agent[languages]==${ARCADE_AGENT_VERSION}"
 
       # 0.2.0 has --language only (no --languages). Auto-detect picks Kotlin as the
       # dominant JVM language; upgrade arcade-agent for explicit java+kotlin polyglot.
