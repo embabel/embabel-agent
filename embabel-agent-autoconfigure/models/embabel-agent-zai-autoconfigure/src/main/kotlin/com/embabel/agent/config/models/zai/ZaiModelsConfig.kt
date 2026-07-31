@@ -17,24 +17,20 @@ package com.embabel.agent.config.models.zai
 
 import com.embabel.agent.api.models.ZaiModels
 import com.embabel.agent.config.models.zai.ZaiProperties.Companion.PREFIX
+import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
-import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
-import com.embabel.common.ai.model.Thinking
+import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.embabel.common.util.loggerFor
 import io.micrometer.observation.ObservationRegistry
-import org.slf4j.LoggerFactory
-import org.springframework.ai.model.tool.ToolCallingManager
-import org.springframework.ai.zhipuai.ZhiPuAiChatModel
-import org.springframework.ai.zhipuai.ZhiPuAiChatOptions
-import org.springframework.ai.zhipuai.api.ZhiPuAiApi
+import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
@@ -55,13 +51,11 @@ import org.springframework.web.reactive.function.client.WebClient
 @ConfigurationProperties(prefix = PREFIX)
 class ZaiProperties : RetryProperties {
     /**
-     * Base URL for Z.ai API requests. Z.ai exposes the same Zhipu "PaaS v4"
-     * API surface as the native Spring AI ZhiPuAI client, on an international host.
-     *
-     * The native client appends the version + path (`/v4/chat/completions`) itself,
-     * so this is the host + `/api/paas` prefix only — do NOT include `/v4`.
+     * Base URL for Z.ai API requests. Z.ai/GLM exposes an OpenAI-compatible chat-completions
+     * endpoint under the "PaaS v4" path, so this is the host + `/api/paas/v4` prefix; the
+     * OpenAI client appends `/chat/completions` itself.
      */
-    var baseUrl: String = "https://api.z.ai/api/paas"
+    var baseUrl: String = "https://api.z.ai/api/paas/v4"
 
     /**
      * API key for authenticating with Z.ai services.
@@ -97,13 +91,13 @@ class ZaiProperties : RetryProperties {
 /**
  * Configuration class for Z.ai (Zhipu AI) GLM models.
  *
- * Uses native Spring AI ZhiPuAI support (spring-ai-zhipuai) — the [ZhiPuAiChatModel]
- * pointed at Z.ai's international "PaaS v4" endpoint — rather than the OpenAI-compatible
- * wire protocol. This unlocks native GLM features such as reasoning ("thinking").
+ * Z.ai/GLM exposes an OpenAI-compatible chat-completions API, so models are served through
+ * [OpenAiCompatibleModelFactory] pointed at Z.ai's international "PaaS v4" endpoint — the same
+ * approach used by the MiniMax provider. (Spring AI 2.0 dropped the dedicated `spring-ai-zhipuai`
+ * module the previous native implementation relied on.)
  *
  * Model definitions are loaded from `classpath:models/zai-models.yml` and each is
- * registered as a singleton [LlmService] bean via [ConfigurableBeanFactory.registerSingleton],
- * following the same pattern as the Google GenAI and Mistral AI providers.
+ * registered as a singleton [LlmService] bean via [ConfigurableBeanFactory.registerSingleton].
  *
  * GLM models require temperature values in the range (0.0, 1.0]. The [ZaiOptionsConverter]
  * clamps temperature into this range.
@@ -120,25 +114,28 @@ class ZaiProperties : RetryProperties {
 @ExcludeFromJacocoGeneratedReport(reason = "Z.ai configuration can't be unit tested")
 class ZaiModelsConfig(
     @param:Value("\${ZAI_BASE_URL:#{null}}")
-    private val envBaseUrl: String?,
+    envBaseUrl: String?,
     @param:Value("\${ZAI_API_KEY:#{null}}")
-    private val envApiKey: String?,
+    envApiKey: String?,
+    observationRegistry: ObjectProvider<ObservationRegistry>,
     private val properties: ZaiProperties,
-    private val observationRegistry: ObjectProvider<ObservationRegistry>,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     @Qualifier("aiModelRestClientBuilder")
-    private val restClientBuilder: ObjectProvider<RestClient.Builder>,
+    restClientBuilder: ObjectProvider<RestClient.Builder>,
     @Qualifier("aiModelWebClientBuilder")
-    private val webClientBuilder: ObjectProvider<WebClient.Builder>,
+    webClientBuilder: ObjectProvider<WebClient.Builder>,
     private val modelLoader: LlmAutoConfigMetadataLoader<ZaiModelDefinitions> = ZaiModelLoader(),
-) {
-    private val logger = LoggerFactory.getLogger(ZaiModelsConfig::class.java)
-
-    private val baseUrl: String = envBaseUrl?.trim()?.takeIf { it.isNotEmpty() } ?: properties.baseUrl
-
-    private val apiKey: String = envApiKey?.trim()?.takeIf { it.isNotEmpty() }
+) : OpenAiCompatibleModelFactory(
+    baseUrl = envBaseUrl?.trim()?.takeIf { it.isNotEmpty() } ?: properties.baseUrl,
+    apiKey = envApiKey?.trim()?.takeIf { it.isNotEmpty() }
         ?: properties.apiKey?.trim()?.takeIf { it.isNotEmpty() }
-        ?: error("Z.ai API key required: set ZAI_API_KEY env var or embabel.agent.platform.models.zai.api-key")
+        ?: error("Z.ai API key required: set ZAI_API_KEY env var or embabel.agent.platform.models.zai.api-key"),
+    completionsPath = null,
+    embeddingsPath = null,
+    observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
+    restClientBuilder = restClientBuilder,
+    webClientBuilder = webClientBuilder,
+) {
 
     init {
         logger.info("Z.ai models are available: {}", properties)
@@ -149,7 +146,19 @@ class ZaiModelsConfig(
         val registeredLlms = buildList {
             modelLoader.loadAutoConfigMetadata().models.forEach { modelDef ->
                 try {
-                    val llm = createZaiLlm(modelDef)
+                    val llm = openAiCompatibleLlm(
+                        model = modelDef.modelId,
+                        provider = ZaiModels.PROVIDER,
+                        knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
+                        optionsConverter = ZaiOptionsConverter,
+                        pricingModel = modelDef.pricingModel?.let {
+                            PerTokenPricingModel(
+                                usdPer1mInputTokens = it.usdPer1mInputTokens,
+                                usdPer1mOutputTokens = it.usdPer1mOutputTokens,
+                            )
+                        } ?: PricingModel.ALL_YOU_CAN_EAT,
+                        retryTemplate = properties.retryTemplate("zai-${modelDef.modelId}"),
+                    )
 
                     // Register as singleton bean with the configured bean name
                     configurableBeanFactory.registerSingleton(modelDef.name, llm)
@@ -168,79 +177,19 @@ class ZaiModelsConfig(
             registeredLlms = registeredLlms,
         ).also { logger.info(it.summary()) }
     }
-
-    /**
-     * Creates an individual Z.ai GLM model from configuration.
-     */
-    private fun createZaiLlm(modelDef: ZaiModelDefinition): LlmService<*> {
-        val chatModel = ZhiPuAiChatModel(
-            createZhiPuAiApi(),
-            createDefaultOptions(modelDef),
-            ToolCallingManager.builder()
-                .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-                .build(),
-            properties.retryTemplate("zai-${modelDef.modelId}"),
-            observationRegistry.getIfUnique { ObservationRegistry.NOOP },
-        )
-
-        return SpringAiLlmService(
-            name = modelDef.modelId,
-            chatModel = chatModel,
-            provider = ZaiModels.PROVIDER,
-            optionsConverter = ZaiOptionsConverter,
-            knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
-            // All GLM models exposed by Z.ai support native reasoning ("thinking"),
-            // matching the GoogleGenAi provider which also declares this statically.
-            thinkingSupported = true,
-            pricingModel = modelDef.pricingModel?.let {
-                PerTokenPricingModel(
-                    usdPer1mInputTokens = it.usdPer1mInputTokens,
-                    usdPer1mOutputTokens = it.usdPer1mOutputTokens,
-                )
-            },
-        )
-    }
-
-    /**
-     * Creates default options for a model based on YAML configuration.
-     */
-    private fun createDefaultOptions(modelDef: ZaiModelDefinition): ZhiPuAiChatOptions =
-        ZhiPuAiChatOptions.builder()
-            .model(modelDef.modelId)
-            .maxTokens(modelDef.maxTokens)
-            .temperature(modelDef.temperature)
-            .apply { modelDef.topP?.let { topP(it) } }
-            .build()
-
-    private fun createZhiPuAiApi(): ZhiPuAiApi {
-        logger.info("Using Z.ai base URL: {}", baseUrl)
-        return ZhiPuAiApi.builder()
-            .baseUrl(baseUrl)
-            .apiKey(apiKey)
-            .restClientBuilder(
-                restClientBuilder.getIfAvailable { RestClient.builder() }
-                    .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-            )
-            .webClientBuilder(
-                webClientBuilder.getIfAvailable { WebClient.builder() }
-                    .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-            )
-            .build()
-    }
 }
 
 /**
  * Options converter for Z.ai (Zhipu AI) GLM models.
  * GLM models require temperature to be in the range (0.0, 1.0].
- * Values outside this range are clamped accordingly. Reasoning ("thinking") is
- * enabled natively when requested via [LlmOptions.thinking].
+ * Values outside this range are clamped accordingly.
  */
-object ZaiOptionsConverter : OptionsConverter<ZhiPuAiChatOptions> {
+object ZaiOptionsConverter : OptionsConverter<OpenAiChatOptions> {
 
     private const val MIN_TEMPERATURE = 0.01
     private const val MAX_TEMPERATURE = 1.0
 
-    override fun convertOptions(options: LlmOptions): ZhiPuAiChatOptions {
+    override fun convertOptions(options: LlmOptions): OpenAiChatOptions {
         val temperature = options.temperature?.let { temp ->
             temp.coerceIn(MIN_TEMPERATURE, MAX_TEMPERATURE).also { clamped ->
                 if (clamped != temp) {
@@ -251,16 +200,12 @@ object ZaiOptionsConverter : OptionsConverter<ZhiPuAiChatOptions> {
                 }
             }
         }
-        return ZhiPuAiChatOptions.builder()
+        return OpenAiChatOptions.builder()
             .temperature(temperature)
             .topP(options.topP)
             .maxTokens(options.maxTokens)
-            .apply {
-                options.thinking.toZhiPuAiThinking()?.let { thinking(it) }
-            }
+            .presencePenalty(options.presencePenalty)
+            .frequencyPenalty(options.frequencyPenalty)
             .build()
     }
-
-    private fun Thinking?.toZhiPuAiThinking(): ZhiPuAiApi.ChatCompletionRequest.Thinking? =
-        this?.takeIf { it.enabled }?.let { ZhiPuAiApi.ChatCompletionRequest.Thinking.enabled() }
 }

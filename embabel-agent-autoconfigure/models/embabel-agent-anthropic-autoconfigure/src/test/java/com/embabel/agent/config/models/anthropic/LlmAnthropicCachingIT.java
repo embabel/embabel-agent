@@ -308,7 +308,7 @@ class LlmAnthropicCachingIT {
 
     @Test
     void testSystemPromptCaching() {
-        logger.info("Testing system prompt caching");
+        logger.info("Testing system prompt caching with thinking enabled");
 
         AnthropicCachingConfig cachingConfig = new AnthropicCachingConfig();
         cachingConfig.setSystemPrompt(true);

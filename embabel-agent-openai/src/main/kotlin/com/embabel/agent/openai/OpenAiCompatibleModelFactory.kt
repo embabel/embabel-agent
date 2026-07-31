@@ -26,49 +26,65 @@ import com.embabel.common.ai.model.*
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
 import com.embabel.common.util.ObjectProviders
-import com.embabel.common.util.loggerFor
+import com.openai.client.OpenAIClient
+import com.openai.client.OpenAIClientAsync
+import com.openai.client.okhttp.OpenAIOkHttpClient
+import com.openai.client.okhttp.OpenAIOkHttpClientAsync
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.document.MetadataMode
-import org.springframework.ai.model.NoopApiKey
-import org.springframework.ai.model.SimpleApiKey
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.ai.openai.OpenAiChatModel
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.ai.openai.OpenAiEmbeddingModel
 import org.springframework.ai.openai.OpenAiEmbeddingOptions
-import org.springframework.ai.openai.api.OpenAiApi
-import org.springframework.ai.retry.RetryUtils
 import org.springframework.beans.factory.ObjectProvider
-import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.retry.support.RetryTemplate
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
+import java.time.Duration
 import java.time.LocalDate
 
 /**
  * Generic support for OpenAI compatible models.
  * Use to register LLM beans.
+ *
+ * Spring AI 2.0 swapped its hand-rolled `OpenAiApi` for the official openai-java SDK
+ * (`OpenAIClient`). The migration removes Spring's `RestClient`/`WebClient` from the
+ * HTTP path entirely — the SDK uses OkHttp internally. The [restClientBuilder] and
+ * [webClientBuilder] parameters are kept for source compatibility with the previous
+ * constructor signature but are no longer wired into HTTP calls. Likewise, retries
+ * are now wrapped at the ChatClientLlmOperations layer via spring-retry, so any
+ * `retryTemplate` argument here is a no-op.
+ *
  * @param baseUrl The base URL of the OpenAI API. Null for OpenAI default.
  * @param apiKey The API key for the OpenAI compatible provider, or null for no authentication.
+ * @param completionsPath Custom completions endpoint path (no longer settable on the
+ *   openai-java SDK; logged as a warning and ignored — bake the full path into [baseUrl]).
+ * @param embeddingsPath Custom embeddings endpoint path (same caveat as [completionsPath]).
+ * @param httpHeaders Extra headers sent on every request, applied via OpenAIClient builder.
+ * @param observationRegistry Micrometer registry for Spring AI's chat model instrumentation.
+ * @param restClientBuilder Unused since Spring AI 2.0; retained for source compatibility.
+ * @param webClientBuilder Unused since Spring AI 2.0; retained for source compatibility.
  */
 open class OpenAiCompatibleModelFactory(
     val baseUrl: String?,
     private val apiKey: String?,
-    private val completionsPath: String?,
-    private val embeddingsPath: String?,
-    private val httpHeaders: Map<String,String> = emptyMap(),
+    private val completionsPath: String? = null,
+    private val embeddingsPath: String? = null,
+    private val httpHeaders: Map<String, String> = emptyMap(),
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
-    private val restClientBuilder: ObjectProvider<RestClient.Builder> = ObjectProviders.empty(),
-    private val webClientBuilder: ObjectProvider<WebClient.Builder> = ObjectProviders.empty(),
+    @Suppress("UNUSED_PARAMETER")
+    restClientBuilder: ObjectProvider<RestClient.Builder> = ObjectProviders.empty(),
+    @Suppress("UNUSED_PARAMETER")
+    webClientBuilder: ObjectProvider<WebClient.Builder> = ObjectProviders.empty(),
 ) {
 
     companion object {
-        private const val CONNECT_TIMEOUT_MS = 5000
-        private const val READ_TIMEOUT_MS = 600000
-        private val PASS_THROUGH_RETRY_TEMPLATE: RetryTemplate = RetryTemplate.builder().maxAttempts(1).build()
+        private const val CONNECT_TIMEOUT_MS = 5_000L
+        private const val READ_TIMEOUT_MS = 600_000L
 
         /**
          * Returns a [ByokSpec] for OpenAI.
@@ -179,47 +195,60 @@ open class OpenAiCompatibleModelFactory(
             baseUrl ?: "default OpenAI location",
             if (apiKey == null) "not set" else "set",
         )
-    }
-
-    protected val openAiApi = createOpenAiApi()
-
-    private fun createOpenAiApi(): OpenAiApi {
-        val builder = OpenAiApi.builder()
-            .apiKey(if (apiKey != null) SimpleApiKey(apiKey) else NoopApiKey())
-        if (baseUrl != null) {
-            loggerFor<OpenAiModels>().info("Using custom OpenAI base URL: {}", baseUrl)
-            builder.baseUrl(baseUrl)
-        }
         if (completionsPath != null) {
-            loggerFor<OpenAiModels>().info("Using custom OpenAI completions path: {}", completionsPath)
-            builder.completionsPath(completionsPath)
+            logger.warn(
+                "completionsPath '{}' is no longer honoured by Spring AI 2.0 (openai-java SDK uses fixed endpoint paths). " +
+                        "Bake the path into baseUrl instead.",
+                completionsPath,
+            )
         }
         if (embeddingsPath != null) {
-            loggerFor<OpenAiModels>().info("Using custom OpenAI embeddings path: {}", embeddingsPath)
-            builder.embeddingsPath(embeddingsPath)
+            logger.warn(
+                "embeddingsPath '{}' is no longer honoured by Spring AI 2.0 (openai-java SDK uses fixed endpoint paths).",
+                embeddingsPath,
+            )
         }
+    }
 
-        //add observation registry to rest and web client builders
-        builder
-            .restClientBuilder(
-                restClientBuilder.getIfAvailable {
-                    RestClient.builder().requestFactory(
-                        SimpleClientHttpRequestFactory().apply {
-                            setConnectTimeout(CONNECT_TIMEOUT_MS)
-                            setReadTimeout(READ_TIMEOUT_MS)
-                        }
-                    )
-                }
-                    .observationRegistry(observationRegistry)
-            )
-        builder
-            .webClientBuilder(
-                webClientBuilder.getIfAvailable {
-                    WebClient.builder()
-                }
-                    .observationRegistry(observationRegistry)
-            )
+    /**
+     * Shared OpenAI clients used by chat + embedding paths.
+     *
+     * Spring AI 2.0's `OpenAiChatModel` ctor builds an async client lazily via
+     * `OpenAiSetup.setupAsyncClient(...)` if `.openAiClientAsync(...)` wasn't supplied —
+     * and that fallback reads `OPENAI_API_KEY` from the environment. Tests that pass an
+     * explicit sync client but omit the async one work only when `OPENAI_API_KEY` is
+     * already set in the shell (which silently fails on CI). To stay platform-independent
+     * we build **both** clients from our resolved credentials and wire both into the
+     * chat model.
+     */
+    protected val openAiClient: OpenAIClient = createOpenAiClient()
+    protected val openAiClientAsync: OpenAIClientAsync = createOpenAiClientAsync()
 
+    private fun resolvedApiKey(): String =
+        // SDK rejects null/blank API keys at build time even for no-auth local servers,
+        // so substitute a placeholder when apiKey is null.
+        apiKey ?: "no-auth"
+
+    private fun createOpenAiClient(): OpenAIClient {
+        val builder = OpenAIOkHttpClient.builder()
+            .timeout(Duration.ofMillis(READ_TIMEOUT_MS))
+            .apiKey(resolvedApiKey())
+        if (baseUrl != null) {
+            logger.info("Using custom OpenAI base URL: {}", baseUrl)
+            builder.baseUrl(baseUrl)
+        }
+        httpHeaders.forEach { (name, value) -> builder.putHeader(name, value) }
+        return builder.build()
+    }
+
+    private fun createOpenAiClientAsync(): OpenAIClientAsync {
+        val builder = OpenAIOkHttpClientAsync.builder()
+            .timeout(Duration.ofMillis(READ_TIMEOUT_MS))
+            .apiKey(resolvedApiKey())
+        if (baseUrl != null) {
+            builder.baseUrl(baseUrl)
+        }
+        httpHeaders.forEach { (name, value) -> builder.putHeader(name, value) }
         return builder.build()
     }
 
@@ -230,11 +259,12 @@ open class OpenAiCompatibleModelFactory(
         provider: String,
         knowledgeCutoffDate: LocalDate?,
         optionsConverter: OptionsConverter<*> = OpenAiChatOptionsConverter,
-        retryTemplate: RetryTemplate = RetryUtils.DEFAULT_RETRY_TEMPLATE,
+        @Suppress("UNUSED_PARAMETER")
+        retryTemplate: RetryTemplate? = null,
     ): LlmService<*> {
         return SpringAiLlmService(
             name = model,
-            chatModel = chatModelOf(model, retryTemplate),
+            chatModel = chatModelOf(model),
             provider = provider,
             optionsConverter = optionsConverter,
             pricingModel = pricingModel,
@@ -246,7 +276,8 @@ open class OpenAiCompatibleModelFactory(
      * Validates the configured API key by making a probe call, then returns a production
      * [LlmService] if successful.
      *
-     * The probe uses a single-attempt retry template (no retries) so a 401 fails fast.
+     * Spring AI 2.0 no longer accepts a spring-retry [RetryTemplate] on the model builder,
+     * so the probe relies on the openai-java SDK's own no-retry default (any 401 fails fast).
      * On any exception the provider-specific error is translated to [InvalidApiKeyException],
      * keeping Spring AI types out of the caller.
      */
@@ -261,7 +292,6 @@ open class OpenAiCompatibleModelFactory(
             pricingModel = pricingModel,
             provider = provider,
             knowledgeCutoffDate = knowledgeCutoffDate,
-            retryTemplate = PASS_THROUGH_RETRY_TEMPLATE,
         )
         try {
             probe.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())
@@ -283,11 +313,12 @@ open class OpenAiCompatibleModelFactory(
         pricingModel: PricingModel? = null,
     ): EmbeddingService {
         val embeddingModel = OpenAiEmbeddingModel(
-            openAiApi,
+            openAiClient,
             MetadataMode.EMBED,
             OpenAiEmbeddingOptions.builder()
                 .model(model)
                 .build(),
+            observationRegistry,
         )
         return SpringAiEmbeddingService(
             name = model,
@@ -298,15 +329,25 @@ open class OpenAiCompatibleModelFactory(
         )
     }
 
+    /**
+     * Build the underlying [ChatModel] for [model].
+     *
+     * Spring AI 2.0 removed the spring-retry hook on this builder; retries are handled at the
+     * ChatClientLlmOperations layer instead. The [retryTemplate] parameter is kept for source
+     * compatibility with downstream subclasses (the previous Spring AI 1.x signature) but is
+     * ignored.
+     */
+    @JvmOverloads
     protected fun chatModelOf(
         model: String,
-        retryTemplate: RetryTemplate,
+        @Suppress("UNUSED_PARAMETER")
+        retryTemplate: RetryTemplate? = null,
     ): ChatModel {
         return OpenAiChatModel.builder()
-            .defaultOptions(
+            .options(
                 OpenAiChatOptions.builder()
                     .model(model)
-                    .httpHeaders(httpHeaders)
+                    .apply { if (httpHeaders.isNotEmpty()) customHeaders(httpHeaders) }
                     .build()
             )
             .toolCallingManager(
@@ -314,11 +355,13 @@ open class OpenAiCompatibleModelFactory(
                     .observationRegistry(observationRegistry)
                     .build()
             )
-            .openAiApi(openAiApi)
-            .retryTemplate(retryTemplate)
-            .observationRegistry(
-                observationRegistry
-            ).build()
+            .openAiClient(openAiClient)
+            // Supply the async client explicitly — otherwise OpenAiChatModel falls back
+            // to OpenAiSetup.setupAsyncClient() which reads OPENAI_API_KEY from the env
+            // and crashes when that var isn't set (e.g. on CI).
+            .openAiClientAsync(openAiClientAsync)
+            .observationRegistry(observationRegistry)
+            .build()
     }
 }
 

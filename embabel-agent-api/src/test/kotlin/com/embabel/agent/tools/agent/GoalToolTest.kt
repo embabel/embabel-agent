@@ -24,8 +24,8 @@ import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.Goal
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.common.core.types.NamedAndDescribed
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import org.assertj.core.api.Assertions.assertThat

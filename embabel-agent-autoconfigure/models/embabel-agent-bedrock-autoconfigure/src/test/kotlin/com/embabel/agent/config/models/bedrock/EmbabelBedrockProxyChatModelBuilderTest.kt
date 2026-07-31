@@ -23,7 +23,6 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.springframework.ai.bedrock.converse.BedrockChatOptions
 import org.springframework.ai.chat.observation.DefaultChatModelObservationConvention
-import org.springframework.ai.model.tool.DefaultToolExecutionEligibilityPredicate
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.boot.test.system.CapturedOutput
 import org.springframework.boot.test.system.OutputCaptureExtension
@@ -62,7 +61,6 @@ class EmbabelBedrockProxyChatModelBuilderTest {
 
         val chatModel = EmbabelBedrockProxyChatModelBuilder()
             .toolCallingManager(toolCallingManager)
-            .toolExecutionEligibilityPredicate(DefaultToolExecutionEligibilityPredicate())
             .customObservationConvention(observationConvention)
             .credentialsProvider(credentialsProvider)
             .region(region)

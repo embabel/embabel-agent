@@ -21,8 +21,7 @@ import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyAgentPlatform
 import com.embabel.common.util.loggerFor
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertNotNull
@@ -36,7 +35,7 @@ class AgenticEventSerializationTest {
 
     @Test
     fun `test process events can be serialized`() {
-        val om = jacksonObjectMapper().registerModule(JavaTimeModule())
+        val om = jacksonObjectMapper()
         val fails = mutableListOf<String>()
         var agentProcessPlanFormulatedEventString: String? = null
         var agentProcessCompletedEventString: String? = null
@@ -103,7 +102,7 @@ class AgenticEventSerializationTest {
 
     @Test
     fun `test platform events can be serialized`() {
-        val om = jacksonObjectMapper().registerModule(JavaTimeModule())
+        val om = jacksonObjectMapper()
         val fails = mutableListOf<String>()
 
         val serializingListener = object : AgenticEventListener {

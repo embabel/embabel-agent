@@ -32,6 +32,11 @@ internal object SpringAiToolExtractor : ExternalToolExtractor {
         }
         return try {
             ToolCallbacks.from(obj).map { it.toEmbabelTool() }
+        } catch (_: IllegalArgumentException) {
+            // Spring AI 2.0's ToolCallbacks.from throws IllegalArgumentException when the object has
+            // no @Tool-annotated methods (Spring AI 1.x/M8 threw IllegalStateException). Either way,
+            // "no tools on this object" is a normal result for agents, so return an empty list.
+            emptyList()
         } catch (_: IllegalStateException) {
             emptyList()
         }

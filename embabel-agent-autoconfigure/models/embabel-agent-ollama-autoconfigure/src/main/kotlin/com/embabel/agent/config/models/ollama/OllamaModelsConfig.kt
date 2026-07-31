@@ -161,7 +161,7 @@ class OllamaModelsConfig(
                     )
                     .build()
             )
-            .defaultOptions(
+            .options(
                 OllamaChatOptions.builder()
                     .model(uniqueModelName)
                     .build()
@@ -206,7 +206,7 @@ class OllamaModelsConfig(
                     )
                     .build()
             )
-            .defaultOptions(
+            .options(
                 OllamaEmbeddingOptions.builder()
                     .model(uniqueModelName)
                     .build()

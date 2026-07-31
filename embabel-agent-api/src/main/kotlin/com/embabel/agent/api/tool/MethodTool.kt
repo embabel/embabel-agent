@@ -19,7 +19,7 @@ import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.LlmTool.Param
 import com.embabel.agent.api.tool.VictoolsSchemaGenerator.ParameterInfo
 import com.embabel.agent.core.ReplanRequestedException
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import java.lang.reflect.Method
 import java.lang.reflect.Type
 import kotlin.reflect.KFunction

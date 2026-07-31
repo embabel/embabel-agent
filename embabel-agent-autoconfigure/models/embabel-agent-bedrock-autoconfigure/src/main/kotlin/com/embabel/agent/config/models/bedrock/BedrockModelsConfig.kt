@@ -27,6 +27,7 @@ import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.ai.bedrock.cohere.BedrockCohereEmbeddingModel
+import org.springframework.ai.bedrock.cohere.BedrockCohereEmbeddingOptions
 import org.springframework.ai.bedrock.cohere.api.CohereEmbeddingBedrockApi
 import org.springframework.ai.bedrock.converse.BedrockChatOptions
 import org.springframework.ai.bedrock.converse.BedrockProxyChatModel
@@ -34,15 +35,12 @@ import org.springframework.ai.bedrock.titan.BedrockTitanEmbeddingModel
 import org.springframework.ai.bedrock.titan.api.TitanEmbeddingBedrockApi
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.observation.ChatModelObservationConvention
-import org.springframework.ai.model.ModelOptionsUtils
 import org.springframework.ai.model.bedrock.autoconfigure.BedrockAwsConnectionConfiguration
 import org.springframework.ai.model.bedrock.autoconfigure.BedrockAwsConnectionProperties
 import org.springframework.ai.model.bedrock.cohere.autoconfigure.BedrockCohereEmbeddingProperties
 import org.springframework.ai.model.bedrock.titan.autoconfigure.BedrockTitanEmbeddingProperties
-import org.springframework.ai.model.tool.DefaultToolExecutionEligibilityPredicate
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.ai.model.tool.ToolCallingManager
-import org.springframework.ai.model.tool.ToolExecutionEligibilityPredicate
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
@@ -238,7 +236,7 @@ class BedrockModelsConfig(
                     embeddingDef.modelId,
                     credentialsProvider,
                     regionProvider.region,
-                    ModelOptionsUtils.OBJECT_MAPPER,
+                    tools.jackson.databind.json.JsonMapper.builder().build(),
                     connectionProperties.timeout,
                 ), observationRegistry.getIfUnique { ObservationRegistry.NOOP }
             ).withInputType(bedrockTitanEmbeddingProperties.inputType),
@@ -254,10 +252,13 @@ class BedrockModelsConfig(
                     embeddingDef.modelId,
                     credentialsProvider,
                     regionProvider.region,
-                    ModelOptionsUtils.OBJECT_MAPPER,
+                    tools.jackson.databind.json.JsonMapper.builder().build(),
                     connectionProperties.timeout
                 ),
-                bedrockCohereEmbeddingProperties.options
+                BedrockCohereEmbeddingOptions.builder()
+                    .inputType(bedrockCohereEmbeddingProperties.options.inputType)
+                    .truncate(bedrockCohereEmbeddingProperties.options.truncate)
+                    .build()
             ),
             provider = PROVIDER,
         )
@@ -314,8 +315,6 @@ class EmbabelBedrockProxyChatModelBuilder internal constructor() {
     private var region: Region? = Region.US_EAST_1
     private var timeout: java.time.Duration? = java.time.Duration.ofMinutes(10)
     private var toolCallingManager: ToolCallingManager? = null
-    private var toolExecutionEligibilityPredicate: ToolExecutionEligibilityPredicate =
-        DefaultToolExecutionEligibilityPredicate()
     private var defaultOptions = BedrockChatOptions.builder().build()
     private var observationRegistry = ObservationRegistry.NOOP
     private var customObservationConvention: ChatModelObservationConvention? = null
@@ -325,12 +324,6 @@ class EmbabelBedrockProxyChatModelBuilder internal constructor() {
 
     fun toolCallingManager(toolCallingManager: ToolCallingManager?): EmbabelBedrockProxyChatModelBuilder {
         this.toolCallingManager = toolCallingManager
-        return this
-    }
-
-    fun toolExecutionEligibilityPredicate(toolExecutionEligibilityPredicate: ToolExecutionEligibilityPredicate):
-            EmbabelBedrockProxyChatModelBuilder {
-        this.toolExecutionEligibilityPredicate = toolExecutionEligibilityPredicate
         return this
     }
 
@@ -403,8 +396,7 @@ class EmbabelBedrockProxyChatModelBuilder internal constructor() {
             bedrockRuntimeAsyncClient,
             defaultOptions,
             observationRegistry,
-            toolCallingManager ?: defaultToolCallingManager,
-            toolExecutionEligibilityPredicate
+            toolCallingManager ?: defaultToolCallingManager
         ).apply {
             if (customObservationConvention != null) {
                 setObservationConvention(customObservationConvention)

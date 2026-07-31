@@ -23,7 +23,7 @@ import com.embabel.common.util.indent
 import com.embabel.plan.common.condition.ConditionDetermination
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import tools.jackson.databind.annotation.JsonDeserialize
 
 
 @JsonDeserialize(`as` = ConditionMetadataImpl::class)

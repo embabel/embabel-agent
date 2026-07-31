@@ -17,7 +17,7 @@ package com.embabel.common.ai.model
 
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import tools.jackson.databind.annotation.JsonDeserialize
 import java.time.LocalDate
 
 @JsonDeserialize(`as` = EmbeddingServiceMetadataImpl::class)

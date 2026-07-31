@@ -24,7 +24,7 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.AbstractAgentProcess
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.chat.UserMessage
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify

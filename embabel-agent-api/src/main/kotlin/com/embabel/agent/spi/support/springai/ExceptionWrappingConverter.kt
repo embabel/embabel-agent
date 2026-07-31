@@ -22,13 +22,13 @@ import org.springframework.ai.converter.StructuredOutputConverter
 /**
  * Wrap in our exception handling to capture return string
  */
-class ExceptionWrappingConverter<T>(
+class ExceptionWrappingConverter<T : Any>(
     private val expectedType: Class<T>,
     private val delegate: StructuredOutputConverter<T>,
 ) : StructuredOutputConverter<T> {
     private val logger = LoggerFactory.getLogger(ExceptionWrappingConverter::class.java)
 
-    override fun convert(source: String): T? {
+    override fun convert(source: String): T {
         logger.debug("Raw LLM output: {}", source)
         return try {
             delegate.convert(source)

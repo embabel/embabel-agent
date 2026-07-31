@@ -23,11 +23,12 @@ import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.*
 import com.embabel.common.ai.prompt.KnowledgeCutoffDate
 import com.embabel.common.ai.prompt.PromptContributor
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
+import tools.jackson.databind.annotation.JsonSerialize
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.prompt.Prompt
 import reactor.core.publisher.Flux
 import java.time.Duration
@@ -85,7 +86,9 @@ private object StreamingCapabilityVerifier {
  * @param name Name of the LLM
  * @param provider Name of the provider (e.g., "OpenAI", "Anthropic")
  * @param chatModel The Spring AI ChatModel to use for LLM calls
- * @param optionsConverter Function to convert [LlmOptions] to Spring AI ChatOptions
+ * @param optionsConverter Function to convert [LlmOptions] to Spring AI ChatOptions.
+ *        Do not call [OptionsConverter.convertOptions] directly — use [SpringAiLlmService.convertOptions]
+ *        which also stamps the configured model name.
  * @param knowledgeCutoffDate Model's knowledge cutoff date, if known
  * @param promptContributors List of prompt contributors for this model.
  *        Knowledge cutoff is automatically included if knowledgeCutoffDate is set.
@@ -123,11 +126,13 @@ data class SpringAiLlmService @JvmOverloads constructor(
      */
     override val model: ChatModel get() = chatModel
 
+    fun convertOptions(llmOptions: LlmOptions): ChatOptions =
+        optionsConverter.convertOptions(llmOptions, name)
+
     override fun createMessageSender(options: LlmOptions): LlmMessageSender {
-        val chatOptions = optionsConverter.convertOptions(options)
         return SpringAiLlmMessageSender(
             chatModel = chatModel,
-            chatOptions = chatOptions,
+            chatOptions = convertOptions(options),
             toolResponseContentAdapter = toolResponseContentAdapter,
             nativeStructuredOutputConfigurer = nativeStructuredOutputConfigurer,
             nativeSupport = nativeSupport,
@@ -136,9 +141,8 @@ data class SpringAiLlmService @JvmOverloads constructor(
     }
 
     override fun createMessageStreamer(options: LlmOptions): LlmMessageStreamer {
-        val chatOptions = optionsConverter.convertOptions(options)
         val chatClient = ChatClient.create(chatModel)
-        return SpringAiLlmMessageStreamer(chatClient, chatOptions)
+        return SpringAiLlmMessageStreamer(chatClient, convertOptions(options))
     }
 
     override fun supportsStreaming(): Boolean = StreamingCapabilityVerifier.supportsStreaming(chatModel)

@@ -17,7 +17,7 @@ package com.embabel.agent.api.annotation.support
 
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.Blackboard
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import kotlin.reflect.KClass
 import kotlin.reflect.full.memberProperties
 

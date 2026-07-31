@@ -17,9 +17,8 @@ package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.spi.support.MaybeReturn
 import com.embabel.common.util.DummyInstanceCreator
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.databind.annotation.JsonDeserialize
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import org.springframework.ai.converter.StructuredOutputConverter
 
 /**
@@ -37,14 +36,14 @@ import org.springframework.ai.converter.StructuredOutputConverter
  * @param generateExamples whether to generate examples or not. This class does nothing if it is false
  * Wraps an existing StructuredOutputConverter with this class to enhance its format description for LLM prompting.
  */
-class WithExampleConverter<T>(
+class WithExampleConverter<T : Any>(
     private val delegate: StructuredOutputConverter<T>,
     private val outputClass: Class<T>,
     private val ifPossible: Boolean,
     private val generateExamples: Boolean,
 ) : StructuredOutputConverter<T> {
 
-    private val objectMapper = jacksonObjectMapper().registerModule(JavaTimeModule())
+    private val objectMapper = jacksonObjectMapper()
 
     /**
      * Delegates conversion to the underlying [delegate].
@@ -52,7 +51,7 @@ class WithExampleConverter<T>(
      * @param source the raw output string to convert
      * @return the converted output, or null if conversion fails
      */
-    override fun convert(source: String): T? = delegate.convert(source)
+    override fun convert(source: String): T = delegate.convert(source)
 
     /**
      * Returns a format description string, augmented with few-shot examples.

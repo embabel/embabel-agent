@@ -53,7 +53,7 @@ class AutonomyA2ARequestHandler(
     /**
      * Handles streaming JSON-RPC requests that are not part of the standard SDK
      */
-    fun handleCustomStreamingRequest(method: String, requestMap: Map<String, Any>, objectMapper: com.fasterxml.jackson.databind.ObjectMapper): SseEmitter {
+    fun handleCustomStreamingRequest(method: String, requestMap: Map<String, Any>, objectMapper: tools.jackson.databind.ObjectMapper): SseEmitter {
         return when (method) {
             TaskResubscriptionRequest.METHOD -> {
                 val request = objectMapper.convertValue(requestMap, TaskResubscriptionRequest::class.java)
@@ -351,9 +351,10 @@ class AutonomyA2ARequestHandler(
 
                 // Serialize the object without the content field for DataPart
                 // Convert to map using Jackson, then remove the content field
-                val objectMapper = com.fasterxml.jackson.databind.ObjectMapper()
-                    .registerModule(com.fasterxml.jackson.module.kotlin.KotlinModule.Builder().build())
-                    .findAndRegisterModules()
+                val objectMapper = tools.jackson.databind.json.JsonMapper.builder()
+                    .addModule(tools.jackson.module.kotlin.kotlinModule())
+                    .findAndAddModules()
+                    .build()
 
                 @Suppress("UNCHECKED_CAST")
                 val outputMap = objectMapper.convertValue(output, Map::class.java) as MutableMap<String, Any?>

@@ -39,7 +39,7 @@ object ProgressTool {
             Tool.Parameter.string("status", "Short progress message describing what you're currently doing"),
         ),
     ) { input ->
-        val parsed = com.fasterxml.jackson.databind.ObjectMapper().readTree(input)
+        val parsed = tools.jackson.databind.ObjectMapper().readTree(input)
         val status = parsed.get("status")?.asText()
             ?: return@of Tool.Result.error("Missing 'status' parameter")
 

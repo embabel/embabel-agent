@@ -16,8 +16,13 @@
 package com.embabel.agent.autoconfigure.models.bedrock;
 
 import com.embabel.agent.config.models.bedrock.BedrockModelsConfig;
+import io.micrometer.observation.ObservationRegistry;
+import org.springframework.ai.model.tool.ToolCallingManager;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 
 /**
@@ -25,10 +30,25 @@ import org.springframework.context.annotation.Import;
  * <p>
  * This class serves as a Spring Boot autoconfiguration entry point that:
  * - Imports the [BedrockModelsConfig] configuration to dynamically register Bedrock model beans
+ *
+ * <p>Also exposes a default {@link ToolCallingManager} bean. Spring AI 2.0's
+ * {@code BedrockConverseProxyChatAutoConfiguration#bedrockProxyChatModel(...)} factory method
+ * autowires a {@code ToolCallingManager} (parameter 4), but Spring AI 2.0 ships no auto-config
+ * that creates one — embabel factories build them inline per model. We register a primary
+ * shared {@code ToolCallingManager} here (gated with {@link ConditionalOnMissingBean}) so the
+ * Spring AI Bedrock proxy-chat auto-config can wire up alongside embabel's own model beans
+ * without crashing context refresh.
  */
 @AutoConfiguration
 @AutoConfigureBefore(name = {"com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration"})
 @Import(BedrockModelsConfig.class)
 public class AgentBedrockAutoConfiguration {
 
+    @Bean
+    @ConditionalOnMissingBean
+    public ToolCallingManager toolCallingManager(ObjectProvider<ObservationRegistry> observationRegistry) {
+        return ToolCallingManager.builder()
+                .observationRegistry(observationRegistry.getIfUnique(() -> ObservationRegistry.NOOP))
+                .build();
+    }
 }

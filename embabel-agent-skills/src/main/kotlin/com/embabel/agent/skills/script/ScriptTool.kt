@@ -16,8 +16,8 @@
 package com.embabel.agent.skills.script
 
 import com.embabel.agent.api.tool.Tool
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
+import tools.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.readValue
 import java.nio.file.Path
 import java.nio.file.Paths
 

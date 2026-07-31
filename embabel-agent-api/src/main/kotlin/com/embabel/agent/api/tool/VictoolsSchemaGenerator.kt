@@ -16,9 +16,9 @@
 package com.embabel.agent.api.tool
 
 import com.embabel.agent.api.tool.Tool.InputSchema
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.node.ObjectNode
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.node.ObjectNode
 import com.github.victools.jsonschema.generator.Option
 import com.github.victools.jsonschema.generator.OptionPreset
 import com.github.victools.jsonschema.generator.SchemaGenerator
@@ -70,26 +70,26 @@ internal object VictoolsSchemaGenerator {
         val requiredList = mutableListOf<String>()
 
         for (param in parameters) {
-            val paramSchema = generateSchemaForType(param.type).deepCopy<ObjectNode>()
+            val paramSchema = generateSchemaForType(param.type).deepCopy() as ObjectNode
 
             // Add description if provided
             if (param.description.isNotEmpty()) {
                 paramSchema.put("description", param.description)
             }
 
-            propertiesNode.set<JsonNode>(param.name, paramSchema)
+            propertiesNode.set(param.name, paramSchema)
 
             if (param.required) {
                 requiredList.add(param.name)
             }
         }
 
-        rootNode.set<JsonNode>("properties", propertiesNode)
+        rootNode.set("properties", propertiesNode)
 
         if (requiredList.isNotEmpty()) {
             val requiredArray = objectMapper.createArrayNode()
             requiredList.forEach { requiredArray.add(it) }
-            rootNode.set<JsonNode>("required", requiredArray)
+            rootNode.set("required", requiredArray)
         }
 
         return objectMapper.writeValueAsString(rootNode)

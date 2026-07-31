@@ -16,10 +16,10 @@
 package com.embabel.agent.skills.support
 
 import com.embabel.agent.skills.spec.SkillDefinition
-import com.fasterxml.jackson.databind.DeserializationFeature
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
-import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import tools.jackson.databind.DeserializationFeature
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.dataformat.yaml.YAMLMapper
+import tools.jackson.module.kotlin.kotlinModule
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
@@ -42,9 +42,10 @@ class DefaultDirectorySkillDefinitionLoader(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    private val yamlMapper: ObjectMapper = ObjectMapper(YAMLFactory())
-        .registerKotlinModule()
+    private val yamlMapper: ObjectMapper = YAMLMapper.builder()
+        .addModule(kotlinModule())
         .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+        .build()
 
     override fun load(directory: Path): LoadedSkill {
         if (!Files.isDirectory(directory)) {

@@ -21,6 +21,7 @@ import com.embabel.agent.api.annotation.Agent
 import com.embabel.agent.api.annotation.RunSubagent
 import com.embabel.agent.api.annotation.support.AgentMetadataReader
 import com.embabel.agent.api.common.ActionContext
+import com.embabel.agent.api.common.scope.AgentScopeBuilder
 import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.Verbosity
@@ -34,6 +35,10 @@ import com.embabel.agent.core.Agent as CoreAgent
 data class SubagentTaskInput(val content: String)
 data class SubagentMiddle(val data: String)
 data class SubagentTaskOutput(val result: String)
+data class TicketRequest(val ticketId: String)
+data class TicketDetails(val ticketId: String)
+data class OlapAnalysis(val ticketId: String, val priority: String)
+data class TicketUpdate(val ticketId: String)
 
 /**
  * Outer agent that delegates to a sub-agent via asSubProcess
@@ -134,6 +139,62 @@ class SubAgent {
     @Action
     @AchievesGoal(description = "Subflow complete")
     fun stepTwo(middle: SubagentMiddle): SubagentTaskOutput = SubagentTaskOutput("[${middle.data}]")
+}
+
+@Agent(description = "Update a ticket")
+class TicketUpdateAgent {
+
+    @Action
+    @AchievesGoal(description = "Ticket updated")
+    fun update(analysis: OlapAnalysis): TicketUpdate = TicketUpdate(analysis.ticketId)
+}
+
+@Agent(description = "Triage a ticket using OLAP data")
+class OlapTriageAgent {
+
+    @Action
+    fun triage(details: TicketDetails): OlapAnalysis = OlapAnalysis(details.ticketId, "high")
+
+    @Action
+    @AchievesGoal(description = "Triaged ticket updated")
+    fun update(analysis: OlapAnalysis): TicketUpdate =
+        RunSubagent.fromAnnotatedInstance(TicketUpdateAgent(), TicketUpdate::class.java)
+}
+
+@Agent(description = "Extract and process a ticket")
+class TicketExtractAgent {
+
+    @Action
+    fun extract(request: TicketRequest): TicketDetails = TicketDetails(request.ticketId)
+
+    @Action
+    @AchievesGoal(description = "Extracted ticket triaged and updated")
+    fun triage(details: TicketDetails): TicketUpdate =
+        RunSubagent.fromAnnotatedInstance(OlapTriageAgent(), TicketUpdate::class.java)
+}
+
+@Agent(description = "Extract ticket data for scoped composition")
+class ScopedTicketExtractAgent {
+
+    @Action
+    @AchievesGoal(description = "Ticket details extracted", value = 0.1)
+    fun extract(request: TicketRequest): TicketDetails = TicketDetails(request.ticketId)
+}
+
+@Agent(description = "Triage OLAP data for scoped composition")
+class ScopedOlapTriageAgent {
+
+    @Action
+    @AchievesGoal(description = "Ticket triaged", value = 0.2)
+    fun triage(details: TicketDetails): OlapAnalysis = OlapAnalysis(details.ticketId, "high")
+}
+
+@Agent(description = "Update ticket data for scoped composition")
+class ScopedTicketUpdateAgent {
+
+    @Action
+    @AchievesGoal(description = "Ticket updated", value = 1.0)
+    fun update(analysis: OlapAnalysis): TicketUpdate = TicketUpdate(analysis.ticketId)
 }
 
 
@@ -270,6 +331,63 @@ class SubagentExecutionTest {
         @Test
         fun `outer agent via reified agent subagent executes all steps`() {
             testOuterAgentExecutesSteps(OuterAgentViaReifiedAgentSubagent())
+        }
+    }
+
+    @Nested
+    inner class MultiLevelSubagentTests {
+
+        @Test
+        fun `ticket agents compose through two nested subagents without a supervisor`() {
+            val agent = reader.createAgentMetadata(TicketExtractAgent()) as CoreAgent
+            val platform = IntegrationTestUtils.dummyAgentPlatform()
+            val process = platform.runAgentFrom(
+                agent,
+                ProcessOptions(),
+                mapOf("it" to TicketRequest("TICKET-1379")),
+            )
+
+            assertEquals(AgentProcessStatusCode.COMPLETED, process.status)
+            val output = process.getValue("it", TicketUpdate::class.java.name) as? TicketUpdate
+            assertEquals("TICKET-1379", output?.ticketId)
+
+            val repository = process.processContext.platformServices.agentProcessRepository
+            val triageProcess = repository.findByParentId(process.id).single()
+            val updateProcess = repository.findByParentId(triageProcess.id).single()
+            assertEquals(AgentProcessStatusCode.COMPLETED, triageProcess.status)
+            assertEquals(AgentProcessStatusCode.COMPLETED, updateProcess.status)
+            assertTrue(triageProcess.history.any { it.actionName.endsWith(".triage") })
+            assertTrue(triageProcess.history.any { it.actionName.endsWith(".update") })
+            assertTrue(updateProcess.history.any { it.actionName.endsWith(".update") })
+        }
+
+        @Test
+        fun `scoped ticket agents compose by type without subagents or a supervisor`() {
+            val agent = AgentScopeBuilder.fromInstances(
+                ScopedTicketExtractAgent(),
+                ScopedOlapTriageAgent(),
+                ScopedTicketUpdateAgent(),
+            ).createAgentScope().createAgent(
+                name = "ticket-workflow",
+                provider = "test",
+                description = "Typed ticket workflow",
+            )
+            val platform = IntegrationTestUtils.dummyAgentPlatform()
+            val process = platform.runAgentFrom(
+                agent,
+                ProcessOptions(),
+                mapOf("it" to TicketRequest("TICKET-1379")),
+            )
+
+            assertEquals(AgentProcessStatusCode.COMPLETED, process.status)
+            val output = process.getValue("it", TicketUpdate::class.java.name) as? TicketUpdate
+            assertEquals("TICKET-1379", output?.ticketId)
+            assertEquals(
+                listOf("extract", "triage", "update"),
+                process.history.map { it.actionName.substringAfterLast(".") },
+            )
+            val repository = process.processContext.platformServices.agentProcessRepository
+            assertTrue(repository.findByParentId(process.id).isEmpty(), "No subagent process was needed")
         }
     }
 

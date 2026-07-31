@@ -51,9 +51,12 @@ public class HttpBodyCachingFilter extends OncePerRequestFilter implements Order
             @NotNull HttpServletResponse response,
             @NotNull FilterChain filterChain) throws ServletException, IOException {
 
+        // Spring Framework 7 dropped the single-arg ContentCachingRequestWrapper(request)
+        // ctor; must specify contentCacheLimit. Use Integer.MAX_VALUE to retain prior
+        // unbounded-buffer behaviour (responsibility of the caller to scope its use).
         var wrappedRequest = request instanceof ContentCachingRequestWrapper
                 ? request
-                : new ContentCachingRequestWrapper(request);
+                : new ContentCachingRequestWrapper(request, Integer.MAX_VALUE);
         var wrappedResponse = response instanceof ContentCachingResponseWrapper ccr
                 ? ccr
                 : new ContentCachingResponseWrapper(response);

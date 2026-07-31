@@ -39,10 +39,11 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.convert.DurationStyle
-import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder
-import org.springframework.boot.http.client.ClientHttpRequestFactorySettings
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.retry.RetryPolicy
+import org.springframework.core.retry.RetryTemplate
+import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
 import java.time.Duration
@@ -161,14 +162,17 @@ class MistralAiModelsConfig(
     private fun createMistralAiLlm(modelDef: MistralAiModelDefinition): LlmService<*> {
         val mistralChatModel = MistralAiChatModel
             .builder()
-            .defaultOptions(createDefaultOptions(modelDef))
-            .mistralAiApi(mistralAiApiFor(modelDef))
+            .options(createDefaultOptions(modelDef))
+            .mistralAiApi(createMistralAiApi())
             .toolCallingManager(
                 ToolCallingManager.builder()
                     .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
                     .build()
             )
-            .retryTemplate(properties.retryTemplate("mistral-ai-${modelDef.modelId}"))
+            // Spring AI 2.0's builder takes Spring Framework 7's org.springframework.core.retry.RetryTemplate.
+            // Build it from the configured retry properties so the model honors maxAttempts/backoff instead of
+            // silently using its built-in 10-attempt / 3-minute default (RetryUtils.DEFAULT_RETRY_TEMPLATE).
+            .retryTemplate(platformRetryTemplate())
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
             .build()
 
@@ -205,17 +209,25 @@ class MistralAiModelsConfig(
      * A [MistralAiApi] is stateless and model-agnostic — the model id and options live on
      * [MistralAiChatOptions], not on the API — so all models share one instance, exactly as
      * [org.springframework.ai.openai.api.OpenAiApi] is shared across providers built on
-     * OpenAiCompatibleModelFactory. Only two variants exist: the plain API for the 16 standard models and
-     * [ReasoningFlatteningMistralAiApi] for the "magistral" reasoning models. Built lazily so an unused
-     * variant is never created.
+     * OpenAiCompatibleModelFactory. Since the Spring AI 2.0.0 upgrade reasoning content ("magistral"
+     * models) is supported natively, so a single plain API serves every model.
      */
-    private val plainMistralAiApi: MistralAiApi by lazy { buildMistralAiApi(thinking = false) }
-    private val reasoningMistralAiApi: MistralAiApi by lazy { buildMistralAiApi(thinking = true) }
+    /**
+     * Builds the Spring Framework 7 [RetryTemplate] for the chat model from the configured retry
+     * properties. In core.retry, [RetryPolicy] counts retries after the first attempt, so a
+     * maxAttempts of N maps to N-1 retries (maxAttempts=1 means a single try, no retry).
+     */
+    private fun platformRetryTemplate(): RetryTemplate {
+        val policy = RetryPolicy.builder()
+            .maxRetries((properties.maxAttempts - 1).coerceAtLeast(0).toLong())
+            .delay(Duration.ofMillis(properties.backoffMillis))
+            .multiplier(properties.backoffMultiplier)
+            .maxDelay(Duration.ofMillis(properties.backoffMaxInterval))
+            .build()
+        return RetryTemplate(policy)
+    }
 
-    private fun mistralAiApiFor(modelDef: MistralAiModelDefinition): MistralAiApi =
-        if (modelDef.thinking) reasoningMistralAiApi else plainMistralAiApi
-
-    private fun buildMistralAiApi(thinking: Boolean): MistralAiApi {
+    private fun createMistralAiApi(): MistralAiApi {
         if (!baseUrl.isNullOrBlank()) {
             logger.info("Using custom Mistral AI base URL: {}", baseUrl)
         }
@@ -234,14 +246,6 @@ class MistralAiModelsConfig(
             .clone()
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
 
-        // Reasoning models ("magistral") return structured "thinking" content that Spring AI 1.1.7 cannot
-        // parse (it assumes string content). Decorate the API to flatten it to plain text on the typed
-        // response, at the Spring AI boundary — leaving the 16 plain models on the plain builder. Superseded
-        // by the Spring AI 2.0.0 upgrade, which supports reasoning content natively.
-        if (thinking) {
-            return ReasoningFlatteningMistralAiApi(baseUrl, apiKey, restClientBuilder, webClientBuilder)
-        }
-
         val builder = MistralAiApi.builder()
             .apiKey(apiKey)
             .restClientBuilder(restClientBuilder)
@@ -259,8 +263,7 @@ class MistralAiModelsConfig(
      */
     private fun fallbackRestClientBuilder(): RestClient.Builder {
         val readTimeout: Duration = DurationStyle.detectAndParse(httpReadTimeout)
-        val requestFactory = ClientHttpRequestFactoryBuilder.detect()
-            .build(ClientHttpRequestFactorySettings.defaults().withReadTimeout(readTimeout))
+        val requestFactory = JdkClientHttpRequestFactory().apply { setReadTimeout(readTimeout) }
         return RestClient.builder().requestFactory(requestFactory)
     }
 }

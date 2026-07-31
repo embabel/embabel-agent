@@ -31,7 +31,7 @@ import com.embabel.agent.spi.support.InMemoryAgentProcessRepository
 import com.embabel.agent.spi.support.InMemoryContextRepository
 import com.embabel.agent.spi.support.SpringContextPlatformServices
 import com.embabel.common.textio.template.TemplateRenderer
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier

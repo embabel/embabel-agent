@@ -31,7 +31,7 @@ import com.embabel.agent.spi.OperationScheduler
 import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import com.embabel.agent.spi.expression.spel.SpelLogicalExpressionParser
 import com.embabel.common.textio.template.TemplateRenderer
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import io.micrometer.observation.Observation
 import io.mockk.every
 import io.mockk.mockk

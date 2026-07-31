@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.api.tool
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import org.jetbrains.annotations.ApiStatus
 import org.slf4j.Logger
 import java.lang.reflect.Type
