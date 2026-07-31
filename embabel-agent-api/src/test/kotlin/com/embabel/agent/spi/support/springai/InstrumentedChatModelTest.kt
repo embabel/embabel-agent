@@ -179,9 +179,9 @@ class InstrumentedChatModelTest {
 
         @Test
         fun `does not emit any event`() {
-            every { delegate.defaultOptions } returns mockk()
+            every { delegate.options } returns mockk()
 
-            instrumentedModel.defaultOptions
+            instrumentedModel.options
 
             verify(exactly = 0) { processContext.onProcessEvent(any()) }
         }
