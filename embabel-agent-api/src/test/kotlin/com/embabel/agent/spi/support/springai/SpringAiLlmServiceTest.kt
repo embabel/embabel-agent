@@ -331,7 +331,7 @@ class SpringAiLlmServiceTest {
     @Nested
     inner class CreateMessageStreamerTests {
 
-        // Relaxed mock needed because ChatClient.create() calls chatModel.getDefaultOptions()
+        // Relaxed mock needed because ChatClient.create() calls chatModel.getOptions()
         private val relaxedChatModel: ChatModel = mockk(relaxed = true)
 
         @Test

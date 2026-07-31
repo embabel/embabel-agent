@@ -508,7 +508,7 @@ internal class StreamingChatClientOperations(
             val promptWithOptions = Prompt(springAiPrompt.instructions, effectiveOptions)
             chatClient
                 .prompt(promptWithOptions)
-                .toolCallbacks(springAiToolCallbacks)
+                .tools(springAiToolCallbacks)
                 .stream()
                 .content()
         }

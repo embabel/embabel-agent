@@ -67,7 +67,7 @@ import org.springframework.ai.chat.messages.AssistantMessage as SpringAssistantM
  */
 class GuardRailTestFakeChatModel(
     val responses: List<String>,
-    // Spring AI 2.0: ChatClient merges via getDefaultOptions; use ToolCallingChatOptions
+    // Spring AI 2.0: ChatClient merges via getOptions; use ToolCallingChatOptions
     // so the subtype survives the merge into the final Prompt.
     private val options: ChatOptions = ToolCallingChatOptions.builder().build(),
 ) : ChatModel {
@@ -86,7 +86,7 @@ class GuardRailTestFakeChatModel(
     val promptsPassed = mutableListOf<Prompt>()
     val optionsPassed = mutableListOf<ToolCallingChatOptions>()
 
-    override fun getDefaultOptions(): ChatOptions = options
+    override fun getOptions(): ChatOptions = options
 
     override fun call(prompt: Prompt): ChatResponse {
         promptsPassed.add(prompt)

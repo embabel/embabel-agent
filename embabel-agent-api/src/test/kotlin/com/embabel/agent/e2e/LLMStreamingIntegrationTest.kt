@@ -65,11 +65,11 @@ import reactor.core.publisher.Flux
 class FakeStreamingChatModel(
     private val response: String,
     // Spring AI 2.0 ToolCallAdvisor requires the ChatClientRequest options to be
-    // ToolCallingChatOptions; the merge is rooted on ChatModel.getDefaultOptions().
+    // ToolCallingChatOptions; the merge is rooted on ChatModel.getOptions().
     private val options: ChatOptions = ToolCallingChatOptions.builder().build(),
 ) : ChatModel {
 
-    override fun getDefaultOptions(): ChatOptions = options
+    override fun getOptions(): ChatOptions = options
 
     override fun call(prompt: Prompt): ChatResponse {
         return ChatResponse(

@@ -168,20 +168,20 @@ class InstrumentedChatModelTest {
     inner class DefaultOptionsTests {
 
         @Test
-        fun `delegates getDefaultOptions to underlying ChatModel`() {
+        fun `delegates getOptions to underlying ChatModel`() {
             val expectedOptions: ChatOptions = mockk()
-            every { delegate.defaultOptions } returns expectedOptions
+            every { delegate.options } returns expectedOptions
 
-            val result = instrumentedModel.defaultOptions
+            val result = instrumentedModel.options
 
             assertThat(result).isSameAs(expectedOptions)
         }
 
         @Test
         fun `does not emit any event`() {
-            every { delegate.defaultOptions } returns mockk()
+            every { delegate.options } returns mockk()
 
-            instrumentedModel.defaultOptions
+            instrumentedModel.options
 
             verify(exactly = 0) { processContext.onProcessEvent(any()) }
         }
