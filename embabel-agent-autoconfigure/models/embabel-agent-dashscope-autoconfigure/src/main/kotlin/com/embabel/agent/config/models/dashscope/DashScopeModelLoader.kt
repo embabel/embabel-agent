@@ -31,6 +31,7 @@ import java.time.LocalDate
  * for auto-configuration purposes.
  *
  * @property models list of DashScope Qwen model definitions
+ * @since 1.5.0
  */
 data class DashScopeModelDefinitions(
     override val models: List<DashScopeModelDefinition> = emptyList()
@@ -49,6 +50,7 @@ data class DashScopeModelDefinitions(
  * @property maxTokens maximum tokens for completion
  * @property temperature default sampling temperature
  * @property topP nucleus sampling parameter
+ * @since 1.5.0
  */
 data class DashScopeModelDefinition(
     override val name: String,
@@ -70,6 +72,7 @@ data class DashScopeModelDefinition(
  *
  * @property resourceLoader Spring resource loader for accessing classpath resources
  * @property configPath path to the YAML configuration file
+ * @since 1.5.0
  */
 class DashScopeModelLoader(
     resourceLoader: ResourceLoader = DefaultResourceLoader(),
@@ -86,8 +89,8 @@ class DashScopeModelLoader(
         provider.models.forEach { model ->
             validateCommonFields(model)
             require(model.maxTokens > 0) { "Max tokens must be positive for model ${model.name}" }
-            require(model.temperature >= 0.0 && model.temperature <= 2.0) {
-                "Temperature must be in [0.0, 2.0] for DashScope model ${model.name}"
+            require(model.temperature >= 0.0 && model.temperature < 2.0) {
+                "Temperature must be in [0.0, 2.0) for DashScope model ${model.name}"
             }
             model.topP?.let {
                 require(it in 0.0..1.0) { "Top P must be between 0 and 1 for model ${model.name}" }

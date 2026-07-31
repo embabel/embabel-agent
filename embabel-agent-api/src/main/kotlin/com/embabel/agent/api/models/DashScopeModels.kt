@@ -20,7 +20,8 @@ package com.embabel.agent.api.models
  * DashScope offers the Qwen family of large language models via an OpenAI-compatible API,
  * including reasoning-capable models and cost-effective lightweight variants.
  *
- * @see <a href="https://dashscope.console.alibabacloud.com">DashScope Model Studio</a>
+ * @see <a href="https://modelstudio.console.alibabacloud.com">DashScope Model Studio</a>
+ * @since 1.5.0
  */
 class DashScopeModels {
 

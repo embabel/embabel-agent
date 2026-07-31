@@ -42,9 +42,15 @@ class DashScopeOptionsConverterTest : OptionsConverterTestSupport<OpenAiChatOpti
     }
 
     @Test
-    fun `should clamp temperature above maximum to maximum`() {
+    fun `should clamp temperature at exactly 2_0 to 1_99`() {
+        val options = optionsConverter.convertOptions(LlmOptions().withTemperature(2.0))
+        assertEquals(1.99, options.temperature)
+    }
+
+    @Test
+    fun `should clamp temperature above maximum to 1_99`() {
         val options = optionsConverter.convertOptions(LlmOptions().withTemperature(3.0))
-        assertEquals(2.0, options.temperature)
+        assertEquals(1.99, options.temperature)
     }
 
     @Test
@@ -60,8 +66,38 @@ class DashScopeOptionsConverterTest : OptionsConverterTestSupport<OpenAiChatOpti
     }
 
     @Test
-    fun `should preserve topP`() {
+    fun `should clamp topP at zero to 0_01`() {
+        val options = optionsConverter.convertOptions(LlmOptions().withTopP(0.0))
+        assertEquals(0.01, options.topP)
+    }
+
+    @Test
+    fun `should clamp topP below zero to 0_01`() {
+        val options = optionsConverter.convertOptions(LlmOptions().withTopP(-0.5))
+        assertEquals(0.01, options.topP)
+    }
+
+    @Test
+    fun `should clamp topP above 1_0 to 1_0`() {
+        val options = optionsConverter.convertOptions(LlmOptions().withTopP(1.5))
+        assertEquals(1.0, options.topP)
+    }
+
+    @Test
+    fun `should preserve valid topP`() {
         val options = optionsConverter.convertOptions(LlmOptions().withTopP(0.9))
         assertEquals(0.9, options.topP)
+    }
+
+    @Test
+    fun `should preserve topP at exactly 1_0`() {
+        val options = optionsConverter.convertOptions(LlmOptions().withTopP(1.0))
+        assertEquals(1.0, options.topP)
+    }
+
+    @Test
+    fun `should handle null topP`() {
+        val options = optionsConverter.convertOptions(LlmOptions())
+        assertNull(options.topP)
     }
 }

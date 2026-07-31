@@ -47,6 +47,8 @@ import org.springframework.web.reactive.function.client.WebClient
  * These properties are bound from the Spring configuration with the prefix
  * "embabel.agent.platform.models.dashscope" and control retry behavior
  * when calling DashScope APIs.
+ *
+ * @since 1.5.0
  */
 @ConfigurationProperties(prefix = PREFIX)
 class DashScopeProperties : RetryProperties {
@@ -103,7 +105,8 @@ class DashScopeProperties : RetryProperties {
  * DASHSCOPE_API_KEY=your-api-key
  * ```
  *
- * @see <a href="https://dashscope.console.alibabacloud.com">DashScope Model Studio</a>
+ * @see <a href="https://modelstudio.console.alibabacloud.com">DashScope Model Studio</a>
+ * @since 1.5.0
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(DashScopeProperties::class)
@@ -177,13 +180,19 @@ class DashScopeModelsConfig(
 
 /**
  * Options converter for Alibaba Cloud DashScope Qwen models.
- * DashScope supports temperature in the range [0.0, 2.0].
- * Values outside this range are clamped accordingly.
+ * DashScope supports temperature in the range [0.0, 2.0) and top_p in the range (0, 1.0].
+ * Values outside these ranges are clamped accordingly:
+ * - Temperature: values are clamped to [0.0, 1.99]
+ * - Top P: values <= 0 are raised to 0.01, values > 1.0 are lowered to 1.0
+ *
+ * @since 1.5.0
  */
 object DashScopeOptionsConverter : OptionsConverter<OpenAiChatOptions> {
 
     private const val MIN_TEMPERATURE = 0.0
-    private const val MAX_TEMPERATURE = 2.0
+    private const val MAX_TEMPERATURE = 1.99
+    private const val MIN_TOP_P = 0.01
+    private const val MAX_TOP_P = 1.0
 
     override fun convertOptions(options: LlmOptions): OpenAiChatOptions {
         val temperature = options.temperature?.let { temp ->
@@ -196,9 +205,21 @@ object DashScopeOptionsConverter : OptionsConverter<OpenAiChatOptions> {
                 }
             }
         }
+
+        val topP = options.topP?.let { p ->
+            p.coerceIn(MIN_TOP_P, MAX_TOP_P).also { clamped ->
+                if (clamped != p) {
+                    loggerFor<DashScopeOptionsConverter>().debug(
+                        "DashScope topP clamped from {} to {} (valid range: ({}, {}])",
+                        p, clamped, MIN_TOP_P, MAX_TOP_P
+                    )
+                }
+            }
+        }
+
         return OpenAiChatOptions.builder()
             .temperature(temperature)
-            .topP(options.topP)
+            .topP(topP)
             .maxTokens(options.maxTokens)
             .presencePenalty(options.presencePenalty)
             .frequencyPenalty(options.frequencyPenalty)
