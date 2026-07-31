@@ -20,12 +20,12 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Polyglot Java+Kotlin (arcade roadmap #18). Pin the multilang branch until released.
+      # Polyglot Java+Kotlin needs arcade-agent main (>0.2.0): PyPI 0.2.0 lacks --languages.
       - name: Install arcade-agent with language extras
         run: |
           python -m pip install --upgrade pip
           python -m pip install \
-            "arcade-agent[languages] @ git+https://github.com/lemduc/arcade-agent.git@feature/multilang-parse"
+            "arcade-agent[languages] @ git+https://github.com/lemduc/arcade-agent.git@main"
 
       - name: Run PKG architecture analysis (java+kotlin)
         run: |
