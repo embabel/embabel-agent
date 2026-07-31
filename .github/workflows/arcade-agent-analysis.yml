@@ -20,18 +20,17 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Polyglot Java+Kotlin needs arcade-agent main (>0.2.0): PyPI 0.2.0 lacks --languages.
       - name: Install arcade-agent with language extras
         run: |
           python -m pip install --upgrade pip
-          python -m pip install \
-            "arcade-agent[languages] @ git+https://github.com/lemduc/arcade-agent.git@main"
+          python -m pip install "arcade-agent[languages]==0.2.0"
 
-      - name: Run PKG architecture analysis (java+kotlin)
+      # 0.2.0 has --language only (no --languages). Auto-detect picks Kotlin as the
+      # dominant JVM language; upgrade arcade-agent for explicit java+kotlin polyglot.
+      - name: Run PKG architecture analysis
         run: |
           arcade-self-analysis \
             --source . \
-            --languages java,kotlin \
             --repo-name embabel-agent \
             --algorithm pkg \
             --output-json arcade_analysis_results.json \

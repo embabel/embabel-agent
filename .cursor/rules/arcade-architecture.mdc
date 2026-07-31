@@ -9,8 +9,8 @@ When checking architecture, modularity, smells, blast radius, or placing new cod
 
 ## Default workflow
 
-1. Prefer MCP `analyze` on the repo root with `algorithm: "pkg"` and either `languages: ["java", "kotlin"]` on `ingest` or CLI `arcade-self-analysis --languages java,kotlin`. Embabel is a JVM polyglot repo — do not analyze Java alone for the project baseline. Avoid `language: "multi"` for the baseline; it also picks up docs/tooling languages and skews component counts.
-2. For fine-grained steps, chain `ingest` (`languages: ["java", "kotlin"]`) → `parse` → `recover` → `detect_smells` / `compute_metrics` / `explain_component` / `query`, reusing returned `session_id` values between tools.
+1. Prefer MCP `analyze` on the repo root with `algorithm: "pkg"` and `languages: ["java", "kotlin"]` on `ingest` when the MCP server supports polyglot ingest. CI pins **arcade-agent 0.2.0** (`arcade-self-analysis` without `--languages`; auto-detects Kotlin as the dominant JVM language). For full java+kotlin polyglot via CLI, use arcade-agent >0.2.0 with `--languages java,kotlin`. Avoid `language: "multi"` for the baseline; it also picks up docs/tooling languages and skews component counts.
+2. For fine-grained steps, chain `ingest` → `parse` → `recover` → `detect_smells` / `compute_metrics` / `explain_component` / `query`, reusing returned `session_id` values between tools. Pass `languages: ["java", "kotlin"]` on ingest when supported.
 3. For a concrete change, prefer `context_for_task`, `diff_impact`, or `dependency_cone` to find the right package/component and dependents.
 4. Prefer existing recovered components from the current polyglot PKG baseline over inventing new top-level modules unless the task requires it.
 
@@ -24,5 +24,5 @@ When checking architecture, modularity, smells, blast radius, or placing new cod
 ## Notes
 
 - Pass session IDs between tools; call `get_full_result` only when the summary is insufficient.
-- Previous Java-only BalancedArchitectureScore baseline was **0.6312** (PKG, ~303 entities). Current polyglot Java+Kotlin PKG baseline (2026-07-30, arcade-agent main post-0.2.0): **BalancedArchitectureScore 0.4146**, ~5427 entities / ~33272 edges / 6 components (Agent, Chat, Coding, Common, Plan, Ux). Compare multilang runs against that number, not the Java-only score. Pin CI to `arcade-agent@main` until PyPI ships `--languages` polyglot support.
+- Previous Java-only BalancedArchitectureScore baseline was **0.6312** (PKG, ~303 entities). Current PKG baseline with arcade-agent **0.2.0** (Kotlin-primary auto-detect): **BalancedArchitectureScore ~0.4137**, ~5130 entities / 6 components (Agent, Chat, Coding, Common, Plan, Ux). Full java+kotlin polyglot on newer arcade-agent: **~0.4146**, ~5427 entities. Compare runs against the matching pin, not the Java-only score.
 - Keep tool outputs token-budgeted via `max_tokens` when possible.
