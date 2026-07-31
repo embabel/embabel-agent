@@ -473,7 +473,7 @@ class StreamingChatClientOperationsTest {
         val mockContentStreamSpec = mockk<ChatClient.StreamResponseSpec>(relaxed = true)
 
         every { mockChatClient.prompt(any<Prompt>()) } returns mockRequestSpec
-        every { mockRequestSpec.toolCallbacks(any<List<ToolCallback>>()) } returns mockRequestSpec
+        every { mockRequestSpec.tools(any<List<ToolCallback>>()) } returns mockRequestSpec
         every { mockRequestSpec.options(any()) } returns mockRequestSpec
         every { mockRequestSpec.stream() } returns mockContentStreamSpec
         every { mockContentStreamSpec.content() } returns chunkFlux

@@ -69,7 +69,7 @@ import org.springframework.ai.chat.messages.AssistantMessage as SpringAssistantM
  */
 class StreamingGuardRailTestFakeChatModel(
     val responses: List<String>,
-    // Spring AI 2.0: ChatClient merges via getDefaultOptions; use ToolCallingChatOptions so
+    // Spring AI 2.0: ChatClient merges via getOptions; use ToolCallingChatOptions so
     // the subtype survives the merge.
     private val options: ChatOptions = ToolCallingChatOptions.builder().build(),
 ) : ChatModel {
@@ -88,7 +88,7 @@ class StreamingGuardRailTestFakeChatModel(
     val promptsPassed = mutableListOf<Prompt>()
     val optionsPassed = mutableListOf<ChatOptions>()
 
-    override fun getDefaultOptions(): ChatOptions = options
+    override fun getOptions(): ChatOptions = options
 
     override fun call(prompt: Prompt): ChatResponse {
         promptsPassed.add(prompt)

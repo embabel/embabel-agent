@@ -74,7 +74,7 @@ import kotlin.test.assertEquals
  */
 class FakeChatModel(
     val responses: List<String>,
-    // Spring AI 2.0: ChatClient merges options via ChatModel.getDefaultOptions(); the merged
+    // Spring AI 2.0: ChatClient merges options via ChatModel.getOptions(); the merged
     // result inherits the default's runtime type. Default to ToolCallingChatOptions so tool
     // callbacks and the subtype survive the merge — even when the prompt sets its own options.
     private val options: ChatOptions = ToolCallingChatOptions.builder().build(),
@@ -94,7 +94,7 @@ class FakeChatModel(
     val promptsPassed = mutableListOf<Prompt>()
     val optionsPassed = mutableListOf<ChatOptions>()
 
-    override fun getDefaultOptions(): ChatOptions = options
+    override fun getOptions(): ChatOptions = options
 
     override fun call(prompt: Prompt): ChatResponse {
         promptsPassed.add(prompt)
@@ -604,12 +604,11 @@ class ChatClientLlmOperationsTest {
         inner class DelayingFakeChatModel(
             private val response: String,
             private val delayMillis: Long,
-            options: ChatOptions = ToolCallingChatOptions.builder().build(),
+            private val options: ChatOptions = ToolCallingChatOptions.builder().build(),
         ) : ChatModel {
-            private val defaultOptions = options
             val callCount = java.util.concurrent.atomic.AtomicInteger(0)
 
-            override fun getDefaultOptions(): ChatOptions = defaultOptions
+            override fun getOptions(): ChatOptions = options
 
             override fun call(prompt: Prompt): ChatResponse {
                 callCount.incrementAndGet()
@@ -937,7 +936,7 @@ class ChatClientLlmOperationsTest {
         inner class ErrorThrowingChatModel(
             private val exception: RuntimeException = RuntimeException("401 Unauthorized: Invalid API key")
         ) : ChatModel {
-            override fun getDefaultOptions(): ChatOptions = ToolCallingChatOptions.builder().build()
+            override fun getOptions(): ChatOptions = ToolCallingChatOptions.builder().build()
             override fun call(prompt: Prompt): ChatResponse = throw exception
         }
 

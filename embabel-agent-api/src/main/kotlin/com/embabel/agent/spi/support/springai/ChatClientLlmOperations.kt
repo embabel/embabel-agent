@@ -74,7 +74,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import javax.annotation.concurrent.ThreadSafe
 import org.springframework.ai.chat.client.ChatClient
-import org.springframework.ai.chat.client.ChatClientCustomizer
+import org.springframework.ai.chat.client.ChatClientBuilderCustomizer
 import org.springframework.ai.chat.client.ResponseEntity
 import org.springframework.ai.chat.client.advisor.observation.DefaultAdvisorObservationConvention
 import org.springframework.ai.chat.client.observation.DefaultChatClientObservationConvention
@@ -128,7 +128,7 @@ internal class ChatClientLlmOperations(
     // chat-client spans intact, since this registry stays injected with the real bean.
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
     instrumentation: AgentInstrumentation = NoOpAgentInstrumentation,
-    private val customizers: List<ChatClientCustomizer> = emptyList(),
+    private val customizers: List<ChatClientBuilderCustomizer> = emptyList(),
     asyncer: Asyncer,
     toolLoopFactory: ToolLoopFactory = ToolLoopFactory.create(ToolLoopConfiguration(), asyncer, AutoCorrectionPolicy()),
     @Value("\${embabel.agent.platform.streaming.use-legacy-streaming:false}")
@@ -363,7 +363,7 @@ internal class ChatClientLlmOperations(
         // Resolve tool groups and decorate tools
         val tools = resolveAndDecorateTools(interaction, agentProcess, action)
 
-        // Spring AI 2.0: ChatClient merges chatModel.getDefaultOptions() with prompt.options
+        // Spring AI 2.0: ChatClient merges chatModel.getOptions() with prompt.options
         // and adds spec-level toolCallbacks last. We bake toolCallbacks into the ToolCallingChatOptions
         // (preserving the subtype through the merge) AND also pass them via .toolCallbacks() on the
         // request spec — the latter survives Spring AI's options merge that would otherwise reset
@@ -385,7 +385,7 @@ internal class ChatClientLlmOperations(
                 val future = asyncer.async {
                     chatClient
                         .prompt(springAiPrompt)
-                        .toolCallbacks(springAiToolCallbacks)
+                        .tools(springAiToolCallbacks)
                         .call()
                 }
 
@@ -543,7 +543,7 @@ internal class ChatClientLlmOperations(
                     val future = asyncer.async {
                         chatClient
                             .prompt(springAiPrompt)
-                            .toolCallbacks(springAiToolCallbacks)
+                            .tools(springAiToolCallbacks)
                             .call()
                     }
 

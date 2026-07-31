@@ -312,14 +312,14 @@ open class OpenAiCompatibleModelFactory(
         configuredDimensions: Int? = null,
         pricingModel: PricingModel? = null,
     ): EmbeddingService {
-        val embeddingModel = OpenAiEmbeddingModel(
-            openAiClient,
-            MetadataMode.EMBED,
-            OpenAiEmbeddingOptions.builder()
+        val embeddingModel = OpenAiEmbeddingModel.builder()
+            .openAiClient(openAiClient)
+            .metadataMode(MetadataMode.EMBED)
+            .options(OpenAiEmbeddingOptions.builder()
                 .model(model)
-                .build(),
-            observationRegistry,
-        )
+                .build())
+            .observationRegistry(observationRegistry)
+            .build()
         return SpringAiEmbeddingService(
             name = model,
             model = embeddingModel,

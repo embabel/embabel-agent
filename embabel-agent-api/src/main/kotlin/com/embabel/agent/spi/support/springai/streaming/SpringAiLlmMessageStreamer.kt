@@ -67,7 +67,7 @@ internal class SpringAiLlmMessageStreamer(
 
         return chatClient
             .prompt(prompt)
-            .toolCallbacks(toolCallbacks)
+            .tools(toolCallbacks)
             .stream()
             .content()
     }
