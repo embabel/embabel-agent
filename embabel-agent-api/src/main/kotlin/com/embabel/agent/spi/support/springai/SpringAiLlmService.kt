@@ -24,7 +24,6 @@ import com.embabel.common.ai.model.*
 import com.embabel.common.ai.prompt.KnowledgeCutoffDate
 import com.embabel.common.ai.prompt.PromptContributor
 import tools.jackson.databind.annotation.JsonSerialize
-import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
@@ -141,8 +140,11 @@ data class SpringAiLlmService @JvmOverloads constructor(
     }
 
     override fun createMessageStreamer(options: LlmOptions): LlmMessageStreamer {
-        val chatClient = ChatClient.create(chatModel)
-        return SpringAiLlmMessageStreamer(chatClient, convertOptions(options))
+        return SpringAiLlmMessageStreamer(
+            chatModel = chatModel,
+            chatOptions = convertOptions(options),
+            toolResponseContentAdapter = toolResponseContentAdapter,
+        )
     }
 
     override fun supportsStreaming(): Boolean = StreamingCapabilityVerifier.supportsStreaming(chatModel)
