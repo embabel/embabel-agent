@@ -164,7 +164,7 @@ class ToolLoopLlmOperationsTest {
                         MaybeReturn(success = successValue)
                     }
                     tree.has("failure") -> {
-                        MaybeReturn(failure = tree.get("failure").asText())
+                        MaybeReturn(failure = tree.get("failure").asString())
                     }
                     else -> null
                 }

@@ -677,7 +677,7 @@ World"""
 private fun tools.jackson.databind.JsonNode.requiredFieldNamesOrRefResolved(
     rootSchema: tools.jackson.databind.JsonNode,
 ): Set<String> {
-    val ref = get("\$ref")?.takeIf { it.isTextual }?.asText()
+    val ref = get("\$ref")?.takeIf { it.isString }?.asString()
     if (ref != null && ref.startsWith("#/")) {
         val resolved = ref
             .removePrefix("#/")
