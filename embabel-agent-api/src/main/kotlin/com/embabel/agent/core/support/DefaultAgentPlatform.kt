@@ -120,44 +120,10 @@ open class DefaultAgentPlatform(
         agents.values.sortedBy { it.name }
 
     override fun deploy(agent: Agent): DefaultAgentPlatform {
-        rejectNameCollisions(agent)
         agents[agent.name] = agent
         logger.debug("✅ Deployed agent {}\n\tdescription: {}", agent.name, agent.description)
         eventListener.onPlatformEvent(AgentDeploymentEvent(this, agent))
         return this
-    }
-
-    /**
-     * [AgentPlatform] exposes goals, actions and conditions as flat, name-keyed views over
-     * every deployed agent, and downstream consumers identify them by name alone: goals become
-     * MCP tools named after them, and the ranker asks an LLM to choose between them by name.
-     * Two agents contributing different elements under one name therefore cannot both be
-     * honoured, and the aggregated views would silently drop one of them.
-     *
-     * Rejecting the deployment keeps that ambiguity from being created in the first place.
-     * Agents sharing an identical element — the same goal declared in a common scope, say —
-     * are unaffected, since there is nothing to disambiguate.
-     */
-    private fun rejectNameCollisions(agent: Agent) {
-        val others = agents.values.filter { it.name != agent.name }
-        val collisions = listOf(
-            Triple("goal", agent.goals, others.flatMap { it.goals }),
-            Triple("action", agent.actions, others.flatMap { it.actions }),
-            Triple("condition", agent.conditions, others.flatMap { it.conditions }),
-        ).flatMap { (kind, incoming, deployed) ->
-            incoming.mapNotNull { element ->
-                val clash = deployed.firstOrNull { it.name == element.name && it != element }
-                clash?.let { "$kind '${element.name}' is already declared by another deployed agent" }
-            }
-        }
-        if (collisions.isNotEmpty()) {
-            val message = "Cannot deploy agent '${agent.name}': ${collisions.joinToString("; ")}. " +
-                "Names must be unique across the platform because goals are published as tools " +
-                "and chosen by name. Rename the conflicting elements or deploy the agents to " +
-                "separate platforms."
-            logger.error("🛑 {}", message)
-            throw IllegalArgumentException(message)
-        }
     }
 
     private fun createBlackboard(
