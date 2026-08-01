@@ -23,7 +23,7 @@
     <properties>
         <spotbugs-annotations.version>4.9.8</spotbugs-annotations.version>
         <!-- spring-retry was removed from the Spring Boot 4 BOM; pin a Spring-7-compatible version directly. -->
-        <spring-retry.version>2.0.12</spring-retry.version>
+        <spring-retry.version>2.0.13</spring-retry.version>
         <!-- Exclude test utilities from SonarQube analysis -->
         <sonar.coverage.exclusions>**/test/integration/**</sonar.coverage.exclusions>
         <sonar.cpd.exclusions>**/test/integration/**</sonar.cpd.exclusions>
