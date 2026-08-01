@@ -22,9 +22,12 @@ import com.embabel.agent.core.internal.streaming.StreamingLlmOperations
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.model.LlmOptions
 import tools.jackson.module.kotlin.jacksonObjectMapper
+import io.mockk.CapturingSlot
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -468,16 +471,76 @@ class StreamingChatClientOperationsTest {
     }
 
 
-    private fun mockChatClientForStreaming(chunkFlux: Flux<String>) {
+    private fun mockChatClientForStreaming(chunkFlux: Flux<String>): CapturingSlot<Prompt> {
         val mockRequestSpec = mockk<ChatClient.ChatClientRequestSpec>(relaxed = true)
         val mockContentStreamSpec = mockk<ChatClient.StreamResponseSpec>(relaxed = true)
+        val promptSlot = slot<Prompt>()
 
-        every { mockChatClient.prompt(any<Prompt>()) } returns mockRequestSpec
+        every { mockChatClient.prompt(capture(promptSlot)) } returns mockRequestSpec
         every { mockRequestSpec.tools(any<List<ToolCallback>>()) } returns mockRequestSpec
         every { mockRequestSpec.options(any()) } returns mockRequestSpec
         every { mockRequestSpec.stream() } returns mockContentStreamSpec
         every { mockContentStreamSpec.content() } returns chunkFlux
 
+        return promptSlot
+    }
+
+    @Nested
+    inner class ThinkingFormatInstructionTests {
+
+        @Test
+        fun `createObjectStreamWithThinking includes thinking format without LlmOptions thinking config`() {
+            // Given: no thinking budget / extraction on LlmOptions (the awkward pre-req from #1799)
+            every { mockInteraction.llm } returns LlmOptions()
+            val promptSlot = mockChatClientForStreaming(
+                Flux.just("{\"name\":\"Item1\",\"value\":1}\n")
+            )
+
+            // When
+            streamingOperations.createObjectStreamWithThinking(
+                messages = listOf(UserMessage("test")),
+                interaction = mockInteraction,
+                outputClass = TestItem::class.java,
+                agentProcess = mockAgentProcess,
+                action = mockAction
+            ).collectList().block(Duration.ofSeconds(2))
+
+            // Then: format instructions still ask for <think> blocks
+            assertTrue(promptSlot.isCaptured, "expected ChatClient.prompt to be called")
+            val promptText = promptSlot.captured.contents
+            assertTrue(
+                promptText.contains("<think>"),
+                "createObjectStreamWithThinking should inject thinking format without Thinking.withTokenBudget"
+            )
+        }
+
+        @Test
+        fun `createObjectStream omits thinking format instructions`() {
+            // Given: even if model thinking budget is configured, object-only stream should not
+            // push the model to emit thinking blocks (they would be discarded)
+            every { mockInteraction.llm } returns LlmOptions()
+                .withThinking(com.embabel.common.ai.model.Thinking.withTokenBudget(8000))
+            val promptSlot = mockChatClientForStreaming(
+                Flux.just("{\"name\":\"Item1\",\"value\":1}\n")
+            )
+
+            // When
+            streamingOperations.createObjectStream(
+                messages = listOf(UserMessage("test")),
+                interaction = mockInteraction,
+                outputClass = TestItem::class.java,
+                agentProcess = mockAgentProcess,
+                action = mockAction
+            ).collectList().block(Duration.ofSeconds(2))
+
+            // Then
+            assertTrue(promptSlot.isCaptured, "expected ChatClient.prompt to be called")
+            val promptText = promptSlot.captured.contents
+            assertFalse(
+                promptText.contains("<think>"),
+                "createObjectStream should not inject thinking format instructions"
+            )
+        }
     }
 
     /**

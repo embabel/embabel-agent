@@ -239,6 +239,8 @@ internal class StreamingChatClientOperations(
             llmRequestEvent = llmRequestEvent,
             agentProcess = agentProcess,
             action = action,
+            // Object-only stream: do not ask the model for thinking blocks (they would be discarded).
+            includeThinkingFormat = false,
         )
             .filter { it.isObject() }
             .map { (it as StreamingEvent.Object).item }
@@ -300,6 +302,11 @@ internal class StreamingChatClientOperations(
             llmRequestEvent = llmRequestEvent,
             agentProcess = agentProcess,
             action = action,
+            // Explicit *WithThinking API: always include application-level thinking format
+            // instructions (prompt-instructed reasoning blocks). This is not LLM-native
+            // reasoning (provider thinking channels — see #1716). Model-side thinking budget
+            // (LlmOptions.thinking tokenBudget) remains independent.
+            includeThinkingFormat = true,
         )
     }
 
@@ -330,6 +337,9 @@ internal class StreamingChatClientOperations(
      * **Performance Characteristics:**
      * - Streaming-friendly: no blocking operations
      *
+     * @param includeThinkingFormat when true, prompt the model for `<think>` blocks
+     * (used by [doTransformObjectStreamWithThinking]). Independent of any model thinking budget
+     * configured via [com.embabel.common.ai.model.LlmOptions.thinking].
      * @return Unified Flux<StreamingEvent<O>> that public methods can filter as needed
      */
     private fun <O> doTransformObjectStreamInternal(
@@ -340,6 +350,7 @@ internal class StreamingChatClientOperations(
         llmRequestEvent: LlmRequestEvent<O>?,
         agentProcess: AgentProcess?,
         action: Action?,
+        includeThinkingFormat: Boolean,
     ): Flux<StreamingEvent<O>> {
         // Common setup - delegate to ChatClientLlmOperations for LLM setup
         val llm = chatClientLlmOperations.getLlm(interaction)
@@ -357,7 +368,7 @@ internal class StreamingChatClientOperations(
             clazz = outputClassAny,
             objectMapper = chatClientLlmOperations.objectMapper,
             fieldFilter = interaction.fieldFilter,
-            thinkingEnabled = interaction.llm.thinking?.enabled ?: false,
+            thinkingEnabled = includeThinkingFormat,
         ) as StreamingJacksonOutputConverter<O>  // signature compatibility for downstream Flux<O>/StreamingEvent<O> uses
 
         // Build prompt using helper methods, including streaming format instructions

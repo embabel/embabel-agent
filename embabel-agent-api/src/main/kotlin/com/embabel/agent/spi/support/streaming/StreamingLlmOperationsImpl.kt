@@ -157,6 +157,8 @@ internal class StreamingLlmOperationsImpl(
             llmRequestEvent = llmRequestEvent,
             agentProcess = agentProcess,
             action = action,
+            // Object-only stream: do not ask the model for thinking blocks (they would be discarded).
+            includeThinkingFormat = false,
         )
             .filter { it.isObject() }
             .map { (it as StreamingEvent.Object).item }
@@ -177,6 +179,9 @@ internal class StreamingLlmOperationsImpl(
             llmRequestEvent = llmRequestEvent,
             agentProcess = agentProcess,
             action = action,
+            // Explicit *WithThinking API: always include thinking format instructions.
+            // Model-side thinking budget (LlmOptions.thinking tokenBudget) remains independent.
+            includeThinkingFormat = true,
         )
     }
 
@@ -191,6 +196,10 @@ internal class StreamingLlmOperationsImpl(
      * 1. Raw LLM chunks from [LlmMessageStreamer]
      * 2. Line buffering via [rawChunksToLines]
      * 3. Event generation via [StreamingJacksonOutputConverter]
+     *
+     * @param includeThinkingFormat when true, prompt the model for `<think>` blocks
+     * (used by [doTransformObjectStreamWithThinking]). Independent of any model thinking budget
+     * configured via [com.embabel.common.ai.model.LlmOptions.thinking].
      */
     private fun <O> doTransformObjectStreamInternal(
         messages: List<Message>,
@@ -200,6 +209,7 @@ internal class StreamingLlmOperationsImpl(
         llmRequestEvent: LlmRequestEvent<O>?,
         agentProcess: AgentProcess?,
         action: Action?,
+        includeThinkingFormat: Boolean,
     ): Flux<StreamingEvent<O>> {
         // Create converter for JSONL parsing.
         // Spring AI 2.0's StreamingJacksonOutputConverter requires T : Any;
@@ -211,7 +221,7 @@ internal class StreamingLlmOperationsImpl(
             clazz = outputClassAny,
             objectMapper = objectMapper,
             fieldFilter = interaction.fieldFilter,
-            thinkingEnabled = interaction.llm.thinking?.enabled ?: false,
+            thinkingEnabled = includeThinkingFormat,
         ) as StreamingJacksonOutputConverter<O>
 
         // Build prompt contributions with streaming format instructions

@@ -357,7 +357,9 @@ internal data class OperationContextDelegate(
         val streamingLlmOperations = streamingFactory().createStreamingOperations(llm)
         return streamingLlmOperations.createObjectStreamWithThinking(
             messages = messages,
-            interaction = streamingInteraction(),
+            // Enable application-level thinking extraction (format instructions + extractThinking)
+            // when needed, while preserving any caller-configured model thinking budget.
+            interaction = streamingInteractionForThinkingIfNecessary(),
             outputClass = itemClass,
             agentProcess = context.processContext.agentProcess,
             action = action,
@@ -401,6 +403,30 @@ internal data class OperationContextDelegate(
             toolCallInspectors = toolCallInspectors,
             toolCallContext = toolCallContext,
         )
+    }
+
+    /**
+     * Streaming interaction for [createObjectStreamWithThinking].
+     *
+     * Ensures application-level thinking extraction is enabled on [LlmOptions] (same idea as
+     * non-streaming [thinkingInteraction]) without requiring callers to pre-configure a thinking
+     * token budget. An existing budget or extraction config is preserved via
+     * [Thinking.applyExtraction].
+     *
+     * This is *not* LLM-native reasoning (provider-specific thinking channels); those are out of
+     * scope here (see docs + issue #1716). Application-level thinking uses prompt format
+     * instructions so the model emits parseable reasoning blocks in the main content stream.
+     *
+     * Model thinking budget remains optional and independent: set it with
+     * `LlmOptions.withThinking(Thinking.withTokenBudget(...))` when the provider needs it.
+     */
+    private fun streamingInteractionForThinkingIfNecessary(): LlmInteraction {
+        val base = streamingInteraction()
+        val thinking = when (val existing = llm.thinking) {
+            null, Thinking.NONE -> Thinking.withExtraction()
+            else -> existing.applyExtraction()
+        }
+        return base.copy(llm = llm.withThinking(thinking))
     }
 
     private fun streamingFactory(): StreamingLlmOperationsFactory {

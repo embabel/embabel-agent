@@ -87,6 +87,12 @@ interface StreamingPromptRunner : PromptRunner {
          * Create a reactive stream with both objects and thinking content.
          * Provides access to the LLM's reasoning process alongside the results.
          *
+         * Always enables thinking format instructions for this stream so the model is
+         * asked to emit reasoning blocks. This is independent of any model thinking
+         * budget on [com.embabel.common.ai.model.LlmOptions]: configure
+         * `Thinking.withTokenBudget(...)` only when the provider requires a budget
+         * (e.g. Anthropic extended thinking), not as a prerequisite for this API.
+         *
          * @param itemClass The class of objects to create
          * @return Flux emitting StreamingEvent instances for objects and thinking
          */
