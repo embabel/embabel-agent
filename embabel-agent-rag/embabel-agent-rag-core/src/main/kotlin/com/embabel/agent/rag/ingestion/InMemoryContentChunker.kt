@@ -293,7 +293,16 @@ class InMemoryContentChunker(
         val chunks = mutableListOf<String>()
         var currentChunk = StringBuilder()
 
-        for (paragraph in paragraphs) {
+        // An oversized paragraph MIXING table lines with prose (single newlines — no
+        // blank line isolating the table) would fall through to sentence splitting,
+        // whose fake boundaries ("excl.") cut inside rows and even inside numeric
+        // tokens. Split such paragraphs into runs of table lines vs prose lines
+        // first, so each run takes its proper path below.
+        val blocks = paragraphs.flatMap { p ->
+            if (p.length > config.maxChunkSize) splitTableProseBlocks(p) else listOf(p)
+        }
+
+        for (paragraph in blocks) {
             // A table paragraph too long for one chunk splits by ROWS with the header
             // repeated in every piece — "sentences" have no meaning inside a table, and
             // a row severed from its header row is retrieved next to the wrong label.
@@ -365,14 +374,7 @@ class InMemoryContentChunker(
         }
 
         // Safety check: ensure no chunk exceeds max size and filter out empty chunks
-        val finalChunks = chunks.flatMap { chunk ->
-            if (chunk.length <= config.maxChunkSize) {
-                listOf(chunk)
-            } else {
-                // Emergency fallback: split oversized chunk by character count
-                chunk.chunked(config.maxChunkSize).filter { it.trim().isNotEmpty() }
-            }
-        }.filter { it.trim().isNotEmpty() }
+        val finalChunks = enforceMaxSize(chunks)
 
         return finalChunks.ifEmpty {
             if (text.trim().isNotEmpty()) listOf(text.trim()) else emptyList()
@@ -415,14 +417,7 @@ class InMemoryContentChunker(
         }
 
         // Safety check: ensure no chunk exceeds max size and filter out empty chunks
-        val finalChunks = chunks.flatMap { chunk ->
-            if (chunk.length <= config.maxChunkSize) {
-                listOf(chunk)
-            } else {
-                // Emergency fallback: split oversized chunk by character count
-                chunk.chunked(config.maxChunkSize).filter { it.trim().isNotEmpty() }
-            }
-        }.filter { it.trim().isNotEmpty() }
+        val finalChunks = enforceMaxSize(chunks)
 
         return finalChunks.ifEmpty {
             if (text.trim().isNotEmpty()) listOf(text.trim()) else emptyList()
@@ -487,6 +482,47 @@ class InMemoryContentChunker(
         val header = tableHeaderOf(prevLines.subList(blockStart, prevLines.size))
         return (header + prevLines.subList(idx, prevLines.size)).joinToString("\n").trim()
     }
+
+
+    /**
+     * Split a paragraph into runs of consecutive table lines and non-table lines.
+     * Returns the paragraph unchanged when it holds no table lines at all.
+     */
+    private fun splitTableProseBlocks(paragraph: String): List<String> {
+        val lines = paragraph.lines()
+        if (lines.none { isTableLine(it) }) return listOf(paragraph)
+        val blocks = mutableListOf<String>()
+        val current = mutableListOf<String>()
+        var inTable = false
+        for (line in lines) {
+            val table = isTableLine(line)
+            if (current.isNotEmpty() && table != inTable) {
+                blocks.add(current.joinToString("\n").trim())
+                current.clear()
+            }
+            inTable = table
+            current.add(line)
+        }
+        if (current.isNotEmpty()) blocks.add(current.joinToString("\n").trim())
+        return blocks.filter { it.isNotBlank() }
+    }
+
+    /**
+     * Bound every chunk to maxChunkSize by character-splitting oversized ones — EXCEPT
+     * table content. A piece from [splitTableByRows] is row-atomic by construction and
+     * legitimately exceeds the budget when its header plus a SINGLE row does; a blind
+     * character cut severs the row from its header (retrieved next to the wrong label)
+     * and can split a numeric token in half, making the value unfindable. An oversized
+     * table piece is the lesser harm, so it passes through whole.
+     */
+    private fun enforceMaxSize(chunks: List<String>): List<String> =
+        chunks.flatMap { chunk ->
+            when {
+                chunk.length <= config.maxChunkSize -> listOf(chunk)
+                isTableParagraph(chunk) -> listOf(chunk)
+                else -> chunk.chunked(config.maxChunkSize).filter { it.trim().isNotEmpty() }
+            }
+        }.filter { it.trim().isNotEmpty() }
 
     /**
      * Split an oversized markdown table into pieces of complete rows, each carrying the table's
