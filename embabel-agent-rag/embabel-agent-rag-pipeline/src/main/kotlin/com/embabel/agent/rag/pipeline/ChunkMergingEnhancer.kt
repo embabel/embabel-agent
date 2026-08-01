@@ -16,9 +16,8 @@
 package com.embabel.agent.rag.pipeline
 
 import com.embabel.agent.rag.model.Chunk
+import com.embabel.agent.rag.model.ChunkStructure
 import com.embabel.agent.rag.model.Retrievable
-import com.embabel.agent.rag.ingestion.ContentChunker.Companion.ROOT_DOCUMENT_ID
-import com.embabel.agent.rag.ingestion.ContentChunker.Companion.SEQUENCE_NUMBER
 import com.embabel.agent.rag.service.*
 import com.embabel.common.core.types.SimilarityResult
 import org.slf4j.Logger
@@ -69,12 +68,26 @@ object ChunkMergingEnhancer : RagResponseEnhancer {
         first: SimilarityResult<out Retrievable>,
         second: SimilarityResult<out Retrievable>,
     ): Boolean {
-        val firstRootId = first.match.metadata[ROOT_DOCUMENT_ID] as? String ?: return false
-        val secondRootId = second.match.metadata[ROOT_DOCUMENT_ID] as? String ?: return false
-        val firstSeq = first.match.metadata[SEQUENCE_NUMBER] as? Int ?: return false
-        val secondSeq = second.match.metadata[SEQUENCE_NUMBER] as? Int ?: return false
+        val firstRootId = rootDocumentId(first.match) ?: return false
+        val secondRootId = rootDocumentId(second.match) ?: return false
+        val firstSeq = sequenceNumber(first.match) ?: return false
+        val secondSeq = sequenceNumber(second.match) ?: return false
 
         return firstRootId == secondRootId && secondSeq == firstSeq + 1
+    }
+
+    private fun rootDocumentId(match: Retrievable): String? =
+        (match as? Chunk)?.structure?.rootDocumentId
+            ?: match.metadata[ChunkStructure.ROOT_DOCUMENT_ID] as? String
+
+    private fun sequenceNumber(match: Retrievable): Int? {
+        (match as? Chunk)?.structure?.sequenceNumber?.let { return it }
+        return when (val value = match.metadata[ChunkStructure.SEQUENCE_NUMBER]) {
+            is Int -> value
+            is Number -> value.toInt()
+            is String -> value.toIntOrNull()
+            else -> null
+        }
     }
 
     private fun mergeChunks(
@@ -84,7 +97,7 @@ object ChunkMergingEnhancer : RagResponseEnhancer {
             return chunks[0]
         }
 
-        logger.info("Merging {} chunks from document {}", chunks.size, chunks[0].match.metadata["root_document_id"])
+        logger.info("Merging {} chunks from document {}", chunks.size, rootDocumentId(chunks[0].match))
 
         val firstChunk = chunks[0].match as Chunk
         val mergedText = chunks.joinToString(" ") { (it.match as Chunk).text }
