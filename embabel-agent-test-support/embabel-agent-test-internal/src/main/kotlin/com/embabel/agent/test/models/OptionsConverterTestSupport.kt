@@ -17,10 +17,9 @@ package com.embabel.agent.test.models
 
 import com.embabel.common.ai.model.OptionsConverter
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.prompt.ChatOptions
 
-abstract class OptionsConverterTestSupport<O : ChatOptions>(
-    protected val optionsConverter: OptionsConverter<O>
+abstract class OptionsConverterTestSupport(
+    protected val optionsConverter: OptionsConverter
 ) {
 
     @Test

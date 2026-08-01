@@ -29,6 +29,7 @@ import com.embabel.common.ai.model.PerTokenPricingModel
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.ai.mistralai.MistralAiChatModel
+import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.mistralai.MistralAiChatOptions
 import org.springframework.ai.mistralai.api.MistralAiApi
 import org.springframework.ai.model.tool.ToolCallingManager
@@ -268,10 +269,11 @@ class MistralAiModelsConfig(
     }
 }
 
-object MistralAiOptionsConverter : OptionsConverter<MistralAiChatOptions> {
+object MistralAiOptionsConverter : OptionsConverter {
 
-    override fun convertOptions(options: LlmOptions): MistralAiChatOptions =
+    override fun convertOptions(options: LlmOptions, model: String): ChatOptions =
         MistralAiChatOptions.builder()
+            .model(model)
             .temperature(options.temperature)
             .topP(options.topP)
             .maxTokens(options.maxTokens)

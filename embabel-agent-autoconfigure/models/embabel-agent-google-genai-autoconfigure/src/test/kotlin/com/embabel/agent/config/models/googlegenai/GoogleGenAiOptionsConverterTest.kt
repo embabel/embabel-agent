@@ -23,31 +23,29 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 
-// Calls the deprecated 1-arg convertOptions() directly to verify field mapping in isolation.
-// Model stamping is not tested here — it is covered by OptionsConverter.convertOptions(options, model).
-class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport<GoogleGenAiChatOptions>(
+class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport(
     optionsConverter = GoogleGenAiOptionsConverter
 ) {
 
     @Test
     fun `should default to no thinking budget`() {
-        val options = optionsConverter.convertOptions(LlmOptions())
+        val options = optionsConverter.convertOptions(LlmOptions(), "test-model") as GoogleGenAiChatOptions
         assertNull(options.thinkingBudget)
     }
 
     @Test
     fun `should set thinking budget when enabled`() {
         val options = optionsConverter.convertOptions(
-            LlmOptions().withThinking(Thinking.withTokenBudget(2000))
-        )
+            LlmOptions().withThinking(Thinking.withTokenBudget(2000)), "test-model"
+        ) as GoogleGenAiChatOptions
         assertEquals(2000, options.thinkingBudget)
     }
 
     @Test
     fun `should set include thoughts when thinking extraction is enabled`() {
         val options = optionsConverter.convertOptions(
-            LlmOptions().withThinking(Thinking.withExtraction())
-        )
+            LlmOptions().withThinking(Thinking.withExtraction()), "test-model"
+        ) as GoogleGenAiChatOptions
         assertEquals(true, options.includeThoughts)
     }
 
@@ -56,8 +54,8 @@ class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport<GoogleGenAiC
         val options = optionsConverter.convertOptions(
             LlmOptions().withThinking(
                 Thinking.withTokenBudget(2000).applyExtraction()
-            )
-        )
+            ), "test-model"
+        ) as GoogleGenAiChatOptions
         assertEquals(true, options.includeThoughts)
         assertEquals(2000, options.thinkingBudget)
     }
@@ -65,44 +63,44 @@ class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport<GoogleGenAiC
     @Test
     fun `should not set include thoughts when extraction is disabled`() {
         val options = optionsConverter.convertOptions(
-            LlmOptions().withThinking(Thinking.withTokenBudget(2000))
-        )
+            LlmOptions().withThinking(Thinking.withTokenBudget(2000)), "test-model"
+        ) as GoogleGenAiChatOptions
         assertEquals(false, options.includeThoughts)
     }
 
     @Test
     fun `should not set thinking budget when thinking is null`() {
-        val options = optionsConverter.convertOptions(LlmOptions())
+        val options = optionsConverter.convertOptions(LlmOptions(), "test-model") as GoogleGenAiChatOptions
         assertNull(options.thinkingBudget)
     }
 
     @Test
     fun `should set default maxOutputTokens`() {
-        val options = optionsConverter.convertOptions(LlmOptions())
+        val options = optionsConverter.convertOptions(LlmOptions(), "test-model") as GoogleGenAiChatOptions
         assertEquals(GoogleGenAiOptionsConverter.DEFAULT_MAX_OUTPUT_TOKENS, options.maxOutputTokens)
     }
 
     @Test
     fun `should override maxOutputTokens when specified`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withMaxTokens(200))
+        val options = optionsConverter.convertOptions(LlmOptions().withMaxTokens(200), "test-model") as GoogleGenAiChatOptions
         assertEquals(200, options.maxOutputTokens)
     }
 
     @Test
     fun `should set temperature`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withTemperature(0.5))
+        val options = optionsConverter.convertOptions(LlmOptions().withTemperature(0.5), "test-model")
         assertEquals(0.5, options.temperature)
     }
 
     @Test
     fun `should set topP`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withTopP(0.9))
+        val options = optionsConverter.convertOptions(LlmOptions().withTopP(0.9), "test-model")
         assertEquals(0.9, options.topP)
     }
 
     @Test
     fun `should set topK`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withTopK(50))
+        val options = optionsConverter.convertOptions(LlmOptions().withTopK(50), "test-model")
         assertEquals(50, options.topK)
     }
 }

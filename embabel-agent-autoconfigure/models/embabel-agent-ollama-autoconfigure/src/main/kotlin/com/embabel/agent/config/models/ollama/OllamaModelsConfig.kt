@@ -29,6 +29,7 @@ import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.ai.ollama.OllamaChatModel
 import org.springframework.ai.ollama.OllamaEmbeddingModel
 import org.springframework.ai.ollama.api.OllamaApi
+import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.ollama.api.OllamaChatOptions
 import org.springframework.ai.ollama.api.OllamaEmbeddingOptions
 import org.springframework.ai.ollama.api.ThinkOption
@@ -320,13 +321,14 @@ class OllamaModelsConfig(
     }
 }
 
-object OllamaOptionsConverter : OptionsConverter<OllamaChatOptions> {
+object OllamaOptionsConverter : OptionsConverter {
     private const val OLLAMA_THINK_LEVEL_LOW_THRESHOLD = 2000
 
     private const val OLLAMA_THINK_LEVEL_MEDIUM_THRESHOLD = 4000
 
-    override fun convertOptions(options: LlmOptions): OllamaChatOptions =
+    override fun convertOptions(options: LlmOptions, model: String): ChatOptions =
         OllamaChatOptions.builder()
+            .model(model)
             .temperature(options.temperature)
             .topP(options.topP)
             .presencePenalty(options.presencePenalty)

@@ -21,14 +21,12 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.springframework.ai.deepseek.DeepSeekChatOptions
 
-// Calls the deprecated 1-arg convertOptions() directly to verify field mapping in isolation.
-// Model stamping is not tested here — it is covered by OptionsConverter.convertOptions(options, model).
-class DeepSeekOptionsConverterTest : OptionsConverterTestSupport<DeepSeekChatOptions>(
+class DeepSeekOptionsConverterTest : OptionsConverterTestSupport(
     optionsConverter = DeepSeekOptionsConverter
 ) {
     @Test
     fun `should set override maxTokens default`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withMaxTokens(200))
+        val options = optionsConverter.convertOptions(LlmOptions().withMaxTokens(200), "test-model")
         assertEquals(200, options.maxTokens)
     }
 }

@@ -29,7 +29,7 @@ class Gpt5ChatOptionsConverterTest(
     @Test
     fun `ignores temperature`() {
         val llmo = LlmOptions().withTemperature(temperature = 0.5)
-        val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
+        val options = Gpt5ChatOptionsConverter.convertOptions(llmo, "test-model")
         // Spring AI 2.0's OpenAiChatOptions package is @NullMarked, so Kotlin treats
         // getTemperature() as returning non-null Double — direct property access
         // would NPE on a null runtime value. Read into a Double? local to bypass.
@@ -40,7 +40,7 @@ class Gpt5ChatOptionsConverterTest(
     @Test
     fun `respects non-temperature options`() {
         val llmo = LlmOptions.withModel(OpenAiModels.GPT_5).withTopK(10).withTopP(.2)
-        val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
+        val options = Gpt5ChatOptionsConverter.convertOptions(llmo, "test-model")
         assertEquals(llmo.topP, options.topP, "Top P should be preserved for GPT-5")
         // Same @NullMarked workaround as in `ignores temperature` above.
         val temperature: Double? = options.temperature
@@ -56,35 +56,35 @@ class Gpt5ChatOptionsConverterTest(
     @Test
     fun `handles temperature equal to 1_0 without warning`() {
         val llmo = LlmOptions().withTemperature(temperature = 1.0)
-        val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
+        val options = Gpt5ChatOptionsConverter.convertOptions(llmo, "test-model")
         assertNull(options.temperature, "Temperature 1.0 should be ignored silently")
     }
 
     @Test
     fun `handles null temperature`() {
         val llmo = LlmOptions()
-        val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
+        val options = Gpt5ChatOptionsConverter.convertOptions(llmo, "test-model")
         assertNull(options.temperature, "Null temperature should remain null")
     }
 
     @Test
     fun `preserves maxTokens`() {
         val llmo = LlmOptions().withMaxTokens(500)
-        val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
+        val options = Gpt5ChatOptionsConverter.convertOptions(llmo, "test-model")
         assertEquals(500, options.maxTokens, "Max tokens should be preserved")
     }
 
     @Test
     fun `preserves presencePenalty`() {
         val llmo = LlmOptions().withPresencePenalty(0.6)
-        val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
+        val options = Gpt5ChatOptionsConverter.convertOptions(llmo, "test-model")
         assertEquals(0.6, options.presencePenalty, "Presence penalty should be preserved")
     }
 
     @Test
     fun `preserves frequencyPenalty`() {
         val llmo = LlmOptions().withFrequencyPenalty(0.4)
-        val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
+        val options = Gpt5ChatOptionsConverter.convertOptions(llmo, "test-model")
         assertEquals(0.4, options.frequencyPenalty, "Frequency penalty should be preserved")
     }
 
@@ -97,7 +97,7 @@ class Gpt5ChatOptionsConverterTest(
             .withPresencePenalty(0.5)
             .withFrequencyPenalty(0.3)
 
-        val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
+        val options = Gpt5ChatOptionsConverter.convertOptions(llmo, "test-model")
 
         assertNull(options.temperature, "Temperature should be ignored")
         assertEquals(0.9, options.topP, "Top P should be preserved")

@@ -89,11 +89,12 @@ class DashScopeModelLoader(
         provider.models.forEach { model ->
             validateCommonFields(model)
             require(model.maxTokens > 0) { "Max tokens must be positive for model ${model.name}" }
-            require(model.temperature >= 0.0 && model.temperature < 2.0) {
+            require(model.temperature in 0.0..<2.0) {
                 "Temperature must be in [0.0, 2.0) for DashScope model ${model.name}"
             }
             model.topP?.let {
-                require(it in 0.0..1.0) { "Top P must be between 0 and 1 for model ${model.name}" }
+                require(it > 0.0 && it <= 1.0) {
+                    "TopP must be in (0.0, 1.0] for model ${model.name}" }
             }
         }
     }

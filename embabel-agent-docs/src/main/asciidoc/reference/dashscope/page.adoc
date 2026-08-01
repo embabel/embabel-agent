@@ -183,7 +183,7 @@ EntityList extractEntities(String text);
 DashScope models have specific parameter ranges:
 
 * **temperature**: range `[0.0, 2.0)` — a value of exactly `0.0` *is* permitted.
-* **top_p**: range `(0, 1.0]` — a value of exactly `0.0` is *not* permitted.
+* **top_p**: range `(0.0, 1.0]` — a value of exactly `0.0` is *not* permitted.
 
 Embabel's `DashScopeOptionsConverter` clamps these values automatically:
 

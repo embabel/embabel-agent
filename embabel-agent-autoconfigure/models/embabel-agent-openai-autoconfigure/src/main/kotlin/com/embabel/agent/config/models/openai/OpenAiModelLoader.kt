@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.config.models.openai
 
+import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.common.ai.autoconfig.AbstractYamlModelLoader
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadata
 import com.embabel.common.ai.autoconfig.LlmAutoConfigProvider
@@ -132,7 +133,7 @@ class OpenAiModelLoader(
 
     override fun createEmptyProvider() = OpenAiModelDefinitions()
 
-    override fun getProviderName() = "OpenAI"
+    override fun getProviderName() = OpenAiModels.PROVIDER
 
     override fun validateModels(provider: OpenAiModelDefinitions) {
         // Validate LLM models

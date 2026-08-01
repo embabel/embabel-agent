@@ -18,14 +18,15 @@ package com.embabel.agent.openai
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.util.loggerFor
+import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.openai.OpenAiChatOptions
 
 /**
  * Options converter for GPT-5 models that don't support temperature adjustment.
  */
-object Gpt5ChatOptionsConverter : OptionsConverter<OpenAiChatOptions> {
+object Gpt5ChatOptionsConverter : OptionsConverter {
 
-    override fun convertOptions(options: LlmOptions): OpenAiChatOptions {
+    override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
         if (options.temperature != null && options.temperature != 1.0) {
             loggerFor<Gpt5ChatOptionsConverter>().warn(
                 "GPT-5 models do not support temperature settings other than default 1.0. You set {} but it will be ignored.",
@@ -33,6 +34,7 @@ object Gpt5ChatOptionsConverter : OptionsConverter<OpenAiChatOptions> {
             )
         }
         return OpenAiChatOptions.builder()
+            .model(model)
             .topP(options.topP)
             .maxTokens(options.maxTokens)
             .presencePenalty(options.presencePenalty)
@@ -44,10 +46,11 @@ object Gpt5ChatOptionsConverter : OptionsConverter<OpenAiChatOptions> {
 /**
  * Standard options converter for OpenAI models that support all parameters.
  */
-object StandardOpenAiOptionsConverter : OptionsConverter<OpenAiChatOptions> {
+object StandardOpenAiOptionsConverter : OptionsConverter {
 
-    override fun convertOptions(options: LlmOptions): OpenAiChatOptions {
+    override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
         return OpenAiChatOptions.builder()
+            .model(model)
             .temperature(options.temperature)
             .topP(options.topP)
             .maxTokens(options.maxTokens)
