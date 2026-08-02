@@ -103,9 +103,9 @@ class DelegatingStreamingTest {
 
         @Test
         fun `should delegate to delegate generateStreamWithThinking`() {
-            val mockStream = Flux.just(
+            val mockStream: Flux<StreamingEvent<String>> = Flux.just(
                 StreamingEvent.Thinking("Reasoning"),
-                StreamingEvent.Object("Answer"),
+                StreamingEvent.Thinking("Answer"),
             )
             every { mockDelegate.generateStreamWithThinking() } returns mockStream
 

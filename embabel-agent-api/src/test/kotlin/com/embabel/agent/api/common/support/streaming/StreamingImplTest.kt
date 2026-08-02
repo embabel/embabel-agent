@@ -106,9 +106,9 @@ class StreamingImplTest {
 
     @Test
     fun `should delegate generateStreamWithThinking to StreamingLlmOperations`() {
-        val mockStream = Flux.just(
+        val mockStream: Flux<StreamingEvent<String>> = Flux.just(
             StreamingEvent.Thinking("reasoning"),
-            StreamingEvent.Object("answer"),
+            StreamingEvent.Thinking("answer"),
         )
         every {
             mockStreamingLlmOperations.generateStreamWithThinking(

@@ -16,13 +16,15 @@
 package com.embabel.agent.spi.support.streaming
 
 import com.embabel.agent.api.common.InteractionId
+import com.embabel.agent.core.internal.streaming.toThinkingEvents
+import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.chat.UserMessage
 import com.embabel.common.core.streaming.StreamingEvent
-import com.embabel.common.core.thinking.ThinkingTags
+import com.embabel.common.core.streaming.ThinkingState
 import io.mockk.every
 import io.mockk.mockk
 import org.assertj.core.api.Assertions.assertThat
@@ -33,102 +35,124 @@ import tools.jackson.module.kotlin.jacksonObjectMapper
 class StreamingLlmOperationsThinkingTest {
 
     @Test
-    fun `extracts every supported tag at every chunk boundary`() {
-        ThinkingTags.TAG_DEFINITIONS
-            .filterKeys { it != "legacy_prefix" && it != "no_prefix" }
-            .forEach { (name, tags) ->
-                val source = "${tags.first}reasoning${tags.second}answer"
-                (0..source.length).forEach { split ->
-                    val events = parse(source.substring(0, split), source.substring(split))
-                    assertThat(events.filterIsInstance<StreamingEvent.Thinking>().map { it.content })
-                        .describedAs("$name thinking split at $split")
-                        .containsExactly("reasoning")
-                    assertThat(events.text())
-                        .describedAs("$name text split at $split")
-                        .isEqualTo("answer")
-                }
-            }
+    fun `reassembles chunked lines before classifying them`() {
+        val events = collect("<th", "ink", ">\n", "reasoning\n", "</think>\n")
+
+        assertThat(events.map { it.state }).containsExactly(
+            ThinkingState.START,
+            ThinkingState.CONTINUATION,
+            ThinkingState.END,
+        )
     }
 
     @Test
-    fun `extracts legacy prefix at every chunk boundary`() {
-        val source = "//THINKING: reasoning\nanswer"
+    fun `emits plain text lines only as thinking events`() {
+        val events = collect("line one\nline two\n")
 
-        (0..source.length).forEach { split ->
-            val events = parse(source.substring(0, split), source.substring(split))
-            assertThat(events.filterIsInstance<StreamingEvent.Thinking>().map { it.content })
-                .describedAs("legacy thinking split at $split")
-                .containsExactly("reasoning")
-            assertThat(events.text())
-                .describedAs("legacy text split at $split")
-                .isEqualTo("answer")
+        assertThat(events).allSatisfy { event ->
+            assertThat(event).isInstanceOf(StreamingEvent.Thinking::class.java)
+            assertThat(event.state).isEqualTo(ThinkingState.CONTINUATION)
         }
+        assertThat(events.map { it.content }).containsExactly("line one", "line two")
     }
 
     @Test
-    fun `extracts tagged thinking across chunk boundaries`() {
-        val events = collect("<thi", "nk>tagged rea", "soning</think>final ", "answer")
-
-        assertThat(events.filterIsInstance<StreamingEvent.Thinking>().map { it.content })
-            .containsExactly("tagged reasoning")
-        assertThat(events.text()).isEqualTo("final answer")
-    }
-
-    @Test
-    fun `extracts legacy thinking prefix across chunk boundaries`() {
-        val events = collect("//THINK", "ING: legacy rea", "soning\nanswer")
-
-        assertThat(events).containsExactly(
-            StreamingEvent.Thinking("legacy reasoning"),
-            StreamingEvent.Object("answer"),
+    fun `strips a complete thinking tag`() {
+        assertThat(collect("<think>reasoning</think>\n")).containsExactly(
+            StreamingEvent.Thinking("reasoning", ThinkingState.BOTH),
         )
     }
 
     @Test
-    fun `keeps a legacy marker in the middle of a line as text`() {
-        val events = collect("answer //THINK", "ING: literal")
+    fun `drops JSON and markdown fences`() {
+        val events = collect("```json\n{\"answer\":\"value\"}\n```\n")
 
-        assertThat(events.filterIsInstance<StreamingEvent.Thinking>()).isEmpty()
-        assertThat(events.text()).isEqualTo("answer //THINKING: literal")
+        assertThat(events).isEmpty()
     }
 
     @Test
-    fun `keeps an unclosed thinking tag as text`() {
-        val events = collect("before <thi", "nk>unfinished reasoning")
-
-        assertThat(events.filterIsInstance<StreamingEvent.Thinking>()).isEmpty()
-        assertThat(events.text()).isEqualTo("before <think>unfinished reasoning")
+    fun `flushes a final line without a newline`() {
+        assertThat(collect("hello ", "world")).containsExactly(
+            StreamingEvent.Thinking("hello world", ThinkingState.CONTINUATION),
+        )
     }
 
     @Test
-    fun `keeps parser state isolated for repeated subscriptions`() {
-        val stream = operations("<think>reasoning</think>answer")
-            .doTransformStreamWithThinking(
+    fun `keeps final-line buffering isolated between subscriptions`() {
+        val stream = operations("hello ", "world")
+            .generateStreamWithThinking(
                 messages = listOf(UserMessage("question")),
                 interaction = interaction(),
-                llmRequestEvent = null,
+                agentProcess = mockk<AgentProcess>(relaxed = true),
+                action = null,
             )
-        val expected = listOf(
-            StreamingEvent.Thinking("reasoning"),
-            StreamingEvent.Object("answer"),
-        )
 
-        assertThat(stream.collectList().block()).containsExactlyElementsOf(expected)
-        assertThat(stream.collectList().block()).containsExactlyElementsOf(expected)
+        assertThat(stream.collectList().block()).containsExactly(
+            StreamingEvent.Thinking("hello world", ThinkingState.CONTINUATION),
+        )
+        assertThat(stream.collectList().block()).containsExactly(
+            StreamingEvent.Thinking("hello world", ThinkingState.CONTINUATION),
+        )
     }
 
-    private fun collect(vararg chunks: String): List<StreamingEvent<String>> =
-        operations(*chunks)
-            .doTransformStreamWithThinking(
+    @Test
+    fun `createObjectStream supports String output`() {
+        val result = operations("\"final answer\"\n")
+            .createObjectStream(
                 messages = listOf(UserMessage("question")),
                 interaction = interaction(),
-                llmRequestEvent = null,
+                outputClass = String::class.java,
+                agentProcess = mockk(relaxed = true),
+                action = null,
             )
             .collectList()
             .block()!!
 
-    private fun parse(vararg chunks: String): List<StreamingEvent<String>> =
-        Flux.fromArray(chunks).toTaggedThinkingEvents().collectList().block()!!
+        assertThat(result).containsExactly("final answer")
+    }
+
+    @Test
+    fun `reports overhead for a large chunked stream`() {
+        val chunks = ("x".repeat(50_000) + "\n").chunked(50)
+
+        repeat(PERFORMANCE_WARMUPS) {
+            consumeRaw(chunks)
+            consumeThinking(chunks)
+        }
+        val baselineNanos = averageNanos(PERFORMANCE_RUNS) { consumeRaw(chunks) }
+        val classifiedNanos = averageNanos(PERFORMANCE_RUNS) { consumeThinking(chunks) }
+        val overheadNanos = classifiedNanos - baselineNanos
+
+        println(
+            "Thinking line classification performance: input=50000 chars, " +
+                "chunks=${chunks.size}, runs=$PERFORMANCE_RUNS, " +
+                "baseline=${baselineNanos.toMillis()} ms, " +
+                "classified=${classifiedNanos.toMillis()} ms, " +
+                "overhead=${overheadNanos.toMillis()} ms",
+        )
+        val event = consumeThinking(chunks).single() as StreamingEvent.Thinking
+        assertThat(event.content).hasSize(50_000)
+    }
+
+    private fun collect(vararg chunks: String): List<StreamingEvent.Thinking> =
+        operations(*chunks)
+            .generateStreamWithThinking(
+                messages = listOf(UserMessage("question")),
+                interaction = interaction(),
+                agentProcess = mockk<AgentProcess>(relaxed = true),
+                action = null,
+            )
+            .map { it as StreamingEvent.Thinking }
+            .collectList()
+            .block()!!
+
+    private fun consumeRaw(chunks: List<String>): List<String> =
+        Flux.fromIterable(chunks).collectList().block()!!
+
+    private fun consumeThinking(chunks: List<String>): List<StreamingEvent<String>> =
+        Flux.fromIterable(chunks).toThinkingEvents().collectList().block()!!
+
+    private fun interaction() = LlmInteraction(id = InteractionId("thinking-stream"))
 
     private fun operations(vararg chunks: String): StreamingLlmOperationsImpl {
         val llmService = mockk<LlmService<*>> {
@@ -142,8 +166,20 @@ class StreamingLlmOperationsThinkingTest {
         )
     }
 
-    private fun interaction() = LlmInteraction(id = InteractionId("thinking-stream"))
+    private fun averageNanos(runs: Int, action: () -> Unit): Long {
+        var total = 0L
+        repeat(runs) {
+            val started = System.nanoTime()
+            action()
+            total += System.nanoTime() - started
+        }
+        return total / runs
+    }
 
-    private fun List<StreamingEvent<String>>.text(): String =
-        filterIsInstance<StreamingEvent.Object<String>>().joinToString("") { it.item }
+    private fun Long.toMillis(): String = "%.3f".format(this / 1_000_000.0)
+
+    private companion object {
+        const val PERFORMANCE_WARMUPS = 10
+        const val PERFORMANCE_RUNS = 30
+    }
 }

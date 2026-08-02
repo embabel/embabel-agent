@@ -34,6 +34,7 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.PricingModel
+import com.embabel.common.core.streaming.StreamingEvent
 import com.embabel.common.textio.template.TemplateRenderer
 import tools.jackson.databind.ObjectMapper
 import jakarta.validation.Validator
@@ -57,6 +58,7 @@ import org.springframework.context.annotation.Primary
 import org.springframework.context.annotation.Profile
 import org.springframework.test.context.ActiveProfiles
 import reactor.core.publisher.Flux
+import java.time.Duration
 
 
 /**
@@ -220,6 +222,46 @@ class LLMStreamingIntegrationTest(
                 assertTrue(false, "StreamingOperations should be castable to StreamingPromptRunner.Streaming")
             }
         }
+    }
+
+    @Test
+    fun `generate stream with thinking uses vendor neutral implementation end to end`() {
+        val llmService = SpringAiLlmService(
+            name = "thinking-stream-e2e",
+            chatModel = FakeStreamingChatModel(
+                "<think>reasoning</think>\nplain answer\n{\"name\":\"must be ignored\"}"
+            ),
+            provider = "test",
+        )
+
+        val events = ai.withLlmService(llmService)
+            .asStreaming()
+            .withPrompt("Test thinking stream")
+            .generateStreamWithThinking()
+            .collectList()
+            .block(Duration.ofSeconds(5))!!
+
+        assertTrue(events.all { it is StreamingEvent.Thinking })
+        assertTrue(events.none { it is StreamingEvent.Object<*> })
+        assertEquals(listOf("reasoning", "plain answer"), events.mapNotNull { it.getThinking() })
+    }
+
+    @Test
+    fun `create object stream supports String output with thinking end to end`() {
+        val llmService = SpringAiLlmService(
+            name = "string-stream-e2e",
+            chatModel = FakeStreamingChatModel("<think>reasoning</think>\n\"final answer\""),
+            provider = "test",
+        )
+
+        val results = ai.withLlmService(llmService)
+            .asStreaming()
+            .withPrompt("Test String object stream")
+            .createObjectStream(String::class.java)
+            .collectList()
+            .block(Duration.ofSeconds(5))!!
+
+        assertEquals(listOf("final answer"), results)
     }
 
     @Test

@@ -30,6 +30,7 @@ import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.internal.LlmOperations
+import com.embabel.agent.core.internal.streaming.toThinkingEvents
 import com.embabel.agent.core.support.LlmUse
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolNotFoundPolicy
@@ -140,7 +141,7 @@ internal interface PromptExecutionDelegate : LlmUse {
     fun generateStream(): Flux<String>
 
     fun generateStreamWithThinking(): Flux<StreamingEvent<String>> =
-        generateStream().map { StreamingEvent.Object(it) }
+        generateStream().toThinkingEvents()
 
     fun <T> createObjectStream(itemClass: Class<T>): Flux<T>
 

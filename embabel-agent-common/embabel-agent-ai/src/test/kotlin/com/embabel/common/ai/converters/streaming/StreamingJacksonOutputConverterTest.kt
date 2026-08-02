@@ -45,8 +45,8 @@ class StreamingJacksonOutputConverterTest {
 
         // Then
         assertTrue(format.contains("JSONL (JSON Lines) format"))
-        assertTrue(format.contains("Each line must contain exactly one JSON object"))
-        assertTrue(format.contains("Do not include markdown code blocks or wrap responses in arrays"))
+        assertTrue(format.contains("Each line must contain exactly one JSON value"))
+        assertTrue(format.contains("Do not include markdown code blocks or wrap the entire JSONL sequence in an array"))
         assertTrue(format.contains("<think>"))
     }
 
@@ -61,6 +61,16 @@ class StreamingJacksonOutputConverterTest {
         // Then
         assertTrue(format.contains("JSON Schema"))
         assertTrue(format.contains("name")) // Should contain schema for SimpleItem
+    }
+
+    @Test
+    fun `getFormat should support a String schema without an object-only example`() {
+        val converter = StreamingJacksonOutputConverter(String::class.java, objectMapper)
+
+        val format = converter.getFormat()
+
+        assertTrue(format.contains("JSON value"))
+        assertFalse(format.contains("{\"field\": \"precise_value\"}"))
     }
 
     @Test
@@ -212,6 +222,17 @@ class StreamingJacksonOutputConverterTest {
 
         assertTrue(events[0] is StreamingEvent.Object<*>)
         assertEquals("testItem", (events[0] as StreamingEvent.Object<SimpleItem>).item.name)
+    }
+
+    @Test
+    fun `convertStreamWithThinking should support String output`() {
+        val converter = StreamingJacksonOutputConverter(String::class.java, objectMapper)
+
+        val events = converter.convertStreamWithThinking("\"final answer\"").collectList().block()!!
+
+        assertEquals(1, events.size)
+        assertTrue(events.single() is StreamingEvent.Object<*>)
+        assertEquals("final answer", (events.single() as StreamingEvent.Object<String>).item)
     }
 
     @Test
@@ -378,7 +399,7 @@ class StreamingJacksonOutputConverterTest {
 
         // Then
         assertTrue(format.contains("JSONL (JSON Lines) format"))
-        assertTrue(format.contains("one valid JSON object per line"))
+        assertTrue(format.contains("one valid JSON value per line"))
     }
 
     @Test

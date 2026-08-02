@@ -356,9 +356,9 @@ class StreamingChatClientOperationsTest {
     }
 
     @Test
-    fun `generateStreamWithThinking extracts tagged content from the text stream`() {
+    fun `generateStreamWithThinking emits tagged and plain text as thinking`() {
         mockChatClientForStreaming(
-            Flux.just("<thi", "nk>reasoning</think>answer")
+            Flux.just("<think>reasoning</think>\n", "answer\n")
         )
 
         val result = streamingOperations.generateStreamWithThinking(
@@ -370,7 +370,7 @@ class StreamingChatClientOperationsTest {
 
         StepVerifier.create(result)
             .expectNextMatches { it.isThinking() && it.getThinking() == "reasoning" }
-            .expectNextMatches { it.isObject() && it.getObject() == "answer" }
+            .expectNextMatches { it.isThinking() && it.getThinking() == "answer" }
             .verifyComplete()
     }
 

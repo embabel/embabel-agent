@@ -36,6 +36,8 @@ internal object ThinkingDetector {
     private val thinkingTags = ThinkingTags.TAG_DEFINITIONS
         .filterNot { it.key in listOf("legacy_prefix", "no_prefix") }
 
+    private val jsonStringPattern = Regex(""""(?:\\["\\/bfnrt]|\\u[0-9a-fA-F]{4}|[^"\\\x00-\x1F])*"""")
+
     /**
      * Detects if a line contains thinking content using flexible pattern matching.
      *
@@ -97,7 +99,8 @@ internal object ThinkingDetector {
      * - "<think>" → ThinkingState.START
      * - "continuing the thought..." → ThinkingState.CONTINUATION (when not JSON)
      * - "</think>" → ThinkingState.END
-     * - '{"field": "value"}' → null (JSON content, not thinking)
+     * - '{"field": "value"}' → ThinkingState.NONE (JSON content, not thinking)
+     * - '"final answer"' → ThinkingState.NONE (JSON String output, not thinking)
      *
      * @param line The complete line to analyze for thinking state markers
      * @return ThinkingState classification: NONE for JSON content, other states for thinking content
@@ -165,29 +168,32 @@ internal object ThinkingDetector {
     }
 
     /**
-     * Fast heuristic validation for JSON content to avoid expensive parsing.
+     * Fast heuristic validation for a complete JSON value to avoid expensive parsing.
      *
      * Performance optimization using simple string checks rather than full JSON parsing
      * to quickly identify potential JSON lines in streaming content.
      *
      * Validation logic:
      * 1. Line must not be empty after trimming
-     * 2. Must start with '{' (JSON object start)
-     * 3. Must end with '}' (JSON object end)
-     * 4. Must contain ':' (JSON objects require key-value pairs)
+     * 2. Objects must have matching outer delimiters and either be empty or contain a key-value separator
+     * 3. Strings must have valid JSON quoting and escapes
      *
      * Note: Intentionally simple heuristic - actual JSON parsing in the converter
      * will catch real JSON syntax errors.
      *
      * @param line The line to check for JSON format
-     * @return true if line appears to be JSON object, false otherwise
+     * @return true if line appears to be a complete JSON value, false otherwise
      */
     private fun isValidJson(line: String): Boolean {
         val trimmed = line.trim()
-        val isValid = trimmed.isNotEmpty() &&
-                trimmed.startsWith("{") &&
-                trimmed.endsWith("}") &&
-                trimmed.contains(":")
+        val isValid = when {
+            trimmed.isEmpty() -> false
+            trimmed.startsWith("{") && trimmed.endsWith("}") ->
+                trimmed == "{}" || trimmed.contains(":")
+
+            jsonStringPattern.matches(trimmed) -> true
+            else -> false
+        }
 
         logger.debug("JSON validation for '{}': {}", trimmed.take(50), isValid)
         return isValid

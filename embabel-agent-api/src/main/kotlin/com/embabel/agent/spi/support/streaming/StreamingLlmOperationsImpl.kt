@@ -37,6 +37,7 @@ import com.embabel.agent.spi.support.guardrails.validateUserInput
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.converters.streaming.StreamingJacksonOutputConverter
+import com.embabel.common.ai.converters.streaming.StreamingLineClassifier
 import com.embabel.common.core.streaming.StreamingEvent
 import tools.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
@@ -50,7 +51,7 @@ import reactor.core.publisher.Mono
  * LLM framework (Spring AI, LangChain4j, etc.). It delegates raw streaming to
  * [LlmMessageStreamer] and handles:
  * - Line buffering from raw chunks
- * - JSONL parsing to typed objects
+ * - JSONL parsing to typed values
  * - Thinking content extraction
  *
  * @param messageStreamer The streamer for raw LLM content
@@ -86,7 +87,12 @@ internal class StreamingLlmOperationsImpl(
         agentProcess: AgentProcess,
         action: Action?,
     ): Flux<StreamingEvent<String>> =
-        doTransformStreamWithThinking(messages, interaction, null, agentProcess, action)
+        doTransformStream(messages, interaction, null, agentProcess, action)
+            // Reassemble arbitrary model chunks into the complete lines expected by the
+            // object-stream thinking detector.
+            .transform { rawChunksToLines(it) }
+            // Emits every non-JSON line as Thinking; JSON and formatting fences are dropped.
+            .concatMap(StreamingLineClassifier::classify)
 
     override fun <O> createObjectStream(
         messages: List<Message>,
@@ -149,16 +155,6 @@ internal class StreamingLlmOperationsImpl(
         // Stream raw chunks from LLM
         return streamWithToolLoop(messagesWithContributions, tools, interaction, agentProcess, action)
     }
-
-    override fun doTransformStreamWithThinking(
-        messages: List<Message>,
-        interaction: LlmInteraction,
-        llmRequestEvent: LlmRequestEvent<String>?,
-        agentProcess: AgentProcess?,
-        action: Action?,
-    ): Flux<StreamingEvent<String>> =
-        doTransformStream(messages, interaction, llmRequestEvent, agentProcess, action)
-            .toTaggedThinkingEvents()
 
     override fun <O> doTransformObjectStream(
         messages: List<Message>,
@@ -353,29 +349,30 @@ internal class StreamingLlmOperationsImpl(
      * Convert raw streaming chunks to NDJSON lines.
      * Handles all cases: multiple \n in one chunk, no \n in chunk, line spanning many chunks.
      */
-    private fun rawChunksToLines(raw: Flux<String>): Flux<String> {
-        val buffer = StringBuilder()
-        return raw.concatMap { chunk ->
-            buffer.append(chunk)
-            val lines = mutableListOf<String>()
-            while (true) {
-                val idx = buffer.indexOf('\n')
-                if (idx < 0) break
-                val line = buffer.substring(0, idx).trim()
-                if (line.isNotEmpty()) lines.add(line)
-                buffer.delete(0, idx + 1)
-            }
-            Flux.fromIterable(lines)
-        }.doOnComplete {
-            if (buffer.isNotEmpty()) {
-                val finalLine = buffer.toString().trim()
-                if (finalLine.isNotEmpty()) {
-                    logger.trace("FINAL LINE: '$finalLine'")
+    private fun rawChunksToLines(raw: Flux<String>): Flux<String> =
+        Flux.defer {
+            val buffer = StringBuilder()
+            raw.concatMap { chunk ->
+                buffer.append(chunk)
+                val lines = mutableListOf<String>()
+                while (true) {
+                    val idx = buffer.indexOf('\n')
+                    if (idx < 0) break
+                    val line = buffer.substring(0, idx).trim()
+                    if (line.isNotEmpty()) lines.add(line)
+                    buffer.delete(0, idx + 1)
                 }
-            }
-        }.concatWith(
-            Mono.fromSupplier { buffer.toString().trim() }
-                .filter { it.isNotEmpty() }
-        )
-    }
+                Flux.fromIterable(lines)
+            }.doOnComplete {
+                if (buffer.isNotEmpty()) {
+                    val finalLine = buffer.toString().trim()
+                    if (finalLine.isNotEmpty()) {
+                        logger.trace("FINAL LINE: '$finalLine'")
+                    }
+                }
+            }.concatWith(
+                Mono.fromSupplier { buffer.toString().trim() }
+                    .filter { it.isNotEmpty() }
+            )
+        }
 }
