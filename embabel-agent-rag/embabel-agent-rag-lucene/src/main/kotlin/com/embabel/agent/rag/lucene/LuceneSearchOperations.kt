@@ -543,8 +543,10 @@ class LuceneSearchOperations @JvmOverloads constructor(
         chunk: Chunk,
         chunksToAdd: Int,
     ): List<Chunk> {
-        val containerSectionId = chunk.metadata[CONTAINER_SECTION_ID]?.toString()
-        val sequenceNumber = chunk.metadata[SEQUENCE_NUMBER]?.toString()?.toIntOrNull()
+        val containerSectionId = chunk.structure.containerSectionId
+            ?: chunk.metadata[CONTAINER_SECTION_ID]?.toString()
+        val sequenceNumber = chunk.structure.sequenceNumber
+            ?: chunk.metadata[SEQUENCE_NUMBER]?.toString()?.toIntOrNull()
 
         if (containerSectionId == null || sequenceNumber == null) {
             logger.warn(
@@ -559,9 +561,12 @@ class LuceneSearchOperations @JvmOverloads constructor(
         // Find all chunks in the same container section
         val chunksInSection = contentElementStorage.values
             .filterIsInstance<Chunk>()
-            .filter { it.metadata[CONTAINER_SECTION_ID]?.toString() == containerSectionId }
             .mapNotNull { c ->
-                val seqNum = c.metadata[SEQUENCE_NUMBER]?.toString()?.toIntOrNull()
+                val sectionId = c.structure.containerSectionId
+                    ?: c.metadata[CONTAINER_SECTION_ID]?.toString()
+                if (sectionId != containerSectionId) return@mapNotNull null
+                val seqNum = c.structure.sequenceNumber
+                    ?: c.metadata[SEQUENCE_NUMBER]?.toString()?.toIntOrNull()
                 if (seqNum != null) c to seqNum else null
             }
             .sortedBy { it.second }
@@ -589,8 +594,10 @@ class LuceneSearchOperations @JvmOverloads constructor(
             chunk.id,
             sequenceNumber,
             expandedChunks.size,
-            expandedChunks.firstOrNull()?.metadata?.get(SEQUENCE_NUMBER),
-            expandedChunks.lastOrNull()?.metadata?.get(SEQUENCE_NUMBER)
+            expandedChunks.firstOrNull()?.structure?.sequenceNumber
+                ?: expandedChunks.firstOrNull()?.metadata?.get(SEQUENCE_NUMBER),
+            expandedChunks.lastOrNull()?.structure?.sequenceNumber
+                ?: expandedChunks.lastOrNull()?.metadata?.get(SEQUENCE_NUMBER)
         )
 
         return expandedChunks
