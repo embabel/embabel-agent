@@ -14,7 +14,7 @@
     <url>https://github.com/embabel/embabel-agent</url>
 
     <properties>
-        <langchain4j.version>1.14.0</langchain4j.version>
+        <langchain4j.version>1.14.1</langchain4j.version>
     </properties>
 
     <scm>
