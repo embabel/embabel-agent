@@ -23,39 +23,37 @@ import org.junit.jupiter.api.Test
 import org.springframework.ai.ollama.api.OllamaChatOptions
 import org.springframework.ai.ollama.api.ThinkOption
 
-// Calls the deprecated 1-arg convertOptions() directly to verify field mapping in isolation.
-// Model stamping is not tested here — it is covered by OptionsConverter.convertOptions(options, model).
-class OllamaOptionsConverterTest : OptionsConverterTestSupport<OllamaChatOptions>(
+class OllamaOptionsConverterTest : OptionsConverterTestSupport(
     optionsConverter = OllamaOptionsConverter
 ) {
 
     @Test
     fun `should set thinking to disabled when not provided`() {
-        val options = optionsConverter.convertOptions(LlmOptions())
+        val options = optionsConverter.convertOptions(LlmOptions(), "test-model") as OllamaChatOptions
         assertEquals(ThinkOption.ThinkBoolean.DISABLED, options.thinkOption)
     }
 
     @Test
     fun `should set thinking to low when budget is under 2000`() {
         val options = optionsConverter.convertOptions(
-            LlmOptions().withThinking(Thinking.withTokenBudget(1000))
-        )
+            LlmOptions().withThinking(Thinking.withTokenBudget(1000)), "test-model"
+        ) as OllamaChatOptions
         assertEquals(ThinkOption.ThinkLevel.LOW, options.thinkOption)
     }
 
     @Test
     fun `should set thinking to medium when budget is between 2000 and 4000`() {
         val options = optionsConverter.convertOptions(
-            LlmOptions().withThinking(Thinking.withTokenBudget(3000))
-        )
+            LlmOptions().withThinking(Thinking.withTokenBudget(3000)), "test-model"
+        ) as OllamaChatOptions
         assertEquals(ThinkOption.ThinkLevel.MEDIUM, options.thinkOption)
     }
 
     @Test
     fun `should set thinking to high when budget is 4000 or more`() {
         val options = optionsConverter.convertOptions(
-            LlmOptions().withThinking(Thinking.withTokenBudget(5000))
-        )
+            LlmOptions().withThinking(Thinking.withTokenBudget(5000)), "test-model"
+        ) as OllamaChatOptions
         assertEquals(ThinkOption.ThinkLevel.HIGH, options.thinkOption)
     }
 }

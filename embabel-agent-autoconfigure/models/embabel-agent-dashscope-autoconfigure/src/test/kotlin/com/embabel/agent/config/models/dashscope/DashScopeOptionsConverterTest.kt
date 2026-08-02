@@ -23,81 +23,79 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.ai.openai.OpenAiChatOptions
 
-// Calls the deprecated 1-arg convertOptions() directly to verify field mapping in isolation.
-// Model stamping is not tested here — it is covered by OptionsConverter.convertOptions(options, model).
-class DashScopeOptionsConverterTest : OptionsConverterTestSupport<OpenAiChatOptions>(
+class DashScopeOptionsConverterTest : OptionsConverterTestSupport(
     optionsConverter = DashScopeOptionsConverter
 ) {
     @Test
     fun `should set override maxTokens default`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withMaxTokens(200))
+        val options = optionsConverter.convertOptions(LlmOptions().withMaxTokens(200), "test-model")
         assertEquals(200, options.maxTokens)
     }
 
     @Test
     fun `should clamp temperature below minimum to minimum`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withTemperature(-0.5))
+        val options = optionsConverter.convertOptions(LlmOptions().withTemperature(-0.5), "test-model")
         val temperature = requireNotNull(options.temperature) { "Temperature should not be null after clamping" }
         assertTrue(temperature >= 0.0, "Temperature should be clamped to at least 0.0")
     }
 
     @Test
     fun `should clamp temperature at exactly 2_0 to 1_99`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withTemperature(2.0))
+        val options = optionsConverter.convertOptions(LlmOptions().withTemperature(2.0), "test-model")
         assertEquals(1.99, options.temperature)
     }
 
     @Test
     fun `should clamp temperature above maximum to 1_99`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withTemperature(3.0))
+        val options = optionsConverter.convertOptions(LlmOptions().withTemperature(3.0), "test-model")
         assertEquals(1.99, options.temperature)
     }
 
     @Test
     fun `should preserve valid temperature`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withTemperature(0.7))
+        val options = optionsConverter.convertOptions(LlmOptions().withTemperature(0.7), "test-model")
         assertEquals(0.7, options.temperature)
     }
 
     @Test
     fun `should handle null temperature`() {
-        val options = optionsConverter.convertOptions(LlmOptions())
+        val options = optionsConverter.convertOptions(LlmOptions(), "test-model")
         assertNull(options.temperature)
     }
 
     @Test
     fun `should clamp topP at zero to 0_01`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withTopP(0.0))
+        val options = optionsConverter.convertOptions(LlmOptions().withTopP(0.0), "test-model")
         assertEquals(0.01, options.topP)
     }
 
     @Test
     fun `should clamp topP below zero to 0_01`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withTopP(-0.5))
+        val options = optionsConverter.convertOptions(LlmOptions().withTopP(-0.5), "test-model")
         assertEquals(0.01, options.topP)
     }
 
     @Test
     fun `should clamp topP above 1_0 to 1_0`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withTopP(1.5))
+        val options = optionsConverter.convertOptions(LlmOptions().withTopP(1.5), "test-model")
         assertEquals(1.0, options.topP)
     }
 
     @Test
     fun `should preserve valid topP`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withTopP(0.9))
+        val options = optionsConverter.convertOptions(LlmOptions().withTopP(0.9), "test-model")
         assertEquals(0.9, options.topP)
     }
 
     @Test
     fun `should preserve topP at exactly 1_0`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withTopP(1.0))
+        val options = optionsConverter.convertOptions(LlmOptions().withTopP(1.0), "test-model")
         assertEquals(1.0, options.topP)
     }
 
     @Test
     fun `should handle null topP`() {
-        val options = optionsConverter.convertOptions(LlmOptions())
+        val options = optionsConverter.convertOptions(LlmOptions(), "test-model")
         assertNull(options.topP)
     }
 }

@@ -107,7 +107,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
     override val provider: String,
     @get:JvmName("getChatModel")
     val chatModel: ChatModel,
-    val optionsConverter: OptionsConverter<*> = DefaultOptionsConverter,
+    val optionsConverter: OptionsConverter = DefaultOptionsConverter,
     override val knowledgeCutoffDate: LocalDate? = null,
     override val promptContributors: List<PromptContributor> =
         buildList { knowledgeCutoffDate?.let { add(KnowledgeCutoffDate(it)) } },
@@ -163,6 +163,6 @@ data class SpringAiLlmService @JvmOverloads constructor(
     /**
      * Returns a copy with a different options converter.
      */
-    fun withOptionsConverter(converter: OptionsConverter<*>): SpringAiLlmService =
+    fun withOptionsConverter(converter: OptionsConverter): SpringAiLlmService =
         copy(optionsConverter = converter)
 }

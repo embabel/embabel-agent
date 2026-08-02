@@ -18,6 +18,7 @@ package com.embabel.agent.test.models
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import org.junit.jupiter.api.Test
+import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
@@ -33,11 +34,13 @@ class OptionsConverterTestSupportTest {
      * It deliberately preserves only the core values asserted by
      * [checkOptionsConverterPreservesCoreValues]: `temperature` and `topP`.
      */
-    private val fakeConverter = OptionsConverter { options ->
-        ToolCallingChatOptions.builder()
-            .temperature(options.temperature)
-            .topP(options.topP)
-            .build()
+    private val fakeConverter = object : OptionsConverter {
+        override fun convertOptions(options: LlmOptions, model: String): ChatOptions =
+            ToolCallingChatOptions.builder()
+                .model(model)
+                .temperature(options.temperature)
+                .topP(options.topP)
+                .build()
     }
 
     /**
@@ -45,9 +48,9 @@ class OptionsConverterTestSupportTest {
      * support class itself can be verified directly.
      */
     private class FakeOptionsConverterSupport(
-        optionsConverter: OptionsConverter<ToolCallingChatOptions>,
-    ) : OptionsConverterTestSupport<ToolCallingChatOptions>(optionsConverter) {
-        fun exposedConverter(): OptionsConverter<ToolCallingChatOptions> = optionsConverter
+        optionsConverter: OptionsConverter,
+    ) : OptionsConverterTestSupport(optionsConverter) {
+        fun exposedConverter(): OptionsConverter = optionsConverter
     }
 
     @Test
@@ -71,7 +74,7 @@ class OptionsConverterTestSupportTest {
         support.`should preserve core values`()
 
         // Assert
-        val converted = fakeConverter.convertOptions(LlmOptions().withTemperature(0.5).withTopP(0.2))
+        val converted = fakeConverter.convertOptions(LlmOptions().withTemperature(0.5).withTopP(0.2), "test-model")
         assertEquals(0.5, converted.temperature)
         assertEquals(0.2, converted.topP)
     }

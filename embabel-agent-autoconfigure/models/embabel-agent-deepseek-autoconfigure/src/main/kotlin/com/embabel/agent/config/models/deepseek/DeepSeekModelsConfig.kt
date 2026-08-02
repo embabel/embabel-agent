@@ -19,12 +19,14 @@ import com.embabel.agent.api.models.DeepSeekModels
 import com.embabel.agent.config.models.deepseek.DeepSeekProperties.Companion.PREFIX
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.ai.deepseek.DeepSeekChatModel
+import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.deepseek.DeepSeekChatOptions
 import org.springframework.ai.deepseek.api.DeepSeekApi
 import org.springframework.ai.model.tool.ToolCallingManager
@@ -222,9 +224,10 @@ class DeepSeekModelsConfig(
     }
 }
 
-val DeepSeekOptionsConverter: OptionsConverter<DeepSeekChatOptions> =
-    OptionsConverter { options ->
+object DeepSeekOptionsConverter : OptionsConverter {
+    override fun convertOptions(options: LlmOptions, model: String): ChatOptions =
         DeepSeekChatOptions.builder()
+            .model(model)
             .frequencyPenalty(options.frequencyPenalty)
             .maxTokens(options.maxTokens)
             .presencePenalty(options.presencePenalty)
@@ -232,5 +235,5 @@ val DeepSeekOptionsConverter: OptionsConverter<DeepSeekChatOptions> =
             .topP(options.topP)
             .build()
 
-        // logprobs/topLogprobs/responseFormat
-    }
+    // logprobs/topLogprobs/responseFormat
+}
