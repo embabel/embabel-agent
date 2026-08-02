@@ -40,6 +40,9 @@ import org.springframework.ai.tool.ToolCallback
 import reactor.core.publisher.Flux
 import reactor.test.StepVerifier
 import java.time.Duration
+import com.embabel.common.ai.model.OptionsConverter
+import com.embabel.common.ai.model.Thinking
+import com.embabel.common.ai.prompt.PromptContributor
 
 /**
  * Unit tests for StreamingChatClientOperations.
@@ -82,7 +85,7 @@ class StreamingChatClientOperationsTest {
         every { mockChatClientLlmOperations.createChatClient(mockLlm) } returns mockChatClient
         every { mockInteraction.promptContributors } returns emptyList()
         every { mockLlm.promptContributors } returns emptyList()
-        val mockOptionsConverter = mockk<com.embabel.common.ai.model.OptionsConverter>(relaxed = true)
+        val mockOptionsConverter = mockk<OptionsConverter>(relaxed = true)
         every { mockLlm.optionsConverter } returns mockOptionsConverter
         every { mockOptionsConverter.convertOptions(any(), any()) } returns mockk(relaxed = true)
         every { mockInteraction.llm } returns mockk(relaxed = true)
@@ -519,7 +522,7 @@ class StreamingChatClientOperationsTest {
             // Given: even if model thinking budget is configured, object-only stream should not
             // push the model to emit thinking blocks (they would be discarded)
             every { mockInteraction.llm } returns LlmOptions()
-                .withThinking(com.embabel.common.ai.model.Thinking.withTokenBudget(8000))
+                .withThinking(Thinking.withTokenBudget(8000))
             val promptSlot = mockChatClientForStreaming(
                 Flux.just("{\"name\":\"Item1\",\"value\":1}\n")
             )
@@ -583,7 +586,7 @@ class StreamingChatClientOperationsTest {
         @Test
         fun `should prepend prompt contributions as system message`() {
             // Given
-            val mockContributor = mockk<com.embabel.common.ai.prompt.PromptContributor>()
+            val mockContributor = mockk<PromptContributor>()
             every { mockContributor.contribution() } returns "System contribution"
             every { mockInteraction.promptContributors } returns listOf(mockContributor)
 
