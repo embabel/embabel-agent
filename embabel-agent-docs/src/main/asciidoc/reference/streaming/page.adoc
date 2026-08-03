@@ -41,28 +41,28 @@ names, and complete arguments. Provider adapters must not execute those calls th
 
 Embabel streaming currently deals with *application-level thinking*: the model is prompted
 (via thinking *format instructions*) to emit reasoning blocks that Embabel parses into
-``StreamingEvent.Thinking`` entries. This is separate from *LLM-native reasoning* (for example
-Anthropic extended thinking / other providers' separate reasoning channels), which is usually
-returned as a dedicated response property and is **not** extracted by Embabel today
+``StreamingEvent.Thinking`` entries. Control is through ``Thinking`` on the Interaction /
+``LlmOptions``:
+
+* *Application-level* — ``Thinking.withExtraction()`` sets ``extractThinking``. That flag
+  turns on prompt format instructions and block extraction. ``createObjectStreamWithThinking``
+  enables this automatically (no separate SPI "format" parameter).
+* *Provider model budget* — ``Thinking.withTokenBudget(n)`` sets ``enabled`` + budget for
+  providers that need it (e.g. Anthropic). Independent of application-level extraction;
+  combine via ``applyExtraction()`` when you want both.
+
+This is separate from *LLM-native reasoning* (provider-specific reasoning channels returned as
+a dedicated response property), which Embabel does **not** extract today
 (see https://github.com/embabel/embabel-agent/issues/1716[#1716]).
 
-For application-level thinking, streaming exposes two independent concerns (same split as
-non-streaming thinking APIs):
-
 * *Retrieving thinking events* — Call ``createObjectStreamWithThinking(...)``.
-  Embabel always enables extraction and injects thinking format instructions for that stream.
-  You do *not* need to set a thinking token budget just to use this API.
-* *Model thinking budget / thoroughness* — Optionally configure
-  ``LlmOptions.withThinking(Thinking.withTokenBudget(n))`` when the provider requires (or
-  benefits from) an explicit budget. Use this when you want the model to reason more deeply,
-  even if you do not consume thinking events, or together with ``createObjectStreamWithThinking``.
+  You do *not* need a token budget just to use this API.
+* *Model thinking budget* — Optionally ``LlmOptions.withThinking(Thinking.withTokenBudget(n))``
+  when the provider requires it.
 
-For models where thinking is always on and not budget-configurable, call
-``createObjectStreamWithThinking`` without a token budget; any application-level thinking the
-model emits is still delivered as ``StreamingEvent`` thinking entries.
-
-Object-only streams (``createObjectStream`` / ``generateStream``) do not inject thinking
-format instructions, so they will not push the model to emit application-level reasoning blocks.
+Object-only streams (``createObjectStream`` / ``generateStream``) only inject thinking format
+instructions when ``extractThinking`` is already set on the Interaction (a token budget alone
+does not).
 
 ==== Example - Simple Thinking and Object Streaming with Callbacks
 [source,java]

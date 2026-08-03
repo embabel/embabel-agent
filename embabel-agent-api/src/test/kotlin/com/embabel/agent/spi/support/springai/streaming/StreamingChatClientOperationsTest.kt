@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.support.springai.streaming
 
+import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.LlmInteraction
@@ -167,8 +168,8 @@ class StreamingChatClientOperationsTest {
             mockAction
         )
 
-        // Then
-        verify { mockChatClientLlmOperations.getLlm(mockInteraction) }
+        // Then: Interaction may be a copy with Thinking.extractThinking enabled
+        verify { mockChatClientLlmOperations.getLlm(any()) }
     }
 
     @Test
@@ -493,8 +494,12 @@ class StreamingChatClientOperationsTest {
 
         @Test
         fun `createObjectStreamWithThinking includes thinking format without LlmOptions thinking config`() {
-            // Given: no thinking budget / extraction on LlmOptions (the awkward pre-req from #1799)
-            every { mockInteraction.llm } returns LlmOptions()
+            // Given: real Interaction with no thinking budget / extraction (the #1799 pre-req).
+            // SPI enables Thinking.extractThinking on the Interaction for *WithThinking.
+            val interaction = LlmInteraction(
+                id = InteractionId("test-thinking-format"),
+                llm = LlmOptions(),
+            )
             val promptSlot = mockChatClientForStreaming(
                 Flux.just("{\"name\":\"Item1\",\"value\":1}\n")
             )
@@ -502,13 +507,13 @@ class StreamingChatClientOperationsTest {
             // When
             streamingOperations.createObjectStreamWithThinking(
                 messages = listOf(UserMessage("test")),
-                interaction = mockInteraction,
+                interaction = interaction,
                 outputClass = TestItem::class.java,
                 agentProcess = mockAgentProcess,
                 action = mockAction
             ).collectList().block(Duration.ofSeconds(2))
 
-            // Then: format instructions still ask for <think> blocks
+            // Then: format instructions still ask for <think> blocks (driven by extractThinking)
             assertTrue(promptSlot.isCaptured, "expected ChatClient.prompt to be called")
             val promptText = promptSlot.captured.contents
             assertTrue(
@@ -518,11 +523,13 @@ class StreamingChatClientOperationsTest {
         }
 
         @Test
-        fun `createObjectStream omits thinking format instructions`() {
-            // Given: even if model thinking budget is configured, object-only stream should not
-            // push the model to emit thinking blocks (they would be discarded)
-            every { mockInteraction.llm } returns LlmOptions()
-                .withThinking(Thinking.withTokenBudget(8000))
+        fun `createObjectStream omits thinking format for provider budget only`() {
+            // Provider budget (Thinking.enabled + tokenBudget) alone must not inject
+            // application-level format instructions — that follows extractThinking only.
+            val interaction = LlmInteraction(
+                id = InteractionId("test-budget-only"),
+                llm = LlmOptions().withThinking(Thinking.withTokenBudget(8000)),
+            )
             val promptSlot = mockChatClientForStreaming(
                 Flux.just("{\"name\":\"Item1\",\"value\":1}\n")
             )
@@ -530,7 +537,7 @@ class StreamingChatClientOperationsTest {
             // When
             streamingOperations.createObjectStream(
                 messages = listOf(UserMessage("test")),
-                interaction = mockInteraction,
+                interaction = interaction,
                 outputClass = TestItem::class.java,
                 agentProcess = mockAgentProcess,
                 action = mockAction
@@ -541,7 +548,7 @@ class StreamingChatClientOperationsTest {
             val promptText = promptSlot.captured.contents
             assertFalse(
                 promptText.contains("<think>"),
-                "createObjectStream should not inject thinking format instructions"
+                "tokenBudget alone should not inject application-level thinking format"
             )
         }
     }
