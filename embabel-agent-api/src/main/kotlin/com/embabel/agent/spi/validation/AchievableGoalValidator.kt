@@ -1,6 +1,7 @@
 package com.embabel.agent.spi.validation
 
 import com.embabel.agent.api.annotation.AchievesGoal
+import com.embabel.agent.core.AgentScope
 import com.embabel.common.core.validation.ValidationError
 import com.embabel.common.core.validation.ValidationErrorCodes
 import com.embabel.common.core.validation.ValidationLocation
@@ -11,16 +12,25 @@ import org.springframework.util.ReflectionUtils
 import java.lang.reflect.Method
 
 /**
- * Validator that checks on methods annotated with AchievesGoal.
+ * Validator that checks methods annotated with AchievesGoal.
  *
  * Specific check includes:
  *  - Verifying that @Action annotation is present on it.
  */
-open class AchievableGoalValidator {
+open class AchievableGoalValidator ( private val agentName: String,
+                                     private val agentClass: Class<*>,
+                                     private val agentInstance: Any,
+                                     private val requireInterfaceDeserializationAnnotations: Boolean): AgentValidator
+{
     private val logger = LoggerFactory.getLogger(AchievableGoalValidator::class.java)
 
-    fun validate(agentName: String, agentClass: Class<*>, agentInstance: Any,
-                 requireInterfaceDeserializationAnnotations: Boolean): ValidationResult {
+    private fun isMethodAnnotatedWithAchievesGoal(
+        method: Method,
+    ): Boolean {
+        return method.isAnnotationPresent(AchievesGoal::class.java)
+    }
+
+    override fun validate(agentScope: AgentScope): ValidationResult {
         val errors = mutableListOf<ValidationError>()
         ReflectionUtils.doWithMethods(
             agentClass,
@@ -43,11 +53,5 @@ open class AchievableGoalValidator {
             },
             { method -> isMethodAnnotatedWithAchievesGoal(method) })
         return ValidationResult(errors.isEmpty(), errors)
-    }
-
-    private fun isMethodAnnotatedWithAchievesGoal(
-        method: Method,
-    ): Boolean {
-        return method.isAnnotationPresent(AchievesGoal::class.java)
     }
 }

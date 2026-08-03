@@ -872,8 +872,13 @@ class AgentWithOperationContextConstructorInjection(
 
 @Agent(description = "goal method is not annotated with Action")
 class AgentWithAchievesGoalNoActionAnnotation {
+    @Action
+    fun makeFrogFromPerson(userInput: UserInput): Frog {
+        return Frog(userInput.content)
+    }
+
     @AchievesGoal(description = "goal")
-    fun goal(input: UserInput): PersonWithReverseTool = PersonWithReverseTool(input.content)
+    fun goal(frog: Frog): PersonWithReverseTool = PersonWithReverseTool(frog.name)
 }
 
 @Agent(description = "valid goal method")

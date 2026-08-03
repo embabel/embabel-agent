@@ -111,23 +111,20 @@ internal data class AgenticInfo(
 class AgentMetadataReader(
     private val actionMethodManager: ActionMethodManager = DefaultActionMethodManager(),
     private val nameGenerator: MethodDefinedOperationNameGenerator = MethodDefinedOperationNameGenerator(),
-    agentStructureValidator: AgentStructureAgentValidator = AgentStructureAgentValidator.PERMIT_ALL,
-    pathToCompletionValidator: PathToCompletionAgentValidator = GoapPathToCompletionValidator(),
+    private val  agentStructureValidator: AgentStructureAgentValidator = AgentStructureAgentValidator.PERMIT_ALL,
+    private val  pathToCompletionValidator: PathToCompletionAgentValidator = GoapPathToCompletionValidator(),
     private val requireInterfaceDeserializationAnnotations: Boolean = false,
     @Value("\${embabel.agent.platform.planner.restricted-goals:false}")
     private val restrictedGoals: Boolean = false,
+    @Value("\${embabel.agent.api.validation.manager.skip-agent-deployment-on-error:false}")
+    private val skipAgentDeploymentOnError: Boolean = false,
 ) {
 
     private val supervisorAgentFactory = SupervisorAgentFactory()
 
     private val logger = LoggerFactory.getLogger(AgentMetadataReader::class.java)
 
-    private val agentValidationManager: AgentValidationManager = DefaultAgentValidationManager(
-        listOf(
-            agentStructureValidator,
-            pathToCompletionValidator
-        )
-    )
+    private lateinit var agentValidationManager: AgentValidationManager
 
     fun createAgentScopes(vararg instances: Any): List<AgentScope> =
         instances.mapNotNull { createAgentMetadata(it) }
@@ -153,13 +150,15 @@ class AgentMetadataReader(
         val targetType = agenticInfo.getTargetType()
 
         if (!agenticInfo.agentic()) {
-            logger.debug(
+            logger.warn(
                 "No @{} or @{} annotation found on {}",
                 EmbabelComponent::class.simpleName,
                 Agent::class.simpleName,
                 targetType.name,
             )
-            return null
+            if (skipAgentDeploymentOnError) {
+                return null
+            }
         }
 
         if (agenticInfo.validationErrors().isNotEmpty()) {
@@ -169,18 +168,20 @@ class AgentMetadataReader(
                 Agent::class.simpleName,
                 targetType.name,
             )
-            return null
+            if (skipAgentDeploymentOnError) {
+                return null
+            }
         }
         rejectOperationContextConstructorInjection(targetType)
 
         val plannerType = agenticInfo.agentAnnotation?.planner ?: PlannerType.GOAP
-
-        val achievableGoalValidationResult = AchievableGoalValidator().validate(agenticInfo.agentName(), targetType, instance, requireInterfaceDeserializationAnnotations)
-        if(!achievableGoalValidationResult.isValid) {
-            val errorMsg = achievableGoalValidationResult.errors.map { it.message }.joinToString { it }
-            logger.error(errorMsg)
-            return null
-        }
+        agentValidationManager = DefaultAgentValidationManager(
+            listOf(
+                agentStructureValidator,
+                pathToCompletionValidator,
+                AchievableGoalValidator(agenticInfo.agentName(), targetType, instance, requireInterfaceDeserializationAnnotations)
+            )
+        )
 
         val getterGoals = findGoalGetters(targetType).map { getGoal(it, instance) }
         val actionMethods = findActionMethods(targetType)
@@ -230,7 +231,9 @@ class AgentMetadataReader(
                 Condition::class.simpleName,
                 targetType.name,
             )
-            return null
+            if (skipAgentDeploymentOnError) {
+                return null
+            }
         }
 
         val agent = if (agenticInfo.agentAnnotation != null) {
@@ -242,7 +245,9 @@ class AgentMetadataReader(
                         goalActions.size,
                         targetType.name,
                     )
-                    return null
+                    if (skipAgentDeploymentOnError) {
+                        return null
+                    }
                 }
                 val goalAction = allActions.find { action ->
                     goalActions.any { method ->
@@ -304,8 +309,9 @@ class AgentMetadataReader(
             val validationResult = agentValidationManager.validate(agent)
             if (!validationResult.isValid) {
                 logger.warn("Agent validation failed:\n${validationResult.errors.joinToString("\n")}")
-                // TODO: Uncomment to strengthen validation and refactor the test if needed. Because some tests might fail.
-                // return null
+                if (skipAgentDeploymentOnError) {
+                     return null
+                }
             }
         }
 

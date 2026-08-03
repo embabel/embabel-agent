@@ -5,13 +5,14 @@ import com.embabel.agent.api.annotation.Condition
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import org.slf4j.Logger
+import org.springframework.util.ClassUtils
 import java.lang.reflect.Method
 
 /**
  * Returns true, if the given method is
  *   - annotated with Action and
  *   - declared in the given agent class, or in it's super type.
- *   - TODO - fill with the return type property.
+ *   - TODO -
  */
 fun isActionMethod(
     logger: Logger,
@@ -19,8 +20,11 @@ fun isActionMethod(
     agentClass: Class<*>,
     requireInterfaceDeserializationAnnotations : Boolean,
 ): Boolean {
+    // annotated with Action ?
     return method.isAnnotationPresent(Action::class.java) &&
+            // declared in the given agent class, or in its super type?
             (agentClass.declaredMethods.contains(method) || isMethodFromSupertype(method, agentClass)) &&
+             // TODO please fill after discussion.
             (!method.returnType.isInterface || !requireInterfaceDeserializationAnnotations || hasRequiredJsonDeserializeAnnotationOnInterfaceReturnType(
                 method,
                 logger
@@ -28,7 +32,7 @@ fun isActionMethod(
 }
 
 /**
- * Returns true, if the given method is  declared in its super type.
+ * Returns true, if the given method is declared in its super type.
  */
 fun isMethodFromSupertype(
     method: Method,
@@ -61,8 +65,13 @@ private fun methodSignaturesMatch(
     method1: Method,
     method2: Method,
 ): Boolean {
-    return method1.name == method2.name &&
-            method1.parameterTypes.contentEquals(method2.parameterTypes) &&
+    // Finds if method2 matches method1's name and parameter types.
+    val match = ClassUtils.getMethodIfAvailable(
+        method2.declaringClass,
+        method1.name,
+        *method1.parameterTypes
+    )
+    return  match ==  method2 &&
             method1.returnType == method2.returnType
 }
 
@@ -88,7 +97,7 @@ private fun hasRequiredJsonDeserializeAnnotationOnInterfaceReturnType(method: Me
 /**
  * Returns true, if the given method is
  *   - annotated with Condition and
- *   - declared in the given agent class, or in it's super type.
+ *   - declared in the given agent class, or in its super type.
  */
 fun isConditionMethod(
     method: Method,
