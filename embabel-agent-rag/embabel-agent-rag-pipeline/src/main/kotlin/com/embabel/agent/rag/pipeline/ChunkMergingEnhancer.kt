@@ -16,7 +16,6 @@
 package com.embabel.agent.rag.pipeline
 
 import com.embabel.agent.rag.model.Chunk
-import com.embabel.agent.rag.model.ChunkStructure
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.*
 import com.embabel.common.core.types.SimilarityResult
@@ -68,26 +67,16 @@ object ChunkMergingEnhancer : RagResponseEnhancer {
         first: SimilarityResult<out Retrievable>,
         second: SimilarityResult<out Retrievable>,
     ): Boolean {
-        val firstRootId = rootDocumentId(first.match) ?: return false
-        val secondRootId = rootDocumentId(second.match) ?: return false
-        val firstSeq = sequenceNumber(first.match) ?: return false
-        val secondSeq = sequenceNumber(second.match) ?: return false
+        // Only chunks can merge: mergeChunks casts to Chunk, so a metadata-only
+        // match here would fail there with a ClassCastException.
+        val firstStructure = (first.match as? Chunk)?.structure ?: return false
+        val secondStructure = (second.match as? Chunk)?.structure ?: return false
+        val firstRootId = firstStructure.rootDocumentId ?: return false
+        val secondRootId = secondStructure.rootDocumentId ?: return false
+        val firstSeq = firstStructure.sequenceNumber ?: return false
+        val secondSeq = secondStructure.sequenceNumber ?: return false
 
         return firstRootId == secondRootId && secondSeq == firstSeq + 1
-    }
-
-    private fun rootDocumentId(match: Retrievable): String? =
-        (match as? Chunk)?.structure?.rootDocumentId
-            ?: match.metadata[ChunkStructure.ROOT_DOCUMENT_ID] as? String
-
-    private fun sequenceNumber(match: Retrievable): Int? {
-        (match as? Chunk)?.structure?.sequenceNumber?.let { return it }
-        return when (val value = match.metadata[ChunkStructure.SEQUENCE_NUMBER]) {
-            is Int -> value
-            is Number -> value.toInt()
-            is String -> value.toIntOrNull()
-            else -> null
-        }
     }
 
     private fun mergeChunks(
@@ -97,17 +86,17 @@ object ChunkMergingEnhancer : RagResponseEnhancer {
             return chunks[0]
         }
 
-        logger.info("Merging {} chunks from document {}", chunks.size, rootDocumentId(chunks[0].match))
-
         val firstChunk = chunks[0].match as Chunk
+        logger.info("Merging {} chunks from document {}", chunks.size, firstChunk.structure.rootDocumentId)
         val mergedText = chunks.joinToString(" ") { (it.match as Chunk).text }
         val highestScore = chunks.maxOf { it.score }
 
-        val mergedChunk = Chunk(
+        val mergedChunk = Chunk.create(
             id = "${firstChunk.id}-merged",
             text = mergedText,
             metadata = firstChunk.metadata,
-            parentId = firstChunk.parentId
+            parentId = firstChunk.parentId,
+            structure = firstChunk.structure,
         )
 
         return object : SimilarityResult<Chunk> {
