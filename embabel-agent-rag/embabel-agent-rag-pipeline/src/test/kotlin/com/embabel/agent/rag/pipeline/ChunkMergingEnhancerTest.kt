@@ -96,6 +96,8 @@ class ChunkMergingEnhancerTest {
             val mergedChunk = enhanced.results[0].match as Chunk
             assertEquals("First chunk Second chunk", mergedChunk.text)
             assertEquals(0.9, enhanced.results[0].score)
+            assertEquals("doc1", mergedChunk.structure.rootDocumentId)
+            assertEquals(1, mergedChunk.structure.sequenceNumber)
         }
 
         @Test

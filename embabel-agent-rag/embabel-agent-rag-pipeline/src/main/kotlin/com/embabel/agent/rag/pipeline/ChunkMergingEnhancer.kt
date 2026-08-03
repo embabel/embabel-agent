@@ -91,11 +91,12 @@ object ChunkMergingEnhancer : RagResponseEnhancer {
         val mergedText = chunks.joinToString(" ") { (it.match as Chunk).text }
         val highestScore = chunks.maxOf { it.score }
 
-        val mergedChunk = Chunk(
+        val mergedChunk = Chunk.create(
             id = "${firstChunk.id}-merged",
             text = mergedText,
             metadata = firstChunk.metadata,
-            parentId = firstChunk.parentId
+            parentId = firstChunk.parentId,
+            structure = firstChunk.structure,
         )
 
         return object : SimilarityResult<Chunk> {
