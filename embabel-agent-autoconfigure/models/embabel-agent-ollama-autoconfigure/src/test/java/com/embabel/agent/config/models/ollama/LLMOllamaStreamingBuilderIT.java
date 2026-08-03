@@ -22,6 +22,8 @@ import com.embabel.agent.api.streaming.StreamingPromptRunnerBuilder;
 import com.embabel.agent.autoconfigure.models.ollama.AgentOllamaAutoConfiguration;
 import com.embabel.agent.spi.LlmService;
 import com.embabel.agent.spi.support.springai.SpringAiLlmService;
+import com.embabel.common.ai.model.LlmOptions;
+import com.embabel.common.ai.model.Thinking;
 import com.embabel.common.core.streaming.StreamingEvent;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -216,6 +218,155 @@ class LLMOllamaStreamingBuilderIT {
         assertFalse(receivedEvents.isEmpty(), "Should receive object events");
 
         logger.info("Integration streaming test completed successfully with {} total events", receivedEvents.size());
+    }
+
+    /**
+     * Validates application-level thinking retrieval vs provider token budget (#1799 / #1853).
+     * <p>
+     * {@code createObjectStreamWithThinking} must enable thinking extraction/format via
+     * {@code Thinking.extractThinking} without requiring {@code Thinking.withTokenBudget}.
+     * Object-only streaming with a provider budget alone must still complete (budget is orthogonal).
+     */
+    @Test
+    void createObjectStreamWithThinkingRetrievalIndependentOfTokenBudget() {
+        reactor.util.Loggers.useVerboseConsoleLoggers();
+
+        // --- Path A: *WithThinking* without any LlmOptions thinking / token budget ---
+        // Format instructions and extractThinking are applied by createObjectStreamWithThinking.
+        PromptRunner extractionOnlyRunner = ai.withLlm("qwen3:latest")
+                .withToolObject(new Tooling());
+        assertTrue(extractionOnlyRunner.supportsStreaming(), "Test LLM should support streaming");
+
+        List<String> extractionEvents = new CopyOnWriteArrayList<>();
+        AtomicReference<Throwable> extractionError = new AtomicReference<>();
+        AtomicBoolean extractionCompleted = new AtomicBoolean(false);
+
+        String thinkingPrompt =
+                "What are exactly two of the hottest months in Florida and their highest temperatures. "
+                        + "Think step by step before returning the JSONL objects.";
+
+        Flux<StreamingEvent<MonthItem>> extractionStream = new StreamingPromptRunnerBuilder(extractionOnlyRunner)
+                .streaming()
+                .withPrompt(thinkingPrompt)
+                .createObjectStreamWithThinking(MonthItem.class);
+
+        extractionStream
+                .timeout(Duration.ofSeconds(150))
+                .doOnNext(event -> {
+                    if (event.isThinking()) {
+                        extractionEvents.add("THINKING: " + event.getThinking());
+                        logger.info("Extraction-only path thinking: {}", event.getThinking());
+                    } else if (event.isObject()) {
+                        MonthItem obj = event.getObject();
+                        extractionEvents.add("OBJECT: " + obj.getName());
+                        logger.info("Extraction-only path object: {}", obj.getName());
+                    }
+                })
+                .doOnError(error -> {
+                    extractionError.set(error);
+                    logger.error("Extraction-only stream error: {}", error.getMessage());
+                })
+                .doOnComplete(() -> extractionCompleted.set(true))
+                .blockLast(Duration.ofSeconds(6000));
+
+        assertNull(extractionError.get(), "createObjectStreamWithThinking must work without tokenBudget");
+        assertTrue(extractionCompleted.get(), "Extraction-only stream should complete");
+        assertFalse(extractionEvents.isEmpty(), "Should receive at least one streaming event without tokenBudget");
+        assertTrue(
+                extractionEvents.stream().anyMatch(e -> e.startsWith("OBJECT:")),
+                "Extraction-only path should still produce object events"
+        );
+        logger.info(
+                "Extraction-only createObjectStreamWithThinking completed with {} events (thinking events may vary by model)",
+                extractionEvents.size()
+        );
+
+        // --- Path B: *WithThinking* with provider token budget (budget preserved + extractThinking applied) ---
+        PromptRunner budgetAndExtractionRunner = ai.withLlm(
+                        LlmOptions.withModel("qwen3:latest")
+                                .withThinking(Thinking.withTokenBudget(100)))
+                .withToolObject(new Tooling());
+        assertTrue(budgetAndExtractionRunner.supportsStreaming(), "Budget-configured LLM should support streaming");
+
+        List<String> budgetEvents = new CopyOnWriteArrayList<>();
+        AtomicReference<Throwable> budgetError = new AtomicReference<>();
+        AtomicBoolean budgetCompleted = new AtomicBoolean(false);
+
+        Flux<StreamingEvent<MonthItem>> budgetStream = new StreamingPromptRunnerBuilder(budgetAndExtractionRunner)
+                .streaming()
+                .withPrompt(thinkingPrompt)
+                .createObjectStreamWithThinking(MonthItem.class);
+
+        budgetStream
+                .timeout(Duration.ofSeconds(150))
+                .doOnNext(event -> {
+                    if (event.isThinking()) {
+                        budgetEvents.add("THINKING: " + event.getThinking());
+                        logger.info("Budget+extraction path thinking: {}", event.getThinking());
+                    } else if (event.isObject()) {
+                        MonthItem obj = event.getObject();
+                        budgetEvents.add("OBJECT: " + obj.getName());
+                        logger.info("Budget+extraction path object: {}", obj.getName());
+                    }
+                })
+                .doOnError(error -> {
+                    budgetError.set(error);
+                    logger.error("Budget+extraction stream error: {}", error.getMessage());
+                })
+                .doOnComplete(() -> budgetCompleted.set(true))
+                .blockLast(Duration.ofSeconds(6000));
+
+        assertNull(budgetError.get(), "createObjectStreamWithThinking must work with tokenBudget (applyExtraction)");
+        assertTrue(budgetCompleted.get(), "Budget+extraction stream should complete");
+        assertFalse(budgetEvents.isEmpty(), "Should receive events when tokenBudget coexists with extractThinking");
+        assertTrue(
+                budgetEvents.stream().anyMatch(e -> e.startsWith("OBJECT:")),
+                "Budget+extraction path should still produce object events"
+        );
+        logger.info(
+                "Budget+extraction createObjectStreamWithThinking completed with {} events",
+                budgetEvents.size()
+        );
+
+        // --- Path C: object-only stream with provider budget only (no *WithThinking*) ---
+        // Token budget alone must not require thinking events; stream of typed objects completes.
+        PromptRunner budgetOnlyRunner = ai.withLlm(
+                        LlmOptions.withModel("qwen3:latest")
+                                .withThinking(Thinking.withTokenBudget(100)))
+                .withToolObject(new Tooling());
+
+        List<String> objectOnlyEvents = new CopyOnWriteArrayList<>();
+        AtomicReference<Throwable> objectOnlyError = new AtomicReference<>();
+        AtomicBoolean objectOnlyCompleted = new AtomicBoolean(false);
+
+        String objectOnlyPrompt =
+                "Return exactly two JSONL objects for the hottest months in Florida with name and temperature.";
+
+        Flux<MonthItem> objectOnlyStream = new StreamingPromptRunnerBuilder(budgetOnlyRunner)
+                .streaming()
+                .withPrompt(objectOnlyPrompt)
+                .createObjectStream(MonthItem.class);
+
+        objectOnlyStream
+                .timeout(Duration.ofSeconds(150))
+                .doOnNext(obj -> {
+                    objectOnlyEvents.add("OBJECT: " + obj.getName());
+                    logger.info("Object-only + budget path object: {}", obj.getName());
+                })
+                .doOnError(error -> {
+                    objectOnlyError.set(error);
+                    logger.error("Object-only stream error: {}", error.getMessage());
+                })
+                .doOnComplete(() -> objectOnlyCompleted.set(true))
+                .blockLast(Duration.ofSeconds(6000));
+
+        assertNull(objectOnlyError.get(), "Object-only stream with tokenBudget should not error");
+        assertTrue(objectOnlyCompleted.get(), "Object-only stream should complete");
+        assertFalse(objectOnlyEvents.isEmpty(), "Object-only path should receive typed objects");
+        logger.info(
+                "Object-only stream with tokenBudget completed with {} objects (thinking retrieval independent of budget)",
+                objectOnlyEvents.size()
+        );
     }
 
     @Test
