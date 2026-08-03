@@ -339,12 +339,14 @@ class ObservabilityAutoConfigurationTest {
         assertThat(afterName).containsExactlyInAnyOrder(
                 "org.springframework.boot.micrometer.tracing.autoconfigure.MicrometerTracingAutoConfiguration",
                 "org.springframework.boot.micrometer.observation.autoconfigure.ObservationAutoConfiguration");
-        // Boot 3 actuate paths are silently ignored under Boot 4 — must not remain
-        assertThat(afterName).noneMatch(name -> name.contains(".actuate.autoconfigure."));
 
-        // Observation auto-config is a direct optional dep; confirm the FQCN still resolves
+        // afterName FQCNs must resolve on the classpath; a wrong name is silently ignored by
+        // Spring and ordering never applies (#1808). Check both observation and tracing.
         assertThat(classExists(
                 "org.springframework.boot.micrometer.observation.autoconfigure.ObservationAutoConfiguration"))
+                .isTrue();
+        assertThat(classExists(
+                "org.springframework.boot.micrometer.tracing.autoconfigure.MicrometerTracingAutoConfiguration"))
                 .isTrue();
     }
 

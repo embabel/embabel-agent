@@ -51,6 +51,19 @@
             <optional>true</optional>
         </dependency>
 
+        <!--
+            Spring Boot 4 moved MicrometerTracingAutoConfiguration out of
+            spring-boot-actuator-autoconfigure into spring-boot-micrometer-tracing
+            (org.springframework.boot.micrometer.tracing.autoconfigure).
+            Optional here so afterName FQCN can resolve when present; the
+            observability starter brings spring-boot-micrometer-tracing-opentelemetry.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-tracing</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <!-- AspectJ weaver for @Tracked aspect support (direct dep, not spring-boot-starter-aspectj); provides org.aspectj.lang.* -->
         <dependency>
             <groupId>org.aspectj</groupId>

@@ -38,6 +38,18 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!--
+            Spring Boot 4 moved tracing auto-config out of spring-boot-actuator-autoconfigure.
+            Actuator alone no longer creates a Tracer / spans. This Boot module pulls
+            MicrometerTracingAutoConfiguration (and OTel bridge) so afterName ordering
+            and Embabel observations → spans work out of the box (#1808).
+            Version managed by spring-boot-dependencies BOM.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-tracing-opentelemetry</artifactId>
+        </dependency>
+
         <!-- AspectJ weaver for @Tracked aspect support (direct dep, not spring-boot-starter-aspectj); provides org.aspectj.lang.* -->
         <dependency>
             <groupId>org.aspectj</groupId>
