@@ -156,9 +156,8 @@ class AgentMetadataReader(
                 Agent::class.simpleName,
                 targetType.name,
             )
-            if (skipAgentDeploymentOnError) {
+                // Don't put this behind skipAgentDeploymentOnError as any bean can be reached here.
                 return null
-            }
         }
 
         if (agenticInfo.validationErrors().isNotEmpty()) {
