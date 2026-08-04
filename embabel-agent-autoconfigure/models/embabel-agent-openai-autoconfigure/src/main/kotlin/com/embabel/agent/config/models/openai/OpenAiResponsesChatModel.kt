@@ -27,13 +27,17 @@ import com.openai.models.responses.ResponseCreateParams
 import com.openai.models.responses.ResponseFormatTextJsonSchemaConfig
 import com.openai.models.responses.ResponseFunctionToolCall
 import com.openai.models.responses.ResponseInputItem
+import com.openai.models.responses.ResponseStatus
 import com.openai.models.responses.ResponseTextConfig
 import com.openai.models.responses.Tool
 import io.micrometer.observation.ObservationRegistry
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.MessageType
 import org.springframework.ai.chat.messages.ToolResponseMessage
+import org.springframework.ai.chat.metadata.ChatGenerationMetadata
 import org.springframework.ai.chat.metadata.ChatResponseMetadata
 import org.springframework.ai.chat.metadata.DefaultUsage
 import org.springframework.ai.chat.model.ChatModel
@@ -44,9 +48,11 @@ import org.springframework.ai.chat.observation.ChatModelObservationDocumentation
 import org.springframework.ai.chat.observation.DefaultChatModelObservationConvention
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.prompt.Prompt
+import org.springframework.ai.content.MediaContent
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.ai.openai.OpenAiChatModel
 import org.springframework.ai.openai.OpenAiChatOptions
+import org.springframework.ai.retry.NonTransientAiException
 import reactor.core.publisher.Flux
 import java.util.function.Supplier
 import com.openai.models.responses.Response as OpenAiResponse
@@ -120,8 +126,9 @@ class OpenAiResponsesChatModel(
         maxOutputTokensOf(options)?.let { builder.maxOutputTokens(it.toLong()) }
         toolsOf(options).takeIf { it.isNotEmpty() }?.let(builder::tools)
         textConfigOf(options)?.let(builder::text)
-        // Temperature is never sent: the pro models accept only the default, and the catalog
-        // already marks them supports_temperature: false.
+        // No sampling parameters: the pro models accept only the default temperature and top_p, and
+        // the Responses API has no presence/frequency penalty at all. Whatever
+        // Gpt5ChatOptionsConverter set on those fields is dropped here rather than refused there.
         return builder.build()
     }
 
@@ -139,6 +146,9 @@ class OpenAiResponsesChatModel(
      * [com.embabel.agent.openai.Gpt5ChatOptionsConverter], which carries the caller's limit on
      * `maxCompletionTokens` because the GPT-5 family rejects `max_tokens`. Both fields are read so
      * that options built elsewhere still get their limit through.
+     *
+     * `max_output_tokens` covers reasoning tokens as well as visible output, so a limit sized for
+     * the answer alone comes back truncated — see the `length` finish reason in [finishReasonOf].
      */
     private fun maxOutputTokensOf(options: ChatOptions?): Int? {
         val openAiOptions = options as? OpenAiChatOptions
@@ -165,7 +175,20 @@ class OpenAiResponsesChatModel(
             message.toolCalls.orEmpty().forEach { add(toFunctionCall(it)) }
         }
 
-        else -> listOf(toEasyInputMessage(EasyInputMessage.Role.USER, message.text.orEmpty()))
+        else -> listOf(toEasyInputMessage(EasyInputMessage.Role.USER, textOf(message)))
+    }
+
+    /**
+     * Only text is mapped. Refused rather than dropped: a prompt stripped of its image still gets a
+     * confident answer, about something the model never saw.
+     */
+    private fun textOf(message: Message): String {
+        if ((message as? MediaContent)?.media.orEmpty().isNotEmpty()) {
+            throw UnsupportedOperationException(
+                "Media is not supported for OpenAI models served over the Responses API"
+            )
+        }
+        return message.text.orEmpty()
     }
 
     private fun toEasyInputMessage(role: EasyInputMessage.Role, content: String): ResponseInputItem =
@@ -201,7 +224,7 @@ class OpenAiResponsesChatModel(
                 FunctionTool.builder()
                     .name(definition.name())
                     .description(definition.description())
-                    .parameters(toParameters(definition.inputSchema()))
+                    .parameters(toParameters(definition.inputSchema(), definition.name()))
                     .strict(false)
                     .build()
             )
@@ -218,7 +241,8 @@ class OpenAiResponsesChatModel(
         if (responseFormat.type != OpenAiChatModel.ResponseFormat.Type.JSON_SCHEMA) {
             return null
         }
-        val schema = responseFormat.jsonSchema?.let(::readSchema) ?: return null
+        val schema = responseFormat.jsonSchema?.let { readSchema(it, "response format schema") }
+            ?: return null
         return ResponseTextConfig.builder()
             .format(
                 ResponseFormatTextJsonSchemaConfig.builder()
@@ -232,10 +256,16 @@ class OpenAiResponsesChatModel(
             .build()
     }
 
-    private fun readSchema(json: String): Map<String, Any?>? =
-        runCatching {
+    /**
+     * Fails loudly: a dropped response format leaves the model answering in free text, and dropped
+     * tool parameters tell it the tool takes none — both fail later, pointing at the wrong thing.
+     */
+    private fun readSchema(json: String, what: String): Map<String, Any?> =
+        try {
             objectMapper.readValue(json, object : TypeReference<Map<String, Any?>>() {})
-        }.getOrNull()
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Cannot read $what as JSON: ${e.message}", e)
+        }
 
     /** OpenAI accepts only `[a-zA-Z0-9_-]` here, so anything else is folded to an underscore. */
     private fun schemaNameOf(schema: Map<String, Any?>): String =
@@ -250,14 +280,16 @@ class OpenAiResponsesChatModel(
         return builder.build()
     }
 
-    private fun toParameters(inputSchema: String): FunctionTool.Parameters {
+    private fun toParameters(inputSchema: String, toolName: String): FunctionTool.Parameters {
         val builder = FunctionTool.Parameters.builder()
-        readSchema(inputSchema).orEmpty()
+        readSchema(inputSchema, "input schema of tool '$toolName'")
             .forEach { (key, value) -> builder.putAdditionalProperty(key, JsonValue.from(value)) }
         return builder.build()
     }
 
     private fun toChatResponse(response: OpenAiResponse): ChatResponse {
+        raiseIfFailed(response)
+
         val text = response.output()
             .mapNotNull { it.message().orElse(null) }
             .flatMap { it.content() }
@@ -283,8 +315,43 @@ class OpenAiResponsesChatModel(
             .content(text)
             .toolCalls(toolCalls)
             .build()
-        return ChatResponse(listOf(Generation(assistantMessage)), metadata)
+        val generationMetadata = ChatGenerationMetadata.builder()
+            .finishReason(finishReasonOf(response, toolCalls.isNotEmpty()))
+            .build()
+        return ChatResponse(listOf(Generation(assistantMessage, generationMetadata)), metadata)
     }
+
+    /**
+     * A refusal arrives inside a `200` here — `status: "failed"`, reason in the body — so nothing
+     * throws on its own, and left alone it reads as a call that produced no output.
+     * [NonTransientAiException] is what `SpringAiRetryPolicy` reads to decide against a retry.
+     */
+    private fun raiseIfFailed(response: OpenAiResponse) {
+        if (response.status().orElse(null) != ResponseStatus.FAILED) return
+        val error = response.error().orElse(null)
+        throw NonTransientAiException(
+            "OpenAI Responses API call failed: ${error?.message() ?: "no reason given"}"
+        )
+    }
+
+    /**
+     * In the Chat Completions vocabulary the rest of Spring AI speaks. Earns its keep on
+     * `incomplete`, routine here because `max_output_tokens` is spent on reasoning too: the partial
+     * answer is worth returning, but silently it reads as a complete one.
+     */
+    private fun finishReasonOf(response: OpenAiResponse, hasToolCalls: Boolean): String =
+        when (response.status().orElse(null)) {
+            null, ResponseStatus.COMPLETED -> if (hasToolCalls) "tool_calls" else "stop"
+
+            ResponseStatus.INCOMPLETE ->
+                when (response.incompleteDetails().orElse(null)?.reason()?.orElse(null)) {
+                    OpenAiResponse.IncompleteDetails.Reason.MAX_OUTPUT_TOKENS -> "length"
+                    OpenAiResponse.IncompleteDetails.Reason.CONTENT_FILTER -> "content_filter"
+                    else -> "incomplete"
+                }.also { logger.warn("Incomplete response from {}: {}", modelNameOf(response.model()), it) }
+
+            else -> response.status().get().asString()
+        }
 
     /**
      * [ResponsesModel] is a union and each accessor throws unless it holds that variant: OpenAI's
@@ -305,5 +372,7 @@ class OpenAiResponsesChatModel(
         const val DEFAULT_SCHEMA_NAME = "response"
 
         val OBSERVATION_CONVENTION = DefaultChatModelObservationConvention()
+
+        val logger: Logger = LoggerFactory.getLogger(OpenAiResponsesChatModel::class.java)
     }
 }

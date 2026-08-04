@@ -18,12 +18,14 @@ package com.embabel.agent.config.models.openai
 import com.openai.client.OpenAIClient
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseCreateParams
+import com.openai.models.responses.ResponseError
 import com.openai.models.responses.ResponseFunctionToolCall
 import com.openai.models.responses.ResponseInputItem
 import com.openai.models.responses.ResponseOutputItem
 import com.openai.models.responses.ResponseOutputMessage
 import com.openai.models.responses.ResponseOutputText
 import com.openai.models.responses.ResponseReasoningItem
+import com.openai.models.responses.ResponseStatus
 import com.openai.models.responses.ResponseUsage
 import com.openai.services.blocking.ResponseService
 import io.micrometer.observation.Observation
@@ -44,9 +46,13 @@ import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.prompt.Prompt
+import org.springframework.ai.content.Media
 import org.springframework.ai.openai.OpenAiChatModel
 import org.springframework.ai.openai.OpenAiChatOptions
+import org.springframework.ai.retry.NonTransientAiException
 import org.springframework.ai.tool.definition.ToolDefinition
+import org.springframework.core.io.ByteArrayResource
+import org.springframework.util.MimeTypeUtils
 import java.util.Optional
 
 /**
@@ -238,6 +244,87 @@ class OpenAiResponsesChatModelTest {
         }
 
         /**
+         * Dropped quietly, the model answers in free text and the failure surfaces later as a
+         * binding error naming the wrong culprit.
+         */
+        @Test
+        fun `an unparseable structured output schema is refused, not silently downgraded`() {
+            respondWith(textResponse("ok"))
+
+            val failure = assertThrows(IllegalArgumentException::class.java) {
+                model.call(
+                    Prompt(
+                        listOf(UserMessage("Hi")),
+                        OpenAiChatOptions.builder()
+                            .model("gpt-5-pro")
+                            .responseFormat(
+                                OpenAiChatModel.ResponseFormat.builder()
+                                    .type(OpenAiChatModel.ResponseFormat.Type.JSON_SCHEMA)
+                                    .jsonSchema("{ not json")
+                                    .build()
+                            )
+                            .build(),
+                    )
+                )
+            }
+
+            assertTrue(
+                failure.message.orEmpty().contains("schema", ignoreCase = true),
+                "The failure must name what could not be read, got: ${failure.message}",
+            )
+        }
+
+        /** An empty parameter schema tells the model the tool takes no arguments — it never does. */
+        @Test
+        fun `an unparseable tool schema is refused rather than sent as a parameterless tool`() {
+            respondWith(textResponse("ok"))
+
+            val failure = assertThrows(IllegalArgumentException::class.java) {
+                model.call(
+                    Prompt(
+                        listOf(UserMessage("Hi")),
+                        OpenAiChatOptions.builder()
+                            .model("gpt-5-pro")
+                            .toolCallbacks(listOf(toolCallback("lookup", "Looks things up", "{ not json")))
+                            .build(),
+                    )
+                )
+            }
+
+            assertTrue(
+                failure.message.orEmpty().contains("lookup"),
+                "The failure must name the offending tool, got: ${failure.message}",
+            )
+        }
+
+        /** An image-bearing prompt sent as text alone yields a confident answer about nothing. */
+        @Test
+        fun `media is refused rather than silently dropped`() {
+            respondWith(textResponse("ok"))
+
+            assertThrows(UnsupportedOperationException::class.java) {
+                model.call(
+                    Prompt(
+                        listOf(
+                            UserMessage.builder()
+                                .text("What is in this image?")
+                                .media(
+                                    listOf(
+                                        Media.builder()
+                                            .mimeType(MimeTypeUtils.IMAGE_PNG)
+                                            .data(ByteArrayResource(byteArrayOf(1, 2, 3)))
+                                            .build()
+                                    )
+                                )
+                                .build()
+                        ),
+                        OpenAiChatOptions.builder().model("gpt-5-pro").build(),
+                    )
+                )
+            }
+        }
+
+        /**
          * `SpringAiLlmService.convertOptions` stamps the configured model onto every request, but
          * the converters it delegates to do not set one, so the default has to hold the floor.
          */
@@ -339,6 +426,104 @@ class OpenAiResponsesChatModelTest {
         }
     }
 
+    /**
+     * The Responses API reports a refusal or a truncation *inside a 200*, so nothing throws on its
+     * own. Read only `output`, and a failed call is indistinguishable from a model that had nothing
+     * to say.
+     */
+    @Nested
+    inner class FailureAndTruncation {
+
+        @Test
+        fun `a failed response is raised, not passed off as an empty answer`() {
+            respondWith(
+                response(
+                    status = ResponseStatus.FAILED,
+                    error = ResponseError.builder()
+                        .code(ResponseError.Code.SERVER_ERROR)
+                        .message("The model failed to generate a response.")
+                        .build(),
+                )
+            )
+
+            val failure = assertThrows(NonTransientAiException::class.java) {
+                model.call(Prompt("Hi"))
+            }
+
+            assertTrue(
+                failure.message.orEmpty().contains("The model failed to generate a response."),
+                "OpenAI's own explanation is the only useful part, got: ${failure.message}",
+            )
+        }
+
+        /**
+         * `max_output_tokens` is spent on reasoning too, so a pro model runs out mid-thought
+         * routinely. The partial answer is worth keeping — but silently, it reads as a complete one.
+         */
+        @Test
+        fun `a truncated response keeps its text and reports why it stopped`() {
+            respondWith(
+                textResponse("As far as I got").toBuilder()
+                    .status(ResponseStatus.INCOMPLETE)
+                    .incompleteDetails(
+                        Response.IncompleteDetails.builder()
+                            .reason(Response.IncompleteDetails.Reason.MAX_OUTPUT_TOKENS)
+                            .build()
+                    )
+                    .build()
+            )
+
+            val generation = model.call(Prompt("Hi")).result
+
+            assertEquals("As far as I got", generation.output.text, "Partial output is still useful")
+            assertEquals(
+                "length",
+                generation.metadata.finishReason,
+                "Truncation is reported in the vocabulary the rest of Spring AI uses",
+            )
+        }
+
+        @Test
+        fun `a content filtered response is reported as such rather than as an empty answer`() {
+            respondWith(
+                response(
+                    status = ResponseStatus.INCOMPLETE,
+                    incompleteDetails = Response.IncompleteDetails.builder()
+                        .reason(Response.IncompleteDetails.Reason.CONTENT_FILTER)
+                        .build(),
+                )
+            )
+
+            assertEquals("content_filter", model.call(Prompt("Hi")).result.metadata.finishReason)
+        }
+
+        @Test
+        fun `a completed response reports its finish reason too`() {
+            respondWith(textResponse("ok").toBuilder().status(ResponseStatus.COMPLETED).build())
+
+            assertEquals("stop", model.call(Prompt("Hi")).result.metadata.finishReason)
+        }
+
+        /** Spring AI's convention: a turn that ends in tool calls did not stop, it yielded. */
+        @Test
+        fun `a response ending in tool calls is reported as such`() {
+            respondWith(
+                response(
+                    ResponseOutputItem.ofFunctionCall(
+                        ResponseFunctionToolCall.builder()
+                            .callId("call_7")
+                            .name("lookup")
+                            .arguments("{}")
+                            .build()
+                    ),
+                    status = ResponseStatus.COMPLETED,
+                )
+            )
+
+            assertEquals("tool_calls", model.call(Prompt("Hi")).result.metadata.finishReason)
+        }
+    }
+
     @Nested
     inner class ContractWithSurroundingCode {
 
@@ -421,13 +606,17 @@ class OpenAiResponsesChatModelTest {
 
     // --- fixtures -------------------------------------------------------------------------
 
-    private fun toolCallback(name: String, description: String) =
+    private fun toolCallback(
+        name: String,
+        description: String,
+        inputSchema: String = """{"type":"object","properties":{"q":{"type":"string"}}}""",
+    ) =
         object : org.springframework.ai.tool.ToolCallback {
             override fun getToolDefinition(): ToolDefinition =
                 ToolDefinition.builder()
                     .name(name)
                     .description(description)
-                    .inputSchema("""{"type":"object","properties":{"q":{"type":"string"}}}""")
+                    .inputSchema(inputSchema)
                     .build()
 
             override fun call(toolInput: String): String = "unused"
@@ -454,7 +643,13 @@ class OpenAiResponsesChatModelTest {
             usage = usage,
         )
 
-    private fun response(vararg output: ResponseOutputItem, usage: ResponseUsage? = null): Response =
+    private fun response(
+        vararg output: ResponseOutputItem,
+        usage: ResponseUsage? = null,
+        status: ResponseStatus? = null,
+        error: ResponseError? = null,
+        incompleteDetails: Response.IncompleteDetails? = null,
+    ): Response =
         Response.builder()
             .id("resp_1")
             .createdAt(0.0)
@@ -464,12 +659,13 @@ class OpenAiResponsesChatModelTest {
             .toolChoice(com.openai.models.responses.ToolChoiceOptions.AUTO)
             .tools(emptyList())
             // The SDK treats these as required even when absent on the wire.
-            .error(Optional.empty())
-            .incompleteDetails(Optional.empty())
+            .error(Optional.ofNullable(error))
+            .incompleteDetails(Optional.ofNullable(incompleteDetails))
             .instructions(Optional.empty())
             .metadata(Optional.empty())
             .temperature(Optional.empty())
             .topP(Optional.empty())
             .apply { usage?.let { usage(it) } }
+            .apply { status?.let { status(it) } }
             .build()
 }
