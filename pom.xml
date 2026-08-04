@@ -18,6 +18,9 @@
         <argLine />
         <embabel-common.version>2.0.0-SNAPSHOT</embabel-common.version>
         <netty.version>4.2.16.Final</netty.version>
+        <!-- Matches the openai-java-core that spring-ai-openai 2.0.0 depends on. Bump in
+             step with spring-ai-openai; drop once embabel-build-dependencies catches up. -->
+        <openai-java.version>4.39.1</openai-java.version>
         <spotbugs-maven-plugin.version>4.9.8.2</spotbugs-maven-plugin.version>
         <sb-contrib.version>7.7.4</sb-contrib.version>
     </properties>
@@ -52,6 +55,27 @@
     <!-- Embabel Common BOM -->
     <dependencyManagement>
         <dependencies>
+            <!--
+              OpenAI SDK, aligned repo-wide.
+
+              embabel-build-dependencies manages these at 4.36.0, the version
+              spring-ai-openai 2.0.0-M8 compiled against. The 2.0.0 GA release moved its
+              own openai-java-core to 4.39.1, so the managed version now puts two releases
+              of the same SDK on the classpath. Managing them here overrides the parent BOM
+              for direct and transitive uses alike — a version set in a module's
+              <dependencies> only governs that module, and reverts to the managed value
+              wherever it is inherited downstream.
+            -->
+            <dependency>
+                <groupId>com.openai</groupId>
+                <artifactId>openai-java</artifactId>
+                <version>${openai-java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.openai</groupId>
+                <artifactId>openai-java-client-okhttp</artifactId>
+                <version>${openai-java.version}</version>
+            </dependency>
             <!-- Embabel Agent BOM -->
             <dependency>
                 <groupId>com.embabel.agent</groupId>

@@ -38,22 +38,16 @@
         <!--
           Spring AI 2.0 swapped its hand-rolled OpenAiApi for the openai-java SDK.
           The factory references OpenAIClient / OpenAIOkHttpClient directly, so we
-          need both on the compile classpath. Versions pinned inline (matching
-          spring-ai-openai 2.0.0-M8's compile-time expectation) to keep this module
-          self-contained — the parent BOM's `openai-java` entry is for older tests
-          and is scope=test by default, which would hide OpenAIClient from main.
+          need both on the compile classpath. Versions come from the root pom, which
+          aligns them with the openai-java-core that spring-ai-openai pulls in.
         -->
         <dependency>
             <groupId>com.openai</groupId>
             <artifactId>openai-java</artifactId>
-            <version>4.36.0</version>
-            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>com.openai</groupId>
             <artifactId>openai-java-client-okhttp</artifactId>
-            <version>4.36.0</version>
-            <scope>compile</scope>
         </dependency>
 
         <!--
