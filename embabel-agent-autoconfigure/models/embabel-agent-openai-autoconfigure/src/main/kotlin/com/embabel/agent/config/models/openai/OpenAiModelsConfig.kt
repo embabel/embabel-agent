@@ -33,6 +33,7 @@ import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
+import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
@@ -137,6 +138,13 @@ class OpenAiModelsConfig(
     webClientBuilder = webClientBuilder,
 ) {
 
+    /**
+     * Resolved the same way as the one handed to the superclass, which keeps it private. Only the
+     * Responses adapter needs it here — Spring AI's own chat model is given it by the factory.
+     */
+    private val resolvedObservationRegistry: ObservationRegistry =
+        observationRegistry.getIfUnique { ObservationRegistry.NOOP }
+
     init {
         logger.info("OpenAI models are available: {}", properties)
     }
@@ -203,9 +211,19 @@ class OpenAiModelsConfig(
             StandardOpenAiOptionsConverter
         }
 
-        val chatModel = chatModelOf(
-            model = modelDef.modelId, retryTemplate = properties.retryTemplate(modelDef.modelId)
-        )
+        // Transport is declared per model, like the converter above: most models speak Chat
+        // Completions, the *-pro family is served only over the Responses API.
+        val chatModel = when (modelDef.apiFormat) {
+            OpenAiApiFormat.CHAT_COMPLETIONS -> chatModelOf(
+                model = modelDef.modelId, retryTemplate = properties.retryTemplate(modelDef.modelId)
+            )
+
+            OpenAiApiFormat.RESPONSES -> OpenAiResponsesChatModel(
+                client = openAiClient,
+                defaultOptions = OpenAiChatOptions.builder().model(modelDef.modelId).build(),
+                observationRegistry = resolvedObservationRegistry,
+            )
+        }
 
         // Create pricing model if present
         val pricingModel = modelDef.pricingModel?.let {

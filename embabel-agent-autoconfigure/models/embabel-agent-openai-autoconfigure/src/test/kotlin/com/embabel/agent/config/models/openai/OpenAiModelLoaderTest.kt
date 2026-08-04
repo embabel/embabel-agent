@@ -630,6 +630,105 @@ class OpenAiModelLoaderTest {
         assertTrue(result.embeddingModels.isEmpty(), "Should fail validation for negative pricing")
     }
 
+    /**
+     * The transport a model is served over, declared per model rather than inferred from its id.
+     *
+     * @see <a href="https://github.com/embabel/embabel-agent/issues/1758">Issue 1758</a>
+     */
+    @Nested
+    inner class ApiFormatTests {
+
+        /**
+         * Pins the catalog contract the routing depends on: exactly the `*-pro` models ask for the
+         * Responses API, and every other model keeps the Chat Completions path it has today. A model
+         * added to the wrong bucket is a production outage — either a 404 on every call, or a working
+         * model silently rerouted onto an adapter it was never exercised against.
+         */
+        @Test
+        fun `shipped catalog routes the pro models to Responses and everything else to Chat Completions`() {
+            val models = OpenAiModelLoader().loadAutoConfigMetadata().effectiveModels()
+
+            val byFormat = models.groupBy({ it.apiFormat }, { it.modelId })
+
+            assertEquals(
+                setOf("gpt-5-pro", "gpt-5.2-pro", "gpt-5.4-pro"),
+                byFormat[OpenAiApiFormat.RESPONSES].orEmpty().toSet(),
+                "Only the *-pro models are served over /v1/responses",
+            )
+            assertTrue(
+                byFormat[OpenAiApiFormat.CHAT_COMPLETIONS].orEmpty().none { it.endsWith("-pro") },
+                "No *-pro model may keep the Chat Completions path: every call 404s",
+            )
+            assertEquals(
+                models.size,
+                byFormat.values.sumOf { it.size },
+                "Every catalog model resolves to a transport",
+            )
+        }
+
+        /**
+         * The field is additive. Catalogs written before it existed — including the ones users
+         * override `embabel.agent.platform.models.openai` with — must keep working unchanged.
+         */
+        @Test
+        fun `model without api_format falls back to Chat Completions`() {
+            val tempYaml = createTempYamlFile(
+                """
+                models:
+                  - name: legacy-model
+                    model_id: gpt-legacy
+                """.trimIndent()
+            )
+
+            val loader = OpenAiModelLoader(tempYaml.resourceLoader, tempYaml.configPath)
+
+            assertEquals(
+                OpenAiApiFormat.CHAT_COMPLETIONS,
+                loader.loadAutoConfigMetadata().effectiveModels().single().apiFormat,
+            )
+        }
+
+        @Test
+        fun `api_format is read from YAML`() {
+            val tempYaml = createTempYamlFile(
+                """
+                models:
+                  - name: responses-model
+                    model_id: gpt-responses
+                    api_format: RESPONSES
+                  - name: chat-model
+                    model_id: gpt-chat
+                    api_format: CHAT_COMPLETIONS
+                """.trimIndent()
+            )
+
+            val loader = OpenAiModelLoader(tempYaml.resourceLoader, tempYaml.configPath)
+            val models = loader.loadAutoConfigMetadata().effectiveModels().associateBy { it.modelId }
+
+            assertEquals(OpenAiApiFormat.RESPONSES, models["gpt-responses"]?.apiFormat)
+            assertEquals(OpenAiApiFormat.CHAT_COMPLETIONS, models["gpt-chat"]?.apiFormat)
+        }
+
+        /**
+         * The pro models reject any temperature but the default, so the transport switch must not
+         * cost them the [Gpt5ChatOptionsConverter] selection that `createOpenAiLlm` keys off.
+         */
+        @Test
+        fun `pro models keep their existing special handling`() {
+            val models = OpenAiModelLoader().loadAutoConfigMetadata().effectiveModels()
+                .filter { it.apiFormat == OpenAiApiFormat.RESPONSES }
+
+            assertTrue(models.isNotEmpty(), "Guard against the filter silently matching nothing")
+            models.forEach {
+                assertEquals(
+                    false,
+                    it.specialHandling?.supportsTemperature,
+                    "${it.modelId} must stay on the no-temperature converter",
+                )
+            }
+        }
+    }
+
     private data class TempYamlResource(
         val resourceLoader: ResourceLoader,
         val configPath: String,

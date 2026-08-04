@@ -75,9 +75,27 @@ data class OpenAiModelDefinition(
     val temperature: Double = 1.0,
     val topP: Double? = null,
     val specialHandling: SpecialHandlingConfiguration? = null,
+    val apiFormat: OpenAiApiFormat = OpenAiApiFormat.CHAT_COMPLETIONS,
     @param:JsonAlias("native-support")
     override val nativeSupport: NativeSupport? = null,
 ) : LlmAutoConfigMetadata
+
+/**
+ * Wire format an OpenAI model is served over.
+ *
+ * OpenAI exposes text models over two mutually incompatible APIs. Almost all are served over
+ * `/v1/chat/completions`, but the `*-pro` models are served *only* over `/v1/responses` and
+ * reject Chat Completions requests outright.
+ *
+ * Declared per model rather than inferred from the model id: OpenAI decides which models are
+ * Responses-only, and a naming convention is not a contract.
+ *
+ * @see <a href="https://github.com/embabel/embabel-agent/issues/1758">Issue 1758</a>
+ */
+enum class OpenAiApiFormat {
+    CHAT_COMPLETIONS,
+    RESPONSES,
+}
 
 /**
  * Special handling configuration for models with unique requirements.

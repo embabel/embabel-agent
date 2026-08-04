@@ -78,6 +78,7 @@ models:
 
   - name: "gpt54pro"
     model_id: "gpt-5.4-pro"
+    api_format: "RESPONSES"
     display_name: "GPT-5.4 Pro"
     max_tokens: 16384
     temperature: 1.0
@@ -121,6 +122,7 @@ models:
 
   - name: "gpt52pro"
     model_id: "gpt-5.2-pro"
+    api_format: "RESPONSES"
     display_name: "GPT-5.2 Pro"
     max_tokens: 16384
     temperature: 1.0
@@ -184,6 +186,7 @@ models:
 
   - name: "gpt5pro"
     model_id: "gpt-5-pro"
+    api_format: "RESPONSES"
     display_name: "GPT-5 Pro"
     max_tokens: 16384
     temperature: 1.0
