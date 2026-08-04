@@ -18,12 +18,12 @@ package com.embabel.agent.config.models.openai
 import com.embabel.agent.api.common.Ai
 import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.autoconfigure.models.openai.AgentOpenAiAutoConfiguration
+import com.embabel.agent.config.models.openai.OpenAiIntegrationSupport.sayReady
 import com.embabel.agent.spi.LlmService
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
-import org.opentest4j.TestAbortedException
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan
 import org.springframework.boot.test.context.SpringBootTest
@@ -81,18 +81,7 @@ class Gpt5ProResponsesApiIT(
 
     @Test
     fun `calls the real Responses API`() {
-        val response = try {
-            ai.withLlm(OpenAiModels.GPT_5_PRO).generateText("Reply with exactly the word READY.").trim()
-        } catch (ex: Exception) {
-            if (isModelAccessError(ex)) {
-                throw TestAbortedException(
-                    "OPENAI_API_KEY is set, but the configured OpenAI project does not have access to " +
-                        OpenAiModels.GPT_5_PRO,
-                    ex,
-                )
-            }
-            throw ex
-        }
+        val response = sayReady(ai, OpenAiModels.GPT_5_PRO)
 
         assertTrue(response.isNotBlank(), "Expected non-empty response from GPT-5 Pro")
         assertTrue(response.contains("READY", ignoreCase = true), "Expected GPT-5 Pro to reply with READY, got: $response")
@@ -100,11 +89,4 @@ class Gpt5ProResponsesApiIT(
     }
 
     private fun findLlm(): LlmService<*>? = llms.find { it.name == OpenAiModels.GPT_5_PRO }
-
-    private fun isModelAccessError(ex: Exception): Boolean {
-        val message = generateSequence<Throwable>(ex) { it.cause }.mapNotNull { it.message }.joinToString(" | ")
-
-        return message.contains("does not have access to model", ignoreCase = true) ||
-            message.contains("model_not_found", ignoreCase = true)
-    }
 }

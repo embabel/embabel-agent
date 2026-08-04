@@ -18,12 +18,12 @@ package com.embabel.agent.config.models.openai
 import com.embabel.agent.api.common.Ai
 import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.autoconfigure.models.openai.AgentOpenAiAutoConfiguration
+import com.embabel.agent.config.models.openai.OpenAiIntegrationSupport.sayReady
 import com.embabel.agent.spi.LlmService
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
-import org.opentest4j.TestAbortedException
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan
 import org.springframework.boot.test.context.SpringBootTest
@@ -82,16 +82,7 @@ class Gpt53ChatIntegrationIT(
         val llm = findLlm()
 
         // Verify against OpenAI API
-        val response = try {
-
-            ai.withLlm(OpenAiModels.GPT_53_CHAT_LATEST).generateText("Reply with exactly the word READY.").trim()
-        } catch (ex: Exception) {
-
-            if (isModelAccessError(ex)) {
-                throw TestAbortedException("OPENAI_API_KEY is set, but the configured OpenAI project does not have access to ${OpenAiModels.GPT_53_CHAT_LATEST}", ex)
-            }
-            throw ex
-        }
+        val response = sayReady(ai, OpenAiModels.GPT_53_CHAT_LATEST)
 
         assertTrue(response.isNotBlank(), "Expected non-empty response from GPT-5.3 Chat")
         assertTrue(response.contains("READY", ignoreCase = true), "Expected GPT-5.3 Chat to reply with READY, got: $response")
@@ -101,12 +92,6 @@ class Gpt53ChatIntegrationIT(
     private fun findLlm(): LlmService<*>? {
 
         return llms.find { it.name == OpenAiModels.GPT_53_CHAT_LATEST }
-    }
-
-    private fun isModelAccessError(ex: Exception): Boolean {
-        val message = generateSequence<Throwable>(ex) { it.cause }.mapNotNull { it.message }.joinToString(" | ")
-
-        return message.contains("does not have access to model", ignoreCase = true) || message.contains("model_not_found", ignoreCase = true)
     }
 
     override fun toString(): String {

@@ -18,6 +18,7 @@ package com.embabel.agent.config.models.openai
 import com.embabel.agent.api.common.Ai
 import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.autoconfigure.models.openai.AgentOpenAiAutoConfiguration
+import com.embabel.agent.config.models.openai.OpenAiIntegrationSupport.sayReady
 import com.embabel.common.ai.model.LlmOptions
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -77,7 +78,5 @@ class Gpt5MaxTokensIT(
     }
 
     private fun replyWithLimit(model: String): String =
-        ai.withLlm(LlmOptions.withModel(model).withMaxTokens(2048))
-            .generateText("Reply with exactly the word READY.")
-            .trim()
+        sayReady(ai, model, LlmOptions.withModel(model).withMaxTokens(2048))
 }
