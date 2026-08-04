@@ -53,7 +53,7 @@ class Gpt5ProTestConfig
  *
  * This is the test that was missing: the `*-pro` models were declared in the catalog and the build
  * stayed green, because nothing ever called them. Every real call returned HTTP 400 until
- * [com.embabel.agent.openai.OpenAiResponsesChatModel] was routed in.
+ * [OpenAiResponsesChatModel] was routed in.
  *
  * @see <a href="https://github.com/embabel/embabel-agent/issues/1758">Issue 1758</a>
  */

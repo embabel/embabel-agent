@@ -23,6 +23,7 @@ import com.openai.models.responses.ResponseFunctionToolCall
 import com.openai.models.responses.ResponseInputItem
 import com.openai.models.responses.ResponseOutputItem
 import com.openai.models.responses.ResponseOutputMessage
+import com.openai.models.responses.ResponseOutputRefusal
 import com.openai.models.responses.ResponseOutputText
 import com.openai.models.responses.ResponseReasoningItem
 import com.openai.models.responses.ResponseStatus
@@ -456,6 +457,38 @@ class OpenAiResponsesChatModelTest {
             )
         }
 
+        /** A refusal comes back `completed` with no output text — indistinguishable from silence. */
+        @Test
+        fun `a refusal is raised, not passed off as an empty answer`() {
+            respondWith(
+                response(
+                    ResponseOutputItem.ofMessage(
+                        ResponseOutputMessage.builder()
+                            .id("msg_1")
+                            .addContent(ResponseOutputRefusal.builder().refusal("I cannot help with that.").build())
+                            .status(ResponseOutputMessage.Status.COMPLETED)
+                            .build()
+                    ),
+                    status = ResponseStatus.COMPLETED,
+                )
+            )
+
+            val failure = assertThrows(NonTransientAiException::class.java) { model.call(Prompt("Hi")) }
+
+            assertTrue(
+                failure.message.orEmpty().contains("I cannot help with that."),
+                "The model's own wording is the only useful part, got: ${failure.message}",
+            )
+        }
+
+        /** Cancellation is another 200 carrying no answer. */
+        @Test
+        fun `a cancelled response is raised rather than returned empty`() {
+            respondWith(response(status = ResponseStatus.CANCELLED))
+
+            assertThrows(NonTransientAiException::class.java) { model.call(Prompt("Hi")) }
+        }
+
         /**
          * `max_output_tokens` is spent on reasoning too, so a pro model runs out mid-thought
          * routinely. The partial answer is worth keeping — but silently, it reads as a complete one.
@@ -527,11 +560,7 @@ class OpenAiResponsesChatModelTest {
     @Nested
     inner class ContractWithSurroundingCode {
 
-        /**
-         * `StreamingCapabilityVerifier` probes streaming support by calling [stream] and catching
-         * exactly [UnsupportedOperationException]; any other type propagates and takes down the
-         * caller instead of reporting "no streaming here".
-         */
+        /** `StreamingCapabilityVerifier` probes streaming support by calling [stream] and catching this. */
         @Test
         fun `stream signals unsupported in the one way the verifier understands`() {
             assertThrows(UnsupportedOperationException::class.java) {

@@ -27,6 +27,7 @@ import com.openai.models.responses.ResponseCreateParams
 import com.openai.models.responses.ResponseFormatTextJsonSchemaConfig
 import com.openai.models.responses.ResponseFunctionToolCall
 import com.openai.models.responses.ResponseInputItem
+import com.openai.models.responses.ResponseOutputMessage
 import com.openai.models.responses.ResponseStatus
 import com.openai.models.responses.ResponseTextConfig
 import com.openai.models.responses.Tool
@@ -103,11 +104,7 @@ class OpenAiResponsesChatModel(
     /** Defensive copy: Spring AI hands these to callers that may mutate them. */
     override fun getDefaultOptions(): ChatOptions = defaultOptions.mutate().build()
 
-    /**
-     * Throwing is load-bearing: `SpringAiLlmService.StreamingCapabilityVerifier` probes streaming
-     * support by catching exactly this type. Any other exception would propagate to the caller
-     * instead of reporting that the model does not stream.
-     */
+    /** Throwing is how `SpringAiLlmService.StreamingCapabilityVerifier` learns this model has no stream. */
     override fun stream(prompt: Prompt): Flux<ChatResponse> =
         throw UnsupportedOperationException(
             "Streaming is not supported for OpenAI models served over the Responses API"
@@ -290,11 +287,12 @@ class OpenAiResponsesChatModel(
     private fun toChatResponse(response: OpenAiResponse): ChatResponse {
         raiseIfFailed(response)
 
-        val text = response.output()
+        val content = response.output()
             .mapNotNull { it.message().orElse(null) }
             .flatMap { it.content() }
-            .mapNotNull { it.outputText().orElse(null)?.text() }
-            .joinToString("\n")
+        raiseIfRefused(content)
+
+        val text = content.mapNotNull { it.outputText().orElse(null)?.text() }.joinToString("\n")
         val toolCalls = response.output()
             .filter { it.isFunctionCall() }
             .map { it.asFunctionCall() }
@@ -322,16 +320,23 @@ class OpenAiResponsesChatModel(
     }
 
     /**
-     * A refusal arrives inside a `200` here — `status: "failed"`, reason in the body — so nothing
-     * throws on its own, and left alone it reads as a call that produced no output.
-     * [NonTransientAiException] is what `SpringAiRetryPolicy` reads to decide against a retry.
+     * A call that produced no answer still arrives inside a `200`, so nothing throws on its own and
+     * left alone it reads as a model with nothing to say. [NonTransientAiException] is what
+     * `SpringAiRetryPolicy` reads to decide against a retry.
      */
     private fun raiseIfFailed(response: OpenAiResponse) {
-        if (response.status().orElse(null) != ResponseStatus.FAILED) return
+        val status = response.status().orElse(null) ?: return
+        if (status !in ANSWERLESS_STATUSES) return
         val error = response.error().orElse(null)
         throw NonTransientAiException(
-            "OpenAI Responses API call failed: ${error?.message() ?: "no reason given"}"
+            "OpenAI Responses API call ${status.asString()}: ${error?.message() ?: "no reason given"}"
         )
+    }
+
+    /** A refusal is `completed` with no output text — the same silence, from a different cause. */
+    private fun raiseIfRefused(content: List<ResponseOutputMessage.Content>) {
+        val refusal = content.firstNotNullOfOrNull { it.refusal().orElse(null)?.refusal() } ?: return
+        throw NonTransientAiException("OpenAI Responses API call refused: $refusal")
     }
 
     /**
@@ -370,6 +375,9 @@ class OpenAiResponsesChatModel(
 
         /** Used when the schema carries no usable title. */
         const val DEFAULT_SCHEMA_NAME = "response"
+
+        /** Terminal statuses that carry no answer at all. */
+        val ANSWERLESS_STATUSES = setOf(ResponseStatus.FAILED, ResponseStatus.CANCELLED)
 
         val OBSERVATION_CONVENTION = DefaultChatModelObservationConvention()
 
