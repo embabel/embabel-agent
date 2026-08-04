@@ -67,11 +67,34 @@ class Gpt5ChatOptionsConverterTest(
         assertNull(options.temperature, "Null temperature should remain null")
     }
 
+    /**
+     * The GPT-5 family rejects `max_tokens` outright:
+     * `400 Unsupported parameter: 'max_tokens' is not supported with this model.
+     * Use 'max_completion_tokens' instead.`
+     *
+     * Spring AI serialises [org.springframework.ai.openai.OpenAiChatOptions.maxTokens] to the
+     * former and `maxCompletionTokens` to the latter, so the limit has to be carried on the
+     * second field — and the first must stay unset, or the request is refused for its presence
+     * alone.
+     */
     @Test
-    fun `preserves maxTokens`() {
-        val llmo = LlmOptions().withMaxTokens(500)
-        val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
-        assertEquals(500, options.maxTokens, "Max tokens should be preserved")
+    fun `carries a token limit on maxCompletionTokens, which is the field GPT-5 accepts`() {
+        val options = Gpt5ChatOptionsConverter.convertOptions(LlmOptions().withMaxTokens(500))
+
+        assertEquals(500, options.maxCompletionTokens, "The limit must still reach the model")
+
+        val maxTokens: Int? = options.maxTokens
+        assertNull(maxTokens, "Sending max_tokens at all is a 400 for every GPT-5 model")
+    }
+
+    @Test
+    fun `sends neither token field when no limit was asked for`() {
+        val options = Gpt5ChatOptionsConverter.convertOptions(LlmOptions())
+
+        val maxCompletionTokens: Int? = options.maxCompletionTokens
+        val maxTokens: Int? = options.maxTokens
+        assertNull(maxCompletionTokens)
+        assertNull(maxTokens)
     }
 
     @Test
@@ -101,7 +124,7 @@ class Gpt5ChatOptionsConverterTest(
 
         assertNull(options.temperature, "Temperature should be ignored")
         assertEquals(0.9, options.topP, "Top P should be preserved")
-        assertEquals(1000, options.maxTokens, "Max tokens should be preserved")
+        assertEquals(1000, options.maxCompletionTokens, "Max tokens should be preserved")
         assertEquals(0.5, options.presencePenalty, "Presence penalty should be preserved")
         assertEquals(0.3, options.frequencyPenalty, "Frequency penalty should be preserved")
     }

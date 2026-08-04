@@ -34,7 +34,10 @@ object Gpt5ChatOptionsConverter : OptionsConverter<OpenAiChatOptions> {
         }
         return OpenAiChatOptions.builder()
             .topP(options.topP)
-            .maxTokens(options.maxTokens)
+            // Not maxTokens: the GPT-5 family rejects `max_tokens` with
+            // "Unsupported parameter ... use 'max_completion_tokens' instead", and refuses the
+            // request for the field's presence alone.
+            .maxCompletionTokens(options.maxTokens)
             .presencePenalty(options.presencePenalty)
             .frequencyPenalty(options.frequencyPenalty)
             .build()
@@ -43,6 +46,9 @@ object Gpt5ChatOptionsConverter : OptionsConverter<OpenAiChatOptions> {
 
 /**
  * Standard options converter for OpenAI models that support all parameters.
+ *
+ * Keeps `maxTokens`: the models routed here — the GPT-4 family and OpenAI-compatible providers —
+ * accept it, and several do not know `max_completion_tokens` at all.
  */
 object StandardOpenAiOptionsConverter : OptionsConverter<OpenAiChatOptions> {
 
