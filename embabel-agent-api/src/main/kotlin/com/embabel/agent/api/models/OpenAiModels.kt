@@ -18,7 +18,8 @@ package com.embabel.agent.api.models
 
 /**
  * Well-known models from OpenAI.
- * Model IDs verified against GET /v1/models on 2026-03-29.
+ * Model IDs verified against GET /v1/models on 2026-03-29; GPT-5.5 and GPT-5.6
+ * against developers.openai.com/api/docs/models on 2026-08-04.
  * Undated aliases (e.g. GPT_54) always resolve to the latest pinned version.
  * Use dated constants (e.g. GPT_54_2026_03_05) for reproducible behaviour.
  */
@@ -27,7 +28,28 @@ class OpenAiModels {
     companion object {
 
         // =====================================================================
-        // GPT-5.4 FAMILY (Current Flagship - March 2026)
+        // GPT-5.6 FAMILY (Current Flagship - July 2026)
+        // Tiers are Luna/Terra/Sol; "pro" is now a Responses-only reasoning
+        // mode rather than a model.
+        // =====================================================================
+
+        /** Alias for [GPT_56_SOL]. The shipped catalog registers the tiers, not this. */
+        const val GPT_56 = "gpt-5.6"
+
+        const val GPT_56_SOL = "gpt-5.6-sol"
+        const val GPT_56_TERRA = "gpt-5.6-terra"
+        const val GPT_56_LUNA = "gpt-5.6-luna"
+
+        // =====================================================================
+        // GPT-5.5 FAMILY (June 2026)
+        // =====================================================================
+
+        const val GPT_55 = "gpt-5.5"
+
+        const val GPT_55_PRO = "gpt-5.5-pro"
+
+        // =====================================================================
+        // GPT-5.4 FAMILY (March 2026)
         // =====================================================================
 
         const val GPT_54 = "gpt-5.4"

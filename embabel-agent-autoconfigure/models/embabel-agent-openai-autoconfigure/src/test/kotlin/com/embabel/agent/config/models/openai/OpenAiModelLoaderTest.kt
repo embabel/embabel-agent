@@ -651,7 +651,7 @@ class OpenAiModelLoaderTest {
             val byFormat = models.groupBy({ it.apiFormat }, { it.modelId })
 
             assertEquals(
-                setOf("gpt-5-pro", "gpt-5.2-pro", "gpt-5.4-pro"),
+                setOf("gpt-5-pro", "gpt-5.2-pro", "gpt-5.4-pro", "gpt-5.5-pro"),
                 byFormat[OpenAiApiFormat.RESPONSES].orEmpty().toSet(),
                 "Only the *-pro models are served over /v1/responses",
             )
@@ -663,6 +663,27 @@ class OpenAiModelLoaderTest {
                 models.size,
                 byFormat.values.sumOf { it.size },
                 "Every catalog model resolves to a transport",
+            )
+        }
+
+        /**
+         * GPT-5.6 dropped the `-pro` suffix — its tiers are Luna/Terra/Sol and "pro" became a
+         * Responses-only *reasoning mode*, not a model. The suffix guard above therefore says
+         * nothing about them, so their transport is pinned by name.
+         */
+        @Test
+        fun `the GPT-5_6 tiers stay on Chat Completions, which they all support`() {
+            val models = OpenAiModelLoader().loadAutoConfigMetadata().effectiveModels()
+                .filter { it.modelId.startsWith("gpt-5.6") }
+                .associate { it.modelId to it.apiFormat }
+
+            assertEquals(
+                mapOf(
+                    "gpt-5.6-sol" to OpenAiApiFormat.CHAT_COMPLETIONS,
+                    "gpt-5.6-terra" to OpenAiApiFormat.CHAT_COMPLETIONS,
+                    "gpt-5.6-luna" to OpenAiApiFormat.CHAT_COMPLETIONS,
+                ),
+                models,
             )
         }
 
