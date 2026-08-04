@@ -37,6 +37,7 @@ import com.embabel.agent.spi.support.guardrails.validateUserInput
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.converters.streaming.StreamingJacksonOutputConverter
+import com.embabel.common.ai.converters.streaming.StreamingLineClassifier
 import com.embabel.common.core.streaming.StreamingEvent
 import tools.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
@@ -79,6 +80,43 @@ internal class StreamingLlmOperationsImpl(
     ): Flux<String> {
         return doTransformStream(messages, interaction, null, agentProcess, action)
     }
+
+    fun generateStreamWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        agentProcess: AgentProcess,
+        action: Action?,
+    ): Flux<StreamingEvent<String>> =
+        doTransformStream(messages, interaction, null, agentProcess, action)
+            // Buffer raw LLM chunks into complete newline-delimited lines before classifying.
+            // The LLM streams arbitrary byte chunks; thinking tags and JSON objects only make
+            // sense as whole lines, so we must reassemble them first.
+            .transform { rawChunksToLines(it) }
+            // Classify each line as either thinking content or a dropped line.
+            // Each item arriving in onNext is StreamingEvent.Thinking(content, state).
+            // Non-thinking lines (plain JSON artifacts) are silently dropped.
+            //
+            // Examples:
+            //
+            //   a. "aaaaaa"               → plain text, not JSON, no tags
+            //                              → ThinkingState.CONTINUATION
+            //                              → onNext: StreamingEvent.Thinking("aaaaaa", CONTINUATION)
+            //
+            //   b. "aaaaa<think>nnnnn"    → contains opening tag but no closing tag;
+            //                                does not start with <think> so not detected as START
+            //                              → ThinkingState.CONTINUATION
+            //                              → onNext: StreamingEvent.Thinking("aaaaa<think>nnnnn", CONTINUATION)
+            //
+            //   c. "nnnnn</think>"        → ends with closing tag, no opening tag
+            //                              → ThinkingState.END
+            //                              → onNext: StreamingEvent.Thinking("nnnnn</think>", END)
+            //                                (tags not stripped — extractThinkingContent only strips
+            //                                 complete <think>…</think> pairs found on a single line)
+            //
+            //   d. "<think>xyz</think>"   → complete thinking block on one line
+            //                              → ThinkingState.BOTH
+            //                              → onNext: StreamingEvent.Thinking("xyz", BOTH)  [tags stripped]
+            .concatMap { line -> StreamingLineClassifier.classify(line) }
 
     override fun <O> createObjectStream(
         messages: List<Message>,
