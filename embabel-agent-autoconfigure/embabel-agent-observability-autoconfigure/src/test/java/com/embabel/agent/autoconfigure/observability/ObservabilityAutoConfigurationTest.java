@@ -24,10 +24,14 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.Arrays;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -321,6 +325,39 @@ class ObservabilityAutoConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasSingleBean(HttpRequestObservationFilter.class);
                 });
+    }
+
+    // --- Boot 4 afterName ordering (#1808) ---
+
+    @Test
+    void autoConfiguration_afterName_shouldUseSpringBoot4MicrometerPackages() {
+        AutoConfiguration autoConfiguration =
+                ObservabilityAutoConfiguration.class.getAnnotation(AutoConfiguration.class);
+        assertThat(autoConfiguration).isNotNull();
+
+        List<String> afterName = Arrays.asList(autoConfiguration.afterName());
+        assertThat(afterName).containsExactlyInAnyOrder(
+                "org.springframework.boot.micrometer.tracing.autoconfigure.MicrometerTracingAutoConfiguration",
+                "org.springframework.boot.micrometer.observation.autoconfigure.ObservationAutoConfiguration");
+
+        // afterName FQCNs must resolve on the classpath; a wrong name is silently ignored by
+        // Spring and ordering never applies (#1808). Check both observation and tracing.
+        assertThat(classExists(
+                "org.springframework.boot.micrometer.observation.autoconfigure.ObservationAutoConfiguration"))
+                .isTrue();
+        assertThat(classExists(
+                "org.springframework.boot.micrometer.tracing.autoconfigure.MicrometerTracingAutoConfiguration"))
+                .isTrue();
+    }
+
+    private static boolean classExists(String name) {
+        try {
+            Class.forName(name);
+            return true;
+        }
+        catch (ClassNotFoundException ex) {
+            return false;
+        }
     }
 
     // --- Metrics listener ---

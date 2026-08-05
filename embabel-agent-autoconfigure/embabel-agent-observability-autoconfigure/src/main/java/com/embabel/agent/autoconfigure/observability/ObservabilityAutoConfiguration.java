@@ -56,8 +56,9 @@ import org.springframework.context.annotation.Primary;
 @AutoConfiguration(
         after = MicrometerTracingAutoConfiguration.class,
         afterName = {
-                "org.springframework.boot.actuate.autoconfigure.tracing.MicrometerTracingAutoConfiguration",
-                "org.springframework.boot.actuate.autoconfigure.observation.ObservationAutoConfiguration"
+                // Spring Boot 4 moved these out of spring-boot-actuator-autoconfigure
+                "org.springframework.boot.micrometer.tracing.autoconfigure.MicrometerTracingAutoConfiguration",
+                "org.springframework.boot.micrometer.observation.autoconfigure.ObservationAutoConfiguration"
         }
 )
 @EnableConfigurationProperties(ObservabilityProperties.class)
