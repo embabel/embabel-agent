@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
+import org.springframework.ai.openai.OpenAiChatOptions
 
 class Gpt5ChatOptionsConverterTest(
 ) {
@@ -29,7 +30,7 @@ class Gpt5ChatOptionsConverterTest(
     @Test
     fun `ignores temperature`() {
         val llmo = LlmOptions().withTemperature(temperature = 0.5)
-        val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
+        val options = Gpt5ChatOptionsConverter.convertOptions(llmo, "test-model")
         // Spring AI 2.0's OpenAiChatOptions package is @NullMarked, so Kotlin treats
         // getTemperature() as returning non-null Double — direct property access
         // would NPE on a null runtime value. Read into a Double? local to bypass.
@@ -55,7 +56,7 @@ class Gpt5ChatOptionsConverterTest(
             .withPresencePenalty(0.6)
             .withFrequencyPenalty(0.4)
 
-        val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
+        val options = Gpt5ChatOptionsConverter.convertOptions(llmo, "test-model")
 
         // Spring AI 2.0's OpenAiChatOptions package is @NullMarked, so Kotlin treats these getters
         // as returning non-null — read into nullable locals to bypass, as in `ignores temperature`.
@@ -76,14 +77,14 @@ class Gpt5ChatOptionsConverterTest(
     @Test
     fun `handles temperature equal to 1_0 without warning`() {
         val llmo = LlmOptions().withTemperature(temperature = 1.0)
-        val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
+        val options = Gpt5ChatOptionsConverter.convertOptions(llmo, "test-model")
         assertNull(options.temperature, "Temperature 1.0 should be ignored silently")
     }
 
     @Test
     fun `handles null temperature`() {
         val llmo = LlmOptions()
-        val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
+        val options = Gpt5ChatOptionsConverter.convertOptions(llmo, "test-model")
         assertNull(options.temperature, "Null temperature should remain null")
     }
 
@@ -99,7 +100,7 @@ class Gpt5ChatOptionsConverterTest(
      */
     @Test
     fun `carries a token limit on maxCompletionTokens, which is the field GPT-5 accepts`() {
-        val options = Gpt5ChatOptionsConverter.convertOptions(LlmOptions().withMaxTokens(500))
+        val options = openAiOptionsFor(LlmOptions().withMaxTokens(500))
 
         assertEquals(500, options.maxCompletionTokens, "The limit must still reach the model")
 
@@ -109,7 +110,7 @@ class Gpt5ChatOptionsConverterTest(
 
     @Test
     fun `sends neither token field when no limit was asked for`() {
-        val options = Gpt5ChatOptionsConverter.convertOptions(LlmOptions())
+        val options = openAiOptionsFor(LlmOptions())
 
         val maxCompletionTokens: Int? = options.maxCompletionTokens
         val maxTokens: Int? = options.maxTokens
@@ -130,7 +131,7 @@ class Gpt5ChatOptionsConverterTest(
             .withPresencePenalty(0.5)
             .withFrequencyPenalty(0.3)
 
-        val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
+        val options = openAiOptionsFor(llmo)
 
         assertEquals(1000, options.maxCompletionTokens, "Max tokens should be preserved")
         val temperature: Double? = options.temperature
@@ -143,4 +144,10 @@ class Gpt5ChatOptionsConverterTest(
         assertNull(frequencyPenalty, "Frequency penalty should be ignored")
     }
 
+    /**
+     * The converter returns the `ChatOptions` interface since #1857, which has no
+     * `maxCompletionTokens`. Only the OpenAI subtype carries the field the GPT-5 family accepts.
+     */
+    private fun openAiOptionsFor(llmOptions: LlmOptions): OpenAiChatOptions =
+        Gpt5ChatOptionsConverter.convertOptions(llmOptions, "test-model") as OpenAiChatOptions
 }

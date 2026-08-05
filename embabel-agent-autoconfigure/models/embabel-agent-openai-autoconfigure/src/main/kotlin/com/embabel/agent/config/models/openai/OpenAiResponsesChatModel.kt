@@ -130,8 +130,8 @@ class OpenAiResponsesChatModel(
     }
 
     /**
-     * `SpringAiLlmService.convertOptions` stamps the configured model onto every request, but the
-     * provider converters it delegates to set none of their own, so the default holds the floor.
+     * Since #1857 the provider converters stamp the configured model themselves, so a request built
+     * through one always carries it. The default covers options built without a converter.
      */
     private fun modelOf(options: ChatOptions?): String =
         options?.model

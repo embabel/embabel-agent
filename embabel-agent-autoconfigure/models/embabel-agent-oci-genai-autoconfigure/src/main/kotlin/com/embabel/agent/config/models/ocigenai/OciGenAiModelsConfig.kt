@@ -42,6 +42,7 @@ import com.oracle.bmc.auth.okeworkloadidentity.OkeWorkloadIdentityAuthentication
 import com.oracle.bmc.generativeaiinference.GenerativeAiInference
 import com.oracle.bmc.generativeaiinference.GenerativeAiInferenceClient
 import org.slf4j.LoggerFactory
+import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -360,10 +361,11 @@ class OciGenAiModelsConfig(
     }
 }
 
-object OciGenAiOptionsConverter : OptionsConverter<OciGenAiChatOptions> {
+object OciGenAiOptionsConverter : OptionsConverter {
 
-    override fun convertOptions(options: LlmOptions): OciGenAiChatOptions =
+    override fun convertOptions(options: LlmOptions, model: String): ChatOptions =
         OciGenAiChatOptions.builder()
+            .model(model)
             .temperature(options.temperature)
             .topP(options.topP)
             .topK(options.topK)

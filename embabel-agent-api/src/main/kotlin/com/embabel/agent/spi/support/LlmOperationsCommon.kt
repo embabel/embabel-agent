@@ -167,9 +167,9 @@ internal class MaybeReturnDeserializer<T> private constructor(
 
     private fun deserializeFailure(failureNode: JsonNode): MaybeReturn<T> = when {
         failureNode is NullNode -> MaybeReturn.failure(ERROR_FAILURE_NULL)
-        !failureNode.isTextual -> MaybeReturn.failure(ERROR_FAILURE_NOT_STRING)
-        failureNode.asText().isBlank() -> MaybeReturn.failure(ERROR_FAILURE_EMPTY)
-        else -> MaybeReturn.failure(failureNode.asText())
+        !failureNode.isString -> MaybeReturn.failure(ERROR_FAILURE_NOT_STRING)
+        failureNode.asString().isBlank() -> MaybeReturn.failure(ERROR_FAILURE_EMPTY)
+        else -> MaybeReturn.failure(failureNode.asString())
     }
 
     private fun deserializeSuccess(successNode: JsonNode, ctxt: DeserializationContext): MaybeReturn<T> {

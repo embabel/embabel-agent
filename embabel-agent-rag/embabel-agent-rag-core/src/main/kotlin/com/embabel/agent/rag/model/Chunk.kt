@@ -35,6 +35,13 @@ interface Chunk : Source, HierarchicalContentElement {
     val urtext: String
 
     /**
+     * Chunker-owned structural fields (document/section ids, sequence, indexes).
+     * Free-form user data remains in [metadata]; structural keys are also exposed there
+     * for backward compatibility during the deprecation window.
+     */
+    val structure: ChunkStructure
+
+    /**
      * Parent must be non-null. It must a physical content element.
      */
     override val parentId: String
@@ -43,7 +50,7 @@ interface Chunk : Source, HierarchicalContentElement {
      * If available, this is the path from the root document as ids,
      * with the root id first and this element's id as the last element.
      *
-     * Default implementation computes from metadata for backward compatibility.
+     * Default implementation uses [structure] (with metadata fallback via the compat view).
      * For a more robust solution that traverses actual parentId relationships,
      * use ContentElementRepository.pathFromRoot(element) instead.
      *
@@ -51,33 +58,27 @@ interface Chunk : Source, HierarchicalContentElement {
      */
     val pathFromRoot: List<String>?
         get() {
-            // Get root document ID from metadata
-            val rootId = metadata["root_document_id"] as? String ?: return null
-            val containerId = metadata["container_section_id"] as? String
-            val leafId = metadata["leaf_section_id"] as? String
+            val rootId = structure.rootDocumentId ?: return null
+            val containerId = structure.containerSectionId
+            val leafId = structure.leafSectionId
 
-            // Build path: root -> container -> leaf (if exists) -> chunk
             val path = mutableListOf<String>()
             path.add(rootId)
 
-            // Only add container if it's different from root
             if (containerId != null && containerId != rootId) {
                 path.add(containerId)
             }
 
-            // Add leaf section if it exists and is different from container
             if (leafId != null && leafId != containerId) {
                 path.add(leafId)
             }
 
-            // Add chunk itself if it's not already in the path
             if (id != path.lastOrNull()) {
                 path.add(id)
             }
 
             return path
         }
-
 
     override val uri: String? get() = metadata["url"] as? String
 
@@ -98,12 +99,26 @@ interface Chunk : Source, HierarchicalContentElement {
      * Transform the content of this chunk
      */
     fun withText(transformed: String): Chunk =
-        ChunkImpl(
-            id = this.id,
+        create(
             text = transformed,
-            urtext = this.urtext,
-            metadata = this.metadata,
-            parentId = this.parentId,
+            parentId = parentId,
+            metadata = metadata,
+            id = id,
+            urtext = urtext,
+            structure = structure,
+        )
+
+    /**
+     * Replace structural fields while preserving free-form metadata.
+     */
+    fun withStructure(structure: ChunkStructure): Chunk =
+        create(
+            text = text,
+            parentId = parentId,
+            metadata = ChunkStructure.withoutStructuralKeys(metadata),
+            id = id,
+            urtext = urtext,
+            structure = structure,
         )
 
     companion object {
@@ -114,12 +129,12 @@ interface Chunk : Source, HierarchicalContentElement {
             metadata: Map<String, Any?>,
             parentId: String,
         ): Chunk {
-            return ChunkImpl(
-                id = id,
+            return create(
                 text = text,
-                urtext = text,
-                metadata = metadata,
                 parentId = parentId,
+                metadata = metadata,
+                id = id,
+                urtext = text,
             )
         }
 
@@ -131,13 +146,17 @@ interface Chunk : Source, HierarchicalContentElement {
             metadata: Map<String, Any?> = emptyMap(),
             id: String = UUID.randomUUID().toString(),
             urtext: String = text,
+            structure: ChunkStructure? = null,
         ): Chunk {
+            val resolvedStructure = structure ?: ChunkStructure.fromMetadata(metadata)
+            val freeform = ChunkStructure.withoutStructuralKeys(metadata)
             return ChunkImpl(
                 id = id,
                 text = text,
                 urtext = urtext,
-                metadata = metadata,
                 parentId = parentId,
+                freeformMetadata = freeform,
+                structure = resolvedStructure,
             )
         }
 
@@ -164,9 +183,22 @@ private data class ChunkImpl(
     override val text: String,
     override val urtext: String,
     override val parentId: String,
-    override val metadata: Map<String, Any?>,
+    private val freeformMetadata: Map<String, Any?>,
+    override val structure: ChunkStructure,
 ) : Chunk {
 
-    override fun withAdditionalMetadata(metadata: Map<String, Any?>): Chunk =
-        this.copy(metadata = this.metadata + metadata)
+    override val metadata: Map<String, Any?>
+        get() {
+            val structural = structure.toMetadata()
+            return if (structural.isEmpty()) freeformMetadata else freeformMetadata + structural
+        }
+
+    override fun withAdditionalMetadata(metadata: Map<String, Any?>): Chunk {
+        val addedStructure = ChunkStructure.fromMetadata(metadata)
+        val addedFreeform = ChunkStructure.withoutStructuralKeys(metadata)
+        return copy(
+            freeformMetadata = freeformMetadata + addedFreeform,
+            structure = structure.merge(addedStructure),
+        )
+    }
 }

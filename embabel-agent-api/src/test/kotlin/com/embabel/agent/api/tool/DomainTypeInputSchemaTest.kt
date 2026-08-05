@@ -385,7 +385,7 @@ class DomainTypeInputSchemaTest {
             val jsonSchema = schema.toJsonSchema()
             val parsed = objectMapper.readTree(jsonSchema)
 
-            assertEquals("object", parsed.get("type").asText())
+            assertEquals("object", parsed.get("type").asString())
         }
 
         @Test
@@ -424,10 +424,10 @@ class DomainTypeInputSchemaTest {
             val parsed = objectMapper.readTree(jsonSchema)
             val properties = parsed.get("properties")
 
-            assertEquals("string", properties.get("name").get("type").asText())
-            assertEquals("integer", properties.get("count").get("type").asText())
-            assertEquals("number", properties.get("price").get("type").asText())
-            assertEquals("boolean", properties.get("active").get("type").asText())
+            assertEquals("string", properties.get("name").get("type").asString())
+            assertEquals("integer", properties.get("count").get("type").asString())
+            assertEquals("number", properties.get("price").get("type").asString())
+            assertEquals("boolean", properties.get("active").get("type").asString())
         }
 
         @Test
@@ -470,11 +470,11 @@ class DomainTypeInputSchemaTest {
             val parsed = objectMapper.readTree(jsonSchema)
             val tagsProperty = parsed.get("properties").get("tags")
 
-            assertEquals("array", tagsProperty.get("type").asText())
+            assertEquals("array", tagsProperty.get("type").asString())
 
             val items = tagsProperty.get("items")
             assertNotNull(items, "Array schema must have 'items' property")
-            assertEquals("string", items.get("type").asText())
+            assertEquals("string", items.get("type").asString())
         }
 
         @Test
@@ -503,7 +503,7 @@ class DomainTypeInputSchemaTest {
             val properties = parsed.get("properties")
 
             val addressProperty = properties.get("address")
-            assertEquals("object", addressProperty.get("type").asText())
+            assertEquals("object", addressProperty.get("type").asString())
 
             val nestedProperties = addressProperty.get("properties")
             assertNotNull(nestedProperties)
@@ -660,7 +660,7 @@ class DomainTypeInputSchemaTest {
             val parsed = objectMapper.readTree(jsonSchema)
 
             val itemsProperty = parsed.get("properties").get("items")
-            assertEquals("array", itemsProperty.get("type").asText())
+            assertEquals("array", itemsProperty.get("type").asString())
 
             val itemsSchema = itemsProperty.get("items")
             assertNotNull(itemsSchema)

@@ -37,6 +37,7 @@ import com.google.genai.Client
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.ai.google.genai.GoogleGenAiChatModel
+import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 import org.springframework.ai.google.genai.embedding.GoogleGenAiEmbeddingConnectionDetails
 import org.springframework.ai.google.genai.text.GoogleGenAiTextEmbeddingModel
@@ -356,15 +357,16 @@ class GoogleGenAiModelsConfig(
 /**
  * Converts [LlmOptions] to [GoogleGenAiChatOptions].
  */
-object GoogleGenAiOptionsConverter : OptionsConverter<GoogleGenAiChatOptions> {
+object GoogleGenAiOptionsConverter : OptionsConverter {
 
     /**
      * Default max output tokens for Google GenAI models.
      */
     const val DEFAULT_MAX_OUTPUT_TOKENS = 8192
 
-    override fun convertOptions(options: LlmOptions): GoogleGenAiChatOptions =
+    override fun convertOptions(options: LlmOptions, model: String): ChatOptions =
         GoogleGenAiChatOptions.builder()
+            .model(model)
             .temperature(options.temperature)
             .topP(options.topP)
             .topK(options.topK)

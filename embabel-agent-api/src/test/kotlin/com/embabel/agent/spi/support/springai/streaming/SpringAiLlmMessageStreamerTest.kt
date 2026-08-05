@@ -16,230 +16,96 @@
 package com.embabel.agent.spi.support.springai.streaming
 
 import com.embabel.agent.api.tool.Tool
-import com.embabel.agent.api.tool.callback.AfterToolCallContext
-import com.embabel.agent.api.tool.callback.BeforeToolCallContext
-import com.embabel.agent.api.tool.callback.ToolCallInspector
-import com.embabel.chat.AssistantMessage
-import com.embabel.chat.SystemMessage
+import com.embabel.agent.spi.loop.streaming.LlmInferenceStreamEvent
+import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.UserMessage
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
-import io.mockk.verify
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.chat.messages.AssistantMessage
+import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.model.tool.ToolCallingChatOptions
-import org.springframework.ai.tool.ToolCallback
 import reactor.core.publisher.Flux
 import reactor.test.StepVerifier
-import java.time.Duration
 
-/**
- * Unit tests for [SpringAiLlmMessageStreamer].
- *
- * Verifies that the streamer correctly:
- * - Converts Embabel messages to Spring AI messages
- * - Converts Embabel tools to Spring AI tool callbacks
- * - Calls the ChatClient streaming chain correctly
- */
 class SpringAiLlmMessageStreamerTest {
 
-    private lateinit var mockChatClient: ChatClient
-    // Use a real ToolCallingChatOptions instance — the Builder is self-bounded generic
-    // (Builder<B : Builder<B>>) and cannot be cleanly mocked. The real implementation
-    // exercises the production .mutate().toolCallbacks().build() chain end-to-end.
+    private lateinit var chatModel: ChatModel
     private lateinit var chatOptions: ToolCallingChatOptions
-    private lateinit var mockRequestSpec: ChatClient.ChatClientRequestSpec
-    private lateinit var mockStreamSpec: ChatClient.StreamResponseSpec
     private val capturedPrompt = slot<Prompt>()
 
     @BeforeEach
     fun setUp() {
-        mockChatClient = mockk(relaxed = true)
+        chatModel = mockk()
         chatOptions = ToolCallingChatOptions.builder().build()
-        mockRequestSpec = mockk(relaxed = true)
-        mockStreamSpec = mockk(relaxed = true)
         capturedPrompt.clear()
-
-        // Spring AI 2.0: production bakes toolCallbacks into the ToolCallingChatOptions
-        // AND also passes them via .toolCallbacks() on the request spec — the spec call
-        // survives Spring AI's options merge that would otherwise reset the toolCallbacks
-        // list to the chat model's empty default.
-        every { mockChatClient.prompt(capture(capturedPrompt)) } returns mockRequestSpec
-        every { mockRequestSpec.toolCallbacks(any<List<ToolCallback>>()) } returns mockRequestSpec
-        every { mockRequestSpec.stream() } returns mockStreamSpec
     }
 
     @Test
-    fun `stream calls ChatClient with correct chain`() {
-        // Given
-        val streamer = SpringAiLlmMessageStreamer(mockChatClient, chatOptions)
-        val messages = listOf(UserMessage("Hello"))
-        val tools = emptyList<Tool>()
-        every { mockStreamSpec.content() } returns Flux.just("response")
-
-        // When
-        streamer.stream(messages, tools, emptyList())
-
-        // Then
-        verify { mockChatClient.prompt(any<Prompt>()) }
-        verify { mockRequestSpec.toolCallbacks(any<List<ToolCallback>>()) }
-        verify { mockRequestSpec.stream() }
-        // Spring AI 2.0: prompt.options is the rebuilt ToolCallingChatOptions.
-        assertTrue(capturedPrompt.captured.options is ToolCallingChatOptions)
-    }
-
-    @Test
-    fun `stream returns content from ChatClient`() {
-        // Given
-        val streamer = SpringAiLlmMessageStreamer(mockChatClient, chatOptions)
-        val messages = listOf(UserMessage("Hello"))
-        val expectedContent = Flux.just("chunk1", "chunk2", "chunk3")
-        every { mockStreamSpec.content() } returns expectedContent
-
-        // When
-        val result = streamer.stream(messages, emptyList(), emptyList())
-
-        // Then
-        StepVerifier.create(result)
-            .expectNext("chunk1")
-            .expectNext("chunk2")
-            .expectNext("chunk3")
-            .verifyComplete()
-    }
-
-    @Test
-    fun `stream handles empty message list`() {
-        // Given
-        val streamer = SpringAiLlmMessageStreamer(mockChatClient, chatOptions)
-        every { mockStreamSpec.content() } returns Flux.just("response")
-
-        // When
-        val result = streamer.stream(emptyList(), emptyList(), emptyList())
-
-        // Then
-        StepVerifier.create(result)
-            .expectNext("response")
-            .verifyComplete()
-    }
-
-    @Test
-    fun `stream handles multiple message types`() {
-        // Given
-        val streamer = SpringAiLlmMessageStreamer(mockChatClient, chatOptions)
-        val messages = listOf(
-            SystemMessage("You are helpful"),
-            UserMessage("Hello"),
-            AssistantMessage("Hi there"),
-            UserMessage("How are you?")
+    fun `streams content and emits assembled completion`() {
+        every { chatModel.stream(capture(capturedPrompt)) } returns Flux.just(
+            ChatResponse(listOf(Generation(AssistantMessage("hello"))))
         )
-        every { mockStreamSpec.content() } returns Flux.just("response")
+        val streamer = SpringAiLlmMessageStreamer(chatModel, chatOptions)
 
-        // When
-        val result = streamer.stream(messages, emptyList(), emptyList())
-
-        // Then - should complete without error
-        StepVerifier.create(result)
-            .expectNext("response")
-            .verifyComplete()
-
-        // Verify prompt was built with all messages
-        verify { mockChatClient.prompt(any<Prompt>()) }
-    }
-
-    @Test
-    fun `stream handles empty flux response`() {
-        // Given
-        val streamer = SpringAiLlmMessageStreamer(mockChatClient, chatOptions)
-        every { mockStreamSpec.content() } returns Flux.empty()
-
-        // When
-        val result = streamer.stream(listOf(UserMessage("test")), emptyList(), emptyList())
-
-        // Then
-        StepVerifier.create(result)
-            .verifyComplete()
-    }
-
-    @Test
-    fun `stream propagates errors from ChatClient`() {
-        // Given
-        val streamer = SpringAiLlmMessageStreamer(mockChatClient, chatOptions)
-        val expectedError = RuntimeException("LLM error")
-        every { mockStreamSpec.content() } returns Flux.error(expectedError)
-
-        // When
-        val result = streamer.stream(listOf(UserMessage("test")), emptyList(), emptyList())
-
-        // Then
-        StepVerifier.create(result)
-            .expectError(RuntimeException::class.java)
-            .verify(Duration.ofSeconds(1))
-    }
-
-    @Nested
-    inner class InspectorIntegrationTests {
-
-        @Test
-        fun `stream wraps tools with inspectors when provided`() {
-            // Given
-            val streamer = SpringAiLlmMessageStreamer(mockChatClient, chatOptions)
-            val tools = listOf(
-                Tool.of("tool1", "First tool") { _ -> Tool.Result.text("result1") }
-            )
-            val inspector = object : ToolCallInspector {
-                override fun beforeToolCall(context: BeforeToolCallContext) {}
-                override fun afterToolCall(context: AfterToolCallContext) {}
+        StepVerifier.create(streamer.streamInference(listOf(UserMessage("Hi")), emptyList()))
+            .expectNext(LlmInferenceStreamEvent.Content("hello"))
+            .assertNext { event ->
+                val completion = assertInstanceOf(LlmInferenceStreamEvent.Complete::class.java, event)
+                assertEquals("hello", completion.message.content)
             }
-            every { mockStreamSpec.content() } returns Flux.just("response")
+            .verifyComplete()
+    }
 
-            // When
-            streamer.stream(listOf(UserMessage("test")), tools, listOf(inspector))
+    @Test
+    fun `preserves the original raw content streaming signature`() {
+        every { chatModel.stream(capture(capturedPrompt)) } returns Flux.just(
+            ChatResponse(listOf(Generation(AssistantMessage("hello"))))
+        )
+        val streamer = SpringAiLlmMessageStreamer(chatModel, chatOptions)
 
-            // Then - verify callbacks were baked into the Prompt's ToolCallingChatOptions
-            val capturedOptions = capturedPrompt.captured.options as ToolCallingChatOptions
-            assertTrue(capturedOptions.toolCallbacks.isNotEmpty(), "Callbacks should not be empty")
-        }
+        StepVerifier.create(streamer.stream(listOf(UserMessage("Hi")), emptyList(), emptyList()))
+            .expectNext("hello")
+            .verifyComplete()
+    }
 
-        @Test
-        fun `stream with multiple inspectors wraps tools correctly`() {
-            // Given
-            val streamer = SpringAiLlmMessageStreamer(mockChatClient, chatOptions)
-            val tools = listOf(
-                Tool.of("tool1", "First tool") { _ -> Tool.Result.text("result1") }
-            )
-            val inspector1 = object : ToolCallInspector {}
-            val inspector2 = object : ToolCallInspector {}
-            every { mockStreamSpec.content() } returns Flux.just("response")
+    @Test
+    fun `assembles tool calls without executing them`() {
+        val call = AssistantMessage.ToolCall("call-1", "function", "lookup", "{\"id\":42}")
+        val output = AssistantMessage.builder().content("").toolCalls(listOf(call)).build()
+        every { chatModel.stream(capture(capturedPrompt)) } returns Flux.just(
+            ChatResponse(listOf(Generation(output)))
+        )
+        val tool = Tool.of("lookup", "Lookup an item") { Tool.Result.text("should not execute") }
+        val streamer = SpringAiLlmMessageStreamer(chatModel, chatOptions)
 
-            // When
-            streamer.stream(listOf(UserMessage("test")), tools, listOf(inspector1, inspector2))
+        StepVerifier.create(streamer.streamInference(listOf(UserMessage("Lookup 42")), listOf(tool)))
+            .assertNext { event ->
+                val completion = assertInstanceOf(LlmInferenceStreamEvent.Complete::class.java, event)
+                val message = assertInstanceOf(AssistantMessageWithToolCalls::class.java, completion.message)
+                assertEquals("lookup", message.toolCalls.single().name)
+                assertEquals("{\"id\":42}", message.toolCalls.single().arguments)
+            }
+            .verifyComplete()
 
-            // Then
-            val capturedOptions = capturedPrompt.captured.options as ToolCallingChatOptions
-            assertTrue(capturedOptions.toolCallbacks.isNotEmpty(), "Callbacks should not be empty")
-        }
+        val options = capturedPrompt.captured.options as ToolCallingChatOptions
+        assertEquals(listOf("lookup"), options.toolCallbacks.map { it.toolDefinition.name() })
+    }
 
-        @Test
-        fun `stream with empty inspectors list does not wrap tools`() {
-            // Given
-            val streamer = SpringAiLlmMessageStreamer(mockChatClient, chatOptions)
-            val tools = listOf(
-                Tool.of("tool1", "First tool") { _ -> Tool.Result.text("result1") }
-            )
-            every { mockStreamSpec.content() } returns Flux.just("response")
+    @Test
+    fun `propagates model streaming errors`() {
+        every { chatModel.stream(any<Prompt>()) } returns Flux.error<ChatResponse>(IllegalStateException("failure"))
+        val streamer = SpringAiLlmMessageStreamer(chatModel, chatOptions)
 
-            // When
-            streamer.stream(listOf(UserMessage("test")), tools, emptyList())
-
-            // Then - callbacks still baked into options
-            val capturedOptions = capturedPrompt.captured.options as ToolCallingChatOptions
-            assertTrue(capturedOptions.toolCallbacks.isNotEmpty(), "Callbacks should not be empty")
-            verify { mockStreamSpec.content() }
-        }
+        StepVerifier.create(streamer.streamInference(listOf(UserMessage("Hi")), emptyList()))
+            .expectErrorMessage("failure")
+            .verify()
     }
 }

@@ -16,6 +16,7 @@
 package com.embabel.agent.rag.service.support
 
 import com.embabel.agent.rag.model.Chunk
+import com.embabel.agent.rag.model.ChunkStructure
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.RegexSearchOperations
 import com.embabel.agent.rag.service.TextSearch
@@ -286,11 +287,12 @@ class DirectoryTextSearch @JvmOverloads constructor(
         // Return whole file if chunking disabled or file is small
         if (config.chunkSize <= 0 || content.length <= config.chunkSize) {
             return listOf(
-                Chunk(
+                Chunk.create(
                     id = relativePath,
                     text = content,
                     parentId = directory,
-                    metadata = baseMetadata + ("chunk_index" to 0) + ("total_chunks" to 1),
+                    metadata = baseMetadata,
+                    structure = ChunkStructure(chunkIndex = 0, totalChunks = 1),
                 )
             )
         }
@@ -308,16 +310,15 @@ class DirectoryTextSearch @JvmOverloads constructor(
 
         // Create chunks from merged ranges
         return mergedRanges.mapIndexed { index, (start, end) ->
-            Chunk(
+            Chunk.create(
                 id = if (mergedRanges.size == 1) relativePath else "$relativePath#$index",
                 text = content.substring(start, end),
                 parentId = if (mergedRanges.size == 1) directory else relativePath,
                 metadata = baseMetadata + mapOf(
-                    "chunk_index" to index,
                     "chunk_start" to start,
                     "chunk_end" to end,
-                    "total_chunks" to mergedRanges.size,
                 ),
+                structure = ChunkStructure(chunkIndex = index, totalChunks = mergedRanges.size),
             )
         }
     }

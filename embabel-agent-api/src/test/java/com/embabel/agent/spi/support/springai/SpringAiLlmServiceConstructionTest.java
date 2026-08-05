@@ -79,7 +79,7 @@ public class SpringAiLlmServiceConstructionTest {
         assertTrue(llmWithCutoff.getPromptContributors().get(0) instanceof KnowledgeCutoffDate);
 
         // Modify using withOptionsConverter wither
-        OptionsConverter<?> customConverter = DefaultOptionsConverter.INSTANCE;
+        OptionsConverter customConverter = DefaultOptionsConverter.INSTANCE;
         var llmWithConverter = llmWithCutoff.withOptionsConverter(customConverter);
 
         // Verify the wither created a new instance

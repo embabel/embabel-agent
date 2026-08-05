@@ -79,9 +79,9 @@ class StreamingChatClientOperationsTest {
         every { mockChatClientLlmOperations.createChatClient(mockLlm) } returns mockChatClient
         every { mockInteraction.promptContributors } returns emptyList()
         every { mockLlm.promptContributors } returns emptyList()
-        val mockOptionsConverter = mockk<com.embabel.common.ai.model.OptionsConverter<*>>(relaxed = true)
+        val mockOptionsConverter = mockk<com.embabel.common.ai.model.OptionsConverter>(relaxed = true)
         every { mockLlm.optionsConverter } returns mockOptionsConverter
-        every { mockOptionsConverter.convertOptions(any()) } returns mockk(relaxed = true)
+        every { mockOptionsConverter.convertOptions(any(), any()) } returns mockk(relaxed = true)
         every { mockInteraction.llm } returns mockk(relaxed = true)
         every { mockInteraction.tools } returns emptyList()
         every { mockChatClientLlmOperations.objectMapper } returns jacksonObjectMapper()
@@ -473,7 +473,7 @@ class StreamingChatClientOperationsTest {
         val mockContentStreamSpec = mockk<ChatClient.StreamResponseSpec>(relaxed = true)
 
         every { mockChatClient.prompt(any<Prompt>()) } returns mockRequestSpec
-        every { mockRequestSpec.toolCallbacks(any<List<ToolCallback>>()) } returns mockRequestSpec
+        every { mockRequestSpec.tools(any<List<ToolCallback>>()) } returns mockRequestSpec
         every { mockRequestSpec.options(any()) } returns mockRequestSpec
         every { mockRequestSpec.stream() } returns mockContentStreamSpec
         every { mockContentStreamSpec.content() } returns chunkFlux

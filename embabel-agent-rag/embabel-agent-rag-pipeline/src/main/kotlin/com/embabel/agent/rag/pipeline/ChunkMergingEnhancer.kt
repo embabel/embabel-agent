@@ -17,8 +17,6 @@ package com.embabel.agent.rag.pipeline
 
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.Retrievable
-import com.embabel.agent.rag.ingestion.ContentChunker.Companion.ROOT_DOCUMENT_ID
-import com.embabel.agent.rag.ingestion.ContentChunker.Companion.SEQUENCE_NUMBER
 import com.embabel.agent.rag.service.*
 import com.embabel.common.core.types.SimilarityResult
 import org.slf4j.Logger
@@ -69,10 +67,14 @@ object ChunkMergingEnhancer : RagResponseEnhancer {
         first: SimilarityResult<out Retrievable>,
         second: SimilarityResult<out Retrievable>,
     ): Boolean {
-        val firstRootId = first.match.metadata[ROOT_DOCUMENT_ID] as? String ?: return false
-        val secondRootId = second.match.metadata[ROOT_DOCUMENT_ID] as? String ?: return false
-        val firstSeq = first.match.metadata[SEQUENCE_NUMBER] as? Int ?: return false
-        val secondSeq = second.match.metadata[SEQUENCE_NUMBER] as? Int ?: return false
+        // Only chunks can merge: mergeChunks casts to Chunk, so a metadata-only
+        // match here would fail there with a ClassCastException.
+        val firstStructure = (first.match as? Chunk)?.structure ?: return false
+        val secondStructure = (second.match as? Chunk)?.structure ?: return false
+        val firstRootId = firstStructure.rootDocumentId ?: return false
+        val secondRootId = secondStructure.rootDocumentId ?: return false
+        val firstSeq = firstStructure.sequenceNumber ?: return false
+        val secondSeq = secondStructure.sequenceNumber ?: return false
 
         return firstRootId == secondRootId && secondSeq == firstSeq + 1
     }
@@ -84,17 +86,17 @@ object ChunkMergingEnhancer : RagResponseEnhancer {
             return chunks[0]
         }
 
-        logger.info("Merging {} chunks from document {}", chunks.size, chunks[0].match.metadata["root_document_id"])
-
         val firstChunk = chunks[0].match as Chunk
+        logger.info("Merging {} chunks from document {}", chunks.size, firstChunk.structure.rootDocumentId)
         val mergedText = chunks.joinToString(" ") { (it.match as Chunk).text }
         val highestScore = chunks.maxOf { it.score }
 
-        val mergedChunk = Chunk(
+        val mergedChunk = Chunk.create(
             id = "${firstChunk.id}-merged",
             text = mergedText,
             metadata = firstChunk.metadata,
-            parentId = firstChunk.parentId
+            parentId = firstChunk.parentId,
+            structure = firstChunk.structure,
         )
 
         return object : SimilarityResult<Chunk> {

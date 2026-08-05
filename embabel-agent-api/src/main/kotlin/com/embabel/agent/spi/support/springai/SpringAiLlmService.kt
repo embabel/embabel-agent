@@ -24,7 +24,6 @@ import com.embabel.common.ai.model.*
 import com.embabel.common.ai.prompt.KnowledgeCutoffDate
 import com.embabel.common.ai.prompt.PromptContributor
 import tools.jackson.databind.annotation.JsonSerialize
-import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
@@ -108,7 +107,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
     override val provider: String,
     @get:JvmName("getChatModel")
     val chatModel: ChatModel,
-    val optionsConverter: OptionsConverter<*> = DefaultOptionsConverter,
+    val optionsConverter: OptionsConverter = DefaultOptionsConverter,
     override val knowledgeCutoffDate: LocalDate? = null,
     override val promptContributors: List<PromptContributor> =
         buildList { knowledgeCutoffDate?.let { add(KnowledgeCutoffDate(it)) } },
@@ -141,8 +140,11 @@ data class SpringAiLlmService @JvmOverloads constructor(
     }
 
     override fun createMessageStreamer(options: LlmOptions): LlmMessageStreamer {
-        val chatClient = ChatClient.create(chatModel)
-        return SpringAiLlmMessageStreamer(chatClient, convertOptions(options))
+        return SpringAiLlmMessageStreamer(
+            chatModel = chatModel,
+            chatOptions = convertOptions(options),
+            toolResponseContentAdapter = toolResponseContentAdapter,
+        )
     }
 
     override fun supportsStreaming(): Boolean = StreamingCapabilityVerifier.supportsStreaming(chatModel)
@@ -161,6 +163,6 @@ data class SpringAiLlmService @JvmOverloads constructor(
     /**
      * Returns a copy with a different options converter.
      */
-    fun withOptionsConverter(converter: OptionsConverter<*>): SpringAiLlmService =
+    fun withOptionsConverter(converter: OptionsConverter): SpringAiLlmService =
         copy(optionsConverter = converter)
 }

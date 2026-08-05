@@ -24,6 +24,8 @@ import com.embabel.agent.api.tool.callback.LogLevel;
 import com.embabel.agent.api.tool.callback.ToolCallLoggingInspector;
 import com.embabel.agent.autoconfigure.models.anthropic.AgentAnthropicAutoConfiguration;
 import com.embabel.agent.spi.LlmService;
+import com.embabel.common.ai.model.LlmOptions;
+import com.embabel.common.ai.model.Thinking;
 import com.embabel.common.core.streaming.StreamingEvent;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -50,8 +52,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest(
         properties = {
-                "embabel.models.cheapest=claude_-sonnet-4-5",
-                "embabel.models.best=claude_-sonnet-4-5",
+                "embabel.models.cheapest=claude-sonnet-4-5",
+                "embabel.models.best=claude-sonnet-4-5",
                 "embabel.models.default-llm=claude-sonnet-4-5",
                 "spring.main.allow-bean-definition-overriding=true",
 
@@ -171,9 +173,10 @@ class LLMAnthropicStreamingBuilderIT {
     void realStreamingAnthropicIntegrationWithReactiveCallbacks() {
         // Enable Reactor debugging
         reactor.util.Loggers.useVerboseConsoleLoggers();
+        LlmOptions thinkingOptions = new LlmOptions().withThinking(Thinking.withTokenBudget(8000));
 
         // Given: Use the existing streaming test LLM (configured as "best")
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+        PromptRunner runner = ai.withDefaultLlm().withLlm(thinkingOptions)
                 .withToolObject(new Tooling((short) 0))
                 .withToolCallInspectors(new ToolCallLoggingInspector(LogLevel.INFO, logger));
         assertTrue(runner.supportsStreaming(), "Test LLM should support streaming");

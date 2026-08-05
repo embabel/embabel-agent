@@ -1,0 +1,271 @@
+[[reference.dashscope]]
+=== DashScope Integration
+
+https://modelstudio.console.alibabacloud.com/[Alibaba Cloud DashScope] is Alibaba Cloud's AI model platform offering the Qwen family of high-performance LLMs via an OpenAI-compatible API.
+Embabel integrates DashScope as a first-class provider using the same `OpenAiCompatibleModelFactory` pattern as other OpenAI-compatible providers.
+
+Model definitions (ids, pricing, knowledge cutoff) are loaded from `classpath:models/dashscope-models.yml` and each is registered as an `LlmService` bean.
+
+==== Add the Dependency
+
+[tabs]
+====
+Maven::
++
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-dashscope</artifactId>
+</dependency>
+----
+
+Gradle (Kotlin)::
++
+[source,kotlin]
+----
+implementation("com.embabel.agent:embabel-agent-starter-dashscope")
+----
+
+Gradle (Groovy)::
++
+[source,groovy]
+----
+implementation 'com.embabel.agent:embabel-agent-starter-dashscope'
+----
+====
+
+==== API Key Configuration
+
+Set your DashScope API key via environment variable (recommended) or Spring property:
+
+[source,bash]
+----
+export DASHSCOPE_API_KEY=your-api-key
+----
+
+Or in `application.yml`:
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        dashscope:
+          api-key: your-api-key
+----
+
+TIP: The environment variable `DASHSCOPE_API_KEY` takes precedence over the property value.
+Use the property for local development and the environment variable in production deployments.
+
+==== Available Models
+
+[cols="2,3,1,1",options="header"]
+|===
+|Model Name |Model ID |Input (per 1M tokens) |Output (per 1M tokens)
+
+|`Qwen3.7-Max`
+|`qwen3.7-max`
+|$2.50
+|$7.50
+
+|`Qwen3.7-Plus`
+|`qwen3.7-plus`
+|$0.40
+|$1.60
+
+|`Qwen3.7-Flash`
+|`qwen3.7-flash`
+|$0.03
+|$0.13
+
+|===
+
+`qwen3.7-max` is the flagship reasoning model — the best choice for demanding tasks requiring deep reasoning and complex problem-solving.
+`qwen3.7-plus` is a high-performance general-purpose model with strong capabilities at a moderate price point.
+`qwen3.7-flash` is the fastest and most cost-effective model — the *default model* — well-suited to high-volume extraction, classification, and intermediate steps in a multi-action agent flow.
+
+TIP: Embabel's per-step LLM selection makes DashScope models particularly well-suited to mixed strategies: use `qwen3.7-flash` for extraction and classification steps, and reserve `qwen3.7-max` (or a premium model from another provider) only for the final reasoning step.
+
+==== Using DashScope Models
+
+Reference models by name in `@LlmCall` or programmatically via `ai.withLlm()`:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+// Declarative
+@LlmCall(llm = "qwen3.7-max")
+fun summarize(article: Article): Summary
+
+// Programmatic
+ai.withLlm("qwen3.7-flash")
+    .create<Classification>("Classify this input")
+----
+
+Java::
++
+[source,java]
+----
+// Declarative
+@LlmCall(llm = "qwen3.7-max")
+Summary summarize(Article article);
+
+// Programmatic
+ai.withLlm("qwen3.7-flash")
+    .create("Classify this input", Classification.class);
+----
+====
+
+Or use the constants defined in `DashScopeModels`:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+import com.embabel.agent.api.models.DashScopeModels
+
+@LlmCall(llm = DashScopeModels.QWEN3_7_MAX)
+fun reason(complex: ComplexProblem): Solution
+----
+
+Java::
++
+[source,java]
+----
+import com.embabel.agent.api.models.DashScopeModels;
+
+@LlmCall(llm = DashScopeModels.QWEN3_7_MAX)
+Solution reason(ComplexProblem complex);
+----
+====
+
+Or map DashScope models to roles in your configuration:
+
+[source,yaml]
+----
+embabel:
+  models:
+    llms:
+      cheapest: qwen3.7-flash
+      best: qwen3.7-max
+----
+
+Then reference by role with the `#` prefix:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+@LlmCall(llm = "#cheapest")
+fun extractEntities(text: String): EntityList
+----
+
+Java::
++
+[source,java]
+----
+@LlmCall(llm = "#cheapest")
+EntityList extractEntities(String text);
+----
+====
+
+==== Parameter Clamping
+
+DashScope models have specific parameter ranges:
+
+* **temperature**: range `[0.0, 2.0)` — a value of exactly `0.0` *is* permitted.
+* **top_p**: range `(0.0, 1.0]` — a value of exactly `0.0` is *not* permitted.
+
+Embabel's `DashScopeOptionsConverter` clamps these values automatically:
+
+**temperature:**
+
+* Values `< 0.0` are raised to `0.0`
+* Values `>= 2.0` are lowered to `1.99`
+
+**top_p:**
+
+* Values `\<= 0.0` are raised to `0.01`
+* Values `> 1.0` are lowered to `1.0`
+
+A `DEBUG` log message is emitted whenever clamping occurs.
+No action is required on your part — this is handled transparently.
+
+==== Regional Endpoints
+
+DashScope provides different OpenAI-compatible API endpoints based on region:
+
+[cols="2,5",options="header"]
+|===
+|Region |Base URL
+
+|China (Beijing) *(default)*
+|`https://dashscope.aliyuncs.com/compatible-mode/v1`
+
+|Singapore
+|`https://dashscope-intl.aliyuncs.com/compatible-mode/v1`
+
+|US (Virginia)
+|`https://dashscope-us.aliyuncs.com/compatible-mode/v1`
+
+|China (Hong Kong)
+|`https://cn-hongkong.dashscope.aliyuncs.com/compatible-mode/v1`
+|===
+
+To use a different region, configure the `base-url` property or set the `DASHSCOPE_BASE_URL` environment variable:
+
+[tabs]
+====
+Environment Variable::
++
+[source,bash]
+----
+# Example: Singapore region
+export DASHSCOPE_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+----
+
+application.yml::
++
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        dashscope:
+          api-key: your-api-key
+          base-url: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+----
+====
+
+==== Configuration Reference
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        dashscope:
+          api-key: your-api-key                                        # Alternative to DASHSCOPE_API_KEY env var
+          base-url: https://dashscope.aliyuncs.com/compatible-mode/v1  # Default; see Regional Endpoints above
+          max-attempts: 4                                              # Retry attempts (default: 4)
+          backoff-millis: 1500                                         # Initial backoff ms (default: 1500)
+          backoff-multiplier: 2.0                                      # Backoff multiplier (default: 2.0)
+          backoff-max-interval: 60000                                  # Max backoff ms (default: 60000)
+----
+
+==== See Also
+
+* <<reference.llms,Working with LLMs>>
+* <<reference.configuration,Configuration Reference>>
+* https://modelstudio.console.alibabacloud.com[DashScope Model Studio]

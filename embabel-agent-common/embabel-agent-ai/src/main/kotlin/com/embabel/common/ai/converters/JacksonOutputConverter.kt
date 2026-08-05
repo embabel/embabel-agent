@@ -152,9 +152,9 @@ open class JacksonOutputConverter<T : Any> protected constructor(
             return lenientMapper.readValue<Any?>(unwrapped, lenientMapper.constructType(this.type)) as T
         } catch (e: JacksonException) {
             // Some LLMs escape the very quotes that delimit a string value (e.g. `"key": \"value\"`),
-            // which Jackson cannot parse. Retry once with those delimiter quotes repaired. Applied only
-            // as a fallback so valid JSON containing legitimately escaped quotes (e.g. `["\"A\""]`) is
-            // never altered.
+            // which Jackson cannot parse. Retry once with those delimiter quotes repaired. The repair
+            // rewrites `\"` only at string delimiter positions, so valid JSON containing legitimately
+            // escaped quotes (e.g. `["\"A\""]`) is never altered, even on this fallback path.
             val repaired = fixMalformedEscapedQuotes(unwrapped)
             if (repaired != unwrapped) {
                 try {
@@ -185,25 +185,6 @@ open class JacksonOutputConverter<T : Any> protected constructor(
         }
 
         return result
-    }
-
-    /**
-     * Fix malformed JSON where the LLM has incorrectly escaped quote characters
-     * that should be JSON string delimiters.
-     *
-     * This fixes cases like: `"span": \"Glazunov's violin concerto\",`
-     * where the LLM escapes the quotes that delimit the string value itself.
-     *
-     * Note: Jackson's lenient features can't handle this because the backslash
-     * before the opening quote makes it syntactically invalid in a way no parser
-     * can interpret correctly.
-     */
-    private fun fixMalformedEscapedQuotes(json: String): String {
-        return json
-            .replace(Regex(""":\s*\\""""), ": \"")   // Fix `: \"` -> `: "`
-            .replace(Regex("""\\","""), "\",")       // Fix `\",` -> `",`
-            .replace(Regex("""\\"(\s*})"""), "\"$1") // Fix `\" }` -> `" }`
-            .replace(Regex("""\\"(\s*])"""), "\"$1") // Fix `\" ]` -> `" ]`
     }
 
     override fun getJsonSchema(): String = jsonSchemaValue

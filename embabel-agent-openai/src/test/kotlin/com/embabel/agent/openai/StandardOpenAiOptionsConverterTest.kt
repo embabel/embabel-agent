@@ -32,7 +32,7 @@ class StandardOpenAiOptionsConverterTest {
             .withFrequencyPenalty(0.3)
 
         // Act
-        val result = StandardOpenAiOptionsConverter.convertOptions(llmOptions)
+        val result = StandardOpenAiOptionsConverter.convertOptions(llmOptions, "test-model")
 
         // Assert
         assertEquals(0.7, result.temperature)
@@ -48,7 +48,7 @@ class StandardOpenAiOptionsConverterTest {
         val llmOptions = LlmOptions()
 
         // Act
-        val result = StandardOpenAiOptionsConverter.convertOptions(llmOptions)
+        val result = StandardOpenAiOptionsConverter.convertOptions(llmOptions, "test-model")
 
         // Assert
         assertNull(result.temperature)
@@ -60,7 +60,7 @@ class StandardOpenAiOptionsConverterTest {
         val llmOptions = LlmOptions()
 
         // Act
-        val result = StandardOpenAiOptionsConverter.convertOptions(llmOptions)
+        val result = StandardOpenAiOptionsConverter.convertOptions(llmOptions, "test-model")
 
         // Assert
         assertNull(result.topP)
@@ -72,7 +72,7 @@ class StandardOpenAiOptionsConverterTest {
         val llmOptions = LlmOptions()
 
         // Act
-        val result = StandardOpenAiOptionsConverter.convertOptions(llmOptions)
+        val result = StandardOpenAiOptionsConverter.convertOptions(llmOptions, "test-model")
 
         // Assert
         assertNull(result.maxTokens)
@@ -84,7 +84,7 @@ class StandardOpenAiOptionsConverterTest {
         val llmOptions = LlmOptions()
 
         // Act
-        val result = StandardOpenAiOptionsConverter.convertOptions(llmOptions)
+        val result = StandardOpenAiOptionsConverter.convertOptions(llmOptions, "test-model")
 
         // Assert
         assertNull(result.presencePenalty)
@@ -97,7 +97,7 @@ class StandardOpenAiOptionsConverterTest {
         val llmOptions = LlmOptions().withTemperature(0.5)
 
         // Act
-        val result = StandardOpenAiOptionsConverter.convertOptions(llmOptions)
+        val result = StandardOpenAiOptionsConverter.convertOptions(llmOptions, "test-model")
 
         // Assert
         assertEquals(0.5, result.temperature)
@@ -109,7 +109,7 @@ class StandardOpenAiOptionsConverterTest {
         val llmOptions = LlmOptions().withTemperature(2.0)
 
         // Act
-        val result = StandardOpenAiOptionsConverter.convertOptions(llmOptions)
+        val result = StandardOpenAiOptionsConverter.convertOptions(llmOptions, "test-model")
 
         // Assert
         assertEquals(2.0, result.temperature)
@@ -121,7 +121,7 @@ class StandardOpenAiOptionsConverterTest {
         val llmOptions = LlmOptions().withTemperature(0.0)
 
         // Act
-        val result = StandardOpenAiOptionsConverter.convertOptions(llmOptions)
+        val result = StandardOpenAiOptionsConverter.convertOptions(llmOptions, "test-model")
 
         // Assert
         assertEquals(0.0, result.temperature)

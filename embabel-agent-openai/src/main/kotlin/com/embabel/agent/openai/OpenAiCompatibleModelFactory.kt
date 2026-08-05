@@ -37,6 +37,7 @@ import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.document.MetadataMode
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.ai.openai.OpenAiChatModel
+import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.ai.openai.OpenAiEmbeddingModel
 import org.springframework.ai.openai.OpenAiEmbeddingOptions
@@ -258,7 +259,7 @@ open class OpenAiCompatibleModelFactory(
         pricingModel: PricingModel,
         provider: String,
         knowledgeCutoffDate: LocalDate?,
-        optionsConverter: OptionsConverter<*> = OpenAiChatOptionsConverter,
+        optionsConverter: OptionsConverter = OpenAiChatOptionsConverter,
         @Suppress("UNUSED_PARAMETER")
         retryTemplate: RetryTemplate? = null,
     ): LlmService<*> {
@@ -312,14 +313,14 @@ open class OpenAiCompatibleModelFactory(
         configuredDimensions: Int? = null,
         pricingModel: PricingModel? = null,
     ): EmbeddingService {
-        val embeddingModel = OpenAiEmbeddingModel(
-            openAiClient,
-            MetadataMode.EMBED,
-            OpenAiEmbeddingOptions.builder()
+        val embeddingModel = OpenAiEmbeddingModel.builder()
+            .openAiClient(openAiClient)
+            .metadataMode(MetadataMode.EMBED)
+            .options(OpenAiEmbeddingOptions.builder()
                 .model(model)
-                .build(),
-            observationRegistry,
-        )
+                .build())
+            .observationRegistry(observationRegistry)
+            .build()
         return SpringAiEmbeddingService(
             name = model,
             model = embeddingModel,
@@ -368,16 +369,16 @@ open class OpenAiCompatibleModelFactory(
 /**
  * Save default. Some models may not support all options.
  */
-object OpenAiChatOptionsConverter : OptionsConverter<OpenAiChatOptions> {
+object OpenAiChatOptionsConverter : OptionsConverter {
 
-    override fun convertOptions(options: LlmOptions): OpenAiChatOptions =
+    override fun convertOptions(options: LlmOptions, model: String): ChatOptions =
         OpenAiChatOptions.builder()
+            .model(model)
             .temperature(options.temperature)
             .topP(options.topP)
             .maxTokens(options.maxTokens)
             .presencePenalty(options.presencePenalty)
             .frequencyPenalty(options.frequencyPenalty)
-            .topP(options.topP)
             //.streamUsage(true)  additional feature note
             .build()
 }

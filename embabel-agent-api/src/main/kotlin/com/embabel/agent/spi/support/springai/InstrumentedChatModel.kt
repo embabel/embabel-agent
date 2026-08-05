@@ -82,7 +82,7 @@ internal class InstrumentedChatModel(
     // it does NOT delegate Java default methods to the delegate instance.
     // Instead it calls the interface's own default implementation, which
     // would silently break:
-    //   - getDefaultOptions() would return a bare ChatOptions instead of
+    //   - getOptions() would return a bare ChatOptions instead of
     //     the delegate's model-specific options (e.g. OpenAiChatOptions)
     //   - stream(Prompt) would throw UnsupportedOperationException
     //     instead of using the delegate's streaming implementation
@@ -92,7 +92,7 @@ internal class InstrumentedChatModel(
     // decision about whether to delegate or instrument.
     // -------------------------------------------------------------------
 
-    override fun getDefaultOptions(): ChatOptions = delegate.defaultOptions
+    override fun getOptions(): ChatOptions = delegate.options
 
     override fun stream(prompt: Prompt): Flux<ChatResponse> = delegate.stream(prompt)
 }

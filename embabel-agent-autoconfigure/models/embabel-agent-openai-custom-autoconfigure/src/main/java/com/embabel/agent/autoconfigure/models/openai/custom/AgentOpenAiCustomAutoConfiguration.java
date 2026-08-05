@@ -25,7 +25,7 @@ import org.springframework.context.annotation.Import;
  * <p>
  * This class serves as a Spring Boot autoconfiguration entry point that:
  * - Scans for configuration properties in the "com.embabel.agent" package
- * - Imports the {@link OpenAiCompatibleModelsConfig} configuration to register OpenAI model beans
+ * - Imports the {@link OpenAiCustomModelsConfig} configuration to register OpenAI model beans
  * <p>
  * The configuration is automatically activated when the OpenAI models
  * dependencies are present on the classpath.

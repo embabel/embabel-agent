@@ -238,8 +238,8 @@ class SpringAiLlmServiceTest {
                 provider = "Provider",
                 chatModel = mockChatModel,
             )
-            val customConverter = object : OptionsConverter<ChatOptions> {
-                override fun convertOptions(options: LlmOptions): ChatOptions = mockk()
+            val customConverter = object : OptionsConverter {
+                override fun convertOptions(options: LlmOptions, model: String): ChatOptions = mockk()
             }
 
             val updated = original.withOptionsConverter(customConverter)
@@ -309,10 +309,10 @@ class SpringAiLlmServiceTest {
         @Test
         fun `createMessageSender uses optionsConverter`() {
             var converterCalled = false
-            val customConverter = object : OptionsConverter<ChatOptions> {
-                override fun convertOptions(options: LlmOptions): ChatOptions {
+            val customConverter = object : OptionsConverter {
+                override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
                     converterCalled = true
-                    return ToolCallingChatOptions.builder().build()
+                    return ToolCallingChatOptions.builder().model(model).build()
                 }
             }
             val service = SpringAiLlmService(
@@ -331,7 +331,7 @@ class SpringAiLlmServiceTest {
     @Nested
     inner class CreateMessageStreamerTests {
 
-        // Relaxed mock needed because ChatClient.create() calls chatModel.getDefaultOptions()
+        // Relaxed mock needed because ChatClient.create() calls chatModel.getOptions()
         private val relaxedChatModel: ChatModel = mockk(relaxed = true)
 
         @Test
@@ -351,10 +351,10 @@ class SpringAiLlmServiceTest {
         @Test
         fun `createMessageStreamer uses optionsConverter`() {
             var converterCalled = false
-            val customConverter = object : OptionsConverter<ChatOptions> {
-                override fun convertOptions(options: LlmOptions): ChatOptions {
+            val customConverter = object : OptionsConverter {
+                override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
                     converterCalled = true
-                    return ToolCallingChatOptions.builder().build()
+                    return ToolCallingChatOptions.builder().model(model).build()
                 }
             }
             val service = SpringAiLlmService(
@@ -437,8 +437,8 @@ class SpringAiLlmServiceTest {
             val contributor = object : PromptContributor {
                 override fun contribution() = "Contribution"
             }
-            val customConverter = object : OptionsConverter<ChatOptions> {
-                override fun convertOptions(options: LlmOptions): ChatOptions = mockk()
+            val customConverter = object : OptionsConverter {
+                override fun convertOptions(options: LlmOptions, model: String): ChatOptions = mockk()
             }
 
             val service = SpringAiLlmService(

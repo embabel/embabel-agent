@@ -133,7 +133,7 @@ data class ToolishRag @JvmOverloads constructor(
         val tools = buildList {
             // If the search operations already implement SearchTools, use them directly
             if (searchOperations is SearchTools) {
-                logger.info("Adding existing SearchTools to ToolishRag '{}'", name)
+                logger.debug("Adding existing SearchTools to ToolishRag '{}'", name)
                 add(searchOperations)
             }
             // This can confuse guide. Let's skip it for now.
