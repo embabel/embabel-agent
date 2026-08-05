@@ -26,6 +26,8 @@ import org.springframework.retry.RetryCallback
 import org.springframework.retry.RetryContext
 import org.springframework.retry.RetryListener
 import org.springframework.retry.support.RetryTemplate
+import tools.jackson.databind.DatabindException
+import tools.jackson.databind.exc.MismatchedInputException
 import java.time.Duration
 
 /**
@@ -65,6 +67,13 @@ class LlmDataBindingProperties(
                     if (throwable is ToolControlFlowSignal) {
                         throw throwable
                     }
+                    // DatabindException in the cause chain = Jackson config/binding error — not transient.
+                    // MismatchedInputException (LLM omitted a required field) is excluded: it IS retryable.
+                    var cause: Throwable? = throwable
+                    while (cause != null) {
+                        if (cause is DatabindException && cause !is MismatchedInputException) throw throwable
+                        cause = cause.cause
+                    }
                     if (isRateLimitError(throwable)) {
                         logger.info(
                             "LLM invocation {} RATE LIMITED: Retry attempt {} of {}.{}",
@@ -88,11 +97,13 @@ class LlmDataBindingProperties(
                     throwable: Throwable?,
                 ) {
                     throwable?.let {
-                        logger.warn(
-                            "Maximum attempts of {} have reached. The maximum attempt can be configured using property {}.max-attempts",
-                            maxAttempts,
-                            propertyPrefix
-                        )
+                        if (context.retryCount >= maxAttempts) {
+                            logger.warn(
+                                "Maximum attempts of {} have reached. The maximum attempt can be configured using property {}.max-attempts",
+                                maxAttempts,
+                                propertyPrefix
+                            )
+                        }
                     }
                 }
             })

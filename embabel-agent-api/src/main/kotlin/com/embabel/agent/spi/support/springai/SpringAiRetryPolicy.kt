@@ -26,6 +26,8 @@ import org.springframework.ai.retry.TransientAiException
 import org.springframework.retry.RetryContext
 import org.springframework.retry.RetryPolicy
 import org.springframework.retry.context.RetryContextSupport
+import tools.jackson.databind.DatabindException
+import tools.jackson.databind.exc.MismatchedInputException
 
 /**
  * Retry policy for Spring AI operations.
@@ -67,6 +69,11 @@ internal class SpringAiRetryPolicy(
             }
             if (current is Retryable) {
                 return true
+            }
+            // DatabindException = Jackson config/binding error — not transient.
+            // MismatchedInputException (LLM omitted a required field) is excluded: it IS retryable.
+            if (current is DatabindException && current !is MismatchedInputException) {
+                return false
             }
             current = current.cause
         }

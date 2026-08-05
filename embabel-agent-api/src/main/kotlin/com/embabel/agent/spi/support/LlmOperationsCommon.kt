@@ -23,6 +23,7 @@ import tools.jackson.databind.DeserializationContext
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ValueDeserializer
 import tools.jackson.databind.annotation.JsonDeserialize
+import tools.jackson.databind.DatabindException
 import tools.jackson.databind.deser.std.StdDeserializer
 import tools.jackson.databind.exc.MismatchedInputException
 import tools.jackson.databind.node.NullNode
@@ -192,6 +193,7 @@ internal class MaybeReturnDeserializer<T> private constructor(
                         ERROR_INVALID_FORMAT
                     }
                 }
+                is DatabindException -> throw e  // Jackson config/binding error — not transient
                 else -> "$ERROR_INVALID_SUCCESS${e.message}"
             }
             MaybeReturn.failure(errorMessage)
