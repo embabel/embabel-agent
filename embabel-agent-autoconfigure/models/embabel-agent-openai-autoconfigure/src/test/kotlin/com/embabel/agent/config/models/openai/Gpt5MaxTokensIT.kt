@@ -69,14 +69,27 @@ class Gpt5MaxTokensIT(
 
     @Test
     fun `a GPT-5 model accepts a token limit over Chat Completions`() {
-        assertTrue(replyWithLimit(OpenAiModels.GPT_54).isNotBlank())
+        val response = replyWithLimit(OpenAiModels.GPT_54)
+
+        assertTrue(response.contains("READY", ignoreCase = true), "Got: $response")
     }
 
     @Test
     fun `a GPT-5 model accepts a token limit over the Responses API`() {
-        assertTrue(replyWithLimit(OpenAiModels.GPT_5_PRO).isNotBlank())
+        val response = replyWithLimit(OpenAiModels.GPT_5_PRO)
+
+        assertTrue(response.contains("READY", ignoreCase = true), "Got: $response")
     }
 
     private fun replyWithLimit(model: String): String =
-        sayReady(ai, model, LlmOptions.withModel(model).withMaxTokens(2048))
+        sayReady(ai, model, LlmOptions.withModel(model).withMaxTokens(TOKEN_LIMIT))
+
+    private companion object {
+        /**
+         * Generous on purpose: `max_output_tokens` is spent on reasoning too, so a budget sized for
+         * the answer alone comes back truncated — an empty text that reads as a dropped parameter
+         * rather than as the limit doing its job.
+         */
+        const val TOKEN_LIMIT = 8192
+    }
 }

@@ -103,7 +103,11 @@ class OpenAiResponsesAdapterIT(
     /**
      * Native structured output reaches the adapter as a Chat Completions `response_format` and is
      * rewritten under `text.format`, with a name derived on the way. A schema OpenAI refuses fails
-     * the whole call; one it accepts but the adapter mangled comes back unbindable.
+     * the whole call, so this proves the endpoint accepts what the adapter builds.
+     *
+     * It cannot prove *which* path produced the object. Embabel also injects the schema into the
+     * prompt, so a broken native path would still bind here. The rewrite itself is pinned in
+     * `OpenAiResponsesChatModelTest`, and the catalog's declaration of it in `OpenAiModelLoaderTest`.
      */
     @Test
     fun `structured output binds over the Responses transport`() {

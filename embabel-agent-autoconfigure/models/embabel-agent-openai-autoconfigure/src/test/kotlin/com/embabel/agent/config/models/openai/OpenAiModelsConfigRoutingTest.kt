@@ -22,9 +22,9 @@ import com.embabel.common.ai.model.LlmOptionsProperties
 import com.embabel.common.util.ObjectProviders
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.slot
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.openai.OpenAiChatModel
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -87,22 +87,45 @@ class OpenAiModelsConfigRoutingTest {
         assertEquals(setOf("proModel", "chatModel"), registeredLlms().keys)
     }
 
-    /** Runs the real bean-registration path and returns what it registered. */
-    private fun registeredLlms(): Map<String, SpringAiLlmService> {
-        val names = mutableListOf<String>()
-        val beans = mutableListOf<Any>()
-        val beanFactory = mockk<ConfigurableBeanFactory>()
-        val name = slot<String>()
-        val bean = slot<Any>()
-        every { beanFactory.registerSingleton(capture(name), capture(bean)) } answers {
-            names += name.captured
-            beans += bean.captured
+    /**
+     * The same registration path, driven by the catalog that actually ships rather than the
+     * synthetic one above. That one proves the switch works; this proves the shipped entries reach
+     * it. Neither needs a Spring context or the network, so both run on every build.
+     */
+    @Nested
+    inner class ShippedCatalog {
+
+        private val shipped = registeredLlms(OpenAiModelLoader())
+
+        /**
+         * Every entry, rather than a list of the names that happened to be new: the invariant is
+         * that the catalog and the registry cannot drift, and it holds for models not yet written.
+         */
+        @Test
+        fun `every catalog entry becomes a bean`() {
+            val declared = OpenAiModelLoader().loadAutoConfigMetadata().effectiveModels().map { it.name }
+
+            assertEquals(declared.toSet(), shipped.keys)
         }
 
-        val resource = ByteArrayResource(catalog.toByteArray())
-        val resourceLoader = object : ResourceLoader {
-            override fun getResource(location: String) = resource
-            override fun getClassLoader(): ClassLoader = javaClass.classLoader
+        @Test
+        fun `the pro tier is wired onto the Responses adapter`() {
+            assertInstanceOf(
+                OpenAiResponsesChatModel::class.java,
+                shipped.values.single { it.name == "gpt-5.5-pro" }.chatModel,
+                "gpt-5.5-pro left on the Chat Completions client fails on every call",
+            )
+        }
+    }
+
+    /** Runs the real bean-registration path and returns the LLM services it registered. */
+    private fun registeredLlms(
+        modelLoader: OpenAiModelLoader = inMemoryLoader(catalog),
+    ): Map<String, SpringAiLlmService> {
+        val registered = mutableMapOf<String, Any>()
+        val beanFactory = mockk<ConfigurableBeanFactory>()
+        every { beanFactory.registerSingleton(any(), any()) } answers {
+            registered[firstArg()] = secondArg()
         }
 
         OpenAiModelsConfig(
@@ -115,11 +138,22 @@ class OpenAiModelsConfigRoutingTest {
             properties = OpenAiProperties(),
             llmOptionsProperties = LlmOptionsProperties(),
             configurableBeanFactory = beanFactory,
-            modelLoader = OpenAiModelLoader(resourceLoader, "memory:routing-test.yml"),
+            modelLoader = modelLoader,
             webClientBuilder = ObjectProviders.empty(),
         ).openAiModelsInitializer()
 
-        return names.zip(beans).toMap()
-            .mapValues { (_, service) -> service as SpringAiLlmService }
+        // The shipped catalog also registers embedding services, which are not LLMs.
+        return registered
+            .mapNotNull { (name, bean) -> (bean as? SpringAiLlmService)?.let { name to it } }
+            .toMap()
+    }
+
+    private fun inMemoryLoader(yaml: String): OpenAiModelLoader {
+        val resource = ByteArrayResource(yaml.toByteArray())
+        val resourceLoader = object : ResourceLoader {
+            override fun getResource(location: String) = resource
+            override fun getClassLoader(): ClassLoader = javaClass.classLoader
+        }
+        return OpenAiModelLoader(resourceLoader, "memory:routing-test.yml")
     }
 }
