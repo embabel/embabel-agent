@@ -37,14 +37,34 @@ class Gpt5ChatOptionsConverterTest(
         assertNull(temperature, "Custom temperature should be ignored for GPT-5")
     }
 
+    /**
+     * Sampling parameters are refused as a block, not one by one, and each with the same 400 the
+     * token limit used to earn:
+     * `400 Unsupported parameter: 'top_p' is not supported with this model.`
+     *
+     * Verified against the live API on 2026-08-05 for gpt-5, gpt-5-mini, gpt-5-nano,
+     * gpt-5.3-chat-latest, gpt-5.5 and the three gpt-5.6 tiers: `temperature`, `top_p`,
+     * `presence_penalty` and `frequency_penalty` are each rejected for their presence alone. So none
+     * of them may be sent — dropping only `temperature` still 400s the moment a caller sets a
+     * `topP`.
+     */
     @Test
-    fun `respects non-temperature options`() {
-        val llmo = LlmOptions.withModel(OpenAiModels.GPT_5).withTopK(10).withTopP(.2)
+    fun `sends no sampling parameter at all, since the model refuses every one of them`() {
+        val llmo = LlmOptions.withModel(OpenAiModels.GPT_5)
+            .withTopP(.2)
+            .withPresencePenalty(0.6)
+            .withFrequencyPenalty(0.4)
+
         val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
-        assertEquals(llmo.topP, options.topP, "Top P should be preserved for GPT-5")
-        // Same @NullMarked workaround as in `ignores temperature` above.
-        val temperature: Double? = options.temperature
-        assertNull(temperature, "Temperature should not be set for GPT-5")
+
+        // Spring AI 2.0's OpenAiChatOptions package is @NullMarked, so Kotlin treats these getters
+        // as returning non-null — read into nullable locals to bypass, as in `ignores temperature`.
+        val topP: Double? = options.topP
+        val presencePenalty: Double? = options.presencePenalty
+        val frequencyPenalty: Double? = options.frequencyPenalty
+        assertNull(topP, "top_p is a 400 for these models")
+        assertNull(presencePenalty, "presence_penalty is a 400 for these models")
+        assertNull(frequencyPenalty, "frequency_penalty is a 400 for these models")
     }
 
     @Disabled("We not support thinking effort yet")
@@ -97,22 +117,12 @@ class Gpt5ChatOptionsConverterTest(
         assertNull(maxTokens)
     }
 
+    /**
+     * The token limit is the one hyperparameter these models do take, so a request built from a
+     * fully populated [LlmOptions] carries it and nothing else.
+     */
     @Test
-    fun `preserves presencePenalty`() {
-        val llmo = LlmOptions().withPresencePenalty(0.6)
-        val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
-        assertEquals(0.6, options.presencePenalty, "Presence penalty should be preserved")
-    }
-
-    @Test
-    fun `preserves frequencyPenalty`() {
-        val llmo = LlmOptions().withFrequencyPenalty(0.4)
-        val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
-        assertEquals(0.4, options.frequencyPenalty, "Frequency penalty should be preserved")
-    }
-
-    @Test
-    fun `converts all options except temperature`() {
+    fun `keeps the token limit and drops everything else`() {
         val llmo = LlmOptions()
             .withTemperature(0.7)
             .withTopP(0.9)
@@ -122,11 +132,15 @@ class Gpt5ChatOptionsConverterTest(
 
         val options = Gpt5ChatOptionsConverter.convertOptions(llmo)
 
-        assertNull(options.temperature, "Temperature should be ignored")
-        assertEquals(0.9, options.topP, "Top P should be preserved")
         assertEquals(1000, options.maxCompletionTokens, "Max tokens should be preserved")
-        assertEquals(0.5, options.presencePenalty, "Presence penalty should be preserved")
-        assertEquals(0.3, options.frequencyPenalty, "Frequency penalty should be preserved")
+        val temperature: Double? = options.temperature
+        val topP: Double? = options.topP
+        val presencePenalty: Double? = options.presencePenalty
+        val frequencyPenalty: Double? = options.frequencyPenalty
+        assertNull(temperature, "Temperature should be ignored")
+        assertNull(topP, "Top P should be ignored")
+        assertNull(presencePenalty, "Presence penalty should be ignored")
+        assertNull(frequencyPenalty, "Frequency penalty should be ignored")
     }
 
 }

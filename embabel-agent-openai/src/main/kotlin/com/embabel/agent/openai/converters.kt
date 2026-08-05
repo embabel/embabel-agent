@@ -21,26 +21,52 @@ import com.embabel.common.util.loggerFor
 import org.springframework.ai.openai.OpenAiChatOptions
 
 /**
- * Options converter for GPT-5 models that don't support temperature adjustment.
+ * Options converter for GPT-5 models, which take a token limit and no other hyperparameter.
+ *
+ * `temperature`, `top_p`, `presence_penalty` and `frequency_penalty` are refused as a block — each
+ * for its presence alone, exactly like `max_tokens`:
+ *
+ * `400 Unsupported parameter: 'top_p' is not supported with this model.`
+ *
+ * so none of them is sent, and the limit travels on `max_completion_tokens`.
+ *
+ * The refusal is per model rather than per family, verified against the live API on 2026-08-05:
+ * gpt-5, gpt-5-mini, gpt-5-nano, gpt-5.3-chat, gpt-5.5 and the gpt-5.6 tiers refuse all four, while
+ * gpt-5.1, gpt-5.2 and the gpt-5.4 tiers accept them. Sending none of them to any of them keeps one
+ * converter for the whole family: the models that would have honoured a `topP` lose it the way they
+ * already lost `temperature`, and no caller gets a 400 for a parameter that was never essential.
  */
 object Gpt5ChatOptionsConverter : OptionsConverter<OpenAiChatOptions> {
 
     override fun convertOptions(options: LlmOptions): OpenAiChatOptions {
-        if (options.temperature != null && options.temperature != 1.0) {
-            loggerFor<Gpt5ChatOptionsConverter>().warn(
-                "GPT-5 models do not support temperature settings other than default 1.0. You set {} but it will be ignored.",
-                options.temperature,
-            )
-        }
+        warnAboutIgnoredParameters(options)
         return OpenAiChatOptions.builder()
-            .topP(options.topP)
             // Not maxTokens: the GPT-5 family rejects `max_tokens` with
             // "Unsupported parameter ... use 'max_completion_tokens' instead", and refuses the
             // request for the field's presence alone.
             .maxCompletionTokens(options.maxTokens)
-            .presencePenalty(options.presencePenalty)
-            .frequencyPenalty(options.frequencyPenalty)
             .build()
+    }
+
+    /**
+     * Dropping these silently would read as the model ignoring them; refusing the call outright
+     * would cost the caller an answer over a parameter that was never essential.
+     */
+    private fun warnAboutIgnoredParameters(options: LlmOptions) {
+        val ignored = buildList {
+            // The default temperature is what the model uses anyway, so asking for it is not a
+            // request that went unanswered.
+            options.temperature?.takeIf { it != 1.0 }?.let { add("temperature=$it") }
+            options.topP?.let { add("topP=$it") }
+            options.presencePenalty?.let { add("presencePenalty=$it") }
+            options.frequencyPenalty?.let { add("frequencyPenalty=$it") }
+        }
+        if (ignored.isNotEmpty()) {
+            loggerFor<Gpt5ChatOptionsConverter>().warn(
+                "This model rejects sampling parameters outright, so the following are ignored rather than sent: {}",
+                ignored.joinToString(", "),
+            )
+        }
     }
 }
 
