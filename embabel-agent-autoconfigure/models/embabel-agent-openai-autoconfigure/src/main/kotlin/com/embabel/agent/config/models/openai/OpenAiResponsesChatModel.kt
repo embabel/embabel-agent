@@ -123,9 +123,9 @@ class OpenAiResponsesChatModel(
         maxOutputTokensOf(options)?.let { builder.maxOutputTokens(it.toLong()) }
         toolsOf(options).takeIf { it.isNotEmpty() }?.let(builder::tools)
         textConfigOf(options)?.let(builder::text)
-        // No sampling parameters: the pro models accept only the default temperature and top_p, and
-        // the Responses API has no presence/frequency penalty at all. Whatever
-        // Gpt5ChatOptionsConverter set on those fields is dropped here rather than refused there.
+        // No sampling parameters. Gpt5ChatOptionsConverter stopped setting them, and the Responses
+        // API has no presence/frequency penalty to carry them anyway; options built elsewhere are
+        // dropped here rather than refused by the endpoint.
         return builder.build()
     }
 
