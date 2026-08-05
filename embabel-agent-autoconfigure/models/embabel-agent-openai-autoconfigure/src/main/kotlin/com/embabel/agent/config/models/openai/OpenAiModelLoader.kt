@@ -100,7 +100,9 @@ enum class OpenAiApiFormat {
 /**
  * Special handling configuration for models with unique requirements.
  *
- * @property supportsTemperature whether the model supports temperature adjustment
+ * @property supportsTemperature whether the model supports temperature adjustment. A model that
+ * does not is served by `Gpt5ChatOptionsConverter`, which sends no sampling parameter at all —
+ * the GPT-5 models that refuse `temperature` refuse `top_p` and both penalties with it.
  */
 data class SpecialHandlingConfiguration(
     val supportsTemperature: Boolean = true
@@ -162,6 +164,11 @@ class OpenAiModelLoader(
             }
             model.topP?.let {
                 require(it in 0.0..1.0) { "Top P must be between 0 and 1 for model ${model.name}" }
+            }
+            model.pricingModel?.let {
+                require(it.usdPer1mInputTokens >= 0 && it.usdPer1mOutputTokens >= 0) {
+                    "Pricing must be non-negative for model ${model.name}"
+                }
             }
         }
 
