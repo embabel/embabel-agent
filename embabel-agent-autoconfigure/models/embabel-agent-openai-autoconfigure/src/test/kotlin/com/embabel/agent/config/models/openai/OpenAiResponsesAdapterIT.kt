@@ -128,6 +128,12 @@ class OpenAiResponsesAdapterIT(
      * function call, Embabel runs it and replays call and result on the next turn. The Responses
      * API pairs those by `call_id`, so a lost id leaves the model reissuing the same call until the
      * loop gives up.
+     *
+     * The prompt names the tool and orders the call rather than asking a question it happens to
+     * answer. Merely asking left the model free to decline, which it did on one run in six: a
+     * single iteration, no tool call, and a failure that looked like the transport rather than the
+     * model exercising its judgement. Whether a model volunteers a tool is not what this test is
+     * for.
      */
     @Test
     fun `a tool is called and its result reaches the answer`() {
@@ -136,7 +142,10 @@ class OpenAiResponsesAdapterIT(
         val answer = call {
             ai.withLlm(proModel)
                 .withToolObject(tool)
-                .generateText("What is the access code for the vault named 'north'? Answer with the code alone.")
+                .generateText(
+                    "Call the accessCode tool for the vault named 'north', " +
+                        "then reply with the code it returned and nothing else."
+                )
         }
 
         assertTrue(tool.invoked, "The model never called the tool, so the answer cannot be grounded")
