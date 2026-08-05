@@ -67,13 +67,7 @@ class LlmDataBindingProperties(
                     if (throwable is ToolControlFlowSignal) {
                         throw throwable
                     }
-                    // DatabindException in the cause chain = Jackson config/binding error — not transient.
-                    // MismatchedInputException (LLM omitted a required field) is excluded: it IS retryable.
-                    var cause: Throwable? = throwable
-                    while (cause != null) {
-                        if (cause is DatabindException && cause !is MismatchedInputException) throw throwable
-                        cause = cause.cause
-                    }
+                    if (hasNonRetryableDatabindException(throwable)) throw throwable
                     if (isRateLimitError(throwable)) {
                         logger.info(
                             "LLM invocation {} RATE LIMITED: Retry attempt {} of {}.{}",
@@ -126,6 +120,26 @@ class LlmDataBindingProperties(
             return RATE_LIMIT_PATTERNS.any { pattern ->
                 message.contains(pattern)
             }
+        }
+
+        /**
+         * Walks the full exception cause chain looking for a DatabindException that is NOT
+         * a MismatchedInputException. Such exceptions indicate Jackson config/annotation errors
+         * (e.g. wrong @JsonDeserialize target) — infrastructure bugs, not transient LLM output
+         * quality issues. MismatchedInputException (LLM omitted a required field) IS retryable
+         * and must be excluded.
+         *
+         * Note: DatabindException may be wrapped inside RuntimeException by JacksonOutputConverter
+         * before reaching the retry layer, so a full cause-chain walk is required rather than a
+         * simple instanceof check.
+         */
+        internal fun hasNonRetryableDatabindException(throwable: Throwable): Boolean {
+            var cause: Throwable? = throwable
+            while (cause != null) {
+                if (cause is DatabindException && cause !is MismatchedInputException) return true
+                cause = cause.cause
+            }
+            return false
         }
     }
 }
