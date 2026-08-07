@@ -350,6 +350,95 @@ class MessageConversionTest {
         }
 
         @Test
+        fun `preserves thoughtSignatures metadata when tool calls are present with non-empty content`() {
+            // Prepare
+            val thoughtSignatures = listOf(byteArrayOf(1, 2, 3))
+            val toolCalls = listOf(
+                SpringAiAssistantMessage.ToolCall("call-1", "function", "lookup", "{}"),
+            )
+            val springMessage = SpringAiAssistantMessage.builder()
+                .content("calling tool")
+                .toolCalls(toolCalls)
+                .properties(mapOf("thoughtSignatures" to thoughtSignatures, "isThought" to false))
+                .build()
+
+            // Execute
+            val embabelMessage = springMessage.toEmbabelMessage()
+
+            // Verify
+            assertThat(embabelMessage).isInstanceOf(AssistantMessageWithToolCalls::class.java)
+            val messageWithCalls = embabelMessage as AssistantMessageWithToolCalls
+            assertThat(messageWithCalls.toolCalls).hasSize(1)
+
+            val signatures = messageWithCalls.metadata["thoughtSignatures"] as? List<*>
+            assertThat(signatures).isNotNull
+            assertThat(signatures!![0] as ByteArray).containsExactly(1, 2, 3)
+            assertThat(messageWithCalls.metadata["isThought"]).isEqualTo(false)
+        }
+
+        @Test
+        fun `preserves custom metadata for non-empty assistant content without tool calls`() {
+            // Prepare
+            val thoughtSignatures = listOf(byteArrayOf(7, 8))
+            val springMessage = SpringAiAssistantMessage.builder()
+                .content("""{"name":"July"}""")
+                .properties(mapOf("thoughtSignatures" to thoughtSignatures, "isThought" to false))
+                .build()
+
+            // Execute
+            val embabelMessage = springMessage.toEmbabelMessage()
+
+            // Verify
+            assertThat(embabelMessage).isInstanceOf(AssistantMessageWithToolCalls::class.java)
+            assertThat(embabelMessage.content).isEqualTo("""{"name":"July"}""")
+
+            val messageWithCalls = embabelMessage as AssistantMessageWithToolCalls
+            assertThat(messageWithCalls.toolCalls).isEmpty()
+
+            val signatures = messageWithCalls.metadata["thoughtSignatures"] as? List<*>
+            assertThat(signatures).isNotNull
+            assertThat(signatures!![0] as ByteArray).containsExactly(7, 8)
+            assertThat(messageWithCalls.metadata["isThought"]).isEqualTo(false)
+        }
+
+        @Test
+        fun `default messageType metadata alone keeps non-empty content as plain assistant message`() {
+            // Prepare
+            val springMessage = SpringAiAssistantMessage.builder()
+                .content("plain answer")
+                .properties(mapOf("messageType" to "ASSISTANT"))
+                .build()
+
+            // Execute
+            val embabelMessage = springMessage.toEmbabelMessage()
+
+            // Verify
+            assertThat(embabelMessage).isInstanceOf(AssistantMessage::class.java)
+            assertThat(embabelMessage).isNotInstanceOf(AssistantMessageWithToolCalls::class.java)
+            assertThat(embabelMessage.content).isEqualTo("plain answer")
+        }
+
+        @Test
+        fun `preserves empty thoughtSignatures metadata for non-empty assistant content without tool calls`() {
+            // Prepare
+            val springMessage = SpringAiAssistantMessage.builder()
+                .content("""{"name":"July"}""")
+                .properties(mapOf("thoughtSignatures" to emptyList<ByteArray>(), "isThought" to false))
+                .build()
+
+            // Execute
+            val embabelMessage = springMessage.toEmbabelMessage()
+
+            // Verify
+            assertThat(embabelMessage).isInstanceOf(AssistantMessageWithToolCalls::class.java)
+
+            val messageWithCalls = embabelMessage as AssistantMessageWithToolCalls
+            assertThat(messageWithCalls.toolCalls).isEmpty()
+            assertThat(messageWithCalls.metadata["thoughtSignatures"] as? List<*>).isEmpty()
+            assertThat(messageWithCalls.metadata["isThought"]).isEqualTo(false)
+        }
+
+        @Test
         fun `converts Spring AI AssistantMessage with tool calls`() {
             val toolCalls = listOf(
                 SpringAiAssistantMessage.ToolCall("call-1", "tool", "get_weather", """{"location": "NYC"}"""),
