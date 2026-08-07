@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.config.models.openai
 
+import com.embabel.agent.spi.loop.StructuredOutputRequest
 import com.openai.client.OpenAIClient
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseCreateParams
@@ -193,6 +194,71 @@ class OpenAiResponsesChatModelTest {
                 properties["properties"].toString().contains("answer"),
                 "The schema must survive the format change intact, got: $properties",
             )
+        }
+
+        /**
+         * The test above builds the options the way the configurer does. This one runs the real
+         * chain — shipped catalogue, real configurer, real adapter — so the three stay in step:
+         * a `strategy` renamed in the YAML, or a configurer that stopped writing `responseFormat`,
+         * would leave a `*-pro` model answering in free text with every unit test still green.
+         */
+        @Test
+        fun `a schema the native support configures reaches the Responses API`() {
+            val proModel = OpenAiModelLoader().loadAutoConfigMetadata().effectiveModels()
+                .first { it.apiFormat == OpenAiApiFormat.RESPONSES }
+
+            val configured = OpenAiNativeStructuredOutputConfigurer.configure(
+                options = OpenAiChatOptions.builder().model(proModel.modelId).build(),
+                structuredOutput = StructuredOutputRequest(
+                    name = "Answer",
+                    schema = """{"title":"Answer","type":"object","properties":{"answer":{"type":"string"}}}""",
+                ),
+                nativeSupport = proModel.nativeSupport,
+                llm = null,
+            )
+
+            val params = capture(Prompt(listOf(UserMessage("Hi")), configured))
+
+            val format = params.text().orElseThrow().format().orElseThrow().jsonSchema().orElseThrow()
+            assertEquals("Answer", format.name(), "The schema title should name the format")
+            assertEquals(
+                "object",
+                format.schema()._additionalProperties()["type"]?.asString()?.orElse(null),
+            )
+        }
+
+        /** The name OpenAI accepts, for a schema titled [title], or none when it is null. */
+        private fun schemaNameFor(title: String?): String {
+            val titleField = title?.let { """"title":"$it",""" } ?: ""
+            val params = capture(
+                Prompt(
+                    listOf(UserMessage("Hi")),
+                    OpenAiChatOptions.builder()
+                        .model("gpt-5-pro")
+                        .responseFormat(
+                            OpenAiChatModel.ResponseFormat.builder()
+                                .type(OpenAiChatModel.ResponseFormat.Type.JSON_SCHEMA)
+                                .jsonSchema("""{$titleField"type":"object"}""")
+                                .build()
+                        )
+                        .build(),
+                )
+            )
+            return params.text().orElseThrow().format().orElseThrow().jsonSchema().orElseThrow().name()
+        }
+
+        /**
+         * A title OpenAI would reject costs the whole call, and it is never worth an answer: the
+         * name is a label echoed back, not something the model reasons over. So it is folded, and
+         * a schema with no title still gets one, since the API refuses an unnamed schema either way.
+         */
+        @Test
+        fun `schema names are folded to what the api accepts`() {
+            assertEquals("Answer", schemaNameFor("Answer"))
+            assertEquals("com_example_Answer", schemaNameFor("com.example.Answer"))
+            assertEquals("List_Answer_", schemaNameFor("List<Answer>"))
+            assertEquals("response", schemaNameFor(null), "The API refuses an unnamed schema")
+            assertEquals("response", schemaNameFor(""), "An empty title names nothing")
         }
 
         /** A response_format that is not a JSON schema has no Responses equivalent to carry. */

@@ -110,7 +110,7 @@ class OpenAiResponsesChatModel(
             "Streaming is not supported for OpenAI models served over the Responses API"
         )
 
-    internal fun createParams(prompt: Prompt): ResponseCreateParams {
+    private fun createParams(prompt: Prompt): ResponseCreateParams {
         val options = prompt.options
         val builder = ResponseCreateParams.builder()
             .model(modelOf(options))
@@ -264,7 +264,21 @@ class OpenAiResponsesChatModel(
             throw IllegalArgumentException("Cannot read $what as JSON: ${e.message}", e)
         }
 
-    /** OpenAI accepts only `[a-zA-Z0-9_-]` here, so anything else is folded to an underscore. */
+    /**
+     * The Responses API requires the schema to be named and accepts only `[a-zA-Z0-9_-]` in that
+     * name, so every other character is folded to an underscore, one for one:
+     *
+     * - `Answer` stays `Answer`
+     * - `com.example.Answer` becomes `com_example_Answer`
+     * - `List<Answer>` becomes `List_Answer_`
+     *
+     * The name comes from the schema's own `title` because that is all this adapter is given:
+     * [OpenAiNativeStructuredOutputConfigurer] writes the schema into `responseFormat`, but
+     * `StructuredOutputRequest.name` does not survive into [OpenAiChatOptions].
+     *
+     * An absent or empty title falls back to [DEFAULT_SCHEMA_NAME]. The name is a label OpenAI
+     * echoes back, not something the model reasons over, so it is never worth failing a call for.
+     */
     private fun schemaNameOf(schema: Map<String, Any?>): String =
         (schema["title"] as? String)
             ?.replace(Regex("[^a-zA-Z0-9_-]"), "_")
