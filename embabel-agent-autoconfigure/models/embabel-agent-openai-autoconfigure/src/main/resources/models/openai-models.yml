@@ -2,9 +2,10 @@
 # openai-models.yml
 # ============================================
 # OpenAI and compatible models configuration
-# Model IDs verified against GET /v1/models on 2026-03-29
+# Model IDs verified against GET /v1/models on 2026-03-29; the GPT-5.5 and
+# GPT-5.6 families against developers.openai.com/api/docs/models on 2026-08-04.
 # Pricing verified against official OpenAI model pages and openai.com/api/pricing
-# on 2026-04-02.
+# on 2026-04-02, and for GPT-5.5/5.6 on 2026-08-04.
 # Note: undated aliases (e.g. "gpt-5.4") resolve to OpenAI's current recommended
 #       pinned version and may change over time. Use dated model IDs in the
 #       OpenAiModels constants if reproducibility is required.
@@ -38,7 +39,78 @@ native_support_defaults:
 
 models:
   # ========================================
-  # GPT-5.4 FAMILY (Current Flagship - March 2026)
+  # GPT-5.6 FAMILY (Current Flagship - July 2026)
+  # Model pages and pricing verified: developers.openai.com 2026-08-04
+  # Tiers are Luna/Terra/Sol, not nano/mini/pro: "pro" became a Responses-only
+  # reasoning MODE (reasoning.mode) rather than a model. All three tiers are
+  # served over both Chat Completions and Responses.
+  # The "gpt-5.6" alias routes to Sol; the tiers are registered by their own ids.
+  # Prices are the short-context tier (<272K); long context is billed higher.
+  # ========================================
+
+  - name: "gpt56sol"
+    model_id: "gpt-5.6-sol"
+    display_name: "GPT-5.6 Sol"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 5.00
+      usd_per1m_output_tokens: 30.00
+    special_handling:
+      supports_temperature: false
+
+  - name: "gpt56terra"
+    model_id: "gpt-5.6-terra"
+    display_name: "GPT-5.6 Terra"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 2.00
+      usd_per1m_output_tokens: 12.00
+    special_handling:
+      supports_temperature: false
+
+  - name: "gpt56luna"
+    model_id: "gpt-5.6-luna"
+    display_name: "GPT-5.6 Luna"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 0.20
+      usd_per1m_output_tokens: 1.20
+    special_handling:
+      supports_temperature: false
+
+  # ========================================
+  # GPT-5.5 FAMILY (June 2026)
+  # Model pages and pricing verified: developers.openai.com 2026-08-04
+  # ========================================
+
+  - name: "gpt55"
+    model_id: "gpt-5.5"
+    display_name: "GPT-5.5"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 5.00
+      usd_per1m_output_tokens: 30.00
+    special_handling:
+      supports_temperature: false
+
+  - name: "gpt55pro"
+    model_id: "gpt-5.5-pro"
+    api_format: "RESPONSES"
+    display_name: "GPT-5.5 Pro"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 30.0
+      usd_per1m_output_tokens: 180.0
+    special_handling:
+      supports_temperature: false
+
+  # ========================================
+  # GPT-5.4 FAMILY (March 2026)
   # Pricing verified: openai.com/api/pricing 2026-03-29
   # Cached input (not stored): gpt54=$0.25, gpt54mini=$0.075, gpt54nano=$0.02
   # ========================================
@@ -78,6 +150,7 @@ models:
 
   - name: "gpt54pro"
     model_id: "gpt-5.4-pro"
+    api_format: "RESPONSES"
     display_name: "GPT-5.4 Pro"
     max_tokens: 16384
     temperature: 1.0
@@ -121,6 +194,7 @@ models:
 
   - name: "gpt52pro"
     model_id: "gpt-5.2-pro"
+    api_format: "RESPONSES"
     display_name: "GPT-5.2 Pro"
     max_tokens: 16384
     temperature: 1.0
@@ -184,6 +258,7 @@ models:
 
   - name: "gpt5pro"
     model_id: "gpt-5-pro"
+    api_format: "RESPONSES"
     display_name: "GPT-5 Pro"
     max_tokens: 16384
     temperature: 1.0

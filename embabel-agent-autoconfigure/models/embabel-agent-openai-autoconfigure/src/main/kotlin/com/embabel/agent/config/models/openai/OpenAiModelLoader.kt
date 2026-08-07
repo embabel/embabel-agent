@@ -76,14 +76,34 @@ data class OpenAiModelDefinition(
     val temperature: Double = 1.0,
     val topP: Double? = null,
     val specialHandling: SpecialHandlingConfiguration? = null,
+    val apiFormat: OpenAiApiFormat = OpenAiApiFormat.CHAT_COMPLETIONS,
     @param:JsonAlias("native-support")
     override val nativeSupport: NativeSupport? = null,
 ) : LlmAutoConfigMetadata
 
 /**
+ * Wire format an OpenAI model is served over.
+ *
+ * OpenAI exposes text models over two mutually incompatible APIs. Almost all are served over
+ * `/v1/chat/completions`, but the `*-pro` models are served *only* over `/v1/responses` and
+ * reject Chat Completions requests outright.
+ *
+ * Declared per model rather than inferred from the model id: OpenAI decides which models are
+ * Responses-only, and a naming convention is not a contract.
+ *
+ * @see <a href="https://github.com/embabel/embabel-agent/issues/1758">Issue 1758</a>
+ */
+enum class OpenAiApiFormat {
+    CHAT_COMPLETIONS,
+    RESPONSES,
+}
+
+/**
  * Special handling configuration for models with unique requirements.
  *
- * @property supportsTemperature whether the model supports temperature adjustment
+ * @property supportsTemperature whether the model supports temperature adjustment. A model that
+ * does not is served by `Gpt5ChatOptionsConverter`, which sends no sampling parameter at all —
+ * the GPT-5 models that refuse `temperature` refuse `top_p` and both penalties with it.
  */
 data class SpecialHandlingConfiguration(
     val supportsTemperature: Boolean = true
@@ -145,6 +165,11 @@ class OpenAiModelLoader(
             }
             model.topP?.let {
                 require(it in 0.0..1.0) { "Top P must be between 0 and 1 for model ${model.name}" }
+            }
+            model.pricingModel?.let {
+                require(it.usdPer1mInputTokens >= 0 && it.usdPer1mOutputTokens >= 0) {
+                    "Pricing must be non-negative for model ${model.name}"
+                }
             }
         }
 

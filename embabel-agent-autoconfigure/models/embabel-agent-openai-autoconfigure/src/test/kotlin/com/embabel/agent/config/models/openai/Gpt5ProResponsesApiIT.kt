@@ -33,7 +33,7 @@ import org.springframework.context.annotation.Import
 import org.springframework.context.annotation.Profile
 import org.springframework.test.context.ActiveProfiles
 
-@Profile("gpt53-chat-test")
+@Profile("gpt5-pro-test")
 @ConfigurationPropertiesScan(
     basePackages = [
         "com.embabel.agent",
@@ -46,55 +46,47 @@ import org.springframework.test.context.ActiveProfiles
         "com.embabel.example",
     ]
 )
-class Gpt53ChatTestConfig
+class Gpt5ProTestConfig
 
+/**
+ * Exercises a model that OpenAI serves only over the Responses API, against the real endpoint.
+ *
+ * This is the test that was missing: the `*-pro` models were declared in the catalog and the build
+ * stayed green, because nothing ever called them. Every real call returned HTTP 400 until
+ * [OpenAiResponsesChatModel] was routed in.
+ *
+ * @see <a href="https://github.com/embabel/embabel-agent/issues/1758">Issue 1758</a>
+ */
 @SpringBootTest(
     properties = [
-        "embabel.models.default-llm=gpt-5.3-chat-latest",
+        "embabel.models.default-llm=gpt-5-pro",
         "embabel.agent.platform.models.openai.max-attempts=1",
         "spring.main.allow-bean-definition-overriding=true",
     ]
 )
-@ActiveProfiles("gpt53-chat-test")
-@Import(Gpt53ChatTestConfig::class, AgentOpenAiAutoConfiguration::class)
+@ActiveProfiles("gpt5-pro-test")
+@Import(Gpt5ProTestConfig::class, AgentOpenAiAutoConfiguration::class)
 @EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+", disabledReason = "Integration test requires OPENAI_API_KEY")
-class Gpt53ChatIntegrationIT(
+class Gpt5ProResponsesApiIT(
     @param:Autowired private val ai: Ai,
     @param:Autowired private val llms: List<LlmService<*>>,
     @param:Autowired private val applicationContext: ApplicationContext,
 ) {
 
     @Test
-    fun `registers gpt53chat bean`() {
-
-        // Context loads the model
-        assertTrue(applicationContext.containsBean("gpt53chat"), "Expected gpt53chat bean to be registered")
-
-        // LLMs has the model
-        val llm = findLlm()
-        assertTrue(llm != null, "Expected GPT-5.3 Chat LLM service to be registered")
+    fun `registers gpt5pro bean`() {
+        assertTrue(applicationContext.containsBean("gpt5pro"), "Expected gpt5pro bean to be registered")
+        assertTrue(findLlm() != null, "Expected GPT-5 Pro LLM service to be registered")
     }
 
     @Test
-    fun `calls the real OpenAI API`() {
+    fun `calls the real Responses API`() {
+        val response = sayReady(ai, OpenAiModels.GPT_5_PRO)
 
-        // Get the LLM - findability is in the `registers gpt53chat bean` test
-        val llm = findLlm()
-
-        // Verify against OpenAI API
-        val response = sayReady(ai, OpenAiModels.GPT_53_CHAT_LATEST)
-
-        assertTrue(response.isNotBlank(), "Expected non-empty response from GPT-5.3 Chat")
-        assertTrue(response.contains("READY", ignoreCase = true), "Expected GPT-5.3 Chat to reply with READY, got: $response")
-        assertEquals(OpenAiModels.GPT_53_CHAT_LATEST, llm?.name)
+        assertTrue(response.isNotBlank(), "Expected non-empty response from GPT-5 Pro")
+        assertTrue(response.contains("READY", ignoreCase = true), "Expected GPT-5 Pro to reply with READY, got: $response")
+        assertEquals(OpenAiModels.GPT_5_PRO, findLlm()?.name)
     }
 
-    private fun findLlm(): LlmService<*>? {
-
-        return llms.find { it.name == OpenAiModels.GPT_53_CHAT_LATEST }
-    }
-
-    override fun toString(): String {
-        return "Gpt53ChatIntegrationIT(ai=$ai, llms=$llms, applicationContext=$applicationContext)"
-    }
+    private fun findLlm(): LlmService<*>? = llms.find { it.name == OpenAiModels.GPT_5_PRO }
 }
