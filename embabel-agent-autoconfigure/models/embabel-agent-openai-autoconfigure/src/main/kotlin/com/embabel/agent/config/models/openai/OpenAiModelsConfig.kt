@@ -99,13 +99,32 @@ class OpenAiProperties : RetryProperties {
 }
 
 /**
+ * The configured key, or `null` if there isn't one.
+ *
+ * A **blank** key counts as absent. That is not hypothetical tidiness: compose passes
+ * `OPENAI_API_KEY=${OPENAI_API_KEY:-}`, so inside a container the variable is routinely
+ * set-but-empty, and `@Value("\${OPENAI_API_KEY:#{null}}")` resolves that to `""` rather
+ * than `null`. Treating blank as absent keeps the empty case on the same path as the
+ * missing one instead of handing a blank key to the client.
+ */
+private fun configuredOpenAiApiKey(envApiKey: String?, properties: OpenAiProperties): String? =
+    envApiKey?.takeIf(String::isNotBlank) ?: properties.apiKey?.takeIf(String::isNotBlank)
+
+/**
  * Configuration for OpenAI language and embedding models.
  * This class dynamically loads and registers OpenAI models from YAML configuration,
  * similar to the Anthropic and Bedrock configuration patterns.
+ *
+ * With no API key this registers no models and lets the context start, the way the
+ * LM Studio config does when its server is unreachable. A missing key is a deployment
+ * that has not been given one yet — an appliance whose operator supplies keys through
+ * first-run setup — not a programming error, so it must not kill the context. Failing
+ * in the constructor took the whole application down, because a `@Configuration` whose
+ * superclass constructor throws cannot be conditioned away.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(OpenAiProperties::class, LlmOptionsProperties::class)
-@ExcludeFromJacocoGeneratedReport(reason = "OpenAi configuration can't be unit tested")
+@ExcludeFromJacocoGeneratedReport(reason = "Model registration needs a live OpenAI account; the no-key path is covered by OpenAiModelsConfigNoKeyTest")
 class OpenAiModelsConfig(
     @param:Value("\${OPENAI_BASE_URL:#{null}}")
     private val envBaseUrl: String?,
@@ -128,8 +147,9 @@ class OpenAiModelsConfig(
         OpenAiNativeStructuredOutputConfigurer,
 ) : OpenAiCompatibleModelFactory(
     baseUrl = envBaseUrl ?: properties.baseUrl,
-    apiKey = envApiKey ?: properties.apiKey
-    ?: error("OpenAI API key required: set OPENAI_API_KEY env var or embabel.agent.platform.models.openai.api-key"),
+    // The factory already models an absent key: resolvedApiKey() substitutes a
+    // placeholder, because the SDK rejects a null key even for no-auth servers.
+    apiKey = configuredOpenAiApiKey(envApiKey, properties),
     completionsPath = envCompletionsPath ?: properties.completions,
     embeddingsPath = envEmbeddingsPath ?: properties.embeddingsPath,
     httpHeaders = llmOptionsProperties.httpHeaders,
@@ -145,12 +165,28 @@ class OpenAiModelsConfig(
     private val resolvedObservationRegistry: ObservationRegistry =
         observationRegistry.getIfUnique { ObservationRegistry.NOOP }
 
+    private val apiKeyConfigured: Boolean = configuredOpenAiApiKey(envApiKey, properties) != null
+
     init {
-        logger.info("OpenAI models are available: {}", properties)
+        if (apiKeyConfigured) {
+            logger.info("OpenAI models are available: {}", properties)
+        } else {
+            logger.info(
+                "No OpenAI API key configured: set OPENAI_API_KEY or {}.api-key to enable OpenAI models. Continuing without them.",
+                PREFIX,
+            )
+        }
     }
 
     @Bean
     fun openAiModelsInitializer(): ProviderInitialization {
+        if (!apiKeyConfigured) {
+            return ProviderInitialization(
+                provider = OpenAiModels.PROVIDER,
+                registeredLlms = emptyList(),
+                registeredEmbeddings = emptyList(),
+            )
+        }
         val definitions = modelLoader.loadAutoConfigMetadata()
         val effectiveModels = definitions.effectiveModels()
 

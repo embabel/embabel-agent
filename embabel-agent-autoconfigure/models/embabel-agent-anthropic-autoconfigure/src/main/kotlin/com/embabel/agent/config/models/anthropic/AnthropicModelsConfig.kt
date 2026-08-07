@@ -89,15 +89,42 @@ class AnthropicProperties : RetryProperties {
 
 
 /**
+ * Placeholder handed to the superclass when no key is configured. It is never used to
+ * build a client: [AnthropicModelsConfig.anthropicModelsInitializer] registers nothing
+ * in that case. It exists only because [AnthropicModelFactory.apiKey] is non-nullable
+ * and a superclass constructor argument has to evaluate to something.
+ */
+private const val UNCONFIGURED_API_KEY = "anthropic-api-key-not-configured"
+
+/**
+ * The configured key, or `null` if there isn't one.
+ *
+ * A **blank** key counts as absent. That is not hypothetical tidiness: compose passes
+ * `ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}`, so inside a container the variable is
+ * routinely set-but-empty, and `@Value("\${ANTHROPIC_API_KEY:#{null}}")` resolves that
+ * to `""` rather than `null`. Treating blank as absent is what keeps the empty case on
+ * the same path as the missing one instead of handing a blank key to the client.
+ */
+private fun configuredAnthropicApiKey(envApiKey: String?, properties: AnthropicProperties): String? =
+    envApiKey?.takeIf(String::isNotBlank) ?: properties.apiKey?.takeIf(String::isNotBlank)
+
+/**
  * Configuration class for Anthropic models.
  * Extends [AnthropicModelFactory] so that the API client construction is shared
  * with the BYOK path. This class adds the Spring autoconfigure wiring on top:
  * loading model definitions from YAML, registering them as beans, and applying
  * the retry policy from [AnthropicProperties].
+ *
+ * With no API key this registers no models and lets the context start, the way the
+ * LM Studio config does when its server is unreachable. A missing key is a deployment
+ * that has not been given one yet — an appliance whose operator supplies keys through
+ * first-run setup — not a programming error, so it must not kill the context. Failing
+ * in the constructor took the whole application down, because a `@Configuration` whose
+ * superclass constructor throws cannot be conditioned away.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(AnthropicProperties::class)
-@ExcludeFromJacocoGeneratedReport(reason = "Anthropic configuration can't be unit tested")
+@ExcludeFromJacocoGeneratedReport(reason = "Model registration needs a live Anthropic account; the no-key path is covered by AnthropicModelsConfigNoKeyTest")
 class AnthropicModelsConfig(
     @param:Value("\${ANTHROPIC_BASE_URL:#{null}}")
     private val envBaseUrl: String?,
@@ -112,19 +139,33 @@ class AnthropicModelsConfig(
     private val nativeStructuredOutputConfigurer: SpringAiNativeStructuredOutputConfigurer =
         SpringAiNativeStructuredOutputConfigurer.NOOP,
 ) : AnthropicModelFactory(
-    apiKey = envApiKey ?: properties.apiKey
-        ?: error("Anthropic API key required: set ANTHROPIC_API_KEY env var or embabel.agent.platform.models.anthropic.api-key"),
+    apiKey = configuredAnthropicApiKey(envApiKey, properties) ?: UNCONFIGURED_API_KEY,
     baseUrl = envBaseUrl ?: properties.baseUrl,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
     restClientBuilder = restClientBuilder,
 ) {
 
+    private val apiKeyConfigured: Boolean = configuredAnthropicApiKey(envApiKey, properties) != null
+
     init {
-        logger.info("Anthropic models are available: {}", properties)
+        if (apiKeyConfigured) {
+            logger.info("Anthropic models are available: {}", properties)
+        } else {
+            logger.info(
+                "No Anthropic API key configured: set ANTHROPIC_API_KEY or {}.api-key to enable Anthropic models. Continuing without them.",
+                PREFIX,
+            )
+        }
     }
 
     @Bean
     fun anthropicModelsInitializer(): ProviderInitialization {
+        if (!apiKeyConfigured) {
+            return ProviderInitialization(
+                provider = AnthropicModels.PROVIDER,
+                registeredLlms = emptyList(),
+            )
+        }
         val definitions = modelLoader.loadAutoConfigMetadata()
         val effectiveModels = definitions.effectiveModels()
         val registeredLlms = buildList {
