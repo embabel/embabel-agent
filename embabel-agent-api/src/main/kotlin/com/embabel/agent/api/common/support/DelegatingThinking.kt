@@ -16,6 +16,7 @@
 package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.PromptRunner
+import com.embabel.agent.core.support.ThinkingTagSelection
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.common.core.thinking.ThinkingResponse
@@ -26,27 +27,28 @@ import com.embabel.common.core.types.ZeroToOne
  */
 internal data class DelegatingThinking(
     private val delegate: PromptExecutionDelegate,
+    private val selection: ThinkingTagSelection = ThinkingTagSelection(),
 ) : PromptRunner.Thinking {
 
     override fun <T> createObjectIfPossible(
         messages: List<Message>,
         outputClass: Class<T>
     ): ThinkingResponse<T?> =
-        delegate.createObjectIfPossibleWithThinking(messages, outputClass)
+        delegate.createObjectIfPossibleWithThinking(messages, outputClass, selection)
 
     override fun <T> createObject(
         messages: List<Message>,
         outputClass: Class<T>
     ): ThinkingResponse<T> =
-        delegate.createObjectWithThinking(messages, outputClass)
+        delegate.createObjectWithThinking(messages, outputClass, selection)
 
     override fun respond(messages: List<Message>): ThinkingResponse<AssistantMessage> =
-        delegate.respondWithThinking(messages)
+        delegate.respondWithThinking(messages, selection)
 
     override fun evaluateCondition(
         condition: String,
         context: String,
         confidenceThreshold: ZeroToOne
     ): ThinkingResponse<Boolean> =
-        delegate.evaluateConditionWithThinking(condition, context, confidenceThreshold)
+        delegate.evaluateConditionWithThinking(condition, context, confidenceThreshold, selection)
 }

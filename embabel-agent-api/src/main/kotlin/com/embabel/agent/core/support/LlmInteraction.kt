@@ -31,12 +31,15 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptContributorConsumer
 import com.embabel.common.core.MobyNameGenerator
+import com.embabel.common.core.thinking.ThinkingBlock
+import com.embabel.common.core.thinking.ThinkingTagType
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
 import com.fasterxml.jackson.annotation.JsonIgnore
 import jakarta.validation.ConstraintViolation
 import java.lang.reflect.Field
 import java.util.function.Predicate
+import org.slf4j.Logger
 
 /**
  * Spec for calling an LLM. Optional LlmOptions,
@@ -99,6 +102,49 @@ private data class LlmCallImpl(
     override val validation: Boolean = true,
 ) : LlmCall
 
+data class ThinkingTagSelection(
+    val include: Set<String> = emptySet(),
+    val exclude: Set<String> = emptySet(),
+) {
+    init {
+        require((include + exclude).all(TAG_NAME_REGEX::matches)) {
+            "Thinking tags must be valid XML-style tag names matching [a-zA-Z][a-zA-Z0-9_-]*"
+        }
+        require(include.intersect(exclude).isEmpty()) {
+            "Thinking tags cannot be both included and excluded"
+        }
+    }
+
+    // Non-TAG blocks (prefix/untagged) are always retained — only XML TAG blocks are filtered.
+    fun filter(blocks: List<ThinkingBlock>): List<ThinkingBlock> =
+        blocks.filter { block ->
+            block.tagType != ThinkingTagType.TAG ||
+                    ((include.isEmpty() || block.tagValue in include) && block.tagValue !in exclude)
+        }
+
+    fun missingFrom(systemPrompt: String): Set<String> =
+        include.filter { tag -> !systemPrompt.contains(TAG_OPEN_REGEX(tag)) }.toSet()
+
+    // Warns when a declared tag is absent from the system prompt — without it, hasThinking() silently returns false.
+    fun warnIfMissing(systemPrompt: String, logger: Logger) {
+        val missing = missingFrom(systemPrompt)
+        if (missing.isNotEmpty()) {
+            logger.warn(
+                "Thinking tag(s) {} not found in the system prompt — the LLM may not generate matching blocks",
+                missing,
+            )
+        }
+    }
+
+    companion object {
+        val TAG_NAME_REGEX = Regex("[a-zA-Z][a-zA-Z0-9_-]*")
+
+        // Boundary after the tag name: '>' (open), whitespace (attributes), or '/' (self-closing).
+        // Without it, "think" would match "<thinking>".
+        private fun TAG_OPEN_REGEX(tag: String): Regex = Regex("<$tag(?:>|\\s|/)")
+    }
+}
+
 /**
  * Encapsulates an interaction with an LLM.
  * An LlmInteraction is a specific instance of an LlmCall.
@@ -133,6 +179,7 @@ data class LlmInteraction(
     val toolCallInspectors: List<ToolCallInspector> = emptyList(),
     val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
     val toolNotFoundPolicy: ToolNotFoundPolicy? = null,
+    val thinkingTags: ThinkingTagSelection = ThinkingTagSelection(),
 ) : LlmCall {
 
     override val name: String = id.value

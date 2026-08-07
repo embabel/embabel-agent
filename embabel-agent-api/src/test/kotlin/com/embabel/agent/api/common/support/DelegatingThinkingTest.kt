@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.common.support
 
+import com.embabel.agent.core.support.ThinkingTagSelection
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.UserMessage
 import com.embabel.common.core.thinking.ThinkingBlock
@@ -57,13 +58,13 @@ class DelegatingThinkingTest {
             )
 
             every {
-                mockDelegate.createObjectIfPossibleWithThinking(messages, outputClass)
+                mockDelegate.createObjectIfPossibleWithThinking(messages, outputClass, any())
             } returns expectedResponse
 
             val operations = createThinkingOperations()
             val result = operations.createObjectIfPossible(messages, outputClass)
 
-            verify { mockDelegate.createObjectIfPossibleWithThinking(messages, outputClass) }
+            verify { mockDelegate.createObjectIfPossibleWithThinking(messages, outputClass, any()) }
             assertEquals(expectedResponse, result)
             assertEquals("test result", result.result)
             assertEquals(1, result.thinkingBlocks.size)
@@ -87,13 +88,13 @@ class DelegatingThinkingTest {
             )
 
             every {
-                mockDelegate.createObjectIfPossibleWithThinking(messages, outputClass)
+                mockDelegate.createObjectIfPossibleWithThinking(messages, outputClass, any())
             } returns expectedResponse
 
             val operations = createThinkingOperations()
             val result = operations.createObjectIfPossible(messages, outputClass)
 
-            verify { mockDelegate.createObjectIfPossibleWithThinking(messages, outputClass) }
+            verify { mockDelegate.createObjectIfPossibleWithThinking(messages, outputClass, any()) }
             assertEquals(expectedResponse, result)
             assertEquals(null, result.result)
         }
@@ -119,13 +120,13 @@ class DelegatingThinkingTest {
             )
 
             every {
-                mockDelegate.createObjectWithThinking(messages, outputClass)
+                mockDelegate.createObjectWithThinking(messages, outputClass, any())
             } returns expectedResponse
 
             val operations = createThinkingOperations()
             val result = operations.createObject(messages, outputClass)
 
-            verify { mockDelegate.createObjectWithThinking(messages, outputClass) }
+            verify { mockDelegate.createObjectWithThinking(messages, outputClass, any()) }
             assertEquals(expectedResponse, result)
             assertEquals("test", result.result?.name)
             assertEquals(42, result.result?.value)
@@ -150,12 +151,12 @@ class DelegatingThinkingTest {
                 thinkingBlocks = thinkingBlocks
             )
 
-            every { mockDelegate.respondWithThinking(messages) } returns expectedResponse
+            every { mockDelegate.respondWithThinking(messages, any()) } returns expectedResponse
 
             val operations = createThinkingOperations()
             val result = operations.respond(messages)
 
-            verify { mockDelegate.respondWithThinking(messages) }
+            verify { mockDelegate.respondWithThinking(messages, any()) }
             assertEquals(expectedResponse, result)
             assertEquals("4", result.result?.content)
             assertEquals(1, result.thinkingBlocks.size)
@@ -183,13 +184,13 @@ class DelegatingThinkingTest {
             )
 
             every {
-                mockDelegate.evaluateConditionWithThinking(condition, context, any())
+                mockDelegate.evaluateConditionWithThinking(condition, context, any(), any())
             } returns expectedResponse
 
             val operations = createThinkingOperations()
             val result = operations.evaluateCondition(condition, context, threshold)
 
-            verify { mockDelegate.evaluateConditionWithThinking(condition, context, any()) }
+            verify { mockDelegate.evaluateConditionWithThinking(condition, context, any(), any()) }
             assertEquals(expectedResponse, result)
             assertEquals(true, result.result)
         }
@@ -211,16 +212,62 @@ class DelegatingThinkingTest {
             )
 
             every {
-                mockDelegate.evaluateConditionWithThinking(condition, context, any())
+                mockDelegate.evaluateConditionWithThinking(condition, context, any(), any())
             } returns expectedResponse
 
             val operations = createThinkingOperations()
             val result = operations.evaluateCondition(condition, context)
 
-            verify { mockDelegate.evaluateConditionWithThinking(condition, context, any()) }
+            verify { mockDelegate.evaluateConditionWithThinking(condition, context, any(), any()) }
             assertEquals(expectedResponse, result)
         }
     }
 
     data class TestItem(val name: String, val value: Int)
+
+    @Nested
+    inner class TagSelectionDelegationTest {
+
+        @Test
+        fun `should pass include and exclude tags to delegate`() {
+            val messages = listOf(UserMessage("test prompt"))
+            val outputClass = String::class.java
+            val expectedResponse = ThinkingResponse<String?>(
+                result = "test result",
+                thinkingBlocks = emptyList()
+            )
+
+            every {
+                mockDelegate.createObjectIfPossibleWithThinking(
+                    messages,
+                    outputClass,
+                    thinkingTags = ThinkingTagSelection(
+                        include = setOf("decision_reasoning"),
+                        exclude = setOf("div"),
+                    ),
+                )
+            } returns expectedResponse
+
+            val operations = DelegatingThinking(
+                delegate = mockDelegate,
+                selection = ThinkingTagSelection(
+                    include = setOf("decision_reasoning"),
+                    exclude = setOf("div"),
+                ),
+            )
+            val result = operations.createObjectIfPossible(messages, outputClass)
+
+            verify {
+                mockDelegate.createObjectIfPossibleWithThinking(
+                    messages,
+                    outputClass,
+                    thinkingTags = ThinkingTagSelection(
+                        include = setOf("decision_reasoning"),
+                        exclude = setOf("div"),
+                    ),
+                )
+            }
+            assertEquals(expectedResponse, result)
+        }
+    }
 }

@@ -487,6 +487,18 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
         error("Implementation error: supportsThinking() returned true but withThinking() not overridden")
     }
 
+    fun thinking(include: Set<String>): Thinking = thinking(include, emptySet())
+
+    // Non-empty include/exclude throws UnsupportedOperationException by default — implementations must override.
+    fun thinking(include: Set<String>, exclude: Set<String>): Thinking =
+        if (include.isEmpty() && exclude.isEmpty()) thinking()
+        else throw UnsupportedOperationException(
+            "Thinking tag selection is not supported by this PromptRunner implementation"
+        )
+
+    // Default impl ignores the tag — implementations that support tag selection must override.
+    fun thinking(tag: String): Thinking = thinking()
+
     override fun respond(
         messages: List<Message>,
     ): AssistantMessage =

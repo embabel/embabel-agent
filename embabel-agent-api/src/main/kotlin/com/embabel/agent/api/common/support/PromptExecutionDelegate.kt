@@ -31,6 +31,7 @@ import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmUse
+import com.embabel.agent.core.support.ThinkingTagSelection
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.chat.AssistantMessage
@@ -148,19 +149,25 @@ internal interface PromptExecutionDelegate : LlmUse {
     fun <T> createObjectIfPossibleWithThinking(
         messages: List<Message>,
         outputClass: Class<T>,
+        thinkingTags: ThinkingTagSelection = ThinkingTagSelection(),
     ): ThinkingResponse<T?>
 
     fun <T> createObjectWithThinking(
         messages: List<Message>,
-        outputClass: Class<T>
+        outputClass: Class<T>,
+        thinkingTags: ThinkingTagSelection = ThinkingTagSelection(),
     ): ThinkingResponse<T>
 
-    fun respondWithThinking(messages: List<Message>): ThinkingResponse<AssistantMessage>
+    fun respondWithThinking(
+        messages: List<Message>,
+        thinkingTags: ThinkingTagSelection = ThinkingTagSelection(),
+    ): ThinkingResponse<AssistantMessage>
 
     fun evaluateConditionWithThinking(
         condition: String,
         context: String,
-        confidenceThreshold: ZeroToOne
+        confidenceThreshold: ZeroToOne,
+        thinkingTags: ThinkingTagSelection = ThinkingTagSelection(),
     ): ThinkingResponse<Boolean>
 
 }

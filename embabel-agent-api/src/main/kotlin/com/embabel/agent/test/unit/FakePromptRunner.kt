@@ -32,6 +32,7 @@ import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
+import com.embabel.agent.core.support.ThinkingTagSelection
 import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolNotFoundPolicy
@@ -268,6 +269,7 @@ data class FakePromptRunner(
         override fun <T> createObjectIfPossibleWithThinking(
             messages: List<Message>,
             outputClass: Class<T>,
+            thinkingTags: ThinkingTagSelection,
         ): ThinkingResponse<T?> {
             TODO("Not yet implemented")
         }
@@ -275,11 +277,15 @@ data class FakePromptRunner(
         override fun <T> createObjectWithThinking(
             messages: List<Message>,
             outputClass: Class<T>,
+            thinkingTags: ThinkingTagSelection,
         ): ThinkingResponse<T> {
             TODO("Not yet implemented")
         }
 
-        override fun respondWithThinking(messages: List<Message>): ThinkingResponse<AssistantMessage> {
+        override fun respondWithThinking(
+            messages: List<Message>,
+            thinkingTags: ThinkingTagSelection,
+        ): ThinkingResponse<AssistantMessage> {
             TODO("Not yet implemented")
         }
 
@@ -287,6 +293,7 @@ data class FakePromptRunner(
             condition: String,
             context: String,
             confidenceThreshold: ZeroToOne,
+            thinkingTags: ThinkingTagSelection,
         ): ThinkingResponse<Boolean> {
             TODO("Not yet implemented")
         }

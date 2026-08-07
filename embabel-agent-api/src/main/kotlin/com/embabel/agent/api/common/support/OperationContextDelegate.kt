@@ -34,6 +34,7 @@ import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
+import com.embabel.agent.core.support.ThinkingTagSelection
 import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.core.internal.streaming.StreamingLlmOperationsFactory
@@ -420,11 +421,13 @@ internal data class OperationContextDelegate(
     // Patterned after createObject() - uses ProcessContext flow
     override fun <T> createObjectWithThinking(
         messages: List<Message>,
-        outputClass: Class<T>
+        outputClass: Class<T>,
+        thinkingTags: ThinkingTagSelection,
     ): ThinkingResponse<T> {
         val combinedMessages = combineImagesWithMessages(this.messages + messages)
         val interaction = thinkingInteraction(
             toolGroups = this.toolGroups + toolGroups,
+            thinkingTags = thinkingTags,
         )
         return context.processContext.createObjectWithThinking(
             messages = combinedMessages,
@@ -438,11 +441,13 @@ internal data class OperationContextDelegate(
     // Patterned after createObjectWithThinking() - uses ProcessContext flow
     override fun <T> createObjectIfPossibleWithThinking(
         messages: List<Message>,
-        outputClass: Class<T>
+        outputClass: Class<T>,
+        thinkingTags: ThinkingTagSelection,
     ): ThinkingResponse<T?> {
         val combinedMessages = combineImagesWithMessages(this.messages + messages)
         val interaction = thinkingInteraction(
             toolGroups = this.toolGroups + toolGroups,
+            thinkingTags = thinkingTags,
         )
         val result = context.processContext.createObjectIfPossibleWithThinking(
             messages = combinedMessages,
@@ -478,14 +483,18 @@ internal data class OperationContextDelegate(
         }
     }
 
-    override fun respondWithThinking(messages: List<Message>): ThinkingResponse<AssistantMessage> {
-        return createObjectWithThinking(messages, AssistantMessage::class.java)
+    override fun respondWithThinking(
+        messages: List<Message>,
+        thinkingTags: ThinkingTagSelection,
+    ): ThinkingResponse<AssistantMessage> {
+        return createObjectWithThinking(messages, AssistantMessage::class.java, thinkingTags)
     }
 
     override fun evaluateConditionWithThinking(
         condition: String,
         context: String,
-        confidenceThreshold: ZeroToOne
+        confidenceThreshold: ZeroToOne,
+        thinkingTags: ThinkingTagSelection,
     ): ThinkingResponse<Boolean> {
         val prompt =
             """
@@ -503,6 +512,7 @@ internal data class OperationContextDelegate(
         val response = createObjectWithThinking(
             messages = listOf(UserMessage(prompt)),
             outputClass = Determination::class.java,
+            thinkingTags = thinkingTags,
         )
 
         val result = response.result?.let {
@@ -517,6 +527,7 @@ internal data class OperationContextDelegate(
 
     private fun thinkingInteraction(
         toolGroups: Set<ToolGroupRequirement> = this.toolGroups,
+        thinkingTags: ThinkingTagSelection = ThinkingTagSelection(),
     ): LlmInteraction {
         val thinkingEnabledLlm = llm.withThinking(Thinking.withExtraction())
         val toolConfig = resolveToolConfig()
@@ -537,6 +548,7 @@ internal data class OperationContextDelegate(
             toolLoopTransformers = toolLoopTransformers,
             toolCallInspectors = toolCallInspectors,
             toolCallContext = toolCallContext,
+            thinkingTags = thinkingTags,
         )
     }
 

@@ -24,9 +24,11 @@ import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.experimental.primitive.Determination
+import com.embabel.agent.core.support.ThinkingTagSelection
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
+import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.mockk.every
@@ -369,6 +371,36 @@ class DelegatingStreamingPromptRunnerTest {
             }
 
             verify { mockDelegate.supportsStreaming() }
+        }
+
+        @Test
+        fun `thinking should apply tag selection`() {
+            val messages = listOf(UserMessage("test"))
+            val outputClass = String::class.java
+            val expectedResponse = ThinkingResponse<String?>(
+                result = "test",
+                thinkingBlocks = emptyList(),
+            )
+
+            every {
+                mockDelegate.createObjectIfPossibleWithThinking(
+                    messages,
+                    outputClass,
+                    thinkingTags = ThinkingTagSelection(
+                        include = setOf("reasoning"),
+                        exclude = setOf("div"),
+                    ),
+                )
+            } returns expectedResponse
+
+            val runner = createPromptRunner()
+            val result = runner.thinking(
+                include = setOf("reasoning"),
+                exclude = setOf("div"),
+            )
+
+            val actualResponse = result.createObjectIfPossible(messages, outputClass)
+            assertEquals(expectedResponse, actualResponse)
         }
 
         @Test

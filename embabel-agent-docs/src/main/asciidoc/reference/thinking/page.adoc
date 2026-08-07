@@ -21,7 +21,7 @@ An even more important use case arises when the LLM cannot fulfill a request—f
 - `ThinkingTagType` — An enum defining the types of reasoning markers: `TAG` (XML-style tags like `<think>`), `PREFIX` (line prefixes like `//THINKING:`), and `NO_PREFIX` (untagged reasoning text before JSON output).
 - `ThinkingResponse<T>` — A response wrapper that holds both the result object and a list of `ThinkingBlock` instances.
 - `ThinkingException` — An exception that preserves thinking blocks when object instantiation fails, enabling debugging even in error scenarios.
-- `thinking()` — The core `PromptRunner` API method that enables thinking extraction.
+- `thinking()` — The core `PromptRunner` API method that enables thinking extraction. Use `thinking(tag)` to extract reasoning blocks from a single custom tag, or `thinking(include, exclude)` to select or suppress XML-style thinking tags without changing the prompt sent to the LLM.
 
 
 ==== Example: Handling Objects and Thinking Blocks
@@ -93,6 +93,62 @@ for (block in thinkingBlocks) {
 ----
 ====
 
+==== Selecting Thinking Tags
+
+XML-style tags are discovered dynamically, so ordinary markup such as `<div>...</div>` can otherwise appear as a thinking block. Select the tags relevant to an interaction:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+ThinkingResponse<MonthItem> response = runner
+        .thinking(Set.of("reasoning"), Set.of("div"))
+        .createObject(prompt, MonthItem.class);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val response = runner
+        .thinking(include = setOf("reasoning"), exclude = setOf("div"))
+        .createObject(prompt, MonthItem::class.java)
+----
+====
+
+When `include` is non-empty, only matching XML-style `TAG` blocks are retained. Tags in `exclude` are removed. Prefix-based and untagged reasoning blocks are unaffected. A tag cannot appear in both sets. Calling `thinking()` without arguments preserves the default extraction behavior.
+
+When tag selection is used, the framework checks whether each declared tag appears as an XML open tag (`<tag`) in the system prompt at execution time. Missing tags are reported with a WARN log entry — `hasThinking()` is still allowed to return `false`, but the log makes the cause diagnosable instead of silent.
+
+`thinking(tag)` is a convenience shorthand for `thinking(include = Set.of(tag))`:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+ThinkingResponse<MonthItem> response = runner
+        .thinking("decision_reasoning")
+        .createObject(prompt, MonthItem.class);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val response = runner
+        .thinking("decision_reasoning")
+        .createObject(prompt, MonthItem::class.java)
+----
+====
+
+The tag must be a valid XML name matching `[a-zA-Z][a-zA-Z0-9_-]*`. Implementations that support tag selection reject invalid tags with an `IllegalArgumentException`.
+
+The tag selection methods do not modify the prompt — `thinking()`, `thinking(tag)`, and `thinking(include, exclude)` all leave the prompt unchanged. The LLM will only produce reasoning inside `<tag>...</tag>` if your prompt asks for it. For example, include in your system prompt: "You MUST provide reasoning inside `<decision_reasoning>...</decision_reasoning>` tags before providing your final answer."
+
 ==== Example: Handling Failures Gracefully
 
 Use `createObjectIfPossible` when the LLM might not be able to produce a valid result:
@@ -143,6 +199,7 @@ if (result != null) {
 Embabel exposes thinking through a provider-neutral API:
 
 - `PromptRunner.thinking()`
+- `PromptRunner.thinking(tag)`
 - `LlmOptions.thinking`
 
 This remains the primary public API for enabling reasoning/thinking mode.

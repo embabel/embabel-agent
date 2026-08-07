@@ -30,6 +30,7 @@ import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
+import com.embabel.agent.core.support.ThinkingTagSelection
 import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolNotFoundPolicy
@@ -235,4 +236,13 @@ internal data class DelegatingStreamingPromptRunner(
         DelegatingThinking(
             delegate = delegate,
         )
+
+    override fun thinking(include: Set<String>, exclude: Set<String>): PromptRunner.Thinking =
+        DelegatingThinking(
+            delegate = delegate,
+            selection = ThinkingTagSelection(include = include, exclude = exclude),
+        )
+
+    override fun thinking(tag: String): PromptRunner.Thinking =
+        thinking(include = setOf(tag))
 }

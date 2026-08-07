@@ -343,6 +343,8 @@ internal class ChatClientLlmOperations(
             buildBasicPrompt(promptContributions, messages)
         }
 
+        interaction.thinkingTags.warnIfMissing(systemPromptOf(springAiPrompt), logger)
+
         // Guardrails: Pre-validation of user input
         val userMessages = messages.filterIsInstance<UserMessage>()
         validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
@@ -382,7 +384,7 @@ internal class ChatClientLlmOperations(
                     recordUsage(llm, chatResponse, llmRequestEvent)
                     val rawText = chatResponse.result.output.text as String
 
-                    val thinkingBlocks = extractAllThinkingBlocks(rawText)
+                    val thinkingBlocks = interaction.thinkingTags.filter(extractAllThinkingBlocks(rawText))
                     logger.debug("Extracted {} thinking blocks for String response", thinkingBlocks.size)
 
                     val thinkingResponse = ThinkingResponse(
@@ -400,7 +402,7 @@ internal class ChatClientLlmOperations(
                     recordUsage(llm, chatResponse, llmRequestEvent)
                     val rawText = chatResponse.result.output.text ?: ""
 
-                    val thinkingBlocks = extractAllThinkingBlocks(rawText)
+                    val thinkingBlocks = interaction.thinkingTags.filter(extractAllThinkingBlocks(rawText))
                     logger.debug(
                         "Extracted {} thinking blocks for {} response",
                         thinkingBlocks.size,
@@ -490,6 +492,8 @@ internal class ChatClientLlmOperations(
                 schemaFormat
             )
 
+            interaction.thinkingTags.warnIfMissing(systemPromptOf(springAiPrompt), logger)
+
             // Guardrails: Pre-validation of user input
             val userMessages = messages.filterIsInstance<UserMessage>()
             validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
@@ -524,7 +528,7 @@ internal class ChatClientLlmOperations(
                     val chatResponse = requireChatResponse(callResponse, interaction)
                     recordUsage(llm, chatResponse, llmRequestEvent)
                     val rawText = chatResponse.result.output.text ?: ""
-                    val thinkingBlocks = extractAllThinkingBlocks(rawText)
+                    val thinkingBlocks = interaction.thinkingTags.filter(extractAllThinkingBlocks(rawText))
 
                     // Execute converter chain manually instead of using responseEntity
                     try {
@@ -671,6 +675,11 @@ internal class ChatClientLlmOperations(
     // ====================================
     // SPRING AI PROMPT BUILDERS
     // ====================================
+
+    private fun systemPromptOf(springAiPrompt: Prompt): String =
+        springAiPrompt.instructions
+            .filterIsInstance<SystemMessage>()
+            .joinToString("\n\n") { it.text ?: "" }
 
     /**
      * Base prompt builder - consolidates all system messages at the beginning.

@@ -29,6 +29,7 @@ import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.support.InvalidLlmReturnFormatException
 import com.embabel.agent.core.support.LlmCall
 import com.embabel.agent.core.support.LlmInteraction
+import com.embabel.agent.core.support.ThinkingTagSelection
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
@@ -309,6 +310,40 @@ class ChatClientLlmOperationsThinkingTest {
         assertEquals(100, result.result.value)
         assertEquals(1, result.thinkingBlocks.size)
         assertTrue(result.thinkingBlocks[0].content.contains("process this request carefully"))
+    }
+
+    @Test
+    fun `doTransformWithThinking should apply selected thinking tags`() {
+        // Given: LLM response with a selected tag, an unselected tag, and valid JSON
+        val rawLlmResponse = """
+            <reasoning>Keep this block.</reasoning>
+            <div>Discard this markup.</div>
+
+            {
+                "status": "selected",
+                "value": 101
+            }
+        """.trimIndent()
+
+        val setup = createChatClientLlmOperations(FakeChatModel(rawLlmResponse))
+        val interaction = LlmInteraction(
+            id = InteractionId("selected-thinking"),
+            thinkingTags = ThinkingTagSelection(include = setOf("reasoning")),
+        )
+
+        // When: Use doTransformWithThinking with tag selection
+        val result = setup.llmOperations.doTransformWithThinkingSpringAi<SimpleResult>(
+            messages = listOf(UserMessage("Select reasoning")),
+            interaction = interaction,
+            outputClass = SimpleResult::class.java,
+            llmRequestEvent = null,
+            agentProcess = null,
+            action = null,
+        )
+
+        // Then: Should extract only the selected thinking tags
+        assertEquals("selected", result.result!!.status)
+        assertEquals(listOf("reasoning"), result.thinkingBlocks.map { it.tagValue })
     }
 
     @Test
