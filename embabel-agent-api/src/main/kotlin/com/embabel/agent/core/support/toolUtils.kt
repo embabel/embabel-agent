@@ -40,7 +40,12 @@ private val externalToolExtractor: ExternalToolExtractor? = try {
  */
 fun safelyGetTools(instances: Collection<ToolObject>): List<Tool> =
     instances.flatMap { safelyGetToolsFrom(it) }
-        .distinctBy { it.definition.name }
+        // Tool is an interface with no value semantics, so two tools sharing a name can only
+        // be told apart by identity: the same tool reaching us through two tool objects is
+        // harmless, two distinct tools under one name means one of them is not callable.
+        .distinctByNameReportingCollisions(kind = "tool", sameValue = { a, b -> a === b }) {
+            it.definition.name
+        }
         .sortedBy { it.definition.name }
 
 /**
@@ -69,7 +74,12 @@ fun safelyGetToolsFrom(toolObject: ToolObject): List<Tool> {
                 it
             }
         }
-        .distinctBy { it.definition.name }
+        // Renaming happens just above, so a naming strategy that maps two distinct tools onto
+        // one name has its collision created and then discarded here. Report it: the caller
+        // wrote the strategy and is the only one who can fix it.
+        .distinctByNameReportingCollisions(kind = "renamed tool", sameValue = { a, b -> a === b }) {
+            it.definition.name
+        }
         .sortedBy { it.definition.name }
 }
 
