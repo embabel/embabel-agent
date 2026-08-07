@@ -381,12 +381,20 @@ class ObservabilityAutoConfigurationTest {
                 });
     }
 
+    /**
+     * The listener is no longer gated on a {@code MeterRegistry} bean being present: that condition
+     * had to be evaluated while definitions were still being registered, which made it depend on
+     * auto-configuration ordering and silently suppressed the listener under Spring Boot 4. It now
+     * falls back to a registry that discards every measurement, so the absence of a registry costs
+     * a listener that records nowhere rather than a platform with no metrics at all.
+     */
     @Test
-    void metricsListener_shouldNotBeCreated_whenNoMeterRegistry() {
+    void metricsListener_shouldRecordNowhere_whenNoMeterRegistry() {
         contextRunner
                 .withUserConfiguration(ObservationRegistryConfig.class)
                 .run(context -> {
-                    assertThat(context).doesNotHaveBean(EmbabelMetricsEventListener.class);
+                    assertThat(context).hasSingleBean(EmbabelMetricsEventListener.class);
+                    assertThat(context).doesNotHaveBean(MeterRegistry.class);
                 });
     }
 

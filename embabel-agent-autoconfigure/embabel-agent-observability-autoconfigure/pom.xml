@@ -119,6 +119,27 @@
             <scope>test</scope>
         </dependency>
 
+        <!--
+            Boot's OpenTelemetryTracingAutoConfiguration lives here. The observability starter
+            ships it, so consumers always have it on the classpath; test scope lets this module
+            verify how Embabel's auto-configuration composes with Boot's (#1871).
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-tracing-opentelemetry</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--
+            Boot's CompositeMeterRegistryAutoConfiguration lives here; test scope so this module
+            can verify MeterRegistry-dependent wiring across auto-configuration boundaries (#1871).
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-metrics</artifactId>
+            <scope>test</scope>
+        </dependency>
+
         <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-test-internal</artifactId>

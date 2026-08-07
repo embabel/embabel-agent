@@ -65,10 +65,13 @@ embabel:
 # Spring Boot Tracing (required)
 management:
   tracing:
-    enabled: true
+    export:
+      enabled: true
     sampling:
-      probability: 1.0  # 1.0 = 100%, 0.5 = 50%, etc.
+      probability: 1.0  # 1.0 = 100%, 0.5 = 50%, etc. Platform default is 1.0
 ```
+
+> `management.tracing.enabled` was removed in Spring Boot 4; use `management.tracing.export.enabled`.
 
 ### 3. Choose your exporter
 

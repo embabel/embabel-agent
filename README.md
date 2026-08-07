@@ -1306,7 +1306,8 @@ embabel:
 # Enable Spring Boot tracing
 management:
   tracing:
-    enabled: true
+    export:
+      enabled: true
     sampling:
       probability: 1.0
 
