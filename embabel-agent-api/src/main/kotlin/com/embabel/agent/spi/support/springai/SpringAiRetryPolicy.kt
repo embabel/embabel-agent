@@ -26,6 +26,7 @@ import org.springframework.ai.retry.TransientAiException
 import org.springframework.retry.RetryContext
 import org.springframework.retry.RetryPolicy
 import org.springframework.retry.context.RetryContextSupport
+import com.embabel.agent.spi.support.LlmDataBindingProperties
 
 /**
  * Retry policy for Spring AI operations.
@@ -69,6 +70,10 @@ internal class SpringAiRetryPolicy(
                 return true
             }
             current = current.cause
+        }
+
+        if (LlmDataBindingProperties.hasNonRetryableDatabindException(lastException)) {
+            return false
         }
 
         return when (lastException) {

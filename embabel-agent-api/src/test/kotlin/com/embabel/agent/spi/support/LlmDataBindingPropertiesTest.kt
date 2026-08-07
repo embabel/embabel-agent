@@ -26,6 +26,9 @@ import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.ExtendWith
 import org.springframework.boot.test.system.CapturedOutput
 import org.springframework.boot.test.system.OutputCaptureExtension
+import tools.jackson.databind.DatabindException
+import tools.jackson.databind.exc.MismatchedInputException
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @ExtendWith(OutputCaptureExtension::class)
@@ -99,6 +102,54 @@ class LlmDataBindingPropertiesTest {
             verify { mockBlackboard["intent"] = "support" }
             verify { mockBlackboard["confidence"] = 0.95 }
             verify { mockBlackboard["target"] = "handleSupport" }
+        }
+
+        // DatabindException constructors are protected — subclass to instantiate in tests
+        private inner class TestDatabindException(msg: String) : DatabindException(msg)
+
+        @Test
+        fun `retryTemplate aborts immediately on DatabindException — not retried`() {
+            val properties = LlmDataBindingProperties(maxAttempts = 5)
+            val retryTemplate = properties.retryTemplate("test")
+            var attemptCount = 0
+            assertThrows<TestDatabindException> {
+                retryTemplate.execute<Unit, Exception> {
+                    attemptCount++
+                    throw TestDatabindException("wrong @JsonDeserialize annotation")
+                }
+            }
+            assertEquals(1, attemptCount, "DatabindException must not be retried")
+        }
+
+        @Test
+        fun `retryTemplate aborts immediately on DatabindException wrapped in RuntimeException`() {
+            // Mirrors real production chain: JacksonOutputConverter wraps DatabindException
+            // in RuntimeException before it reaches the retry layer
+            val properties = LlmDataBindingProperties(maxAttempts = 5)
+            val retryTemplate = properties.retryTemplate("test")
+            var attemptCount = 0
+            val root = TestDatabindException("annotation misconfiguration")
+            assertThrows<RuntimeException> {
+                retryTemplate.execute<Unit, Exception> {
+                    attemptCount++
+                    throw RuntimeException(root)
+                }
+            }
+            assertEquals(1, attemptCount, "Wrapped DatabindException must be detected via cause-chain walk and not retried")
+        }
+
+        @Test
+        fun `retryTemplate retries on MismatchedInputException (LLM omitted required field)`() {
+            val properties = LlmDataBindingProperties(maxAttempts = 3)
+            val retryTemplate = properties.retryTemplate("test")
+            var attemptCount = 0
+            assertThrows<MismatchedInputException> {
+                retryTemplate.execute<Unit, Exception> {
+                    attemptCount++
+                    throw MismatchedInputException.from(null, String::class.java, "missing field")
+                }
+            }
+            assertEquals(3, attemptCount, "MismatchedInputException is retryable — LLM may include field on next attempt")
         }
 
         @Test

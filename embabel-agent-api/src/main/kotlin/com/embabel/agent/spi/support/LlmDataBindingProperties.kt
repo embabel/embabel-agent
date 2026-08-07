@@ -26,6 +26,8 @@ import org.springframework.retry.RetryCallback
 import org.springframework.retry.RetryContext
 import org.springframework.retry.RetryListener
 import org.springframework.retry.support.RetryTemplate
+import tools.jackson.databind.DatabindException
+import tools.jackson.databind.exc.MismatchedInputException
 import java.time.Duration
 
 /**
@@ -65,6 +67,7 @@ class LlmDataBindingProperties(
                     if (throwable is ToolControlFlowSignal) {
                         throw throwable
                     }
+                    if (hasNonRetryableDatabindException(throwable)) throw throwable
                     if (isRateLimitError(throwable)) {
                         logger.info(
                             "LLM invocation {} RATE LIMITED: Retry attempt {} of {}.{}",
@@ -88,11 +91,13 @@ class LlmDataBindingProperties(
                     throwable: Throwable?,
                 ) {
                     throwable?.let {
-                        logger.warn(
-                            "Maximum attempts of {} have reached. The maximum attempt can be configured using property {}.max-attempts",
-                            maxAttempts,
-                            propertyPrefix
-                        )
+                        if (context.retryCount >= maxAttempts) {
+                            logger.warn(
+                                "Maximum attempts of {} have reached. The maximum attempt can be configured using property {}.max-attempts",
+                                maxAttempts,
+                                propertyPrefix
+                            )
+                        }
                     }
                 }
             })
@@ -115,6 +120,26 @@ class LlmDataBindingProperties(
             return RATE_LIMIT_PATTERNS.any { pattern ->
                 message.contains(pattern)
             }
+        }
+
+        /**
+         * Walks the full exception cause chain looking for a DatabindException that is NOT
+         * a MismatchedInputException. Such exceptions indicate Jackson config/annotation errors
+         * (e.g. wrong @JsonDeserialize target) — infrastructure bugs, not transient LLM output
+         * quality issues. MismatchedInputException (LLM omitted a required field) IS retryable
+         * and must be excluded.
+         *
+         * Note: DatabindException may be wrapped inside RuntimeException by JacksonOutputConverter
+         * before reaching the retry layer, so a full cause-chain walk is required rather than a
+         * simple instanceof check.
+         */
+        internal fun hasNonRetryableDatabindException(throwable: Throwable): Boolean {
+            var cause: Throwable? = throwable
+            while (cause != null) {
+                if (cause is DatabindException && cause !is MismatchedInputException) return true
+                cause = cause.cause
+            }
+            return false
         }
     }
 }
