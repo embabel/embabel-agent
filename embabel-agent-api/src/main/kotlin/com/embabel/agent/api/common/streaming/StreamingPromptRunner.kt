@@ -16,6 +16,7 @@
 package com.embabel.agent.api.common.streaming
 
 import com.embabel.agent.api.common.PromptRunner
+import com.embabel.agent.core.internal.streaming.toThinkingEvents
 import com.embabel.chat.Message
 import com.embabel.common.core.streaming.StreamingEvent
 import reactor.core.publisher.Flux
@@ -98,6 +99,18 @@ interface StreamingPromptRunner : PromptRunner {
          * @return Flux emitting text chunks as they arrive from the LLM
          */
         fun generateStream(): Flux<String>
+
+        /**
+         * Generate a reactive thinking-only stream from newline-delimited text output.
+         *
+         * Object creation remains the responsibility of [createObjectStream]
+         * and [createObjectStreamWithThinking]. JSON values and bare code fences
+         * are omitted from this stream.
+         *
+         * @return Flux emitting thinking events
+         */
+        fun generateStreamWithThinking(): Flux<StreamingEvent<String>> =
+            generateStream().toThinkingEvents()
 
     }
 }

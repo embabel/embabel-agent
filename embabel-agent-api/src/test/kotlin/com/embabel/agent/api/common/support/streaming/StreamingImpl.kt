@@ -69,6 +69,15 @@ internal class StreamingImpl(
         )
     }
 
+    override fun generateStreamWithThinking(): Flux<StreamingEvent<String>> {
+        return streamingLlmOperations.generateStreamWithThinking(
+            messages = messages,
+            interaction = interaction,
+            agentProcess = agentProcess,
+            action = action,
+        )
+    }
+
     override fun <T> createObjectStream(itemClass: Class<T>): Flux<T> {
         return streamingLlmOperations.createObjectStream(
             messages = messages,

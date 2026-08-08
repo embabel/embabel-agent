@@ -29,18 +29,18 @@ import java.util.function.Predicate
  * Streaming output converter that extends FilteringJacksonOutputConverter to support JSONL format.
  *
  * This converter enables streaming LLM responses by:
- * - Converting JSONL (JSON Lines) input to reactive Flux<T> streams of typed objects
- * - Supporting mixed content streams with both objects and thinking content via StreamingEvent<T>
+ * - Converting JSONL (JSON Lines) input to reactive Flux<T> streams of typed values
+ * - Supporting mixed content streams with both typed values and thinking content via StreamingEvent<T>
  * - Inheriting JSON schema injection and property filtering capabilities from parent FilteringJacksonOutputConverter
  * - Providing instructions to LLMs for proper JSONL output formatting
  *
  * Use cases:
- * - Streaming lists of objects from LLM responses in real-time
+ * - Streaming lists of typed values from LLM responses in real-time
  * - Processing LLM reasoning (thinking) alongside structured outputs
  * - Real-time agent progress monitoring and incremental results
  *
  * The converter requests JSONL format from LLMs and parses each line as a separate
- * JSON object, emitting them as reactive stream events as they become available.
+ * JSON value, emitting them as reactive stream events as they become available.
  */
 class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConverter<T> {
 
@@ -65,8 +65,8 @@ class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConverter
     }
 
     /**
-     * Convert streaming JSONL text to a Flux of typed objects.
-     * Each line should be a valid JSON object matching the schema.
+     * Convert streaming JSONL text to a Flux of typed values.
+     * Each line should be a valid JSON value matching the schema.
      * Uses resilient error handling - logs warnings for null conversions but continues processing other lines.
      */
     fun convertStream(jsonlContent: String): Flux<T> {
@@ -77,8 +77,8 @@ class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConverter
 
 
     /**
-     * Convert streaming text with thinking blocks into StreamingEvent objects.
-     * Supports both object lines and thinking blocks.
+     * Convert streaming text with thinking blocks into StreamingEvent values.
+     * Supports both typed JSON value lines and thinking blocks.
      * Uses resilient error handling - logs warnings for individual line failures but continues processing.
      */
     fun convertStreamWithThinking(text: String): Flux<StreamingEvent<T>> {
@@ -124,31 +124,20 @@ class StreamingJacksonOutputConverter<T : Any> : FilteringJacksonOutputConverter
                |<think>your reasoning here
                |another line of thinking</think>
                |
-               |Thinking blocks are separate from JSON objects and can appear before, between, or after JSON lines as needed for your analysis.
-               |""".trimMargin()
-        } else ""
-
-        val exampleFormat = if (thinkingEnabled) {
-            """|
-               |Example format:
-               |<think>analyzing the requirements</think>
-               |{"field": "precise_value"}
-               |<think>considering next item</think>
-               |{"field": "another_precise_value"}
+               |Thinking blocks are separate from JSON values and can appear before, between, or after JSON lines as needed for your analysis.
                |""".trimMargin()
         } else ""
 
         return """|
            |Your response should be in JSONL (JSON Lines) format.
-           |Each line must contain exactly one JSON object that strictly adheres to the provided schema.
-           |Do not include any explanations in the JSON objects themselves.
-           |Do not include markdown code blocks or wrap responses in arrays.
-           |Ensure RFC7464 compliant JSON Lines, one valid JSON object per line.
+           |Each line must contain exactly one JSON value that strictly adheres to the provided schema.
+           |Do not include any explanations in the JSON values themselves.
+           |Do not include markdown code blocks or wrap the entire JSONL sequence in an array.
+           |Ensure JSON Lines output with one valid JSON value per line.
            |$thinkingInstructions
            |
-           |Here is the JSON Schema instance each JSON object must adhere to:
+           |Here is the JSON Schema instance each JSON value must adhere to:
            |```${getJsonSchema()}```
-           |$exampleFormat
            |""".trimMargin()
     }
 }

@@ -113,6 +113,14 @@ internal class StreamingChatClientOperations(
         return doTransformStream(messages, interaction, null, agentProcess, action)
     }
 
+    override fun generateStreamWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        agentProcess: AgentProcess,
+        action: Action?,
+    ): Flux<StreamingEvent<String>> =
+        doTransformStreamWithThinking(messages, interaction, null, agentProcess, action)
+
     override fun <O> createObjectStream(
         messages: List<Message>,
         interaction: LlmInteraction,

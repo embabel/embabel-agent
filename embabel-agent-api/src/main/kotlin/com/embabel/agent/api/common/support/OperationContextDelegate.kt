@@ -341,6 +341,17 @@ internal data class OperationContextDelegate(
         )
     }
 
+    override fun generateStreamWithThinking(): Flux<StreamingEvent<String>> {
+        val streamingLlmOperations = streamingFactory().createStreamingOperations(llm)
+
+        return streamingLlmOperations.generateStreamWithThinking(
+            messages = messages,
+            interaction = streamingInteraction(),
+            agentProcess = context.processContext.agentProcess,
+            action = action,
+        )
+    }
+
     override fun <T> createObjectStream(itemClass: Class<T>): Flux<T> {
         val streamingLlmOperations = streamingFactory().createStreamingOperations(llm)
 

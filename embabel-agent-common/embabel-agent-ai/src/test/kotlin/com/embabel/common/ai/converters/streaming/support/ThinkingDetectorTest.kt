@@ -137,13 +137,14 @@ class ThinkingDetectorTest {
     }
 
     @Test
-    fun `detectThinkingState should return NONE for valid JSON`() {
+    fun `detectThinkingState should return NONE for valid JSON values`() {
         Assertions.assertEquals(ThinkingState.NONE, ThinkingDetector.detectThinkingState("{\"name\": \"value\"}"))
         Assertions.assertEquals(ThinkingState.NONE, ThinkingDetector.detectThinkingState("{\"field\": 123}"))
         Assertions.assertEquals(
             ThinkingState.NONE,
             ThinkingDetector.detectThinkingState("{\"complex\": {\"nested\": true}}")
         )
+        Assertions.assertEquals(ThinkingState.NONE, ThinkingDetector.detectThinkingState("\"final answer\""))
     }
 
     @Test
@@ -158,10 +159,16 @@ class ThinkingDetectorTest {
     }
 
     @Test
-    fun `isValidJson should identify valid JSON objects`() {
+    fun `isValidJson should identify complete JSON values`() {
         assertTrue(invokeIsValidJson("{\"name\": \"value\"}"))
         assertTrue(invokeIsValidJson("{\"field\": 123, \"other\": true}"))
         assertTrue(invokeIsValidJson("  {\"trimmed\": true}  "))
+        assertTrue(invokeIsValidJson("{}"))
+        assertTrue(invokeIsValidJson("\"\""))
+        assertTrue(invokeIsValidJson("\"just a string\""))
+        assertTrue(invokeIsValidJson("\"escaped \\\"quote\\\"\""))
+        assertTrue(invokeIsValidJson("\"escaped \\\\ slash\""))
+        assertTrue(invokeIsValidJson("\"unicode \\u263A\""))
     }
 
     @Test
@@ -170,12 +177,15 @@ class ThinkingDetectorTest {
         assertFalse(invokeIsValidJson("[\"array\", \"not\", \"object\"]"))
         assertFalse(invokeIsValidJson("{\"incomplete\": "))
         assertFalse(invokeIsValidJson("incomplete\": \"value\"}"))
-        assertFalse(invokeIsValidJson("\"just a string\""))
+        assertFalse(invokeIsValidJson("\"unterminated string"))
+        assertFalse(invokeIsValidJson("\"invalid \\q escape\""))
+        assertFalse(invokeIsValidJson("\"trailing slash \\\""))
+        assertFalse(invokeIsValidJson("\"line\nbreak\""))
         assertFalse(invokeIsValidJson("123"))
         assertFalse(invokeIsValidJson("true"))
+        assertFalse(invokeIsValidJson("null"))
         assertFalse(invokeIsValidJson(""))
         assertFalse(invokeIsValidJson("   "))
-        assertFalse(invokeIsValidJson("{}"))  // No colon = not valid JSON object
     }
 
     @Test
@@ -188,6 +198,7 @@ class ThinkingDetectorTest {
         // But should reject obvious non-JSON
         assertFalse(invokeIsValidJson("{no colon here}"))
         assertFalse(invokeIsValidJson("{malformed but looks like object}"))
+        assertFalse(invokeIsValidJson("[thinking note]"))
     }
 
     @Test

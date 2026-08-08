@@ -58,18 +58,32 @@ interface StreamingLlmOperations {
     ): Flux<String>
 
     /**
-     * Create a streaming list of objects from JSONL response in the context of an AgentProcess.
-     * Each line in the LLM response should be a valid JSON object matching the output class.
-     * Objects are emitted to the Flux as they are parsed from individual lines.
+     * Generate thinking events from text output.
+     *
+     * Object creation is intentionally excluded from this API.
+     */
+    fun generateStreamWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        agentProcess: AgentProcess,
+        action: Action?,
+    ): Flux<StreamingEvent<String>> =
+        generateStream(messages, interaction, agentProcess, action)
+            .toThinkingEvents()
+
+    /**
+     * Create a streaming list of typed values from JSONL response in the context of an AgentProcess.
+     * Each line in the LLM response should be a valid JSON value matching the output class.
+     * Values are emitted to the Flux as they are parsed from individual lines.
      *
      * Supports the API layer createObjectStream() method.
      *
      * @param messages messages in the conversation so far
      * @param interaction Llm options and tool callbacks to use, plus unique identifier
-     * @param outputClass Class of the output objects
+     * @param outputClass Class of the output values
      * @param agentProcess Agent process we are running within
      * @param action Action we are running within if we are running within an action
-     * @return Flux of typed objects as they are parsed from the response
+     * @return Flux of typed values as they are parsed from the response
      */
     fun <O> createObjectStream(
         messages: List<Message>,
@@ -80,13 +94,13 @@ interface StreamingLlmOperations {
     ): Flux<O>
 
     /**
-     * Try to create a streaming list of objects in the context of an AgentProcess.
-     * Return a Flux that may error if the LLM does not have enough information to create objects.
+     * Try to create a streaming list of typed values in the context of an AgentProcess.
+     * Return a Flux that may error if the LLM does not have enough information to create values.
      * Streaming equivalent of createObjectIfPossible().
      *
      * @param messages messages
      * @param interaction Llm options and tool callbacks to use, plus unique identifier
-     * @param outputClass Class of the output objects
+     * @param outputClass Class of the output values
      * @param agentProcess Agent process we are running within
      * @param action Action we are running within if we are running within an action
      * @return Flux of Result<O> objects, where each Result indicates success/failure for that object
@@ -100,19 +114,19 @@ interface StreamingLlmOperations {
     ): Flux<Result<O>>
 
     /**
-     * Create a streaming list of objects with LLM thinking content from mixed JSONL response.
-     * Supports both JSON object lines and //THINKING: lines in the LLM response.
-     * Returns StreamingEvent objects that can contain either typed objects or thinking content.
+     * Create a streaming list of typed values with LLM thinking content from mixed JSONL response.
+     * Supports both JSON value lines and //THINKING: lines in the LLM response.
+     * Returns StreamingEvent objects that can contain either typed values or thinking content.
      *
      * This enables real-time visibility into LLM reasoning process alongside structured results.
      * Supports the API layer createObjectStreamWithThinking() method.
      *
      * @param messages messages in the conversation so far
      * @param interaction Llm options and tool callbacks to use, plus unique identifier
-     * @param outputClass Class of the output objects
+     * @param outputClass Class of the output values
      * @param agentProcess Agent process we are running within
      * @param action Action we are running within if we are running within an action
-     * @return Flux of StreamingEvent objects containing either objects or thinking content
+     * @return Flux of StreamingEvent objects containing either typed values or thinking content
      */
     fun <O> createObjectStreamWithThinking(
         messages: List<Message>,
@@ -143,17 +157,33 @@ interface StreamingLlmOperations {
     ): Flux<String>
 
     /**
+     * Low-level thinking-only stream with optional platform context.
+     *
+     * The default applies the object-stream thinking classification to text
+     * output and deliberately omits object creation.
+     */
+    fun doTransformStreamWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        llmRequestEvent: LlmRequestEvent<String>?,
+        agentProcess: AgentProcess? = null,
+        action: Action? = null,
+    ): Flux<StreamingEvent<String>> =
+        doTransformStream(messages, interaction, llmRequestEvent, agentProcess, action)
+            .toThinkingEvents()
+
+    /**
      * Low level object streaming transform with optional platform context.
-     * Streams typed objects as they are parsed from JSONL response.
+     * Streams typed values as they are parsed from JSONL response.
      * When agentProcess is provided, tools are resolved from ToolGroups and decorated.
      *
      * @param messages messages in the conversation so far
      * @param interaction The LLM call options
-     * @param outputClass Class of the output objects
+     * @param outputClass Class of the output values
      * @param llmRequestEvent Event already published for this request if one has been
      * @param agentProcess Optional agent process for tool resolution and decoration
      * @param action Optional action context for tool decoration
-     * @return Flux of typed objects as they are parsed from the response
+     * @return Flux of typed values as they are parsed from the response
      */
     fun <O> doTransformObjectStream(
         messages: List<Message>,
@@ -166,12 +196,12 @@ interface StreamingLlmOperations {
 
     /**
      * Low level mixed content streaming transform with optional platform context.
-     * Streams both typed objects and thinking content from mixed JSONL response.
+     * Streams both typed values and thinking content from mixed JSONL response.
      * When agentProcess is provided, tools are resolved from ToolGroups and decorated.
      *
      * @param messages messages in the conversation so far
      * @param interaction The LLM call options
-     * @param outputClass Class of the output objects
+     * @param outputClass Class of the output values
      * @param llmRequestEvent Event already published for this request if one has been
      * @param agentProcess Optional agent process for tool resolution and decoration
      * @param action Optional action context for tool decoration
