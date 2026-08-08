@@ -169,6 +169,106 @@ class MessagePromptBuildersTest {
         }
     }
 
+    @Test
+    fun `a repeat offender drops to debug rather than warning again`() {
+        withContributionsLogger(Level.DEBUG) { appender ->
+            val slow = namedSlowContributor("repeat-offender-${System.nanoTime()}")
+
+            buildPromptContributionsString(listOf(slow), emptyList())
+            buildPromptContributionsString(listOf(slow), emptyList())
+
+            assertEquals(1, appender.list.count { it.level == Level.WARN })
+            assertTrue(
+                appender.list.any { it.level == Level.DEBUG && it.formattedMessage.contains(slow.name) },
+                "the second occurrence must still be visible at debug: ${appender.list}",
+            )
+        }
+    }
+
+    @Test
+    fun `an unnamed contributor is reported by its class, since that is all there is`() {
+        withContributionsLogger { appender ->
+            buildPromptContributionsString(listOf(UnnamedSlowContributor()), emptyList())
+
+            val warning = appender.list.single { it.level == Level.WARN }.formattedMessage
+            assertTrue(
+                warning.contains(UnnamedSlowContributor::class.simpleName!!),
+                "warning must identify the contributor somehow: $warning",
+            )
+        }
+    }
+
+    @Test
+    fun `a blank name falls back to the class, so the warning is never anonymous`() {
+        withContributionsLogger { appender ->
+            val slow = object : PromptContributor, Named {
+                override val name = "   "
+                override fun contribution(): String {
+                    Thread.sleep(300)
+                    return "recalled"
+                }
+            }
+
+            buildPromptContributionsString(listOf(slow), emptyList())
+
+            val warning = appender.list.single { it.level == Level.WARN }.formattedMessage
+            assertTrue(
+                warning.contains("MessagePromptBuildersTest"),
+                "a blank name must not produce a nameless warning: $warning",
+            )
+        }
+    }
+
+    @Test
+    fun `every contributor is timed at debug, not only the slow ones`() {
+        withContributionsLogger(Level.DEBUG) { appender ->
+            buildPromptContributionsString(listOf(testPromptContributor("cheap")), emptyList())
+
+            assertTrue(
+                appender.list.any { it.level == Level.DEBUG },
+                "per-call figures are the trend you need before anything crosses the threshold",
+            )
+            assertTrue(appender.list.none { it.level == Level.WARN })
+        }
+    }
+
+    /**
+     * A top-level class rather than an anonymous object, so the class name in the warning is
+     * one a reader could actually go and look at.
+     */
+    private class UnnamedSlowContributor : PromptContributor {
+        override fun contribution(): String {
+            Thread.sleep(300)
+            return "recalled"
+        }
+    }
+
+    private fun namedSlowContributor(contributorName: String) = object : PromptContributor, Named {
+        override val name = contributorName
+        override fun contribution(): String {
+            Thread.sleep(300)
+            return "recalled"
+        }
+    }
+
+    private fun withContributionsLogger(
+        level: Level = Level.INFO,
+        block: (ListAppender<ILoggingEvent>) -> Unit,
+    ) {
+        val logger = LoggerFactory.getLogger("com.embabel.agent.spi.support.PromptContributions")
+            as ch.qos.logback.classic.Logger
+        val previousLevel = logger.level
+        val appender = ListAppender<ILoggingEvent>().apply { start() }
+        logger.addAppender(appender)
+        logger.level = level
+        try {
+            block(appender)
+        } finally {
+            logger.level = previousLevel
+            logger.detachAppender(appender)
+        }
+    }
+
     // ========================================
     // partitionMessages tests
     // ========================================
