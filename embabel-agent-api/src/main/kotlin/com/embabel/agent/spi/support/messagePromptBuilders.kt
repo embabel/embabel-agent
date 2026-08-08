@@ -96,9 +96,11 @@ private fun PromptContributor.timedContribution(): String {
         val id = describeForLog()
         if (firstSighting(id)) {
             logger.warn(
-                "Prompt contributor '{}' took {}ms. It runs on every LLM call that includes it, " +
-                    "before the model is invoked, so this is added latency on every turn. " +
-                    "Further occurrences are logged at debug.",
+                """
+                Prompt contributor '{}' took {}ms. It runs on every LLM call that includes it,
+                before the model is invoked, so this is added latency on every turn.
+                Further occurrences are logged at debug.
+                """.trimIndent(),
                 id, elapsedMillis,
             )
         } else {
