@@ -24,6 +24,16 @@
             <groupId>org.jetbrains.kotlin</groupId>
             <artifactId>kotlin-stdlib</artifactId>
         </dependency>
+
+        <!--
+          For EmbeddingService, which embeddingValidation.kt is typed to. Acyclic: embabel-agent-ai
+          does not reference this module, and every consumer of this one already depends on
+          embabel-agent-api, which brings embabel-agent-ai transitively.
+        -->
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-ai</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

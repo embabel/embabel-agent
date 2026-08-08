@@ -25,6 +25,7 @@ import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.*
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
+import com.embabel.common.byok.validatedEmbeddingService
 import com.embabel.common.util.ObjectProviders
 import com.openai.client.OpenAIClient
 import com.openai.client.OpenAIClientAsync
@@ -86,9 +87,6 @@ open class OpenAiCompatibleModelFactory(
     companion object {
         private const val CONNECT_TIMEOUT_MS = 5_000L
         private const val READ_TIMEOUT_MS = 600_000L
-
-        /** Short, cheap text used to probe an embedding key. */
-        private const val EMBEDDING_VALIDATION_PROBE = "Hi"
 
         /**
          * Message for a key that is present but blank.
@@ -404,30 +402,14 @@ open class OpenAiCompatibleModelFactory(
 
     /**
      * Validates the configured API key by embedding a short probe text, then returns a
-     * production [EmbeddingService] if successful.
+     * production [EmbeddingService] carrying the width the model actually produced.
      *
-     * The returned service carries the dimension observed in the probe, so no live
-     * `dimensions()` call is needed later. This is not a micro-optimisation: Spring AI's
-     * `AbstractEmbeddingModel.dimensions()` caches its answer, but resolves it by calling
-     * `dimensions(this, "Test", "Hello World")` — passing the literal `"Test"` as the model
-     * name, so its known-dimensions lookup table can never hit and it always falls through to
-     * a live `embed("Hello World")`. Left lazy, that call happens at an arbitrary later moment
-     * and can fail there. We are already embedding a probe to validate the key, so the width
-     * is free information; take it.
+     * The probe-and-stamp logic is provider-agnostic and lives in
+     * [com.embabel.common.byok.validatedEmbeddingService]; this method supplies the
+     * OpenAI-compatible builder and the blank-key guard.
      *
-     * The dimension is never taken from the caller: it is whatever the model actually returned.
-     * A caller writing into an existing index should compare [EmbeddingService.dimensions] on
-     * the result against that index's width — vectors of different widths cannot share an index.
-     *
-     * A **blank** key is treated as absent and rejected before any network call. A key is blank
-     * rather than absent more often than it looks: Compose passes
-     * `OPENAI_API_KEY=${'$'}{OPENAI_API_KEY:-}`, so in a container the variable is routinely
-     * set-but-empty, and a caller reading it with a null default gets `""` rather than null. That
-     * empty string passes a null check, reaches the provider, and comes back as an opaque
-     * authentication error a long way from its cause.
-     *
-     * @throws InvalidApiKeyException if the key is blank or invalid, the provider is unreachable,
-     * or the model returns no vector.
+     * @throws InvalidApiKeyException if the key is blank or invalid, the provider is
+     * unreachable, or the model returns no vector.
      */
     fun buildValidatedEmbeddingService(
         model: String,
@@ -437,30 +419,14 @@ open class OpenAiCompatibleModelFactory(
         if (apiKey.isNullOrBlank()) {
             throw InvalidApiKeyException(BLANK_EMBEDDING_KEY_MESSAGE)
         }
-        val probe = openAiCompatibleEmbeddingService(
-            model = model,
-            provider = provider,
-            pricingModel = pricingModel,
-        )
-        // Both failure modes mean the same thing to the caller - the model could not be
-        // validated - so they share one exit rather than throwing from two places. The message
-        // names the model: unlike the LLM path it is caller-supplied and mandatory, never
-        // defaulted and never detected, so a typo in it arrives as the same provider error and
-        // "invalid API key" alone would send someone to re-check a key that was fine.
-        val vector = try {
-            probe.embed(EMBEDDING_VALIDATION_PROBE)
-                .also { require(it.isNotEmpty()) { "the model returned an empty vector" } }
-        } catch (e: Exception) {
-            throw InvalidApiKeyException(
-                "Could not validate embedding model '$model' on $provider: ${e.message ?: "no detail"}",
+        return validatedEmbeddingService(model = model, provider = provider) { configuredDimensions ->
+            openAiCompatibleEmbeddingService(
+                model = model,
+                provider = provider,
+                configuredDimensions = configuredDimensions,
+                pricingModel = pricingModel,
             )
         }
-        return openAiCompatibleEmbeddingService(
-            model = model,
-            provider = provider,
-            configuredDimensions = vector.size,
-            pricingModel = pricingModel,
-        )
     }
 
     open fun openAiCompatibleEmbeddingService(
