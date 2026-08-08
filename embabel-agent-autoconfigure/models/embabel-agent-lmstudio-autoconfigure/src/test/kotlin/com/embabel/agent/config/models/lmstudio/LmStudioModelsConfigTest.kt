@@ -202,21 +202,16 @@ class LmStudioModelsConfigTest {
 
     @Test
     fun `chat base url gains the v1 the SDK expects`() {
-        assertEquals("http://127.0.0.1:1234/v1", LmStudioModelsConfig.chatBaseUrl("http://127.0.0.1:1234"))
+        assertEquals("${LmStudioProperties.DEFAULT_BASE_URL}/v1", LmStudioModelsConfig.chatBaseUrl(LmStudioProperties.DEFAULT_BASE_URL))
     }
 
     @Test
     fun `a trailing slash does not produce a double slash`() {
-        assertEquals("http://127.0.0.1:1234/v1", LmStudioModelsConfig.chatBaseUrl("http://127.0.0.1:1234/"))
+        assertEquals("${LmStudioProperties.DEFAULT_BASE_URL}/v1", LmStudioModelsConfig.chatBaseUrl("${LmStudioProperties.DEFAULT_BASE_URL}/"))
     }
 
     @Test
     fun `an operator who already wrote v1 is not given two`() {
-        assertEquals("http://host.docker.internal:1234/v1", LmStudioModelsConfig.chatBaseUrl("http://host.docker.internal:1234/v1"))
-    }
-
-    @Test
-    fun `null falls back to the documented default`() {
-        assertEquals("http://127.0.0.1:1234/v1", LmStudioModelsConfig.chatBaseUrl(null))
+        assertEquals("http://host.docker.internal:${LmStudioProperties.DEFAULT_PORT}/v1", LmStudioModelsConfig.chatBaseUrl("http://host.docker.internal:${LmStudioProperties.DEFAULT_PORT}/v1"))
     }
 }

@@ -45,7 +45,7 @@ class LmStudioProperties : RetryProperties {
     /**
      * Base URL for LM Studio endpoint
      */
-    var baseUrl: String = "http://127.0.0.1:1234"
+    var baseUrl: String = DEFAULT_BASE_URL
 
     /**
      * API key for LM Studio. Defaults to null as apiKey isn't supported yet.
@@ -74,7 +74,10 @@ class LmStudioProperties : RetryProperties {
 
     override val propertyPrefix: String = PREFIX
     companion object {
-        const val PREFIX  = "embabel.agent.platform.models.lmstudio"
+        const val PREFIX = "embabel.agent.platform.models.lmstudio"
+        const val DEFAULT_HOST = "localhost"
+        const val DEFAULT_PORT = 1234
+        const val DEFAULT_BASE_URL = "http://$DEFAULT_HOST:$DEFAULT_PORT"
     }
 }
 
@@ -119,8 +122,8 @@ class LmStudioModelsConfig(
          * the OpenAI surface under `/v1`, so append it unless the operator has
          * already done so.
          */
-        internal fun chatBaseUrl(baseUrl: String?): String {
-            val clean = (baseUrl ?: "http://127.0.0.1:1234").trimEnd('/')
+        internal fun chatBaseUrl(baseUrl: String): String {
+            val clean = baseUrl.trimEnd('/')
             return if (clean.endsWith("/v1")) clean else "$clean/v1"
         }
     }
