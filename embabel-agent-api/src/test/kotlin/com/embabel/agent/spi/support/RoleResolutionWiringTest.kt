@@ -38,10 +38,13 @@ import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
+import io.mockk.verify
 import jakarta.validation.Validation
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import tools.jackson.module.kotlin.jacksonObjectMapper
+import java.time.Duration
 import java.util.concurrent.Executors
 
 /**
@@ -121,6 +124,44 @@ class RoleResolutionWiringTest {
         )
 
         assertEquals(0.9, cheap.optionsPassed.single().temperature)
+    }
+
+    @Test
+    fun `streaming gets the role's tuning too, not just the role's model`() {
+        // Streaming is the chat path. Resolving only far enough to choose a model would leave the
+        // streamer running on whatever the caller happened to pass, which is nothing.
+        val streamed = slot<LlmOptions>()
+        val roleModel = mockk<LlmService<*>>(relaxed = true)
+        every { roleModel.name } returns "gpt-4.1-nano"
+        every { roleModel.provider } returns "openai"
+        every { roleModel.createMessageStreamer(capture(streamed)) } returns mockk(relaxed = true)
+
+        val defaultModel = mockk<LlmService<*>>(relaxed = true)
+        every { defaultModel.name } returns "gpt-4.1-mini"
+        every { defaultModel.provider } returns "openai"
+
+        val modelProvider = ConfigurableModelProvider(
+            llms = listOf(roleModel, defaultModel),
+            embeddingServices = emptyList(),
+            properties = ConfigurableModelProviderProperties(
+                roles = mapOf(
+                    CHEAPEST_ROLE to mapOf(
+                        "openai" to LlmOptions.withModel("gpt-4.1-nano")
+                            .withTemperature(0.2)
+                            .withTimeout(Duration.ofSeconds(90)),
+                    ),
+                ),
+                defaultLlm = "gpt-4.1-mini",
+            ),
+        )
+
+        setup(modelProvider).llmOperations.createStreamingOperations(
+            LlmOptions.withLlmForRole(CHEAPEST_ROLE),
+        )
+
+        assertEquals(0.2, streamed.captured.temperature)
+        assertEquals(Duration.ofSeconds(90), streamed.captured.timeout)
+        verify(exactly = 0) { defaultModel.createMessageStreamer(any()) }
     }
 
     private data class Wiring(

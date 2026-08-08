@@ -428,11 +428,20 @@ abstract class AbstractLlmOperations(
      *
      * Interactions naming no role are returned untouched, so the common path costs nothing.
      */
-    private fun withRoleResolved(interaction: LlmInteraction): LlmInteraction =
-        if (interaction.llm.criteria is ByRoleModelSelectionCriteria) {
-            interaction.copy(llm = modelProvider.resolveLlmOptions(interaction.llm))
+    private fun withRoleResolved(interaction: LlmInteraction): LlmInteraction {
+        val resolved = withRoleResolved(interaction.llm)
+        return if (resolved === interaction.llm) interaction else interaction.copy(llm = resolved)
+    }
+
+    /**
+     * As above, for the paths that carry options rather than a whole interaction - streaming,
+     * and the capability queries that pick a model without running a prompt.
+     */
+    private fun withRoleResolved(options: LlmOptions): LlmOptions =
+        if (options.criteria is ByRoleModelSelectionCriteria) {
+            modelProvider.resolveLlmOptions(options)
         } else {
-            interaction
+            options
         }
 
     protected fun chooseLlm(
@@ -452,18 +461,22 @@ abstract class AbstractLlmOperations(
     }
 
     override fun supportsStreaming(options: LlmOptions): Boolean {
-        val llmService = chooseLlm(options)
+        val llmService = chooseLlm(withRoleResolved(options))
         return llmService.supportsStreaming()
     }
 
     override fun supportsThinking(options: LlmOptions): Boolean {
-        val llmService = chooseLlm(options)
+        val llmService = chooseLlm(withRoleResolved(options))
         return llmService.supportsThinking()
     }
 
     override fun createStreamingOperations(options: LlmOptions): StreamingLlmOperations {
-        val llmService = chooseLlm(options)
-        val messageStreamer = llmService.createMessageStreamer(options)
+        // Resolve once and stream with the SAME options. The streamer reads hyperparameters, so
+        // resolving only far enough to pick a model would silently drop the tuning a role carries -
+        // and streaming is the chat path, where that tuning matters most.
+        val resolved = withRoleResolved(options)
+        val llmService = chooseLlm(resolved)
+        val messageStreamer = llmService.createMessageStreamer(resolved)
         return StreamingLlmOperationsImpl(
             messageStreamer = messageStreamer,
             objectMapper = objectMapper,
