@@ -68,8 +68,11 @@ data class ModelSelectionContext(
  * threading it through every LLM API. Applications set it at their request boundary - a servlet
  * filter, an interceptor, or around the code that starts an agent process.
  *
- * The context does not propagate to threads you spawn yourself. Capture it with [get] and re-establish
- * it with [with] inside the new thread.
+ * The platform propagates the context across the threads it starts itself - a background agent run,
+ * parallel actions, `OperationContext.parallelMap` - because losing it there does not fail loudly:
+ * role resolution would quietly fall back to deployment configuration and serve a model the
+ * deployment is billed for. It does not reach threads the application spawns on its own. Capture it
+ * with [get] and re-establish it with [with] inside such a thread.
  */
 object ModelSelectionContextHolder {
 

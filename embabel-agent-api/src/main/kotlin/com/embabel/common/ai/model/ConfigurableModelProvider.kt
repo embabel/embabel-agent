@@ -75,7 +75,7 @@ data class ConfigurableModelProviderProperties(
 /**
  * Take LLM definitions from configuration
  */
-class ConfigurableModelProvider(
+class ConfigurableModelProvider @JvmOverloads constructor(
     private val llms: List<LlmService<*>>,
     private val embeddingServices: List<EmbeddingService>,
     private val properties: ConfigurableModelProviderProperties,

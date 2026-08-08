@@ -679,7 +679,9 @@ ModelSelectionContextHolder.with(ModelSelectionContext(userId = currentUserId)) 
 }
 ----
 
-The context does not propagate to threads you spawn yourself. Capture it with
+The platform carries the context across the threads it starts itself — a background agent run,
+parallel actions, `OperationContext.parallelMap` — so setting it once at the request boundary is
+enough. It does not reach threads your own code spawns: capture it there with
 `ModelSelectionContextHolder.get()` and re-establish it inside the new thread.
 
 ===== Using Your Custom Implementation (Alternative)
