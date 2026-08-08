@@ -15,6 +15,10 @@
  */
 package com.embabel.common.ai.model
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
@@ -26,6 +30,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.core.Ordered
 import java.time.Duration
@@ -190,6 +195,63 @@ class RoleResolutionTest {
                     llms = mapOf(CHEAPEST_ROLE to "a-model-nobody-registered"),
                     defaultLlm = "gpt-4.1-mini",
                 ),
+            )
+        }
+
+        @Test
+        fun `a nested role naming an unregistered model for our own provider warns at startup`() {
+            // The nested shape is the one case where configuration can take a role AWAY: the entry
+            // is found, its model is not registered, and resolution throws rather than falling back
+            // to the flat map. A typo there was silent until something asked for the role.
+            val warnings = captureWarnings {
+                provider(
+                    models = listOf(defaultModel),
+                    properties = ConfigurableModelProviderProperties(
+                        llms = mapOf(CHEAPEST_ROLE to "gpt-4.1-mini"),
+                        roles = mapOf(CHEAPEST_ROLE to mapOf("openai" to LlmOptions.withModel("gpt-4.1-nanoo"))),
+                        defaultLlm = "gpt-4.1-mini",
+                    ),
+                )
+            }
+            assertTrue(
+                warnings.any { it.contains("gpt-4.1-nanoo") && it.contains(CHEAPEST_ROLE) },
+                "the typo must be reported at startup: $warnings",
+            )
+        }
+
+        @Test
+        fun `a nested role for another provider is not warned about`() {
+            // Its model is not expected to be registered here — that is the whole point of the
+            // provider dimension. Warning would train people to ignore the warning.
+            val warnings = captureWarnings {
+                provider(
+                    models = listOf(defaultModel),
+                    properties = ConfigurableModelProviderProperties(
+                        roles = mapOf(CHEAPEST_ROLE to mapOf("anthropic" to LlmOptions.withModel("claude-haiku-4-5"))),
+                        defaultLlm = "gpt-4.1-mini",
+                    ),
+                )
+            }
+            assertTrue(
+                warnings.none { it.contains("claude-haiku-4-5") },
+                "a model for a provider we are not keyed for is not a misconfiguration: $warnings",
+            )
+        }
+
+        @Test
+        fun `a nested role naming no model at all warns`() {
+            val warnings = captureWarnings {
+                provider(
+                    models = listOf(defaultModel),
+                    properties = ConfigurableModelProviderProperties(
+                        roles = mapOf(CHEAPEST_ROLE to mapOf("openai" to LlmOptions().withTemperature(0.3))),
+                        defaultLlm = "gpt-4.1-mini",
+                    ),
+                )
+            }
+            assertTrue(
+                warnings.any { it.contains("names no model") },
+                "tuning without a model cannot satisfy a role: $warnings",
             )
         }
 
@@ -546,6 +608,22 @@ class RoleResolutionTest {
             assertTrue(rendered.contains("anthropic"))
             assertTrue(!rendered.contains("sk-very-secret"))
         }
+    }
+
+    /**
+     * Warnings emitted by [ConfigurableModelProvider] while [block] runs. Startup diagnostics are
+     * the whole product of the checks above, so asserting on them is asserting on the behaviour.
+     */
+    private fun captureWarnings(block: () -> Unit): List<String> {
+        val logger = LoggerFactory.getLogger(ConfigurableModelProvider::class.java) as Logger
+        val appender = ListAppender<ILoggingEvent>().apply { start() }
+        logger.addAppender(appender)
+        try {
+            block()
+        } finally {
+            logger.detachAppender(appender)
+        }
+        return appender.list.filter { it.level == Level.WARN }.map { it.formattedMessage }
     }
 
     private fun modelNameOf(options: LlmOptions): String =
