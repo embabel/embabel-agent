@@ -18,8 +18,13 @@ package com.embabel.agent.spi.support
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.SystemMessage
 import com.embabel.chat.UserMessage
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.embabel.common.ai.prompt.PromptContributor
+import com.embabel.common.core.types.Named
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -107,6 +112,61 @@ class MessagePromptBuildersTest {
 
     private fun testPromptContributor(content: String): PromptContributor = object : PromptContributor {
         override fun contribution(): String = content
+    }
+
+    // ========================================
+    // slow contributor reporting
+    // ========================================
+
+    @Test
+    fun `a slow contributor is named in a warning, once`() {
+        val logger = LoggerFactory.getLogger("com.embabel.agent.spi.support.PromptContributions")
+            as ch.qos.logback.classic.Logger
+        val appender = ListAppender<ILoggingEvent>().apply { start() }
+        logger.addAppender(appender)
+        try {
+            // Named, because a name is what makes the warning actionable — a bare decorator
+            // class name would not tell the reader which of their contributors to fix.
+            val slow = object : PromptContributor, Named {
+                override val name = "slow-contributor-${System.nanoTime()}"
+                override fun contribution(): String {
+                    Thread.sleep(300)
+                    return "recalled"
+                }
+            }
+
+            val first = buildPromptContributionsString(listOf(slow), emptyList())
+            val second = buildPromptContributionsString(listOf(slow), emptyList())
+
+            assertEquals("recalled", first)
+            assertEquals("recalled", second)
+            val warnings = appender.list.filter { it.level == Level.WARN }
+            assertEquals(1, warnings.size, "should warn once, not on every call: $warnings")
+            assertTrue(
+                warnings.single().formattedMessage.contains(slow.name),
+                "warning must name the contributor: ${warnings.single().formattedMessage}",
+            )
+        } finally {
+            logger.detachAppender(appender)
+        }
+    }
+
+    @Test
+    fun `a fast contributor produces no warning`() {
+        val logger = LoggerFactory.getLogger("com.embabel.agent.spi.support.PromptContributions")
+            as ch.qos.logback.classic.Logger
+        val appender = ListAppender<ILoggingEvent>().apply { start() }
+        logger.addAppender(appender)
+        try {
+            buildPromptContributionsString(listOf(testPromptContributor("cheap")), emptyList())
+
+            assertTrue(
+                appender.list.none { it.level == Level.WARN },
+                "an ordinary contributor must stay silent: ${appender.list}",
+            )
+        } finally {
+            logger.detachAppender(appender)
+        }
     }
 
     // ========================================
