@@ -232,6 +232,33 @@ class MessagePromptBuildersTest {
         }
     }
 
+    @Test
+    fun `the warned-contributor set is bounded, because names can vary per instance`() {
+        // A reference named after the user or the query is both the likeliest thing to do I/O
+        // and the likeliest thing to have a fresh name every call. Without a cap this set grows
+        // for the life of the process.
+        val added = (warnedSlowContributors.size until MAX_WARNED_SLOW_CONTRIBUTORS)
+            .map { "filler-$it-${System.nanoTime()}" }
+        warnedSlowContributors.addAll(added)
+        val sizeAtCap = warnedSlowContributors.size
+        try {
+            withContributionsLogger { appender ->
+                buildPromptContributionsString(
+                    listOf(namedSlowContributor("over-the-cap-${System.nanoTime()}")),
+                    emptyList(),
+                )
+
+                assertTrue(
+                    appender.list.none { it.level == Level.WARN },
+                    "past the cap a slow contributor must not warn again: ${appender.list}",
+                )
+            }
+            assertEquals(sizeAtCap, warnedSlowContributors.size, "the set must not have grown")
+        } finally {
+            warnedSlowContributors.removeAll(added.toSet())
+        }
+    }
+
     /**
      * A top-level class rather than an anonymous object, so the class name in the warning is
      * one a reader could actually go and look at.

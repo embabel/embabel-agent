@@ -40,8 +40,24 @@ private const val SLOW_CONTRIBUTOR_MILLIS = 250L
  * Contributors already reported, so a permanently slow one warns once rather than on every
  * call. A warning repeated every turn is a warning people learn to scroll past, and the
  * information does not change between turns; the per-call figures remain at debug level.
+ *
+ * Bounded, because the identity comes from the contributor itself: a [Named] contributor whose
+ * name varies per instance - a reference named after the user or the query, exactly the kind
+ * that does I/O and so is exactly the kind that lands here - would otherwise grow this set for
+ * the life of the process. Past the cap every slow contributor still reports, at debug.
  */
-private val warnedSlowContributors = ConcurrentHashMap.newKeySet<String>()
+internal const val MAX_WARNED_SLOW_CONTRIBUTORS = 200
+
+internal val warnedSlowContributors = ConcurrentHashMap.newKeySet<String>()
+
+/**
+ * Whether [id] is the first sighting of a slow contributor, and so worth a warning.
+ *
+ * Racing to the cap can admit a few entries beyond it. That costs a handful of strings, where
+ * making it exact would cost a lock on the prompt assembly path.
+ */
+private fun firstSighting(id: String): Boolean =
+    warnedSlowContributors.size < MAX_WARNED_SLOW_CONTRIBUTORS && warnedSlowContributors.add(id)
 
 /**
  * Builds a prompt contributions string from prompt contributors.
@@ -78,7 +94,7 @@ private fun PromptContributor.timedContribution(): String {
     val elapsedMillis = (System.nanoTime() - startedNanos) / 1_000_000
     if (elapsedMillis >= SLOW_CONTRIBUTOR_MILLIS) {
         val id = describeForLog()
-        if (warnedSlowContributors.add(id)) {
+        if (firstSighting(id)) {
             logger.warn(
                 "Prompt contributor '{}' took {}ms. It runs on every LLM call that includes it, " +
                     "before the model is invoked, so this is added latency on every turn. " +

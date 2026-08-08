@@ -74,6 +74,13 @@ class PromptAssemblyPerformanceTest {
      */
     private val budget: Duration = 50.milliseconds
 
+    /**
+     * Floor under the scaling bound. At sub-millisecond timings a pure ratio is at the mercy of
+     * the scheduler; 3ms is well above that noise and still far below where linear scaling in
+     * tool count would land.
+     */
+    private val scalingFloor: Duration = 3.milliseconds
+
     /** Enough samples that one GC pause cannot move the median. */
     private val samples = 20
 
@@ -121,9 +128,18 @@ class PromptAssemblyPerformanceTest {
         // 10x the tools must not cost 10x. Per-tool work in the assembly path is the thing
         // this catches — it is what makes a rich tool surface expensive to OWN rather than
         // expensive to USE, and the user pays it on every turn regardless of their question.
+        //
+        // The bound is 4x the 4-tool cost, with a floor so that a sub-millisecond `few` plus
+        // scheduler noise cannot fail it. Adding the full steady-state budget here instead —
+        // 50ms against a ~0.6ms measurement — made the assertion unfailable: genuinely linear
+        // scaling would have come in at ~6ms and still passed.
+        val allowed = maxOf(few.inWholeMicroseconds * 4, scalingFloor.inWholeMicroseconds)
         assertThat(many.inWholeMicroseconds)
-            .describedAs("40 tools (%s) vs 4 tools (%s) — assembly should be near-flat", many, few)
-            .isLessThan(few.inWholeMicroseconds * 4 + budget.inWholeMicroseconds)
+            .describedAs(
+                "40 tools (%s) vs 4 tools (%s) — assembly should be near-flat, allowed %sus",
+                many, few, allowed,
+            )
+            .isLessThan(allowed)
     }
 
     private fun medianAssembly(toolCount: Int): Duration {
