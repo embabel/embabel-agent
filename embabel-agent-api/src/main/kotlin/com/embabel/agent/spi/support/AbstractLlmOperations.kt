@@ -145,6 +145,11 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): O {
+        // Shadowed deliberately. After this line the resolved interaction IS the interaction for
+        // the rest of the method, and shadowing makes the unresolved one unreachable. A distinct
+        // name would leave both in scope, differing only in whether a role has become a concrete
+        // model plus its hyperparameters - and picking the wrong one is not a compile error, it is
+        // a call that silently skips role resolution and runs on the default model.
         @Suppress("NAME_SHADOWING")
         val interaction = withRoleResolved(interaction)
 
@@ -264,6 +269,11 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): Result<O> {
+        // Shadowed deliberately. After this line the resolved interaction IS the interaction for
+        // the rest of the method, and shadowing makes the unresolved one unreachable. A distinct
+        // name would leave both in scope, differing only in whether a role has become a concrete
+        // model plus its hyperparameters - and picking the wrong one is not a compile error, it is
+        // a call that silently skips role resolution and runs on the default model.
         @Suppress("NAME_SHADOWING")
         val interaction = withRoleResolved(interaction)
 
@@ -319,6 +329,11 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): ThinkingResponse<O> {
+        // Shadowed deliberately. After this line the resolved interaction IS the interaction for
+        // the rest of the method, and shadowing makes the unresolved one unreachable. A distinct
+        // name would leave both in scope, differing only in whether a role has become a concrete
+        // model plus its hyperparameters - and picking the wrong one is not a compile error, it is
+        // a call that silently skips role resolution and runs on the default model.
         @Suppress("NAME_SHADOWING")
         val interaction = withRoleResolved(interaction)
 
@@ -374,6 +389,11 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): Result<ThinkingResponse<O>> {
+        // Shadowed deliberately. After this line the resolved interaction IS the interaction for
+        // the rest of the method, and shadowing makes the unresolved one unreachable. A distinct
+        // name would leave both in scope, differing only in whether a role has become a concrete
+        // model plus its hyperparameters - and picking the wrong one is not a compile error, it is
+        // a call that silently skips role resolution and runs on the default model.
         @Suppress("NAME_SHADOWING")
         val interaction = withRoleResolved(interaction)
 

@@ -189,7 +189,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 }
             }
         }
-        warnAboutUnsatisfiableNestedRoles()
+        checkNestedRoles()
         logger.info(infoString(verbose = true))
 
         properties.embeddingServices.forEach { (role, model) ->
@@ -228,7 +228,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      * is found, its model is not registered, and resolution throws rather than falling back to
      * the flat map - which is the one case where the nested shape can take a role AWAY.
      */
-    private fun warnAboutUnsatisfiableNestedRoles() {
+    private fun checkNestedRoles() {
         val deploymentProvider = defaultLlm.provider
         properties.roles.forEach { (role, byProvider) ->
             byProvider
@@ -236,20 +236,31 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 .forEach { (provider, options) ->
                     val model = options.modelName
                     if (model == null) {
-                        logger.warn(
-                            "Role '{}' under provider '{}' names no model, so anything asking for that role will fail",
-                            role, provider,
+                        reportUnsatisfiableRole(
+                            "Role '$role' under provider '$provider' names no model, so anything asking for that role will fail",
                         )
                     } else if (llms.none { it.name == model }) {
-                        logger.warn(
-                            """
-                            LLM '{}' for role '{}' under provider '{}' - this deployment's own provider -
-                            is not available, so anything asking for that role will fail. Available: {}
-                            """.trimIndent(),
-                            model, role, provider, llms.map { it.name },
+                        reportUnsatisfiableRole(
+                            "LLM '$model' for role '$role' under provider '$provider' - this deployment's own " +
+                                "provider - is not available. Available: ${llms.map { it.name }}",
                         )
                     }
                 }
+        }
+    }
+
+    /**
+     * Report a role this deployment cannot satisfy, on the same terms as the flat map: fatal in a
+     * deployment that holds a key, expected in one that is waiting for one.
+     *
+     * Shared so the two shapes cannot drift. Applying the rule to only one of them was the original
+     * defect here - a typo under `roles` warned and booted while the same typo under `llms` did not.
+     */
+    private fun reportUnsatisfiableRole(message: String) {
+        if (setupRequired) {
+            logger.warn("{}. This deployment is awaiting a key, so that is expected", message)
+        } else {
+            error(message)
         }
     }
 

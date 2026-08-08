@@ -52,12 +52,21 @@ sealed interface RoleResolution {
 /**
  * Decides what a role means for a given call.
  *
- * Register as many as you like: the platform consults them in Spring [org.springframework.core.Ordered]
- * order and takes the first non-null answer, so a resolver can handle the roles it cares about and
- * delegate the rest. The platform's own [ConfigurableRoleResolver] runs last and reads
- * `embabel.models.roles` and `embabel.models.llms`.
+ * Register as many as you like. The platform takes the first non-null answer, so a resolver can
+ * handle the roles it cares about and delegate the rest by returning null.
  *
- * Implementations must be thread-safe.
+ * Ordering, in full, because it decides who wins:
+ *
+ * - **Application resolvers always precede the platform's own.** [ConfigurableRoleResolver] is not
+ *   in the bean stream at all - it is appended after the ordered beans - so configuration is
+ *   always the last word, whatever an application registers.
+ * - **Between application resolvers**, Spring's [org.springframework.core.Ordered] applies:
+ *   lowest value first, via `@Order` or by implementing `Ordered`. A resolver that does neither is
+ *   `LOWEST_PRECEDENCE` and sorts after any that do.
+ * - **Ties** fall back to bean registration order, which is not something to depend on. If two of
+ *   your resolvers can answer the same role, order them explicitly.
+ *
+ * Implementations must be thread-safe: one instance serves every call, on any thread.
  */
 fun interface RoleResolver {
 
