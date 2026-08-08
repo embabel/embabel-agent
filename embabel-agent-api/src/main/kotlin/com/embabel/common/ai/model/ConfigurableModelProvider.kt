@@ -81,7 +81,16 @@ class ConfigurableModelProvider(
     init {
         properties.llms.forEach { (role, model) ->
             if (llms.none { it.name == model }) {
-                error("LLM '$model' for role $role is not available: Choices are ${llms.map { it.name }}")
+                // Not fatal. A deployment may legitimately have no model registered for a role: a
+                // bring-your-own-key deployment starts with none at all, and one keyed for a single
+                // provider will not have the others' models. It still boots and still serves every
+                // role that does work. The role itself throws when something asks for it - it does
+                // NOT fall back to the default LLM, which is what would make "cheapest" silently
+                // the most expensive model in the deployment.
+                logger.warn(
+                    "LLM '{}' for role '{}' is not available, so anything asking for that role will fail. Available: {}",
+                    model, role, llms.map { it.name },
+                )
             }
         }
         logger.info(infoString(verbose = true))

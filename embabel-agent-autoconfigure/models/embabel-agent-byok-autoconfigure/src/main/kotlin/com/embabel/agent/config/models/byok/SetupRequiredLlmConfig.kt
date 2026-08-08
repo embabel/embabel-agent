@@ -38,8 +38,10 @@ class SetupRequiredLlmConfig {
     @Bean(SetupRequiredLlm.NAME)
     fun setupRequiredLlmService(): LlmService<*> {
         loggerFor<SetupRequiredLlmConfig>().info(
-            "Registered placeholder LLM '{}'. Set embabel.models.default-llm={} to start with no provider key; " +
-                "supply a real key per request with PromptRunner.withLlmService(...).",
+            """
+            Registered placeholder LLM '{}'. Set embabel.models.default-llm={} to start with no provider key;
+            supply a real key per request with PromptRunner.withLlmService(...).
+            """.trimIndent(),
             SetupRequiredLlm.NAME,
             SetupRequiredLlm.NAME,
         )

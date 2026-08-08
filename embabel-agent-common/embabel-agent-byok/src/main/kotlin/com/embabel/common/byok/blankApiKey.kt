@@ -18,9 +18,10 @@ package com.embabel.common.byok
 /**
  * Message carried by [InvalidApiKeyException] when a key is present but blank.
  */
-const val BLANK_API_KEY_MESSAGE: String =
-    "API key is blank. A blank key is treated as absent: supply a non-empty key, or omit it and " +
-        "let the caller decide there is no key for this request."
+val BLANK_API_KEY_MESSAGE: String = """
+    API key is blank. A blank key is treated as absent:
+    supply a non-empty key, or omit it and let the caller decide there is no key for this request.
+""".trimIndent()
 
 /**
  * Rejects a blank or absent API key before it reaches a provider.

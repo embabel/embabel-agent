@@ -60,7 +60,7 @@ class ByokStarterBootTest {
     @Test
     void theModelProviderResolvesTheDefaultLlmWithoutAnyKey() {
         contextRunner
-                .withUserConfiguration(ModelProviderConfiguration.class)
+                .withUserConfiguration(TestableModelProviderConfiguration.class)
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     var modelProvider = context.getBean(ModelProvider.class);
@@ -75,7 +75,7 @@ class ByokStarterBootTest {
      * resolution path rather than a hand-built stand-in.
      */
     @Configuration(proxyBeanMethods = false)
-    static class ModelProviderConfiguration {
+    static class TestableModelProviderConfiguration {
 
         @Bean
         ModelProvider modelProvider(ApplicationContext applicationContext,

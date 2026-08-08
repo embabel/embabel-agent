@@ -106,10 +106,11 @@ object SetupRequiredLlm {
      * application knows which providers it accepts and how a user supplies a key, so it should
      * catch the exception and say so in its own words rather than surface this verbatim.
      */
-    const val MESSAGE: String =
-        "No LLM is configured. This deployment holds no provider API key, so a key must be " +
-            "supplied per request via PromptRunner.withLlmService(...). See the Bring Your Own " +
-            "Key section of the Embabel reference documentation."
+    val MESSAGE: String = """
+        No LLM is configured. This deployment holds no provider API key,
+        so a key must be supplied per request via PromptRunner.withLlmService(...).
+        See the Bring Your Own Key section of the Embabel reference documentation.
+    """.trimIndent()
 
     /**
      * Builds the placeholder service. Registered as a bean by [SetupRequiredLlmConfig]; call this

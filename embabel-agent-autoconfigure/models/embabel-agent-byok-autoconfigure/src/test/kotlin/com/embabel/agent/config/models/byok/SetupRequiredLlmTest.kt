@@ -36,8 +36,10 @@ class SetupRequiredLlmTest {
 
     @Test
     fun `placeholder is named by the well-known constant`() {
+        // Not asserting the literal "setup-required": that is the constant restating itself.
+        // What has to hold is that the service reports the name and provider the constants
+        // declare, since that is what `embabel.models.default-llm` matches against.
         val service = SetupRequiredLlm.llmService()
-        assertThat(SetupRequiredLlm.NAME).isEqualTo("setup-required")
         assertThat(service.name).isEqualTo(SetupRequiredLlm.NAME)
         assertThat(service.provider).isEqualTo(SetupRequiredLlm.PROVIDER)
     }
