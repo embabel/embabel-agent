@@ -67,6 +67,19 @@ data class ConfigurableModelProviderProperties(
      * existing parameters for anyone constructing this positionally.
      */
     var roles: Map<String, Map<String, LlmOptions>> = emptyMap(),
+    /**
+     * Upper bound on LLM services built from user-supplied keys and held for reuse.
+     *
+     * A cache bound is an operational concern: it trades memory against how often a deployment
+     * rebuilds a service for a key it has seen before, and the right number depends on how many
+     * distinct keys are concurrently active — which only the deployment knows. The default suits
+     * a deployment with tens to low hundreds of concurrent users; raise it if yours has more, and
+     * expect roughly one thin chat-client wrapper per entry.
+     *
+     * Exceeding it is not an error. Least-recently-used entries are dropped and rebuilt on next
+     * use, so the only cost of setting it too low is repeated construction.
+     */
+    var credentialServiceCacheSize: Int = 500,
 ) {
 
     fun allWellKnownLlmNames(): Set<String> {
@@ -108,7 +121,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     private val credentialLlmServices: MutableMap<CredentialModelKey, LlmService<*>> =
         object : LinkedHashMap<CredentialModelKey, LlmService<*>>(16, 0.75f, true) {
             override fun removeEldestEntry(eldest: Map.Entry<CredentialModelKey, LlmService<*>>) =
-                size > MAX_CACHED_CREDENTIAL_SERVICES
+                size > properties.credentialServiceCacheSize
         }.let { Collections.synchronizedMap(it) }
 
     private val defaultLlm =
@@ -160,13 +173,11 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     init {
         properties.llms.forEach { (role, model) ->
             if (llms.none { it.name == model }) {
-                /*
-                 * Fatal, unless this deployment is waiting for a key. A name that resolves to
-                 * nothing is a typo in a deployment that has one, and letting it start would move
-                 * the failure to whichever unrelated call first asks for that role. A deployment in
-                 * setup-required mode has no models registered yet by definition, so the same name
-                 * is expected there and only worth reporting.
-                 */
+                // Fatal, unless this deployment is waiting for a key. A name that resolves to
+                // nothing is a typo in a deployment that has one, and letting it start would move
+                // the failure to whichever unrelated call first asks for that role. A deployment in
+                // setup-required mode has no models registered yet by definition, so the same name
+                // is expected there and only worth reporting.
                 if (setupRequired) {
                     logger.warn(
                         "LLM '{}' for role '{}' is not registered. This deployment is awaiting a key, so that is expected; " +
@@ -336,6 +347,21 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         }
         if (resolved != null) {
             return resolved
+        }
+        if (setupRequired) {
+            // No key has arrived yet, so no role can name a registered model and this is not a
+            // misconfiguration. Hand back the placeholder rather than throwing: the caller then
+            // fails with the same actionable "no LLM configured" error that the default LLM already
+            // gives, instead of a NoSuitableModelException listing the placeholder as a choice.
+            //
+            // Not a silent substitution of the kind this method otherwise refuses. The objection to
+            // falling back is that "cheapest" would quietly become a real, expensive model; the
+            // placeholder answers nothing and bills nothing.
+            logger.debug(
+                "Role '{}' has no registered model and this deployment is awaiting a key; using the placeholder",
+                role,
+            )
+            return ResolvedRole(defaultLlm, LlmOptions.withDefaults())
         }
         logger.warn(
             "No model available for role '{}' (provider: {})",
@@ -509,12 +535,4 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         }
     }
 
-    companion object {
-
-        /**
-         * Upper bound on services built from user keys. Generous: each is a thin wrapper around a
-         * chat client, and a deployment with more concurrent keys than this will simply rebuild.
-         */
-        const val MAX_CACHED_CREDENTIAL_SERVICES = 500
-    }
 }

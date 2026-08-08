@@ -20,6 +20,7 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.PlaceholderLlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
 import io.mockk.mockk
@@ -46,6 +47,17 @@ class RoleResolutionTest {
     private val openAiModel = llm("gpt-4.1-nano", "openai")
     private val anthropicModel = llm("claude-haiku-4-5", "anthropic")
     private val defaultModel = llm("gpt-4.1-mini", "openai")
+
+    /**
+     * Stands in for `SetupRequiredLlm`, which lives in the BYOK module this one cannot depend on.
+     * [SpringAiLlmService] is a data class and so final; the real placeholder carries the marker by
+     * delegation in the same way.
+     */
+    private val placeholderModel: LlmService<*> = object :
+        LlmService<SpringAiLlmService> by SpringAiLlmService(
+            "setup-required", "none", mockk<ChatModel>(), DefaultOptionsConverter,
+        ),
+        PlaceholderLlmService {}
 
     /**
      * One role, two providers, each with its own model and its own tuning.
@@ -143,10 +155,12 @@ class RoleResolutionTest {
 
         @Test
         fun `a configured role whose model is not registered throws`() {
+            // Configured through the nested shape, which warns rather than failing at startup: the
+            // flat map is fatal at construction in a keyed deployment, so it cannot reach here.
             val mp = provider(
                 models = listOf(defaultModel),
                 properties = ConfigurableModelProviderProperties(
-                    llms = mapOf(CHEAPEST_ROLE to "a-model-nobody-registered"),
+                    roles = mapOf(CHEAPEST_ROLE to mapOf("openai" to LlmOptions.withModel("a-model-nobody-registered"))),
                     defaultLlm = "gpt-4.1-mini",
                 ),
             )
@@ -177,7 +191,7 @@ class RoleResolutionTest {
             val mp = provider(
                 models = listOf(expensiveDefault),
                 properties = ConfigurableModelProviderProperties(
-                    llms = mapOf(CHEAPEST_ROLE to "gpt-4.1-nano"),
+                    roles = mapOf(CHEAPEST_ROLE to mapOf("openai" to LlmOptions.withModel("gpt-4.1-nano"))),
                     defaultLlm = "gpt-4.1-mini",
                 ),
             )
@@ -187,15 +201,52 @@ class RoleResolutionTest {
         }
 
         @Test
-        fun `constructing the provider does not fail when a role names an unavailable model`() {
-            // Previously fatal at context refresh, which made a partially keyed deployment unbootable.
-            provider(
-                models = listOf(defaultModel),
+        fun `constructing the provider DOES fail when a keyed deployment names an unavailable model`() {
+            // A deployment whose default-llm resolves to a real model has a key, so a name nothing
+            // registers is a typo. Booting anyway would move the failure to whichever unrelated
+            // call first asked for the role.
+            assertThrows<IllegalStateException> {
+                provider(
+                    models = listOf(defaultModel),
+                    properties = ConfigurableModelProviderProperties(
+                        llms = mapOf(CHEAPEST_ROLE to "a-model-nobody-registered"),
+                        defaultLlm = "gpt-4.1-mini",
+                    ),
+                )
+            }
+        }
+
+        @Test
+        fun `a deployment awaiting a key starts, and its roles report that rather than failing`() {
+            // The BYOK case: no key has arrived, so NO role can name a registered model. The
+            // placeholder answers, so the caller gets the same actionable "no LLM configured" error
+            // the default LLM already gives instead of a NoSuitableModelException.
+            val mp = provider(
+                models = listOf(placeholderModel),
                 properties = ConfigurableModelProviderProperties(
-                    llms = mapOf(CHEAPEST_ROLE to "a-model-nobody-registered"),
+                    llms = mapOf(CHEAPEST_ROLE to "gpt-4.1-nano"),
+                    defaultLlm = "setup-required",
+                ),
+            )
+
+            assertSame(placeholderModel, mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE)))
+        }
+
+        @Test
+        fun `the placeholder is not handed out once a real default is registered`() {
+            // The hybrid deployment - BYOK starter alongside a provider starter. It has a key, so
+            // an unsatisfiable role is still an error rather than "you have not set a key".
+            val mp = provider(
+                models = listOf(defaultModel, placeholderModel),
+                properties = ConfigurableModelProviderProperties(
+                    roles = mapOf(CHEAPEST_ROLE to mapOf("anthropic" to LlmOptions.withModel("claude-haiku-4-5"))),
                     defaultLlm = "gpt-4.1-mini",
                 ),
             )
+
+            assertThrows<NoSuitableModelException> {
+                mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE))
+            }
         }
 
         @Test
@@ -486,6 +537,36 @@ class RoleResolutionTest {
                 }
             }
             assertEquals(listOf("sk-ben", "sk-rod"), built)
+        }
+
+        @Test
+        fun `the cache is bounded by configuration, and evicted entries rebuild`() {
+            val built = mutableListOf<String>()
+            val mp = provider(
+                properties = ConfigurableModelProviderProperties(
+                    roles = nestedRoles,
+                    defaultLlm = "gpt-4.1-mini",
+                    credentialServiceCacheSize = 2,
+                ),
+                factories = listOf(
+                    CredentialLlmServiceFactory { credential, _ ->
+                        built += credential.apiKey
+                        llm("claude-haiku-4-5", "anthropic")
+                    },
+                ),
+            )
+            fun resolveFor(key: String) = ModelSelectionContextHolder.with(
+                ModelSelectionContext(credential = ProviderCredential("anthropic", key)),
+            ) {
+                mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE))
+            }
+
+            listOf("sk-a", "sk-b", "sk-c").forEach { resolveFor(it) }
+            resolveFor("sk-a")
+
+            // sk-a was the least recently used when sk-c arrived, so it is gone and rebuilds.
+            // Exceeding the bound costs construction, never correctness.
+            assertEquals(listOf("sk-a", "sk-b", "sk-c", "sk-a"), built)
         }
 
         @Test
