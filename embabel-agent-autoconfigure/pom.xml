@@ -27,6 +27,7 @@
         <module>embabel-agent-mcpserver-autoconfigure</module>
         <module>embabel-agent-mcpserver-security-autoconfigure</module>
         <module>embabel-agent-netty-client-autoconfigure</module>
+        <module>models/embabel-agent-byok-autoconfigure</module>
         <module>models/embabel-agent-bedrock-autoconfigure</module>
         <module>models/embabel-agent-openai-autoconfigure</module>
         <module>models/embabel-agent-openai-custom-autoconfigure</module>

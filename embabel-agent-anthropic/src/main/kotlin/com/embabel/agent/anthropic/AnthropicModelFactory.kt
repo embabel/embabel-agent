@@ -24,6 +24,7 @@ import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
+import com.embabel.common.byok.requireUsableApiKey
 import com.embabel.common.util.ObjectProviders
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
@@ -155,10 +156,17 @@ open class AnthropicModelFactory(
      * On any exception the provider-specific error is translated to [InvalidApiKeyException],
      * keeping Spring AI types out of the caller.
      *
+     * A blank key is rejected before any network call. A key is routinely blank rather than
+     * absent: Compose passes `ANTHROPIC_API_KEY=${'$'}{ANTHROPIC_API_KEY:-}`, so in a container the
+     * variable is set-but-empty, and callers reading it with a null default get `""`. Without
+     * this check that empty string reaches the provider and comes back as an opaque auth error,
+     * which is why BYOK callers otherwise re-derive "blank counts as absent" for themselves.
+     *
      * @param model Model to use for the probe.
-     * @throws InvalidApiKeyException if the key is invalid.
+     * @throws InvalidApiKeyException if the key is blank or invalid.
      */
     fun buildValidated(model: String): LlmService<*> {
+        requireUsableApiKey(apiKey)
         val probe = build(model)
         try {
             probe.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())
