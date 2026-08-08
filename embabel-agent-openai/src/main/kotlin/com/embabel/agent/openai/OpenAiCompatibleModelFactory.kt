@@ -97,9 +97,10 @@ open class OpenAiCompatibleModelFactory(
          * helper is the right home for it — but putting it there from here would couple these
          * two branches for four lines. Collapse this onto that helper once both have landed.
          */
-        internal const val BLANK_EMBEDDING_KEY_MESSAGE: String =
-            "API key is blank. A blank key is treated as absent: supply a non-empty key, or omit " +
-                "it and let the caller decide there is no key for this request."
+        internal val BLANK_EMBEDDING_KEY_MESSAGE: String = """
+            API key is blank. A blank key is treated as absent:
+            supply a non-empty key, or omit it and let the caller decide there is no key for this request.
+        """.trimIndent()
 
         /**
          * Returns a [ByokSpec] for OpenAI.
@@ -441,19 +442,18 @@ open class OpenAiCompatibleModelFactory(
             provider = provider,
             pricingModel = pricingModel,
         )
+        // Both failure modes mean the same thing to the caller - the model could not be
+        // validated - so they share one exit rather than throwing from two places. The message
+        // names the model: unlike the LLM path it is caller-supplied and mandatory, never
+        // defaulted and never detected, so a typo in it arrives as the same provider error and
+        // "invalid API key" alone would send someone to re-check a key that was fine.
         val vector = try {
             probe.embed(EMBEDDING_VALIDATION_PROBE)
+                .also { require(it.isNotEmpty()) { "the model returned an empty vector" } }
         } catch (e: Exception) {
-            // Name the model. Unlike the LLM path, the embedding model is caller-supplied and
-            // mandatory — it is never defaulted or detected — so a typo in it is at least as
-            // likely as a bad key, and reaches here as the same provider error. Reporting only
-            // "invalid API key" sends the caller to re-check a key that was fine all along.
             throw InvalidApiKeyException(
                 "Could not validate embedding model '$model' on $provider: ${e.message ?: "no detail"}",
             )
-        }
-        if (vector.isEmpty()) {
-            throw InvalidApiKeyException("Embedding model '$model' on $provider returned an empty vector")
         }
         return openAiCompatibleEmbeddingService(
             model = model,
