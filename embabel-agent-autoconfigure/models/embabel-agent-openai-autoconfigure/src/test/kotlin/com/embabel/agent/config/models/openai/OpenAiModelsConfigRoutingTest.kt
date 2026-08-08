@@ -47,6 +47,10 @@ class OpenAiModelsConfigRoutingTest {
             api_format: RESPONSES
             special_handling:
               supports_temperature: false
+              supports_top_p: false
+              supports_frequency_penalty: false
+              supports_presence_penalty: false
+              uses_max_completion_tokens: true
           - name: chatModel
             model_id: gpt-4o-mini
     """.trimIndent()

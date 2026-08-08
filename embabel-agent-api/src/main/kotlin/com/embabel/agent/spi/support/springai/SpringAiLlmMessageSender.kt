@@ -209,19 +209,22 @@ internal class SpringAiLlmMessageSender(
                 .build()
         }
 
-        // Fallback: Create generic ToolCallingChatOptions.
+        // Fallback: create generic ToolCallingChatOptions.
+        // Only copy parameters that are present so we never re-introduce values the
+        // options converter intentionally omitted (e.g. temperature on restricted models).
         // We handle tools ourselves in DefaultToolLoop. Spring AI 2.0 GA removed the per-request
         // internalToolExecutionEnabled flag; internal execution is disabled on the ChatModel.
-        return ToolCallingChatOptions.builder()
-            .model(chatOptions.model)
-            .temperature(chatOptions.temperature)
-            .maxTokens(chatOptions.maxTokens)
-            .topP(chatOptions.topP)
-            .topK(chatOptions.topK)
-            .frequencyPenalty(chatOptions.frequencyPenalty)
-            .presencePenalty(chatOptions.presencePenalty)
-            .stopSequences(chatOptions.stopSequences)
-            .toolCallbacks(toolCallbacks)
-            .build()
+        val builder = ToolCallingChatOptions.builder()
+        // Spring AI ChatOptions.model is nullable (String?). Only copy when non-null so we
+        // never force "" or invent a model id the converter intentionally left unset.
+        chatOptions.model?.let { builder.model(it) }
+        chatOptions.temperature?.let { builder.temperature(it) }
+        chatOptions.maxTokens?.let { builder.maxTokens(it) }
+        chatOptions.topP?.let { builder.topP(it) }
+        chatOptions.topK?.let { builder.topK(it) }
+        chatOptions.frequencyPenalty?.let { builder.frequencyPenalty(it) }
+        chatOptions.presencePenalty?.let { builder.presencePenalty(it) }
+        chatOptions.stopSequences?.let { builder.stopSequences(it) }
+        return builder.toolCallbacks(toolCallbacks).build()
     }
 }
