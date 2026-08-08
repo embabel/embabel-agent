@@ -84,6 +84,12 @@ class PromptAssemblyPerformanceTest {
     /** Enough samples that one GC pause cannot move the median. */
     private val samples = 20
 
+    /**
+     * Calls discarded before timing starts. One-time init - template compilation, schema
+     * machinery, Spring AI advisor setup - is a real cost but a DIFFERENT one from steady state.
+     */
+    private val warmupCalls = 5
+
     /** Chat-sized tool surface. */
     private val toolCount = 40
 
@@ -98,7 +104,7 @@ class PromptAssemblyPerformanceTest {
         // One-time init (template compilation, schema machinery, Spring AI advisor setup) is
         // a real cost but a DIFFERENT one. Conflating it with steady state turns this into a
         // startup budget and hides the per-turn regression it exists to catch.
-        repeat(5) { call() }
+        repeat(warmupCalls) { call() }
 
         val timings = (1..samples).map { measureTime { call() } }.sorted()
         val median = timings[timings.size / 2]
@@ -121,8 +127,18 @@ class PromptAssemblyPerformanceTest {
 
     @Test
     fun `assembly does not scale linearly with tool count`() {
-        val few = medianAssembly(toolCount = 4)
-        val many = medianAssembly(toolCount = 40)
+        // Warm BOTH surfaces before measuring EITHER. Measuring 4 tools first made it pay the
+        // class-loading and JIT cost that the 40-tool run then found already paid, which inflated
+        // the baseline the bound is derived from — the first version of this test reported 4
+        // tools at 608us against 40 tools at 535us, i.e. the smaller workload measuring slower.
+        // A baseline inflated by warmup makes the bound generous by exactly the amount of the
+        // inflation, which is the one direction a scaling test must not be wrong in.
+        val fewSetup = assemblySetup(toolCount = 4)
+        val manySetup = assemblySetup(toolCount = 40)
+        repeat(warmupCalls) { fewSetup(); manySetup() }
+
+        val few = median(fewSetup)
+        val many = median(manySetup)
         logger.info("prompt assembly scaling: 4 tools={} vs 40 tools={}", few, many)
 
         // 10x the tools must not cost 10x. Per-tool work in the assembly path is the thing
@@ -133,6 +149,11 @@ class PromptAssemblyPerformanceTest {
         // scheduler noise cannot fail it. Adding the full steady-state budget here instead —
         // 50ms against a ~0.6ms measurement — made the assertion unfailable: genuinely linear
         // scaling would have come in at ~6ms and still passed.
+        //
+        // Be aware which of the two actually binds. At today's ~0.55ms baseline the 4x term is
+        // ~2.2ms, so the 3ms floor is the real bound and the ratio is dormant. That is the right
+        // way round — the floor is the flake guard, and the ratio takes over if assembly ever gets
+        // slow enough for 4x to exceed it. Linear scaling would still land at ~5.5ms and fail.
         val allowed = maxOf(few.inWholeMicroseconds * 4, scalingFloor.inWholeMicroseconds)
         assertThat(many.inWholeMicroseconds)
             .describedAs(
@@ -142,13 +163,18 @@ class PromptAssemblyPerformanceTest {
             .isLessThan(allowed)
     }
 
-    private fun medianAssembly(toolCount: Int): Duration {
+    /**
+     * One assembly call bound to its own operations instance and tool surface, so a caller can
+     * warm every surface it intends to compare before timing any of them.
+     */
+    private fun assemblySetup(toolCount: Int): () -> Unit {
         val setup = createChatClientLlmOperations(FakeChatModel("fine, thanks"))
         val tools = (1..toolCount).map { stubTool("tool_$it") }
-        val call = { setup.assemble(tools) }
-        repeat(5) { call() }
-        return (1..samples).map { measureTime { call() } }.sorted()[samples / 2]
+        return { setup.assemble(tools) }
     }
+
+    private fun median(call: () -> Unit): Duration =
+        (1..samples).map { measureTime { call() } }.sorted()[samples / 2]
 
     /**
      * One assembly + call cycle with the given tool surface, shaped like a chat turn:
