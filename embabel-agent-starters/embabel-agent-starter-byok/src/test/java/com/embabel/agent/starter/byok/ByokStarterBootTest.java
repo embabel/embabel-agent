@@ -25,6 +25,7 @@ import com.embabel.common.ai.model.EmbeddingService;
 import com.embabel.common.ai.model.ModelProvider;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.ApplicationContext;
@@ -48,6 +49,24 @@ class ByokStarterBootTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(AgentByokAutoConfiguration.class))
             .withPropertyValues("embabel.models.default-llm=" + SetupRequiredLlm.NAME);
+
+    /**
+     * {@link AgentByokAutoConfiguration} orders itself before the platform autoconfiguration by
+     * class NAME, because its own module deliberately does not depend on
+     * platform-autoconfigure. A rename would drop that ordering silently rather than fail the
+     * build, and the symptom would be the startup failure this starter exists to prevent.
+     * <p>
+     * This module does have platform-autoconfigure on the classpath, so the name can be pinned
+     * here even though it cannot be referenced as a type where it is used.
+     */
+    @Test
+    void theAutoConfigureBeforeTargetStillExists() throws Exception {
+        var target = AgentByokAutoConfiguration.class.getAnnotation(AutoConfigureBefore.class).name();
+        assertThat(target).hasSize(1);
+        assertThat(Class.forName(target[0]))
+                .describedAs("@AutoConfigureBefore names a class that no longer exists")
+                .isNotNull();
+    }
 
     @Test
     void startsWithNoProviderKeyConfigured() {
