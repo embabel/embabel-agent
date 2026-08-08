@@ -87,6 +87,20 @@ open class OpenAiCompatibleModelFactory(
         private const val CONNECT_TIMEOUT_MS = 5_000L
         private const val READ_TIMEOUT_MS = 600_000L
 
+        /** Short, cheap text used to probe an embedding key. */
+        private const val EMBEDDING_VALIDATION_PROBE = "Hi"
+
+        /**
+         * Message for a key that is present but blank.
+         *
+         * Deliberately local. The LLM BYOK path grows the same rule in #1888, and a shared
+         * helper is the right home for it — but putting it there from here would couple these
+         * two branches for four lines. Collapse this onto that helper once both have landed.
+         */
+        internal const val BLANK_EMBEDDING_KEY_MESSAGE: String =
+            "API key is blank. A blank key is treated as absent: supply a non-empty key, or omit " +
+                "it and let the caller decide there is no key for this request."
+
         /**
          * Returns a [ByokSpec] for OpenAI.
          * Validates against [OpenAiModels.GPT_41_MINI] by default.
@@ -147,6 +161,40 @@ open class OpenAiCompatibleModelFactory(
             validationModel: String,
             validationProvider: String,
         ): ByokSpec = ByokSpec(baseUrl, apiKey, validationModel, validationProvider)
+
+        /**
+         * Returns a [ByokEmbeddingSpec] for OpenAI.
+         *
+         * [model] is required — see [ByokEmbeddingSpec] for why an embedding model is never
+         * defaulted or detected.
+         */
+        fun openAiEmbedding(
+            apiKey: String,
+            model: String,
+            pricingModel: PricingModel? = null,
+        ): ByokEmbeddingSpec =
+            ByokEmbeddingSpec(null, apiKey, model, OpenAiModels.PROVIDER, pricingModel)
+
+        /**
+         * Returns a [ByokEmbeddingSpec] for a custom OpenAI-compatible provider.
+         *
+         * ```kotlin
+         * OpenAiCompatibleModelFactory.byokEmbedding(
+         *     baseUrl = "https://api.myprovider.com",
+         *     apiKey = apiKey,
+         *     model = "my-embed-small",
+         *     provider = "MyProvider",
+         * )
+         * ```
+         */
+        fun byokEmbedding(
+            baseUrl: String?,
+            apiKey: String,
+            model: String,
+            provider: String,
+            pricingModel: PricingModel? = null,
+        ): ByokEmbeddingSpec =
+            ByokEmbeddingSpec(baseUrl, apiKey, model, provider, pricingModel)
     }
 
     /**
@@ -184,6 +232,52 @@ open class OpenAiCompatibleModelFactory(
                     pricingModel = PricingModel.ALL_YOU_CAN_EAT,
                     provider = validationProvider,
                     knowledgeCutoffDate = null,
+                )
+    }
+
+    /**
+     * A self-contained BYOK spec that validates an API key and returns a ready
+     * [EmbeddingService], so a key supplied *after* startup can activate an embedding model
+     * without a restart.
+     *
+     * Obtained via [openAiEmbedding] or [byokEmbedding].
+     *
+     * Deliberately unlike [ByokSpec] in two ways, because an embedding model is not the same
+     * kind of thing as an LLM:
+     *
+     * 1. **No provider detection.** An LLM is stateless per call, so racing candidate factories
+     *    and taking whichever accepts the key is a fine answer. An embedding model is a schema
+     *    commitment: the vector index is built at a fixed dimension and every stored vector must
+     *    share that model and dimension. Which provider answers first must not decide the index
+     *    dimension, so this type is not intended for
+     *    [com.embabel.common.byok.detectProvider] and the model is always explicit.
+     * 2. **Installation or world scope, not per-user.** Per-user LLM keys are coherent; per-user
+     *    *embedding* keys are not, because vectors from different models and dimensions would
+     *    land in one shared index. The dimension is a property of the store, not of the user.
+     *    Do not inherit a per-user credential story here.
+     *
+     * The returned service reports the dimension actually observed during validation, so a
+     * caller writing into an existing index can compare it against that index's width before
+     * storing anything. That check belongs to whatever owns the index, not here.
+     *
+     * Changing the embedding model of an existing corpus still requires re-embedding it. This
+     * type only builds and validates a service from a runtime-supplied key.
+     */
+    class ByokEmbeddingSpec internal constructor(
+        private val baseUrl: String?,
+        private val apiKey: String,
+        private val model: String,
+        private val provider: String,
+        private val pricingModel: PricingModel? = null,
+        private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
+    ) : ByokFactory<EmbeddingService> {
+
+        override fun buildValidated(): EmbeddingService =
+            OpenAiCompatibleModelFactory(baseUrl, apiKey, null, null, observationRegistry = observationRegistry)
+                .buildValidatedEmbeddingService(
+                    model = model,
+                    provider = provider,
+                    pricingModel = pricingModel,
                 )
     }
 
@@ -307,7 +401,69 @@ open class OpenAiCompatibleModelFactory(
         )
     }
 
-    fun openAiCompatibleEmbeddingService(
+    /**
+     * Validates the configured API key by embedding a short probe text, then returns a
+     * production [EmbeddingService] if successful.
+     *
+     * The returned service carries the dimension observed in the probe, so no live
+     * `dimensions()` call is needed later. This is not a micro-optimisation: Spring AI's
+     * `AbstractEmbeddingModel.dimensions()` caches its answer, but resolves it by calling
+     * `dimensions(this, "Test", "Hello World")` — passing the literal `"Test"` as the model
+     * name, so its known-dimensions lookup table can never hit and it always falls through to
+     * a live `embed("Hello World")`. Left lazy, that call happens at an arbitrary later moment
+     * and can fail there. We are already embedding a probe to validate the key, so the width
+     * is free information; take it.
+     *
+     * The dimension is never taken from the caller: it is whatever the model actually returned.
+     * A caller writing into an existing index should compare [EmbeddingService.dimensions] on
+     * the result against that index's width — vectors of different widths cannot share an index.
+     *
+     * A **blank** key is treated as absent and rejected before any network call. A key is blank
+     * rather than absent more often than it looks: Compose passes
+     * `OPENAI_API_KEY=${'$'}{OPENAI_API_KEY:-}`, so in a container the variable is routinely
+     * set-but-empty, and a caller reading it with a null default gets `""` rather than null. That
+     * empty string passes a null check, reaches the provider, and comes back as an opaque
+     * authentication error a long way from its cause.
+     *
+     * @throws InvalidApiKeyException if the key is blank or invalid, the provider is unreachable,
+     * or the model returns no vector.
+     */
+    fun buildValidatedEmbeddingService(
+        model: String,
+        provider: String,
+        pricingModel: PricingModel? = null,
+    ): EmbeddingService {
+        if (apiKey.isNullOrBlank()) {
+            throw InvalidApiKeyException(BLANK_EMBEDDING_KEY_MESSAGE)
+        }
+        val probe = openAiCompatibleEmbeddingService(
+            model = model,
+            provider = provider,
+            pricingModel = pricingModel,
+        )
+        val vector = try {
+            probe.embed(EMBEDDING_VALIDATION_PROBE)
+        } catch (e: Exception) {
+            // Name the model. Unlike the LLM path, the embedding model is caller-supplied and
+            // mandatory — it is never defaulted or detected — so a typo in it is at least as
+            // likely as a bad key, and reaches here as the same provider error. Reporting only
+            // "invalid API key" sends the caller to re-check a key that was fine all along.
+            throw InvalidApiKeyException(
+                "Could not validate embedding model '$model' on $provider: ${e.message ?: "no detail"}",
+            )
+        }
+        if (vector.isEmpty()) {
+            throw InvalidApiKeyException("Embedding model '$model' on $provider returned an empty vector")
+        }
+        return openAiCompatibleEmbeddingService(
+            model = model,
+            provider = provider,
+            configuredDimensions = vector.size,
+            pricingModel = pricingModel,
+        )
+    }
+
+    open fun openAiCompatibleEmbeddingService(
         model: String,
         provider: String,
         configuredDimensions: Int? = null,
