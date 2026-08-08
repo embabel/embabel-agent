@@ -23,6 +23,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.validation.annotation.Validated
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.util.Collections
 
 /**
  * Configuration properties for the model provider
@@ -108,7 +109,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         object : LinkedHashMap<CredentialModelKey, LlmService<*>>(16, 0.75f, true) {
             override fun removeEldestEntry(eldest: Map.Entry<CredentialModelKey, LlmService<*>>) =
                 size > MAX_CACHED_CREDENTIAL_SERVICES
-        }.let { java.util.Collections.synchronizedMap(it) }
+        }.let { Collections.synchronizedMap(it) }
 
     private val defaultLlm =
         if (llms.isNotEmpty())
@@ -230,8 +231,10 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                         )
                     } else if (llms.none { it.name == model }) {
                         logger.warn(
-                            "LLM '{}' for role '{}' under provider '{}' - this deployment's own provider - is not " +
-                                "available, so anything asking for that role will fail. Available: {}",
+                            """
+                            LLM '{}' for role '{}' under provider '{}' - this deployment's own provider -
+                            is not available, so anything asking for that role will fail. Available: {}
+                            """.trimIndent(),
                             model, role, provider, llms.map { it.name },
                         )
                     }
