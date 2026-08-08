@@ -25,6 +25,7 @@ import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.*
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
+import com.embabel.common.byok.requireUsableApiKey
 import com.embabel.common.util.ObjectProviders
 import com.openai.client.OpenAIClient
 import com.openai.client.OpenAIClientAsync
@@ -281,6 +282,11 @@ open class OpenAiCompatibleModelFactory(
      * so the probe relies on the openai-java SDK's own no-retry default (any 401 fails fast).
      * On any exception the provider-specific error is translated to [InvalidApiKeyException],
      * keeping Spring AI types out of the caller.
+     *
+     * A blank key is rejected before any network call — see [requireUsableApiKey] for why a key
+     * is set-but-empty far more often than it looks.
+     *
+     * @throws InvalidApiKeyException if the key is blank or invalid.
      */
     fun buildValidated(
         model: String,
@@ -288,6 +294,7 @@ open class OpenAiCompatibleModelFactory(
         provider: String,
         knowledgeCutoffDate: LocalDate?,
     ): LlmService<*> {
+        requireUsableApiKey(apiKey)
         val probe = openAiCompatibleLlm(
             model = model,
             pricingModel = pricingModel,

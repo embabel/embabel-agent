@@ -17,6 +17,7 @@ package com.embabel.agent.anthropic
 
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.common.byok.BLANK_API_KEY_MESSAGE
 import com.embabel.common.byok.InvalidApiKeyException
 import com.sun.net.httpserver.HttpServer
 import io.micrometer.observation.ObservationRegistry
@@ -153,5 +154,27 @@ class AnthropicModelFactoryBuildValidatedTest {
         assertThrows<InvalidApiKeyException> {
             factory().buildValidated(AnthropicModels.CLAUDE_HAIKU_4_5)
         }
+    }
+
+    @Test
+    fun `buildValidated rejects a blank key without calling the provider`() {
+        var requests = 0
+        server.createContext("/v1/messages") { exchange ->
+            requests++
+            exchange.sendResponseHeaders(500, -1)
+            exchange.close()
+        }
+        server.start()
+
+        val blankKeyFactory = AnthropicModelFactory(
+            apiKey = "   ",
+            baseUrl = "http://localhost:$port",
+            observationRegistry = ObservationRegistry.NOOP,
+            restClientBuilder = restClientBuilder,
+        )
+
+        val e = assertThrows<InvalidApiKeyException> { blankKeyFactory.buildValidated() }
+        assertEquals(BLANK_API_KEY_MESSAGE, e.message)
+        assertEquals(0, requests, "a blank key must not reach the provider")
     }
 }

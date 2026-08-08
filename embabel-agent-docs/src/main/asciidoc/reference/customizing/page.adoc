@@ -229,6 +229,18 @@ val service: LlmService<*> = OpenAiCompatibleModelFactory.gemini(userKey).buildV
 `buildValidated()` makes a single probe call with no retries.
 On success it returns a production `LlmService`; on failure it throws `InvalidApiKeyException`.
 
+A **blank** key is treated as absent and rejected before any network call, also with
+`InvalidApiKeyException`. This matters more than it sounds: Docker Compose passes
+`ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}`, so in a container the variable is routinely
+set-but-empty, and a caller reading it with a null default — `@Value("${ANTHROPIC_API_KEY:#{null}}")`
+or `System.getenv(...)` — gets `""` rather than null. That empty string passes a null check and
+would otherwise reach the provider, coming back as an opaque authentication failure far from its
+cause. Callers therefore do not need to pre-check for blank keys themselves.
+
+NOTE: This applies to the BYOK path only. Provider autoconfiguration documents its API key as
+required (see <<reference.environment_setup>>) and still fails at startup when one is missing —
+putting a provider starter on the classpath is a statement that the deployment has that key.
+
 ===== Auto-detecting the provider
 
 Use this when a user pastes a key without specifying a provider — for example, a sign-up flow
