@@ -132,12 +132,49 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 )
             }
         }
+        warnAboutUnsatisfiableNestedRoles()
         logger.info(infoString(verbose = true))
 
         properties.embeddingServices.forEach { (role, model) ->
             if (embeddingServices.none { it.name == model }) {
                 error("Embedding model '$model' for role $role is not available: Choices are ${embeddingServices.map { it.name }}")
             }
+        }
+    }
+
+    /**
+     * Warn about `embabel.models.roles` entries that cannot be satisfied, on the same terms as
+     * the flat map above.
+     *
+     * Only entries for the deployment's own provider are checked. An entry for a provider this
+     * deployment is not keyed for is the point of the nested shape - it applies when a user
+     * brings a key for that provider, and its model is not expected to be registered here, so
+     * warning about it would train people to ignore the warning.
+     *
+     * Without this, a typo under `roles` is silent until something asks for the role: the entry
+     * is found, its model is not registered, and resolution throws rather than falling back to
+     * the flat map - which is the one case where the nested shape can take a role AWAY.
+     */
+    private fun warnAboutUnsatisfiableNestedRoles() {
+        val deploymentProvider = defaultLlm.provider
+        properties.roles.forEach { (role, byProvider) ->
+            byProvider
+                .filterKeys { it.equals(deploymentProvider, ignoreCase = true) }
+                .forEach { (provider, options) ->
+                    val model = options.modelName
+                    if (model == null) {
+                        logger.warn(
+                            "Role '{}' under provider '{}' names no model, so anything asking for that role will fail",
+                            role, provider,
+                        )
+                    } else if (llms.none { it.name == model }) {
+                        logger.warn(
+                            "LLM '{}' for role '{}' under provider '{}' - this deployment's own provider - is not " +
+                                "available, so anything asking for that role will fail. Available: {}",
+                            model, role, provider, llms.map { it.name },
+                        )
+                    }
+                }
         }
     }
 
