@@ -91,6 +91,17 @@ open class OpenAiCompatibleModelFactory(
         private const val EMBEDDING_VALIDATION_PROBE = "Hi"
 
         /**
+         * Message for a key that is present but blank.
+         *
+         * Deliberately local. The LLM BYOK path grows the same rule in #1888, and a shared
+         * helper is the right home for it — but putting it there from here would couple these
+         * two branches for four lines. Collapse this onto that helper once both have landed.
+         */
+        internal const val BLANK_EMBEDDING_KEY_MESSAGE: String =
+            "API key is blank. A blank key is treated as absent: supply a non-empty key, or omit " +
+                "it and let the caller decide there is no key for this request."
+
+        /**
          * Returns a [ByokSpec] for OpenAI.
          * Validates against [OpenAiModels.GPT_41_MINI] by default.
          */
@@ -407,14 +418,24 @@ open class OpenAiCompatibleModelFactory(
      * A caller writing into an existing index should compare [EmbeddingService.dimensions] on
      * the result against that index's width — vectors of different widths cannot share an index.
      *
-     * @throws InvalidApiKeyException if the key is invalid, the provider is unreachable, or the
-     * model returns no vector.
+     * A **blank** key is treated as absent and rejected before any network call. A key is blank
+     * rather than absent more often than it looks: Compose passes
+     * `OPENAI_API_KEY=${'$'}{OPENAI_API_KEY:-}`, so in a container the variable is routinely
+     * set-but-empty, and a caller reading it with a null default gets `""` rather than null. That
+     * empty string passes a null check, reaches the provider, and comes back as an opaque
+     * authentication error a long way from its cause.
+     *
+     * @throws InvalidApiKeyException if the key is blank or invalid, the provider is unreachable,
+     * or the model returns no vector.
      */
     fun buildValidatedEmbeddingService(
         model: String,
         provider: String,
         pricingModel: PricingModel? = null,
     ): EmbeddingService {
+        if (apiKey.isNullOrBlank()) {
+            throw InvalidApiKeyException(BLANK_EMBEDDING_KEY_MESSAGE)
+        }
         val probe = openAiCompatibleEmbeddingService(
             model = model,
             provider = provider,

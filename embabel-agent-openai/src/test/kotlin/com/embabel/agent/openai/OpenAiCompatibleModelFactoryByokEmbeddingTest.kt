@@ -52,8 +52,9 @@ class OpenAiCompatibleModelFactoryByokEmbeddingTest {
      * Replaces the live embedding service with a fake, recording what the factory asked for.
      */
     private class FakeFactory(
+        apiKey: String = "key",
         private val respond: (String) -> FloatArray,
-    ) : OpenAiCompatibleModelFactory(baseUrl = null, apiKey = "key") {
+    ) : OpenAiCompatibleModelFactory(baseUrl = null, apiKey = apiKey) {
 
         val builds = mutableListOf<FakeEmbeddingService>()
 
@@ -165,6 +166,42 @@ class OpenAiCompatibleModelFactoryByokEmbeddingTest {
         )
 
         assertEquals(3072, service.dimensions)
+    }
+
+    @Test
+    fun `a blank key is rejected without probing`() {
+        // Compose passes OPENAI_API_KEY=${OPENAI_API_KEY:-}, so set-but-empty is routine. That
+        // empty string passes a null check and would otherwise reach the provider, coming back as
+        // an opaque authentication error a long way from its cause.
+        listOf("", "   ", "\t").forEach { blank ->
+            val factory = FakeFactory(apiKey = blank) { FloatArray(1536) }
+
+            val e = assertThrows<InvalidApiKeyException> {
+                factory.buildValidatedEmbeddingService(
+                    model = "text-embedding-3-small",
+                    provider = OpenAiModels.PROVIDER,
+                )
+            }
+
+            assertEquals(OpenAiCompatibleModelFactory.BLANK_EMBEDDING_KEY_MESSAGE, e.message)
+            assertEquals(0, factory.builds.size, "a blank key must not build or probe anything")
+        }
+    }
+
+    @Test
+    fun `the BYOK embedding entry points reject a blank key too`() {
+        listOf(
+            OpenAiCompatibleModelFactory.openAiEmbedding("   ", "text-embedding-3-small"),
+            OpenAiCompatibleModelFactory.byokEmbedding(
+                baseUrl = "https://api.example.com",
+                apiKey = "",
+                model = "acme-embed-small",
+                provider = "Acme",
+            ),
+        ).forEach { spec ->
+            val e = assertThrows<InvalidApiKeyException> { spec.buildValidated() }
+            assertEquals(OpenAiCompatibleModelFactory.BLANK_EMBEDDING_KEY_MESSAGE, e.message)
+        }
     }
 
     @Test
