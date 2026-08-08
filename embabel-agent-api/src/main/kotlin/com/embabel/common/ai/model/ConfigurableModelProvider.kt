@@ -20,6 +20,8 @@ import com.embabel.common.util.indent
 import com.embabel.common.util.loggerFor
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.validation.annotation.Validated
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 
 /**
  * Configuration properties for the model provider
@@ -196,7 +198,13 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         val resolved = resolveRole(criteria.role, ModelSelectionContextHolder.get())
         return llmOptions
             .withDefaultsFrom(resolved.llmOptions)
-            .copy(modelSelectionCriteria = ModelSelectionCriteria.preResolved(resolved.llmService))
+            .copy(
+                modelSelectionCriteria = ModelSelectionCriteria.preResolved(resolved.llmService),
+                // Keep the role that was asked for. Selection no longer consults it - the
+                // pre-resolved criteria decide - but events, logs and cost attribution all want to
+                // know a call was made "as cheapest", which is otherwise lost the moment it resolves.
+                role = criteria.role,
+            )
     }
 
     /**
@@ -251,7 +259,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         // Read then put rather than computeIfAbsent: building a service can validate the key over
         // the network, and computeIfAbsent would hold the map's lock for the duration. A race here
         // costs one redundant build, never a wrong service.
-        val key = CredentialModelKey(credential, model)
+        val key = CredentialModelKey.of(credential, model)
         val llmService = credentialLlmServices[key]
             ?: credentialLlmServiceFactories
                 .firstNotNullOfOrNull { it.createLlmService(credential, model) }
@@ -365,13 +373,37 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     )
 
     /**
-     * Cache key for a service built from a user's key. Holds the credential itself rather than a
-     * hash of it, so two distinct keys can never collide onto one another's service.
+     * Cache key for a service built from a user's key.
+     *
+     * Identifies the key by SHA-256 rather than holding it, so the plaintext is not duplicated
+     * into a map that lives as long as the platform does. The cached [LlmService] was built from
+     * the key and still holds it, so this narrows the exposure rather than removing it - but it
+     * removes the copy that exists purely for lookup, and keeps keys out of any heap dump taken
+     * of the cache itself.
+     *
+     * A digest cannot collide in practice, and two users would have to share a provider AND a
+     * model AND a SHA-256 collision to reach one another's service.
      */
     private data class CredentialModelKey(
-        val credential: ProviderCredential,
+        val provider: String,
+        val apiKeyDigest: String,
         val model: String,
-    )
+    ) {
+
+        companion object {
+
+            fun of(credential: ProviderCredential, model: String) = CredentialModelKey(
+                provider = credential.provider.lowercase(),
+                apiKeyDigest = digest(credential.apiKey),
+                model = model,
+            )
+
+            private fun digest(apiKey: String): String =
+                MessageDigest.getInstance("SHA-256")
+                    .digest(apiKey.toByteArray(StandardCharsets.UTF_8))
+                    .joinToString("") { "%02x".format(it) }
+        }
+    }
 
     companion object {
 

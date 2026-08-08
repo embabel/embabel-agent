@@ -246,6 +246,14 @@ class RoleResolutionTest {
         }
 
         @Test
+        fun `resolved options still say which role was asked for`() {
+            // Selection no longer consults it, but events, logs and cost attribution all want to
+            // know the call was made "as cheapest" rather than as a bare model name.
+            val resolved = provider().resolveLlmOptions(LlmOptions.withLlmForRole(CHEAPEST_ROLE))
+            assertEquals(CHEAPEST_ROLE, resolved.role)
+        }
+
+        @Test
         fun `resolved options carry the chosen service so it is not looked up twice`() {
             val resolved = provider().resolveLlmOptions(LlmOptions.withLlmForRole(CHEAPEST_ROLE))
             val criteria = resolved.criteria
@@ -396,6 +404,26 @@ class RoleResolutionTest {
                     mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE))
                 }
             }
+        }
+
+        @Test
+        fun `the same key and model reuse one service, a different key does not`() {
+            // The cache is keyed by a digest of the key rather than the key itself. That must not
+            // change what the cache MEANS: same key reuses, different key rebuilds.
+            val built = mutableListOf<String>()
+            val perKeyFactory = CredentialLlmServiceFactory { credential, _ ->
+                built += credential.apiKey
+                llm("claude-haiku-4-5", "anthropic")
+            }
+            val mp = provider(factories = listOf(perKeyFactory))
+            listOf("sk-ben", "sk-ben", "sk-rod", "sk-ben").forEach { key ->
+                ModelSelectionContextHolder.with(
+                    ModelSelectionContext(credential = ProviderCredential("anthropic", key)),
+                ) {
+                    mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE))
+                }
+            }
+            assertEquals(listOf("sk-ben", "sk-rod"), built)
         }
 
         @Test
