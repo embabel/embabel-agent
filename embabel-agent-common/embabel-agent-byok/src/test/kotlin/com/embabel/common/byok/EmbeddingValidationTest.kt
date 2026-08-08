@@ -42,30 +42,45 @@ class EmbeddingValidationTest {
             get() = configuredDimensions ?: error("dimensions not configured")
     }
 
-    private fun builder(
-        respond: (String) -> FloatArray,
-        record: MutableList<Int?> = mutableListOf(),
-    ): Pair<(Int?) -> EmbeddingService, MutableList<Int?>> =
-        { dims: Int? ->
-            record += dims
-            FakeEmbeddingService("text-embedding-3-small", "acme", dims, respond = respond)
-        } to record
+    /**
+     * Stands in for a provider's builder, recording the width it was asked to stamp on each call.
+     */
+    private class RecordingBuilder(
+        private val respond: (String) -> FloatArray,
+    ) : (Int?) -> EmbeddingService {
+
+        val widthsRequested = mutableListOf<Int?>()
+
+        override fun invoke(configuredDimensions: Int?): EmbeddingService {
+            widthsRequested += configuredDimensions
+            return FakeEmbeddingService(
+                name = "text-embedding-3-small",
+                provider = "acme",
+                configuredDimensions = configuredDimensions,
+                respond = respond,
+            )
+        }
+    }
 
     @Test
     fun `probes once, then stamps the width the model actually returned`() {
         var probes = 0
-        val (build, widths) = builder({ probes++; FloatArray(3072) })
+        val build = RecordingBuilder { probes++; FloatArray(3072) }
 
         val service = validatedEmbeddingService("text-embedding-3-large", "acme", build)
 
         assertEquals(1, probes, "should probe exactly once")
         assertEquals(3072, service.dimensions)
-        assertEquals(listOf(null, 3072), widths, "probe with no width, then stamp the observed one")
+        assertEquals(
+            listOf(null, 3072),
+            build.widthsRequested,
+            "probe with no width, then stamp the one observed",
+        )
     }
 
     @Test
     fun `a provider error is translated, and names the model`() {
-        val (build, _) = builder({ throw RuntimeException("404 model not found") })
+        val build = RecordingBuilder { throw RuntimeException("404 model not found") }
 
         val e = assertThrows<InvalidApiKeyException> {
             validatedEmbeddingService("text-embedding-3-smal", "acme", build)
@@ -79,7 +94,7 @@ class EmbeddingValidationTest {
 
     @Test
     fun `an empty vector is a validation failure, not a zero-width service`() {
-        val (build, _) = builder({ FloatArray(0) })
+        val build = RecordingBuilder { FloatArray(0) }
 
         assertThrows<InvalidApiKeyException> {
             validatedEmbeddingService("text-embedding-3-small", "acme", build)

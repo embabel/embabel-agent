@@ -38,13 +38,17 @@ private const val EMBEDDING_VALIDATION_PROBE = "Hi"
  * before storing anything — vectors of different widths cannot share an index. That check belongs
  * to whatever owns the index.
  *
+ * This never sees the API key — [build] closes over whatever credential the provider needs — so
+ * it cannot reject a blank one. Callers holding a key should check that themselves before getting
+ * here, so an empty string fails with something actionable rather than as a provider error.
+ *
  * @param model the embedding model to validate. Always explicit: unlike an LLM it is never
  * defaulted and never detected, because the width it commits an index to must not be decided by
  * whichever provider happens to answer first.
  * @param provider provider name, used only in the failure message
  * @param build builds the provider's service, given the width to stamp (null while probing)
- * @throws InvalidApiKeyException if the key is blank or invalid, the provider is unreachable, or
- * the model returns no vector
+ * @throws InvalidApiKeyException if the probe fails - an invalid key, an unreachable provider, a
+ * model the key cannot use - or if the model returns no vector
  */
 fun validatedEmbeddingService(
     model: String,
@@ -63,5 +67,7 @@ fun validatedEmbeddingService(
             "Could not validate embedding model '$model' on $provider: ${e.message ?: "no detail"}",
         )
     }
+    // Outside the try: this second call only constructs a service, so a failure here is a bug in
+    // the builder rather than a rejected credential, and should not be reported as one.
     return build(vector.size)
 }
