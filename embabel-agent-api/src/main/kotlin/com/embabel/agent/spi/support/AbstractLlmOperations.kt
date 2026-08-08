@@ -34,6 +34,7 @@ import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.AutoModelSelectionCriteria
+import com.embabel.common.ai.model.ByRoleModelSelectionCriteria
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
@@ -144,6 +145,9 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): O {
+        @Suppress("NAME_SHADOWING")
+        val interaction = withRoleResolved(interaction)
+
         val (allTools, llmRequestEvent) = getToolsAndEvent(
             agentProcess = agentProcess,
             interaction = interaction,
@@ -260,6 +264,9 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): Result<O> {
+        @Suppress("NAME_SHADOWING")
+        val interaction = withRoleResolved(interaction)
+
         val (allTools, llmRequestEvent) = getToolsAndEvent(
             agentProcess = agentProcess,
             interaction = interaction,
@@ -312,6 +319,9 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): ThinkingResponse<O> {
+        @Suppress("NAME_SHADOWING")
+        val interaction = withRoleResolved(interaction)
+
         val (allTools, llmRequestEvent) = getToolsAndEvent(
             agentProcess = agentProcess,
             interaction = interaction,
@@ -364,6 +374,9 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): Result<ThinkingResponse<O>> {
+        @Suppress("NAME_SHADOWING")
+        val interaction = withRoleResolved(interaction)
+
         val (allTools, llmRequestEvent) = getToolsAndEvent(
             agentProcess = agentProcess,
             interaction = interaction,
@@ -408,6 +421,19 @@ abstract class AbstractLlmOperations(
         )
         return response
     }
+
+    /**
+     * Resolve any role named by this interaction before anything reads its options: a role can
+     * carry hyperparameters, and which model it means depends on the provider active for this call.
+     *
+     * Interactions naming no role are returned untouched, so the common path costs nothing.
+     */
+    private fun withRoleResolved(interaction: LlmInteraction): LlmInteraction =
+        if (interaction.llm.criteria is ByRoleModelSelectionCriteria) {
+            interaction.copy(llm = modelProvider.resolveLlmOptions(interaction.llm))
+        } else {
+            interaction
+        }
 
     protected fun chooseLlm(
         llmOptions: LlmOptions,

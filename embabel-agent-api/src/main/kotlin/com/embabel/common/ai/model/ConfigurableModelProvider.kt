@@ -33,6 +33,23 @@ data class ConfigurableModelProviderProperties(
      */
     var llms: Map<String, String> = emptyMap(),
     /**
+     * Map of role to provider to options, for deployments whose provider is not fixed - a
+     * bring-your-own-key application, or one configured for failover across providers.
+     *
+     * ```yaml
+     * embabel:
+     *   models:
+     *     roles:
+     *       cheapest:
+     *         openai:    { model: gpt-4.1-nano }
+     *         anthropic: { model: claude-haiku-4-5 }
+     * ```
+     *
+     * Takes precedence over [llms] for the active provider. Unlike [llms], an entry naming a model
+     * that is not registered is not an error: it applies only when that provider is the active one.
+     */
+    var roles: Map<String, Map<String, LlmOptions>> = emptyMap(),
+    /**
      * Map of role to embedding service name. May not include the default embedding service.
      */
     var embeddingServices: Map<String, String> = emptyMap(),
@@ -47,7 +64,7 @@ data class ConfigurableModelProviderProperties(
 ) {
 
     fun allWellKnownLlmNames(): Set<String> {
-        return llms.values.toSet() + defaultLlm
+        return llms.values.toSet() + roles.values.flatMap { it.values }.mapNotNull { it.modelName } + defaultLlm
     }
 
     fun allWellKnownEmbeddingServiceNames(): Set<String> {
@@ -62,9 +79,31 @@ class ConfigurableModelProvider(
     private val llms: List<LlmService<*>>,
     private val embeddingServices: List<EmbeddingService>,
     private val properties: ConfigurableModelProviderProperties,
+    roleResolvers: List<RoleResolver> = emptyList(),
+    private val credentialLlmServiceFactories: List<CredentialLlmServiceFactory> = emptyList(),
 ) : ModelProvider {
 
     private val logger = loggerFor<ConfigurableModelProvider>()
+
+    private val configurableRoleResolver =
+        ConfigurableRoleResolver(properties) { defaultLlm.provider }
+
+    /**
+     * Application resolvers first, the configuration-driven one last, so an application can
+     * override any role and ignore the rest.
+     */
+    private val roleResolvers: List<RoleResolver> = roleResolvers + configurableRoleResolver
+
+    /**
+     * Services built from user keys, which are per-user and so cannot be Spring beans.
+     * Bounded, and least-recently-used entries are dropped: an unbounded map here would retain a
+     * service for every key the deployment has ever seen.
+     */
+    private val credentialLlmServices: MutableMap<CredentialModelKey, LlmService<*>> =
+        object : LinkedHashMap<CredentialModelKey, LlmService<*>>(16, 0.75f, true) {
+            override fun removeEldestEntry(eldest: Map.Entry<CredentialModelKey, LlmService<*>>) =
+                size > MAX_CACHED_CREDENTIAL_SERVICES
+        }.let { java.util.Collections.synchronizedMap(it) }
 
     private val defaultLlm =
         if (llms.isNotEmpty())
@@ -207,9 +246,94 @@ class ConfigurableModelProvider(
         )
     }
 
+    override fun resolveLlmOptions(llmOptions: LlmOptions): LlmOptions {
+        val criteria = llmOptions.criteria
+        if (criteria !is ByRoleModelSelectionCriteria) {
+            return llmOptions
+        }
+        val resolved = resolveRole(criteria.role, ModelSelectionContextHolder.get())
+        return llmOptions
+            .withDefaultsFrom(resolved.llmOptions)
+            .copy(modelSelectionCriteria = ModelSelectionCriteria.preResolved(resolved.llmService))
+    }
+
+    /**
+     * Ask each resolver in turn what the role means, and materialize the answer.
+     *
+     * A role that cannot be satisfied throws, rather than quietly resolving to something else.
+     * Falling back to the default LLM would mean a role like "cheapest" silently becoming the most
+     * capable - and most expensive - model in the deployment, which is exactly the kind of thing
+     * nobody notices until the bill arrives.
+     *
+     * Booting is a separate question: an unsatisfiable role only warns at startup, so a deployment
+     * keyed for one provider still starts and still serves every role that does work.
+     */
+    private fun resolveRole(role: String, context: ModelSelectionContext): ResolvedRole {
+        val resolution = roleResolvers.firstNotNullOfOrNull { it.resolve(role, context) }
+        val resolved = when (resolution) {
+            is RoleResolution.Service -> ResolvedRole(resolution.llmService, LlmOptions.withDefaults())
+
+            is RoleResolution.Options -> byName(resolution.llmOptions)
+                ?.let { ResolvedRole(it, resolution.llmOptions) }
+
+            is RoleResolution.Credential -> fromCredential(role, resolution.credential)
+
+            null -> null
+        }
+        if (resolved != null) {
+            return resolved
+        }
+        logger.warn(
+            "No model available for role '{}' (provider: {})",
+            role, context.provider ?: "deployment default",
+        )
+        throw NoSuitableModelException(ByRoleModelSelectionCriteria(role), llms.map { it.name })
+    }
+
+    /**
+     * Build - or reuse - a service for the model this role names under the user's own provider.
+     */
+    private fun fromCredential(
+        role: String,
+        credential: ProviderCredential,
+    ): ResolvedRole? {
+        val options = configurableRoleResolver.optionsFor(role, credential.provider)
+        val model = options?.modelName
+        if (model == null) {
+            logger.warn(
+                "Role '{}' has no model configured for provider '{}' under embabel.models.roles",
+                role, credential.provider,
+            )
+            return null
+        }
+        // Read then put rather than computeIfAbsent: building a service can validate the key over
+        // the network, and computeIfAbsent would hold the map's lock for the duration. A race here
+        // costs one redundant build, never a wrong service.
+        val key = CredentialModelKey(credential, model)
+        val llmService = credentialLlmServices[key]
+            ?: credentialLlmServiceFactories
+                .firstNotNullOfOrNull { it.createLlmService(credential, model) }
+                ?.also { credentialLlmServices[key] = it }
+        if (llmService == null) {
+            logger.warn(
+                "No CredentialLlmServiceFactory handles provider '{}', needed for role '{}'",
+                credential.provider, role,
+            )
+            return null
+        }
+        return ResolvedRole(llmService, options)
+    }
+
+    /**
+     * The registered service named by these options, or null if it names none.
+     */
+    private fun byName(llmOptions: LlmOptions): LlmService<*>? =
+        llmOptions.modelName?.let { name -> llms.firstOrNull { it.name == name } }
+
     override fun listRoles(modelClass: Class<*>): List<String> {
         return when {
-            LlmService::class.java.isAssignableFrom(modelClass) -> properties.llms.keys.toList()
+            LlmService::class.java.isAssignableFrom(modelClass) ->
+                (properties.llms.keys + properties.roles.keys).toList()
             EmbeddingService::class.java.isAssignableFrom(modelClass) -> properties.embeddingServices.keys.toList()
             else -> throw IllegalArgumentException("Unsupported model class: $modelClass")
         }
@@ -226,8 +350,7 @@ class ConfigurableModelProvider(
     override fun getLlm(criteria: ModelSelectionCriteria): LlmService<*> =
         when (criteria) {
             is ByRoleModelSelectionCriteria -> {
-                val modelName = properties.llms[criteria.role] ?: throw NoSuitableModelException(criteria, llms.map { it.name })
-                llms.firstOrNull { it.name == modelName } ?: throw NoSuitableModelException(criteria, llms.map { it.name })
+                resolveRole(criteria.role, ModelSelectionContextHolder.get()).llmService
             }
 
             is ByNameModelSelectionCriteria -> {
@@ -290,4 +413,30 @@ class ConfigurableModelProvider(
                 defaultEmbeddingService()
             }
         }
+
+    /**
+     * A role, materialized: the service to call, and the options configured alongside it.
+     */
+    private data class ResolvedRole(
+        val llmService: LlmService<*>,
+        val llmOptions: LlmOptions,
+    )
+
+    /**
+     * Cache key for a service built from a user's key. Holds the credential itself rather than a
+     * hash of it, so two distinct keys can never collide onto one another's service.
+     */
+    private data class CredentialModelKey(
+        val credential: ProviderCredential,
+        val model: String,
+    )
+
+    companion object {
+
+        /**
+         * Upper bound on services built from user keys. Generous: each is a thin wrapper around a
+         * chat client, and a deployment with more concurrent keys than this will simply rebuild.
+         */
+        const val MAX_CACHED_CREDENTIAL_SERVICES = 500
+    }
 }

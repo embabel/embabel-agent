@@ -30,6 +30,15 @@ interface ModelProvider : HasInfoString {
     fun getEmbeddingService(criteria: ModelSelectionCriteria): EmbeddingService
 
     /**
+     * Resolve any role in these options to a concrete model, applying whatever hyperparameters are
+     * configured against that role. Values the caller set explicitly are kept.
+     *
+     * Called once per LLM operation, before the model is chosen, so that a role can carry more than
+     * a model name. Options naming no role are returned unchanged.
+     */
+    fun resolveLlmOptions(llmOptions: LlmOptions): LlmOptions = llmOptions
+
+    /**
      * List the roles available for this class of model
      */
     fun listRoles(modelClass: Class<*>): List<String>
