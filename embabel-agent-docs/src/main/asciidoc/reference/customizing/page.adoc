@@ -340,6 +340,59 @@ promptRunner
 Internally this flows through the same model selection path as all other LLM resolution via
 `PreResolvedModelSelectionCriteria` — no separate resolution path is needed.
 
+[[reference.customizing.byok.pure]]
+===== Pure BYOK deployments
+
+Everything above assumes the application already has an `LlmService` to fall back on. A *pure BYOK*
+deployment has none: it ships with no provider key at all and obtains one at runtime, per user or
+per tenant. Two things get in its way, and `embabel-agent-starter-byok` addresses both.
+
+**Depend on the BYOK starter, not a provider starter.** The provider starters bundle their
+autoconfiguration, which requires an API key at startup — exactly what this deployment does not
+have. The BYOK starter carries the model factories and none of that autoconfiguration:
+
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-byok</artifactId>
+</dependency>
+----
+
+**Point `default-llm` at the placeholder.** With no models registered, the platform has nothing to
+resolve `embabel.models.default-llm` to. The starter contributes a placeholder `LlmService` named
+`setup-required` for precisely this case:
+
+[source,yaml]
+----
+embabel:
+  models:
+    default-llm: setup-required
+----
+
+The name is available as the constant `SetupRequiredLlm.NAME`. Opting in through configuration is
+deliberate — the placeholder is registered unconditionally but is only ever selected if you name it,
+so adding the starter alongside a real provider changes nothing.
+
+The placeholder completes nothing. Any call that reaches it throws `NoLlmConfiguredException`, so a
+missing key surfaces as an actionable error rather than a silently empty answer. Catch it to render
+your own "add an API key" experience:
+
+[source,kotlin]
+----
+try {
+    promptRunner.withLlmService(userLlm).creating(MyOutput::class.java).create(messages)
+} catch (e: NoLlmConfiguredException) {
+    // no key for this user yet — send them to your settings page
+}
+----
+
+In normal operation the placeholder is never reached: resolve the user's key, build a service with
+one of the factories above, and pass it to `withLlmService()`.
+
+NOTE: The starter stops at the factories and the placeholder. Key storage and lifecycle remain the
+application's responsibility, as described under <<reference.customizing.byok>> above.
+
 ===== Error handling
 
 [source,kotlin]
