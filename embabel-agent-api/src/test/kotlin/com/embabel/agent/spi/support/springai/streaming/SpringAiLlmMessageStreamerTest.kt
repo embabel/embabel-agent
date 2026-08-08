@@ -65,6 +65,41 @@ class SpringAiLlmMessageStreamerTest {
     }
 
     @Test
+    fun `preserves provider identified native thinking`() {
+        val thinking = AssistantMessage.builder()
+            .content("native reasoning")
+            .properties(mapOf("thinking" to true))
+            .build()
+        every { chatModel.stream(capture(capturedPrompt)) } returns Flux.just(
+            ChatResponse(listOf(Generation(thinking)))
+        )
+        val streamer = SpringAiLlmMessageStreamer(chatModel, chatOptions)
+
+        StepVerifier.create(streamer.streamInference(listOf(UserMessage("Hi")), emptyList()))
+            .expectNext(LlmInferenceStreamEvent.Thinking("native reasoning"))
+            .assertNext { event ->
+                assertInstanceOf(LlmInferenceStreamEvent.Complete::class.java, event)
+            }
+            .verifyComplete()
+    }
+
+    @Test
+    fun `preserves native thinking text through original raw signature`() {
+        val thinking = AssistantMessage.builder()
+            .content("native reasoning")
+            .properties(mapOf("thinking" to true))
+            .build()
+        every { chatModel.stream(capture(capturedPrompt)) } returns Flux.just(
+            ChatResponse(listOf(Generation(thinking)))
+        )
+        val streamer = SpringAiLlmMessageStreamer(chatModel, chatOptions)
+
+        StepVerifier.create(streamer.stream(listOf(UserMessage("Hi")), emptyList(), emptyList()))
+            .expectNext("native reasoning")
+            .verifyComplete()
+    }
+
+    @Test
     fun `preserves the original raw content streaming signature`() {
         every { chatModel.stream(capture(capturedPrompt)) } returns Flux.just(
             ChatResponse(listOf(Generation(AssistantMessage("hello"))))
