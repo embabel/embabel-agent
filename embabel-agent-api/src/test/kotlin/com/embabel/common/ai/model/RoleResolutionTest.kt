@@ -539,6 +539,53 @@ class RoleResolutionTest {
         }
 
         @Test
+        fun `the configured view answers with the nested entry for the provider`() {
+            assertEquals("gpt-4.1-nano", provider().configuredOptionsForRole(CHEAPEST_ROLE)?.modelName)
+        }
+
+        @Test
+        fun `the configured view falls back to the flat map`() {
+            val mp = provider(
+                properties = ConfigurableModelProviderProperties(
+                    llms = mapOf(CHEAPEST_ROLE to "claude-haiku-4-5"),
+                    defaultLlm = "gpt-4.1-mini",
+                ),
+            )
+            assertEquals("claude-haiku-4-5", mp.configuredOptionsForRole(CHEAPEST_ROLE)?.modelName)
+        }
+
+        @Test
+        fun `the configured view agrees with what resolution actually picks`() {
+            // The reason this API exists: a settings screen that reads config itself drifts from
+            // what runs. Both shapes configured, nested wins — and both answers must say so.
+            val mp = provider(
+                properties = ConfigurableModelProviderProperties(
+                    llms = mapOf(CHEAPEST_ROLE to "claude-haiku-4-5"),
+                    roles = nestedRoles,
+                    defaultLlm = "gpt-4.1-mini",
+                ),
+            )
+            assertEquals(
+                mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE)).name,
+                mp.configuredOptionsForRole(CHEAPEST_ROLE)?.modelName,
+            )
+        }
+
+        @Test
+        fun `the configured view ignores application resolvers, which are per-call`() {
+            val mp = provider(
+                roleResolvers = listOf(RoleResolver { _, _ -> RoleResolution.Service(anthropicModel) }),
+            )
+            // The resolver decides what RUNS; configuration is what the deployment DECLARES.
+            assertEquals("gpt-4.1-nano", mp.configuredOptionsForRole(CHEAPEST_ROLE)?.modelName)
+        }
+
+        @Test
+        fun `the configured view says nothing about an unconfigured role`() {
+            assertNull(provider().configuredOptionsForRole("no-such-role"))
+        }
+
+        @Test
         fun `says nothing about a role it has never heard of`() {
             assertNull(resolver.optionsFor("no-such-role", provider = "openai"))
             assertNull(resolver.resolve("no-such-role", ModelSelectionContext.EMPTY))
@@ -567,6 +614,11 @@ class RoleResolutionTest {
         fun `the default resolveLlmOptions returns what it was given`() {
             val asked = LlmOptions.withLlmForRole(CHEAPEST_ROLE)
             assertSame(asked, minimal.resolveLlmOptions(asked))
+        }
+
+        @Test
+        fun `the default configuredOptionsForRole says it cannot say`() {
+            assertNull(minimal.configuredOptionsForRole(CHEAPEST_ROLE))
         }
     }
 
