@@ -684,6 +684,24 @@ parallel actions, `OperationContext.parallelMap` — so setting it once at the r
 enough. It does not reach threads your own code spawns: capture it there with
 `ModelSelectionContextHolder.get()` and re-establish it inside the new thread.
 
+===== Reading what a role is configured to mean
+
+Resolution answers "what will this call use", which depends on the active key and on any
+`RoleResolver` beans. A settings screen or diagnostic endpoint wants a different question — "what
+does this deployment declare this role to be" — and answering it by reading `embabel.models`
+directly means reimplementing the precedence between the flat and nested shapes, which is how a
+settings screen ends up disagreeing with what actually runs.
+
+`ModelProvider.configuredOptionsForRole` answers that question against the deployment's own
+provider, ignoring user keys and application resolvers:
+
+[source,kotlin]
+----
+val declared: String? = modelProvider.configuredOptionsForRole("cheapest")?.modelName
+----
+
+Use `resolveLlmOptions` instead when you need to know what a specific call will really do.
+
 ===== Using Your Custom Implementation (Alternative)
 
 If you need more control over the LLM operations layer itself, you can extend `ToolLoopLlmOperations`:

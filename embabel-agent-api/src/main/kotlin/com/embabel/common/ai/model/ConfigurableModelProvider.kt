@@ -34,6 +34,18 @@ data class ConfigurableModelProviderProperties(
      */
     var llms: Map<String, String> = emptyMap(),
     /**
+     * Map of role to embedding service name. May not include the default embedding service.
+     */
+    var embeddingServices: Map<String, String> = emptyMap(),
+    /**
+     * Default LLM name. Must be an LLM name. It's good practice to override this in configuration.
+     */
+    var defaultLlm: String = "gpt-4.1-mini",
+    /**
+     *  Default embedding model name. Must be an embedding model name. Need not be set, in which case it defaults to null.
+     */
+    var defaultEmbeddingModel: String? = null,
+    /**
      * Map of role to provider to options, for deployments whose provider is not fixed - a
      * bring-your-own-key application, or one configured for failover across providers.
      *
@@ -48,20 +60,11 @@ data class ConfigurableModelProviderProperties(
      *
      * Takes precedence over [llms] for the active provider. Unlike [llms], an entry naming a model
      * that is not registered is not an error: it applies only when that provider is the active one.
+     *
+     * Declared last, despite belonging with [llms], so that adding it does not renumber the
+     * existing parameters for anyone constructing this positionally.
      */
     var roles: Map<String, Map<String, LlmOptions>> = emptyMap(),
-    /**
-     * Map of role to embedding service name. May not include the default embedding service.
-     */
-    var embeddingServices: Map<String, String> = emptyMap(),
-    /**
-     * Default LLM name. Must be an LLM name. It's good practice to override this in configuration.
-     */
-    var defaultLlm: String = "gpt-4.1-mini",
-    /**
-     *  Default embedding model name. Must be an embedding model name. Need not be set, in which case it defaults to null.
-     */
-    var defaultEmbeddingModel: String? = null,
 ) {
 
     fun allWellKnownLlmNames(): Set<String> {
@@ -243,6 +246,9 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 role = criteria.role,
             )
     }
+
+    override fun configuredOptionsForRole(role: String): LlmOptions? =
+        configurableRoleResolver.configuredOptionsFor(role, defaultLlm.provider)
 
     /**
      * Ask each resolver in turn what the role means, and materialize the answer.

@@ -65,8 +65,25 @@ class ConfigurableRoleResolver(
             // pay for, so leave it alone and let the role fail for this user.
             return null
         }
-        return properties.llms[role]?.let { RoleResolution.Options(LlmOptions.withModel(it)) }
+        return flatOptionsFor(role)?.let { RoleResolution.Options(it) }
     }
+
+    /**
+     * What configuration says [role] means for [provider] - the nested entry if there is one,
+     * otherwise the flat map.
+     *
+     * This is the read side of [resolve], for callers that want to *show* a role's model rather
+     * than use it: a settings UI, a diagnostic endpoint, an application with its own per-user
+     * override layer on top. Sharing the lookup means such a caller cannot drift from what
+     * resolution would actually pick.
+     *
+     * It is deliberately narrower than resolution in two ways. It does not consult application
+     * [RoleResolver] beans, so a resolver that overrides a role per user is not reflected here.
+     * And it takes the provider as an argument rather than reading the active
+     * [ModelSelectionContext], so the answer does not depend on which thread asks.
+     */
+    fun configuredOptionsFor(role: String, provider: String?): LlmOptions? =
+        optionsFor(role, provider) ?: flatOptionsFor(role)
 
     /**
      * Options configured for [role] under [provider], or null if the role says nothing about it.
@@ -80,4 +97,7 @@ class ConfigurableRoleResolver(
             ?.firstOrNull { it.key.equals(provider, ignoreCase = true) }
             ?.value
     }
+
+    private fun flatOptionsFor(role: String): LlmOptions? =
+        properties.llms[role]?.let { LlmOptions.withModel(it) }
 }
