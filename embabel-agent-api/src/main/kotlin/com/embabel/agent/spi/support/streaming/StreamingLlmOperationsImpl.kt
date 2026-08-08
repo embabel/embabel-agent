@@ -37,6 +37,7 @@ import com.embabel.agent.spi.support.guardrails.validateUserInput
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.converters.streaming.StreamingJacksonOutputConverter
+import com.embabel.common.ai.model.Thinking
 import com.embabel.common.core.streaming.StreamingEvent
 import tools.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
@@ -152,6 +153,7 @@ internal class StreamingLlmOperationsImpl(
     ): Flux<O> {
         return doTransformObjectStreamInternal(
             messages = messages,
+            // Object-only: format instructions follow Thinking.extractThinking on Interaction.
             interaction = interaction,
             outputClass = outputClass,
             llmRequestEvent = llmRequestEvent,
@@ -172,12 +174,30 @@ internal class StreamingLlmOperationsImpl(
     ): Flux<StreamingEvent<O>> {
         return doTransformObjectStreamInternal(
             messages = messages,
-            interaction = interaction,
+            // *WithThinking*: ensure Interaction has application-level Thinking.extractThinking.
+            interaction = withApplicationLevelThinkingIfNecessary(interaction),
             outputClass = outputClass,
             llmRequestEvent = llmRequestEvent,
             agentProcess = agentProcess,
             action = action,
         )
+    }
+
+    /**
+     * Ensure [Thinking.extractThinking] is set for application-level (prompt-instructed) thinking.
+     * Preserves provider budget via [Thinking.applyExtraction]. Not LLM-native reasoning (#1716).
+     */
+    private fun withApplicationLevelThinkingIfNecessary(interaction: LlmInteraction): LlmInteraction {
+        val existing = interaction.llm.thinking
+        val thinking = when (existing) {
+            null, Thinking.NONE -> Thinking.withExtraction()
+            else -> if (existing.extractThinking) existing else existing.applyExtraction()
+        }
+        return if (thinking === existing) {
+            interaction
+        } else {
+            interaction.copy(llm = interaction.llm.withThinking(thinking))
+        }
     }
 
     // ========================================
@@ -191,6 +211,9 @@ internal class StreamingLlmOperationsImpl(
      * 1. Raw LLM chunks from [LlmMessageStreamer]
      * 2. Line buffering via [rawChunksToLines]
      * 3. Event generation via [StreamingJacksonOutputConverter]
+     *
+     * Prompt thinking format follows [Thinking.extractThinking] on [interaction].
+     * Provider model budget remains [Thinking.enabled] / [Thinking.tokenBudget].
      */
     private fun <O> doTransformObjectStreamInternal(
         messages: List<Message>,
@@ -204,6 +227,7 @@ internal class StreamingLlmOperationsImpl(
         // Create converter for JSONL parsing.
         // Spring AI 2.0's StreamingJacksonOutputConverter requires T : Any;
         // erase O via Class<Any> for the construction, cast back for downstream Flux<O>/StreamingEvent<O>.
+        val includeApplicationLevelThinking = interaction.llm.thinking?.extractThinking == true
         @Suppress("UNCHECKED_CAST")
         val outputClassAny = outputClass as Class<Any>
         @Suppress("UNCHECKED_CAST")
@@ -211,7 +235,7 @@ internal class StreamingLlmOperationsImpl(
             clazz = outputClassAny,
             objectMapper = objectMapper,
             fieldFilter = interaction.fieldFilter,
-            thinkingEnabled = interaction.llm.thinking?.enabled ?: false,
+            thinkingEnabled = includeApplicationLevelThinking,
         ) as StreamingJacksonOutputConverter<O>
 
         // Build prompt contributions with streaming format instructions

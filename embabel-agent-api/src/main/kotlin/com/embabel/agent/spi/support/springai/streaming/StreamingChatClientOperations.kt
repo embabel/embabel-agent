@@ -33,6 +33,7 @@ import com.embabel.agent.spi.support.springai.toSpringAiMessage
 import com.embabel.agent.spi.support.springai.toSpringToolCallbacks
 import com.embabel.chat.Message
 import com.embabel.common.ai.converters.streaming.StreamingJacksonOutputConverter
+import com.embabel.common.ai.model.Thinking
 import com.embabel.common.core.streaming.StreamingEvent
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.messages.SystemMessage
@@ -234,6 +235,8 @@ internal class StreamingChatClientOperations(
     ): Flux<O> {
         return doTransformObjectStreamInternal(
             messages = messages,
+            // Object-only stream: leave Interaction thinking as-is. Format instructions follow
+            // Thinking.extractThinking (application-level), not provider tokenBudget (Thinking.enabled).
             interaction = interaction,
             outputClass = outputClass,
             llmRequestEvent = llmRequestEvent,
@@ -295,12 +298,34 @@ internal class StreamingChatClientOperations(
     ): Flux<StreamingEvent<O>> {
         return doTransformObjectStreamInternal(
             messages = messages,
-            interaction = interaction,
+            // *WithThinking*: ensure Interaction carries application-level Thinking
+            // (extractThinking). Format instructions follow that flag — no separate SPI param.
+            interaction = withApplicationLevelThinkingIfNecessary(interaction),
             outputClass = outputClass,
             llmRequestEvent = llmRequestEvent,
             agentProcess = agentProcess,
             action = action,
         )
+    }
+
+    /**
+     * Ensure [Thinking.extractThinking] is set on the interaction for application-level
+     * (prompt-instructed) thinking streams. Preserves any existing provider budget
+     * ([Thinking.enabled] / [Thinking.tokenBudget]) via [Thinking.applyExtraction].
+     *
+     * This is *not* LLM-native reasoning (provider thinking channels — see #1716).
+     */
+    private fun withApplicationLevelThinkingIfNecessary(interaction: LlmInteraction): LlmInteraction {
+        val existing = interaction.llm.thinking
+        val thinking = when (existing) {
+            null, Thinking.NONE -> Thinking.withExtraction()
+            else -> if (existing.extractThinking) existing else existing.applyExtraction()
+        }
+        return if (thinking === existing) {
+            interaction
+        } else {
+            interaction.copy(llm = interaction.llm.withThinking(thinking))
+        }
     }
 
     /**
@@ -330,6 +355,9 @@ internal class StreamingChatClientOperations(
      * **Performance Characteristics:**
      * - Streaming-friendly: no blocking operations
      *
+     * Prompt thinking format follows [Thinking.extractThinking] on [interaction] (application-level).
+     * Provider model budget remains [Thinking.enabled] / [Thinking.tokenBudget] and is independent.
+     *
      * @return Unified Flux<StreamingEvent<O>> that public methods can filter as needed
      */
     private fun <O> doTransformObjectStreamInternal(
@@ -348,6 +376,9 @@ internal class StreamingChatClientOperations(
         // Chat Options, additional potential option "streaming"
         val chatOptions = requireSpringAiLlm(llm).convertOptions(interaction.llm)
 
+        // Application-level thinking format: Thinking.extractThinking (not provider tokenBudget / enabled).
+        val includeApplicationLevelThinking = interaction.llm.thinking?.extractThinking == true
+
         // Spring AI 2.0's StreamingJacksonOutputConverter requires T : Any;
         // erase O via Class<Any> for the construction, cast result back at use sites.
         @Suppress("UNCHECKED_CAST")
@@ -357,7 +388,7 @@ internal class StreamingChatClientOperations(
             clazz = outputClassAny,
             objectMapper = chatClientLlmOperations.objectMapper,
             fieldFilter = interaction.fieldFilter,
-            thinkingEnabled = interaction.llm.thinking?.enabled ?: false,
+            thinkingEnabled = includeApplicationLevelThinking,
         ) as StreamingJacksonOutputConverter<O>  // signature compatibility for downstream Flux<O>/StreamingEvent<O> uses
 
         // Build prompt using helper methods, including streaming format instructions

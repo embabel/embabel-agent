@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.support.springai.streaming
 
+import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.LlmInteraction
@@ -22,9 +23,12 @@ import com.embabel.agent.core.internal.streaming.StreamingLlmOperations
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.model.LlmOptions
 import tools.jackson.module.kotlin.jacksonObjectMapper
+import io.mockk.CapturingSlot
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -37,6 +41,9 @@ import org.springframework.ai.tool.ToolCallback
 import reactor.core.publisher.Flux
 import reactor.test.StepVerifier
 import java.time.Duration
+import com.embabel.common.ai.model.OptionsConverter
+import com.embabel.common.ai.model.Thinking
+import com.embabel.common.ai.prompt.PromptContributor
 
 /**
  * Unit tests for StreamingChatClientOperations.
@@ -79,7 +86,7 @@ class StreamingChatClientOperationsTest {
         every { mockChatClientLlmOperations.createChatClient(mockLlm) } returns mockChatClient
         every { mockInteraction.promptContributors } returns emptyList()
         every { mockLlm.promptContributors } returns emptyList()
-        val mockOptionsConverter = mockk<com.embabel.common.ai.model.OptionsConverter>(relaxed = true)
+        val mockOptionsConverter = mockk<OptionsConverter>(relaxed = true)
         every { mockLlm.optionsConverter } returns mockOptionsConverter
         every { mockOptionsConverter.convertOptions(any(), any()) } returns mockk(relaxed = true)
         every { mockInteraction.llm } returns mockk(relaxed = true)
@@ -161,8 +168,8 @@ class StreamingChatClientOperationsTest {
             mockAction
         )
 
-        // Then
-        verify { mockChatClientLlmOperations.getLlm(mockInteraction) }
+        // Then: Interaction may be a copy with Thinking.extractThinking enabled
+        verify { mockChatClientLlmOperations.getLlm(any()) }
     }
 
     @Test
@@ -468,16 +475,82 @@ class StreamingChatClientOperationsTest {
     }
 
 
-    private fun mockChatClientForStreaming(chunkFlux: Flux<String>) {
+    private fun mockChatClientForStreaming(chunkFlux: Flux<String>): CapturingSlot<Prompt> {
         val mockRequestSpec = mockk<ChatClient.ChatClientRequestSpec>(relaxed = true)
         val mockContentStreamSpec = mockk<ChatClient.StreamResponseSpec>(relaxed = true)
+        val promptSlot = slot<Prompt>()
 
-        every { mockChatClient.prompt(any<Prompt>()) } returns mockRequestSpec
+        every { mockChatClient.prompt(capture(promptSlot)) } returns mockRequestSpec
         every { mockRequestSpec.tools(any<List<ToolCallback>>()) } returns mockRequestSpec
         every { mockRequestSpec.options(any()) } returns mockRequestSpec
         every { mockRequestSpec.stream() } returns mockContentStreamSpec
         every { mockContentStreamSpec.content() } returns chunkFlux
 
+        return promptSlot
+    }
+
+    @Nested
+    inner class ThinkingFormatInstructionTests {
+
+        @Test
+        fun `createObjectStreamWithThinking includes thinking format without LlmOptions thinking config`() {
+            // Given: real Interaction with no thinking budget / extraction (the #1799 pre-req).
+            // SPI enables Thinking.extractThinking on the Interaction for *WithThinking.
+            val interaction = LlmInteraction(
+                id = InteractionId("test-thinking-format"),
+                llm = LlmOptions(),
+            )
+            val promptSlot = mockChatClientForStreaming(
+                Flux.just("{\"name\":\"Item1\",\"value\":1}\n")
+            )
+
+            // When
+            streamingOperations.createObjectStreamWithThinking(
+                messages = listOf(UserMessage("test")),
+                interaction = interaction,
+                outputClass = TestItem::class.java,
+                agentProcess = mockAgentProcess,
+                action = mockAction
+            ).collectList().block(Duration.ofSeconds(2))
+
+            // Then: format instructions still ask for <think> blocks (driven by extractThinking)
+            assertTrue(promptSlot.isCaptured, "expected ChatClient.prompt to be called")
+            val promptText = promptSlot.captured.contents
+            assertTrue(
+                promptText.contains("<think>"),
+                "createObjectStreamWithThinking should inject thinking format without Thinking.withTokenBudget"
+            )
+        }
+
+        @Test
+        fun `createObjectStream omits thinking format for provider budget only`() {
+            // Provider budget (Thinking.enabled + tokenBudget) alone must not inject
+            // application-level format instructions — that follows extractThinking only.
+            val interaction = LlmInteraction(
+                id = InteractionId("test-budget-only"),
+                llm = LlmOptions().withThinking(Thinking.withTokenBudget(8000)),
+            )
+            val promptSlot = mockChatClientForStreaming(
+                Flux.just("{\"name\":\"Item1\",\"value\":1}\n")
+            )
+
+            // When
+            streamingOperations.createObjectStream(
+                messages = listOf(UserMessage("test")),
+                interaction = interaction,
+                outputClass = TestItem::class.java,
+                agentProcess = mockAgentProcess,
+                action = mockAction
+            ).collectList().block(Duration.ofSeconds(2))
+
+            // Then
+            assertTrue(promptSlot.isCaptured, "expected ChatClient.prompt to be called")
+            val promptText = promptSlot.captured.contents
+            assertFalse(
+                promptText.contains("<think>"),
+                "tokenBudget alone should not inject application-level thinking format"
+            )
+        }
     }
 
     /**
@@ -520,7 +593,7 @@ class StreamingChatClientOperationsTest {
         @Test
         fun `should prepend prompt contributions as system message`() {
             // Given
-            val mockContributor = mockk<com.embabel.common.ai.prompt.PromptContributor>()
+            val mockContributor = mockk<PromptContributor>()
             every { mockContributor.contribution() } returns "System contribution"
             every { mockInteraction.promptContributors } returns listOf(mockContributor)
 

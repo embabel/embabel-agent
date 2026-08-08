@@ -37,9 +37,41 @@ Provider integrations override `LlmMessageStreamer.streamInference` by emitting 
 the assembled assistant message. The completed message must include provider-assigned tool-call IDs,
 names, and complete arguments. Provider adapters must not execute those calls themselves.
 
+==== Thinking: application-level retrieval vs model budget
+
+Embabel streaming currently deals with *application-level thinking*: the model is prompted
+(via thinking *format instructions*) to emit reasoning blocks that Embabel parses into
+``StreamingEvent.Thinking`` entries. Control is through ``Thinking`` on the Interaction /
+``LlmOptions``:
+
+* *Application-level* — ``Thinking.withExtraction()`` sets ``extractThinking``. That flag
+  turns on prompt format instructions and block extraction. ``createObjectStreamWithThinking``
+  enables this automatically (no separate SPI "format" parameter).
+* *Provider model budget* — ``Thinking.withTokenBudget(n)`` sets ``enabled`` + budget for
+  providers that need it (e.g. Anthropic). Independent of application-level extraction;
+  combine via ``applyExtraction()`` when you want both.
+
+This is separate from *LLM-native reasoning* (provider-specific reasoning channels returned as
+a dedicated response property), which Embabel does **not** extract today
+(see https://github.com/embabel/embabel-agent/issues/1716[#1716]).
+
+* *Retrieving thinking events* — Call ``createObjectStreamWithThinking(...)``.
+  You do *not* need a token budget just to use this API.
+* *Model thinking budget* — Optionally ``LlmOptions.withThinking(Thinking.withTokenBudget(n))``
+  when the provider requires it.
+
+Object-only streams (``createObjectStream`` / ``generateStream``) only inject thinking format
+instructions when ``extractThinking`` is already set on the Interaction (a token budget alone
+does not).
+
 ==== Example - Simple Thinking and Object Streaming with Callbacks
 [source,java]
 ----
+
+        // Optional: only when the provider needs a thinking budget (e.g. Anthropic).
+        // Not required just to receive thinking StreamingEvents.
+        // LlmOptions options = new LlmOptions().withThinking(Thinking.withTokenBudget(8000));
+        // PromptRunner runner = ai.withLlm(options).withToolObject(Tooling.class);
 
         PromptRunner runner = ai.withDefaultLlm()  // Example uses qwen3:latest
                                 .withToolObject(Tooling.class);
