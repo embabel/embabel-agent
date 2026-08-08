@@ -24,8 +24,16 @@ import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.springframework.ai.openai.OpenAiChatOptions
 
-class Gpt5ChatOptionsConverterTest(
-) {
+/**
+ * [Gpt5ChatOptionsConverter] is the conservative GPT-5 family alias:
+ * no sampling parameters, token limit on `max_completion_tokens`.
+ *
+ * Per-model YAML may be looser for tiers that still accept top_p / penalties
+ * (e.g. 5.1 / 5.2 / 5.4); those go through [com.embabel.agent.openai.CapabilityAwareOpenAiOptionsConverter]
+ * with flags from `special_handling`. Unsupported values are warned and dropped
+ * (not thrown) — same strategy as #1874.
+ */
+class Gpt5ChatOptionsConverterTest {
 
     @Test
     fun `ignores temperature`() {
@@ -58,8 +66,6 @@ class Gpt5ChatOptionsConverterTest(
 
         val options = Gpt5ChatOptionsConverter.convertOptions(llmo, "test-model")
 
-        // Spring AI 2.0's OpenAiChatOptions package is @NullMarked, so Kotlin treats these getters
-        // as returning non-null — read into nullable locals to bypass, as in `ignores temperature`.
         val topP: Double? = options.topP
         val presencePenalty: Double? = options.presencePenalty
         val frequencyPenalty: Double? = options.frequencyPenalty
@@ -71,32 +77,28 @@ class Gpt5ChatOptionsConverterTest(
     @Disabled("We not support thinking effort yet")
     @Test
     fun `supports thinking effort`() {
-
     }
 
     @Test
     fun `handles temperature equal to 1_0 without warning`() {
         val llmo = LlmOptions().withTemperature(temperature = 1.0)
         val options = Gpt5ChatOptionsConverter.convertOptions(llmo, "test-model")
-        assertNull(options.temperature, "Temperature 1.0 should be ignored silently")
+        val temperature: Double? = options.temperature
+        assertNull(temperature, "Temperature 1.0 should be ignored silently")
     }
 
     @Test
     fun `handles null temperature`() {
         val llmo = LlmOptions()
         val options = Gpt5ChatOptionsConverter.convertOptions(llmo, "test-model")
-        assertNull(options.temperature, "Null temperature should remain null")
+        val temperature: Double? = options.temperature
+        assertNull(temperature, "Null temperature should remain null")
     }
 
     /**
      * The GPT-5 family rejects `max_tokens` outright:
      * `400 Unsupported parameter: 'max_tokens' is not supported with this model.
      * Use 'max_completion_tokens' instead.`
-     *
-     * Spring AI serialises [org.springframework.ai.openai.OpenAiChatOptions.maxTokens] to the
-     * former and `maxCompletionTokens` to the latter, so the limit has to be carried on the
-     * second field — and the first must stay unset, or the request is refused for its presence
-     * alone.
      */
     @Test
     fun `carries a token limit on maxCompletionTokens, which is the field GPT-5 accepts`() {

@@ -71,12 +71,12 @@ class OpenAiModelLoaderTest {
         }
 
         /**
-         * The whole GPT-5 line rejects any temperature but the default, and `createOpenAiLlm` keys
-         * the [Gpt5ChatOptionsConverter] selection off this flag. A model shipped without it sends
-         * a temperature OpenAI will reject.
+         * The whole GPT-5 line rejects sampling parameters and `max_tokens`. Catalog flags drive
+         * [com.embabel.agent.openai.CapabilityAwareOpenAiOptionsConverter] / the GPT-5 alias
+         * (warn-and-drop, never throw). A model shipped without these sends fields OpenAI rejects.
          */
         @Test
-        fun `every GPT-5 model declares that it does not support temperature`() {
+        fun `every GPT-5 model declares sampling and max_completion_tokens capabilities`() {
             val gpt5Models = shippedCatalogue.models.filter { it.name.startsWith("gpt5") }
             assertTrue(gpt5Models.isNotEmpty(), "Should have GPT-5 models")
 
@@ -85,7 +85,56 @@ class OpenAiModelLoaderTest {
                 assertEquals(
                     false,
                     model.specialHandling?.supportsTemperature,
-                    "GPT-5 models should not support temperature adjustment",
+                    "GPT-5 models should not support temperature adjustment (${model.modelId})",
+                )
+                assertEquals(
+                    false,
+                    model.specialHandling?.supportsTopP,
+                    "GPT-5 models should not support top_p (${model.modelId})",
+                )
+                assertEquals(
+                    false,
+                    model.specialHandling?.supportsFrequencyPenalty,
+                    "GPT-5 models should not support frequency_penalty (${model.modelId})",
+                )
+                assertEquals(
+                    false,
+                    model.specialHandling?.supportsPresencePenalty,
+                    "GPT-5 models should not support presence_penalty (${model.modelId})",
+                )
+                assertEquals(
+                    true,
+                    model.specialHandling?.usesMaxCompletionTokens,
+                    "GPT-5 models map the token limit to max_completion_tokens (${model.modelId})",
+                )
+            }
+        }
+
+        /**
+         * GPT-4.1 family is temperature-restricted but still accepts classic `max_tokens` and
+         * other sampling fields (unlike the GPT-5 family).
+         */
+        @Test
+        fun `every GPT-4_1 model declares temperature-only special handling`() {
+            val gpt41Models = shippedCatalogue.models.filter { it.name.startsWith("gpt41") }
+            assertTrue(gpt41Models.isNotEmpty(), "Should have GPT-4.1 models")
+
+            gpt41Models.forEach { model ->
+                assertNotNull(model.specialHandling, "GPT-4.1 models should have special handling")
+                assertEquals(
+                    false,
+                    model.specialHandling?.supportsTemperature,
+                    "GPT-4.1 models should not support temperature adjustment (${model.modelId})",
+                )
+                assertEquals(
+                    true,
+                    model.specialHandling?.supportsTopP ?: true,
+                    "GPT-4.1 still accepts top_p (${model.modelId})",
+                )
+                assertEquals(
+                    false,
+                    model.specialHandling?.usesMaxCompletionTokens ?: false,
+                    "GPT-4.1 still uses max_tokens (${model.modelId})",
                 )
             }
         }

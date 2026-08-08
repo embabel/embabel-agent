@@ -72,7 +72,45 @@ internal class InstrumentedChatModel(
             llmRequestEvent.chatModelCallEvent(prompt)
         )
 
-        return delegate.call(prompt)
+        return try {
+            delegate.call(prompt)
+        } catch (ex: RuntimeException) {
+            retryWithoutUnsupportedParameter(prompt, ex)
+        }
+    }
+
+    /**
+     * Safety net when a model rejects a request field that slipped past capability-aware
+     * option conversion. Parses structured OpenAI-style `error.param`, strips that field
+     * from [Prompt.options], and retries once.
+     *
+     * Fail closed (rethrow [ex]) when:
+     * - no structured `error.param` in the exception chain
+     * - prompt has no options (nothing to strip → cannot recover)
+     * - [UnsupportedRequestParameterRetry.stripParameter] returns null because the field
+     *   name is **unknown** to our portable mutator map — we never invent options.
+     *   Note: a *known* field that is already null still returns a built copy (retry once);
+     *   null from strip means "cannot strip this name", not "field was already omitted".
+     *
+     * Prefer [com.embabel.agent.openai.ModelCapabilities] + capability-aware conversion
+     * (warn-and-drop) so restricted fields never reach the wire. Keep this path thin:
+     * extend YAML capabilities first.
+     */
+    private fun retryWithoutUnsupportedParameter(prompt: Prompt, ex: RuntimeException): ChatResponse {
+        val parameter = UnsupportedRequestParameterRetry.extractUnsupportedParameter(ex)
+            ?: throw ex
+        val options = prompt.options ?: throw ex
+        val strippedOptions = UnsupportedRequestParameterRetry.stripParameter(options, parameter)
+        // null = unknown field name only (known-but-already-null still yields a copy)
+        if (strippedOptions == null) {
+            throw ex
+        }
+        logger.warn(
+            "Model rejected unsupported request parameter '{}'; retrying once without it. Original error: {}",
+            parameter,
+            ex.message,
+        )
+        return delegate.call(Prompt(prompt.instructions, strippedOptions))
     }
 
     // -------------------------------------------------------------------

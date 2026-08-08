@@ -63,7 +63,8 @@ data class OpenAiModelDefinitions(
  * @property maxTokens maximum tokens for completion (default 16384)
  * @property temperature sampling temperature (default 1.0)
  * @property topP nucleus sampling parameter
- * @property specialHandling optional special handling configuration (e.g., GPT-5 temperature)
+ * @property specialHandling optional sampling-parameter support flags (YAML `special_handling`)
+ * @property apiFormat wire format this model is served over (Chat Completions vs Responses)
  * @property nativeSupport optional provider-native support metadata
  */
 data class OpenAiModelDefinition(
@@ -75,7 +76,11 @@ data class OpenAiModelDefinition(
     val maxTokens: Int = 16384,
     val temperature: Double = 1.0,
     val topP: Double? = null,
-    val specialHandling: SpecialHandlingConfiguration? = null,
+    /**
+     * YAML key remains `special_handling` (Jackson property name). Type is
+     * [SupportFeaturesConfiguration] — which sampling parameters this model accepts.
+     */
+    val specialHandling: SupportFeaturesConfiguration? = null,
     val apiFormat: OpenAiApiFormat = OpenAiApiFormat.CHAT_COMPLETIONS,
     @param:JsonAlias("native-support")
     override val nativeSupport: NativeSupport? = null,
@@ -99,14 +104,27 @@ enum class OpenAiApiFormat {
 }
 
 /**
- * Special handling configuration for models with unique requirements.
+ * Which sampling / request parameters a model supports.
  *
- * @property supportsTemperature whether the model supports temperature adjustment. A model that
- * does not is served by `Gpt5ChatOptionsConverter`, which sends no sampling parameter at all —
- * the GPT-5 models that refuse `temperature` refuse `top_p` and both penalties with it.
+ * Sourced from `special_handling` in model YAML (property [OpenAiModelDefinition.specialHandling]).
+ * Defaults preserve historical "all parameters supported" behavior when a flag is omitted.
+ * Mapped at registration time to [com.embabel.agent.openai.ModelCapabilities].
+ *
+ * Formerly named `SpecialHandlingConfiguration`; renamed for clarity (YAML key unchanged).
+ *
+ * @property supportsTemperature whether the model supports non-default temperature
+ * @property supportsTopP whether the model supports top_p
+ * @property supportsFrequencyPenalty whether the model supports frequency_penalty
+ * @property supportsPresencePenalty whether the model supports presence_penalty
+ * @property usesMaxCompletionTokens when true, map the token limit to `max_completion_tokens`
+ *   (GPT-5 family rejects `max_tokens` for presence alone)
  */
-data class SpecialHandlingConfiguration(
-    val supportsTemperature: Boolean = true
+data class SupportFeaturesConfiguration(
+    val supportsTemperature: Boolean = true,
+    val supportsTopP: Boolean = true,
+    val supportsFrequencyPenalty: Boolean = true,
+    val supportsPresencePenalty: Boolean = true,
+    val usesMaxCompletionTokens: Boolean = false,
 )
 
 /**
