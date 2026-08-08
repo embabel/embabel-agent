@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.common.Asyncer
+import com.embabel.common.ai.model.ModelSelectionContextHolder
 import io.micrometer.context.ContextSnapshotFactory
 import javax.annotation.concurrent.ThreadSafe
 import java.util.concurrent.CompletableFuture
@@ -24,9 +25,16 @@ import java.util.concurrent.Semaphore
 
 /**
  * Asyncer implementation that uses an Executor for async operations, propagating to worker
- * threads the [AgentProcess] (a domain concern, via [AgentProcessAccessor]) and the current
- * Micrometer Observation (via the official [ContextSnapshotFactory], so spans nest across
- * threads; a no-op when no observation is current, e.g. a NOOP registry).
+ * threads the [AgentProcess] (a domain concern, via [AgentProcessAccessor]), the
+ * [com.embabel.common.ai.model.ModelSelectionContext] (so a user's own provider key still
+ * decides model selection off the request thread), and the current Micrometer Observation
+ * (via the official [ContextSnapshotFactory], so spans nest across threads; a no-op when no
+ * observation is current, e.g. a NOOP registry).
+ *
+ * The model selection context matters here because the platform itself moves work off the
+ * calling thread - `AgentPlatform.start`, parallel actions, `OperationContext.parallelMap`.
+ * Losing it does not fail: role resolution quietly falls back to deployment configuration and
+ * serves a model the deployment pays for, on a call the user brought their own key for.
  */
 @ThreadSafe
 class ExecutorAsyncer(
@@ -36,21 +44,25 @@ class ExecutorAsyncer(
     private val contextSnapshotFactory = ContextSnapshotFactory.builder().clearMissing(true).build()
 
     override fun <T> async(block: () -> T): CompletableFuture<T> {
-        // Capture AgentProcess and the current observation from the calling thread
+        // Capture AgentProcess, model selection context and the current observation from the calling thread
         val agentProcess = AgentProcessAccessor.getValue()
+        val modelSelectionContext = ModelSelectionContextHolder.get()
         val contextSnapshot = contextSnapshotFactory.captureAll()
 
         return CompletableFuture.supplyAsync({
             contextSnapshot.setThreadLocals().use {
-                if (agentProcess != null) {
-                    AgentProcessAccessor.setValue(agentProcess)
-                    try {
+                // with() restores whatever the pooled thread held before, so nothing leaks between tasks
+                ModelSelectionContextHolder.with(modelSelectionContext) {
+                    if (agentProcess != null) {
+                        AgentProcessAccessor.setValue(agentProcess)
+                        try {
+                            block()
+                        } finally {
+                            AgentProcessAccessor.reset() // cleanup
+                        }
+                    } else {
                         block()
-                    } finally {
-                        AgentProcessAccessor.reset() // cleanup
                     }
-                } else {
-                    block()
                 }
             }
         }, executor)

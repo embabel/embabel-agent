@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.ai.chat.model.ChatModel
+import org.springframework.core.Ordered
 import java.time.Duration
 
 /**
@@ -397,6 +398,86 @@ class RoleResolutionTest {
             }
         }
 
+        @Test
+        fun `a provider no factory handles fails rather than falling back`() {
+            // The role names a model for openai, but the only factory speaks anthropic. Serving
+            // the deployment's own openai model here would bill the deployment for the user's call.
+            val mp = provider(factories = listOf(factory))
+            assertThrows<NoSuitableModelException> {
+                ModelSelectionContextHolder.with(
+                    ModelSelectionContext(credential = ProviderCredential("openai", "sk-test")),
+                ) {
+                    mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE))
+                }
+            }
+        }
+
+        @Test
+        fun `a role column with tuning but no model cannot be satisfied by a key`() {
+            val mp = provider(
+                properties = ConfigurableModelProviderProperties(
+                    roles = mapOf(CHEAPEST_ROLE to mapOf("anthropic" to LlmOptions().withTemperature(0.3))),
+                    defaultLlm = "gpt-4.1-mini",
+                ),
+                factories = listOf(factory),
+            )
+            assertThrows<NoSuitableModelException> {
+                ModelSelectionContextHolder.with(
+                    ModelSelectionContext(credential = ProviderCredential("anthropic", "sk-test")),
+                ) {
+                    mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE))
+                }
+            }
+        }
+    }
+
+    @Nested
+    inner class PlatformResolver {
+
+        private val resolver = ConfigurableRoleResolver(
+            ConfigurableModelProviderProperties(roles = nestedRoles, defaultLlm = "gpt-4.1-mini"),
+        ) { "openai" }
+
+        @Test
+        fun `runs last, so an application resolver can always take precedence`() {
+            assertEquals(Ordered.LOWEST_PRECEDENCE, resolver.order)
+        }
+
+        @Test
+        fun `says nothing when there is no provider to resolve against`() {
+            assertNull(resolver.optionsFor(CHEAPEST_ROLE, provider = null))
+        }
+
+        @Test
+        fun `says nothing about a role it has never heard of`() {
+            assertNull(resolver.optionsFor("no-such-role", provider = "openai"))
+            assertNull(resolver.resolve("no-such-role", ModelSelectionContext.EMPTY))
+        }
+    }
+
+    @Nested
+    inner class DefaultSpiBehaviour {
+
+        /**
+         * A [ModelProvider] that does not override role resolution: the default is to leave
+         * options alone, so an implementation predating roles keeps working.
+         */
+        private val minimal = object : ModelProvider {
+            override fun getLlm(criteria: ModelSelectionCriteria): LlmService<*> = openAiModel
+            override fun getEmbeddingService(criteria: ModelSelectionCriteria): EmbeddingService =
+                throw UnsupportedOperationException()
+
+            override fun listRoles(modelClass: Class<*>): List<String> = emptyList()
+            override fun listModels(): List<ModelMetadata> = emptyList()
+            override fun listModelNames(modelClass: Class<*>): List<String> = emptyList()
+            override fun infoString(verbose: Boolean?, indent: Int): String = "minimal"
+        }
+
+        @Test
+        fun `the default resolveLlmOptions returns what it was given`() {
+            val asked = LlmOptions.withLlmForRole(CHEAPEST_ROLE)
+            assertSame(asked, minimal.resolveLlmOptions(asked))
+        }
     }
 
     @Nested

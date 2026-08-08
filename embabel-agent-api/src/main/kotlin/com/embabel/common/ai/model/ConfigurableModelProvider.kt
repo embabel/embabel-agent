@@ -74,7 +74,7 @@ data class ConfigurableModelProviderProperties(
 /**
  * Take LLM definitions from configuration
  */
-class ConfigurableModelProvider(
+class ConfigurableModelProvider @JvmOverloads constructor(
     private val llms: List<LlmService<*>>,
     private val embeddingServices: List<EmbeddingService>,
     private val properties: ConfigurableModelProviderProperties,
@@ -121,10 +121,12 @@ class ConfigurableModelProvider(
         properties.llms.forEach { (role, model) ->
             if (llms.none { it.name == model }) {
                 // Not fatal: the deployment may be keyed for a different provider than the one this
-                // role names, and a role that cannot be satisfied falls back to the default LLM.
+                // role names, so it still boots and still serves every role that does work. The
+                // role itself throws when something asks for it - it does NOT fall back to the
+                // default LLM, which is what would make "cheapest" silently the most expensive model.
                 logger.warn(
-                    "LLM '{}' for role '{}' is not available, so the role will fall back to the default LLM '{}'. Available: {}",
-                    model, role, properties.defaultLlm, llms.map { it.name },
+                    "LLM '{}' for role '{}' is not available, so anything asking for that role will fail. Available: {}",
+                    model, role, llms.map { it.name },
                 )
             }
         }
