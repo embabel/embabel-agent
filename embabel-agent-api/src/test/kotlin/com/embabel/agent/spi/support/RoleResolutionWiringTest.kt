@@ -42,6 +42,7 @@ import io.mockk.slot
 import io.mockk.verify
 import jakarta.validation.Validation
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.time.Duration
@@ -162,6 +163,37 @@ class RoleResolutionWiringTest {
         assertEquals(0.2, streamed.captured.temperature)
         assertEquals(Duration.ofSeconds(90), streamed.captured.timeout)
         verify(exactly = 0) { defaultModel.createMessageStreamer(any()) }
+    }
+
+    @Test
+    fun `capability queries answer about the model the role means, not the default`() {
+        val roleModel = mockk<LlmService<*>>(relaxed = true)
+        every { roleModel.name } returns "gpt-4.1-nano"
+        every { roleModel.provider } returns "openai"
+        every { roleModel.supportsStreaming() } returns true
+        every { roleModel.supportsThinking() } returns true
+
+        val defaultModel = mockk<LlmService<*>>(relaxed = true)
+        every { defaultModel.name } returns "gpt-4.1-mini"
+        every { defaultModel.provider } returns "openai"
+        every { defaultModel.supportsStreaming() } returns false
+        every { defaultModel.supportsThinking() } returns false
+
+        val modelProvider = ConfigurableModelProvider(
+            llms = listOf(roleModel, defaultModel),
+            embeddingServices = emptyList(),
+            properties = ConfigurableModelProviderProperties(
+                roles = mapOf(CHEAPEST_ROLE to mapOf("openai" to LlmOptions.withModel("gpt-4.1-nano"))),
+                defaultLlm = "gpt-4.1-mini",
+            ),
+        )
+
+        val ops = setup(modelProvider).llmOperations
+        val asRole = LlmOptions.withLlmForRole(CHEAPEST_ROLE)
+
+        // The two models disagree, so answering from the default would be visible here.
+        assertTrue(ops.supportsStreaming(asRole))
+        assertTrue(ops.supportsThinking(asRole))
     }
 
     private data class Wiring(
