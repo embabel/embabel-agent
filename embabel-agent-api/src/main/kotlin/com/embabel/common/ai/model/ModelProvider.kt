@@ -30,6 +30,33 @@ interface ModelProvider : HasInfoString {
     fun getEmbeddingService(criteria: ModelSelectionCriteria): EmbeddingService
 
     /**
+     * Resolve any role in these options to a concrete model, applying whatever hyperparameters are
+     * configured against that role. Values the caller set explicitly are kept.
+     *
+     * Called once per LLM operation, before the model is chosen, so that a role can carry more than
+     * a model name. Options naming no role are returned unchanged.
+     */
+    fun resolveLlmOptions(llmOptions: LlmOptions): LlmOptions = llmOptions
+
+    /**
+     * What configuration says [role] means for this deployment, or null if it says nothing.
+     *
+     * The read side of role configuration, for callers that want to *show* a role's model rather
+     * than use it - a settings screen, a diagnostic endpoint, or an application layering its own
+     * per-user overrides on top. Without it such a caller has to read the raw properties and
+     * reimplement the precedence between the flat and nested shapes, which is how a settings
+     * screen ends up disagreeing with what actually runs.
+     *
+     * Narrower than [resolveLlmOptions] on purpose: it answers for the deployment's own provider
+     * and ignores both user keys and application [RoleResolver] beans, so the answer does not
+     * depend on who is asking or on which thread. Use [resolveLlmOptions] to find out what a
+     * particular call will really do.
+     *
+     * Returns null by default, meaning "this implementation cannot say".
+     */
+    fun configuredOptionsForRole(role: String): LlmOptions? = null
+
+    /**
      * List the roles available for this class of model
      */
     fun listRoles(modelClass: Class<*>): List<String>
