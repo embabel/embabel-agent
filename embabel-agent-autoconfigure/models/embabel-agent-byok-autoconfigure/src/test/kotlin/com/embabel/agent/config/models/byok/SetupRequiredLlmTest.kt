@@ -77,6 +77,23 @@ class SetupRequiredLlmTest {
     }
 
     @Test
+    fun `streaming fails the same way, not with an unrelated streaming error`() {
+        // Spring AI's default stream() throws UnsupportedOperationException("streaming is not
+        // supported"), which is both untrue here and uncatchable by an application watching for
+        // NoLlmConfiguredException — in a chat app, exactly where the message is needed.
+        val service = SetupRequiredLlm.llmService()
+
+        assertThatThrownBy { (service as SpringAiLlmService).chatModel.stream(Prompt(listOf(UserMessage("hello")))) }
+            .isInstanceOf(NoLlmConfiguredException::class.java)
+            .hasMessageContaining("withLlmService")
+    }
+
+    @Test
+    fun `the platform still reports the placeholder as not supporting streaming`() {
+        assertThat(SetupRequiredLlm.llmService().supportsStreaming()).isFalse()
+    }
+
+    @Test
     fun `a message sender can be created, so failure happens at call time not setup time`() {
         val service = SetupRequiredLlm.llmService()
         assertThat(service.createMessageSender(LlmOptions())).isNotNull()

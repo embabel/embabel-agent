@@ -21,6 +21,7 @@ import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.prompt.Prompt
+import reactor.core.publisher.Flux
 
 /**
  * Thrown when a prompt reaches the [SetupRequiredLlm] placeholder, meaning no real LLM was
@@ -40,6 +41,24 @@ class NoLlmConfiguredException(message: String) : RuntimeException(message)
 internal class SetupRequiredChatModel : ChatModel {
 
     override fun call(prompt: Prompt): ChatResponse =
+        throw NoLlmConfiguredException(SetupRequiredLlm.MESSAGE)
+
+    /**
+     * Streaming fails the same way as a blocking call.
+     *
+     * `ChatModel` defaults `stream` to `UnsupportedOperationException("streaming is not
+     * supported")`, which for this model is both untrue and unactionable: streaming is not the
+     * problem, the missing key is. Chat applications are the ones that stream and the ones most
+     * likely to need the "add an API key" path, so the default would hide the message exactly
+     * where it is needed - and an application catching [NoLlmConfiguredException] would not
+     * catch it at all.
+     *
+     * Note the platform still reports this model as not supporting streaming:
+     * `StreamingCapabilityVerifier` probes by calling `stream` and treats any exception as
+     * "no". That is the right answer either way; this only fixes what the caller is told when
+     * something streams anyway.
+     */
+    override fun stream(prompt: Prompt): Flux<ChatResponse> =
         throw NoLlmConfiguredException(SetupRequiredLlm.MESSAGE)
 
     override fun getOptions(): ChatOptions = ChatOptions.builder().build()
