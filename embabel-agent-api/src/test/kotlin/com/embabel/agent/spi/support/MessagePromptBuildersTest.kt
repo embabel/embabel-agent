@@ -18,8 +18,13 @@ package com.embabel.agent.spi.support
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.SystemMessage
 import com.embabel.chat.UserMessage
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.embabel.common.ai.prompt.PromptContributor
+import com.embabel.common.core.types.Named
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -107,6 +112,188 @@ class MessagePromptBuildersTest {
 
     private fun testPromptContributor(content: String): PromptContributor = object : PromptContributor {
         override fun contribution(): String = content
+    }
+
+    // ========================================
+    // slow contributor reporting
+    // ========================================
+
+    @Test
+    fun `a slow contributor is named in a warning, once`() {
+        val logger = LoggerFactory.getLogger("com.embabel.agent.spi.support.PromptContributions")
+            as ch.qos.logback.classic.Logger
+        val appender = ListAppender<ILoggingEvent>().apply { start() }
+        logger.addAppender(appender)
+        try {
+            // Named, because a name is what makes the warning actionable — a bare decorator
+            // class name would not tell the reader which of their contributors to fix.
+            val slow = object : PromptContributor, Named {
+                override val name = "slow-contributor-${System.nanoTime()}"
+                override fun contribution(): String {
+                    Thread.sleep(300)
+                    return "recalled"
+                }
+            }
+
+            val first = buildPromptContributionsString(listOf(slow), emptyList())
+            val second = buildPromptContributionsString(listOf(slow), emptyList())
+
+            assertEquals("recalled", first)
+            assertEquals("recalled", second)
+            val warnings = appender.list.filter { it.level == Level.WARN }
+            assertEquals(1, warnings.size, "should warn once, not on every call: $warnings")
+            assertTrue(
+                warnings.single().formattedMessage.contains(slow.name),
+                "warning must name the contributor: ${warnings.single().formattedMessage}",
+            )
+        } finally {
+            logger.detachAppender(appender)
+        }
+    }
+
+    @Test
+    fun `a fast contributor produces no warning`() {
+        val logger = LoggerFactory.getLogger("com.embabel.agent.spi.support.PromptContributions")
+            as ch.qos.logback.classic.Logger
+        val appender = ListAppender<ILoggingEvent>().apply { start() }
+        logger.addAppender(appender)
+        try {
+            buildPromptContributionsString(listOf(testPromptContributor("cheap")), emptyList())
+
+            assertTrue(
+                appender.list.none { it.level == Level.WARN },
+                "an ordinary contributor must stay silent: ${appender.list}",
+            )
+        } finally {
+            logger.detachAppender(appender)
+        }
+    }
+
+    @Test
+    fun `a repeat offender drops to debug rather than warning again`() {
+        withContributionsLogger(Level.DEBUG) { appender ->
+            val slow = namedSlowContributor("repeat-offender-${System.nanoTime()}")
+
+            buildPromptContributionsString(listOf(slow), emptyList())
+            buildPromptContributionsString(listOf(slow), emptyList())
+
+            assertEquals(1, appender.list.count { it.level == Level.WARN })
+            assertTrue(
+                appender.list.any { it.level == Level.DEBUG && it.formattedMessage.contains(slow.name) },
+                "the second occurrence must still be visible at debug: ${appender.list}",
+            )
+        }
+    }
+
+    @Test
+    fun `an unnamed contributor is reported by its class, since that is all there is`() {
+        withContributionsLogger { appender ->
+            buildPromptContributionsString(listOf(UnnamedSlowContributor()), emptyList())
+
+            val warning = appender.list.single { it.level == Level.WARN }.formattedMessage
+            assertTrue(
+                warning.contains(UnnamedSlowContributor::class.simpleName!!),
+                "warning must identify the contributor somehow: $warning",
+            )
+        }
+    }
+
+    @Test
+    fun `a blank name falls back to the class, so the warning is never anonymous`() {
+        withContributionsLogger { appender ->
+            val slow = object : PromptContributor, Named {
+                override val name = "   "
+                override fun contribution(): String {
+                    Thread.sleep(300)
+                    return "recalled"
+                }
+            }
+
+            buildPromptContributionsString(listOf(slow), emptyList())
+
+            val warning = appender.list.single { it.level == Level.WARN }.formattedMessage
+            assertTrue(
+                warning.contains("MessagePromptBuildersTest"),
+                "a blank name must not produce a nameless warning: $warning",
+            )
+        }
+    }
+
+    @Test
+    fun `every contributor is timed at debug, not only the slow ones`() {
+        withContributionsLogger(Level.DEBUG) { appender ->
+            buildPromptContributionsString(listOf(testPromptContributor("cheap")), emptyList())
+
+            assertTrue(
+                appender.list.any { it.level == Level.DEBUG },
+                "per-call figures are the trend you need before anything crosses the threshold",
+            )
+            assertTrue(appender.list.none { it.level == Level.WARN })
+        }
+    }
+
+    @Test
+    fun `the warned-contributor set is bounded, because names can vary per instance`() {
+        // A reference named after the user or the query is both the likeliest thing to do I/O
+        // and the likeliest thing to have a fresh name every call. Without a cap this set grows
+        // for the life of the process.
+        val added = (warnedSlowContributors.size until MAX_WARNED_SLOW_CONTRIBUTORS)
+            .map { "filler-$it-${System.nanoTime()}" }
+        warnedSlowContributors.addAll(added)
+        val sizeAtCap = warnedSlowContributors.size
+        try {
+            withContributionsLogger { appender ->
+                buildPromptContributionsString(
+                    listOf(namedSlowContributor("over-the-cap-${System.nanoTime()}")),
+                    emptyList(),
+                )
+
+                assertTrue(
+                    appender.list.none { it.level == Level.WARN },
+                    "past the cap a slow contributor must not warn again: ${appender.list}",
+                )
+            }
+            assertEquals(sizeAtCap, warnedSlowContributors.size, "the set must not have grown")
+        } finally {
+            warnedSlowContributors.removeAll(added.toSet())
+        }
+    }
+
+    /**
+     * A top-level class rather than an anonymous object, so the class name in the warning is
+     * one a reader could actually go and look at.
+     */
+    private class UnnamedSlowContributor : PromptContributor {
+        override fun contribution(): String {
+            Thread.sleep(300)
+            return "recalled"
+        }
+    }
+
+    private fun namedSlowContributor(contributorName: String) = object : PromptContributor, Named {
+        override val name = contributorName
+        override fun contribution(): String {
+            Thread.sleep(300)
+            return "recalled"
+        }
+    }
+
+    private fun withContributionsLogger(
+        level: Level = Level.INFO,
+        block: (ListAppender<ILoggingEvent>) -> Unit,
+    ) {
+        val logger = LoggerFactory.getLogger("com.embabel.agent.spi.support.PromptContributions")
+            as ch.qos.logback.classic.Logger
+        val previousLevel = logger.level
+        val appender = ListAppender<ILoggingEvent>().apply { start() }
+        logger.addAppender(appender)
+        logger.level = level
+        try {
+            block(appender)
+        } finally {
+            logger.level = previousLevel
+            logger.detachAppender(appender)
+        }
     }
 
     // ========================================
