@@ -29,8 +29,10 @@ import org.springframework.context.annotation.Configuration
  * those singletons exist and would always see none. Registering unconditionally and opting in
  * through `embabel.models.default-llm` avoids the ordering question entirely.
  *
- * An unused placeholder is harmless: models are only ever selected by name or by role, so a
- * deployment that does not name [SetupRequiredLlm.NAME] never resolves it.
+ * An unused placeholder is harmless. Every selection path reaches a model by naming it — by
+ * name, by role, or as `embabel.models.default-llm` — and `auto` resolves to that same default.
+ * So a deployment that does not name [SetupRequiredLlm.NAME] anywhere never resolves it, and
+ * adding this starter alongside a real provider changes nothing.
  */
 @Configuration(proxyBeanMethods = false)
 class SetupRequiredLlmConfig {
