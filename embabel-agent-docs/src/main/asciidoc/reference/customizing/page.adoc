@@ -331,8 +331,10 @@ val embeddings: EmbeddingService = OpenAiCompatibleModelFactory.byokEmbedding(
 `buildValidated()` embeds a short probe text. On failure it throws `InvalidApiKeyException`.
 A *blank* key is treated as absent and rejected before any network call — in a container
 `OPENAI_API_KEY` is routinely set-but-empty, and that empty string would otherwise reach the
-provider and come back as an opaque authentication error. On success the returned
-`EmbeddingService` already knows its dimension — it was observed during the probe — so no live `dimensions()` call is made later.
+provider and come back as an opaque authentication error. The message names the model: an
+embedding model name is caller-supplied and mandatory here, so a typo in it reaches the provider
+the same way a bad key does. On success the returned `EmbeddingService` already knows its
+dimension — it was observed during the probe — so no live `dimensions()` call is made later.
 
 Two things work differently from LLM BYOK, because an embedding model is a schema commitment
 rather than a stateless per-call service:

@@ -444,7 +444,13 @@ open class OpenAiCompatibleModelFactory(
         val vector = try {
             probe.embed(EMBEDDING_VALIDATION_PROBE)
         } catch (e: Exception) {
-            throw InvalidApiKeyException(e.message ?: "Invalid API key")
+            // Name the model. Unlike the LLM path, the embedding model is caller-supplied and
+            // mandatory — it is never defaulted or detected — so a typo in it is at least as
+            // likely as a bad key, and reaches here as the same provider error. Reporting only
+            // "invalid API key" sends the caller to re-check a key that was fine all along.
+            throw InvalidApiKeyException(
+                "Could not validate embedding model '$model' on $provider: ${e.message ?: "no detail"}",
+            )
         }
         if (vector.isEmpty()) {
             throw InvalidApiKeyException("Embedding model '$model' on $provider returned an empty vector")

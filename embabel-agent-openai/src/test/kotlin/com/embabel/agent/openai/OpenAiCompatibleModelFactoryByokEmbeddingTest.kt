@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertSame
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
@@ -127,7 +128,24 @@ class OpenAiCompatibleModelFactoryByokEmbeddingTest {
                 provider = OpenAiModels.PROVIDER,
             )
         }
-        assertEquals("401 Unauthorized", e.message)
+        assertTrue(e.message!!.contains("401 Unauthorized"), e.message)
+    }
+
+    @Test
+    fun `a validation failure names the model, since a typo in it looks the same as a bad key`() {
+        // The embedding model is caller-supplied and mandatory — never defaulted, never detected —
+        // so "invalid API key" alone would send someone to re-check a key that was fine.
+        val factory = FakeFactory { throw RuntimeException("404 model not found") }
+
+        val e = assertThrows<InvalidApiKeyException> {
+            factory.buildValidatedEmbeddingService(
+                model = "text-embedding-3-smal",
+                provider = OpenAiModels.PROVIDER,
+            )
+        }
+
+        assertTrue(e.message!!.contains("text-embedding-3-smal"), e.message)
+        assertTrue(e.message!!.contains(OpenAiModels.PROVIDER), e.message)
     }
 
     @Test
