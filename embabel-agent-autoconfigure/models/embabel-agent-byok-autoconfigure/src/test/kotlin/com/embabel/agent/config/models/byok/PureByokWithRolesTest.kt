@@ -84,6 +84,57 @@ class PureByokWithRolesTest {
     }
 
     @Test
+    fun `default-llm naming an unregistered model falls back to the placeholder`() {
+        // The realistic pure-BYOK application.yml: default-llm still names the model the deployment
+        // wants once a key arrives. Nothing registers it yet, so the placeholder stands in and that
+        // is what puts the deployment into setup-required mode.
+        val modelProvider = ConfigurableModelProvider(
+            llms = listOf(SetupRequiredLlm.llmService()),
+            embeddingServices = emptyList(),
+            properties = ConfigurableModelProviderProperties(
+                llms = mapOf(BEST_ROLE to "gpt-4.1"),
+                defaultLlm = "gpt-4.1",
+            ),
+        )
+
+        assertThat(modelProvider.getLlm(DefaultModelSelectionCriteria).name)
+            .isEqualTo(SetupRequiredLlm.NAME)
+    }
+
+    @Test
+    fun `an unresolvable embedding role is tolerated while awaiting a key`() {
+        assertThatCode {
+            ConfigurableModelProvider(
+                llms = listOf(SetupRequiredLlm.llmService()),
+                embeddingServices = emptyList(),
+                properties = ConfigurableModelProviderProperties(
+                    embeddingServices = mapOf("default" to "text-embedding-3-small"),
+                    defaultLlm = SetupRequiredLlm.NAME,
+                ),
+            )
+        }.doesNotThrowAnyException()
+    }
+
+    @Test
+    fun `an unresolvable embedding role is still fatal for a deployment holding a key`() {
+        // Same gate as the LLM roles, and no fallback: there is no embedding placeholder and there
+        // should not be one, so the gate decides only whether the deployment starts.
+        val real = SpringAiLlmService(name = "real-model", provider = "acme", chatModel = SetupRequiredChatModel())
+
+        assertThatThrownBy {
+            ConfigurableModelProvider(
+                llms = listOf(real),
+                embeddingServices = emptyList(),
+                properties = ConfigurableModelProviderProperties(
+                    embeddingServices = mapOf("default" to "text-embedding-3-small"),
+                    defaultLlm = "real-model",
+                ),
+            )
+        }.isInstanceOf(IllegalStateException::class.java)
+            .hasMessageContaining("text-embedding-3-small")
+    }
+
+    @Test
     fun `an unsatisfiable role fails when asked for, rather than resolving to the placeholder`() {
         // Silently handing back the placeholder would turn "no key configured" into an empty or
         // broken answer at some unrelated point later. The role has no model; say so.
