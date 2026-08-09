@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.config.models.byok
 
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ByRoleModelSelectionCriteria
 import com.embabel.common.ai.model.ConfigurableModelProvider
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
@@ -60,6 +61,26 @@ class PureByokWithRolesTest {
 
         assertThat(modelProvider.getLlm(DefaultModelSelectionCriteria).name)
             .isEqualTo(SetupRequiredLlm.NAME)
+    }
+
+    @Test
+    fun `a deployment that holds a key still dies at startup on a name nothing registers`() {
+        // The other half of the rule, and the reason the relaxation is gated rather than
+        // unconditional: making this a warning too would fix BYOK by making every keyed deployment
+        // worse, turning a typo into a late failure at whichever call first wanted that role.
+        val real = SpringAiLlmService(name = "real-model", provider = "acme", chatModel = SetupRequiredChatModel())
+
+        assertThatThrownBy {
+            ConfigurableModelProvider(
+                llms = listOf(SetupRequiredLlm.llmService(), real),
+                embeddingServices = emptyList(),
+                properties = ConfigurableModelProviderProperties(
+                    llms = mapOf(BEST_ROLE to "gpt-4.1"),
+                    defaultLlm = "real-model",
+                ),
+            )
+        }.isInstanceOf(IllegalStateException::class.java)
+            .hasMessageContaining("gpt-4.1")
     }
 
     @Test

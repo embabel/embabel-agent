@@ -15,13 +15,21 @@
  */
 package com.embabel.agent.config.models.byok
 
+import com.embabel.agent.spi.loop.LlmMessageSender
+import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.PlaceholderLlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.common.ai.model.AiModel
+import com.embabel.common.ai.model.LlmMetadata
+import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.prompt.PromptContributor
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.prompt.Prompt
 import reactor.core.publisher.Flux
+import java.time.LocalDate
 
 /**
  * Thrown when a prompt reaches the [SetupRequiredLlm] placeholder, meaning no real LLM was
@@ -116,9 +124,55 @@ object SetupRequiredLlm {
      * Builds the placeholder service. Registered as a bean by [SetupRequiredLlmConfig]; call this
      * directly only when constructing a model provider outside a Spring context.
      */
-    fun llmService(): LlmService<*> = SpringAiLlmService(
-        name = NAME,
-        provider = PROVIDER,
-        chatModel = SetupRequiredChatModel(),
+    fun llmService(): LlmService<*> = SetupRequiredLlmService()
+}
+
+/**
+ * The placeholder as an [LlmService], carrying the [PlaceholderLlmService] marker the platform
+ * looks for.
+ *
+ * A thin wrapper around a [SpringAiLlmService] rather than that class itself, because it is a
+ * `data class` and so cannot be extended to carry a marker interface. Everything is delegated to
+ * it, so the placeholder behaves exactly like any other Spring AI service - including
+ * `supportsStreaming()`, which probes the chat model and correctly answers false.
+ *
+ * The self-typed methods return a wrapper rather than the delegate. Delegating them would hand
+ * back a bare [SpringAiLlmService], silently dropping the marker - and the platform reads that
+ * marker to decide whether an unresolvable model name in configuration is a typo or a deployment
+ * awaiting a key.
+ */
+internal class SetupRequiredLlmService private constructor(
+    private val delegate: SpringAiLlmService,
+) : LlmService<SetupRequiredLlmService>, AiModel<ChatModel>, PlaceholderLlmService,
+    LlmMetadata by delegate {
+
+    constructor() : this(
+        SpringAiLlmService(
+            name = SetupRequiredLlm.NAME,
+            provider = SetupRequiredLlm.PROVIDER,
+            chatModel = SetupRequiredChatModel(),
+        ),
     )
+
+    override val model: ChatModel get() = delegate.model
+
+    override val promptContributors: List<PromptContributor> get() = delegate.promptContributors
+
+    override fun createMessageSender(options: LlmOptions): LlmMessageSender =
+        delegate.createMessageSender(options)
+
+    override fun createMessageStreamer(options: LlmOptions): LlmMessageStreamer =
+        delegate.createMessageStreamer(options)
+
+    override fun supportsStreaming(): Boolean = delegate.supportsStreaming()
+
+    override fun supportsThinking(): Boolean = delegate.supportsThinking()
+
+    override fun withKnowledgeCutoffDate(date: LocalDate): SetupRequiredLlmService =
+        SetupRequiredLlmService(delegate.withKnowledgeCutoffDate(date))
+
+    override fun withPromptContributor(promptContributor: PromptContributor): SetupRequiredLlmService =
+        SetupRequiredLlmService(delegate.withPromptContributor(promptContributor))
+
+    override fun toString(): String = "SetupRequiredLlmService(name=${delegate.name})"
 }

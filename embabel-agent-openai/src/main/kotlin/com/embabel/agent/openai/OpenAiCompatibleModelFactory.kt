@@ -286,7 +286,13 @@ open class OpenAiCompatibleModelFactory(
      * A blank key is rejected before any network call — see [requireUsableApiKey] for why a key
      * is set-but-empty far more often than it looks.
      *
-     * @throws InvalidApiKeyException if the key is blank or invalid.
+     * Note this narrows the constructor's contract, where [apiKey] may be null meaning "no
+     * authentication". That remains true of the factory; it is not true of *validation*, which
+     * exists to answer "is this key usable" and has nothing to answer for an absent one. A keyless
+     * endpoint — a local LM Studio or vLLM server — should be built with [openAiCompatibleLlm]
+     * rather than validated here.
+     *
+     * @throws InvalidApiKeyException if the key is blank, absent, or invalid.
      */
     fun buildValidated(
         model: String,

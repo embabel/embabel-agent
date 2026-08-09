@@ -19,7 +19,10 @@ import com.embabel.common.ai.model.ByNameModelSelectionCriteria
 import com.embabel.common.ai.model.ConfigurableModelProvider
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
 import com.embabel.common.ai.model.DefaultModelSelectionCriteria
+import com.embabel.agent.spi.PlaceholderLlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.common.ai.model.AiModel
+import org.springframework.ai.chat.model.ChatModel
 import com.embabel.common.ai.model.LlmOptions
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
@@ -42,6 +45,10 @@ class SetupRequiredLlmTest {
         val service = SetupRequiredLlm.llmService()
         assertThat(service.name).isEqualTo(SetupRequiredLlm.NAME)
         assertThat(service.provider).isEqualTo(SetupRequiredLlm.PROVIDER)
+        // The marker is what puts the platform into setup-required mode, so an unresolvable model
+        // name in configuration is treated as "awaiting a key" rather than as a typo. Losing it
+        // would not fail here - it would quietly restore fail-fast startup for BYOK deployments.
+        assertThat(service).isInstanceOf(PlaceholderLlmService::class.java)
     }
 
     @Test
@@ -73,7 +80,7 @@ class SetupRequiredLlmTest {
     fun `calling the placeholder fails with an actionable error rather than an empty completion`() {
         val service = SetupRequiredLlm.llmService()
 
-        assertThatThrownBy { (service as SpringAiLlmService).chatModel.call(Prompt(listOf(UserMessage("hello")))) }
+        assertThatThrownBy { ((service as AiModel<*>).model as ChatModel).call(Prompt(listOf(UserMessage("hello")))) }
             .isInstanceOf(NoLlmConfiguredException::class.java)
             .hasMessageContaining("withLlmService")
     }
@@ -85,7 +92,7 @@ class SetupRequiredLlmTest {
         // NoLlmConfiguredException — in a chat app, exactly where the message is needed.
         val service = SetupRequiredLlm.llmService()
 
-        assertThatThrownBy { (service as SpringAiLlmService).chatModel.stream(Prompt(listOf(UserMessage("hello")))) }
+        assertThatThrownBy { ((service as AiModel<*>).model as ChatModel).stream(Prompt(listOf(UserMessage("hello")))) }
             .isInstanceOf(NoLlmConfiguredException::class.java)
             .hasMessageContaining("withLlmService")
     }
