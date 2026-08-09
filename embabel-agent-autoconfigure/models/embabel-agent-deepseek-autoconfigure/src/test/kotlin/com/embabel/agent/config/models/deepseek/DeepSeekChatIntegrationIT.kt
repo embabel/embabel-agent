@@ -19,10 +19,12 @@ import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.common.Ai
 import com.embabel.agent.api.models.DeepSeekModels
 import com.embabel.agent.autoconfigure.models.deepseek.AgentDeepSeekAutoConfiguration
+import com.embabel.agent.autoconfigure.netty.NettyClientAutoConfiguration
 import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.LlmOptions
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
@@ -30,6 +32,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.Import
 import org.springframework.context.annotation.Profile
@@ -61,7 +64,7 @@ class DeepSeekChatTestConfig
     ]
 )
 @ActiveProfiles("deepseek-chat-test")
-@Import(DeepSeekChatTestConfig::class, AgentDeepSeekAutoConfiguration::class)
+@Import(DeepSeekChatTestConfig::class, AgentDeepSeekAutoConfiguration::class, NettyClientAutoConfiguration::class)
 @EnabledIfEnvironmentVariable(
     named = "DEEPSEEK_API_KEY",
     matches = ".+",
@@ -70,9 +73,16 @@ class DeepSeekChatTestConfig
 class DeepSeekChatIntegrationIT(
     @param:Autowired private val ai: Ai,
     @param:Autowired private val llms: List<LlmService<*>>,
+    @param:Autowired private val applicationContext: ApplicationContext,
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
+
+    /** Without this bean the calls below would exercise the fallback client, not the shared one. */
+    @Test
+    fun `the shared client builder is the one under test`() {
+        assertTrue(applicationContext.containsBean("aiModelRestClientBuilder"), "Expected the shared builder")
+    }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("models")

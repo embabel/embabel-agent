@@ -53,12 +53,19 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- Supplies the shared aiModelRestClientBuilder, so the test covers the client an
+             application really runs on rather than the fallback. -->
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-netty-client-autoconfigure</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+
         <!--
-          The integration test needs the classpath a real application has, because this provider's
-          HTTP client is the one Spring auto-detects rather than the platform's shared builder.
-          Apache HttpClient is what that detection picks first; Commons Compress (already on the test
-          classpath) and the brotli decoder are what make it advertise brotli to the API. Drop either
-          and the request goes out plain, which is not what an application sends.
+          Keeps the classpath hostile on purpose. Apache HttpClient is what Spring's detection picks
+          first, and the brotli decoder is what makes it advertise brotli to the API. If this provider
+          ever goes back to building its own RestClient, the tests fail here instead of in production.
         -->
         <dependency>
             <groupId>org.apache.httpcomponents.client5</groupId>
