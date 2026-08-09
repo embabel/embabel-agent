@@ -447,8 +447,13 @@ abstract class AbstractLlmOperations(
      * carry hyperparameters, and which model it means depends on the provider active for this call.
      *
      * Interactions naming no role are returned untouched, so the common path costs nothing.
+     *
+     * Idempotent, so a subclass may call it on a path this class has already resolved: resolution
+     * replaces the role criteria with a pre-resolved one, and a second call sees no role and does
+     * nothing. That is what lets the low-level `doTransform` entry points resolve for themselves
+     * without double-resolving the `createObject` path that reaches them.
      */
-    private fun withRoleResolved(interaction: LlmInteraction): LlmInteraction {
+    protected fun withRoleResolved(interaction: LlmInteraction): LlmInteraction {
         val resolved = withRoleResolved(interaction.llm)
         return if (resolved === interaction.llm) interaction else interaction.copy(llm = resolved)
     }

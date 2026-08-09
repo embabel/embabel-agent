@@ -31,7 +31,12 @@ interface ModelProvider : HasInfoString {
 
     /**
      * Resolve any role in these options to a concrete model, applying whatever hyperparameters are
-     * configured against that role. Values the caller set explicitly are kept.
+     * configured against that role.
+     *
+     * Hyperparameters the caller set explicitly are kept - a role may say `temperature: 0.3`, but a
+     * caller that passed its own temperature still gets that one. Model selection is the exception
+     * and comes from the role wholesale: deciding which model a role means is the entire point of
+     * resolving it, so a `model` set alongside a role is replaced rather than preserved.
      *
      * Called once per LLM operation, before the model is chosen, so that a role can carry more than
      * a model name. Options naming no role are returned unchanged.

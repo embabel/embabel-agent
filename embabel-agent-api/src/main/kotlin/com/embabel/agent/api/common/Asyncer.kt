@@ -19,6 +19,18 @@ import java.util.concurrent.CompletableFuture
 
 /**
  * Simple Java-friendly async interface.
+ *
+ * An implementation is a supported extension point, and one obligation comes with it: **capture
+ * the calling thread's context and re-establish it on the worker**, restoring whatever the worker
+ * held before. Three things travel that way today - the [com.embabel.agent.core.AgentProcess], the
+ * current Micrometer observation, and the
+ * [com.embabel.common.ai.model.ModelSelectionContext] - and
+ * [com.embabel.agent.spi.support.ExecutorAsyncer] is the reference for how.
+ *
+ * Dropping them does not fail loudly, which is what makes this worth stating. A lost model
+ * selection context means role resolution quietly falls back to deployment configuration and
+ * serves a model the deployment is billed for, on a call the user brought their own key for. A
+ * lost `AgentProcess` breaks the platform's own bookkeeping just as silently.
  */
 interface Asyncer {
 

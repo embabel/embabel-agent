@@ -154,19 +154,23 @@ class RoleResolutionTest {
     inner class UnsatisfiableRoles {
 
         @Test
-        fun `a configured role whose model is not registered throws`() {
-            // Configured through the nested shape, which warns rather than failing at startup: the
-            // flat map is fatal at construction in a keyed deployment, so it cannot reach here.
-            val mp = provider(
-                models = listOf(defaultModel),
-                properties = ConfigurableModelProviderProperties(
-                    roles = mapOf(CHEAPEST_ROLE to mapOf("openai" to LlmOptions.withModel("a-model-nobody-registered"))),
-                    defaultLlm = "gpt-4.1-mini",
-                ),
-            )
-            assertThrows<NoSuitableModelException> {
-                mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE))
+        fun `a nested role naming an unregistered model for our own provider is fatal at startup`() {
+            // Both shapes get the same rule, which is the point of routing them through one place:
+            // an earlier revision made the nested shape warn while the flat map died, so the same
+            // typo was fatal or silent depending on which shape you happened to write it in.
+            val e = assertThrows<IllegalStateException> {
+                provider(
+                    models = listOf(defaultModel),
+                    properties = ConfigurableModelProviderProperties(
+                        roles = mapOf(CHEAPEST_ROLE to mapOf("openai" to LlmOptions.withModel("a-model-nobody-registered"))),
+                        defaultLlm = "gpt-4.1-mini",
+                    ),
+                )
             }
+            assertTrue(
+                e.message!!.contains("a-model-nobody-registered") && e.message!!.contains(CHEAPEST_ROLE),
+                "the failure must name the model and the role: ${e.message}",
+            )
         }
 
         @Test
@@ -186,18 +190,20 @@ class RoleResolutionTest {
         @Test
         fun `an unsatisfiable role never silently resolves to the default LLM`() {
             // "cheapest" quietly becoming the deployment's most capable model is the failure mode
-            // that motivates throwing here rather than falling back.
+            // this whole area exists to prevent. A keyed deployment now never even boots into that
+            // state, so the guard is asserted at startup - and the message has to name the role,
+            // since "some model is missing" is what gets fixed by adding a fallback.
             val expensiveDefault = llm("gpt-4.1-mini", "openai")
-            val mp = provider(
-                models = listOf(expensiveDefault),
-                properties = ConfigurableModelProviderProperties(
-                    roles = mapOf(CHEAPEST_ROLE to mapOf("openai" to LlmOptions.withModel("gpt-4.1-nano"))),
-                    defaultLlm = "gpt-4.1-mini",
-                ),
-            )
-            assertThrows<NoSuitableModelException> {
-                mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE))
+            val e = assertThrows<IllegalStateException> {
+                provider(
+                    models = listOf(expensiveDefault),
+                    properties = ConfigurableModelProviderProperties(
+                        roles = mapOf(CHEAPEST_ROLE to mapOf("openai" to LlmOptions.withModel("gpt-4.1-nano"))),
+                        defaultLlm = "gpt-4.1-mini",
+                    ),
+                )
             }
+            assertTrue(e.message!!.contains(CHEAPEST_ROLE), "the failure must name the role: ${e.message}")
         }
 
         @Test
@@ -250,23 +256,22 @@ class RoleResolutionTest {
         }
 
         @Test
-        fun `a nested role naming an unregistered model for our own provider warns at startup`() {
-            // The nested shape is the one case where configuration can take a role AWAY: the entry
-            // is found, its model is not registered, and resolution throws rather than falling back
-            // to the flat map. A typo there was silent until something asked for the role.
+        fun `a nested role awaiting a key warns instead of failing, like the flat map`() {
+            // The other side of the gate for the nested shape. Both shapes route through
+            // reportUnsatisfiableRole precisely so this half cannot drift apart from the flat
+            // map's - keyed deployments die, deployments awaiting a key boot and report.
             val warnings = captureWarnings {
                 provider(
-                    models = listOf(defaultModel),
+                    models = listOf(placeholderModel),
                     properties = ConfigurableModelProviderProperties(
-                        llms = mapOf(CHEAPEST_ROLE to "gpt-4.1-mini"),
-                        roles = mapOf(CHEAPEST_ROLE to mapOf("openai" to LlmOptions.withModel("gpt-4.1-nanoo"))),
-                        defaultLlm = "gpt-4.1-mini",
+                        roles = mapOf(CHEAPEST_ROLE to mapOf("none" to LlmOptions.withModel("gpt-4.1-nanoo"))),
+                        defaultLlm = "setup-required",
                     ),
                 )
             }
             assertTrue(
                 warnings.any { it.contains("gpt-4.1-nanoo") && it.contains(CHEAPEST_ROLE) },
-                "the typo must be reported at startup: $warnings",
+                "the entry must still be reported, just not fatally: $warnings",
             )
         }
 
@@ -290,8 +295,10 @@ class RoleResolutionTest {
         }
 
         @Test
-        fun `a nested role naming no model at all warns`() {
-            val warnings = captureWarnings {
+        fun `a nested role naming no model at all is fatal too`() {
+            // Tuning without a model cannot satisfy a role, so it is the same misconfiguration as
+            // naming a model nothing registers and gets the same treatment.
+            val e = assertThrows<IllegalStateException> {
                 provider(
                     models = listOf(defaultModel),
                     properties = ConfigurableModelProviderProperties(
@@ -300,10 +307,7 @@ class RoleResolutionTest {
                     ),
                 )
             }
-            assertTrue(
-                warnings.any { it.contains("names no model") },
-                "tuning without a model cannot satisfy a role: $warnings",
-            )
+            assertTrue(e.message!!.contains("names no model"), e.message)
         }
 
         @Test

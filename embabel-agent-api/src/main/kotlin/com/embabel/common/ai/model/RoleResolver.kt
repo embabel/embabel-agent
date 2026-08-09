@@ -79,8 +79,28 @@ fun interface RoleResolver {
 }
 
 /**
- * Builds an [LlmService] from a user-supplied key. Provider modules contribute implementations;
- * a bring-your-own-key application does not need to write one.
+ * Builds an [LlmService] from a user-supplied key.
+ *
+ * No implementation ships with the platform yet, so an application returning
+ * [RoleResolution.Credential] must register one - otherwise the role fails with
+ * [NoSuitableModelException] and a log line naming the provider nothing handled. It is a one-liner
+ * over the provider's own BYOK factory:
+ *
+ * ```kotlin
+ * @Bean
+ * fun openAiCredentialFactory() = CredentialLlmServiceFactory { credential, model ->
+ *     if (!credential.provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) null
+ *     else OpenAiCompatibleModelFactory(baseUrl = null, apiKey = credential.apiKey)
+ *         .openAiCompatibleLlm(model = model, provider = OpenAiModels.PROVIDER)
+ * }
+ * ```
+ *
+ * The platform caches what this returns, per (provider, key, model), so an implementation should
+ * build rather than maintain a cache of its own.
+ *
+ * Provider-supplied implementations are follow-up work: they belong with the provider modules, and
+ * a pure bring-your-own-key deployment deliberately has no provider autoconfiguration on the
+ * classpath to carry them.
  */
 fun interface CredentialLlmServiceFactory {
 

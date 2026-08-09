@@ -151,6 +151,14 @@ open class ToolLoopLlmOperations(
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>?,
     ): O {
+        // Shadowed deliberately, on the same terms as AbstractLlmOperations: after this line the
+        // resolved interaction IS the interaction. These are the low-level entry points on
+        // LlmOperations - reachable directly, not only through createObject - so a role named here
+        // has to resolve here too, or it silently runs on the default model. Idempotent, so the
+        // createObject path that already resolved pays nothing.
+        @Suppress("NAME_SHADOWING")
+        val interaction = withRoleResolved(interaction)
+
         val llm = chooseLlm(interaction.llm)
         val promptContributions = buildPromptContributions(interaction, llm)
 
@@ -239,6 +247,14 @@ open class ToolLoopLlmOperations(
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>,
     ): Result<O> {
+        // Shadowed deliberately, on the same terms as AbstractLlmOperations: after this line the
+        // resolved interaction IS the interaction. These are the low-level entry points on
+        // LlmOperations - reachable directly, not only through createObject - so a role named here
+        // has to resolve here too, or it silently runs on the default model. Idempotent, so the
+        // createObject path that already resolved pays nothing.
+        @Suppress("NAME_SHADOWING")
+        val interaction = withRoleResolved(interaction)
+
         val llm = chooseLlm(interaction.llm)
         val promptContributions = buildPromptContributions(interaction, llm)
 
@@ -344,6 +360,14 @@ open class ToolLoopLlmOperations(
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>?,
     ): ThinkingResponse<O> {
+        // Shadowed deliberately, on the same terms as AbstractLlmOperations: after this line the
+        // resolved interaction IS the interaction. These are the low-level entry points on
+        // LlmOperations - reachable directly, not only through createObject - so a role named here
+        // has to resolve here too, or it silently runs on the default model. Idempotent, so the
+        // createObject path that already resolved pays nothing.
+        @Suppress("NAME_SHADOWING")
+        val interaction = withRoleResolved(interaction)
+
         val llm = chooseLlm(interaction.llm)
         val promptContributions = buildPromptContributions(interaction, llm)
 
@@ -446,6 +470,14 @@ open class ToolLoopLlmOperations(
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>?,
     ): Result<ThinkingResponse<O>> {
+        // Shadowed deliberately, on the same terms as AbstractLlmOperations: after this line the
+        // resolved interaction IS the interaction. These are the low-level entry points on
+        // LlmOperations - reachable directly, not only through createObject - so a role named here
+        // has to resolve here too, or it silently runs on the default model. Idempotent, so the
+        // createObject path that already resolved pays nothing.
+        @Suppress("NAME_SHADOWING")
+        val interaction = withRoleResolved(interaction)
+
         return try {
             val llm = chooseLlm(interaction.llm)
             val promptContributions = buildPromptContributions(interaction, llm)

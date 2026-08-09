@@ -194,14 +194,12 @@ class ConfigurableModelProvider @JvmOverloads constructor(
 
         properties.embeddingServices.forEach { (role, model) ->
             if (embeddingServices.none { it.name == model }) {
-                /*
-                 * The same gate as the LLM roles above, and for the same reason: an unresolvable
-                 * name is a typo in a deployment that holds a key, and expected in one still
-                 * waiting for it. There is no fallback here, though, and there should not be -
-                 * an embedding model is a schema commitment and nothing can stand in for one.
-                 * The gate decides only whether the deployment STARTS; asking for the service
-                 * still throws.
-                 */
+                // The same gate as the LLM roles above, and for the same reason: an unresolvable
+                // name is a typo in a deployment that holds a key, and expected in one still
+                // waiting for it. There is no fallback here, though, and there should not be -
+                // an embedding model is a schema commitment and nothing can stand in for one.
+                // The gate decides only whether the deployment STARTS; asking for the service
+                // still throws.
                 if (setupRequired) {
                     logger.warn(
                         "Embedding model '{}' for role '{}' is not registered. This deployment is awaiting a key, " +
