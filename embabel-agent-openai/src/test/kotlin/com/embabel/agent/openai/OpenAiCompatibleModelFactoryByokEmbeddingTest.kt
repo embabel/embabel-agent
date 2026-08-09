@@ -30,6 +30,17 @@ import org.junit.jupiter.api.assertThrows
 
 class OpenAiCompatibleModelFactoryByokEmbeddingTest {
 
+    private companion object {
+        /**
+         * Named rather than repeated: these are OpenAI catalogue ids, and a model being retired
+         * should be one edit here rather than a hunt through every assertion.
+         */
+        const val SMALL_MODEL = "text-embedding-3-small"
+        const val LARGE_MODEL = "text-embedding-3-large"
+        const val SMALL_MODEL_DIMENSIONS = 1536
+        const val LARGE_MODEL_DIMENSIONS = 3072
+    }
+
     /**
      * Stands in for a live embedding endpoint so the validation logic can be exercised
      * without a network call.
@@ -76,7 +87,7 @@ class OpenAiCompatibleModelFactoryByokEmbeddingTest {
     @Test
     fun `openAiEmbedding returns a ByokFactory of EmbeddingService`() {
         val spec: ByokFactory<EmbeddingService> =
-            OpenAiCompatibleModelFactory.openAiEmbedding("key", "text-embedding-3-small")
+            OpenAiCompatibleModelFactory.openAiEmbedding("key", SMALL_MODEL)
         assertInstanceOf(ByokFactory::class.java, spec)
     }
 
@@ -95,22 +106,22 @@ class OpenAiCompatibleModelFactoryByokEmbeddingTest {
 
     @Test
     fun `openAiEmbedding uses the OpenAI provider`() {
-        val service = FakeFactory { FloatArray(1536) }
+        val service = FakeFactory { FloatArray(SMALL_MODEL_DIMENSIONS) }
             .buildValidatedEmbeddingService(
-                model = "text-embedding-3-small",
+                model = SMALL_MODEL,
                 provider = OpenAiModels.PROVIDER,
             )
         assertEquals(OpenAiModels.PROVIDER, service.provider)
-        assertEquals("text-embedding-3-small", service.name)
+        assertEquals(SMALL_MODEL, service.name)
     }
 
     @Test
     fun `valid key returns a service and probes exactly once`() {
         var probes = 0
-        val factory = FakeFactory { probes++; FloatArray(1536) { 0.1f } }
+        val factory = FakeFactory { probes++; FloatArray(SMALL_MODEL_DIMENSIONS) { 0.1f } }
 
         val service = factory.buildValidatedEmbeddingService(
-            model = "text-embedding-3-small",
+            model = SMALL_MODEL,
             provider = OpenAiModels.PROVIDER,
         )
 
@@ -124,7 +135,7 @@ class OpenAiCompatibleModelFactoryByokEmbeddingTest {
 
         val e = assertThrows<InvalidApiKeyException> {
             factory.buildValidatedEmbeddingService(
-                model = "text-embedding-3-small",
+                model = SMALL_MODEL,
                 provider = OpenAiModels.PROVIDER,
             )
         }
@@ -154,7 +165,7 @@ class OpenAiCompatibleModelFactoryByokEmbeddingTest {
 
         assertThrows<InvalidApiKeyException> {
             factory.buildValidatedEmbeddingService(
-                model = "text-embedding-3-small",
+                model = SMALL_MODEL,
                 provider = OpenAiModels.PROVIDER,
             )
         }
@@ -164,14 +175,14 @@ class OpenAiCompatibleModelFactoryByokEmbeddingTest {
     fun `returned service carries the probed dimension so no live dimensions call is needed`() {
         // The width comes from the model and only from the model: the caller has no way to declare
         // one here, so a store can compare it against its index rather than trusting config.
-        val factory = FakeFactory { FloatArray(3072) }
+        val factory = FakeFactory { FloatArray(LARGE_MODEL_DIMENSIONS) }
 
         val service = factory.buildValidatedEmbeddingService(
-            model = "text-embedding-3-large",
+            model = LARGE_MODEL,
             provider = OpenAiModels.PROVIDER,
         )
 
-        assertEquals(3072, service.dimensions)
+        assertEquals(LARGE_MODEL_DIMENSIONS, service.dimensions)
     }
 
     @Test
@@ -180,11 +191,11 @@ class OpenAiCompatibleModelFactoryByokEmbeddingTest {
         // empty string passes a null check and would otherwise reach the provider, coming back as
         // an opaque authentication error a long way from its cause.
         listOf("", "   ", "\t").forEach { blank ->
-            val factory = FakeFactory(apiKey = blank) { FloatArray(1536) }
+            val factory = FakeFactory(apiKey = blank) { FloatArray(SMALL_MODEL_DIMENSIONS) }
 
             val e = assertThrows<InvalidApiKeyException> {
                 factory.buildValidatedEmbeddingService(
-                    model = "text-embedding-3-small",
+                    model = SMALL_MODEL,
                     provider = OpenAiModels.PROVIDER,
                 )
             }
@@ -197,7 +208,7 @@ class OpenAiCompatibleModelFactoryByokEmbeddingTest {
     @Test
     fun `the BYOK embedding entry points reject a blank key too`() {
         listOf(
-            OpenAiCompatibleModelFactory.openAiEmbedding("   ", "text-embedding-3-small"),
+            OpenAiCompatibleModelFactory.openAiEmbedding("   ", SMALL_MODEL),
             OpenAiCompatibleModelFactory.byokEmbedding(
                 baseUrl = "https://api.example.com",
                 apiKey = "",
@@ -212,10 +223,10 @@ class OpenAiCompatibleModelFactoryByokEmbeddingTest {
 
     @Test
     fun `pricing model is carried through to the returned service`() {
-        val factory = FakeFactory { FloatArray(1536) }
+        val factory = FakeFactory { FloatArray(SMALL_MODEL_DIMENSIONS) }
 
         val service = factory.buildValidatedEmbeddingService(
-            model = "text-embedding-3-small",
+            model = SMALL_MODEL,
             provider = OpenAiModels.PROVIDER,
             pricingModel = PricingModel.ALL_YOU_CAN_EAT,
         )
