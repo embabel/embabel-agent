@@ -31,13 +31,17 @@ import org.springframework.ai.deepseek.DeepSeekChatOptions
 import org.springframework.ai.deepseek.api.DeepSeekApi
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.boot.convert.DurationStyle
+import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
+import java.time.Duration
 import java.time.LocalDate
 
 /**
@@ -99,6 +103,12 @@ class DeepSeekModelsConfig(
     private val envApiKey: String?,
     private val properties: DeepSeekProperties,
     private val observationRegistry: ObjectProvider<ObservationRegistry>,
+    @param:Qualifier("aiModelRestClientBuilder")
+    private val restClientBuilderProvider: ObjectProvider<RestClient.Builder>,
+    @param:Qualifier("aiModelWebClientBuilder")
+    private val webClientBuilderProvider: ObjectProvider<WebClient.Builder>,
+    @param:Value("\${embabel.agent.platform.http-client.read-timeout:5m}")
+    private val httpReadTimeout: String,
 ) {
     private val logger = LoggerFactory.getLogger(DeepSeekModelsConfig::class.java)
 
@@ -211,16 +221,33 @@ class DeepSeekModelsConfig(
             logger.info("Using custom DeepSeek base URL: {}", baseUrl)
             builder.baseUrl(baseUrl)
         }
+        // Shared platform builder, like every other provider. A bare RestClient here would let Spring's
+        // classpath detection choose the transport: it lands on Apache HttpClient, which advertises brotli,
+        // which DeepSeek honours and this client cannot decode. Clone so adding the observation registry
+        // never mutates the shared singleton.
+        val sharedRestClientBuilder = restClientBuilderProvider.getIfAvailable(::fallbackRestClientBuilder)
+            .clone()
+            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+        val sharedWebClientBuilder = webClientBuilderProvider.getIfAvailable(WebClient::builder)
+            .clone()
+            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+
         return builder
-            .restClientBuilder(
-                RestClient.builder()
-                    .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-            )
-            .webClientBuilder(
-                WebClient.builder()
-                    .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-            )
+            .restClientBuilder(sharedRestClientBuilder)
+            .webClientBuilder(sharedWebClientBuilder)
             .build()
+    }
+
+    /**
+     * Fallback client builder for contexts where the shared [aiModelRestClientBuilder] bean is absent.
+     * Names the request factory rather than letting it be detected, and applies the platform read timeout
+     * ([httpReadTimeout]) so a slow response is not aborted at the ~10s ReactorClientHttpRequestFactory
+     * default.
+     */
+    private fun fallbackRestClientBuilder(): RestClient.Builder {
+        val readTimeout: Duration = DurationStyle.detectAndParse(httpReadTimeout)
+        val requestFactory = JdkClientHttpRequestFactory().apply { setReadTimeout(readTimeout) }
+        return RestClient.builder().requestFactory(requestFactory)
     }
 }
 
