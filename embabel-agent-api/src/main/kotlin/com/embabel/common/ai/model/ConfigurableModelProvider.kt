@@ -115,11 +115,13 @@ class ConfigurableModelProvider(
     init {
         properties.llms.forEach { (role, model) ->
             if (llms.none { it.name == model }) {
-                // Fatal, unless this deployment is waiting for a key. A name that resolves to
-                // nothing is a typo in a deployment that has one, and letting it start would move
-                // the failure to whichever unrelated call first asks for that role. A deployment in
-                // setup-required mode has no models registered yet by definition, so the same name
-                // is expected there and only worth reporting.
+                /*
+                 * Fatal, unless this deployment is waiting for a key. A name that resolves to
+                 * nothing is a typo in a deployment that has one, and letting it start would move
+                 * the failure to whichever unrelated call first asks for that role. A deployment in
+                 * setup-required mode has no models registered yet by definition, so the same name
+                 * is expected there and only worth reporting.
+                 */
                 if (setupRequired) {
                     logger.warn(
                         "LLM '{}' for role '{}' is not registered. This deployment is awaiting a key, so that is expected; " +
@@ -135,12 +137,14 @@ class ConfigurableModelProvider(
 
         properties.embeddingServices.forEach { (role, model) ->
             if (embeddingServices.none { it.name == model }) {
-                // The same gate as the LLM roles above, and for the same reason: an unresolvable
-                // name is a typo in a deployment that holds a key, and expected in one still
-                // waiting for it. There is no fallback here, though, and there should not be -
-                // an embedding model is a schema commitment and nothing can stand in for one.
-                // The gate decides only whether the deployment STARTS; asking for the service
-                // still throws.
+                /*
+                 * The same gate as the LLM roles above, and for the same reason: an unresolvable
+                 * name is a typo in a deployment that holds a key, and expected in one still
+                 * waiting for it. There is no fallback here, though, and there should not be -
+                 * an embedding model is a schema commitment and nothing can stand in for one.
+                 * The gate decides only whether the deployment STARTS; asking for the service
+                 * still throws.
+                 */
                 if (setupRequired) {
                     logger.warn(
                         "Embedding model '{}' for role '{}' is not registered. This deployment is awaiting a key, " +

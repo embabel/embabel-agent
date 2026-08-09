@@ -65,9 +65,11 @@ class PureByokWithRolesTest {
 
     @Test
     fun `a deployment that holds a key still dies at startup on a name nothing registers`() {
-        // The other half of the rule, and the reason the relaxation is gated rather than
-        // unconditional: making this a warning too would fix BYOK by making every keyed deployment
-        // worse, turning a typo into a late failure at whichever call first wanted that role.
+        /*
+         * The other half of the rule, and the reason the relaxation is gated rather than
+         * unconditional: making this a warning too would fix BYOK by making every keyed deployment
+         * worse, turning a typo into a late failure at whichever call first wanted that role.
+         */
         val real = SpringAiLlmService(name = "real-model", provider = "acme", chatModel = SetupRequiredChatModel())
 
         assertThatThrownBy {
@@ -85,9 +87,11 @@ class PureByokWithRolesTest {
 
     @Test
     fun `default-llm naming an unregistered model falls back to the placeholder`() {
-        // The realistic pure-BYOK application.yml: default-llm still names the model the deployment
-        // wants once a key arrives. Nothing registers it yet, so the placeholder stands in and that
-        // is what puts the deployment into setup-required mode.
+        /*
+         * The realistic pure-BYOK application.yml: default-llm still names the model the deployment
+         * wants once a key arrives. Nothing registers it yet, so the placeholder stands in and that
+         * is what puts the deployment into setup-required mode.
+         */
         val modelProvider = ConfigurableModelProvider(
             llms = listOf(SetupRequiredLlm.llmService()),
             embeddingServices = emptyList(),

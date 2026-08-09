@@ -41,15 +41,19 @@ class SetupRequiredLlmTest {
 
     @Test
     fun `placeholder is named by the well-known constant`() {
-        // Not asserting the literal "setup-required": that is the constant restating itself.
-        // What has to hold is that the service reports the name and provider the constants
-        // declare, since that is what `embabel.models.default-llm` matches against.
+        /*
+         * Not asserting the literal "setup-required": that is the constant restating itself.
+         * What has to hold is that the service reports the name and provider the constants
+         * declare, since that is what `embabel.models.default-llm` matches against.
+         */
         val service = SetupRequiredLlm.llmService()
         assertThat(service.name).isEqualTo(SetupRequiredLlm.NAME)
         assertThat(service.provider).isEqualTo(SetupRequiredLlm.PROVIDER)
-        // The marker is what puts the platform into setup-required mode, so an unresolvable model
-        // name in configuration is treated as "awaiting a key" rather than as a typo. Losing it
-        // would not fail here - it would quietly restore fail-fast startup for BYOK deployments.
+        /*
+         * The marker is what puts the platform into setup-required mode, so an unresolvable model
+         * name in configuration is treated as "awaiting a key" rather than as a typo. Losing it
+         * would not fail here - it would quietly restore fail-fast startup for BYOK deployments.
+         */
         assertThat(service).isInstanceOf(PlaceholderLlmService::class.java)
     }
 
@@ -89,9 +93,11 @@ class SetupRequiredLlmTest {
 
     @Test
     fun `streaming fails the same way, not with an unrelated streaming error`() {
-        // Spring AI's default stream() throws UnsupportedOperationException("streaming is not
-        // supported"), which is both untrue here and uncatchable by an application watching for
-        // NoLlmConfiguredException — in a chat app, exactly where the message is needed.
+        /*
+         * Spring AI's default stream() throws UnsupportedOperationException("streaming is not
+         * supported"), which is both untrue here and uncatchable by an application watching for
+         * NoLlmConfiguredException — in a chat app, exactly where the message is needed.
+         */
         val service = SetupRequiredLlm.llmService()
 
         assertThatThrownBy { ((service as AiModel<*>).model as ChatModel).stream(Prompt(listOf(UserMessage("hello")))) }
@@ -113,10 +119,12 @@ class SetupRequiredLlmTest {
 
     @Test
     fun `the marker survives the self-typed methods`() {
-        // The reason this class wraps SpringAiLlmService by hand rather than delegating with `by`:
-        // delegated self-typed methods hand back the bare delegate, dropping the marker. Losing it
-        // is silent - the deployment simply stops being in setup-required mode and goes back to
-        // failing at startup on names it cannot resolve, which is what this PR exists to prevent.
+        /*
+         * The reason this class wraps SpringAiLlmService by hand rather than delegating with `by`:
+         * delegated self-typed methods hand back the bare delegate, dropping the marker. Losing it
+         * is silent - the deployment simply stops being in setup-required mode and goes back to
+         * failing at startup on names it cannot resolve, which is what this PR exists to prevent.
+         */
         val service = SetupRequiredLlm.llmService()
 
         val withContributor = service.withPromptContributor(PromptContributor.fixed("extra"))

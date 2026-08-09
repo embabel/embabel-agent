@@ -92,9 +92,11 @@ class ConfigurableModelProviderTest {
 
         @Test
         fun `a deployment holding a key still dies on a name nothing registers`() {
-            // The other half of the gate. Making this a warning too - which an earlier revision
-            // did - fixes BYOK by turning every keyed deployment's typo into a late failure at
-            // whichever call first wants that role.
+            /*
+             * The other half of the gate. Making this a warning too - which an earlier revision
+             * did - fixes BYOK by turning every keyed deployment's typo into a late failure at
+             * whichever call first wants that role.
+             */
             val e = assertThrows<IllegalStateException> {
                 providerWith(
                     llms = listOf(real, placeholderModel),
