@@ -57,7 +57,11 @@ internal object UnsupportedRequestParameterRetry {
         "invalid_value",
     )
 
-    fun extractUnsupportedParameter(throwable: Throwable): String? {
+    /**
+     * Module-internal: used by [InstrumentedChatModel] (same package, different file).
+     * Not `private` — Kotlin `private` is file-scoped.
+     */
+    internal fun extractUnsupportedParameter(throwable: Throwable): String? {
         var current: Throwable? = throwable
         while (current != null) {
             val message = current.message
@@ -107,7 +111,11 @@ internal object UnsupportedRequestParameterRetry {
      * carries. Provider-private fields are not stripped; add a `when` arm only when Spring AI
      * exposes a mutator. This is a safety net, not a product hyperparameter abstraction.
      */
-    fun stripParameter(options: ChatOptions, parameter: String): ChatOptions? {
+    /**
+     * Module-internal: used by [InstrumentedChatModel] (same package, different file).
+     * Not `private` — Kotlin `private` is file-scoped.
+     */
+    internal fun stripParameter(options: ChatOptions, parameter: String): ChatOptions? {
         require(parameter.isNotBlank()) { "parameter name must not be blank" }
         val builder = options.mutate()
         when (normalize(parameter)) {
