@@ -162,20 +162,8 @@ class OpenAiCompatibleModelFactoryByokEmbeddingTest {
 
     @Test
     fun `returned service carries the probed dimension so no live dimensions call is needed`() {
-        val factory = FakeFactory { FloatArray(3072) }
-
-        val service = factory.buildValidatedEmbeddingService(
-            model = "text-embedding-3-large",
-            provider = OpenAiModels.PROVIDER,
-        )
-
-        assertEquals(3072, service.dimensions)
-    }
-
-    @Test
-    fun `dimension comes from the model, never from the caller`() {
-        // The caller has no way to declare a width here: whatever the model returns is the
-        // width, so a store can compare it against its index rather than trusting config.
+        // The width comes from the model and only from the model: the caller has no way to declare
+        // one here, so a store can compare it against its index rather than trusting config.
         val factory = FakeFactory { FloatArray(3072) }
 
         val service = factory.buildValidatedEmbeddingService(

@@ -55,10 +55,13 @@ fun validatedEmbeddingService(
     provider: String,
     build: (configuredDimensions: Int?) -> EmbeddingService,
 ): EmbeddingService {
-    // Both failure modes mean the same thing to the caller - the model could not be validated -
-    // so they share one exit rather than throwing from two places. The message names the model:
-    // it is caller-supplied and mandatory, so a typo in it arrives as the same provider error,
-    // and "invalid API key" alone would send someone to re-check a key that was fine.
+    // All three failure modes here mean the same thing to the caller - the model could not be
+    // validated - so they share one exit rather than throwing from three places. Construction is
+    // inside the try on purpose: building the probe service is where a malformed base URL or an
+    // unusable credential surfaces for several providers, so it is part of validation rather than
+    // separate from it. The message names the model: it is caller-supplied and mandatory, so a
+    // typo in it arrives as the same provider error, and "invalid API key" alone would send
+    // someone to re-check a key that was fine.
     val vector = try {
         build(null).embed(EMBEDDING_VALIDATION_PROBE)
             .also { require(it.isNotEmpty()) { "the model returned an empty vector" } }
@@ -67,7 +70,8 @@ fun validatedEmbeddingService(
             "Could not validate embedding model '$model' on $provider: ${e.message ?: "no detail"}",
         )
     }
-    // Outside the try: this second call only constructs a service, so a failure here is a bug in
-    // the builder rather than a rejected credential, and should not be reported as one.
+    // Outside the try, unlike the call above. The credential and the model have both just been
+    // proven to work, so anything thrown here is a bug in the builder and must not be reported as
+    // a rejected key - that would send someone to re-check a key this function just validated.
     return build(vector.size)
 }

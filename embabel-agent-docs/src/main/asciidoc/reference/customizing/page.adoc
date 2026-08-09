@@ -320,7 +320,7 @@ val embeddings: EmbeddingService =
         .buildValidated()
 
 // Any OpenAI-compatible provider
-val embeddings: EmbeddingService = OpenAiCompatibleModelFactory.byokEmbedding(
+val acmeEmbeddings: EmbeddingService = OpenAiCompatibleModelFactory.byokEmbedding(
     baseUrl = "https://api.acme.example.com/v1",
     apiKey = userKey,
     model = "acme-embed-small",
