@@ -41,7 +41,7 @@ class MessagePromptBuildersTest {
      */
     @BeforeEach
     fun resetWarnedContributors() {
-        warnedSlowContributors.clear()
+        resetSlowContributorReporting()
     }
 
     // ========================================
@@ -259,14 +259,43 @@ class MessagePromptBuildersTest {
                     emptyList(),
                 )
 
+                val named = appender.list.filter {
+                    it.level == Level.WARN && it.formattedMessage.contains("Prompt contributor")
+                }
                 assertTrue(
-                    appender.list.none { it.level == Level.WARN },
-                    "past the cap a slow contributor must not warn again: ${appender.list}",
+                    named.isEmpty(),
+                    "past the cap an individual contributor must not get its own warning: $named",
                 )
             }
             assertEquals(sizeAtCap, warnedSlowContributors.size, "the set must not have grown")
         } finally {
             warnedSlowContributors.removeAll(added.toSet())
+        }
+    }
+
+    @Test
+    fun `reaching the cap is announced, so the blindness after it is not silent`() {
+        // The cap stops unbounded growth but makes every new slow contributor invisible. A
+        // deployment that crossed it silently would read the absence of warnings as "nothing is
+        // slow" rather than "reporting stopped", which is worse than the leak it prevents.
+        warnedSlowContributors.addAll((1..MAX_WARNED_SLOW_CONTRIBUTORS).map { "filler-$it" })
+
+        withContributionsLogger { appender ->
+            buildPromptContributionsString(
+                listOf(namedSlowContributor("over-the-cap-${System.nanoTime()}")),
+                emptyList(),
+            )
+            buildPromptContributionsString(
+                listOf(namedSlowContributor("also-over-the-cap-${System.nanoTime()}")),
+                emptyList(),
+            )
+
+            val warnings = appender.list.filter { it.level == Level.WARN }
+            assertEquals(1, warnings.size, "announce the cap once, not per contributor: $warnings")
+            assertTrue(
+                warnings.single().formattedMessage.contains("cap"),
+                "the warning must say reporting stopped: ${warnings.single().formattedMessage}",
+            )
         }
     }
 

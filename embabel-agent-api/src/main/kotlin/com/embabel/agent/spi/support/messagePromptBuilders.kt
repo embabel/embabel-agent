@@ -21,6 +21,7 @@ import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.Named
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Separator used between prompt elements when building consolidated prompts.
@@ -44,11 +45,28 @@ private const val SLOW_CONTRIBUTOR_MILLIS = 250L
  * Bounded, because the identity comes from the contributor itself: a [Named] contributor whose
  * name varies per instance - a reference named after the user or the query, exactly the kind
  * that does I/O and so is exactly the kind that lands here - would otherwise grow this set for
- * the life of the process. Past the cap every slow contributor still reports, at debug.
+ * the life of the process.
+ *
+ * Deliberately NOT evicting to make room. This is a ledger of "have I already told you about
+ * this one", not a leaderboard: dropping an entry would let a permanently slow contributor warn
+ * again later, which is the churn warn-once exists to prevent. Reaching the cap is announced
+ * once (see [firstSighting]) so the resulting blindness is visible rather than silent, and every
+ * slow contributor still reports at debug regardless.
  */
 internal const val MAX_WARNED_SLOW_CONTRIBUTORS = 200
 
 internal val warnedSlowContributors = ConcurrentHashMap.newKeySet<String>()
+
+private val slowContributorCapReported = AtomicBoolean(false)
+
+/**
+ * Clears warn-once state. For tests: this is process-global by design, so a test that does not
+ * reset it depends on execution order.
+ */
+internal fun resetSlowContributorReporting() {
+    warnedSlowContributors.clear()
+    slowContributorCapReported.set(false)
+}
 
 /**
  * Whether [id] is the first sighting of a slow contributor, and so worth a warning.
@@ -56,8 +74,25 @@ internal val warnedSlowContributors = ConcurrentHashMap.newKeySet<String>()
  * Racing to the cap can admit a few entries beyond it. That costs a handful of strings, where
  * making it exact would cost a lock on the prompt assembly path.
  */
-private fun firstSighting(id: String): Boolean =
-    warnedSlowContributors.size < MAX_WARNED_SLOW_CONTRIBUTORS && warnedSlowContributors.add(id)
+private fun firstSighting(id: String): Boolean {
+    if (warnedSlowContributors.size >= MAX_WARNED_SLOW_CONTRIBUTORS) {
+        // Say so, once. Otherwise a deployment that crosses the cap goes quietly blind to every
+        // new slow contributor after it, and the absence of warnings reads as "nothing is slow"
+        // rather than "reporting stopped".
+        if (slowContributorCapReported.compareAndSet(false, true)) {
+            logger.warn(
+                """
+                Slow-contributor reporting has reached its cap of {} distinct contributors and will
+                not warn about new ones. Per-call figures remain at debug. Crossing this cap usually
+                means contributor names vary per instance rather than that you have {} slow ones.
+                """.trimIndent(),
+                MAX_WARNED_SLOW_CONTRIBUTORS, MAX_WARNED_SLOW_CONTRIBUTORS,
+            )
+        }
+        return false
+    }
+    return warnedSlowContributors.add(id)
+}
 
 /**
  * Builds a prompt contributions string from prompt contributors.
