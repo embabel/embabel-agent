@@ -22,6 +22,7 @@ import com.embabel.common.ai.model.DefaultModelSelectionCriteria
 import com.embabel.agent.spi.PlaceholderLlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.AiModel
+import com.embabel.common.ai.prompt.PromptContributor
 import org.springframework.ai.chat.model.ChatModel
 import com.embabel.common.ai.model.LlmOptions
 import org.assertj.core.api.Assertions.assertThat
@@ -29,6 +30,7 @@ import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.prompt.Prompt
+import java.time.LocalDate
 
 /**
  * The placeholder exists to move the "no key" failure from context refresh to the call that
@@ -106,5 +108,33 @@ class SetupRequiredLlmTest {
     fun `a message sender can be created, so failure happens at call time not setup time`() {
         val service = SetupRequiredLlm.llmService()
         assertThat(service.createMessageSender(LlmOptions())).isNotNull()
+        assertThat(service.createMessageStreamer(LlmOptions())).isNotNull()
+    }
+
+    @Test
+    fun `the marker survives the self-typed methods`() {
+        // The reason this class wraps SpringAiLlmService by hand rather than delegating with `by`:
+        // delegated self-typed methods hand back the bare delegate, dropping the marker. Losing it
+        // is silent - the deployment simply stops being in setup-required mode and goes back to
+        // failing at startup on names it cannot resolve, which is what this PR exists to prevent.
+        val service = SetupRequiredLlm.llmService()
+
+        val withContributor = service.withPromptContributor(PromptContributor.fixed("extra"))
+        assertThat(withContributor).isInstanceOf(PlaceholderLlmService::class.java)
+        assertThat(withContributor.promptContributors).hasSize(service.promptContributors.size + 1)
+
+        val withCutoff = service.withKnowledgeCutoffDate(LocalDate.of(2026, 1, 1))
+        assertThat(withCutoff).isInstanceOf(PlaceholderLlmService::class.java)
+        assertThat(withCutoff.knowledgeCutoffDate).isEqualTo(LocalDate.of(2026, 1, 1))
+    }
+
+    @Test
+    fun `the placeholder does not claim to support thinking`() {
+        assertThat(SetupRequiredLlm.llmService().supportsThinking()).isFalse()
+    }
+
+    @Test
+    fun `it names itself in logs rather than reporting a delegate`() {
+        assertThat(SetupRequiredLlm.llmService().toString()).contains(SetupRequiredLlm.NAME)
     }
 }
