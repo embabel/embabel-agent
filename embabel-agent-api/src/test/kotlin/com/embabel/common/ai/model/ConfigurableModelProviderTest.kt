@@ -32,6 +32,18 @@ import kotlin.test.assertContains
 
 class ConfigurableModelProviderTest {
 
+    private companion object {
+        /**
+         * Opaque identifiers, not live models: every service here wraps a mockk ChatModel, so
+         * nothing reaches a provider and a retired catalogue id cannot break these tests. Named
+         * anyway — the ids appear across a dozen assertions, and a reader should not have to
+         * decide whether BEST_MODEL and DEFAULT_MODEL differ meaningfully in each one.
+         */
+        const val DEFAULT_MODEL = "gpt-4.1-mini"
+        const val BEST_MODEL = "gpt-4.1"
+        const val CHEAPEST_MODEL = "gpt-4.1-nano"
+    }
+
     /**
      * Stands in for `SetupRequiredLlm`, which lives in the BYOK autoconfigure module this one
      * cannot depend on. [SpringAiLlmService] is a data class and so final; the real placeholder
@@ -53,14 +65,14 @@ class ConfigurableModelProviderTest {
     inner class SetupRequiredMode {
 
         private val real: LlmService<*> =
-            SpringAiLlmService("gpt-4.1-mini", "openai", mockk<ChatModel>())
+            SpringAiLlmService(DEFAULT_MODEL, "openai", mockk<ChatModel>())
 
         @Test
         fun `a deployment awaiting a key boots with roles nothing can satisfy`() {
             val mp = providerWith(
                 llms = listOf(placeholderModel),
                 properties = ConfigurableModelProviderProperties(
-                    llms = mapOf(BEST_ROLE to "gpt-4.1", CHEAPEST_ROLE to "gpt-4.1-nano"),
+                    llms = mapOf(BEST_ROLE to BEST_MODEL, CHEAPEST_ROLE to CHEAPEST_MODEL),
                     defaultLlm = "setup-required",
                 ),
             )
@@ -73,7 +85,7 @@ class ConfigurableModelProviderTest {
             // deployment wants once a key arrives, and the placeholder stands in until then.
             val mp = providerWith(
                 llms = listOf(placeholderModel),
-                properties = ConfigurableModelProviderProperties(defaultLlm = "gpt-4.1"),
+                properties = ConfigurableModelProviderProperties(defaultLlm = BEST_MODEL),
             )
             assertEquals("setup-required", mp.getLlm(DefaultModelSelectionCriteria).name)
         }
@@ -87,12 +99,12 @@ class ConfigurableModelProviderTest {
                 providerWith(
                     llms = listOf(real, placeholderModel),
                     properties = ConfigurableModelProviderProperties(
-                        llms = mapOf(BEST_ROLE to "gpt-4.1"),
-                        defaultLlm = "gpt-4.1-mini",
+                        llms = mapOf(BEST_ROLE to BEST_MODEL),
+                        defaultLlm = DEFAULT_MODEL,
                     ),
                 )
             }
-            assertContains(e.message!!, "gpt-4.1")
+            assertContains(e.message!!, BEST_MODEL)
         }
 
         @Test
@@ -115,7 +127,7 @@ class ConfigurableModelProviderTest {
                     llms = listOf(real),
                     properties = ConfigurableModelProviderProperties(
                         embeddingServices = mapOf("default" to "text-embedding-3-small"),
-                        defaultLlm = "gpt-4.1-mini",
+                        defaultLlm = DEFAULT_MODEL,
                     ),
                 )
             }
@@ -145,7 +157,7 @@ class ConfigurableModelProviderTest {
     private val mp: ModelProvider = ConfigurableModelProvider(
         llms = listOf(
             SpringAiLlmService("gpt40", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter),
-            SpringAiLlmService("gpt-4.1-mini", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter),
+            SpringAiLlmService(DEFAULT_MODEL, "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter),
             SpringAiLlmService("embedding", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter)
         ),
         embeddingServices = listOf(
@@ -253,7 +265,7 @@ class ConfigurableModelProviderTest {
 
         @Test
         fun `valid name`() {
-            val llm = mp.getLlm(ByNameModelSelectionCriteria("gpt-4.1-mini"))
+            val llm = mp.getLlm(ByNameModelSelectionCriteria(DEFAULT_MODEL))
             assertNotNull(llm)
         }
     }
@@ -278,7 +290,7 @@ class ConfigurableModelProviderTest {
 
         private val customMp = ConfigurableModelProvider(
             llms = listOf(
-                SpringAiLlmService("gpt-4.1-mini", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter),
+                SpringAiLlmService(DEFAULT_MODEL, "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter),
             ),
             embeddingServices = listOf(
                 CustomEmbeddingService("my-custom-embeddings", "CustomProvider"),
