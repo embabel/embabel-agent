@@ -37,6 +37,41 @@
             <artifactId>embabel-agent-test-internal</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- The integration test drives the real API through the platform, as the OpenAI ones do. -->
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-platform-autoconfigure</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Spring Boot 4 split JacksonAutoConfiguration into its own module
+             (org.springframework.boot.jackson.autoconfigure). Tests import it explicitly. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-jackson</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--
+          The integration test needs the classpath a real application has, because this provider's
+          HTTP client is the one Spring auto-detects rather than the platform's shared builder.
+          Apache HttpClient is what that detection picks first; Commons Compress (already on the test
+          classpath) and the brotli decoder are what make it advertise brotli to the API. Drop either
+          and the request goes out plain, which is not what an application sends.
+        -->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.brotli</groupId>
+            <artifactId>dec</artifactId>
+            <version>0.1.2</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
 </project>
