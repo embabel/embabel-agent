@@ -44,6 +44,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import jakarta.validation.Validation
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
 import tools.jackson.module.kotlin.jacksonObjectMapper
@@ -65,6 +66,14 @@ class SlowContributorWiringTest {
     private val contributionsLogger = LoggerFactory.getLogger(
         "com.embabel.agent.spi.support.PromptContributions",
     ) as ch.qos.logback.classic.Logger
+
+    /**
+     * Shared with every other test in the JVM: warn-once state is deliberately process-global.
+     */
+    @BeforeEach
+    fun resetWarnedContributors() {
+        warnedSlowContributors.clear()
+    }
 
     @Test
     fun `a slow reference is reported by name during a real LLM call`() {

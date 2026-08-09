@@ -23,6 +23,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.Named
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
 import kotlin.test.assertEquals
@@ -32,6 +33,16 @@ import kotlin.test.assertTrue
  * Tests for message prompt builder helper functions.
  */
 class MessagePromptBuildersTest {
+
+    /**
+     * The warned-contributor set is process-global by design - a permanently slow contributor
+     * should warn once for the life of the JVM, not once per call. That makes it shared mutable
+     * state between tests, so reset it rather than relying on unique names and execution order.
+     */
+    @BeforeEach
+    fun resetWarnedContributors() {
+        warnedSlowContributors.clear()
+    }
 
     // ========================================
     // buildPromptContributionsString tests
