@@ -69,6 +69,10 @@ models:
       usd_per1m_output_tokens: 30.00
     special_handling:
       supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
 
   - name: "gpt56terra"
     model_id: "gpt-5.6-terra"
@@ -81,6 +85,10 @@ models:
       usd_per1m_output_tokens: 12.00
     special_handling:
       supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
 
   - name: "gpt56luna"
     model_id: "gpt-5.6-luna"
@@ -93,6 +101,10 @@ models:
       usd_per1m_output_tokens: 1.20
     special_handling:
       supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
 
   # ========================================
   # GPT-5.5 FAMILY (June 2026)
@@ -109,6 +121,10 @@ models:
       usd_per1m_output_tokens: 30.00
     special_handling:
       supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
 
   - name: "gpt55pro"
     model_id: "gpt-5.5-pro"
@@ -121,6 +137,10 @@ models:
       usd_per1m_output_tokens: 180.0
     special_handling:
       supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
 
   # ========================================
   # GPT-5.4 FAMILY (March 2026)
@@ -138,6 +158,10 @@ models:
       usd_per1m_output_tokens: 15.00
     special_handling:
       supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
 
   - name: "gpt54mini"
     model_id: "gpt-5.4-mini"
@@ -149,6 +173,10 @@ models:
       usd_per1m_output_tokens: 4.500
     special_handling:
       supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
 
   - name: "gpt54nano"
     model_id: "gpt-5.4-nano"
@@ -160,6 +188,10 @@ models:
       usd_per1m_output_tokens: 1.25
     special_handling:
       supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
 
   - name: "gpt54pro"
     model_id: "gpt-5.4-pro"
@@ -172,6 +204,10 @@ models:
       usd_per1m_output_tokens: 180.0
     special_handling:
       supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
 
 # ========================================
 # GPT-5.3 CHAT (March 2026)
@@ -189,6 +225,10 @@ models:
       usd_per1m_output_tokens: 14.0
     special_handling:
       supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
 
   # ========================================
   # GPT-5.2 FAMILY (December 2025)
@@ -204,6 +244,10 @@ models:
       usd_per1m_output_tokens: 14.0
     special_handling:
       supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
 
   - name: "gpt52pro"
     model_id: "gpt-5.2-pro"
@@ -216,6 +260,10 @@ models:
       usd_per1m_output_tokens: 168.0
     special_handling:
       supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
 
   # ========================================
   # GPT-5.1 FAMILY (November 2025)
@@ -231,6 +279,10 @@ models:
       usd_per1m_output_tokens: 10.0
     special_handling:
       supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
 
   # ========================================
   # GPT-5 FAMILY (August 2025)
@@ -246,6 +298,10 @@ models:
       usd_per1m_output_tokens: 10.0
     special_handling:
       supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
 
   - name: "gpt5mini"
     model_id: "gpt-5-mini"
@@ -257,6 +313,10 @@ models:
       usd_per1m_output_tokens: 2.0
     special_handling:
       supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
 
   - name: "gpt5nano"
     model_id: "gpt-5-nano"
@@ -268,6 +328,10 @@ models:
       usd_per1m_output_tokens: 0.40
     special_handling:
       supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
 
   - name: "gpt5pro"
     model_id: "gpt-5-pro"
@@ -280,6 +344,10 @@ models:
       usd_per1m_output_tokens: 120.0
     special_handling:
       supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
 
   # ========================================
   # GPT-4.1 FAMILY (April 2025 - 1M token context window)
@@ -293,6 +361,8 @@ models:
     pricing_model:
       usd_per1m_input_tokens: 2.0
       usd_per1m_output_tokens: 8.0
+    special_handling:
+      supports_temperature: false
 
   - name: "gpt41mini"
     model_id: "gpt-4.1-mini"
@@ -302,6 +372,8 @@ models:
     pricing_model:
       usd_per1m_input_tokens: 0.40
       usd_per1m_output_tokens: 1.60
+    special_handling:
+      supports_temperature: false
 
   - name: "gpt41nano"
     model_id: "gpt-4.1-nano"
@@ -311,6 +383,8 @@ models:
     pricing_model:
       usd_per1m_input_tokens: 0.10
       usd_per1m_output_tokens: 0.40
+    special_handling:
+      supports_temperature: false
 
   # ========================================
   # GPT-4o FAMILY (retained for audio support only)

@@ -17,10 +17,13 @@ package com.embabel.agent.config.models.openai
 
 import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.config.models.openai.OpenAiProperties.Companion.PREFIX
+import com.embabel.agent.openai.CapabilityAwareOpenAiOptionsConverter
 import com.embabel.agent.openai.Gpt5ChatOptionsConverter
+import com.embabel.agent.openai.ModelCapabilities
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.openai.StandardOpenAiOptionsConverter
 import com.embabel.agent.spi.LlmService
+import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.support.springai.SpringAiNativeStructuredOutputConfigurer
@@ -204,12 +207,10 @@ class OpenAiModelsConfig(
      * Uses custom SpringAiLlm constructor when pricing model is not available.
      */
     private fun createOpenAiLlm(modelDef: OpenAiModelDefinition): LlmService<*> {
-        // Determine the appropriate options converter based on model configuration
-        val optionsConverter = if (modelDef.specialHandling?.supportsTemperature == false) {
-            Gpt5ChatOptionsConverter
-        } else {
-            StandardOpenAiOptionsConverter
-        }
+        // Capability-aware converter from YAML special_handling (warn-and-drop, never throw).
+        // Canonical DEFAULT / GPT5_FAMILY map back to the shared object aliases so identity
+        // checks in tests and equals-based wiring stay stable.
+        val optionsConverter = optionsConverterFor(modelDef.specialHandling.toModelCapabilities())
 
         // Transport is declared per model, like the converter above: most models speak Chat
         // Completions, the *-pro family is served only over the Responses API.
@@ -260,5 +261,24 @@ class OpenAiModelsConfig(
             configuredDimensions = embeddingDef.dimensions,
             pricingModel = pricing,
         )
+    }
+
+    private fun SupportFeaturesConfiguration?.toModelCapabilities(): ModelCapabilities {
+        if (this == null) {
+            return ModelCapabilities.DEFAULT
+        }
+        return ModelCapabilities(
+            supportsTemperature = supportsTemperature,
+            supportsTopP = supportsTopP,
+            supportsFrequencyPenalty = supportsFrequencyPenalty,
+            supportsPresencePenalty = supportsPresencePenalty,
+            usesMaxCompletionTokens = usesMaxCompletionTokens,
+        )
+    }
+
+    private fun optionsConverterFor(capabilities: ModelCapabilities): OptionsConverter = when (capabilities) {
+        ModelCapabilities.DEFAULT -> StandardOpenAiOptionsConverter
+        ModelCapabilities.GPT5_FAMILY -> Gpt5ChatOptionsConverter
+        else -> CapabilityAwareOpenAiOptionsConverter(capabilities)
     }
 }
