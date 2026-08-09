@@ -15,6 +15,8 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.PlaceholderLlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ModelProvider.Companion.BEST_ROLE
 import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
@@ -29,6 +31,97 @@ import org.springframework.ai.embedding.EmbeddingModel
 import kotlin.test.assertContains
 
 class ConfigurableModelProviderTest {
+
+    /**
+     * Stands in for `SetupRequiredLlm`, which lives in the BYOK autoconfigure module this one
+     * cannot depend on. [SpringAiLlmService] is a data class and so final; the real placeholder
+     * carries the marker by delegation in the same way.
+     */
+    private val placeholderModel: LlmService<*> = object :
+        LlmService<SpringAiLlmService> by SpringAiLlmService(
+            "setup-required", "none", mockk<ChatModel>(),
+        ),
+        PlaceholderLlmService {}
+
+    private fun providerWith(
+        llms: List<LlmService<*>>,
+        properties: ConfigurableModelProviderProperties,
+        embeddingServices: List<EmbeddingService> = emptyList(),
+    ) = ConfigurableModelProvider(llms, embeddingServices, properties)
+
+    @Nested
+    inner class SetupRequiredMode {
+
+        private val real: LlmService<*> =
+            SpringAiLlmService("gpt-4.1-mini", "openai", mockk<ChatModel>())
+
+        @Test
+        fun `a deployment awaiting a key boots with roles nothing can satisfy`() {
+            val mp = providerWith(
+                llms = listOf(placeholderModel),
+                properties = ConfigurableModelProviderProperties(
+                    llms = mapOf(BEST_ROLE to "gpt-4.1", CHEAPEST_ROLE to "gpt-4.1-nano"),
+                    defaultLlm = "setup-required",
+                ),
+            )
+            assertEquals("setup-required", mp.getLlm(DefaultModelSelectionCriteria).name)
+        }
+
+        @Test
+        fun `default-llm naming an unregistered model falls back to the placeholder`() {
+            // The realistic pure-BYOK application.yml: default-llm still names the model the
+            // deployment wants once a key arrives, and the placeholder stands in until then.
+            val mp = providerWith(
+                llms = listOf(placeholderModel),
+                properties = ConfigurableModelProviderProperties(defaultLlm = "gpt-4.1"),
+            )
+            assertEquals("setup-required", mp.getLlm(DefaultModelSelectionCriteria).name)
+        }
+
+        @Test
+        fun `a deployment holding a key still dies on a name nothing registers`() {
+            // The other half of the gate. Making this a warning too - which an earlier revision
+            // did - fixes BYOK by turning every keyed deployment's typo into a late failure at
+            // whichever call first wants that role.
+            val e = assertThrows<IllegalStateException> {
+                providerWith(
+                    llms = listOf(real, placeholderModel),
+                    properties = ConfigurableModelProviderProperties(
+                        llms = mapOf(BEST_ROLE to "gpt-4.1"),
+                        defaultLlm = "gpt-4.1-mini",
+                    ),
+                )
+            }
+            assertContains(e.message!!, "gpt-4.1")
+        }
+
+        @Test
+        fun `an unresolvable embedding role is tolerated while awaiting a key`() {
+            providerWith(
+                llms = listOf(placeholderModel),
+                properties = ConfigurableModelProviderProperties(
+                    embeddingServices = mapOf("default" to "text-embedding-3-small"),
+                    defaultLlm = "setup-required",
+                ),
+            )
+        }
+
+        @Test
+        fun `an unresolvable embedding role is still fatal for a deployment holding a key`() {
+            // Same gate, no fallback: there is no embedding placeholder and there should not be
+            // one, so this decides only whether the deployment starts.
+            val e = assertThrows<IllegalStateException> {
+                providerWith(
+                    llms = listOf(real),
+                    properties = ConfigurableModelProviderProperties(
+                        embeddingServices = mapOf("default" to "text-embedding-3-small"),
+                        defaultLlm = "gpt-4.1-mini",
+                    ),
+                )
+            }
+            assertContains(e.message!!, "text-embedding-3-small")
+        }
+    }
 
     /**
      * Custom EmbeddingService that does NOT extend AiModel.
