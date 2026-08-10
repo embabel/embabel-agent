@@ -31,6 +31,7 @@ import java.util.concurrent.Executors
  *     OpenAiCompatibleModelFactory.deepSeek(userKey),
  *     OpenAiCompatibleModelFactory.mistral(userKey),
  *     OpenAiCompatibleModelFactory.gemini(userKey),
+ *     OpenAiCompatibleModelFactory.atlasCloud(userKey),
  * )
  * val detectedProvider = service.provider
  * ```

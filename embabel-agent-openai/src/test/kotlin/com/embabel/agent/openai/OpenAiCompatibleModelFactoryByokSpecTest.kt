@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.openai
 
+import com.embabel.agent.api.models.AtlasCloudModels
 import com.embabel.agent.api.models.DeepSeekModels
 import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.api.models.MistralAiModels
@@ -46,6 +47,11 @@ class OpenAiCompatibleModelFactoryByokSpecTest {
     }
 
     @Test
+    fun `atlasCloud returns ByokFactory`() {
+        assertInstanceOf(ByokFactory::class.java, OpenAiCompatibleModelFactory.atlasCloud("key"))
+    }
+
+    @Test
     fun `byok with explicit params returns ByokFactory`() {
         assertInstanceOf(
             ByokFactory::class.java,
@@ -74,11 +80,16 @@ class OpenAiCompatibleModelFactoryByokSpecTest {
         val deepSeekSpec = OpenAiCompatibleModelFactory.deepSeek("key")
         val mistralSpec = OpenAiCompatibleModelFactory.mistral("key")
         val geminiSpec = OpenAiCompatibleModelFactory.gemini("key")
+        val atlasCloudSpec = OpenAiCompatibleModelFactory.atlasCloud("key")
 
         // Each spec should construct without error (no network call at this stage)
         assertInstanceOf(ByokFactory::class.java, openAiSpec)
         assertInstanceOf(ByokFactory::class.java, deepSeekSpec)
         assertInstanceOf(ByokFactory::class.java, mistralSpec)
         assertInstanceOf(ByokFactory::class.java, geminiSpec)
+        assertInstanceOf(ByokFactory::class.java, atlasCloudSpec)
+
+        val overridden = atlasCloudSpec.validating(AtlasCloudModels.QWEN3_8_MAX, AtlasCloudModels.PROVIDER)
+        assertInstanceOf(ByokFactory::class.java, overridden)
     }
 }
