@@ -22,7 +22,6 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.web.client.RestClient;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -51,7 +50,7 @@ class DeepSeekSharedClientBuilderTest {
     void usesTheSharedPlatformRestClientBuilder() throws IOException {
         var requestsThroughSharedBuilder = new AtomicInteger();
 
-        try (var server = StubDeepSeekServer.replyingAfter(Duration.ZERO, StubDeepSeekServer.OK_RESPONSE)) {
+        try (var server = StubDeepSeekServer.replyingWith(StubDeepSeekServer.OK_RESPONSE)) {
             new ApplicationContextRunner()
                     .withConfiguration(AutoConfigurations.of(AgentDeepSeekAutoConfiguration.class))
                     .withBean("aiModelRestClientBuilder", RestClient.Builder.class,

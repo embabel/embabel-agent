@@ -21,15 +21,14 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * A local HTTP server that returns a canned DeepSeek chat-completion body, optionally after a delay.
+ * A local HTTP server returning a canned DeepSeek chat-completion body, on an ephemeral loopback port.
  *
- * <p>Handlers run on a dedicated executor so {@link #close()} can interrupt an in-flight delayed reply.
- * Use with try-with-resources: {@code try (var server = StubDeepSeekServer.replyingAfter(...)) { ... }}.
+ * <p>Use with try-with-resources: {@code try (var server = StubDeepSeekServer.replyingWith(BODY)) { ... }}.
+ * Handlers run on a dedicated executor, which {@link #close()} shuts down along with the server.
  */
 final class StubDeepSeekServer implements AutoCloseable {
 
@@ -43,35 +42,25 @@ final class StubDeepSeekServer implements AutoCloseable {
     private final ExecutorService executor;
     private final int port;
 
-    private StubDeepSeekServer(String responseBody, Duration delay) throws IOException {
+    private StubDeepSeekServer(String responseBody) throws IOException {
         executor = Executors.newCachedThreadPool();
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.setExecutor(executor);
         server.createContext("/", exchange -> {
-            try {
-                if (!delay.isZero()) {
-                    Thread.sleep(delay.toMillis());
-                }
-                var bytes = responseBody.getBytes(StandardCharsets.UTF_8);
-                exchange.getResponseHeaders().add("Content-Type", "application/json");
-                exchange.sendResponseHeaders(200, bytes.length);
-                try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(bytes);
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                exchange.close();
-            } catch (IOException e) {
-                exchange.close();
+            var bytes = responseBody.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(bytes);
             }
         });
         server.start();
         port = server.getAddress().getPort();
     }
 
-    /** Starts a server that replies with {@code responseBody} only after {@code delay}. */
-    static StubDeepSeekServer replyingAfter(Duration delay, String responseBody) throws IOException {
-        return new StubDeepSeekServer(responseBody, delay);
+    /** Starts a server replying with {@code responseBody}. */
+    static StubDeepSeekServer replyingWith(String responseBody) throws IOException {
+        return new StubDeepSeekServer(responseBody);
     }
 
     String baseUrl() {
