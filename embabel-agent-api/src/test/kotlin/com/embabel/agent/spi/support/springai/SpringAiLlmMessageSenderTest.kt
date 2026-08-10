@@ -620,6 +620,61 @@ class SpringAiLlmMessageSenderTest {
         }
     }
 
+    @Nested
+    inner class FallbackOptionsCopyTests {
+
+        @Test
+        fun `does not re-add omitted temperature when attaching tools`() {
+            // Plain ChatOptions (not ToolCallingChatOptions) forces the fallback builder path.
+            val chatOptions = mockk<ChatOptions> {
+                every { model } returns "gpt-4.1-mini"
+                every { temperature } returns null
+                every { maxTokens } returns 100
+                every { topP } returns 0.9
+                every { topK } returns null
+                every { frequencyPenalty } returns null
+                every { presencePenalty } returns null
+                every { stopSequences } returns null
+            }
+            val capturedPrompt = slot<Prompt>()
+            val generation = Generation(SpringAiAssistantMessage("done"))
+            val mockMetadata = mockk<ChatResponseMetadata> {
+                every { usage } returns null
+            }
+            val chatResponse = mockk<ChatResponse> {
+                every { result } returns generation
+                every { results } returns listOf(generation)
+                every { metadata } returns mockMetadata
+            }
+            val chatModel = mockk<ChatModel> {
+                every { call(capture(capturedPrompt)) } returns chatResponse
+            }
+            val tool = object : com.embabel.agent.api.tool.Tool {
+                override val definition = com.embabel.agent.api.tool.Tool.Definition(
+                    name = "echo",
+                    description = "Echo",
+                    inputSchema = com.embabel.agent.api.tool.Tool.InputSchema.empty(),
+                )
+
+                override fun call(input: String) =
+                    com.embabel.agent.api.tool.Tool.Result.text(input)
+            }
+            val sender = SpringAiLlmMessageSender(chatModel, chatOptions)
+
+            sender.call(
+                messages = listOf(UserMessage("hi")),
+                tools = listOf(tool),
+            )
+
+            val built = capturedPrompt.captured.options
+            assertThat(built).isNotNull
+            // Property extract avoids @NullMarked NPE when temperature was intentionally omitted.
+            assertThat(built).extracting("temperature").isNull()
+            assertThat(built).extracting("topP").isEqualTo(0.9)
+            assertThat(built).extracting("maxTokens").isEqualTo(100)
+        }
+    }
+
     private fun testChatOptions(): ChatOptions = mockk {
         every { model } returns "test-model"
         every { temperature } returns null

@@ -26,6 +26,7 @@ import com.embabel.common.ai.model.*
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
 import com.embabel.common.byok.requireUsableApiKey
+import com.embabel.common.byok.validatedEmbeddingService
 import com.embabel.common.util.ObjectProviders
 import com.openai.client.OpenAIClient
 import com.openai.client.OpenAIClientAsync
@@ -88,6 +89,7 @@ open class OpenAiCompatibleModelFactory(
         private const val CONNECT_TIMEOUT_MS = 5_000L
         private const val READ_TIMEOUT_MS = 600_000L
 
+
         /**
          * Returns a [ByokSpec] for OpenAI.
          * Validates against [OpenAiModels.GPT_41_MINI] by default.
@@ -148,6 +150,40 @@ open class OpenAiCompatibleModelFactory(
             validationModel: String,
             validationProvider: String,
         ): ByokSpec = ByokSpec(baseUrl, apiKey, validationModel, validationProvider)
+
+        /**
+         * Returns a [ByokEmbeddingSpec] for OpenAI.
+         *
+         * [model] is required — see [ByokEmbeddingSpec] for why an embedding model is never
+         * defaulted or detected.
+         */
+        fun openAiEmbedding(
+            apiKey: String,
+            model: String,
+            pricingModel: PricingModel? = null,
+        ): ByokEmbeddingSpec =
+            ByokEmbeddingSpec(null, apiKey, model, OpenAiModels.PROVIDER, pricingModel)
+
+        /**
+         * Returns a [ByokEmbeddingSpec] for a custom OpenAI-compatible provider.
+         *
+         * ```kotlin
+         * OpenAiCompatibleModelFactory.byokEmbedding(
+         *     baseUrl = "https://api.myprovider.com",
+         *     apiKey = apiKey,
+         *     model = "my-embed-small",
+         *     provider = "MyProvider",
+         * )
+         * ```
+         */
+        fun byokEmbedding(
+            baseUrl: String?,
+            apiKey: String,
+            model: String,
+            provider: String,
+            pricingModel: PricingModel? = null,
+        ): ByokEmbeddingSpec =
+            ByokEmbeddingSpec(baseUrl, apiKey, model, provider, pricingModel)
     }
 
     /**
@@ -185,6 +221,52 @@ open class OpenAiCompatibleModelFactory(
                     pricingModel = PricingModel.ALL_YOU_CAN_EAT,
                     provider = validationProvider,
                     knowledgeCutoffDate = null,
+                )
+    }
+
+    /**
+     * A self-contained BYOK spec that validates an API key and returns a ready
+     * [EmbeddingService], so a key supplied *after* startup can activate an embedding model
+     * without a restart.
+     *
+     * Obtained via [openAiEmbedding] or [byokEmbedding].
+     *
+     * Deliberately unlike [ByokSpec] in two ways, because an embedding model is not the same
+     * kind of thing as an LLM:
+     *
+     * 1. **No provider detection.** An LLM is stateless per call, so racing candidate factories
+     *    and taking whichever accepts the key is a fine answer. An embedding model is a schema
+     *    commitment: the vector index is built at a fixed dimension and every stored vector must
+     *    share that model and dimension. Which provider answers first must not decide the index
+     *    dimension, so this type is not intended for
+     *    [com.embabel.common.byok.detectProvider] and the model is always explicit.
+     * 2. **Installation or world scope, not per-user.** Per-user LLM keys are coherent; per-user
+     *    *embedding* keys are not, because vectors from different models and dimensions would
+     *    land in one shared index. The dimension is a property of the store, not of the user.
+     *    Do not inherit a per-user credential story here.
+     *
+     * The returned service reports the dimension actually observed during validation, so a
+     * caller writing into an existing index can compare it against that index's width before
+     * storing anything. That check belongs to whatever owns the index, not here.
+     *
+     * Changing the embedding model of an existing corpus still requires re-embedding it. This
+     * type only builds and validates a service from a runtime-supplied key.
+     */
+    class ByokEmbeddingSpec internal constructor(
+        private val baseUrl: String?,
+        private val apiKey: String,
+        private val model: String,
+        private val provider: String,
+        private val pricingModel: PricingModel? = null,
+        private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
+    ) : ByokFactory<EmbeddingService> {
+
+        override fun buildValidated(): EmbeddingService =
+            OpenAiCompatibleModelFactory(baseUrl, apiKey, null, null, observationRegistry = observationRegistry)
+                .buildValidatedEmbeddingService(
+                    model = model,
+                    provider = provider,
+                    pricingModel = pricingModel,
                 )
     }
 
@@ -320,7 +402,34 @@ open class OpenAiCompatibleModelFactory(
         )
     }
 
-    fun openAiCompatibleEmbeddingService(
+    /**
+     * Validates the configured API key by embedding a short probe text, then returns a
+     * production [EmbeddingService] carrying the width the model actually produced.
+     *
+     * The probe-and-stamp logic is provider-agnostic and lives in
+     * [com.embabel.common.byok.validatedEmbeddingService]; this method supplies the
+     * OpenAI-compatible builder and the blank-key guard.
+     *
+     * @throws InvalidApiKeyException if the key is blank or invalid, the provider is
+     * unreachable, or the model returns no vector.
+     */
+    fun buildValidatedEmbeddingService(
+        model: String,
+        provider: String,
+        pricingModel: PricingModel? = null,
+    ): EmbeddingService {
+        requireUsableApiKey(apiKey)
+        return validatedEmbeddingService(model = model, provider = provider) { configuredDimensions ->
+            openAiCompatibleEmbeddingService(
+                model = model,
+                provider = provider,
+                configuredDimensions = configuredDimensions,
+                pricingModel = pricingModel,
+            )
+        }
+    }
+
+    open fun openAiCompatibleEmbeddingService(
         model: String,
         provider: String,
         configuredDimensions: Int? = null,

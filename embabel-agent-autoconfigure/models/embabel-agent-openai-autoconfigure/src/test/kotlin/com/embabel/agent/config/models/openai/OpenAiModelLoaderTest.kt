@@ -71,12 +71,12 @@ class OpenAiModelLoaderTest {
         }
 
         /**
-         * The whole GPT-5 line rejects any temperature but the default, and `createOpenAiLlm` keys
-         * the [Gpt5ChatOptionsConverter] selection off this flag. A model shipped without it sends
-         * a temperature OpenAI will reject.
+         * The whole GPT-5 line rejects sampling parameters and `max_tokens`. Catalog flags drive
+         * [com.embabel.agent.openai.CapabilityAwareOpenAiOptionsConverter] / the GPT-5 alias
+         * (warn-and-drop, never throw). A model shipped without these sends fields OpenAI rejects.
          */
         @Test
-        fun `every GPT-5 model declares that it does not support temperature`() {
+        fun `every GPT-5 model declares sampling and max_completion_tokens capabilities`() {
             val gpt5Models = shippedCatalogue.models.filter { it.name.startsWith("gpt5") }
             assertTrue(gpt5Models.isNotEmpty(), "Should have GPT-5 models")
 
@@ -85,7 +85,56 @@ class OpenAiModelLoaderTest {
                 assertEquals(
                     false,
                     model.specialHandling?.supportsTemperature,
-                    "GPT-5 models should not support temperature adjustment",
+                    "GPT-5 models should not support temperature adjustment (${model.modelId})",
+                )
+                assertEquals(
+                    false,
+                    model.specialHandling?.supportsTopP,
+                    "GPT-5 models should not support top_p (${model.modelId})",
+                )
+                assertEquals(
+                    false,
+                    model.specialHandling?.supportsFrequencyPenalty,
+                    "GPT-5 models should not support frequency_penalty (${model.modelId})",
+                )
+                assertEquals(
+                    false,
+                    model.specialHandling?.supportsPresencePenalty,
+                    "GPT-5 models should not support presence_penalty (${model.modelId})",
+                )
+                assertEquals(
+                    true,
+                    model.specialHandling?.usesMaxCompletionTokens,
+                    "GPT-5 models map the token limit to max_completion_tokens (${model.modelId})",
+                )
+            }
+        }
+
+        /**
+         * GPT-4.1 family is temperature-restricted but still accepts classic `max_tokens` and
+         * other sampling fields (unlike the GPT-5 family).
+         */
+        @Test
+        fun `every GPT-4_1 model declares temperature-only special handling`() {
+            val gpt41Models = shippedCatalogue.models.filter { it.name.startsWith("gpt41") }
+            assertTrue(gpt41Models.isNotEmpty(), "Should have GPT-4.1 models")
+
+            gpt41Models.forEach { model ->
+                assertNotNull(model.specialHandling, "GPT-4.1 models should have special handling")
+                assertEquals(
+                    false,
+                    model.specialHandling?.supportsTemperature,
+                    "GPT-4.1 models should not support temperature adjustment (${model.modelId})",
+                )
+                assertEquals(
+                    true,
+                    model.specialHandling?.supportsTopP ?: true,
+                    "GPT-4.1 still accepts top_p (${model.modelId})",
+                )
+                assertEquals(
+                    false,
+                    model.specialHandling?.usesMaxCompletionTokens ?: false,
+                    "GPT-4.1 still uses max_tokens (${model.modelId})",
                 )
             }
         }
@@ -646,21 +695,25 @@ class OpenAiModelLoaderTest {
     inner class ApiFormatTests {
 
         /**
-         * Pins the catalog contract the routing depends on: exactly the `*-pro` models ask for the
-         * Responses API, and every other model keeps the Chat Completions path it has today. A model
-         * added to the wrong bucket is a production outage — either a 404 on every call, or a working
-         * model silently rerouted onto an adapter it was never exercised against.
+         * Pins the catalog contract the routing depends on: the `*-pro` models and the GPT-5.6
+         * tiers ask for the Responses API, and every other model keeps the Chat Completions path it
+         * has today. A model added to the wrong bucket is a production outage — either a 404 on
+         * every call, or a working model silently rerouted onto an adapter it was never exercised
+         * against.
          */
         @Test
-        fun `shipped catalog routes the pro models to Responses and everything else to Chat Completions`() {
+        fun `shipped catalog routes the pro models and the GPT-5_6 tiers to Responses`() {
             val models = shippedCatalogue.effectiveModels()
 
             val byFormat = models.groupBy({ it.apiFormat }, { it.modelId })
 
             assertEquals(
-                setOf("gpt-5-pro", "gpt-5.2-pro", "gpt-5.4-pro", "gpt-5.5-pro"),
+                setOf(
+                    "gpt-5-pro", "gpt-5.2-pro", "gpt-5.4-pro", "gpt-5.5-pro",
+                    "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
+                ),
                 byFormat[OpenAiApiFormat.RESPONSES].orEmpty().toSet(),
-                "Only the *-pro models are served over /v1/responses",
+                "Only the *-pro models and the GPT-5.6 tiers are served over /v1/responses",
             )
             assertTrue(
                 byFormat[OpenAiApiFormat.CHAT_COMPLETIONS].orEmpty().none { it.endsWith("-pro") },
@@ -674,21 +727,32 @@ class OpenAiModelLoaderTest {
         }
 
         /**
-         * GPT-5.6 dropped the `-pro` suffix — its tiers are Luna/Terra/Sol and "pro" became a
-         * Responses-only *reasoning mode*, not a model. The suffix guard above therefore says
-         * nothing about them, so their transport is pinned by name.
+         * GPT-5.6 dropped the `-pro` suffix — its tiers are Luna/Terra/Sol — so the suffix guard
+         * above says nothing about them and their transport is pinned by name.
+         *
+         * They are served over both endpoints for a plain prompt, but Chat Completions refuses any
+         * request that carries function tools:
+         *
+         *     400: Function tools with reasoning_effort are not supported for gpt-5.6-luna in
+         *     /v1/chat/completions.
+         *
+         * These models default to `medium` reasoning effort server-side when the request omits it,
+         * which every Embabel request does, so the combination is unavoidable on that endpoint.
+         * Chat Completions would only accept tools at effort `none`, which is not something to
+         * impose on models bought for their reasoning. Responses accepts the full range of efforts
+         * alongside tools, and is what OpenAI documents for tool-calling workflows.
          */
         @Test
-        fun `the GPT-5_6 tiers stay on Chat Completions, which they all support`() {
+        fun `the GPT-5_6 tiers use Responses, the only transport that accepts their tool calls`() {
             val models = shippedCatalogue.effectiveModels()
                 .filter { it.modelId.startsWith("gpt-5.6") }
                 .associate { it.modelId to it.apiFormat }
 
             assertEquals(
                 mapOf(
-                    "gpt-5.6-sol" to OpenAiApiFormat.CHAT_COMPLETIONS,
-                    "gpt-5.6-terra" to OpenAiApiFormat.CHAT_COMPLETIONS,
-                    "gpt-5.6-luna" to OpenAiApiFormat.CHAT_COMPLETIONS,
+                    "gpt-5.6-sol" to OpenAiApiFormat.RESPONSES,
+                    "gpt-5.6-terra" to OpenAiApiFormat.RESPONSES,
+                    "gpt-5.6-luna" to OpenAiApiFormat.RESPONSES,
                 ),
                 models,
             )
