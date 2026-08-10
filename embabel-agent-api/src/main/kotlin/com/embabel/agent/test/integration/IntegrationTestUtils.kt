@@ -17,6 +17,7 @@ package com.embabel.agent.test.integration
 
 import com.embabel.agent.api.channel.DevNullOutputChannel
 import com.embabel.agent.api.common.PlatformServices
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.*
 import com.embabel.agent.core.expression.LogicalExpressionParser
@@ -30,7 +31,6 @@ import com.embabel.agent.spi.config.spring.AgentPlatformProperties.ProcessType
 import com.embabel.agent.spi.support.*
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
-import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.util.concurrent.Executors
 
 object IntegrationTestUtils {
@@ -59,7 +59,7 @@ object IntegrationTestUtils {
             description = "Dummy Agent Platform for Integration Testing",
             processType = ProcessType.SIMPLE,
             asyncer = ExecutorAsyncer(Executors.newSingleThreadExecutor()),
-            objectMapper = jacksonObjectMapper(),
+            embabelObjectMapperHolder = EmbabelObjectMapperHolder.createDefault(),
             outputChannel = DevNullOutputChannel,
             templateRenderer = JinjavaTemplateRenderer(),
             customLogicalExpressionParser = logicalExpressionParser,
@@ -78,7 +78,7 @@ object IntegrationTestUtils {
             eventListener = eventListener ?: EventSavingAgenticEventListener(),
             operationScheduler = OperationScheduler.PRONTO,
             asyncer = ExecutorAsyncer(Executors.newSingleThreadExecutor()),
-            objectMapper = jacksonObjectMapper(),
+            embabelObjectMapperHolder = EmbabelObjectMapperHolder.createDefault(),
             applicationContext = null,
             outputChannel = DevNullOutputChannel,
             templateRenderer = JinjavaTemplateRenderer(),

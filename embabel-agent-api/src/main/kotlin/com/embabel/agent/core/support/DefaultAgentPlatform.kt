@@ -18,6 +18,7 @@ package com.embabel.agent.core.support
 import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.common.PlatformServices
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import com.embabel.agent.api.event.AgentDeploymentEvent
 import com.embabel.agent.api.event.AgentProcessCreationEvent
 import com.embabel.agent.api.event.AgenticEventListener
@@ -31,10 +32,8 @@ import com.embabel.agent.spi.support.InMemoryAgentProcessRepository
 import com.embabel.agent.spi.support.InMemoryContextRepository
 import com.embabel.agent.spi.support.SpringContextPlatformServices
 import com.embabel.common.textio.template.TemplateRenderer
-import tools.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.ApplicationContext
 import org.springframework.stereotype.Service
@@ -57,8 +56,7 @@ open class DefaultAgentPlatform(
     private val operationScheduler: OperationScheduler = OperationScheduler.PRONTO,
     private val blackboardProvider: BlackboardProvider = InMemoryBlackboardProvider,
     private val asyncer: Asyncer,
-    @param:Qualifier("embabelJacksonObjectMapper")
-    private val objectMapper: ObjectMapper,
+    private val embabelObjectMapperHolder: EmbabelObjectMapperHolder,
     private val outputChannel: OutputChannel,
     private val templateRenderer: TemplateRenderer,
     customLogicalExpressionParser: LogicalExpressionParser? = null,
@@ -80,7 +78,7 @@ open class DefaultAgentPlatform(
         eventListener = eventListener,
         operationScheduler = operationScheduler,
         asyncer = asyncer,
-        objectMapper = objectMapper,
+        embabelObjectMapperHolder = embabelObjectMapperHolder,
         applicationContext = applicationContext,
         outputChannel = outputChannel,
         templateRenderer = templateRenderer,

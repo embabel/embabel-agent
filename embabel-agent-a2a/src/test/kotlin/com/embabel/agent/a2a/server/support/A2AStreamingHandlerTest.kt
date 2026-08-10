@@ -15,8 +15,7 @@
  */
 package com.embabel.agent.a2a.server.support
 
-import tools.jackson.databind.ObjectMapper
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import io.a2a.spec.Message
 import io.a2a.spec.Task
 import io.a2a.spec.TaskState
@@ -26,19 +25,16 @@ import io.a2a.spec.TextPart
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 
 class A2AStreamingHandlerTest {
 
     private lateinit var streamingHandler: A2AStreamingHandler
     private lateinit var taskStateManager: TaskStateManager
-    private lateinit var objectMapper: ObjectMapper
 
     @BeforeEach
     fun setup() {
-        objectMapper = jacksonObjectMapper()
         taskStateManager = TaskStateManager()
-        streamingHandler = A2AStreamingHandler(objectMapper, taskStateManager)
+        streamingHandler = A2AStreamingHandler(EmbabelObjectMapperHolder.createDefault(), taskStateManager)
     }
 
     @Test

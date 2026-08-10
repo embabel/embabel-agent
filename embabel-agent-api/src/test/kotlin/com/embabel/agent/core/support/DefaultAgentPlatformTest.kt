@@ -16,6 +16,7 @@
 package com.embabel.agent.core.support
 
 import com.embabel.agent.api.channel.DevNullOutputChannel
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
 import com.embabel.agent.api.event.AgenticEventListener
@@ -51,7 +52,7 @@ class DefaultAgentPlatformTest {
             l,
             contextRepository = contextRepository,
             asyncer = mockk(),
-            objectMapper = mockk(),
+            embabelObjectMapperHolder = EmbabelObjectMapperHolder(mockk()),
             outputChannel = DevNullOutputChannel,
             templateRenderer = mockk(),
         )
@@ -128,7 +129,7 @@ private class SubclassedAgentPlatform(
     toolGroupResolver = mockk(relaxed = true),
     eventListener = EventSavingAgenticEventListener(),
     asyncer = mockk(),
-    objectMapper = mockk(),
+    embabelObjectMapperHolder = EmbabelObjectMapperHolder(mockk()),
     outputChannel = DevNullOutputChannel,
     templateRenderer = mockk(),
 ) {

@@ -18,6 +18,7 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.api.common.Asyncer
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.event.observation.AgentInstrumentation
 import com.embabel.agent.api.event.observation.InternalObservabilityApi
@@ -59,9 +60,6 @@ import com.embabel.common.core.thinking.spi.InternalThinkingApi
 import com.embabel.common.core.thinking.spi.extractAllThinkingBlocks
 import com.embabel.common.textio.template.TemplateRenderer
 import tools.jackson.databind.DatabindException
-import tools.jackson.databind.ObjectMapper
-import org.springframework.beans.factory.annotation.Qualifier
-import tools.jackson.module.kotlin.jacksonObjectMapper
 import io.micrometer.observation.ObservationRegistry
 import jakarta.annotation.PostConstruct
 import jakarta.validation.Validator
@@ -120,8 +118,7 @@ internal class ChatClientLlmOperations(
     llmOperationsPromptsProperties: LlmOperationsPromptsProperties = LlmOperationsPromptsProperties(),
     private val applicationContext: ApplicationContext? = null,
     autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
-    @Qualifier("embabelJacksonObjectMapper")
-    objectMapper: ObjectMapper = jacksonObjectMapper(),
+    embabelObjectMapperHolder: EmbabelObjectMapperHolder = EmbabelObjectMapperHolder.createDefault(),
     // Drives ONLY Spring AI's own ChatClient/advisor observations (see createChatClient). The embabel
     // master-switch (`tracing-enabled`) gates the [instrumentation] adapter — i.e. the embabel core
     // spans — NOT this registry: disabling tracing stops embabel spans but leaves Spring AI's native
@@ -141,7 +138,7 @@ internal class ChatClientLlmOperations(
     dataBindingProperties = dataBindingProperties,
     autoLlmSelectionCriteriaResolver = autoLlmSelectionCriteriaResolver,
     promptsProperties = llmOperationsPromptsProperties,
-    objectMapper = objectMapper,
+    objectMapper = embabelObjectMapperHolder.get(),
     instrumentation = instrumentation,
     toolLoopFactory = toolLoopFactory,
     asyncer = asyncer,

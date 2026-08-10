@@ -25,6 +25,7 @@ import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.spi.OperationScheduler
 import com.embabel.agent.spi.expression.spel.SpelLogicalExpressionParser
 import com.embabel.common.textio.template.TemplateRenderer
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import tools.jackson.databind.ObjectMapper
 import io.mockk.every
 import io.mockk.mockk
@@ -78,7 +79,7 @@ class SpringContextPlatformServicesTest {
             operationScheduler = mockOperationScheduler,
             agentProcessRepository = mockAgentProcessRepository,
             asyncer = mockAsyncer,
-            objectMapper = mockObjectMapper,
+            embabelObjectMapperHolder = EmbabelObjectMapperHolder(mockObjectMapper),
             outputChannel = mockOutputChannel,
             templateRenderer = mockTemplateRenderer,
             customLogicalExpressionParser = customLogicalExpressionParser,

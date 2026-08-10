@@ -19,10 +19,10 @@ import com.embabel.agent.a2a.server.AgentCardHandler;
 import com.embabel.agent.a2a.server.support.A2AEndpointRegistrar;
 import com.embabel.agent.a2a.server.support.A2AStreamingHandler;
 import com.embabel.agent.a2a.server.support.AutonomyA2ARequestHandler;
+import com.embabel.common.util.EmbabelObjectMapperHolder;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.api.event.AgenticEventListener;
 import com.embabel.agent.core.AgentPlatform;
-import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -58,7 +58,7 @@ class AgentA2AAutoConfigurationTest {
                              mock(AgenticEventListener.class),
                              mock(A2AStreamingHandler.class)))
            .withBean(RequestMappingHandlerMapping.class, () -> mock(RequestMappingHandlerMapping.class))
-           .withBean(ObjectMapper.class, ObjectMapper::new);
+           .withBean(EmbabelObjectMapperHolder.class, EmbabelObjectMapperHolder::createDefault);
 
    /**
     * Confirms that the auto-configuration stays inactive in a plain application context. This checks the servlet web-application guard instead of only inspecting annotations.

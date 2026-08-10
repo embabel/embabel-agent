@@ -21,6 +21,7 @@ import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.autonomy.Autonomy
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.event.observation.AgentInstrumentation
 import com.embabel.agent.api.event.observation.InternalObservabilityApi
@@ -54,12 +55,14 @@ data class SpringContextPlatformServices(
     override val operationScheduler: OperationScheduler,
     override val agentProcessRepository: AgentProcessRepository,
     override val asyncer: Asyncer,
-    override val objectMapper: ObjectMapper,
+    private val embabelObjectMapperHolder: EmbabelObjectMapperHolder,
     override val outputChannel: OutputChannel,
     override val templateRenderer: TemplateRenderer,
     val customLogicalExpressionParser: LogicalExpressionParser? = null,
     private val applicationContext: ApplicationContext?,
 ) : PlatformServices {
+
+    override val objectMapper: ObjectMapper = embabelObjectMapperHolder.get()
 
     override val logicalExpressionParser = customLogicalExpressionParser ?: run {
         val parsers = buildList {

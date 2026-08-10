@@ -39,6 +39,7 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -47,7 +48,6 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
-import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.util.concurrent.Executors
 
 /**
@@ -148,7 +148,7 @@ class SlowContributorWiringTest {
             validator = Validation.buildDefaultValidatorFactory().validator,
             validationPromptGenerator = DefaultValidationPromptGenerator(),
             templateRenderer = JinjavaTemplateRenderer(),
-            objectMapper = jacksonObjectMapper(),
+            embabelObjectMapperHolder = EmbabelObjectMapperHolder.createDefault(),
             dataBindingProperties = LlmDataBindingProperties(),
             asyncer = ExecutorAsyncer(Executors.newCachedThreadPool()),
         )

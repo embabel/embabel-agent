@@ -19,10 +19,10 @@ import com.embabel.agent.a2a.example.simple.horoscope.TestHoroscopeService
 import com.embabel.agent.a2a.example.simple.horoscope.kotlin.TestStarNewsFinder
 import com.embabel.agent.a2a.server.config.FakeAiConfiguration
 import com.embabel.agent.a2a.server.config.FakeRankerConfiguration
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import com.embabel.agent.api.annotation.support.AgentMetadataReader
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.common.core.types.Semver.Companion.DEFAULT_VERSION
-import tools.jackson.databind.ObjectMapper
 import io.a2a.spec.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Disabled
@@ -61,7 +61,7 @@ class A2AWebIntegrationTest(
     @Autowired
     private val agentPlatform: AgentPlatform,
     @Autowired
-    private val objectMapper: ObjectMapper,
+    private val embabelObjectMapperHolder: EmbabelObjectMapperHolder,
     @Autowired
     private val horoscopeService: TestHoroscopeService,
 ) {
@@ -88,7 +88,7 @@ class A2AWebIntegrationTest(
                 }.andReturn()
 
             val content = result.response.contentAsString
-            val agentCard = objectMapper.readValue(content, AgentCard::class.java)
+            val agentCard = embabelObjectMapperHolder.get().readValue(content, AgentCard::class.java)
 
             assertNotNull(agentCard)
             assertNotNull(agentCard.name)
@@ -138,7 +138,7 @@ class A2AWebIntegrationTest(
 
             val result = mockMvc.post("/a2a") {
                 contentType = MediaType.APPLICATION_JSON
-                content = objectMapper.writeValueAsString(request)
+                content = embabelObjectMapperHolder.get().writeValueAsString(request)
             }
                 .andExpect {
                     status().isOk()
@@ -146,12 +146,12 @@ class A2AWebIntegrationTest(
                 }.andReturn()
 
             val content = result.response.contentAsString
-            val response = objectMapper.readValue(content, SendMessageResponse::class.java)
+            val response = embabelObjectMapperHolder.get().readValue(content, SendMessageResponse::class.java)
 
             assertNotNull(response)
             assertEquals("msg-123", response.id)
 
-            val task = objectMapper.convertValue(response.result, Task::class.java)
+            val task = embabelObjectMapperHolder.get().convertValue(response.result, Task::class.java)
             assertEquals("task-123", task.id)
             assertEquals("ctx-123", task.contextId)
             assertEquals(TaskState.COMPLETED, task.status.state)
@@ -180,7 +180,7 @@ class A2AWebIntegrationTest(
             // This test just verifies the endpoint accepts the streaming request without error
             mockMvc.post("/a2a") {
                 contentType = MediaType.APPLICATION_JSON
-                content = objectMapper.writeValueAsString(request)
+                content = embabelObjectMapperHolder.get().writeValueAsString(request)
             }
                 .andExpect {
                     status().isOk()
@@ -200,7 +200,7 @@ class A2AWebIntegrationTest(
             // We're just testing that the endpoint is routed correctly
             mockMvc.post("/a2a") {
                 contentType = MediaType.APPLICATION_JSON
-                content = objectMapper.writeValueAsString(resubscribeRequest)
+                content = embabelObjectMapperHolder.get().writeValueAsString(resubscribeRequest)
             }
                 .andExpect {
                     // Should return 200 even if task not found (SSE stream will error)
@@ -218,7 +218,7 @@ class A2AWebIntegrationTest(
 
             val result = mockMvc.post("/a2a/tasks/get") {
                 contentType = MediaType.APPLICATION_JSON
-                content = objectMapper.writeValueAsString(params)
+                content = embabelObjectMapperHolder.get().writeValueAsString(params)
             }
                 .andExpect {
                     status().isOk()
@@ -226,12 +226,12 @@ class A2AWebIntegrationTest(
                 }.andReturn()
 
             val content = result.response.contentAsString
-            val response = objectMapper.readValue(content, GetTaskResponse::class.java)
+            val response = embabelObjectMapperHolder.get().readValue(content, GetTaskResponse::class.java)
 
             assertNotNull(response)
             assertEquals("task-123", response.id)
 
-            val task = objectMapper.convertValue(response.result, Task::class.java)
+            val task = embabelObjectMapperHolder.get().convertValue(response.result, Task::class.java)
             assertEquals("task-123", task.id)
             assertEquals("ctx-1", task.contextId)
             assertEquals(TaskState.COMPLETED, task.status.state)
@@ -243,7 +243,7 @@ class A2AWebIntegrationTest(
 
             val result = mockMvc.post("/a2a/tasks/cancel") {
                 contentType = MediaType.APPLICATION_JSON
-                content = objectMapper.writeValueAsString(params)
+                content = embabelObjectMapperHolder.get().writeValueAsString(params)
             }
                 .andExpect {
                     status().isOk()
@@ -251,12 +251,12 @@ class A2AWebIntegrationTest(
                 }.andReturn()
 
             val content = result.response.contentAsString
-            val response = objectMapper.readValue(content, CancelTaskResponse::class.java)
+            val response = embabelObjectMapperHolder.get().readValue(content, CancelTaskResponse::class.java)
 
             assertNotNull(response)
             assertEquals("task-123", response.id)
 
-            val task = objectMapper.convertValue(response.result, Task::class.java)
+            val task = embabelObjectMapperHolder.get().convertValue(response.result, Task::class.java)
             assertEquals("task-123", task.id)
             assertEquals("ctx-1", task.contextId)
             assertEquals(TaskState.CANCELED, task.status.state)
@@ -284,7 +284,7 @@ class A2AWebIntegrationTest(
 
             val result = mockMvc.post("/a2a/tasks/pushNotificationConfig/set") {
                 contentType = MediaType.APPLICATION_JSON
-                content = objectMapper.writeValueAsString(params)
+                content = embabelObjectMapperHolder.get().writeValueAsString(params)
             }
                 .andExpect {
                     status().isOk()
@@ -292,12 +292,12 @@ class A2AWebIntegrationTest(
                 }.andReturn()
 
             val content = result.response.contentAsString
-            val response = objectMapper.readValue(content, SetTaskPushNotificationConfigResponse::class.java)
+            val response = embabelObjectMapperHolder.get().readValue(content, SetTaskPushNotificationConfigResponse::class.java)
 
             assertNotNull(response)
             assertEquals("task-123", response.id)
 
-            val resultConfig = objectMapper.convertValue(response.result, TaskPushNotificationConfig::class.java)
+            val resultConfig = embabelObjectMapperHolder.get().convertValue(response.result, TaskPushNotificationConfig::class.java)
             assertEquals("task-123", resultConfig.taskId)
             assertEquals("https://client/notify", resultConfig.pushNotificationConfig.url)
             assertEquals("test-token", resultConfig.pushNotificationConfig.token)
@@ -311,7 +311,7 @@ class A2AWebIntegrationTest(
 
             val result = mockMvc.post("/a2a/tasks/pushNotificationConfig/get") {
                 contentType = MediaType.APPLICATION_JSON
-                content = objectMapper.writeValueAsString(params)
+                content = embabelObjectMapperHolder.get().writeValueAsString(params)
             }
                 .andExpect {
                     status().isOk()
@@ -319,12 +319,12 @@ class A2AWebIntegrationTest(
                 }.andReturn()
 
             val content = result.response.contentAsString
-            val response = objectMapper.readValue(content, GetTaskPushNotificationConfigResponse::class.java)
+            val response = embabelObjectMapperHolder.get().readValue(content, GetTaskPushNotificationConfigResponse::class.java)
 
             assertNotNull(response)
             assertEquals("task-123", response.id)
 
-            val config = objectMapper.convertValue(response.result, TaskPushNotificationConfig::class.java)
+            val config = embabelObjectMapperHolder.get().convertValue(response.result, TaskPushNotificationConfig::class.java)
             assertEquals("task-123", config.taskId)
             assertEquals("https://client/notify", config.pushNotificationConfig.url)
             assertEquals("demo-token", config.pushNotificationConfig.token)
