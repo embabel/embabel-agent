@@ -61,6 +61,82 @@ class SuppressThinkingConverterTest {
     }
 
     @Nested
+    inner class FencedJson {
+
+        /**
+         * The shape that motivated [FindSuffixThinkBlock]: a model that explains
+         * itself, then emits the object inside a markdown fence. The prefix finder
+         * already handled everything to the left of `{`; the closing fence was what
+         * killed it.
+         */
+        @Test
+        fun `object wrapped in a markdown fence, with a preamble`() {
+            val converter = SuppressThinkingConverter(BeanOutputConverter(Dog::class.java))
+            val input = """
+                Based on my research, I found one match.
+
+                ```json
+                {"name": "Rex"}
+                ```
+            """.trimIndent()
+            assertEquals("Rex", converter.convert(input)!!.name)
+        }
+
+        @Test
+        fun `fence with no language tag`() {
+            val converter = SuppressThinkingConverter(BeanOutputConverter(Dog::class.java))
+            val input = "```\n{\"name\": \"Rex\"}\n```"
+            assertEquals("Rex", converter.convert(input)!!.name)
+        }
+
+        @Test
+        fun `prose after the object, with no fence at all`() {
+            val converter = SuppressThinkingConverter(BeanOutputConverter(Dog::class.java))
+            val input = "{\"name\": \"Rex\"}\n\nLet me know if you need anything else."
+            assertEquals("Rex", converter.convert(input)!!.name)
+        }
+
+        @Test
+        fun `a multi-line object is kept whole - the anchor is the LAST brace`() {
+            val converter = SuppressThinkingConverter(BeanOutputConverter(Dog::class.java))
+            val input = """
+                ```json
+                {
+                  "name": "Rex"
+                }
+                ```
+            """.trimIndent()
+            assertEquals("Rex", converter.convert(input)!!.name)
+        }
+
+        @Test
+        fun `think tag, preamble, fence and trailing prose together`() {
+            val converter = SuppressThinkingConverter(BeanOutputConverter(Dog::class.java))
+            val input = """
+                <think>weighing the options</think>
+                Here is the answer.
+                ```json
+                {"name": "Rex"}
+                ```
+                Hope that helps.
+            """.trimIndent()
+            assertEquals("Rex", converter.convert(input)!!.name)
+        }
+
+        @Test
+        fun `input with no object at all is left alone for the parser to report`() {
+            // Deleting everything would replace a diagnosable parse error with an
+            // empty string, which is strictly harder to debug.
+            assertEquals(null, FindSuffixThinkBlock("I could not find anything relevant."))
+        }
+
+        @Test
+        fun `an already-clean object is untouched`() {
+            assertEquals("", FindSuffixThinkBlock("""{"name": "Rex"}"""))
+        }
+    }
+
+    @Nested
     inner class SequentialProcessing {
 
         @Test
