@@ -16,6 +16,7 @@
 package com.embabel.common.ai.model
 
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.PlaceholderEmbeddingService
 import com.embabel.agent.spi.PlaceholderLlmService
 import com.embabel.common.util.indent
 import com.embabel.common.util.loggerFor
@@ -110,7 +111,32 @@ class ConfigurableModelProvider(
     // Compute this lazily as embedding services may not be available
     private fun defaultEmbeddingService() =
         embeddingServices.firstOrNull { it.name == properties.defaultEmbeddingModel }
+            ?: placeholderEmbeddingService()
             ?: throw IllegalArgumentException("Default embedding service '${properties.defaultEmbeddingModel}' not found in available models: ${embeddingServices.map { it.name }}")
+
+    /**
+     * The registered embedding placeholder, if this deployment carries one.
+     *
+     * Structural rather than by name, like [placeholderLlm]: `com.embabel.agent.spi` owns the
+     * marker and this class must not depend on the BYOK module that implements it.
+     *
+     * Note what falling back does NOT do. The placeholder cannot embed and will not report a
+     * dimension, so every consumer that reaches it still fails - deliberately, because an
+     * embedding model is a schema commitment and nothing can stand in for one. What the fallback
+     * buys is that the deployment STARTS: a consumer resolving the default embedding service while
+     * its beans are being created no longer takes down the context before any BYOK code can run.
+     * Consumers that provision a vector index should test for [PlaceholderEmbeddingService] and
+     * skip until a real model is registered.
+     */
+    private fun placeholderEmbeddingService(): EmbeddingService? =
+        embeddingServices.firstOrNull { it is PlaceholderEmbeddingService }
+            ?.also {
+                logger.warn(
+                    "Default embedding service '{}' is not registered; falling back to the '{}' placeholder. " +
+                        "Embedding will fail with an actionable 'no embedding service configured' error until a key is supplied. Available: {}",
+                    properties.defaultEmbeddingModel, it.name, embeddingServices.map { it.name },
+                )
+            }
 
     init {
         properties.llms.forEach { (role, model) ->
