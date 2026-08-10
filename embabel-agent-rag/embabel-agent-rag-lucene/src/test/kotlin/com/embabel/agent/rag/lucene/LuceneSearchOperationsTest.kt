@@ -59,8 +59,10 @@ class LuceneSearchOperationsTest : LuceneSearchOperationsTestBase() {
 
         ragService.acceptDocuments(documents)
 
-        // Search for documents
-        val request = RagRequest.query("machine learning")
+        // No threshold: BM25 scores are corpus-relative, so ranking selects results.
+        // RagRequest's 0.8 default is a COSINE number — applying it to a text score
+        // rejects everything now that those scores are correctly bounded in [0, 1).
+        val request = RagRequest.query("machine learning").withSimilarityThreshold(0.0)
         val response = ragService.hybridSearch(request)
 
         assertEquals("lucene-rag", response.facetName)
@@ -81,15 +83,54 @@ class LuceneSearchOperationsTest : LuceneSearchOperationsTestBase() {
 
         ragService.acceptDocuments(documents)
 
-        // High threshold should filter out low-relevance results
-        val request = RagRequest.query("machine learning")
-            .withSimilarityThreshold(0.9)
+        // Without a floor the matching document comes back...
+        val unfiltered = ragService.hybridSearch(
+            RagRequest.query("machine learning").withSimilarityThreshold(0.0)
+        )
+        assertTrue(unfiltered.results.isNotEmpty(), "expected a match with no similarity floor")
 
-        val response = ragService.hybridSearch(request)
+        // ...and a high floor excludes it. Before scores were bounded this assertion
+        // held vacuously: the filter never removed anything, because raw BM25 scores
+        // are unbounded and always cleared any 0-1 threshold.
+        val filtered = ragService.hybridSearch(
+            RagRequest.query("machine learning").withSimilarityThreshold(0.99)
+        )
+        assertTrue(
+            filtered.results.size < unfiltered.results.size,
+            "a 0.99 floor should exclude results that a 0.0 floor admits",
+        )
+        filtered.results.forEach { result ->
+            assertTrue(result.score >= 0.99)
+        }
+    }
 
-        // Should only return highly relevant documents
-        response.results.forEach { result ->
-            assertTrue(result.score >= 0.9)
+    /**
+     * Regression: scores were normalized by dividing by the MAXIMUM score in the same
+     * result set, so the best hit always scored exactly 1.0 — however weak it was.
+     * A similarity floor could therefore never exclude a poor best-match, which is
+     * precisely when you want it to.
+     */
+    @Test
+    fun `top hit is not pinned to a perfect score`() {
+        ragService.acceptDocuments(
+            listOf(
+                Document("doc1", "a passing mention of machine learning in a longer text", emptyMap<String, Any>()),
+                Document("doc2", "cooking recipes", emptyMap<String, Any>()),
+            )
+        )
+
+        val response = ragService.hybridSearch(
+            RagRequest.query("machine learning").withSimilarityThreshold(0.0)
+        )
+
+        assertTrue(response.results.isNotEmpty())
+        val top = response.results.first()
+        assertTrue(
+            top.score < 1.0,
+            "top hit scored ${top.score}: scores must not be normalized against the result set",
+        )
+        response.results.forEach {
+            assertTrue(it.score >= 0.0 && it.score < 1.0, "score ${it.score} outside [0, 1)")
         }
     }
 

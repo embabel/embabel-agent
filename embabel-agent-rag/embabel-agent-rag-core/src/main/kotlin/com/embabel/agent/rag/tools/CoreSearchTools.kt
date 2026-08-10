@@ -24,6 +24,7 @@ import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.Embeddable
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.*
+import com.embabel.agent.rag.service.support.Bm25Normalization
 import com.embabel.common.core.types.SimilarityResult
 import com.embabel.common.core.types.TextSimilaritySearchRequest
 import com.embabel.common.core.types.ZeroToOne
@@ -43,15 +44,22 @@ internal class VectorSearchTools @JvmOverloads constructor(
     private val metadataFilter: PropertyFilter? = null,
     private val entityFilter: EntityFilter? = null,
     private val resultsListener: ResultsListener? = null,
+    private val searchDefaults: SearchDefaults = SearchDefaults.DEFAULT,
 ) : SearchTools {
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
 
-    @LlmTool(description = "Perform vector search. Specify topK and similarity threshold from 0-1")
+    // `threshold` is OPTIONAL on purpose — see [SearchDefaults]. Models routinely
+    // guessed a high cutoff (0.7-0.8), got nothing back, and concluded the corpus
+    // didn't cover the question. topK is the limiter; the threshold is a noise floor.
+    @LlmTool(description = "Perform vector search. Specify topK. Ranking handles relevance — omit threshold unless you have a specific reason to floor it.")
     fun vectorSearch(
         query: String,
         topK: Int,
-        @LlmTool.Param(description = "similarity threshold from 0-1") threshold: ZeroToOne,
+        @LlmTool.Param(
+            description = "Optional similarity floor from 0-1. Omit this unless you need to exclude weak matches: scores are not calibrated across embedding models, and setting it too high silently returns nothing.",
+            required = false,
+        ) threshold: ZeroToOne = searchDefaults.vectorSimilarityThreshold,
     ): String {
         logger.info(
             "Performing vector search with query='{}', topK={}, threshold={}, types={}, metadataFilter={}, entityFilter={}",
@@ -175,6 +183,7 @@ internal class TextSearchTools @JvmOverloads constructor(
     private val metadataFilter: PropertyFilter? = null,
     private val entityFilter: EntityFilter? = null,
     private val resultsListener: ResultsListener? = null,
+    private val searchDefaults: SearchDefaults = SearchDefaults.DEFAULT,
 ) : SearchTools, Tool {
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
@@ -197,9 +206,11 @@ internal class TextSearchTools @JvmOverloads constructor(
                     name = "topK",
                     description = "Maximum number of results to return.",
                 ),
+                // Optional — mirrors [VectorSearchTools.vectorSearch]. See [SearchDefaults].
                 Tool.Parameter.double(
                     name = "threshold",
-                    description = "Similarity threshold from 0 to 1.",
+                    description = "Optional similarity floor from 0 to 1. Omit this unless you need to exclude weak matches: BM25 scores are corpus-relative, so ranking is what selects results.",
+                    required = false,
                 ),
             ),
         )
@@ -212,8 +223,10 @@ internal class TextSearchTools @JvmOverloads constructor(
             ?: return Tool.Result.error("'query' parameter is required")
         val topK = (params["topK"] as? Number)?.toInt()
             ?: return Tool.Result.error("'topK' parameter is required")
+        // Absent (or non-numeric, e.g. a JSON null) threshold falls back to the
+        // configured floor rather than erroring — the parameter is optional.
         val threshold = (params["threshold"] as? Number)?.toDouble()
-            ?: return Tool.Result.error("'threshold' parameter is required")
+            ?: searchDefaults.textSimilarityThreshold
         Tool.Result.text(textSearch(query, topK, threshold))
     } catch (e: Exception) {
         Tool.Result.error("textSearch failed: ${e.message}")
@@ -227,7 +240,7 @@ internal class TextSearchTools @JvmOverloads constructor(
     fun textSearch(
         query: String,
         topK: Int,
-        threshold: ZeroToOne,
+        threshold: ZeroToOne = searchDefaults.textSimilarityThreshold,
     ): String {
         logger.info(
             "Performing text search with query='{}', topK={}, threshold={}, types={}, metadataFilter={}, entityFilter={}",
@@ -238,6 +251,7 @@ internal class TextSearchTools @JvmOverloads constructor(
         val (results, ms) = time {
             searchForAllTypes(request)
         }
+        Bm25Normalization.warnIfThresholdSuppressedResults(logger, query, threshold, results.size)
         resultsListener?.onResultsEvent(ResultsEvent(this, query, results, Duration.ofMillis(ms)))
         return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList<Retrievable>(results))
     }
