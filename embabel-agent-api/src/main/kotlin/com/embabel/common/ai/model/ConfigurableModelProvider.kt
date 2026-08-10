@@ -16,6 +16,7 @@
 package com.embabel.common.ai.model
 
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.PlaceholderLlmService
 import com.embabel.common.util.indent
 import com.embabel.common.util.loggerFor
 import org.springframework.boot.context.properties.ConfigurationProperties
@@ -68,10 +69,43 @@ class ConfigurableModelProvider(
     private val defaultLlm =
         if (llms.isNotEmpty())
             llms.firstOrNull { it.name == properties.defaultLlm }
+                ?: placeholderLlm()
                 ?: throw IllegalArgumentException(
                     "Default LLM '${properties.defaultLlm}' not found. Set the 'embabel.models.default-llm' property to one of the available models: ${llms.map { it.name }}.")
         else
             throw IllegalArgumentException("No models detected. Ensure that at least one Embabel Agent Starter (e.g. embabel-agent-starter-openai) is on the classpath and models are loaded into it.")
+
+    /**
+     * Whether this deployment is waiting for a key rather than misconfigured.
+     *
+     * True exactly when `default-llm` resolved to a [PlaceholderLlmService] - either because it
+     * names one, or because the model it names is not registered and a placeholder stands in. That
+     * is the deployment stating that keys arrive at runtime, and it is the only thing that makes an
+     * unresolvable model name in configuration expected rather than a typo.
+     *
+     * A deployment that has a key resolves `default-llm` to a real model and so is never in this
+     * mode, even with a placeholder registered alongside - which is what a BYOK starter next to a
+     * provider starter looks like.
+     */
+    private val setupRequired: Boolean = defaultLlm is PlaceholderLlmService
+
+    /**
+     * The registered placeholder, if this deployment carries one.
+     *
+     * Deliberately structural rather than by name: `com.embabel.agent.spi` owns the marker, and
+     * this class must not depend on the BYOK module that implements it.
+     */
+    private fun placeholderLlm(): LlmService<*>? =
+        llms.firstOrNull { it is PlaceholderLlmService }
+            ?.also {
+                // Named, because degrading a real model to the placeholder would otherwise hide the
+                // case where the key IS set and the model simply failed to register.
+                logger.warn(
+                    "Default LLM '{}' is not registered; falling back to the '{}' placeholder. " +
+                        "Calls will fail with an actionable 'no LLM configured' error until a key is supplied. Available: {}",
+                    properties.defaultLlm, it.name, llms.map { it.name },
+                )
+            }
 
     // Compute this lazily as embedding services may not be available
     private fun defaultEmbeddingService() =
@@ -81,14 +115,45 @@ class ConfigurableModelProvider(
     init {
         properties.llms.forEach { (role, model) ->
             if (llms.none { it.name == model }) {
-                error("LLM '$model' for role $role is not available: Choices are ${llms.map { it.name }}")
+                /*
+                 * Fatal, unless this deployment is waiting for a key. A name that resolves to
+                 * nothing is a typo in a deployment that has one, and letting it start would move
+                 * the failure to whichever unrelated call first asks for that role. A deployment in
+                 * setup-required mode has no models registered yet by definition, so the same name
+                 * is expected there and only worth reporting.
+                 */
+                if (setupRequired) {
+                    logger.warn(
+                        "LLM '{}' for role '{}' is not registered. This deployment is awaiting a key, so that is expected; " +
+                            "the role will report 'no LLM configured' until one is supplied. Available: {}",
+                        model, role, llms.map { it.name },
+                    )
+                } else {
+                    error("LLM '$model' for role $role is not available: Choices are ${llms.map { it.name }}")
+                }
             }
         }
         logger.info(infoString(verbose = true))
 
         properties.embeddingServices.forEach { (role, model) ->
             if (embeddingServices.none { it.name == model }) {
-                error("Embedding model '$model' for role $role is not available: Choices are ${embeddingServices.map { it.name }}")
+                /*
+                 * The same gate as the LLM roles above, and for the same reason: an unresolvable
+                 * name is a typo in a deployment that holds a key, and expected in one still
+                 * waiting for it. There is no fallback here, though, and there should not be -
+                 * an embedding model is a schema commitment and nothing can stand in for one.
+                 * The gate decides only whether the deployment STARTS; asking for the service
+                 * still throws.
+                 */
+                if (setupRequired) {
+                    logger.warn(
+                        "Embedding model '{}' for role '{}' is not registered. This deployment is awaiting a key, " +
+                            "so that is expected; asking for that role will still fail. Available: {}",
+                        model, role, embeddingServices.map { it.name },
+                    )
+                } else {
+                    error("Embedding model '$model' for role $role is not available: Choices are ${embeddingServices.map { it.name }}")
+                }
             }
         }
     }

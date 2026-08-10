@@ -25,6 +25,7 @@ import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.*
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
+import com.embabel.common.byok.requireUsableApiKey
 import com.embabel.common.byok.validatedEmbeddingService
 import com.embabel.common.util.ObjectProviders
 import com.openai.client.OpenAIClient
@@ -88,17 +89,6 @@ open class OpenAiCompatibleModelFactory(
         private const val CONNECT_TIMEOUT_MS = 5_000L
         private const val READ_TIMEOUT_MS = 600_000L
 
-        /**
-         * Message for a key that is present but blank.
-         *
-         * Deliberately local. The LLM BYOK path grows the same rule in #1888, and a shared
-         * helper is the right home for it — but putting it there from here would couple these
-         * two branches for four lines. Collapse this onto that helper once both have landed.
-         */
-        internal val BLANK_EMBEDDING_KEY_MESSAGE: String = """
-            API key is blank. A blank key is treated as absent:
-            supply a non-empty key, or omit it and let the caller decide there is no key for this request.
-        """.trimIndent()
 
         /**
          * Returns a [ByokSpec] for OpenAI.
@@ -374,6 +364,17 @@ open class OpenAiCompatibleModelFactory(
      * so the probe relies on the openai-java SDK's own no-retry default (any 401 fails fast).
      * On any exception the provider-specific error is translated to [InvalidApiKeyException],
      * keeping Spring AI types out of the caller.
+     *
+     * A blank key is rejected before any network call — see [requireUsableApiKey] for why a key
+     * is set-but-empty far more often than it looks.
+     *
+     * Note this narrows the constructor's contract, where [apiKey] may be null meaning "no
+     * authentication". That remains true of the factory; it is not true of *validation*, which
+     * exists to answer "is this key usable" and has nothing to answer for an absent one. A keyless
+     * endpoint — a local LM Studio or vLLM server — should be built with [openAiCompatibleLlm]
+     * rather than validated here.
+     *
+     * @throws InvalidApiKeyException if the key is blank, absent, or invalid.
      */
     fun buildValidated(
         model: String,
@@ -381,6 +382,7 @@ open class OpenAiCompatibleModelFactory(
         provider: String,
         knowledgeCutoffDate: LocalDate?,
     ): LlmService<*> {
+        requireUsableApiKey(apiKey)
         val probe = openAiCompatibleLlm(
             model = model,
             pricingModel = pricingModel,
@@ -416,9 +418,7 @@ open class OpenAiCompatibleModelFactory(
         provider: String,
         pricingModel: PricingModel? = null,
     ): EmbeddingService {
-        if (apiKey.isNullOrBlank()) {
-            throw InvalidApiKeyException(BLANK_EMBEDDING_KEY_MESSAGE)
-        }
+        requireUsableApiKey(apiKey)
         return validatedEmbeddingService(model = model, provider = provider) { configuredDimensions ->
             openAiCompatibleEmbeddingService(
                 model = model,

@@ -18,6 +18,7 @@ package com.embabel.agent.openai
 import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.PricingModel
+import com.embabel.common.byok.BLANK_API_KEY_MESSAGE
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -200,7 +201,7 @@ class OpenAiCompatibleModelFactoryByokEmbeddingTest {
                 )
             }
 
-            assertEquals(OpenAiCompatibleModelFactory.BLANK_EMBEDDING_KEY_MESSAGE, e.message)
+            assertEquals(BLANK_API_KEY_MESSAGE, e.message)
             assertEquals(0, factory.builds.size, "a blank key must not build or probe anything")
         }
     }
@@ -217,7 +218,7 @@ class OpenAiCompatibleModelFactoryByokEmbeddingTest {
             ),
         ).forEach { spec ->
             val e = assertThrows<InvalidApiKeyException> { spec.buildValidated() }
-            assertEquals(OpenAiCompatibleModelFactory.BLANK_EMBEDDING_KEY_MESSAGE, e.message)
+            assertEquals(BLANK_API_KEY_MESSAGE, e.message)
         }
     }
 

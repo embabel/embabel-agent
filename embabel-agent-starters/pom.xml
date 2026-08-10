@@ -26,6 +26,7 @@
         <module>embabel-agent-starter-observability</module>
         <module>embabel-agent-starter-mcpserver</module>
         <module>embabel-agent-starter-mcpserver-security</module>
+        <module>embabel-agent-starter-byok</module>
         <module>embabel-agent-starter-bedrock</module>
         <module>embabel-agent-starter-openai</module>
         <module>embabel-agent-starter-openai-custom</module>
