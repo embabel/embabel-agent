@@ -39,6 +39,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.retry.RetryPolicy
+import org.springframework.core.retry.RetryTemplate
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
 import java.time.Duration
@@ -200,10 +202,10 @@ class DeepSeekModelsConfig(
                     .build()
             )
             .deepSeekApi(createDeepSeekApi())
-            // Spring AI 2.0 builder now expects org.springframework.core.retry.RetryTemplate;
-            // we already wrap calls with spring-retry at the ChatClientLlmOperations layer,
-            // so the model-internal retry is redundant. Dropping the call falls back to
-            // Spring AI's default retry (no-op if not configured).
+            // Spring AI 2.0's builder takes Spring Framework 7's org.springframework.core.retry.RetryTemplate.
+            // Build it from the configured retry properties so the model honors maxAttempts/backoff instead of
+            // silently using its built-in 10-attempt / 3-minute default (RetryUtils.DEFAULT_RETRY_TEMPLATE).
+            .retryTemplate(platformRetryTemplate())
             .build()
         return SpringAiLlmService(
             name = name,
@@ -236,6 +238,21 @@ class DeepSeekModelsConfig(
             .restClientBuilder(sharedRestClientBuilder)
             .webClientBuilder(sharedWebClientBuilder)
             .build()
+    }
+
+    /**
+     * Builds the Spring Framework 7 [RetryTemplate] for the chat model from the configured retry
+     * properties. In core.retry, [RetryPolicy] counts retries after the first attempt, so a
+     * maxAttempts of N maps to N-1 retries (maxAttempts=1 means a single try, no retry).
+     */
+    private fun platformRetryTemplate(): RetryTemplate {
+        val policy = RetryPolicy.builder()
+            .maxRetries((properties.maxAttempts - 1).coerceAtLeast(0).toLong())
+            .delay(Duration.ofMillis(properties.backoffMillis))
+            .multiplier(properties.backoffMultiplier)
+            .maxDelay(Duration.ofMillis(properties.backoffMaxInterval))
+            .build()
+        return RetryTemplate(policy)
     }
 
     /**
