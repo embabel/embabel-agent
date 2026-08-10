@@ -40,6 +40,12 @@ import java.util.concurrent.Executors
  * val service = detectProvider(AnthropicModelFactory(apiKey = userKey))
  * ```
  *
+ * Racing is only sound when any candidate that accepts the key is an acceptable answer. That
+ * holds for chat models, which are stateless per call. It does not hold for embedding models:
+ * the vector index is built at a fixed dimension, so which provider replies first must not be
+ * allowed to decide it. Build an embedding service from an explicitly chosen model instead of
+ * racing candidates here.
+ *
  * @param candidates One or more [ByokFactory] instances to race.
  * @return The service returned by the first successful factory.
  * @throws IllegalArgumentException if no candidates are supplied.

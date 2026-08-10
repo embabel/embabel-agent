@@ -307,6 +307,64 @@ val service = detectProvider(
 )
 ----
 
+===== Embedding services
+
+Embedding models are resolved through the same BYOK mechanism, so a key that arrives after
+startup can activate an embedding model without a restart.
+
+[source,kotlin]
+----
+// OpenAI
+val embeddings: EmbeddingService =
+    OpenAiCompatibleModelFactory.openAiEmbedding(userKey, "text-embedding-3-small")
+        .buildValidated()
+
+// Any OpenAI-compatible provider
+val acmeEmbeddings: EmbeddingService = OpenAiCompatibleModelFactory.byokEmbedding(
+    baseUrl = "https://api.acme.example.com/v1",
+    apiKey = userKey,
+    model = "acme-embed-small",
+    provider = "Acme",
+).buildValidated()
+----
+
+`buildValidated()` embeds a short probe text. On failure it throws `InvalidApiKeyException`.
+A *blank* key is treated as absent and rejected before any network call — in a container
+`OPENAI_API_KEY` is routinely set-but-empty, and that empty string would otherwise reach the
+provider and come back as an opaque authentication error. The message names the model: an
+embedding model name is caller-supplied and mandatory here, so a typo in it reaches the provider
+the same way a bad key does. On success the returned `EmbeddingService` already knows its
+dimension — it was observed during the probe — so no live `dimensions()` call is made later.
+
+Two things work differently from LLM BYOK, because an embedding model is a schema commitment
+rather than a stateless per-call service:
+
+* **No provider detection.** The vector index is built at a fixed dimension and every stored
+  vector must come from the same model at that dimension. Whichever provider happens to accept
+  a pasted key first must not be allowed to decide that, so there is no embedding equivalent of
+  `detectProvider()` and the model is always named explicitly.
+* **Installation or world scope, not per-user.** Per-user LLM keys are coherent; per-user
+  embedding keys are not, because vectors from different models would land in one shared index.
+  The dimension belongs to the store, not to the user.
+
+The dimension is never configured on the BYOK path — it is whatever the model actually returned
+during validation. When writing into an index that already exists, compare the two yourself
+before storing anything, since vectors of different widths cannot share an index:
+
+[source,kotlin]
+----
+val embeddings = OpenAiCompatibleModelFactory
+    .openAiEmbedding(userKey, "text-embedding-3-small")
+    .buildValidated()
+
+check(embeddings.dimensions == index.dimensions) {
+    "Index is ${index.dimensions}-dimensional; ${embeddings.name} returns ${embeddings.dimensions}"
+}
+----
+
+NOTE: Changing the embedding model of an existing corpus still requires re-embedding it. BYOK
+only builds and validates the service.
+
 ===== Using the validated service
 
 Once you have an `LlmService`, pass it directly to `PromptRunner` or `Ai` via
