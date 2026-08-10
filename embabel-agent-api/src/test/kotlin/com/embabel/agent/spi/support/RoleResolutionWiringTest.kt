@@ -36,6 +36,7 @@ import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -226,7 +227,7 @@ class RoleResolutionWiringTest {
                 validator = Validation.buildDefaultValidatorFactory().validator,
                 validationPromptGenerator = DefaultValidationPromptGenerator(),
                 templateRenderer = JinjavaTemplateRenderer(),
-                objectMapper = jacksonObjectMapper(),
+                embabelObjectMapperHolder = EmbabelObjectMapperHolder.createDefault(),
                 dataBindingProperties = LlmDataBindingProperties(),
                 asyncer = ExecutorAsyncer(Executors.newCachedThreadPool()),
             ),
