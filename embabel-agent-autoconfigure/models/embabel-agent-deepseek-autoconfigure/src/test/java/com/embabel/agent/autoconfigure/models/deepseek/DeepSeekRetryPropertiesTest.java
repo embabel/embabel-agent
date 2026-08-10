@@ -35,13 +35,13 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
  *
  * <p>{@code DeepSeekProperties} implements {@code RetryProperties} and binds
  * {@code embabel.agent.platform.models.deepseek.max-attempts}, so setting it to 1 must produce
- * exactly one HTTP attempt. It does not: the chat model is built without a retry template, so
- * Spring AI falls back to {@code RetryUtils.DEFAULT_RETRY_TEMPLATE} — eleven attempts, 2s initial
- * backoff, ×5 multiplier, capped at three minutes. Every retry property on this provider is
+ * exactly one HTTP attempt. It did not: the chat model was built without a retry template, so
+ * Spring AI fell back to {@code RetryUtils.DEFAULT_RETRY_TEMPLATE} — eleven attempts, 2s initial
+ * backoff, ×5 multiplier, capped at three minutes — and every retry property on this provider was
  * silently dead configuration.
  *
  * <p>The transport fails with an {@link IOException}, which {@code RestClient} wraps in a
- * {@code ResourceAccessException} — one of the two exception types that default template retries,
+ * {@code ResourceAccessException} — one of the two exception types that default template retried,
  * and the same one an unreachable host produced against the real API.
  */
 class DeepSeekRetryPropertiesTest {

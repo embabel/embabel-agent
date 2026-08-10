@@ -32,9 +32,9 @@ import java.util.concurrent.atomic.AtomicInteger
  *
  * [GoogleGenAiProperties] implements `RetryProperties` and binds
  * `embabel.agent.platform.models.googlegenai.max-attempts`, so setting it to 1 must leave the chat
- * model with a template that tries once and gives up. Instead the model is handed a bare
- * `RetryTemplate()`, whose `RetryPolicy.withDefaults()` retries every throwable three times over a
- * fixed one-second backoff — four attempts nobody configured, on errors that will never succeed.
+ * model with a template that tries once and gives up. Instead the model was handed a bare
+ * `RetryTemplate()`, whose `RetryPolicy.withDefaults()` retried every throwable three times over a
+ * fixed one-second backoff — four attempts nobody configured, on errors that would never succeed.
  *
  * The template is exercised directly rather than through a call: the Google GenAI SDK brings its
  * own transport, so there is no request factory to intercept, and the retry policy is the whole of
