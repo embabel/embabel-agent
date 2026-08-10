@@ -14,6 +14,10 @@
     <description>Deepseek Models for Embabel Agent API</description>
     <url>https://github.com/embabel/embabel-agent</url>
 
+    <properties>
+        <brotli.version>0.1.2</brotli.version>
+    </properties>
+
     <scm>
         <url>https://github.com/embabel/embabel-agent</url>
         <connection>scm:git:https://github.com/embabel/embabel-agent.git</connection>
@@ -58,7 +62,6 @@
         <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-netty-client-autoconfigure</artifactId>
-            <version>${project.version}</version>
             <scope>test</scope>
         </dependency>
 
@@ -76,7 +79,7 @@
         <dependency>
             <groupId>org.brotli</groupId>
             <artifactId>dec</artifactId>
-            <version>0.1.2</version>
+            <version>${brotli.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

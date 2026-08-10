@@ -19,69 +19,68 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
-import java.io.IOException;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 /**
  * Verifies that {@code DeepSeekModelsConfig} builds its HTTP client from the shared platform
  * {@code aiModelRestClientBuilder} bean (like every other provider), not from its own
  * {@code RestClient.builder()}.
  *
- * <p>Registers a sentinel builder carrying an interceptor and points DeepSeek at a local stub: if the
- * config consumes the shared bean the interceptor sees the request, otherwise it never fires. Red
- * before the refactor, green after.
+ * <p>The shared bean registered here is bound to a {@link MockRestServiceServer}: if the config
+ * consumes it, the request is served by the mock, otherwise it never arrives. Red before the refactor,
+ * green after. No socket, no port, no API key.
  *
  * <p>Which client the provider ends up with is the whole of this fix. Left to classpath detection it
  * lands on Apache HttpClient, which advertises a content coding it cannot decode, and every call fails
- * against the real API. Worth catching here rather than in production, and this needs no API key.
- *
- * <p>The sibling Mistral test proves the same property with a short timeout on the sentinel. That does
- * not transpose: this provider passes no {@code RetryTemplate} to the model, so Spring AI's default one
- * would retry the timeout with backoff and the test would take minutes. An interceptor states the
- * property directly and returns in milliseconds.
+ * against the real API.
  */
 class DeepSeekSharedClientBuilderTest {
 
+    private static final String BASE_URL = "https://api.deepseek.test";
+
+    /** A valid chat completion for {@code deepseek-v4-pro}. */
+    private static final String OK_RESPONSE = """
+            {"id":"cmpl-test","created":1700000000,"model":"deepseek-v4-pro","object":"chat.completion",\
+            "usage":{"prompt_tokens":1,"total_tokens":2,"completion_tokens":1},\
+            "choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"OK"}}]}""";
+
     @Test
-    void usesTheSharedPlatformRestClientBuilder() throws IOException {
-        var requestsThroughSharedBuilder = new AtomicInteger();
+    void usesTheSharedPlatformRestClientBuilder() {
+        var sharedBuilder = RestClient.builder();
+        var mockServer = MockRestServiceServer.bindTo(sharedBuilder).build();
+        mockServer.expect(requestTo(BASE_URL + "/chat/completions"))
+                .andRespond(withSuccess(OK_RESPONSE, MediaType.APPLICATION_JSON));
 
-        try (var server = StubDeepSeekServer.replyingWith(StubDeepSeekServer.OK_RESPONSE)) {
-            new ApplicationContextRunner()
-                    .withConfiguration(AutoConfigurations.of(AgentDeepSeekAutoConfiguration.class))
-                    .withBean("aiModelRestClientBuilder", RestClient.Builder.class,
-                            () -> RestClient.builder().requestInterceptor((request, body, execution) -> {
-                                requestsThroughSharedBuilder.incrementAndGet();
-                                return execution.execute(request, body);
-                            }))
-                    // Both spellings: the configuration reads the environment variables first, and one of
-                    // them is set on any machine that talks to the real API. Set here they cannot leak in.
-                    .withPropertyValues(
-                            "DEEPSEEK_API_KEY=test-key",
-                            "DEEPSEEK_BASE_URL=" + server.baseUrl(),
-                            "embabel.agent.platform.models.deepseek.api-key=test-key",
-                            "embabel.agent.platform.models.deepseek.base-url=" + server.baseUrl(),
-                            "embabel.agent.platform.models.deepseek.max-attempts=1"
-                    )
-                    .run(context -> {
-                        var model = context.getBeansOfType(SpringAiLlmService.class).values().stream()
-                                .filter(s -> "deepseek-v4-pro".equals(s.getName()))
-                                .findFirst()
-                                .orElseThrow(() -> new AssertionError("deepseek-v4-pro model not registered"));
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(AgentDeepSeekAutoConfiguration.class))
+                .withBean("aiModelRestClientBuilder", RestClient.Builder.class, () -> sharedBuilder)
+                // Both spellings: the configuration reads the environment variables first, and one of
+                // them is set on any machine that talks to the real API. Set here they cannot leak in.
+                .withPropertyValues(
+                        "DEEPSEEK_API_KEY=test-key",
+                        "DEEPSEEK_BASE_URL=" + BASE_URL,
+                        "embabel.agent.platform.models.deepseek.api-key=test-key",
+                        "embabel.agent.platform.models.deepseek.base-url=" + BASE_URL,
+                        "embabel.agent.platform.models.deepseek.max-attempts=1"
+                )
+                .run(context -> {
+                    var model = context.getBeansOfType(SpringAiLlmService.class).values().stream()
+                            .filter(s -> "deepseek-v4-pro".equals(s.getName()))
+                            .findFirst()
+                            .orElseThrow(() -> new AssertionError("deepseek-v4-pro model not registered"));
 
-                        var answer = model.getChatModel().call("hello");
-
-                        assertThat(answer)
-                                .as("the stub's canned completion must come back")
-                                .isEqualTo("OK");
-                        assertThat(requestsThroughSharedBuilder)
-                                .as("the call must go through the injected shared builder, not one the provider built")
-                                .hasValue(1);
-                    });
-        }
+                    assertThatCode(() -> assertThat(model.getChatModel().call("hello")).isEqualTo("OK"))
+                            .as("the mock bound to the shared builder must serve the call; anything else means "
+                                    + "the provider built its own client and went to the network")
+                            .doesNotThrowAnyException();
+                    mockServer.verify();
+                });
     }
 }
