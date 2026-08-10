@@ -20,16 +20,14 @@ import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.autonomy.AutonomyProperties
 import com.embabel.agent.api.common.autonomy.NoAgentFound
 import com.embabel.agent.api.common.ranking.Rankings
-import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.shell.config.ShellProperties
 import com.embabel.agent.spi.logging.ColorPalette
 import com.embabel.agent.spi.logging.LoggingPersonality
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import com.embabel.common.ai.model.ModelProvider
-import tools.jackson.databind.ObjectMapper
-import tools.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.*
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -48,7 +46,6 @@ class ShellCommandsContextTest {
     private val modelProvider: ModelProvider = mockk(relaxed = true)
     private val terminalServices: TerminalServices = mockk(relaxed = true)
     private val environment: ConfigurableEnvironment = mockk(relaxed = true)
-    private val objectMapper: ObjectMapper = jacksonObjectMapper()
     private val colorPalette: ColorPalette = object : ColorPalette {
         // Use no-op colors for testing (ANSI escape won't affect assertions)
         override val highlight: Int = 0xbeb780
@@ -77,7 +74,7 @@ class ShellCommandsContextTest {
             modelProvider = modelProvider,
             terminalServices = terminalServices,
             environment = environment,
-            objectMapper = objectMapper,
+            embabelObjectMapperHolder = EmbabelObjectMapperHolder.createDefault(),
             colorPalette = colorPalette,
             loggingPersonality = loggingPersonality,
             toolsStats = toolsStats,

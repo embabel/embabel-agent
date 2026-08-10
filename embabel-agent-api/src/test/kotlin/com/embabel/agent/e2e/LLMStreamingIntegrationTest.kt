@@ -35,7 +35,7 @@ import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.textio.template.TemplateRenderer
-import tools.jackson.databind.ObjectMapper
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import jakarta.validation.Validator
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
@@ -45,7 +45,6 @@ import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
 import org.springframework.ai.chat.prompt.ChatOptions
-import org.springframework.ai.chat.prompt.DefaultChatOptions
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.beans.factory.annotation.Autowired
@@ -129,14 +128,14 @@ class StreamingTestConfig {
         toolDecorator: ToolDecorator,
         validator: Validator,
         templateRenderer: TemplateRenderer,
-        objectMapper: ObjectMapper,
+        embabelObjectMapperHolder: EmbabelObjectMapperHolder,
     ): LlmOperations {
         return ChatClientLlmOperations(
             modelProvider = modelProvider,
             toolDecorator = toolDecorator,
             validator = validator,
             templateRenderer = templateRenderer,
-            objectMapper = objectMapper,
+            embabelObjectMapperHolder = embabelObjectMapperHolder,
             asyncer = com.embabel.agent.spi.support.ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
         )
     }

@@ -17,9 +17,9 @@ package com.embabel.agent.web.rest
 
 import com.embabel.agent.test.dsl.evenMoreEvilWizard
 import com.embabel.agent.core.*
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import com.embabel.common.test.ai.config.FakeAiConfiguration
 import tools.jackson.core.type.TypeReference
-import tools.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -42,7 +42,7 @@ class PlatformInfoControllerIntegrationTest(
     @param:Autowired
     private val mockMvc: MockMvc,
     @param:Autowired
-    private val objectMapper: ObjectMapper,
+    private val embabelObjectMapperHolder: EmbabelObjectMapperHolder,
     @param:Autowired
     private val agentPlatform: AgentPlatform,
 ) {
@@ -55,7 +55,7 @@ class PlatformInfoControllerIntegrationTest(
                 status().isOk()
             }.andReturn()
         val content = result.response.contentAsString
-        val retrievedAgents = objectMapper.readValue(content, object : TypeReference<List<AgentMetadata>>() {})
+        val retrievedAgents = embabelObjectMapperHolder.get().readValue(content, object : TypeReference<List<AgentMetadata>>() {})
         assertTrue(retrievedAgents.isNotEmpty(), "Must have some agents in $content")
     }
 
@@ -67,7 +67,7 @@ class PlatformInfoControllerIntegrationTest(
                 status().isOk()
             }.andReturn()
         val content = result.response.contentAsString
-        val retrievedGoals = objectMapper.readValue(content, object : TypeReference<List<Goal>>() {})
+        val retrievedGoals = embabelObjectMapperHolder.get().readValue(content, object : TypeReference<List<Goal>>() {})
         assertTrue(retrievedGoals.isNotEmpty(), "Must have some goals in $content")
     }
 
@@ -79,7 +79,7 @@ class PlatformInfoControllerIntegrationTest(
                 status().isOk()
             }.andReturn()
         val content = result.response.contentAsString
-        val retrievedGoals = objectMapper.readValue(content, object : TypeReference<List<ConditionMetadata>>() {})
+        val retrievedGoals = embabelObjectMapperHolder.get().readValue(content, object : TypeReference<List<ConditionMetadata>>() {})
         assertTrue(retrievedGoals.isNotEmpty(), "Must have some conditions in $content")
     }
 
@@ -91,7 +91,7 @@ class PlatformInfoControllerIntegrationTest(
                 status().isOk()
             }.andReturn()
         val content = result.response.contentAsString
-        val retrievedActions = objectMapper.readValue(content, object : TypeReference<List<ActionMetadata>>() {})
+        val retrievedActions = embabelObjectMapperHolder.get().readValue(content, object : TypeReference<List<ActionMetadata>>() {})
         assertTrue(retrievedActions.isNotEmpty(), "Must have some actions in $content")
     }
 
@@ -113,7 +113,7 @@ class PlatformInfoControllerIntegrationTest(
                 status().isOk()
             }.andReturn()
         val content = result.response.contentAsString
-        val retrievedActions = objectMapper.readValue(content, object : TypeReference<List<ToolGroupMetadata>>() {})
+        val retrievedActions = embabelObjectMapperHolder.get().readValue(content, object : TypeReference<List<ToolGroupMetadata>>() {})
         assertTrue(retrievedActions.isNotEmpty(), "Must have some tool groups in $content")
     }
 
@@ -126,7 +126,7 @@ class PlatformInfoControllerIntegrationTest(
                 status().isOk()
             }.andReturn()
         val content = result.response.contentAsString
-        val platformInfo = objectMapper.readValue(content, PlatformInfoSummary::class.java)
+        val platformInfo = embabelObjectMapperHolder.get().readValue(content, PlatformInfoSummary::class.java)
         assertEquals(1, platformInfo.agentCount)
         assertTrue(platformInfo.actionCount > 1)
 //        assertTrue(platformInfo.goalCount > 1)
