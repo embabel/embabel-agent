@@ -24,6 +24,7 @@ import com.embabel.agent.rag.model.RelationshipDirection
 import com.embabel.agent.rag.service.NamedEntityDataRepository
 import com.embabel.agent.rag.service.NativeFinder
 import com.embabel.agent.rag.service.RelationshipData
+import com.embabel.agent.rag.service.TextQueryMode
 import com.embabel.agent.rag.service.RetrievableIdentifier
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.core.types.SimilarityResult
@@ -117,6 +118,11 @@ open class InMemoryNamedEntityDataRepository @JvmOverloads constructor(
             .let { InMemoryPropertyFilter.filterResults(it, metadataFilter, entityFilter) }
             .take(request.topK)
     }
+
+    // Substring matching has no query parser, so an expression cannot be honoured however this is
+    // configured — the capability is absent, not merely switched off. Literal text is matched as
+    // given; unlike an engine-backed store there is nothing to enhance it with.
+    override val supportedQueryModes: Set<TextQueryMode> = setOf(TextQueryMode.LITERAL)
 
     override val luceneSyntaxNotes: String = "Basic substring matching only"
 
