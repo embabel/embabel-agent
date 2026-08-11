@@ -15,8 +15,11 @@
  */
 package com.embabel.agent.autoconfigure.models.byok;
 
+import com.embabel.agent.config.models.byok.SetupRequiredEmbedding;
 import com.embabel.agent.config.models.byok.SetupRequiredLlm;
 import com.embabel.agent.spi.LlmService;
+import com.embabel.agent.spi.PlaceholderEmbeddingService;
+import com.embabel.common.ai.model.EmbeddingService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -41,5 +44,33 @@ class AgentByokAutoConfigurationTest {
     void placeholderIsTheOnlyLlmServiceContributed() {
         contextRunner.run(context ->
                 assertThat(context.getBeansOfType(LlmService.class)).containsOnlyKeys(SetupRequiredLlm.NAME));
+    }
+
+    /**
+     * The embedding placeholder is a separate {@code @Import} on the autoconfiguration, and the
+     * assertions above pass with or without it: an {@link EmbeddingService} is not an
+     * {@link LlmService}, so dropping the import would leave every other test in this module green
+     * while a BYOK app using RAG went back to failing its context refresh.
+     */
+    @Test
+    void registersTheEmbeddingPlaceholderWithNoApiKeyConfigured() {
+        contextRunner.run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).hasBean(SetupRequiredEmbedding.NAME);
+            assertThat(context.getBean(SetupRequiredEmbedding.NAME))
+                    .isInstanceOf(EmbeddingService.class)
+                    .isInstanceOf(PlaceholderEmbeddingService.class);
+        });
+    }
+
+    /**
+     * Registered under the well-known name, because that is the value an operator puts in
+     * {@code embabel.models.default-embedding-model} and what the model provider matches against.
+     */
+    @Test
+    void embeddingPlaceholderIsTheOnlyEmbeddingServiceContributed() {
+        contextRunner.run(context ->
+                assertThat(context.getBeansOfType(EmbeddingService.class))
+                        .containsOnlyKeys(SetupRequiredEmbedding.NAME));
     }
 }
