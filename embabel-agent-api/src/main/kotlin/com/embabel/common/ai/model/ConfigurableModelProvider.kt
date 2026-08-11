@@ -140,7 +140,7 @@ class ConfigurableModelProvider(
      * until a real model is registered - the property, not a type test, because it survives
      * wrapping.
      */
-    private fun placeholderEmbeddingService(warn: Boolean = true): EmbeddingService? =
+    private fun placeholderEmbeddingService(warn: Boolean): EmbeddingService? =
         embeddingServices.firstOrNull { it.awaitingKey }
             ?.also {
                 if (warn) logger.warn(

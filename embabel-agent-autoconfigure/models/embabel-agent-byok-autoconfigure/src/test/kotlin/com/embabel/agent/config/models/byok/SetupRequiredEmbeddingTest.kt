@@ -48,6 +48,9 @@ class SetupRequiredEmbeddingTest {
          * an index from a dimension nobody can vouch for.
          */
         assertThat(service).isInstanceOf(PlaceholderEmbeddingService::class.java)
+        // Identifies itself in logs and model listings — an operator reading "why is retrieval
+        // empty" should see which service answered, not a bare class@hashcode.
+        assertThat(service.toString()).contains(SetupRequiredEmbedding.NAME)
     }
 
     /**
