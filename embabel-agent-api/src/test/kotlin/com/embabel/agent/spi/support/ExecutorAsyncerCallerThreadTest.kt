@@ -19,6 +19,7 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.AgentProcess.Companion.withCurrent
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotSame
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -163,6 +164,57 @@ class ExecutorAsyncerCallerThreadTest {
                 release.countDown()
                 pool.shutdown()
                 pool.awaitTermination(10, TimeUnit.SECONDS)
+            }
+        }
+    }
+
+    /**
+     * The two executors [com.embabel.agent.spi.config.spring.AsyncConfiguration] builds when
+     * Embabel owns its executor - which is the default, since `threading.shared` is false.
+     *
+     * Neither can run a task on the submitting thread: a cached pool always hands off to a worker,
+     * and a thread-per-task executor always starts a new virtual thread. So neither is affected by
+     * the defect this class is about, before or after the fix. They are here to mark that boundary,
+     * and to answer "does this happen on virtual threads" with a test rather than an argument.
+     */
+    @Nested
+    inner class OwnedExecutorsNeverRunOnTheCaller {
+
+        @Test
+        fun `virtual thread per task - the task runs elsewhere and the caller keeps its process`() {
+            val pool = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().factory())
+            try {
+                assertRunsElsewhereAndPreservesCaller(ExecutorAsyncer(pool))
+            } finally {
+                pool.shutdown()
+                pool.awaitTermination(10, TimeUnit.SECONDS)
+            }
+        }
+
+        @Test
+        fun `cached platform pool - the task runs elsewhere and the caller keeps its process`() {
+            val pool = Executors.newCachedThreadPool(Thread.ofPlatform().factory())
+            try {
+                assertRunsElsewhereAndPreservesCaller(ExecutorAsyncer(pool))
+            } finally {
+                pool.shutdown()
+                pool.awaitTermination(10, TimeUnit.SECONDS)
+            }
+        }
+
+        private fun assertRunsElsewhereAndPreservesCaller(asyncer: ExecutorAsyncer) {
+            val outer = mockk<AgentProcess>()
+            outer.withCurrent {
+                val callerThread = Thread.currentThread()
+                val ranOn = AtomicReference<Thread>()
+                val seen = asyncer.async {
+                    ranOn.set(Thread.currentThread())
+                    AgentProcess.get()
+                }.get(10, TimeUnit.SECONDS)
+
+                assertNotSame(callerThread, ranOn.get(), "this executor is not supposed to run on the caller")
+                assertSame(outer, seen, "the worker must still see the caller's process")
+                assertSame(outer, AgentProcess.get(), "and the caller must still hold it")
             }
         }
     }
