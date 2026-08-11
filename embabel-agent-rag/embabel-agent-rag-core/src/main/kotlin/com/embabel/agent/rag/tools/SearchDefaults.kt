@@ -38,6 +38,7 @@ import com.embabel.common.core.types.ZeroToOne
 data class SearchDefaults @JvmOverloads constructor(
     val vectorSimilarityThreshold: ZeroToOne = DEFAULT_VECTOR_SIMILARITY_THRESHOLD,
     val textSimilarityThreshold: ZeroToOne = DEFAULT_TEXT_SIMILARITY_THRESHOLD,
+    val expandNeighbours: Int = DEFAULT_EXPAND_NEIGHBOURS,
 ) {
 
     init {
@@ -47,6 +48,9 @@ data class SearchDefaults @JvmOverloads constructor(
         require(textSimilarityThreshold in 0.0..1.0) {
             "textSimilarityThreshold must be in 0.0..1.0, was $textSimilarityThreshold"
         }
+        require(expandNeighbours >= 0) {
+            "expandNeighbours must be >= 0, was $expandNeighbours"
+        }
     }
 
     companion object {
@@ -54,6 +58,28 @@ data class SearchDefaults @JvmOverloads constructor(
         const val DEFAULT_VECTOR_SIMILARITY_THRESHOLD: ZeroToOne = 0.25
 
         const val DEFAULT_TEXT_SIMILARITY_THRESHOLD: ZeroToOne = 0.0
+
+        /**
+         * Neighbouring chunks fetched around every search hit, automatically.
+         *
+         * ZERO by default: today's behaviour, where context is only ever widened if the model
+         * thinks to call `broadenChunk` itself. That is a lot to expect — measured on a
+         * 69-page statute, recovering a severed provision needed `chunksToAdd` of about 12
+         * against a tool default of 2, and the model has no way to know that.
+         *
+         * The failure this addresses is structural rather than a ranking problem: a chunker
+         * splitting an oversized leaf can separate a provision from the sentence that governs
+         * it, so the retrieved chunk carries "(i) investments ..." and not what the list is
+         * FOR. Widening chunks at INGESTION was measured and is worse (30.67 against a 33
+         * baseline) because it dilutes every embedding and makes siblings alike. Expanding
+         * AFTER the match leaves embeddings untouched and pays only for what actually hit.
+         *
+         * Not free, and off by default for that reason: every hit costs a store round trip
+         * and enlarges what the model reads, and irrelevant passages actively degrade
+         * generation. Raise it where the corpus is continuous prose whose meaning runs across
+         * chunk boundaries; leave it at 0 for corpora of self-contained records.
+         */
+        const val DEFAULT_EXPAND_NEIGHBOURS: Int = 0
 
         @JvmField
         val DEFAULT: SearchDefaults = SearchDefaults()

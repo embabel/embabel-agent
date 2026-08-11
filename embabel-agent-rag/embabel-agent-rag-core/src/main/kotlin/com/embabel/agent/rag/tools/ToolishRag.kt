@@ -155,6 +155,7 @@ data class ToolishRag @JvmOverloads constructor(
                 add(
                     VectorSearchTools(
                         searchOperations, vectorSearchFor, metadataFilter, entityFilter, listener, searchDefaults,
+                        searchOperations as? ResultExpander,
                     )
                 )
             } else {
@@ -171,6 +172,7 @@ data class ToolishRag @JvmOverloads constructor(
                 add(
                     TextSearchTools(
                         searchOperations, textSearchFor, metadataFilter, entityFilter, listener, searchDefaults,
+                        searchOperations as? ResultExpander,
                     )
                 )
             }
