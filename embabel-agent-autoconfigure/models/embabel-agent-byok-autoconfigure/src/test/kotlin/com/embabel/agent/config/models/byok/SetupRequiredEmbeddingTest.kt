@@ -197,6 +197,50 @@ class SetupRequiredEmbeddingTest {
             .hasMessageContaining("text-embedding-3-small")
     }
 
+    /**
+     * A role pointed straight at the placeholder. An application that wires roles (memory,
+     * retrieval) has to be able to say "not yet" for them too, not only for the default — and role
+     * resolution takes a different branch of `getEmbeddingService`, which nothing else here covers.
+     */
+    @Test
+    fun `a role naming the placeholder resolves to it`() {
+        val provider = ConfigurableModelProvider(
+            llms = listOf(SetupRequiredLlm.llmService()),
+            embeddingServices = listOf(SetupRequiredEmbedding.embeddingService()),
+            properties = ConfigurableModelProviderProperties(
+                defaultLlm = SetupRequiredLlm.NAME,
+                defaultEmbeddingModel = SetupRequiredEmbedding.NAME,
+                embeddingServices = mapOf("memory" to SetupRequiredEmbedding.NAME),
+            ),
+        )
+
+        val resolved = provider.getEmbeddingService(ByRoleModelSelectionCriteria("memory"))
+
+        assertThat(resolved).isInstanceOf(PlaceholderEmbeddingService::class.java)
+        assertThatThrownBy { resolved.dimensions }
+            .isInstanceOf(NoEmbeddingServiceConfiguredException::class.java)
+    }
+
+    /**
+     * The placeholder is listed like any other registered model. Worth pinning either way, because
+     * `listModels` feeds operator-facing surfaces: whichever answer is right, it should be a
+     * decision rather than an accident, and a UI showing "setup-required-embedding" as an available
+     * model is the visible consequence.
+     */
+    @Test
+    fun `the placeholder appears in listModels`() {
+        val provider = ConfigurableModelProvider(
+            llms = listOf(SetupRequiredLlm.llmService()),
+            embeddingServices = listOf(SetupRequiredEmbedding.embeddingService()),
+            properties = ConfigurableModelProviderProperties(
+                defaultLlm = SetupRequiredLlm.NAME,
+                defaultEmbeddingModel = SetupRequiredEmbedding.NAME,
+            ),
+        )
+
+        assertThat(provider.listModels().map { it.name }).contains(SetupRequiredEmbedding.NAME)
+    }
+
     private class FakeEmbeddingService(
         override val name: String,
         override val dimensions: Int,
