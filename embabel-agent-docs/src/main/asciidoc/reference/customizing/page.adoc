@@ -460,6 +460,46 @@ try {
 In normal operation the placeholder is never reached: resolve the user's key, build a service with
 one of the factories above, and pass it to `withLlmService()`.
 
+**Point `default-embedding-model` at the embedding placeholder, if the application uses RAG or
+memory.** Anything that resolves the default embedding service while its own beans are being
+created — which is what RAG and memory components do — would otherwise fail the context refresh,
+for the same reason the LLM side did before its placeholder existed:
+
+[source,yaml]
+----
+embabel:
+  models:
+    default-llm: setup-required
+    default-embedding-model: setup-required-embedding
+----
+
+The name is available as `SetupRequiredEmbedding.NAME`. Calls that reach it throw
+`NoEmbeddingServiceConfiguredException`, the embedding counterpart of `NoLlmConfiguredException`.
+
+CAUTION: The embedding placeholder *refuses to report a dimension*. `dimensions` throws like every
+other call rather than returning a number, and this is deliberate. Any value it returned would be
+used to create a vector index; writes to that index would succeed; and a real model configured
+later would silently disagree with everything already stored. That failure surfaces as bad search
+results rather than as an error, which is far worse than not starting.
+
+So code that provisions a vector index must ask *whether there is a model yet* rather than call
+`dimensions` and handle the failure — a thrown exception cannot be told apart from a provider that
+is merely unreachable right now. Test for the marker and skip:
+
+[source,kotlin]
+----
+if (embeddingService is PlaceholderEmbeddingService) {
+    // No model yet. Skip provisioning — do NOT invent a dimension.
+    logger.info("Awaiting an embedding key; vector index not provisioned yet")
+} else {
+    provisioner.ensure(VectorIndexSpec(label, "embedding", embeddingService.dimensions))
+}
+----
+
+Skipping is recoverable. The check is a type test rather than a call, so it costs nothing to repeat
+— provision on the next boot, or re-check at the point of use if the deployment takes its key from a
+settings screen and never restarts.
+
 NOTE: The starter stops at the factories and the placeholder. Key storage and lifecycle remain the
 application's responsibility, as described under <<reference.customizing.byok>> above.
 
