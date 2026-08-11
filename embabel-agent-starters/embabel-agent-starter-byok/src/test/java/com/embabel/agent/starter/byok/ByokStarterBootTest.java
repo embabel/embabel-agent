@@ -212,7 +212,9 @@ class ByokStarterBootTest {
                 if (embeddingService instanceof PlaceholderEmbeddingService) {
                     skippedBecausePlaceholder = true;
                 } else {
-                    var ignored = embeddingService.getDimensions();
+                    // Reading the dimension is the point: it is what a provisioner would do, and
+                    // what must never happen while the service is a placeholder.
+                    embeddingService.getDimensions();
                     provisioned = true;
                 }
             }

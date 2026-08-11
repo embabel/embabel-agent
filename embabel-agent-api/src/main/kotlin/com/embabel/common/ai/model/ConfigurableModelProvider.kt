@@ -16,7 +16,6 @@
 package com.embabel.common.ai.model
 
 import com.embabel.agent.spi.LlmService
-import com.embabel.agent.spi.PlaceholderEmbeddingService
 import com.embabel.agent.spi.PlaceholderLlmService
 import com.embabel.common.util.indent
 import com.embabel.common.util.loggerFor
