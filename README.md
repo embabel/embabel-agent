@@ -1419,7 +1419,15 @@ This file also informs coding agent behavior.
 
 ## Star history
 
-[![Star History Chart](https://api.star-history.com/svg?repos=embabel/embabel-agent&type=Date)](https://star-history.com/#embabel/embabel-agent&Date)
+## Star History
+
+<a href="https://www.star-history.com/?type=date&repos=embabel%2Fembabel-agent">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=embabel/embabel-agent&type=date&theme=dark&legend=top-left&sealed_token=o_Xas8flsJ6FnBc3OsNxlONU7injjAqptb37gc2ndwhbXuMGU9Jh9KLQWdlwB5Q_64JvuTvugY_DjT9VwFUTh16vEVNIcLK_VnkygJoDzN1PSH1rT_94LA" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=embabel/embabel-agent&type=date&legend=top-left&sealed_token=o_Xas8flsJ6FnBc3OsNxlONU7injjAqptb37gc2ndwhbXuMGU9Jh9KLQWdlwB5Q_64JvuTvugY_DjT9VwFUTh16vEVNIcLK_VnkygJoDzN1PSH1rT_94LA" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=embabel/embabel-agent&type=date&legend=top-left&sealed_token=o_Xas8flsJ6FnBc3OsNxlONU7injjAqptb37gc2ndwhbXuMGU9Jh9KLQWdlwB5Q_64JvuTvugY_DjT9VwFUTh16vEVNIcLK_VnkygJoDzN1PSH1rT_94LA" />
+ </picture>
+</a>
 
 ## Contributors
 
