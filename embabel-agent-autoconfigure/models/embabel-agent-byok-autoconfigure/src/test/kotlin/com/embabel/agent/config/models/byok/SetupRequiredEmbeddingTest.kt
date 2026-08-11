@@ -16,10 +16,13 @@
 package com.embabel.agent.config.models.byok
 
 import com.embabel.agent.spi.PlaceholderEmbeddingService
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.common.ai.model.ByRoleModelSelectionCriteria
 import com.embabel.common.ai.model.ConfigurableModelProvider
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
 import com.embabel.common.ai.model.DefaultModelSelectionCriteria
 import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.NoSuitableModelException
 import com.embabel.common.ai.model.PricingModel
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
@@ -148,6 +151,49 @@ class SetupRequiredEmbeddingTest {
 
         assertThatThrownBy { modelProvider.getEmbeddingService(DefaultModelSelectionCriteria) }
             .isInstanceOf(IllegalArgumentException::class.java)
+            .hasMessageContaining("text-embedding-3-small")
+    }
+
+    /**
+     * The mixed deployment: a server-side chat key, embedding keys arriving at runtime. Before the
+     * embedding gate was split from the LLM one this failed its context refresh on the embedding
+     * ROLE — the placeholder rescued `default-embedding-model` while the role check still treated
+     * the unregistered name as a typo, which is the startup failure #1909 exists to remove.
+     */
+    @Test
+    fun `a real LLM with byok embeddings still starts with an unregistered embedding role`() {
+        val provider = ConfigurableModelProvider(
+            llms = listOf(SpringAiLlmService("real-llm", "acme", SetupRequiredChatModel())),
+            embeddingServices = listOf(SetupRequiredEmbedding.embeddingService()),
+            properties = ConfigurableModelProviderProperties(
+                defaultLlm = "real-llm",
+                defaultEmbeddingModel = SetupRequiredEmbedding.NAME,
+                embeddingServices = mapOf("memory" to "text-embedding-3-small"),
+            ),
+        )
+
+        // Started. Asking for that role still fails, which is the point — deferred, not softened.
+        assertThatThrownBy { provider.getEmbeddingService(ByRoleModelSelectionCriteria("memory")) }
+            .isInstanceOf(NoSuitableModelException::class.java)
+    }
+
+    /**
+     * The complement, so the split gate cannot quietly become permissive: with no embedding
+     * placeholder anywhere, an unresolvable embedding role is still a typo and still fatal.
+     */
+    @Test
+    fun `without an embedding placeholder an unregistered embedding role is still fatal`() {
+        assertThatThrownBy {
+            ConfigurableModelProvider(
+                llms = listOf(SpringAiLlmService("real-llm", "acme", SetupRequiredChatModel())),
+                embeddingServices = listOf(FakeEmbeddingService("text-embedding-3-large", dimensions = 3072)),
+                properties = ConfigurableModelProviderProperties(
+                    defaultLlm = "real-llm",
+                    defaultEmbeddingModel = "text-embedding-3-large",
+                    embeddingServices = mapOf("memory" to "text-embedding-3-small"),
+                ),
+            )
+        }.isInstanceOf(IllegalStateException::class.java)
             .hasMessageContaining("text-embedding-3-small")
     }
 

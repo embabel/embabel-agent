@@ -110,9 +110,20 @@ class ConfigurableModelProvider(
 
     // Compute this lazily as embedding services may not be available
     private fun defaultEmbeddingService() =
-        embeddingServices.firstOrNull { it.name == properties.defaultEmbeddingModel }
-            ?: placeholderEmbeddingService()
+        resolveDefaultEmbeddingService(warnOnFallback = true)
             ?: throw IllegalArgumentException("Default embedding service '${properties.defaultEmbeddingModel}' not found in available models: ${embeddingServices.map { it.name }}")
+
+    /**
+     * What `default-embedding-model` resolves to, or null if it resolves to nothing.
+     *
+     * Separate from [defaultEmbeddingService] because [embeddingSetupRequired] has to ask the
+     * question during construction, where throwing would take down the deployments this whole
+     * mechanism exists to let start - one with no embedding configuration at all resolves to
+     * nothing here and must still boot, since nothing has asked for an embedding yet.
+     */
+    private fun resolveDefaultEmbeddingService(warnOnFallback: Boolean): EmbeddingService? =
+        embeddingServices.firstOrNull { it.name == properties.defaultEmbeddingModel }
+            ?: placeholderEmbeddingService(warn = warnOnFallback)
 
     /**
      * The registered embedding placeholder, if this deployment carries one.
@@ -128,15 +139,27 @@ class ConfigurableModelProvider(
      * Consumers that provision a vector index should test for [PlaceholderEmbeddingService] and
      * skip until a real model is registered.
      */
-    private fun placeholderEmbeddingService(): EmbeddingService? =
+    private fun placeholderEmbeddingService(warn: Boolean = true): EmbeddingService? =
         embeddingServices.firstOrNull { it is PlaceholderEmbeddingService }
             ?.also {
-                logger.warn(
+                if (warn) logger.warn(
                     "Default embedding service '{}' is not registered; falling back to the '{}' placeholder. " +
                         "Embedding will fail with an actionable 'no embedding service configured' error until a key is supplied. Available: {}",
                     properties.defaultEmbeddingModel, it.name, embeddingServices.map { it.name },
                 )
             }
+
+    /**
+     * Whether this deployment is waiting for an EMBEDDING key, the counterpart of [setupRequired].
+     *
+     * Separate, because the two halves are configured independently: an application can hold a
+     * server-side chat key while embedding keys arrive per user, or the reverse. Deriving the
+     * embedding gate from [setupRequired] made a deployment with a real LLM fail its context
+     * refresh on an embedding role it has no key for yet - exactly the startup failure the
+     * placeholder exists to remove, reappearing in the mixed configuration.
+     */
+    private val embeddingSetupRequired: Boolean =
+        resolveDefaultEmbeddingService(warnOnFallback = false) is PlaceholderEmbeddingService
 
     init {
         properties.llms.forEach { (role, model) ->
@@ -170,8 +193,14 @@ class ConfigurableModelProvider(
                  * an embedding model is a schema commitment and nothing can stand in for one.
                  * The gate decides only whether the deployment STARTS; asking for the service
                  * still throws.
+                 *
+                 * Either gate opens it. [setupRequired] alone was not enough: the two halves are
+                 * configured independently, so a deployment holding a chat key while embedding keys
+                 * arrive at runtime is awaiting one here and was failing to start. [setupRequired]
+                 * still counts on its own, because a deployment awaiting a chat key has registered
+                 * nothing at all yet, embedding services included.
                  */
-                if (setupRequired) {
+                if (setupRequired || embeddingSetupRequired) {
                     logger.warn(
                         "Embedding model '{}' for role '{}' is not registered. This deployment is awaiting a key, " +
                             "so that is expected; asking for that role will still fail. Available: {}",
