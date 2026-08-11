@@ -50,7 +50,7 @@ class Gpt53ChatTestConfig
 
 @SpringBootTest(
     properties = [
-        "embabel.models.default-llm=gpt-5.3-chat-latest",
+        "embabel.models.default-llm=gpt-5.6-terra",
         "embabel.agent.platform.models.openai.max-attempts=1",
         "spring.main.allow-bean-definition-overriding=true",
     ]
@@ -82,16 +82,16 @@ class Gpt53ChatIntegrationIT(
         val llm = findLlm()
 
         // Verify against OpenAI API
-        val response = sayReady(ai, OpenAiModels.GPT_53_CHAT_LATEST)
+        val response = sayReady(ai, OpenAiModels.GPT_56_TERRA)
 
         assertTrue(response.isNotBlank(), "Expected non-empty response from GPT-5.3 Chat")
         assertTrue(response.contains("READY", ignoreCase = true), "Expected GPT-5.3 Chat to reply with READY, got: $response")
-        assertEquals(OpenAiModels.GPT_53_CHAT_LATEST, llm?.name)
+        assertEquals(OpenAiModels.GPT_56_TERRA, llm?.name)
     }
 
     private fun findLlm(): LlmService<*>? {
 
-        return llms.find { it.name == OpenAiModels.GPT_53_CHAT_LATEST }
+        return llms.find { it.name == OpenAiModels.GPT_56_TERRA }
     }
 
     override fun toString(): String {
