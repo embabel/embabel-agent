@@ -1417,8 +1417,6 @@ This file also informs coding agent behavior.
 - Don't forget to join [Discord](https://discord.gg/t6bjkyj93q) to collaborate with the Embabel community. It is a good
   place to receive support, showcase your work, discuss ideas and connect with like-minded people.
 
-## Star history
-
 ## Star History
 
 <a href="https://www.star-history.com/?type=date&repos=embabel%2Fembabel-agent">
