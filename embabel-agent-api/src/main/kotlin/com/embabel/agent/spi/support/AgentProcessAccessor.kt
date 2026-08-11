@@ -43,4 +43,31 @@ object AgentProcessAccessor {
     fun reset() {
         AgentProcess.remove()
     }
+
+    /**
+     * Run [block] with [value] as the current process, restoring whatever the thread held before -
+     * which is not always nothing.
+     *
+     * [reset] clears the slot outright. That is right for a pooled worker that arrived empty, and
+     * wrong the moment a task runs on a thread that is already inside a process. An [java.util.concurrent.Executor]
+     * is free to do exactly that: a direct executor always does, and a [java.util.concurrent.ThreadPoolExecutor]
+     * with [java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy] does once its queue fills - so
+     * the behaviour appears under load and not in development.
+     *
+     * The submitting thread then comes back from the task holding no process. Nothing throws there.
+     * The next [AgentProcess.get] returns null, typically a blackboard read some distance away, so
+     * the symptom is "the blackboard lost my object" and the cause is several frames back.
+     */
+    fun <T> with(value: AgentProcess?, block: () -> T): T {
+        if (value == null) {
+            return block()
+        }
+        val previous = getValue()
+        setValue(value)
+        return try {
+            block()
+        } finally {
+            if (previous != null) setValue(previous) else reset()
+        }
+    }
 }

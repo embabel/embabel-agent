@@ -42,14 +42,10 @@ class ExecutorAsyncer(
 
         return CompletableFuture.supplyAsync({
             contextSnapshot.setThreadLocals().use {
-                if (agentProcess != null) {
-                    AgentProcessAccessor.setValue(agentProcess)
-                    try {
-                        block()
-                    } finally {
-                        AgentProcessAccessor.reset() // cleanup
-                    }
-                } else {
+                // Restores rather than clears: nothing leaks between tasks on a pooled thread, and
+                // nothing is wiped when the executor runs the task on the submitting thread, which
+                // is already inside a process.
+                AgentProcessAccessor.with(agentProcess) {
                     block()
                 }
             }
