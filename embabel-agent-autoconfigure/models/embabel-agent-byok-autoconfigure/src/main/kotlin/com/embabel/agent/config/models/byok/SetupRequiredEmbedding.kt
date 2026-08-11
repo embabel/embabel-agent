@@ -111,5 +111,11 @@ internal class SetupRequiredEmbeddingService : EmbeddingService, PlaceholderEmbe
     override val dimensions: Int
         get() = throw NoEmbeddingServiceConfiguredException(SetupRequiredEmbedding.MESSAGE)
 
+    /**
+     * The question consumers actually ask. It rides through `by` delegation, so a wrapper around
+     * this one still answers true — which a `is PlaceholderEmbeddingService` test would not.
+     */
+    override val awaitingKey: Boolean = true
+
     override fun toString(): String = "SetupRequiredEmbeddingService(name=$name)"
 }

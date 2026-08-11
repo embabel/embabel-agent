@@ -34,14 +34,21 @@ package com.embabel.agent.spi
  * rather than as an error — the worst kind, because nothing points at the cause.
  *
  * So `dimensions` fails like every other call. A consumer that provisions a vector index must
- * therefore ask **whether the service is a placeholder** and skip, rather than call `dimensions`
- * and handle the exception: catching means the decision is made from a failure, and a failure
- * cannot be told apart from a provider that is merely unreachable right now. Checking the marker
- * makes "there is no model yet" a state the consumer can read directly.
+ * therefore ask **whether there is a model yet** and skip, rather than call `dimensions` and handle
+ * the exception: catching means the decision is made from a failure, and a failure cannot be told
+ * apart from a provider that is merely unreachable right now.
+ *
+ * Ask it through [com.embabel.common.ai.model.EmbeddingService.awaitingKey], NOT by testing for
+ * this interface. Wrapping is common — event tracking decorates the configured service,
+ * applications add layers to hot-swap the model or meter it — and a wrapper around a placeholder is
+ * not itself a placeholder, so a type test answers about the outermost layer and reports "there is
+ * a model". The property rides through Kotlin's `by` delegation to any depth. This interface marks
+ * the implementation; the property is the question.
  *
  * Skipping is recoverable. The index is created once a real model is registered — on the next
- * boot, or sooner for a consumer that re-checks, since the check is a type test rather than a call
- * and costs nothing to repeat.
+ * boot, or sooner for a consumer that re-checks, since reading the property costs nothing to
+ * repeat. A consumer that wants recovery without a restart must re-resolve the service rather than
+ * hold the reference it was given, since the one it holds is the placeholder and stays so.
  *
  * Implemented by `SetupRequiredEmbedding` in `embabel-agent-byok-autoconfigure`. It lives here,
  * next to [PlaceholderLlmService], because `com.embabel.common.ai.model.ConfigurableModelProvider`

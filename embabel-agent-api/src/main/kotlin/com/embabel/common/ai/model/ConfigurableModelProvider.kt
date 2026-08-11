@@ -136,11 +136,12 @@ class ConfigurableModelProvider(
      * embedding model is a schema commitment and nothing can stand in for one. What the fallback
      * buys is that the deployment STARTS: a consumer resolving the default embedding service while
      * its beans are being created no longer takes down the context before any BYOK code can run.
-     * Consumers that provision a vector index should test for [PlaceholderEmbeddingService] and
-     * skip until a real model is registered.
+     * Consumers that provision a vector index should ask [EmbeddingService.awaitingKey] and skip
+     * until a real model is registered - the property, not a type test, because it survives
+     * wrapping.
      */
     private fun placeholderEmbeddingService(warn: Boolean = true): EmbeddingService? =
-        embeddingServices.firstOrNull { it is PlaceholderEmbeddingService }
+        embeddingServices.firstOrNull { it.awaitingKey }
             ?.also {
                 if (warn) logger.warn(
                     "Default embedding service '{}' is not registered; falling back to the '{}' placeholder. " +
@@ -159,7 +160,7 @@ class ConfigurableModelProvider(
      * placeholder exists to remove, reappearing in the mixed configuration.
      */
     private val embeddingSetupRequired: Boolean =
-        resolveDefaultEmbeddingService(warnOnFallback = false) is PlaceholderEmbeddingService
+        resolveDefaultEmbeddingService(warnOnFallback = false)?.awaitingKey == true
 
     init {
         properties.llms.forEach { (role, model) ->

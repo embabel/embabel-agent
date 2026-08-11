@@ -241,6 +241,34 @@ class SetupRequiredEmbeddingTest {
         assertThat(provider.listModels().map { it.name }).contains(SetupRequiredEmbedding.NAME)
     }
 
+    /**
+     * The property, not the marker, is what consumers ask — because this is what happens to a type
+     * test the moment anything decorates the service, which the framework's own event tracking
+     * already does. `by` delegation forwards the property to any depth for free.
+     */
+    @Test
+    fun `awaitingKey survives wrapping, where a type test does not`() {
+        val wrapped: EmbeddingService = Wrapper(Wrapper(SetupRequiredEmbedding.embeddingService()))
+
+        assertThat(wrapped is PlaceholderEmbeddingService)
+            .describedAs("a type test sees only the outermost layer")
+            .isFalse()
+        assertThat(wrapped.awaitingKey)
+            .describedAs("the question consumers actually ask")
+            .isTrue()
+    }
+
+    @Test
+    fun `a wrapped real service is not awaiting a key`() {
+        val wrapped: EmbeddingService = Wrapper(FakeEmbeddingService("text-embedding-3-small", dimensions = 1536))
+
+        assertThat(wrapped.awaitingKey).isFalse()
+        assertThat(wrapped.dimensions).isEqualTo(1536)
+    }
+
+    /** Stands in for any decorator — event tracking, metering, a hot-swappable model holder. */
+    private class Wrapper(delegate: EmbeddingService) : EmbeddingService by delegate
+
     private class FakeEmbeddingService(
         override val name: String,
         override val dimensions: Int,

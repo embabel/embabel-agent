@@ -488,7 +488,7 @@ is merely unreachable right now. Test for the marker and skip:
 
 [source,kotlin]
 ----
-if (embeddingService is PlaceholderEmbeddingService) {
+if (embeddingService.awaitingKey) {
     // No model yet. Skip provisioning — do NOT invent a dimension.
     logger.info("Awaiting an embedding key; vector index not provisioned yet")
 } else {
@@ -496,9 +496,40 @@ if (embeddingService is PlaceholderEmbeddingService) {
 }
 ----
 
-Skipping is recoverable. The check is a type test rather than a call, so it costs nothing to repeat
-— provision on the next boot, or re-check at the point of use if the deployment takes its key from a
-settings screen and never restarts.
+Three things about that check are easy to get wrong, and each costs an afternoon.
+
+**Ask `awaitingKey`, never `is PlaceholderEmbeddingService`.** Wrapping is common — event tracking
+decorates the configured service, and applications add layers for hot-swapping the model, metering,
+or per-tenant routing. A wrapper around a placeholder is not itself a placeholder, so a type test
+answers "there is a model" and the caller commits an index at a dimension it obtained by catching an
+exception. `awaitingKey` is a property of the interface, so Kotlin's `by` delegation forwards it
+through any depth of wrapping at no cost.
+
+CAUTION: A wrapper that implements `EmbeddingService` member by member rather than `by delegate`
+must forward `awaitingKey` explicitly. It defaults to false, so a wrapper that forgets reports
+"there is a model" on behalf of one that cannot embed.
+
+**Re-resolve the reference; do not hold it.** The marker lives on the object, so a held reference
+that *is* the placeholder stays the placeholder for the life of the process — re-checking it can
+never notice the key arriving, and recovery needs a restart. A component that wants to start working
+without one should take a supplier and ask the platform each time:
+
+[source,kotlin]
+----
+class MyProvisioner(private val embeddingService: () -> EmbeddingService) {
+    fun ensure() {
+        val embeddings = embeddingService()          // asks again; the answer changes
+        if (embeddings.isAwaitingKey()) return
+        // ... provision at embeddings.dimensions
+    }
+}
+----
+
+**The marker answers "is there a model yet", not "is it still the same one".** Once a real model is
+registered the placeholder is out of the picture, and a later change to a model of a different width
+is a different problem: the existing index keeps its original dimension, and vectors written under
+the new model disagree with everything already stored. That is drift, and it needs the corpus
+re-embedded — see the note under <<Embedding services>> above.
 
 NOTE: The starter stops at the factories and the placeholder. Key storage and lifecycle remain the
 application's responsibility, as described under <<reference.customizing.byok>> above.
