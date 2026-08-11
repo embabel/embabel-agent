@@ -66,7 +66,7 @@ class ConfigurableModelProviderTest {
         override val name = "setup-required-embedding"
         override val provider = "none"
         override val pricingModel: PricingModel? = null
-        override val awaitingKey = true
+        override val awaitingProviderKey = true
         override fun embed(text: String): FloatArray = error("no embedding service configured")
         override fun embed(texts: List<String>): List<FloatArray> = error("no embedding service configured")
         override val dimensions: Int get() = error("no embedding service configured")
@@ -373,7 +373,7 @@ class ConfigurableModelProviderTest {
                 ),
             )
 
-            assertTrue(mp.getEmbeddingService(DefaultModelSelectionCriteria).awaitingKey)
+            assertTrue(mp.getEmbeddingService(DefaultModelSelectionCriteria).awaitingProviderKey)
         }
 
         @Test
@@ -388,7 +388,7 @@ class ConfigurableModelProviderTest {
             )
 
             val resolved = mp.getEmbeddingService(DefaultModelSelectionCriteria)
-            assertFalse(resolved.awaitingKey)
+            assertFalse(resolved.awaitingProviderKey)
             assertEquals(1536, resolved.dimensions)
         }
 

@@ -93,7 +93,7 @@ interface EmbeddingService : EmbeddingServiceMetadata, HasInfoString {
      * A wrapper that implements [EmbeddingService] member by member rather than by delegation must
      * forward this too, or it will report "there is a model" on behalf of one that cannot embed.
      */
-    val awaitingKey: Boolean get() = false
+    val awaitingProviderKey: Boolean get() = false
 
     override fun infoString(verbose: Boolean?, indent: Int): String =
         "name: $name, provider: $provider".indent(indent)

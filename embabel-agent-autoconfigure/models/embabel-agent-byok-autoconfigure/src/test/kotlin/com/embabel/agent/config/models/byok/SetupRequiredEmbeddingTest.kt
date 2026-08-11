@@ -250,13 +250,13 @@ class SetupRequiredEmbeddingTest {
      * already does. `by` delegation forwards the property to any depth for free.
      */
     @Test
-    fun `awaitingKey survives wrapping, where a type test does not`() {
+    fun `awaitingProviderKey survives wrapping, where a type test does not`() {
         val wrapped: EmbeddingService = Wrapper(Wrapper(SetupRequiredEmbedding.embeddingService()))
 
         assertThat(wrapped is PlaceholderEmbeddingService)
             .describedAs("a type test sees only the outermost layer")
             .isFalse()
-        assertThat(wrapped.awaitingKey)
+        assertThat(wrapped.awaitingProviderKey)
             .describedAs("the question consumers actually ask")
             .isTrue()
     }
@@ -265,7 +265,7 @@ class SetupRequiredEmbeddingTest {
     fun `a wrapped real service is not awaiting a key`() {
         val wrapped: EmbeddingService = Wrapper(FakeEmbeddingService("text-embedding-3-small", dimensions = 1536))
 
-        assertThat(wrapped.awaitingKey).isFalse()
+        assertThat(wrapped.awaitingProviderKey).isFalse()
         assertThat(wrapped.dimensions).isEqualTo(1536)
     }
 

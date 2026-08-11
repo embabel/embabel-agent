@@ -424,22 +424,22 @@ class EmbeddingOperationsNonRegressionTest {
          *
          * This is the wrapper that actually stands between a consumer and the configured service in
          * any deployment with embedding tracking on, so it is the one that decides whether
-         * `awaitingKey` reaches the caller. It answers correctly today only because the wrapper is
+         * `awaitingProviderKey` reaches the caller. It answers correctly today only because the wrapper is
          * declared `by delegate`; a hand-written override list would silently report false and let a
          * consumer commit a vector index at a dimension read from a placeholder.
          */
         @Test
-        fun `wrapper reports the delegate's awaitingKey rather than the default`() {
+        fun `wrapper reports the delegate's awaitingProviderKey rather than the default`() {
             val placeholder = object : EmbeddingService by rawSpringAi {
-                override val awaitingKey = true
+                override val awaitingProviderKey = true
             }
 
             assertTrue(
-                EmbeddingOperations(placeholder).awaitingKey,
-                "the decorator hid awaitingKey; a consumer would provision from a placeholder",
+                EmbeddingOperations(placeholder).awaitingProviderKey,
+                "the decorator hid awaitingProviderKey; a consumer would provision from a placeholder",
             )
             assertFalse(
-                EmbeddingOperations(rawSpringAi).awaitingKey,
+                EmbeddingOperations(rawSpringAi).awaitingProviderKey,
                 "a real service must not be reported as awaiting a key",
             )
         }

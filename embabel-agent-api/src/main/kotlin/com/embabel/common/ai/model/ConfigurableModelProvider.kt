@@ -135,16 +135,18 @@ class ConfigurableModelProvider(
      * embedding model is a schema commitment and nothing can stand in for one. What the fallback
      * buys is that the deployment STARTS: a consumer resolving the default embedding service while
      * its beans are being created no longer takes down the context before any BYOK code can run.
-     * Consumers that provision a vector index should ask [EmbeddingService.awaitingKey] and skip
+     * Consumers that provision a vector index should ask [EmbeddingService.awaitingProviderKey] and skip
      * until a real model is registered - the property, not a type test, because it survives
      * wrapping.
      */
     private fun placeholderEmbeddingService(warn: Boolean): EmbeddingService? =
-        embeddingServices.firstOrNull { it.awaitingKey }
+        embeddingServices.firstOrNull { it.awaitingProviderKey }
             ?.also {
                 if (warn) logger.warn(
-                    "Default embedding service '{}' is not registered; falling back to the '{}' placeholder. " +
-                        "Embedding will fail with an actionable 'no embedding service configured' error until a key is supplied. Available: {}",
+                    """
+                    Default embedding service '{}' is not registered; falling back to the '{}' placeholder.
+                    Embedding will fail with an actionable 'no embedding service configured' error until a key is supplied. Available: {}
+                    """.trimIndent(),
                     properties.defaultEmbeddingModel, it.name, embeddingServices.map { it.name },
                 )
             }
@@ -159,7 +161,7 @@ class ConfigurableModelProvider(
      * placeholder exists to remove, reappearing in the mixed configuration.
      */
     private val embeddingSetupRequired: Boolean =
-        resolveDefaultEmbeddingService(warnOnFallback = false)?.awaitingKey == true
+        resolveDefaultEmbeddingService(warnOnFallback = false)?.awaitingProviderKey == true
 
     init {
         properties.llms.forEach { (role, model) ->
@@ -202,8 +204,10 @@ class ConfigurableModelProvider(
                  */
                 if (setupRequired || embeddingSetupRequired) {
                     logger.warn(
-                        "Embedding model '{}' for role '{}' is not registered. This deployment is awaiting a key, " +
-                            "so that is expected; asking for that role will still fail. Available: {}",
+                        """
+                        Embedding model '{}' for role '{}' is not registered. This deployment is awaiting a key,
+                        so that is expected; asking for that role will still fail. Available: {}
+                        """.trimIndent(),
                         model, role, embeddingServices.map { it.name },
                     )
                 } else {

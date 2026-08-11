@@ -38,7 +38,7 @@ package com.embabel.agent.spi
  * the exception: catching means the decision is made from a failure, and a failure cannot be told
  * apart from a provider that is merely unreachable right now.
  *
- * Ask it through [com.embabel.common.ai.model.EmbeddingService.awaitingKey], NOT by testing for
+ * Ask it through [com.embabel.common.ai.model.EmbeddingService.awaitingProviderKey], NOT by testing for
  * this interface. Wrapping is common — event tracking decorates the configured service,
  * applications add layers to hot-swap the model or meter it — and a wrapper around a placeholder is
  * not itself a placeholder, so a type test answers about the outermost layer and reports "there is
