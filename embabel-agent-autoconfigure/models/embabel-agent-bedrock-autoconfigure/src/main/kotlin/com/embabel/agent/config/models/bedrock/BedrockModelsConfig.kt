@@ -40,7 +40,6 @@ import org.springframework.ai.model.bedrock.autoconfigure.BedrockAwsConnectionCo
 import org.springframework.ai.model.bedrock.autoconfigure.BedrockAwsConnectionProperties
 import org.springframework.ai.model.bedrock.cohere.autoconfigure.BedrockCohereEmbeddingProperties
 import org.springframework.ai.model.bedrock.titan.autoconfigure.BedrockTitanEmbeddingProperties
-import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -299,7 +298,7 @@ class BedrockModelsConfig(
 
 object BedrockOptionsConverter : OptionsConverter {
     override fun convertOptions(options: LlmOptions, model: String): ChatOptions =
-        ToolCallingChatOptions.builder()
+        BedrockChatOptions.builder()
             .model(model)
             .temperature(options.temperature)
             .topP(options.topP)
