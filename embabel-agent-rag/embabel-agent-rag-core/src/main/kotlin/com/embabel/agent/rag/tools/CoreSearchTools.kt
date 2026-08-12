@@ -38,6 +38,45 @@ import java.time.Instant
 /**
  * Classic vector search
  */
+/**
+ * Neighbouring chunks around each hit, folded into the result set.
+ *
+ * Reuses the same [ResultExpander] seam `broadenChunk` exposes to the model, so a store that
+ * cannot expand simply never expands — no capability check to keep in step.
+ *
+ * A neighbour INHERITS its hit's score rather than being scored itself. It is continuation
+ * text, not a rival candidate: scoring it independently would let context outrank the match
+ * that found it, and reordering results is not what expansion is for.
+ *
+ * Deduplicated by id and appended after the hits, so an expanded set is a superset of the
+ * unexpanded one in the same order. That matters for anything reading these results
+ * positionally, and it means turning the knob on cannot lose a result.
+ */
+internal fun List<SimilarityResult<out Retrievable>>.withNeighbours(
+    expander: ResultExpander?,
+    each: Int,
+): List<SimilarityResult<out Retrievable>> {
+    if (expander == null || each <= 0 || isEmpty()) return this
+    val seen = mapTo(mutableSetOf()) { it.match.id }
+    val extra = flatMap { hit ->
+        runCatching { expander.expandResult(hit.match.id, ResultExpander.Method.SEQUENCE, each) }
+            .getOrElse { e ->
+                LoggerFactory.getLogger("com.embabel.agent.rag.tools.expand")
+                    .warn("Could not expand {}: {}", hit.match.id, e.message)
+                emptyList<com.embabel.agent.rag.model.ContentElement>()
+            }
+            .filterIsInstance<Chunk>()
+            .filter { neighbour -> seen.add(neighbour.id) }
+            .map { neighbour ->
+                object : SimilarityResult<Chunk> {
+                    override val match: Chunk = neighbour
+                    override val score: Double = hit.score
+                }
+            }
+    }
+    return this + extra
+}
+
 internal class VectorSearchTools @JvmOverloads constructor(
     private val vectorSearch: VectorSearch,
     private val searchFor: List<Class<out Retrievable>> = listOf(Chunk::class.java),
@@ -45,6 +84,7 @@ internal class VectorSearchTools @JvmOverloads constructor(
     private val entityFilter: EntityFilter? = null,
     private val resultsListener: ResultsListener? = null,
     private val searchDefaults: SearchDefaults = SearchDefaults.DEFAULT,
+    private val resultExpander: ResultExpander? = null,
 ) : SearchTools {
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
@@ -66,9 +106,12 @@ internal class VectorSearchTools @JvmOverloads constructor(
             query, topK, threshold, searchFor.map { it.simpleName }, metadataFilter, entityFilter
         )
         val request = TextSimilaritySearchRequest(query, threshold, topK)
-        val (results, ms) = time {
+        val (hits, ms) = time {
             searchForAllTypes(request)
         }
+        // Expanded BEFORE the listener fires: an observer must see what the model sees, or
+        // reported provenance and the answer's actual evidence drift apart.
+        val results = hits.withNeighbours(resultExpander, searchDefaults.expandNeighbours)
         resultsListener?.onResultsEvent(ResultsEvent(this, query, results, Duration.ofMillis(ms)))
         return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList<Retrievable>(results))
     }
@@ -184,6 +227,7 @@ internal class TextSearchTools @JvmOverloads constructor(
     private val entityFilter: EntityFilter? = null,
     private val resultsListener: ResultsListener? = null,
     private val searchDefaults: SearchDefaults = SearchDefaults.DEFAULT,
+    private val resultExpander: ResultExpander? = null,
 ) : SearchTools, Tool {
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
@@ -248,10 +292,13 @@ internal class TextSearchTools @JvmOverloads constructor(
         )
 
         val request = TextSimilaritySearchRequest(query, threshold, topK)
-        val (results, ms) = time {
+        val (hits, ms) = time {
             searchForAllTypes(request)
         }
-        Bm25Normalization.warnIfThresholdSuppressedResults(logger, query, threshold, results.size)
+        // Warn on the HITS, not the expanded set: the threshold suppressed matches, and
+        // neighbours added afterwards would mask exactly the emptiness worth warning about.
+        Bm25Normalization.warnIfThresholdSuppressedResults(logger, query, threshold, hits.size)
+        val results = hits.withNeighbours(resultExpander, searchDefaults.expandNeighbours)
         resultsListener?.onResultsEvent(ResultsEvent(this, query, results, Duration.ofMillis(ms)))
         return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList<Retrievable>(results))
     }
