@@ -35,6 +35,9 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+import com.embabel.agent.core.Blackboard
+import io.mockk.every
+import java.util.Collections
 
 /**
  * An [Executor] may run a task on the thread that submitted it. The [AgentProcess] thread local
@@ -109,6 +112,65 @@ class ExecutorAsyncerCallerThreadTest {
             }
         }
 
+        /**
+         * The symptom the defect actually presents as, rather than the thread local behind it.
+         *
+         * Nothing throws when the process is lost. The next read through [AgentProcess.get] is
+         * typically a blackboard access some distance away, so what a user sees is "the blackboard
+         * lost my object" with the cause several frames back. Asserted here so the failure this PR
+         * removes is described in the suite in the terms someone would actually report it.
+         */
+        @Test
+        fun `the blackboard is still reachable after an async on the caller's thread`() {
+            val blackboard = mockk<Blackboard>(relaxed = true)
+            val outer = mockk<AgentProcess>()
+            every { outer.blackboard } returns blackboard
+
+            outer.withCurrent {
+                asyncer.async { "work" }.get(5, TimeUnit.SECONDS)
+
+                // What an interceptor further along the same request does.
+                val reachable = AgentProcess.get()?.blackboard
+                assertSame(blackboard, reachable, "the blackboard read that would have returned null")
+            }
+        }
+
+        /**
+         * parallelMap on a caller-running executor, which erodes rather than fails.
+         *
+         * Every item goes through async(), so on this executor every item runs on the caller. With
+         * a clear on the way out, the FIRST item empties the thread and items two onward see
+         * nothing - one call, partially correct results, and no error anywhere. A single-async test
+         * cannot show that shape.
+         */
+        @Test
+        fun `every item of a parallelMap sees the process, not just the first`() {
+            val outer = mockk<AgentProcess>()
+
+            outer.withCurrent {
+                val seen = asyncer.parallelMap((1..5).toList(), maxConcurrency = 5) { AgentProcess.get() }
+
+                assertEquals(5, seen.size)
+                seen.forEachIndexed { i, p -> assertSame(outer, p, "item ${i + 1} ran without the process") }
+                assertSame(outer, AgentProcess.get(), "and the caller kept it afterwards")
+            }
+        }
+
+        @Test
+        fun `a concurrency-limited parallelMap does not erode the process either`() {
+            // The semaphore branch: maxConcurrency < size takes a different path through
+            // ExecutorAsyncer, and on this executor still runs every item on the caller.
+            val outer = mockk<AgentProcess>()
+
+            outer.withCurrent {
+                val seen = asyncer.parallelMap((1..5).toList(), maxConcurrency = 2) { AgentProcess.get() }
+
+                assertEquals(5, seen.size)
+                seen.forEachIndexed { i, p -> assertSame(outer, p, "item ${i + 1} ran without the process") }
+                assertSame(outer, AgentProcess.get(), "and the caller kept it afterwards")
+            }
+        }
+
         @Test
         fun `repeated asyncs do not erode the caller's process`() {
             val outer = mockk<AgentProcess>()
@@ -162,6 +224,49 @@ class ExecutorAsyncerCallerThreadTest {
                 }
             } finally {
                 release.countDown()
+                pool.shutdown()
+                pool.awaitTermination(10, TimeUnit.SECONDS)
+            }
+        }
+
+        /**
+         * The same executor a deployment actually configures, driving parallelMap rather than a
+         * single async.
+         *
+         * `parallelMap` is how an action fans out, so this is the realistic way to meet the defect:
+         * more items than the pool can take, the overflow running on the submitting thread, and -
+         * with a clear on the way out - the caller losing its process partway through its own
+         * fan-out while some items still succeed.
+         */
+        @Test
+        fun `parallelMap over a saturated pool keeps the process for the overflow and the caller`() {
+            val pool = ThreadPoolExecutor(
+                1, 1, 0L, TimeUnit.MILLISECONDS,
+                LinkedBlockingQueue(1),
+                ThreadPoolExecutor.CallerRunsPolicy(),
+            )
+            val asyncer = ExecutorAsyncer(pool)
+            val outer = mockk<AgentProcess>()
+
+            try {
+                outer.withCurrent {
+                    val callerThread = Thread.currentThread()
+                    val ranOn = Collections.synchronizedList(mutableListOf<Thread>())
+
+                    val seen = asyncer.parallelMap((1..12).toList(), maxConcurrency = 12) {
+                        ranOn += Thread.currentThread()
+                        AgentProcess.get()
+                    }
+
+                    assertTrue(
+                        ranOn.any { it === callerThread },
+                        "precondition: the pool must have overflowed onto the caller",
+                    )
+                    assertEquals(12, seen.size)
+                    seen.forEachIndexed { i, p -> assertSame(outer, p, "item ${i + 1} ran without the process") }
+                    assertSame(outer, AgentProcess.get(), "the caller must still hold its process")
+                }
+            } finally {
                 pool.shutdown()
                 pool.awaitTermination(10, TimeUnit.SECONDS)
             }
