@@ -109,6 +109,25 @@ class SectionReadingToolsTest {
     }
 
     @Test
+    fun `readSection refuses to blend documents - ambiguity returns a choice, not merged content`() {
+        var fired = false
+        val chunks = listOf(
+            Chunk(id = "a1", text = "Nevada law", parentId = "p", metadata = mapOf("root_document_title" to "Acme License")),
+            Chunk(id = "b1", text = "Ontario law", parentId = "p", metadata = mapOf("root_document_title" to "Widget License")),
+        )
+        val tools = SectionReadingTools(
+            FakeSectionReader(chunksByTitle = mapOf("Governing Law" to chunks)),
+            resultsListener = { fired = true },
+        )
+        val out = tools.readSection("Governing Law")
+        assertFalse(out.contains("Nevada"), "content must not be returned on ambiguity: $out")
+        assertTrue(out.contains("2 documents"), out)
+        assertTrue(out.contains("Acme License"), out)
+        assertTrue(out.contains("documentTitle"), out)
+        assertFalse(fired, "ambiguous reads are not evidence")
+    }
+
+    @Test
     fun `readSection output over the cap is truncated with guidance, in order`() {
         val big = (1..50).map { chunk("c$it", "x".repeat(1000)) }
         val tools = SectionReadingTools(

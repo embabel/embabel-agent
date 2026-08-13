@@ -305,6 +305,19 @@ internal class SectionReadingTools @JvmOverloads constructor(
                 (documentTitle?.let { " in a document whose title contains '$it'" } ?: "") +
                 ". Use listSections to see the available section titles."
         }
+        // NEVER blend documents. Similar documents share section names (contracts,
+        // periodic filings), and a title match that silently concatenates several
+        // documents hands the model the WRONG one to quote from — measured 2026-08-14
+        // (CUAD): governing-law answers cited a different contract's clause at full
+        // confidence. Ambiguity is surfaced as a choice, not merged.
+        val documents = chunks
+            .map { it.metadata["root_document_title"] as? String ?: it.metadata["root_document_uri"] as? String }
+            .distinct()
+        if (documents.size > 1 && documents.none { it == null }) {
+            return "Section '$sectionTitle' exists in ${documents.size} documents: " +
+                documents.joinToString("; ") { "'$it'" } +
+                ". Call readSection again with a documentTitle to pick ONE."
+        }
         // Full score: the model asked for this section by name; every chunk of it is evidence
         // the observer must see, exactly as it would see a search hit.
         val results = chunks.map { SimpleSimilaritySearchResult<Retrievable>(it, 1.0) }
