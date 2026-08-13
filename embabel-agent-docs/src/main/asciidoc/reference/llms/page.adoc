@@ -638,10 +638,39 @@ names is not registered - throws `NoSuitableModelException` at the point of use.
 resolve to something else: falling back to the `default-llm` would let a role like `cheapest` become
 the most capable, and most expensive, model in the deployment without anyone noticing.
 
-Startup is a separate question. An unsatisfiable role only logs a warning when the platform starts,
-so a deployment keyed for one provider still boots and still serves every role that does work - you
-find out about the broken role when something asks for it, and the message names the role, the
-active provider, and the models that were available.
+Startup is a separate question, and the answer depends on whether the deployment holds a key. A
+deployment that has one is expected to name models it has: an unresolvable name there is a typo,
+and letting it boot would move the failure to whichever unrelated call first asks for that role.
+A deployment still waiting for a key has no models registered yet by definition, so the same name
+is expected and only worth reporting.
+
+[cols="2,1,3", options="header", frame="all", grid="all"]
+|===
+|Configuration |At startup |Notes
+
+|Keyed deployment, `embabel.models.llms` names an unregistered model
+|Fails
+|A typo, and fatal. The message names the role and the models that were available.
+
+|Keyed deployment, `embabel.models.roles` names an unregistered model *under the deployment's own provider*
+|Fails
+|Same rule as the flat map. Applying it to only one of the two shapes was the original defect here.
+
+|Keyed deployment, `embabel.models.roles` names a model under *any other* provider
+|Not checked
+|The point of the nested shape. That entry applies when a user brings a key for that provider, so its model is not expected to be registered here - warning about it would train people to ignore the warning.
+
+|Deployment awaiting a key (BYOK, `default-llm` resolving to the placeholder)
+|Warns
+|Nothing is registered yet, so every role is unresolvable and none of it is a typo. Roles resolve to the placeholder, which fails with an actionable "no LLM configured" error until a key arrives.
+
+|A role reached through a user's own credential
+|n/a
+|Resolved per call against that provider's entry only. It never falls back to the flat `embabel.models.llms` map - a user's key must not silently select a model the deployment pays for.
+|===
+
+Whichever way startup goes, asking for a role that cannot be satisfied still throws at the point of
+use, and the message names the role, the active provider, and the models that were available.
 
 ===== Resolving roles in code
 

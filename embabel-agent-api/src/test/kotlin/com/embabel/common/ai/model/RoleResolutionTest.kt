@@ -574,6 +574,29 @@ class RoleResolutionTest {
         }
 
         @Test
+        fun `a cache bound below one is rejected at startup rather than silently disabling the cache`() {
+            // Zero evicts every entry as soon as it is inserted, so nothing is ever cached and
+            // every call rebuilds a service over the network. That is indistinguishable from a
+            // caching bug and only visible as latency, so it fails here instead.
+            listOf(0, -1).forEach { size ->
+                val ex = assertThrows<IllegalArgumentException> {
+                    provider(
+                        properties = ConfigurableModelProviderProperties(
+                            roles = nestedRoles,
+                            defaultLlm = "gpt-4.1-mini",
+                            credentialServiceCacheSize = size,
+                        ),
+                        factories = listOf(factory),
+                    )
+                }
+                assertTrue(
+                    ex.message!!.contains("credential-service-cache-size"),
+                    "the message must name the property an operator would set, was: ${ex.message}",
+                )
+            }
+        }
+
+        @Test
         fun `a provider no factory handles fails rather than falling back`() {
             // The role names a model for openai, but the only factory speaks anthropic. Serving
             // the deployment's own openai model here would bill the deployment for the user's call.

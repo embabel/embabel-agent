@@ -23,8 +23,10 @@ import io.mockk.mockk
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertSame
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -65,6 +67,46 @@ class ModelSelectionContextPropagationTest {
         }.get(5, TimeUnit.SECONDS)
 
         assertEquals(context, seen)
+    }
+
+    /**
+     * The caller-runs case, for this context rather than the [AgentProcess] one.
+     *
+     * An [java.util.concurrent.Executor] may run a task on the thread that submitted it - a direct
+     * executor always does, a bounded pool with `CallerRunsPolicy` does once saturated. The
+     * submitting thread is then already inside a request, and clearing on the way out would leave
+     * it holding no credential for the rest of that request. Role resolution would fall back to
+     * deployment configuration and serve a model the deployment is billed for, on a call the user
+     * brought their own key for - silently, and only under load.
+     *
+     * These pass today: [ModelSelectionContextHolder.with] restores rather than clears. They are
+     * here so that cannot be changed back without a test saying what it costs. #1911 is the same
+     * defect in the [AgentProcess] half, where the clearing form did ship.
+     */
+    @Test
+    fun `a direct executor leaves the caller holding its own context`() {
+        val direct = ExecutorAsyncer { it.run() }
+        val context = ModelSelectionContext("ben", ProviderCredential("anthropic", "sk-test"))
+
+        ModelSelectionContextHolder.with(context) {
+            val seen = direct.async { ModelSelectionContextHolder.get() }.get(5, TimeUnit.SECONDS)
+
+            assertEquals(context, seen, "the task must see the caller's context")
+            assertEquals(context, ModelSelectionContextHolder.get(), "and the caller must still hold it")
+        }
+    }
+
+    @Test
+    fun `a direct executor restores the caller's context even when the task throws`() {
+        val direct = ExecutorAsyncer { it.run() }
+        val context = ModelSelectionContext("ben", ProviderCredential("anthropic", "sk-test"))
+
+        ModelSelectionContextHolder.with(context) {
+            assertThrows(ExecutionException::class.java) {
+                direct.async<String> { error("boom") }.get(5, TimeUnit.SECONDS)
+            }
+            assertEquals(context, ModelSelectionContextHolder.get())
+        }
     }
 
     @Test

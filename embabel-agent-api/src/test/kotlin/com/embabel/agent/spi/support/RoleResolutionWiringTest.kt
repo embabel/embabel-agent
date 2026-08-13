@@ -197,6 +197,64 @@ class RoleResolutionWiringTest {
         assertTrue(ops.supportsThinking(asRole))
     }
 
+    /**
+     * The same guarantee on the OTHER implementation.
+     *
+     * [ToolLoopLlmOperations] has its own low-level transform path, and role resolution was missing
+     * from it - the defect this PR fixes. Every other case here drives [ChatClientLlmOperations],
+     * so all of them would stay green with the tool-loop path unresolved, and a deployment using it
+     * would silently run every by-role call on `default-llm`.
+     */
+    @Test
+    fun `the tool loop path resolves the role too, model and tuning`() {
+        val cheap = FakeChatModel(jacksonObjectMapper().writeValueAsString(Dog("Duke")))
+        val expensive = FakeChatModel(jacksonObjectMapper().writeValueAsString(Dog("Rex")))
+
+        val modelProvider = ConfigurableModelProvider(
+            llms = listOf(llm("gpt-4.1-nano", cheap), llm("gpt-4.1-mini", expensive)),
+            embeddingServices = emptyList(),
+            properties = ConfigurableModelProviderProperties(
+                roles = mapOf(
+                    CHEAPEST_ROLE to mapOf(
+                        "openai" to LlmOptions.withModel("gpt-4.1-nano").withTemperature(0.2),
+                    ),
+                ),
+                defaultLlm = "gpt-4.1-mini",
+            ),
+        )
+
+        val (_, agentProcess) = setup(modelProvider)
+        val toolLoopOperations = ToolLoopLlmOperations(
+            modelProvider = modelProvider,
+            toolDecorator = DefaultToolDecorator(),
+            validator = Validation.buildDefaultValidatorFactory().validator,
+            validationPromptGenerator = DefaultValidationPromptGenerator(),
+            dataBindingProperties = LlmDataBindingProperties(),
+            objectMapper = jacksonObjectMapper(),
+            asyncer = ExecutorAsyncer(Executors.newCachedThreadPool()),
+            templateRenderer = JinjavaTemplateRenderer(),
+        )
+
+        // String output on purpose. The tool loop takes its own structured-output route, and
+        // binding a data class here would make this depend on that rather than on role resolution,
+        // which is the thing under test - and would fail for a reason that has nothing to do with
+        // whether the role was resolved.
+        toolLoopOperations.createObject(
+            messages = listOf(UserMessage("Name a dog")),
+            interaction = LlmInteraction(
+                id = InteractionId("role"),
+                llm = LlmOptions.withLlmForRole(CHEAPEST_ROLE),
+            ),
+            outputClass = String::class.java,
+            action = SimpleTestAgent.actions.first(),
+            agentProcess = agentProcess,
+        )
+
+        assertEquals(1, cheap.promptsPassed.size, "the role's model answered")
+        assertEquals(0, expensive.promptsPassed.size, "the default LLM must not have been called")
+        assertEquals(0.2, cheap.optionsPassed.single().temperature, "the role's temperature travelled with it")
+    }
+
     private data class Wiring(
         val llmOperations: ChatClientLlmOperations,
         val agentProcess: AgentProcess,

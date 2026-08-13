@@ -60,8 +60,15 @@ data class ConfigurableModelProviderProperties(
      *         anthropic: { model: claude-haiku-4-5 }
      * ```
      *
-     * Takes precedence over [llms] for the active provider. Unlike [llms], an entry naming a model
-     * that is not registered is not an error: it applies only when that provider is the active one.
+     * Takes precedence over [llms] for the active provider.
+     *
+     * Whether an unregistered model here is an error depends on WHOSE provider it is under. Under
+     * the deployment's own provider the rule is the same as [llms] - fatal at startup, because it
+     * is a typo. Under any other provider it is not checked at all: that entry exists for a user
+     * who brings a key for that provider, so its model is not expected to be registered here.
+     *
+     * A deployment awaiting a key is the exception to both, and warns rather than failing - nothing
+     * is registered yet, so no name can resolve and none of it is a typo.
      *
      * Declared last, despite belonging with [llms], so that adding it does not renumber the
      * existing parameters for anyone constructing this positionally.
@@ -78,6 +85,11 @@ data class ConfigurableModelProviderProperties(
      *
      * Exceeding it is not an error. Least-recently-used entries are dropped and rebuilt on next
      * use, so the only cost of setting it too low is repeated construction.
+     *
+     * Must be at least 1, checked at startup. Zero or negative would evict every entry as soon as
+     * it was inserted, so the cache would silently never hold anything and every call would rebuild
+     * a service over the network - indistinguishable from a caching bug, and only visible as
+     * latency. Rejected rather than tolerated for that reason.
      */
     var credentialServiceCacheSize: Int = 500,
 ) {
@@ -236,6 +248,10 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         resolveDefaultEmbeddingService(warnOnFallback = false)?.awaitingProviderKey == true
 
     init {
+        require(properties.credentialServiceCacheSize >= 1) {
+            "embabel.models.credential-service-cache-size must be at least 1, was ${properties.credentialServiceCacheSize}. " +
+                "Zero or negative evicts every entry on insert, so nothing is ever cached and every call rebuilds a service."
+        }
         properties.llms.forEach { (role, model) ->
             if (llms.none { it.name == model }) {
                 // Fatal, unless this deployment is waiting for a key. A name that resolves to
