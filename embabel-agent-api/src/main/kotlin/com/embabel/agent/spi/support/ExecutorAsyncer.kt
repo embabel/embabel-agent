@@ -51,7 +51,14 @@ class ExecutorAsyncer(
 
         return CompletableFuture.supplyAsync({
             contextSnapshot.setThreadLocals().use {
-                // with() restores whatever the pooled thread held before, so nothing leaks between tasks
+                // Lifecycle, in full. The application sets the context once at its request boundary
+                // - a filter or interceptor - and it lives for that request. Nothing here creates
+                // or owns it: this only carries the calling thread's value onto the worker and puts
+                // the worker's own value back afterwards. A worker that arrived with nothing is
+                // left with nothing, and one that was already inside a request keeps what it had,
+                // which is what makes an executor that runs on the submitting thread safe. There is
+                // no close or dispose step, and none is needed - the value is immutable, holds no
+                // resources, and its lifetime ends with the request that set it.
                 ModelSelectionContextHolder.with(modelSelectionContext) {
                     if (agentProcess != null) {
                         AgentProcessAccessor.setValue(agentProcess)

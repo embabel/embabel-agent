@@ -82,10 +82,24 @@ data class ConfigurableModelProviderProperties(
     var credentialServiceCacheSize: Int = 500,
 ) {
 
+    /**
+     * Every LLM name this configuration mentions, across all three places one can appear: the flat
+     * `llms` role map, the nested `roles` map (one model per provider), and `default-llm`.
+     *
+     * "Well known" means named in configuration, NOT registered or reachable. A BYOK deployment
+     * names models for providers it holds no key for, and that is the point of the nested shape -
+     * so this set is a superset of what [listModelNames] reports, and asking for one of these can
+     * still fail. Used to decide which model names a deployment is entitled to talk about, not
+     * which it can serve.
+     */
     fun allWellKnownLlmNames(): Set<String> {
         return llms.values.toSet() + roles.values.flatMap { it.values }.mapNotNull { it.modelName } + defaultLlm
     }
 
+    /**
+     * The embedding counterpart of [allWellKnownLlmNames]. Shorter because embedding roles have no
+     * nested per-provider shape: a role maps to one name, and there is `default-embedding-model`.
+     */
     fun allWellKnownEmbeddingServiceNames(): Set<String> {
         return embeddingServices.values.toSet() + setOfNotNull(defaultEmbeddingModel)
     }
@@ -300,8 +314,9 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                         )
                     } else if (llms.none { it.name == model }) {
                         reportUnsatisfiableRole(
-                            "LLM '$model' for role '$role' under provider '$provider' - this deployment's own " +
-                                "provider - is not available. Available: ${llms.map { it.name }}",
+                            """
+                            LLM '$model' for role '$role' under provider '$provider' - this deployment's own provider - is not available. Available: ${llms.map { it.name }}
+                            """.trimIndent(),
                         )
                     }
                 }
@@ -459,6 +474,14 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         // Read then put rather than computeIfAbsent: building a service can validate the key over
         // the network, and computeIfAbsent would hold the map's lock for the duration. A race here
         // costs one redundant build, never a wrong service.
+        //
+        // Concretely. Two requests for the same user arrive together, both resolving "cheapest"
+        // under the same key, and neither finds a cached entry. With computeIfAbsent, the first
+        // holds the map's lock across a network round trip to validate the key, and the second
+        // blocks on it - as does every unrelated lookup for every other user, because it is one
+        // map. Reading first, both build a service, both put, and the second put wins. The key
+        // and model are identical, so the two services are interchangeable; the loser is dropped
+        // and the cost is one wasted validation call.
         val key = CredentialModelKey.of(credential, model)
         val llmService = credentialLlmServices[key]
             ?: credentialLlmServiceFactories

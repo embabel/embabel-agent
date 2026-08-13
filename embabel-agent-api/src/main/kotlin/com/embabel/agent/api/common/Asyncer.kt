@@ -21,11 +21,16 @@ import java.util.concurrent.CompletableFuture
  * Simple Java-friendly async interface.
  *
  * An implementation is a supported extension point, and one obligation comes with it: **capture
- * the calling thread's context and re-establish it on the worker**, restoring whatever the worker
- * held before. Three things travel that way today - the [com.embabel.agent.core.AgentProcess], the
- * current Micrometer observation, and the
+ * the calling thread's context and re-establish it on the worker**. Three things travel that way
+ * today - the [com.embabel.agent.core.AgentProcess], the current Micrometer observation, and the
  * [com.embabel.common.ai.model.ModelSelectionContext] - and
  * [com.embabel.agent.spi.support.ExecutorAsyncer] is the reference for how.
+ *
+ * On the way out, restore what the worker held before rather than clearing. It matters only when
+ * the worker IS the submitting thread, which an executor is free to arrange - a direct executor
+ * always does, and a bounded pool with `CallerRunsPolicy` does once saturated. The model selection
+ * context does this already. `AgentProcess` still clears, which is #1911 and is fixed in #1912;
+ * this doc states the obligation for new implementations either way.
  *
  * Dropping them does not fail loudly, which is what makes this worth stating. A lost model
  * selection context means role resolution quietly falls back to deployment configuration and

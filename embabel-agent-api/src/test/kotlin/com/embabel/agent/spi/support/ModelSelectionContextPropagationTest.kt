@@ -37,6 +37,9 @@ import java.util.concurrent.TimeUnit
  * serves a model the deployment is keyed and billed for, on a call the user brought their own
  * key for. That is why this is pinned rather than left to the application.
  */
+// A ceiling, not a wait. These cases finish in milliseconds; the timeout is here because the
+// failure mode this class guards against is a thread never being released, and without it a
+// regression would hang CI until the job's own limit killed it with no indication of where.
 @Timeout(30)
 class ModelSelectionContextPropagationTest {
 

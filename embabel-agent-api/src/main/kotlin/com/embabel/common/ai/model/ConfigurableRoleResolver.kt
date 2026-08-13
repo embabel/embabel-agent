@@ -87,6 +87,28 @@ class ConfigurableRoleResolver(
 
     /**
      * Options configured for [role] under [provider], or null if the role says nothing about it.
+     *
+     * Reads the nested shape, in which a role names a different model per provider:
+     *
+     * ```yaml
+     * embabel:
+     *   models:
+     *     roles:
+     *       cheapest:
+     *         openai:
+     *           model: gpt-4.1-nano
+     *         anthropic:
+     *           model: claude-haiku-4-5
+     *           temperature: 0.0
+     * ```
+     *
+     * `optionsFor("cheapest", "anthropic")` returns those Anthropic options, temperature included.
+     * `optionsFor("cheapest", "mistral")` returns null - the role is configured, but says nothing
+     * about that provider, so the caller falls back to the flat `embabel.models.llms` map.
+     *
+     * A null [provider] returns null rather than guessing: with no active credential there is no
+     * provider to select within, and the flat map is the right answer. Provider names are matched
+     * case-insensitively, because they arrive from user-supplied credentials as often as from yaml.
      */
     fun optionsFor(role: String, provider: String?): LlmOptions? {
         if (provider == null) {

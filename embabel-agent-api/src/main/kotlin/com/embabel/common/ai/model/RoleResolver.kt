@@ -28,6 +28,12 @@ sealed interface RoleResolution {
     /**
      * Configured options - a model name, and optionally hyperparameters that travel with the role.
      * Values the caller set explicitly still win.
+     *
+     * The wrapper is what makes this a case rather than a payload. Returning a bare [LlmOptions]
+     * would leave the platform unable to tell "resolved to options" from the other two answers in
+     * a `when`, and would rule out ever adding a third field to this case without changing every
+     * resolver's signature. The other two wrap for the same reason; the cost is one `.llmOptions`
+     * at the use site.
      */
     data class Options(
         val llmOptions: LlmOptions,
