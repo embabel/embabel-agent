@@ -21,6 +21,7 @@ import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byRole
 import com.embabel.common.ai.model.spi.InternalExtensionApi
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
+import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonProperty
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.Duration
@@ -188,6 +189,42 @@ data class LlmOptions @JvmOverloads constructor(
     fun withTimeout(timeout: Duration): LlmOptions {
         return copy(timeout = timeout)
     }
+
+    /**
+     * The model these options name, however they name it.
+     *
+     * [withModel] records the choice as a [ByNameModelSelectionCriteria] while configuration
+     * binding sets the [model] field, so neither one alone answers the question.
+     */
+    @get:JsonIgnore
+    val modelName: String?
+        get() = model ?: (criteria as? ByNameModelSelectionCriteria)?.name
+
+    /**
+     * Fill in anything this instance leaves unset from [defaults], keeping every value set here.
+     *
+     * Used to apply the hyperparameters configured against a role without overriding what the
+     * caller asked for: a role may say `temperature: 0.3`, but a caller that passed its own
+     * temperature still gets that one.
+     *
+     * Model selection is taken from [defaults] wholesale, since the point of resolving a role is
+     * to decide which model it means.
+     */
+    fun withDefaultsFrom(defaults: LlmOptions): LlmOptions =
+        copy(
+            modelSelectionCriteria = defaults.modelSelectionCriteria,
+            model = defaults.model,
+            role = defaults.role,
+            temperature = temperature ?: defaults.temperature,
+            frequencyPenalty = frequencyPenalty ?: defaults.frequencyPenalty,
+            maxTokens = maxTokens ?: defaults.maxTokens,
+            presencePenalty = presencePenalty ?: defaults.presencePenalty,
+            topK = topK ?: defaults.topK,
+            topP = topP ?: defaults.topP,
+            thinking = thinking ?: defaults.thinking,
+            timeout = timeout ?: defaults.timeout,
+            extensions = defaults.extensions + extensions,
+        )
 
     /**
      * Get a provider-specific extension value by key.

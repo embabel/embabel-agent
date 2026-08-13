@@ -16,6 +16,7 @@
 package com.embabel.agent.config.models.byok
 
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.common.ai.model.AiModel
 import com.embabel.common.ai.model.ByRoleModelSelectionCriteria
 import com.embabel.common.ai.model.ConfigurableModelProvider
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
@@ -27,6 +28,9 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatCode
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
+import org.springframework.ai.chat.messages.UserMessage
+import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.chat.prompt.Prompt
 
 /**
  * A pure BYOK deployment holds no provider key, so no model a role names is registered — and
@@ -139,12 +143,39 @@ class PureByokWithRolesTest {
     }
 
     @Test
-    fun `an unsatisfiable role fails when asked for, rather than resolving to the placeholder`() {
-        // Silently handing back the placeholder would turn "no key configured" into an empty or
-        // broken answer at some unrelated point later. The role has no model; say so.
+    fun `a role awaiting a key resolves to the placeholder, like the default LLM already does`() {
+        /*
+         * This test used to require NoSuitableModelException. The concern behind it stands - "no key
+         * configured" must never become an empty or broken answer somewhere later - but throwing
+         * here is the wrong way to serve it, for two reasons.
+         *
+         * The exception reports the wrong problem. It names the role and lists what IS registered,
+         * which in a pure BYOK deployment is the placeholder alone: "no model for role best,
+         * available: setup-required". The actual problem is that no key has been set, and that is
+         * not what the reader is told.
+         *
+         * And it makes a role behave differently from the default LLM in the one deployment where
+         * they are in the same position. `default-llm` already resolves to the placeholder here -
+         * see the two tests above - so a role that throws is the odd one out.
+         *
+         * Nothing is silent either way: the placeholder is not a working model, and the next test
+         * pins what happens when a prompt actually reaches it.
+         */
         val modelProvider = pureByok(mapOf(BEST_ROLE to "gpt-4.1"))
 
-        assertThatThrownBy { modelProvider.getLlm(ByRoleModelSelectionCriteria(BEST_ROLE)) }
-            .isInstanceOf(NoSuitableModelException::class.java)
+        assertThat(modelProvider.getLlm(ByRoleModelSelectionCriteria(BEST_ROLE)).name)
+            .isEqualTo(SetupRequiredLlm.NAME)
+    }
+
+    @Test
+    fun `and using that role fails with the message that says to add a key`() {
+        // The half of the old assertion that mattered: resolving is tolerant, USING it is not. The
+        // deployment gets the actionable error rather than a plausible-looking answer.
+        val modelProvider = pureByok(mapOf(BEST_ROLE to "gpt-4.1"))
+        val llm = modelProvider.getLlm(ByRoleModelSelectionCriteria(BEST_ROLE))
+
+        assertThatThrownBy { ((llm as AiModel<*>).model as ChatModel).call(Prompt(listOf(UserMessage("hello")))) }
+            .isInstanceOf(NoLlmConfiguredException::class.java)
+            .hasMessageContaining("withLlmService")
     }
 }
