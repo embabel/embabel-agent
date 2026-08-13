@@ -26,6 +26,7 @@ import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.*
 import com.embabel.agent.rag.service.support.Bm25Normalization
 import com.embabel.common.core.types.SimilarityResult
+import com.embabel.common.core.types.SimpleSimilaritySearchResult
 import com.embabel.common.core.types.TextSimilaritySearchRequest
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.loggerFor
@@ -202,6 +203,94 @@ internal class ResultExpanderTools @JvmOverloads constructor(
 
     companion object {
         const val DEFAULT_MAX_ZOOM_OUT_CHARS = 25_000
+    }
+}
+
+/**
+ * Tools to navigate a document's section structure by NAME, over a [SectionReader] store.
+ *
+ * Search retrieves isolated hits; some content only answers whole. The motivating case is
+ * structured data split across chunks — a financial statement whose header row, row labels
+ * and values land in different chunks, so search-hit reassembly picks wrong rows or a wrong
+ * period column. `listSections` is the document's real table of contents; `readSection`
+ * returns a named section complete and in order.
+ *
+ * Chunks returned by `readSection` are reported to the [ResultsListener] at full score, so
+ * observed-attribution consumers see section reads the same way they see search hits.
+ */
+internal class SectionReadingTools @JvmOverloads constructor(
+    private val sectionReader: SectionReader,
+    private val resultsListener: ResultsListener? = null,
+    private val maxReadSectionChars: Int = DEFAULT_MAX_READ_SECTION_CHARS,
+) : SearchTools {
+
+    private val logger: Logger = LoggerFactory.getLogger(javaClass)
+
+    @LlmTool(
+        description = "List the section headings of a document — its table of contents — with chunk counts. " +
+            "Use to find the exact section that holds structured data (a financial statement, a schedule, an appendix) " +
+            "before reading it with readSection."
+    )
+    fun listSections(
+        @LlmTool.Param(
+            description = "Case-insensitive substring of the document title to scope to. Omit to list all documents' sections.",
+            required = false,
+        ) documentTitle: String? = null,
+    ): String {
+        val sections = sectionReader.listSections(documentTitle)
+        if (sections.isEmpty()) {
+            return "No sections found" + (documentTitle?.let { " for document title containing '$it'" } ?: "") + "."
+        }
+        val listing = sections
+            .groupBy { it.documentTitle }
+            .entries
+            .joinToString("\n") { (doc, docSections) ->
+                "Document: $doc\n" + docSections.joinToString("\n") { "  - ${it.title} (${it.chunkCount} chunks)" }
+            }
+        if (listing.length > maxReadSectionChars) {
+            return listing.take(maxReadSectionChars) +
+                "\n\n[TRUNCATED — narrow with the documentTitle parameter.]"
+        }
+        return listing
+    }
+
+    @LlmTool(
+        description = "Read EVERY chunk of a named section in document order — e.g. a complete financial statement " +
+            "or schedule. Use when you need structured data whole (all rows of a table, with the header row) rather " +
+            "than isolated search hits. Get the exact title from listSections or from a retrieved chunk's Section header."
+    )
+    fun readSection(
+        @LlmTool.Param(description = "Exact section title, as shown by listSections or a chunk's Section header")
+        sectionTitle: String,
+        @LlmTool.Param(
+            description = "Case-insensitive substring of the document title, to disambiguate when documents share section names.",
+            required = false,
+        ) documentTitle: String? = null,
+    ): String {
+        logger.info("Reading section '{}' documentTitle={}", sectionTitle, documentTitle)
+        val (chunks, ms) = time {
+            sectionReader.readSection(sectionTitle, documentTitle)
+        }
+        if (chunks.isEmpty()) {
+            return "No section titled '$sectionTitle' found" +
+                (documentTitle?.let { " in a document whose title contains '$it'" } ?: "") +
+                ". Use listSections to see the available section titles."
+        }
+        // Full score: the model asked for this section by name; every chunk of it is evidence
+        // the observer must see, exactly as it would see a search hit.
+        val results = chunks.map { SimpleSimilaritySearchResult<Retrievable>(it, 1.0) }
+        resultsListener?.onResultsEvent(ResultsEvent(this, "readSection: $sectionTitle", results, Duration.ofMillis(ms)))
+        val rendered = chunks.joinToString("\n") { "Chunk ID: ${it.id}\nContent: ${it.text}\n" }
+        if (rendered.length > maxReadSectionChars) {
+            return rendered.take(maxReadSectionChars) +
+                "\n\n[TRUNCATED — section is ${rendered.length} chars. The chunks above are in document order; " +
+                "use vectorSearch or textSearch for the rest, or broadenChunk from the last chunk shown.]"
+        }
+        return rendered
+    }
+
+    companion object {
+        const val DEFAULT_MAX_READ_SECTION_CHARS = 25_000
     }
 }
 
