@@ -20,6 +20,7 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.AgentProcess.Companion.withCurrent
 import io.mockk.mockk
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -29,6 +30,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.LinkedBlockingQueue
@@ -116,6 +118,50 @@ class SharedExecutorCallerRunsWiringIT {
                     }
                 } finally {
                     release.countDown()
+                }
+            }
+    }
+
+    /**
+     * The same wiring, driving the primitive an action actually fans out with.
+     *
+     * `parallelMap` is how `OperationContext.parallelMap` and parallel actions reach the executor,
+     * and it fails differently from a single `async`: every item goes through the same path, so a
+     * clear on the way out empties the submitting thread partway through its OWN fan-out. Later
+     * items then run with no process while earlier ones succeeded - a partly correct result from
+     * one call, with nothing thrown.
+     *
+     * More items than the pool can hold, so some are certain to run on the caller.
+     */
+    @Test
+    fun `a parallelMap over a saturated shared pool keeps the process for every item`() {
+        contextRunner
+            .withPropertyValues("embabel.agent.platform.threading.shared=true")
+            .run { context ->
+                val asyncer = context.getBean(Asyncer::class.java)
+                val outer = mockk<AgentProcess>()
+
+                outer.withCurrent {
+                    val callerThread = Thread.currentThread()
+                    val ranOn = Collections.synchronizedList(mutableListOf<Thread>())
+
+                    val seen = asyncer.parallelMap((1..16).toList(), maxConcurrency = 16) {
+                        ranOn += Thread.currentThread()
+                        AgentProcess.get()
+                    }
+
+                    assertTrue(
+                        ranOn.any { it === callerThread },
+                        "precondition: the shared pool must have overflowed onto the submitting thread",
+                    )
+                    assertEquals(16, seen.size)
+                    seen.forEachIndexed { i, p ->
+                        assertSame(outer, p, "item ${i + 1} of the fan-out ran without the process")
+                    }
+                    assertSame(
+                        outer, AgentProcess.get(),
+                        "the caller must still hold its process after its own fan-out",
+                    )
                 }
             }
     }

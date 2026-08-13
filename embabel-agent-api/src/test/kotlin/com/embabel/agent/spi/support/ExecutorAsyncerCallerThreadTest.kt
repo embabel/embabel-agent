@@ -171,6 +171,49 @@ class ExecutorAsyncerCallerThreadTest {
             }
         }
 
+        /**
+         * A fan-out where one item fails, which is the ordinary case rather than an exotic one -
+         * one tool call of several throwing does not abandon the request.
+         *
+         * The caller has to come out of that still inside its process, or the error handling that
+         * runs next is the code that discovers the blackboard is empty. Failure and loss of context
+         * arriving together is the worst version of this bug, because the exception looks like the
+         * whole story.
+         */
+        @Test
+        fun `a failing item in a fan-out does not take the caller's process with it`() {
+            val outer = mockk<AgentProcess>()
+
+            outer.withCurrent {
+                assertThrows(RuntimeException::class.java) {
+                    asyncer.parallelMap((1..5).toList(), maxConcurrency = 5) { item ->
+                        if (item == 3) error("item 3 failed") else AgentProcess.get()
+                    }
+                }
+                assertSame(outer, AgentProcess.get(), "the caller must still be inside its process to handle the failure")
+            }
+        }
+
+        /**
+         * A task that establishes its own process must not hand it back to the caller.
+         *
+         * Restoring means putting back what the CALLER had, not leaving whatever the task last set.
+         * A test that only asserts "not null" would pass on an implementation that leaked the
+         * task's process upward, which would be a worse bug than the one being fixed - work
+         * attributed to, and billed against, the wrong process.
+         */
+        @Test
+        fun `a task that sets its own process does not leak it to the caller`() {
+            val outer = mockk<AgentProcess>()
+            val other = mockk<AgentProcess>()
+
+            outer.withCurrent {
+                asyncer.async { AgentProcessAccessor.setValue(other) }.get(5, TimeUnit.SECONDS)
+
+                assertSame(outer, AgentProcess.get(), "the caller's own process, not the one the task set")
+            }
+        }
+
         @Test
         fun `repeated asyncs do not erode the caller's process`() {
             val outer = mockk<AgentProcess>()
