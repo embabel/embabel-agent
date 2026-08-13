@@ -179,7 +179,7 @@ data class ToolishRag @JvmOverloads constructor(
             }
             if (searchOperations is ResultExpander) {
                 logger.debug("Adding ResultExpanderTools to ToolishRag '{}'", name)
-                add(ResultExpanderTools(searchOperations, maxZoomOutChars))
+                add(ResultExpanderTools(searchOperations, maxZoomOutChars, listener))
             }
             if (searchOperations is SectionReader) {
                 logger.debug("Adding SectionReadingTools to ToolishRag '{}'", name)

@@ -169,6 +169,7 @@ internal class VectorSearchTools @JvmOverloads constructor(
 internal class ResultExpanderTools @JvmOverloads constructor(
     private val resultExpander: ResultExpander,
     private val maxZoomOutChars: Int = DEFAULT_MAX_ZOOM_OUT_CHARS,
+    private val resultsListener: ResultsListener? = null,
 ) : SearchTools {
 
     @LlmTool(description = "given a chunk ID, expand to surrounding chunks")
@@ -176,9 +177,25 @@ internal class ResultExpanderTools @JvmOverloads constructor(
         @LlmTool.Param(description = "id of the chunk to expand") chunkId: String,
         @LlmTool.Param(description = "chunksToAdd", required = false) chunksToAdd: Int = 2,
     ): String {
-        val chunks = resultExpander.expandResult(chunkId, ResultExpander.Method.SEQUENCE, chunksToAdd)
-         .filterIsInstance<Chunk>()
+        val (chunks, ms) = time {
+            resultExpander.expandResult(chunkId, ResultExpander.Method.SEQUENCE, chunksToAdd)
+                .filterIsInstance<Chunk>()
+        }
         if (chunks.isEmpty()) return "No adjacent chunks found for this section."
+        // Expanded chunks are evidence the model SEES and quotes from. An observer
+        // (attribution rollup, quoted-figure verification) that never learns of them
+        // mislabels legitimate quotes as inventions — measured 2026-08-13, where a
+        // fidelity check flagged clause numbers quoted from a broadened table of
+        // contents. Same full-score contract as section reads: the model asked for
+        // these chunks; every one is evidence.
+        resultsListener?.onResultsEvent(
+            ResultsEvent(
+                this,
+                "broadenChunk: $chunkId",
+                chunks.map { SimpleSimilaritySearchResult<Retrievable>(it, 1.0) },
+                Duration.ofMillis(ms),
+            ),
+        )
         return chunks.joinToString("\n") { "Chunk ID: ${it.id}\nContent: ${it.text}\n" }
     }
 
@@ -189,6 +206,18 @@ internal class ResultExpanderTools @JvmOverloads constructor(
         val embeddables = resultExpander.expandResult(id, ResultExpander.Method.ZOOM_OUT, 1)
          .filter { it is Embeddable }
         if (embeddables.isEmpty()) return "No parent section found."
+        // Same observability contract as broadenChunk for whatever is Retrievable.
+        val retrievables = embeddables.filterIsInstance<Retrievable>()
+        if (retrievables.isNotEmpty()) {
+            resultsListener?.onResultsEvent(
+                ResultsEvent(
+                    this,
+                    "zoomOut: $id",
+                    retrievables.map { SimpleSimilaritySearchResult<Retrievable>(it, 1.0) },
+                    Duration.ZERO,
+                ),
+            )
+        }
         val result = embeddables.joinToString("\n") { contentElement ->
             "${contentElement.javaClass.simpleName}: id=${contentElement.id}\nContent: ${(contentElement as Embeddable).embeddableValue()}\n"
         }
