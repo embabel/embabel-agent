@@ -32,30 +32,40 @@ import org.springframework.ai.chat.prompt.Prompt
 import reactor.core.publisher.Flux
 import java.time.Duration
 import java.time.LocalDate
+import java.util.Collections
+import java.util.IdentityHashMap
 
 /**
- * Helper object for verifying streaming capability of ChatModel instances.
+ * Verifies streaming capability of [ChatModel] instances.
  *
  * Spring AI's ChatModel interface extends StreamingChatModel, but not all implementations
- * provide meaningful streaming support. Some may throw UnsupportedOperationException,
- * return empty Flux, or provide stub implementations.
+ * provide meaningful streaming support. Some throw [UnsupportedOperationException].
  *
- * This helper performs lightweight behavioral testing to determine if a model
- * actually supports streaming operations.
+ * Results are memoized per [ChatModel] instance so a successful probe (or a definitive
+ * [UnsupportedOperationException]) is paid for once, not on every
+ * [LlmService.supportsStreaming] call. Other probe failures (missing key, network, rate
+ * limits) still answer false for this call, matching existing callers such as the BYOK
+ * placeholder, but are not cached so a later successful probe can recover.
  */
-private object StreamingCapabilityVerifier {
+internal object StreamingCapabilityVerifier {
     private const val TEST_PROMPT_MESSAGE = "Say 'test' to confirm streaming works"
     private const val STREAMING_TEST_TIMEOUT_MS = 100L
 
+    private val cache = Collections.synchronizedMap(IdentityHashMap<ChatModel, Boolean>())
+
     fun supportsStreaming(chatModel: ChatModel): Boolean {
+        cache[chatModel]?.let { return it }
+
         return try {
             val testRequest = Prompt(listOf(UserMessage(TEST_PROMPT_MESSAGE)))
             val stream = chatModel.stream(testRequest)
             canConsumeStream(stream)
+            cache[chatModel] = true
             true
-        } catch (e: UnsupportedOperationException) {
+        } catch (_: UnsupportedOperationException) {
+            cache[chatModel] = false
             false
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }
@@ -66,9 +76,14 @@ private object StreamingCapabilityVerifier {
                 .timeout(Duration.ofMillis(STREAMING_TEST_TIMEOUT_MS))
                 .block()
             true
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
+    }
+
+    /** Clears memoized results. For tests only. */
+    internal fun clearCache() {
+        cache.clear()
     }
 }
 
