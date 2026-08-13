@@ -29,6 +29,7 @@ import com.embabel.agent.rag.service.RegexSearchOperations
 import com.embabel.agent.rag.service.ResultExpander
 import com.embabel.agent.rag.service.RetrievableResultsFormatter
 import com.embabel.agent.rag.service.SearchOperations
+import com.embabel.agent.rag.service.SectionReader
 import com.embabel.agent.rag.service.SimilarityResults
 import com.embabel.agent.rag.service.SimpleRetrievableResultsFormatter
 import com.embabel.agent.rag.service.TextSearch
@@ -179,6 +180,10 @@ data class ToolishRag @JvmOverloads constructor(
             if (searchOperations is ResultExpander) {
                 logger.debug("Adding ResultExpanderTools to ToolishRag '{}'", name)
                 add(ResultExpanderTools(searchOperations, maxZoomOutChars))
+            }
+            if (searchOperations is SectionReader) {
+                logger.debug("Adding SectionReadingTools to ToolishRag '{}'", name)
+                add(SectionReadingTools(searchOperations, listener))
             }
             if (searchOperations is RegexSearchOperations) {
                 logger.debug("Adding RegexSearchTools to ToolishRag '{}'", name)
