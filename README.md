@@ -898,6 +898,25 @@ spring:
 This configuration sets up an MCP client that connects to a Docker-based MCP server. The connection uses STDIO transport
 through Docker's socat utility to connect to a TCP endpoint.
 
+### Remote Streamable HTTP MCP Connection
+
+Embabel applications can also connect directly to remote Streamable HTTP MCP servers. For example, Parallel Search MCP
+provides `web_search` and `web_fetch` without requiring an account or API key:
+
+```yaml
+spring:
+  ai:
+    mcp:
+      client:
+        streamable-http:
+          connections:
+            parallel:
+              url: https://search.parallel.ai
+```
+
+Spring AI appends the default `/mcp` endpoint, so this configuration connects to
+`https://search.parallel.ai/mcp`.
+
 ### Docker Desktop MCP Integration
 
 Docker has embraced MCP with their Docker MCP Catalog and Toolkit, which provides:
