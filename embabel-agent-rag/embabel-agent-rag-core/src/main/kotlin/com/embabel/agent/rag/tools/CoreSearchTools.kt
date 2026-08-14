@@ -26,6 +26,7 @@ import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.*
 import com.embabel.agent.rag.service.support.Bm25Normalization
 import com.embabel.common.core.types.SimilarityResult
+import com.embabel.common.core.types.SimpleSimilaritySearchResult
 import com.embabel.common.core.types.TextSimilaritySearchRequest
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.loggerFor
@@ -168,6 +169,7 @@ internal class VectorSearchTools @JvmOverloads constructor(
 internal class ResultExpanderTools @JvmOverloads constructor(
     private val resultExpander: ResultExpander,
     private val maxZoomOutChars: Int = DEFAULT_MAX_ZOOM_OUT_CHARS,
+    private val resultsListener: ResultsListener? = null,
 ) : SearchTools {
 
     @LlmTool(description = "given a chunk ID, expand to surrounding chunks")
@@ -175,9 +177,25 @@ internal class ResultExpanderTools @JvmOverloads constructor(
         @LlmTool.Param(description = "id of the chunk to expand") chunkId: String,
         @LlmTool.Param(description = "chunksToAdd", required = false) chunksToAdd: Int = 2,
     ): String {
-        val chunks = resultExpander.expandResult(chunkId, ResultExpander.Method.SEQUENCE, chunksToAdd)
-         .filterIsInstance<Chunk>()
+        val (chunks, ms) = time {
+            resultExpander.expandResult(chunkId, ResultExpander.Method.SEQUENCE, chunksToAdd)
+                .filterIsInstance<Chunk>()
+        }
         if (chunks.isEmpty()) return "No adjacent chunks found for this section."
+        // Expanded chunks are evidence the model SEES and quotes from. An observer
+        // (attribution rollup, quoted-figure verification) that never learns of them
+        // mislabels legitimate quotes as inventions — measured 2026-08-13, where a
+        // fidelity check flagged clause numbers quoted from a broadened table of
+        // contents. Same full-score contract as section reads: the model asked for
+        // these chunks; every one is evidence.
+        resultsListener?.onResultsEvent(
+            ResultsEvent(
+                this,
+                "broadenChunk: $chunkId",
+                chunks.map { SimpleSimilaritySearchResult<Retrievable>(it, 1.0) },
+                Duration.ofMillis(ms),
+            ),
+        )
         return chunks.joinToString("\n") { "Chunk ID: ${it.id}\nContent: ${it.text}\n" }
     }
 
@@ -185,9 +203,23 @@ internal class ResultExpanderTools @JvmOverloads constructor(
     fun zoomOut(
         @LlmTool.Param(description = "id of the content element to expand") id: String,
     ): String {
-        val embeddables = resultExpander.expandResult(id, ResultExpander.Method.ZOOM_OUT, 1)
-         .filter { it is Embeddable }
+        val (embeddables, ms) = time {
+            resultExpander.expandResult(id, ResultExpander.Method.ZOOM_OUT, 1)
+                .filter { it is Embeddable }
+        }
         if (embeddables.isEmpty()) return "No parent section found."
+        // Same observability contract as broadenChunk for whatever is Retrievable.
+        val retrievables = embeddables.filterIsInstance<Retrievable>()
+        if (retrievables.isNotEmpty()) {
+            resultsListener?.onResultsEvent(
+                ResultsEvent(
+                    this,
+                    "zoomOut: $id",
+                    retrievables.map { SimpleSimilaritySearchResult<Retrievable>(it, 1.0) },
+                    Duration.ofMillis(ms),
+                ),
+            )
+        }
         val result = embeddables.joinToString("\n") { contentElement ->
             "${contentElement.javaClass.simpleName}: id=${contentElement.id}\nContent: ${(contentElement as Embeddable).embeddableValue()}\n"
         }
@@ -202,6 +234,147 @@ internal class ResultExpanderTools @JvmOverloads constructor(
 
     companion object {
         const val DEFAULT_MAX_ZOOM_OUT_CHARS = 25_000
+    }
+}
+
+/**
+ * Tools to navigate a document's section structure by NAME, over a [SectionReader] store.
+ *
+ * Search retrieves isolated hits; some content only answers whole. The motivating case is
+ * structured data split across chunks — a financial statement whose header row, row labels
+ * and values land in different chunks, so search-hit reassembly picks wrong rows or a wrong
+ * period column. `listSections` is the document's real table of contents; `readSection`
+ * returns a named section complete and in order.
+ *
+ * Chunks returned by `readSection` are reported to the [ResultsListener] at full score, so
+ * observed-attribution consumers see section reads the same way they see search hits.
+ */
+internal class SectionReadingTools @JvmOverloads constructor(
+    private val sectionReader: SectionReader,
+    private val resultsListener: ResultsListener? = null,
+    private val maxReadSectionChars: Int = DEFAULT_MAX_READ_SECTION_CHARS,
+) : SearchTools {
+
+    private val logger: Logger = LoggerFactory.getLogger(javaClass)
+
+    @LlmTool(
+        description = "List the section headings of a document — its table of contents — with chunk counts. " +
+            "Use to find the exact section that holds structured data (a financial statement, a schedule, an appendix) " +
+            "before reading it with readSection."
+    )
+    fun listSections(
+        @LlmTool.Param(
+            description = "Case-insensitive substring of the document title to scope to. Omit to list all documents' sections.",
+            required = false,
+        ) documentTitle: String? = null,
+    ): String {
+        val sections = sectionReader.listSections(documentTitle)
+        if (sections.isEmpty()) {
+            return "No sections found" + (documentTitle?.let { " for document title containing '$it'" } ?: "") + "."
+        }
+        val listing = sections
+            .groupBy { it.documentTitle }
+            .entries
+            .joinToString("\n") { (doc, docSections) ->
+                "Document: $doc\n" + docSections.joinToString("\n") { "  - ${it.title} (${it.chunkCount} chunks)" }
+            }
+        if (listing.length > maxReadSectionChars) {
+            return listing.take(maxReadSectionChars) +
+                "\n\n[TRUNCATED — narrow with the documentTitle parameter.]"
+        }
+        return listing
+    }
+
+    @LlmTool(
+        description = "Read EVERY chunk of a named section in document order — e.g. a complete financial statement " +
+            "or schedule. Use when you need structured data whole (all rows of a table, with the header row) rather " +
+            "than isolated search hits. Get the exact title from listSections or from a retrieved chunk's Section header."
+    )
+    fun readSection(
+        @LlmTool.Param(description = "Exact section title, as shown by listSections or a chunk's Section header")
+        sectionTitle: String,
+        @LlmTool.Param(
+            description = "Case-insensitive substring of the document title, to disambiguate when documents share section names.",
+            required = false,
+        ) documentTitle: String? = null,
+    ): String {
+        logger.info("Reading section '{}' documentTitle={}", sectionTitle, documentTitle)
+        val (chunks, ms) = time {
+            sectionReader.readSection(sectionTitle, documentTitle)
+        }
+        if (chunks.isEmpty()) {
+            return "No section titled '$sectionTitle' found" +
+                (documentTitle?.let { " in a document whose title contains '$it'" } ?: "") +
+                ". Use listSections to see the available section titles."
+        }
+        // NEVER blend documents. Similar documents share section names (contracts,
+        // periodic filings), and a title match that silently concatenates several
+        // documents hands the model the WRONG one to quote from — measured 2026-08-14
+        // (CUAD): governing-law answers cited a different contract's clause at full
+        // confidence. Ambiguity is surfaced as a choice, not merged.
+        //
+        // Provenance comes from the chunk's structural fields, which the chunker always
+        // populates: keying off a free-form metadata key nobody writes would leave every
+        // chunk indistinguishable and silently re-enable the blending this prevents.
+        val documents = chunks
+            .map { DocumentProvenance(it.structure.rootDocumentId, it.structure.rootDocumentTitle) }
+            .distinct()
+        // Unknown provenance FAILS CLOSED: a chunk we cannot attribute is the least safe
+        // input to concatenate, not an excuse to skip the check.
+        if (documents.size > 1) {
+            return "Section '$sectionTitle' exists in ${documents.size} documents: " +
+                documents.joinToString("; ") { it.describe() } +
+                (documentTitle?.let {
+                    ". The documentTitle '$it' still matches more than one — pass a longer, " +
+                        "more specific substring"
+                } ?: ". Call readSection again with a documentTitle") +
+                " to pick ONE."
+        }
+        val rendered = chunks.map { "Chunk ID: ${it.id}\nContent: ${it.text}\n" }
+        // Truncate at a chunk boundary, and report ONLY the chunks that survived it. Full score:
+        // the model asked for this section by name, so what it was shown is evidence exactly as a
+        // search hit is — but reporting a chunk it never saw lets an attribution check treat an
+        // ungrounded quote as grounded, which is the same failure in the other direction.
+        val shown = rendered
+            .runningFold(0) { chars, chunkText -> chars + chunkText.length + 1 }
+            .drop(1)
+            .takeWhile { it <= maxReadSectionChars }
+            .size
+            .coerceAtLeast(1)
+        val results = chunks.take(shown).map { SimpleSimilaritySearchResult<Retrievable>(it, 1.0) }
+        resultsListener?.onResultsEvent(ResultsEvent(this, "readSection: $sectionTitle", results, Duration.ofMillis(ms)))
+        val text = rendered.take(shown).joinToString("\n")
+        if (shown < chunks.size || text.length > maxReadSectionChars) {
+            val what = if (shown < chunks.size) {
+                "showing $shown of ${chunks.size} chunks"
+            } else {
+                // A single chunk over the cap: the model sees part of a chunk reported whole.
+                "one chunk of ${text.length} chars cut at $maxReadSectionChars"
+            }
+            return text.take(maxReadSectionChars) +
+                "\n\n[TRUNCATED — $what. The chunks above are in document order; " +
+                "use vectorSearch or textSearch for the rest, or broadenChunk from the last chunk shown.]"
+        }
+        return text
+    }
+
+    /**
+     * Which document a section's chunks came from. Identity is the root document id — the
+     * title is what the model is shown, but two documents may legitimately share one.
+     */
+    private data class DocumentProvenance(
+        val id: String?,
+        val title: String?,
+    ) {
+        fun describe(): String = when {
+            title != null -> "'$title'"
+            id != null -> "document $id"
+            else -> "an unattributed document"
+        }
+    }
+
+    companion object {
+        const val DEFAULT_MAX_READ_SECTION_CHARS = 25_000
     }
 }
 

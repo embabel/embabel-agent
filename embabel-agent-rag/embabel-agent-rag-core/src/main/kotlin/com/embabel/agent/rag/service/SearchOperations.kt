@@ -17,6 +17,7 @@ package com.embabel.agent.rag.service
 
 import com.embabel.agent.filter.PropertyFilter
 import com.embabel.agent.rag.filter.EntityFilter
+import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.ContentElement
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.common.core.types.SimilarityResult
@@ -301,6 +302,51 @@ interface FilteringRegexSearch : RegexSearchOperations {
         metadataFilter: PropertyFilter? = null,
         entityFilter: EntityFilter? = null,
     ): List<SimilarityResult<T>>
+}
+
+/**
+ * One section heading of an ingested document, as reported by [SectionReader.listSections].
+ */
+data class SectionSummary(
+    val title: String,
+    val documentTitle: String,
+    val chunkCount: Int,
+)
+
+/**
+ * Interface to be implemented by stores that can navigate a document's section
+ * structure by NAME: list the section headings of a document (its table of
+ * contents) and read every chunk of a named section in document order.
+ *
+ * Search finds isolated hits; some content is only usable whole. The motivating
+ * case is structured data split across chunks — a financial statement whose
+ * header row, row labels and values land in different chunks. A model that has
+ * seen a section title (from [listSections], or from provenance embedded in a
+ * retrieved chunk) can read the complete section in order instead of trying to
+ * reassemble it from search results.
+ *
+ * Tenancy: implementations MUST scope results to their own tenant/context. The
+ * tools built over this interface (unlike the vector/text search tools) apply
+ * no metadata filter of their own, because section reads are keyed by title
+ * rather than similarity and per-store scoping is where multi-tenant stores
+ * already enforce isolation.
+ */
+interface SectionReader : SearchOperations {
+
+    /**
+     * The section headings of ingested documents, with chunk counts.
+     * @param documentTitle case-insensitive substring filter on the document
+     * title; null lists sections for all visible documents
+     */
+    fun listSections(documentTitle: String? = null): List<SectionSummary>
+
+    /**
+     * Every chunk of the named section(s), in document sequence order.
+     * @param sectionTitle exact section title, matched case-insensitively
+     * @param documentTitle optional case-insensitive substring filter on the
+     * document title, to disambiguate when documents share section names
+     */
+    fun readSection(sectionTitle: String, documentTitle: String? = null): List<Chunk>
 }
 
 /**

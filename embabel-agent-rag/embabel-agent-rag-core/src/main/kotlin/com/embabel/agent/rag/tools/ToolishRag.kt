@@ -29,6 +29,7 @@ import com.embabel.agent.rag.service.RegexSearchOperations
 import com.embabel.agent.rag.service.ResultExpander
 import com.embabel.agent.rag.service.RetrievableResultsFormatter
 import com.embabel.agent.rag.service.SearchOperations
+import com.embabel.agent.rag.service.SectionReader
 import com.embabel.agent.rag.service.SimilarityResults
 import com.embabel.agent.rag.service.SimpleRetrievableResultsFormatter
 import com.embabel.agent.rag.service.TextSearch
@@ -100,6 +101,7 @@ data class ToolishRag @JvmOverloads constructor(
     val metadataFilter: PropertyFilter? = null,
     val entityFilter: EntityFilter? = null,
     val maxZoomOutChars: Int = ResultExpanderTools.DEFAULT_MAX_ZOOM_OUT_CHARS,
+    val maxReadSectionChars: Int = SectionReadingTools.DEFAULT_MAX_READ_SECTION_CHARS,
     /**
      * Progressively-disclosed guidance appended to the unfold response when
      * the LLM invokes this tool. Right home for search-strategy notes
@@ -178,7 +180,11 @@ data class ToolishRag @JvmOverloads constructor(
             }
             if (searchOperations is ResultExpander) {
                 logger.debug("Adding ResultExpanderTools to ToolishRag '{}'", name)
-                add(ResultExpanderTools(searchOperations, maxZoomOutChars))
+                add(ResultExpanderTools(searchOperations, maxZoomOutChars, listener))
+            }
+            if (searchOperations is SectionReader) {
+                logger.debug("Adding SectionReadingTools to ToolishRag '{}'", name)
+                add(SectionReadingTools(searchOperations, listener, maxReadSectionChars))
             }
             if (searchOperations is RegexSearchOperations) {
                 logger.debug("Adding RegexSearchTools to ToolishRag '{}'", name)
@@ -249,6 +255,13 @@ data class ToolishRag @JvmOverloads constructor(
      */
     fun withMaxZoomOutChars(maxChars: Int): ToolishRag =
         copy(maxZoomOutChars = maxChars)
+
+    /**
+     * Set the maximum number of characters a single readSection result may return
+     * before it is truncated at a chunk boundary.
+     */
+    fun withMaxReadSectionChars(maxChars: Int): ToolishRag =
+        copy(maxReadSectionChars = maxChars)
 
     /**
      * Set the similarity floors applied when the LLM omits the optional `threshold`

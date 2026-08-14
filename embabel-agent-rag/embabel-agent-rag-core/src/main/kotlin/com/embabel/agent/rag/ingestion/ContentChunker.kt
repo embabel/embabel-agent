@@ -74,6 +74,9 @@ interface ContentChunker {
         /** Metadata key for the unique identifier of the root document */
         const val ROOT_DOCUMENT_ID = ChunkStructure.ROOT_DOCUMENT_ID
 
+        /** Metadata key for the human-readable title of the root document */
+        const val ROOT_DOCUMENT_TITLE = ChunkStructure.ROOT_DOCUMENT_TITLE
+
         /** Metadata key for the unique identifier of the container section */
         const val CONTAINER_SECTION_ID = ChunkStructure.CONTAINER_SECTION_ID
 
