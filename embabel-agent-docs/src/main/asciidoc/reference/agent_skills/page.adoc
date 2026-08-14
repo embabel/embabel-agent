@@ -200,6 +200,56 @@ The `Skills` class exposes three LLM tools:
 * `listResources(skillName, resourceType)` - List files in scripts/references/assets
 * `readResource(skillName, resourceType, fileName)` - Read a resource file
 
+===== Selecting Skills by Embedding
+
+Lazy activation asks the model to choose: it reads the descriptions, decides a skill is
+relevant, and calls `activate`.
+This is appropriate for procedural skills.
+For skills that carry *reference knowledge* — domain conventions, formulas, terminology a
+model may misread — the decision is the weak point, because a model confident in a wrong
+answer never reaches for help.
+
+`EmbeddingSkillSelector` offers a second activation mode: choose skills by similarity
+between the query and each skill's `description`, and inject the instructions directly.
+No tool call, no model decision, one embedding call.
+
+A skill opts in through the specification's open `metadata` map, so it stays portable —
+other Agent Skills runtimes ignore the key:
+
+[source,markdown]
+----
+---
+name: financial-metric-formulas
+description: Derived financial metrics and how to compute them from statement line items -
+  quick ratio, current ratio, EBITDA, operating and gross margin, CAGR, free cash flow.
+metadata:
+  activation: embedding
+---
+
+Quick ratio = (cash and equivalents + short-term investments + receivables) / current liabilities...
+----
+
+[source,kotlin]
+----
+val selector = EmbeddingSkillSelector(embeddingService)
+val guidance = selector.select(userQuestion, skills.skills)
+    .joinToString("\n\n") { it.skill.instructions.orEmpty() }
+----
+
+Notes:
+
+* Skills without `activation: embedding` are never selected this way, so existing skill
+libraries are unaffected.
+* Similarity discriminates by subject, not by difficulty.
+A skill selected this way is injected for every question in its subject area, so its
+instructions must be safe to inject whenever the subject matches.
+* `description` is what gets embedded: write it in the vocabulary of the questions the
+skill serves.
+* The default threshold (`0.30`) and maximum (2 skills) are constructor parameters.
+Similarity scores are not calibrated across embedding models — tune the threshold if you
+change the model.
+* Selection is fail-open: an embedding failure yields no skills rather than an error.
+
 ==== Combining Skills with Other References
 
 Skills can be combined with other `LlmReference` implementations:
