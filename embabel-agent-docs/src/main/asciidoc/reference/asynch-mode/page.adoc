@@ -89,6 +89,8 @@ embabel.agent.platform.threading.shared=false
 
 **Note**: Virtual threads require Java 21+. On Java 17-20, Embabel automatically falls back to platform threads even if virtual threads are requested.
 
+NOTE: `embabel.agent.platform.threading.shared=true` means Embabel may use the application's `applicationTaskExecutor` when the application and Embabel use the same threading model. If that executor is bounded and uses `CallerRunsPolicy`, saturated executor workers and a full queue can cause Embabel async work to run on the submitting application thread. Embabel preserves `AgentProcess` context in this case, but this configuration still couples agent execution to application executor backpressure and may affect request latency. Use executor sharing deliberately.
+
 Framework employs _Asyncer_ abstraction consistently across Agent Invocation (see <<reference.invoking>> ), Agent Actions, Tool Loop, ShellCommands, and other scenarios.
 
 === Java 25 Implications

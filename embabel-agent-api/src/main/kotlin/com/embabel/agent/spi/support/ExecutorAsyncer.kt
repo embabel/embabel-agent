@@ -60,14 +60,11 @@ class ExecutorAsyncer(
                 // no close or dispose step, and none is needed - the value is immutable, holds no
                 // resources, and its lifetime ends with the request that set it.
                 ModelSelectionContextHolder.with(modelSelectionContext) {
-                    if (agentProcess != null) {
-                        AgentProcessAccessor.setValue(agentProcess)
-                        try {
-                            block()
-                        } finally {
-                            AgentProcessAccessor.reset() // cleanup
-                        }
-                    } else {
+                    // Restores rather than clears: nothing leaks between tasks on a pooled thread,
+                    // and nothing is wiped when the executor runs the task on the submitting
+                    // thread, which is already inside a process. Same shape as the wrapper above,
+                    // which is why they nest without either having to know about the other.
+                    AgentProcessAccessor.with(agentProcess) {
                         block()
                     }
                 }
