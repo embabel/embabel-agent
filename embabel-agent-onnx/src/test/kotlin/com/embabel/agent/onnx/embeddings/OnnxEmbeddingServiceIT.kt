@@ -22,6 +22,7 @@ import kotlin.system.measureTimeMillis
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 
 /**
  * IT test that downloads the real all-MiniLM-L6-v2 model and runs inference.
@@ -31,6 +32,11 @@ import org.junit.jupiter.api.TestInstance
  * download-and-cache pipeline end to end, including HTTP redirect handling.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@EnabledIfEnvironmentVariable(
+    named = "EMBABEL_RUN_ONNX_INTEGRATION_TESTS",
+    matches = ".+",
+    disabledReason = "Integration test downloads all-MiniLM-L6-v2 from Hugging Face and may be slow",
+)
 class OnnxEmbeddingServiceIT {
 
     companion object {

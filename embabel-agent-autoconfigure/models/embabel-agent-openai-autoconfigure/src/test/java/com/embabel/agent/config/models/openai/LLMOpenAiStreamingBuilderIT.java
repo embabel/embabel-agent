@@ -23,6 +23,7 @@ import com.embabel.agent.autoconfigure.models.openai.AgentOpenAiAutoConfiguratio
 import com.embabel.agent.spi.LlmService;
 import com.embabel.common.core.streaming.StreamingEvent;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -95,6 +96,8 @@ import static org.junit.jupiter.api.Assertions.*;
         }
 )
 @Import({StreamingTestConfig.class, AgentOpenAiAutoConfiguration.class})
+@EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+",
+        disabledReason = "Integration test requires OPENAI_API_KEY")
 class LLMOpenAiStreamingBuilderIT {
 
     private static final Logger logger = LoggerFactory.getLogger(LLMOpenAiStreamingBuilderIT.class);

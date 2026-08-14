@@ -290,9 +290,7 @@
                 <configuration>
                     <failOnFlakeCount>1</failOnFlakeCount>
                     <rerunFailingTestsCount>1</rerunFailingTestsCount>
-                    <excludes>
-                        <exclude>**/*IT.java</exclude>
-                        <exclude>**/*IT.kt</exclude>
+                    <excludes combine.children="append">
                         <exclude>**/architecture/**</exclude>
                     </excludes>
                 </configuration>

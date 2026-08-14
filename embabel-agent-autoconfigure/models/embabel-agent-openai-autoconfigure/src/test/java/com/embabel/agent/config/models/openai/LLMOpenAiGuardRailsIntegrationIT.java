@@ -40,6 +40,7 @@ import com.openai.models.moderations.ModerationCreateParams;
 import com.openai.models.moderations.ModerationCreateResponse;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.moderation.Moderation;
@@ -338,6 +339,8 @@ class GuardRailConfiguration {
         }
 )
 @Import({AgentOpenAiAutoConfiguration.class, GuardRailConfiguration.class})
+@EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+",
+        disabledReason = "Integration test requires OPENAI_API_KEY")
 class LLMOpenAiGuardRailsIntegrationIT {
 
     @SpringBootConfiguration
