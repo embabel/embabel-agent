@@ -76,7 +76,6 @@ class BadgeCodeTool {
         // One attempt: a rejected payload is not a transient failure, and retrying it only buries
         // the provider's message under a "Failed after 3 attempt(s)".
         "embabel.agent.platform.models.openai.max-attempts=1",
-        "embabel.agent.platform.llm-operations.data-binding.max-attempts=1",
         "spring.main.allow-bean-definition-overriding=true",
     ]
 )
@@ -93,21 +92,12 @@ class OpenAiCatalogIT(
 
     companion object {
 
-        // Models deprecated by OpenAI and no longer callable — kept in the catalog so users who
-        // reference them by name receive the provider's own deprecation error rather than a silent
-        // "model not found" from Embabel's configuration layer.
-        private val DEPRECATED_MODELS = setOf(
-            "gpt-5.3-chat-latest",
-        )
-
         /**
          * Every chat model the catalog ships, so coverage tracks the YAML instead of a copy of it.
          */
         @JvmStatic
         fun catalogModels(): List<String> =
-            OpenAiModelLoader().loadAutoConfigMetadata().effectiveModels()
-                .map { it.modelId }
-                .filter { it !in DEPRECATED_MODELS }
+            OpenAiModelLoader().loadAutoConfigMetadata().effectiveModels().map { it.modelId }
     }
 
     /**
