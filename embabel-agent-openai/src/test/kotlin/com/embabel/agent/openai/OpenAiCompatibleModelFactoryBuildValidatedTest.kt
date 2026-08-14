@@ -157,6 +157,7 @@ class OpenAiCompatibleModelFactoryBuildValidatedTest {
             OpenAiCompatibleModelFactory.deepSeek(""),
             OpenAiCompatibleModelFactory.mistral("\t"),
             OpenAiCompatibleModelFactory.gemini(" "),
+            OpenAiCompatibleModelFactory.atlasCloud("\n"),
         ).forEach { spec ->
             val e = assertThrows<InvalidApiKeyException> { spec.buildValidated() }
             assertEquals(BLANK_API_KEY_MESSAGE, e.message)

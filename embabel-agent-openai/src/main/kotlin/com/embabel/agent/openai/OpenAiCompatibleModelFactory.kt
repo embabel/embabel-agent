@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.openai
 
+import com.embabel.agent.api.models.AtlasCloudModels
 import com.embabel.agent.api.models.DeepSeekModels
 import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.api.models.MistralAiModels
@@ -128,6 +129,18 @@ open class OpenAiCompatibleModelFactory(
             )
 
         /**
+         * Returns a [ByokSpec] for Atlas Cloud (OpenAI-compatible endpoint).
+         * Validates against [AtlasCloudModels.QWEN3_5_FLASH] by default.
+         */
+        fun atlasCloud(apiKey: String): ByokSpec =
+            ByokSpec(
+                "https://api.atlascloud.ai/v1",
+                apiKey,
+                AtlasCloudModels.QWEN3_5_FLASH,
+                AtlasCloudModels.PROVIDER,
+            )
+
+        /**
          * Returns a [ByokSpec] for a custom OpenAI-compatible provider.
          *
          * Both [validationModel] and [validationProvider] are required — there is no
@@ -191,8 +204,9 @@ open class OpenAiCompatibleModelFactory(
      * so it can be passed directly to [com.embabel.common.byok.detectProvider].
      *
      * Obtained via the companion factory methods ([openAi], [deepSeek], [mistral], [gemini],
-     * or [byok] for custom providers). Use [validating] to override the default validation
-     * model and provider — for example if the key only grants access to a specific model tier.
+     * [atlasCloud], or [byok] for custom providers). Use [validating] to override the default
+     * validation model and provider — for example if the key only grants access to a specific
+     * model tier.
      */
     class ByokSpec internal constructor(
         private val baseUrl: String?,

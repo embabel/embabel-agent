@@ -61,6 +61,15 @@ class OpenAiCompatibleModelFactoryByokIT {
     }
 
     @Test
+    @EnabledIfEnvironmentVariable(named = "ATLASCLOUD_API_KEY", matches = ".+")
+    fun `atlasCloud buildValidated succeeds with valid key`() {
+        val service = OpenAiCompatibleModelFactory.atlasCloud(System.getenv("ATLASCLOUD_API_KEY"))
+            .buildValidated()
+        assertNotNull(service)
+        assertEquals("Atlas Cloud", service.provider)
+    }
+
+    @Test
     @EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+")
     fun `openAiEmbedding buildValidated succeeds with valid key`() {
         val service = OpenAiCompatibleModelFactory

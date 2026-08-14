@@ -224,6 +224,9 @@ val service: LlmService<*> = OpenAiCompatibleModelFactory.mistral(userKey).build
 
 // Gemini (OpenAI-compatible endpoint)
 val service: LlmService<*> = OpenAiCompatibleModelFactory.gemini(userKey).buildValidated()
+
+// Atlas Cloud (OpenAI-compatible endpoint)
+val service: LlmService<*> = OpenAiCompatibleModelFactory.atlasCloud(userKey).buildValidated()
 ----
 
 `buildValidated()` makes a single probe call with no retries.
@@ -258,6 +261,7 @@ val service: LlmService<*> = detectProvider(
     OpenAiCompatibleModelFactory.deepSeek(userKey),
     OpenAiCompatibleModelFactory.mistral(userKey),
     OpenAiCompatibleModelFactory.gemini(userKey),
+    OpenAiCompatibleModelFactory.atlasCloud(userKey),
 )
 val detectedProvider: String = service.provider
 ----
@@ -613,5 +617,4 @@ embabel.agent.logging.personality=severance
 Remove the `embabel.agent.logging.personality` key to disable personality-based logging.
 
 As all logging results from listening to events via an `AgenticEventListener`, you can also easily create your own customized logging.
-
 
