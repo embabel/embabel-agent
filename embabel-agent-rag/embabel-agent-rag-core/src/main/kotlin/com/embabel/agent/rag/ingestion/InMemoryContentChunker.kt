@@ -23,6 +23,7 @@ import com.embabel.agent.rag.ingestion.ContentChunker.Companion.LEAF_SECTION_ID
 import com.embabel.agent.rag.ingestion.ContentChunker.Companion.LEAF_SECTION_TITLE
 import com.embabel.agent.rag.ingestion.ContentChunker.Companion.LEAF_SECTION_URL
 import com.embabel.agent.rag.ingestion.ContentChunker.Companion.ROOT_DOCUMENT_ID
+import com.embabel.agent.rag.ingestion.ContentChunker.Companion.ROOT_DOCUMENT_TITLE
 import com.embabel.agent.rag.ingestion.ContentChunker.Companion.SEQUENCE_NUMBER
 import com.embabel.agent.rag.ingestion.ContentChunker.Companion.TOTAL_CHUNKS
 import com.embabel.agent.rag.model.*
@@ -44,11 +45,15 @@ class InMemoryContentChunker(
         val leaves = section.leaves().toList()
         val totalContentLength = leaves.sumOf { it.content.length + it.title.length + 1 } // +1 for newline after title
 
-        // Determine root document ID: if section is a ContentRoot, use its ID, otherwise try to get from metadata
-        val rootId = if (section is ContentRoot) {
-            section.id
+        // Determine the root document: if section is a ContentRoot, use its own id and title,
+        // otherwise inherit whatever provenance the caller propagated through metadata.
+        val root = if (section is ContentRoot) {
+            RootDocument(id = section.id, title = section.title)
         } else {
-            section.metadata[ROOT_DOCUMENT_ID] as? String ?: section.id
+            RootDocument(
+                id = section.metadata[ROOT_DOCUMENT_ID] as? String ?: section.id,
+                title = section.metadata[ROOT_DOCUMENT_TITLE] as? String,
+            )
         }
 
         // Determine the document for transformation context
@@ -60,14 +65,14 @@ class InMemoryContentChunker(
                 "Creating single chunk for container section '{}' with {} leaves (total length: {} <= max: {})",
                 section.title, leaves.size, totalContentLength, config.maxChunkSize
             )
-            listOf(createSingleChunkFromContainer(section, leaves, rootId))
+            listOf(createSingleChunkFromContainer(section, leaves, root))
         } else {
             // Strategy 2: Try to group leaves intelligently before splitting
             logger.debug(
                 "Total content ({} chars) exceeds maxChunkSize ({}), attempting intelligent grouping",
                 totalContentLength, config.maxChunkSize
             )
-            chunkLeavesIntelligently(section, leaves, rootId)
+            chunkLeavesIntelligently(section, leaves, root)
         }
 
         // Apply transformer if configured
@@ -96,7 +101,7 @@ class InMemoryContentChunker(
     private fun createSingleChunkFromContainer(
         section: NavigableContainerSection,
         leaves: List<LeafSection>,
-        rootId: String,
+        root: RootDocument,
     ): Chunk {
         val combinedContent = leaves.joinToString("\n\n") { leaf ->
             if (leaf.title.isNotBlank()) "${leaf.title}\n${leaf.content}" else leaf.content
@@ -104,7 +109,7 @@ class InMemoryContentChunker(
 
         val combinedMetadata = mutableMapOf<String, Any?>()
         combinedMetadata.putAll(section.metadata)
-        combinedMetadata[ROOT_DOCUMENT_ID] = rootId
+        combinedMetadata.putAll(root.metadata())
         combinedMetadata[CONTAINER_SECTION_ID] = section.id
         combinedMetadata[CONTAINER_SECTION_TITLE] = section.title
         combinedMetadata[CONTAINER_SECTION_URL] = section.uri
@@ -123,7 +128,7 @@ class InMemoryContentChunker(
     private fun chunkLeavesIntelligently(
         containerSection: NavigableContainerSection,
         leaves: List<LeafSection>,
-        rootId: String,
+        root: RootDocument,
     ): List<Chunk> {
         val allChunks = mutableListOf<Chunk>()
         val leafGroups = groupLeavesForOptimalChunking(leaves)
@@ -140,10 +145,10 @@ class InMemoryContentChunker(
 
                     if (leafContentSize <= config.maxChunkSize) {
                         // Small enough for single chunk
-                        allChunks.add(createSingleLeafChunk(containerSection, leaf, rootId, sequenceNumber++))
+                        allChunks.add(createSingleLeafChunk(containerSection, leaf, root, sequenceNumber++))
                     } else {
                         // Too large, split it
-                        val chunks = splitLeafIntoMultipleChunks(containerSection, leaf, rootId, sequenceNumber)
+                        val chunks = splitLeafIntoMultipleChunks(containerSection, leaf, root, sequenceNumber)
                         sequenceNumber += chunks.size
                         allChunks.addAll(chunks)
                     }
@@ -151,7 +156,7 @@ class InMemoryContentChunker(
 
                 else -> {
                     // Multi-leaf group - create combined chunk
-                    allChunks.add(createCombinedLeafChunk(containerSection, group, rootId, sequenceNumber++))
+                    allChunks.add(createCombinedLeafChunk(containerSection, group, root, sequenceNumber++))
                 }
             }
         }
@@ -200,7 +205,7 @@ class InMemoryContentChunker(
     private fun createCombinedLeafChunk(
         containerSection: NavigableContainerSection,
         leaves: List<LeafSection>,
-        rootId: String,
+        root: RootDocument,
         sequenceNumber: Int,
     ): Chunk {
         val combinedContent = leaves.joinToString("\n\n") { leaf ->
@@ -209,7 +214,7 @@ class InMemoryContentChunker(
 
         val combinedMetadata = mutableMapOf<String, Any?>()
         combinedMetadata.putAll(containerSection.metadata)
-        combinedMetadata[ROOT_DOCUMENT_ID] = rootId
+        combinedMetadata.putAll(root.metadata())
         combinedMetadata[CONTAINER_SECTION_ID] = containerSection.id
         combinedMetadata[CONTAINER_SECTION_TITLE] = containerSection.title
         combinedMetadata[CONTAINER_SECTION_URL] = containerSection.uri
@@ -228,7 +233,7 @@ class InMemoryContentChunker(
     private fun createSingleLeafChunk(
         containerSection: NavigableContainerSection,
         leaf: LeafSection,
-        rootId: String,
+        root: RootDocument,
         sequenceNumber: Int,
     ): Chunk {
         val content = if (leaf.title.isNotBlank()) "${leaf.title}\n${leaf.content}" else leaf.content
@@ -236,8 +241,7 @@ class InMemoryContentChunker(
         return Chunk.Companion(
             id = UUID.randomUUID().toString(),
             text = content.trim(),
-            metadata = leaf.metadata + mapOf(
-                ROOT_DOCUMENT_ID to rootId,
+            metadata = leaf.metadata + root.metadata() + mapOf(
                 CONTAINER_SECTION_ID to containerSection.id,
                 CONTAINER_SECTION_TITLE to containerSection.title,
                 LEAF_SECTION_ID to leaf.id,
@@ -254,7 +258,7 @@ class InMemoryContentChunker(
     private fun splitLeafIntoMultipleChunks(
         containerSection: NavigableContainerSection,
         leaf: LeafSection,
-        rootId: String,
+        root: RootDocument,
         startingSequenceNumber: Int,
     ): List<Chunk> {
         val chunks = mutableListOf<Chunk>()
@@ -267,8 +271,7 @@ class InMemoryContentChunker(
             val chunk = Chunk.Companion(
                 id = UUID.randomUUID().toString(),
                 text = textChunk.trim(),
-                metadata = leaf.metadata + mapOf(
-                    ROOT_DOCUMENT_ID to rootId,
+                metadata = leaf.metadata + root.metadata() + mapOf(
                     CONTAINER_SECTION_ID to containerSection.id,
                     CONTAINER_SECTION_TITLE to containerSection.title,
                     LEAF_SECTION_ID to leaf.id,
@@ -570,4 +573,20 @@ class InMemoryContentChunker(
         return lines.isNotEmpty() && lines.all { isTableLine(it) }
     }
 
+}
+
+/**
+ * Provenance of the document a chunk came from: its stable id, and its human-readable title
+ * where the source has one. The title travels with every chunk because `readSection` shows it
+ * to the model when one section name matches more than one document.
+ */
+private data class RootDocument(
+    val id: String,
+    val title: String? = null,
+) {
+
+    fun metadata(): Map<String, Any?> = buildMap {
+        put(ROOT_DOCUMENT_ID, id)
+        title?.let { put(ROOT_DOCUMENT_TITLE, it) }
+    }
 }
