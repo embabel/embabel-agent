@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.support.springai
 
+import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
@@ -32,7 +33,7 @@ class StreamingCapabilityVerifierTest {
 
     @AfterEach
     fun clearCache() {
-        StreamingCapabilityVerifier.clearCache()
+        StreamingCapabilityDetector.clearCache()
     }
 
     @Test

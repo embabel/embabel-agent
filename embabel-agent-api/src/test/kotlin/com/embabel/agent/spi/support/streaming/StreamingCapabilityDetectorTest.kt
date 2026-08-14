@@ -16,12 +16,12 @@
 package com.embabel.agent.spi.support.streaming
 
 import com.embabel.agent.core.internal.LlmOperations
-import com.embabel.agent.core.internal.streaming.StreamingLlmOperations
 import com.embabel.agent.core.internal.streaming.StreamingLlmOperationsFactory
 import com.embabel.common.ai.model.LlmOptions
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -30,6 +30,11 @@ import kotlin.test.assertTrue
  * Tests for [StreamingCapabilityDetector].
  */
 class StreamingCapabilityDetectorTest {
+
+    @AfterEach
+    fun clearCache() {
+        StreamingCapabilityDetector.clearCache()
+    }
 
     @Test
     fun `supportsStreaming returns false when llmOperations is not StreamingLlmOperationsFactory`() {

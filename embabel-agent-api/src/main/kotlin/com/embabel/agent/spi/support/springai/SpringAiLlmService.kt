@@ -19,73 +19,15 @@ import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.support.springai.streaming.SpringAiLlmMessageStreamer
+import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.*
 import com.embabel.common.ai.prompt.KnowledgeCutoffDate
 import com.embabel.common.ai.prompt.PromptContributor
 import tools.jackson.databind.annotation.JsonSerialize
-import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatModel
-import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.prompt.ChatOptions
-import org.springframework.ai.chat.prompt.Prompt
-import reactor.core.publisher.Flux
-import java.time.Duration
 import java.time.LocalDate
-import java.util.Collections
-import java.util.IdentityHashMap
-
-/**
- * Verifies streaming capability of [ChatModel] instances.
- *
- * Spring AI's ChatModel interface extends StreamingChatModel, but not all implementations
- * provide meaningful streaming support. Some throw [UnsupportedOperationException].
- *
- * Results are memoized per [ChatModel] instance so a successful probe (or a definitive
- * [UnsupportedOperationException]) is paid for once, not on every
- * [LlmService.supportsStreaming] call. Other probe failures (missing key, network, rate
- * limits) still answer false for this call, matching existing callers such as the BYOK
- * placeholder, but are not cached so a later successful probe can recover.
- */
-internal object StreamingCapabilityVerifier {
-    private const val TEST_PROMPT_MESSAGE = "Say 'test' to confirm streaming works"
-    private const val STREAMING_TEST_TIMEOUT_MS = 100L
-
-    private val cache = Collections.synchronizedMap(IdentityHashMap<ChatModel, Boolean>())
-
-    fun supportsStreaming(chatModel: ChatModel): Boolean {
-        cache[chatModel]?.let { return it }
-
-        return try {
-            val testRequest = Prompt(listOf(UserMessage(TEST_PROMPT_MESSAGE)))
-            val stream = chatModel.stream(testRequest)
-            canConsumeStream(stream)
-            cache[chatModel] = true
-            true
-        } catch (_: UnsupportedOperationException) {
-            cache[chatModel] = false
-            false
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    private fun canConsumeStream(stream: Flux<ChatResponse>): Boolean {
-        return try {
-            stream.hasElements()
-                .timeout(Duration.ofMillis(STREAMING_TEST_TIMEOUT_MS))
-                .block()
-            true
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    /** Clears memoized results. For tests only. */
-    internal fun clearCache() {
-        cache.clear()
-    }
-}
 
 /**
  * Spring AI implementation that provides decoupled LLM operations.
@@ -162,7 +104,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
         )
     }
 
-    override fun supportsStreaming(): Boolean = StreamingCapabilityVerifier.supportsStreaming(chatModel)
+    override fun supportsStreaming(): Boolean = StreamingCapabilityDetector.supportsStreaming(chatModel)
 
     override fun supportsThinking(): Boolean = thinkingSupported
 
