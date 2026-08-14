@@ -254,8 +254,6 @@ class LLMAnthropicStreamingBuilderIT {
                             Use Tooling instance to convert temperature units to Celsius.
                             """.trim();
 
-        // Use StringResult wrapper so the LLM receives an object schema {"type":"object","properties":{"value":...}}
-        // instead of bare {"type":"string"}, ensuring it returns {"value":"..."} not a bare string
         Flux<StreamingEvent<StringResult>> results = new StreamingPromptRunnerBuilder(runner)
             .streaming()
             .withPrompt(prompt)
