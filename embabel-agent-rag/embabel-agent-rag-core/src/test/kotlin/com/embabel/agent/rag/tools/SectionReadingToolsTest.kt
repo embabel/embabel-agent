@@ -16,6 +16,7 @@
 package com.embabel.agent.rag.tools
 
 import com.embabel.agent.rag.model.Chunk
+import com.embabel.agent.rag.model.ChunkStructure
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.SectionReader
 import com.embabel.agent.rag.service.SectionSummary
@@ -32,6 +33,9 @@ class SectionReadingToolsTest {
 
     private fun chunk(id: String, text: String): Chunk =
         Chunk(id = id, text = text, parentId = "parent", metadata = emptyMap())
+
+    private fun chunkOf(id: String, text: String, structure: ChunkStructure): Chunk =
+        Chunk.create(text = text, parentId = "parent", id = id, structure = structure)
 
     private class FakeSectionReader(
         private val sections: List<SectionSummary> = emptyList(),
@@ -112,8 +116,8 @@ class SectionReadingToolsTest {
     fun `readSection refuses to blend documents - ambiguity returns a choice, not merged content`() {
         var fired = false
         val chunks = listOf(
-            Chunk(id = "a1", text = "Nevada law", parentId = "p", metadata = mapOf("root_document_title" to "Acme License")),
-            Chunk(id = "b1", text = "Ontario law", parentId = "p", metadata = mapOf("root_document_title" to "Widget License")),
+            chunkOf("a1", "Nevada law", ChunkStructure(rootDocumentId = "doc-a", rootDocumentTitle = "Acme License")),
+            chunkOf("b1", "Ontario law", ChunkStructure(rootDocumentId = "doc-b", rootDocumentTitle = "Widget License")),
         )
         val tools = SectionReadingTools(
             FakeSectionReader(chunksByTitle = mapOf("Governing Law" to chunks)),
@@ -128,6 +132,63 @@ class SectionReadingToolsTest {
     }
 
     @Test
+    fun `provenance the chunker writes as metadata reaches the guard as structure`() {
+        // The chunker writes root_document_title into metadata; the Chunk factory lifts it into
+        // ChunkStructure. If the two ever stop agreeing, the guard silently stops firing.
+        val chunks = listOf(
+            Chunk(
+                id = "a1", text = "Nevada law", parentId = "p",
+                metadata = mapOf(ChunkStructure.ROOT_DOCUMENT_TITLE to "Acme License"),
+            ),
+            Chunk(
+                id = "b1", text = "Ontario law", parentId = "p",
+                metadata = mapOf(ChunkStructure.ROOT_DOCUMENT_TITLE to "Widget License"),
+            ),
+        )
+        assertEquals("Acme License", chunks.first().structure.rootDocumentTitle)
+        val out = SectionReadingTools(FakeSectionReader(chunksByTitle = mapOf("Governing Law" to chunks)))
+            .readSection("Governing Law")
+        assertTrue(out.contains("2 documents"), out)
+    }
+
+    @Test
+    fun `unknown provenance fails closed - a chunk we cannot attribute is not blended in`() {
+        val chunks = listOf(
+            chunkOf("a1", "Nevada law", ChunkStructure(rootDocumentId = "doc-a", rootDocumentTitle = "Acme License")),
+            chunk("b1", "Ontario law"),
+        )
+        val out = SectionReadingTools(FakeSectionReader(chunksByTitle = mapOf("Governing Law" to chunks)))
+            .readSection("Governing Law")
+        assertFalse(out.contains("Nevada"), "unattributed chunks must not be blended in: $out")
+        assertTrue(out.contains("2 documents"), out)
+        assertTrue(out.contains("unattributed"), out)
+    }
+
+    @Test
+    fun `an already-filtered ambiguous read says the filter was not specific enough`() {
+        val chunks = listOf(
+            chunkOf("a1", "Nevada law", ChunkStructure(rootDocumentId = "a", rootDocumentTitle = "Acme License 2024")),
+            chunkOf("b1", "Ontario law", ChunkStructure(rootDocumentId = "b", rootDocumentTitle = "Acme License 2025")),
+        )
+        val out = SectionReadingTools(FakeSectionReader(chunksByTitle = mapOf("Governing Law" to chunks)))
+            .readSection("Governing Law", documentTitle = "Acme")
+        assertTrue(out.contains("still matches more than one"), out)
+        assertTrue(out.contains("Acme"), out)
+    }
+
+    @Test
+    fun `chunks a single document owns are read whole, not treated as ambiguous`() {
+        val chunks = listOf(
+            chunkOf("a1", "header row", ChunkStructure(rootDocumentId = "doc-a", rootDocumentTitle = "Acme 10-K")),
+            chunkOf("a2", "cash 2,366", ChunkStructure(rootDocumentId = "doc-a", rootDocumentTitle = "Acme 10-K")),
+        )
+        val out = SectionReadingTools(FakeSectionReader(chunksByTitle = mapOf("Balance Sheets" to chunks)))
+            .readSection("Balance Sheets")
+        assertTrue(out.contains("header row"), out)
+        assertTrue(out.contains("cash 2,366"), out)
+    }
+
+    @Test
     fun `readSection output over the cap is truncated with guidance, in order`() {
         val big = (1..50).map { chunk("c$it", "x".repeat(1000)) }
         val tools = SectionReadingTools(
@@ -138,6 +199,37 @@ class SectionReadingToolsTest {
         assertTrue(out.length < 6_000, "capped: ${out.length}")
         assertTrue(out.contains("TRUNCATED"), out)
         assertTrue(out.contains("document order"), out)
+    }
+
+    @Test
+    fun `only the chunks that survive truncation are reported as evidence`() {
+        // A chunk the model never saw must not be observable evidence: an attribution check
+        // would then read a figure that only exists in the cut-away text as grounded.
+        var observed: List<SimilarityResult<out Retrievable>>? = null
+        val big = (1..50).map { chunk("c$it", "x".repeat(1000)) }
+        val tools = SectionReadingTools(
+            FakeSectionReader(chunksByTitle = mapOf("Big" to big)),
+            resultsListener = { observed = it.results },
+            maxReadSectionChars = 5_000,
+        )
+        val out = tools.readSection("Big")
+        val reported = observed!!.map { it.match.id }
+        assertTrue(reported.size < big.size, "must not report all 50: ${reported.size}")
+        reported.forEach { id ->
+            assertTrue(out.contains("Chunk ID: $id"), "reported $id but it is not in the output")
+        }
+        assertTrue(out.contains("showing ${reported.size} of 50 chunks"), out)
+    }
+
+    @Test
+    fun `a single chunk larger than the cap is still cut, and says so`() {
+        val tools = SectionReadingTools(
+            FakeSectionReader(chunksByTitle = mapOf("Huge" to listOf(chunk("c1", "x".repeat(10_000))))),
+            maxReadSectionChars = 5_000,
+        )
+        val out = tools.readSection("Huge")
+        assertTrue(out.contains("TRUNCATED"), out)
+        assertTrue(out.contains("cut at 5000"), out)
     }
 
     @Test

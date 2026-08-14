@@ -203,8 +203,10 @@ internal class ResultExpanderTools @JvmOverloads constructor(
     fun zoomOut(
         @LlmTool.Param(description = "id of the content element to expand") id: String,
     ): String {
-        val embeddables = resultExpander.expandResult(id, ResultExpander.Method.ZOOM_OUT, 1)
-         .filter { it is Embeddable }
+        val (embeddables, ms) = time {
+            resultExpander.expandResult(id, ResultExpander.Method.ZOOM_OUT, 1)
+                .filter { it is Embeddable }
+        }
         if (embeddables.isEmpty()) return "No parent section found."
         // Same observability contract as broadenChunk for whatever is Retrievable.
         val retrievables = embeddables.filterIsInstance<Retrievable>()
@@ -214,7 +216,7 @@ internal class ResultExpanderTools @JvmOverloads constructor(
                     this,
                     "zoomOut: $id",
                     retrievables.map { SimpleSimilaritySearchResult<Retrievable>(it, 1.0) },
-                    Duration.ZERO,
+                    Duration.ofMillis(ms),
                 ),
             )
         }
@@ -310,25 +312,65 @@ internal class SectionReadingTools @JvmOverloads constructor(
         // documents hands the model the WRONG one to quote from — measured 2026-08-14
         // (CUAD): governing-law answers cited a different contract's clause at full
         // confidence. Ambiguity is surfaced as a choice, not merged.
+        //
+        // Provenance comes from the chunk's structural fields, which the chunker always
+        // populates: keying off a free-form metadata key nobody writes would leave every
+        // chunk indistinguishable and silently re-enable the blending this prevents.
         val documents = chunks
-            .map { it.metadata["root_document_title"] as? String ?: it.metadata["root_document_uri"] as? String }
+            .map { DocumentProvenance(it.structure.rootDocumentId, it.structure.rootDocumentTitle) }
             .distinct()
-        if (documents.size > 1 && documents.none { it == null }) {
+        // Unknown provenance FAILS CLOSED: a chunk we cannot attribute is the least safe
+        // input to concatenate, not an excuse to skip the check.
+        if (documents.size > 1) {
             return "Section '$sectionTitle' exists in ${documents.size} documents: " +
-                documents.joinToString("; ") { "'$it'" } +
-                ". Call readSection again with a documentTitle to pick ONE."
+                documents.joinToString("; ") { it.describe() } +
+                (documentTitle?.let {
+                    ". The documentTitle '$it' still matches more than one — pass a longer, " +
+                        "more specific substring"
+                } ?: ". Call readSection again with a documentTitle") +
+                " to pick ONE."
         }
-        // Full score: the model asked for this section by name; every chunk of it is evidence
-        // the observer must see, exactly as it would see a search hit.
-        val results = chunks.map { SimpleSimilaritySearchResult<Retrievable>(it, 1.0) }
+        val rendered = chunks.map { "Chunk ID: ${it.id}\nContent: ${it.text}\n" }
+        // Truncate at a chunk boundary, and report ONLY the chunks that survived it. Full score:
+        // the model asked for this section by name, so what it was shown is evidence exactly as a
+        // search hit is — but reporting a chunk it never saw lets an attribution check treat an
+        // ungrounded quote as grounded, which is the same failure in the other direction.
+        val shown = rendered
+            .runningFold(0) { chars, chunkText -> chars + chunkText.length + 1 }
+            .drop(1)
+            .takeWhile { it <= maxReadSectionChars }
+            .size
+            .coerceAtLeast(1)
+        val results = chunks.take(shown).map { SimpleSimilaritySearchResult<Retrievable>(it, 1.0) }
         resultsListener?.onResultsEvent(ResultsEvent(this, "readSection: $sectionTitle", results, Duration.ofMillis(ms)))
-        val rendered = chunks.joinToString("\n") { "Chunk ID: ${it.id}\nContent: ${it.text}\n" }
-        if (rendered.length > maxReadSectionChars) {
-            return rendered.take(maxReadSectionChars) +
-                "\n\n[TRUNCATED — section is ${rendered.length} chars. The chunks above are in document order; " +
+        val text = rendered.take(shown).joinToString("\n")
+        if (shown < chunks.size || text.length > maxReadSectionChars) {
+            val what = if (shown < chunks.size) {
+                "showing $shown of ${chunks.size} chunks"
+            } else {
+                // A single chunk over the cap: the model sees part of a chunk reported whole.
+                "one chunk of ${text.length} chars cut at $maxReadSectionChars"
+            }
+            return text.take(maxReadSectionChars) +
+                "\n\n[TRUNCATED — $what. The chunks above are in document order; " +
                 "use vectorSearch or textSearch for the rest, or broadenChunk from the last chunk shown.]"
         }
-        return rendered
+        return text
+    }
+
+    /**
+     * Which document a section's chunks came from. Identity is the root document id — the
+     * title is what the model is shown, but two documents may legitimately share one.
+     */
+    private data class DocumentProvenance(
+        val id: String?,
+        val title: String?,
+    ) {
+        fun describe(): String = when {
+            title != null -> "'$title'"
+            id != null -> "document $id"
+            else -> "an unattributed document"
+        }
     }
 
     companion object {
