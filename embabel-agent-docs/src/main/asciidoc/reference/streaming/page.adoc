@@ -80,6 +80,33 @@ names, and complete arguments. Provider adapters must not execute those calls th
                 .blockLast(Duration.ofSeconds(6000));
 ----
 
+==== Streaming Scalar Types
+
+When streaming structured objects, `createObjectStreamWithThinking` expects the target class to produce a JSON object schema (`{...}`).
+Passing `String.class` directly causes the LLM to emit bare JSON strings such as `"July - 29°C"` instead of JSON objects,
+which the streaming parser cannot recognize as structured output events — they are misclassified as thinking content.
+
+Use `StringResult` from `com.embabel.common.ai.converters.streaming` as a wrapper:
+
+[source,java]
+----
+import com.embabel.common.ai.converters.streaming.StringResult;
+
+Flux<StreamingEvent<StringResult>> results = new StreamingPromptRunnerBuilder(runner)
+        .streaming()
+        .withPrompt(prompt)
+        .createObjectStreamWithThinking(StringResult.class);
+
+results.doOnNext(event -> {
+    if (event.isObject()) {
+        String value = event.getObject().getValue();  // unwrap the scalar
+    }
+});
+----
+
+`StringResult` produces schema `{"type":"object","properties":{"value":{"type":"string"}}}`, ensuring the LLM returns
+`{"value":"..."}` which is correctly parsed and emitted as an `isObject()` event.
+
 ==== Example - Simple Raw Text Streaming with Callbacks
 [source,java]
 ----
