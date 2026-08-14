@@ -17,12 +17,19 @@ package com.embabel.agent.spi.support.streaming
 
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.internal.streaming.StreamingLlmOperationsFactory
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.LlmOptions
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import reactor.core.publisher.Flux
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -36,54 +43,261 @@ class StreamingCapabilityDetectorTest {
         StreamingCapabilityDetector.clearCache()
     }
 
-    @Test
-    fun `supportsStreaming returns false when llmOperations is not StreamingLlmOperationsFactory`() {
-        val mockLlmOperations = mockk<LlmOperations>()
-        val options = LlmOptions.withModel("test-model")
+    @Nested
+    inner class PromptRunnerPath {
 
-        val result = StreamingCapabilityDetector.supportsStreaming(mockLlmOperations, options)
+        @Test
+        fun `supportsStreaming returns false when llmOperations is not StreamingLlmOperationsFactory`() {
+            val mockLlmOperations = mockk<LlmOperations>()
+            val options = LlmOptions.withModel("test-model")
 
-        assertFalse(result)
+            val result = StreamingCapabilityDetector.supportsStreaming(mockLlmOperations, options)
+
+            assertFalse(result)
+        }
+
+        @Test
+        fun `supportsStreaming delegates to factory when llmOperations is StreamingLlmOperationsFactory`() {
+            val mockFactory = mockk<TestStreamingLlmOperationsFactory>()
+            val options = LlmOptions.withModel("streaming-model")
+
+            every { mockFactory.supportsStreaming(options) } returns true
+
+            val result = StreamingCapabilityDetector.supportsStreaming(mockFactory, options)
+
+            assertTrue(result)
+            verify { mockFactory.supportsStreaming(options) }
+        }
+
+        @Test
+        fun `supportsStreaming returns false when factory reports no streaming support`() {
+            val mockFactory = mockk<TestStreamingLlmOperationsFactory>()
+            val options = LlmOptions.withModel("non-streaming-model")
+
+            every { mockFactory.supportsStreaming(options) } returns false
+
+            val result = StreamingCapabilityDetector.supportsStreaming(mockFactory, options)
+
+            assertFalse(result)
+        }
+
+        @Test
+        fun `supportsStreaming caches result for same model`() {
+            val mockFactory = mockk<TestStreamingLlmOperationsFactory>()
+            val options = LlmOptions.withModel("cached-model")
+
+            every { mockFactory.supportsStreaming(options) } returns true
+
+            StreamingCapabilityDetector.supportsStreaming(mockFactory, options)
+            StreamingCapabilityDetector.supportsStreaming(mockFactory, options)
+
+            verify(exactly = 1) { mockFactory.supportsStreaming(options) }
+        }
+
+        @Test
+        fun `supportsStreaming caches by criteria when model name is absent`() {
+            val mockFactory = mockk<TestStreamingLlmOperationsFactory>()
+            val options = LlmOptions.withAutoLlm()
+
+            every { mockFactory.supportsStreaming(options) } returns true
+
+            StreamingCapabilityDetector.supportsStreaming(mockFactory, options)
+            StreamingCapabilityDetector.supportsStreaming(mockFactory, options)
+
+            verify(exactly = 1) { mockFactory.supportsStreaming(options) }
+        }
     }
 
-    @Test
-    fun `supportsStreaming delegates to factory when llmOperations is StreamingLlmOperationsFactory`() {
-        val mockFactory = mockk<TestStreamingLlmOperationsFactory>()
-        val options = LlmOptions.withModel("streaming-model")
+    @Nested
+    inner class ChatModelPath {
 
-        every { mockFactory.supportsStreaming(options) } returns true
+        @Test
+        fun `probes once when streaming is supported`() {
+            val chatModel = CountingChatModel { Flux.just(chatResponse("ok")) }
 
-        val result = StreamingCapabilityDetector.supportsStreaming(mockFactory, options)
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(chatModel))
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(chatModel))
 
-        assertTrue(result)
-        verify { mockFactory.supportsStreaming(options) }
+            assertEquals(1, chatModel.streamCalls.get())
+        }
+
+        @Test
+        fun `probes once when stream throws UnsupportedOperationException`() {
+            val chatModel = CountingChatModel {
+                throw UnsupportedOperationException("streaming not supported")
+            }
+
+            assertFalse(StreamingCapabilityDetector.supportsStreaming(chatModel))
+            assertFalse(StreamingCapabilityDetector.supportsStreaming(chatModel))
+
+            assertEquals(1, chatModel.streamCalls.get())
+        }
+
+        @Test
+        fun `caches subclasses of UnsupportedOperationException`() {
+            val chatModel = CountingChatModel {
+                throw object : UnsupportedOperationException("streaming not supported") {}
+            }
+
+            assertFalse(StreamingCapabilityDetector.supportsStreaming(chatModel))
+            assertFalse(StreamingCapabilityDetector.supportsStreaming(chatModel))
+
+            assertEquals(1, chatModel.streamCalls.get())
+        }
+
+        @Test
+        fun `non-capability failures return false and are not cached`() {
+            val chatModel = CountingChatModel {
+                throw RuntimeException("No LLM is configured")
+            }
+
+            assertFalse(StreamingCapabilityDetector.supportsStreaming(chatModel))
+            assertFalse(StreamingCapabilityDetector.supportsStreaming(chatModel))
+
+            assertEquals(2, chatModel.streamCalls.get())
+        }
+
+        @Test
+        fun `a later successful probe is cached after a transient failure`() {
+            val failuresLeft = java.util.concurrent.atomic.AtomicInteger(1)
+            val chatModel = CountingChatModel {
+                if (failuresLeft.getAndDecrement() > 0) {
+                    throw RuntimeException("provider unreachable")
+                }
+                Flux.just(chatResponse("ok"))
+            }
+
+            assertFalse(StreamingCapabilityDetector.supportsStreaming(chatModel))
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(chatModel))
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(chatModel))
+
+            assertEquals(2, chatModel.streamCalls.get())
+        }
+
+        @Test
+        fun `distinct ChatModel instances are probed separately`() {
+            val first = CountingChatModel { Flux.just(chatResponse("a")) }
+            val second = CountingChatModel { Flux.just(chatResponse("b")) }
+
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(first))
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(second))
+
+            assertEquals(1, first.streamCalls.get())
+            assertEquals(1, second.streamCalls.get())
+        }
+
+        @Test
+        fun `Spring AI default stream is unsupported and cached`() {
+            val chatModel = DefaultStreamChatModel()
+
+            assertFalse(StreamingCapabilityDetector.supportsStreaming(chatModel))
+            assertFalse(StreamingCapabilityDetector.supportsStreaming(chatModel))
+        }
+
+        @Test
+        fun `empty flux is treated as streaming-capable and cached`() {
+            val chatModel = CountingChatModel { Flux.empty() }
+
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(chatModel))
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(chatModel))
+
+            assertEquals(1, chatModel.streamCalls.get())
+        }
+
+        @Test
+        fun `a stream that never emits is treated as streaming-capable and cached`() {
+            val chatModel = CountingChatModel { Flux.never() }
+
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(chatModel))
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(chatModel))
+
+            assertEquals(1, chatModel.streamCalls.get())
+        }
     }
 
-    @Test
-    fun `supportsStreaming returns false when factory reports no streaming support`() {
-        val mockFactory = mockk<TestStreamingLlmOperationsFactory>()
-        val options = LlmOptions.withModel("non-streaming-model")
+    @Nested
+    inner class SharedCache {
 
-        every { mockFactory.supportsStreaming(options) } returns false
+        @Test
+        fun `PromptRunner path and LlmService path share one ChatModel probe`() {
+            val chatModel = CountingChatModel { Flux.just(chatResponse("ok")) }
+            val options = LlmOptions.withModel("shared-probe-model")
+            val factory = mockk<TestStreamingLlmOperationsFactory>()
+            every { factory.supportsStreaming(options) } answers {
+                StreamingCapabilityDetector.supportsStreaming(chatModel)
+            }
 
-        val result = StreamingCapabilityDetector.supportsStreaming(mockFactory, options)
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(factory, options))
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(chatModel))
+            assertTrue(
+                SpringAiLlmService(name = "shared", provider = "test", chatModel = chatModel)
+                    .supportsStreaming()
+            )
 
-        assertFalse(result)
-    }
+            assertEquals(1, chatModel.streamCalls.get())
+            verify(exactly = 1) { factory.supportsStreaming(options) }
+        }
 
-    @Test
-    fun `supportsStreaming caches result for same model`() {
-        val mockFactory = mockk<TestStreamingLlmOperationsFactory>()
-        val options = LlmOptions.withModel("cached-model")
+        @Test
+        fun `LlmService probe is reused when PromptRunner later asks about the same ChatModel`() {
+            val chatModel = CountingChatModel { Flux.just(chatResponse("ok")) }
+            val options = LlmOptions.withModel("llm-first-model")
+            val factory = mockk<TestStreamingLlmOperationsFactory>()
+            every { factory.supportsStreaming(options) } answers {
+                StreamingCapabilityDetector.supportsStreaming(chatModel)
+            }
 
-        every { mockFactory.supportsStreaming(options) } returns true
+            assertTrue(
+                SpringAiLlmService(name = "first", provider = "test", chatModel = chatModel)
+                    .supportsStreaming()
+            )
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(factory, options))
 
-        // Call twice
-        StreamingCapabilityDetector.supportsStreaming(mockFactory, options)
-        StreamingCapabilityDetector.supportsStreaming(mockFactory, options)
+            assertEquals(1, chatModel.streamCalls.get())
+        }
 
-        // Factory should only be called once due to caching
-        verify(exactly = 1) { mockFactory.supportsStreaming(options) }
+        @Test
+        fun `SpringAiLlmService copies that wrap the same ChatModel share the cache`() {
+            val chatModel = CountingChatModel { Flux.just(chatResponse("ok")) }
+            val original = SpringAiLlmService(name = "original", provider = "test", chatModel = chatModel)
+            val copy = original.copy(name = "copy")
+
+            assertTrue(original.supportsStreaming())
+            assertTrue(copy.supportsStreaming())
+
+            assertEquals(1, chatModel.streamCalls.get())
+        }
+
+        @Test
+        fun `concurrent first probes agree and later calls do not probe again`() {
+            val chatModel = CountingChatModel { Flux.just(chatResponse("ok")) }
+            val service = SpringAiLlmService(name = "concurrent", provider = "test", chatModel = chatModel)
+            val threads = 16
+            val start = CountDownLatch(1)
+            val done = CountDownLatch(threads)
+            val results = java.util.concurrent.ConcurrentLinkedQueue<Boolean>()
+            val pool = Executors.newFixedThreadPool(threads)
+            try {
+                repeat(threads) {
+                    pool.execute {
+                        start.await()
+                        results.add(service.supportsStreaming())
+                        done.countDown()
+                    }
+                }
+                start.countDown()
+                assertTrue(done.await(5, TimeUnit.SECONDS))
+            } finally {
+                pool.shutdownNow()
+            }
+
+            assertEquals(threads, results.size)
+            assertTrue(results.all { it })
+            val probesDuringRace = chatModel.streamCalls.get()
+            assertTrue(probesDuringRace >= 1)
+            assertTrue(service.supportsStreaming())
+            assertEquals(probesDuringRace, chatModel.streamCalls.get())
+        }
     }
 
     /**

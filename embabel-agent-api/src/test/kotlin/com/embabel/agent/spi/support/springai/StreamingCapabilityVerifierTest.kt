@@ -15,17 +15,13 @@
  */
 package com.embabel.agent.spi.support.springai
 
+import com.embabel.agent.spi.support.streaming.CountingChatModel
+import com.embabel.agent.spi.support.streaming.DefaultStreamChatModel
 import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
+import com.embabel.agent.spi.support.streaming.chatResponse
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.messages.AssistantMessage
-import org.springframework.ai.chat.model.ChatModel
-import org.springframework.ai.chat.model.ChatResponse
-import org.springframework.ai.chat.model.Generation
-import org.springframework.ai.chat.prompt.ChatOptions
-import org.springframework.ai.chat.prompt.Prompt
-import org.springframework.ai.model.tool.ToolCallingChatOptions
 import reactor.core.publisher.Flux
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -38,7 +34,7 @@ class StreamingCapabilityVerifierTest {
 
     @Test
     fun `probes once per ChatModel instance when streaming is supported`() {
-        val chatModel = CountingChatModel { Flux.just(response("ok")) }
+        val chatModel = CountingChatModel { Flux.just(chatResponse("ok")) }
         val service = SpringAiLlmService(
             name = "streaming",
             provider = "test",
@@ -93,7 +89,7 @@ class StreamingCapabilityVerifierTest {
             if (failuresLeft.getAndDecrement() > 0) {
                 throw RuntimeException("provider unreachable")
             }
-            Flux.just(response("ok"))
+            Flux.just(chatResponse("ok"))
         }
         val service = SpringAiLlmService(
             name = "recovering",
@@ -110,8 +106,8 @@ class StreamingCapabilityVerifierTest {
 
     @Test
     fun `distinct ChatModel instances are probed separately`() {
-        val first = CountingChatModel { Flux.just(response("a")) }
-        val second = CountingChatModel { Flux.just(response("b")) }
+        val first = CountingChatModel { Flux.just(chatResponse("a")) }
+        val second = CountingChatModel { Flux.just(chatResponse("b")) }
 
         assertThat(
             SpringAiLlmService(name = "one", provider = "test", chatModel = first).supportsStreaming()
@@ -124,23 +120,26 @@ class StreamingCapabilityVerifierTest {
         assertThat(second.streamCalls.get()).isEqualTo(1)
     }
 
-    private fun response(text: String): ChatResponse =
-        ChatResponse(listOf(Generation(AssistantMessage(text))))
+    @Test
+    fun `ChatModel default stream is reported as unsupported`() {
+        val service = SpringAiLlmService(
+            name = "default-stream",
+            provider = "test",
+            chatModel = DefaultStreamChatModel(),
+        )
 
-    private class CountingChatModel(
-        private val options: ChatOptions = ToolCallingChatOptions.builder().build(),
-        private val streamBehavior: () -> Flux<ChatResponse>,
-    ) : ChatModel {
-        val streamCalls = AtomicInteger()
+        assertThat(service.supportsStreaming()).isFalse()
+        assertThat(service.supportsStreaming()).isFalse()
+    }
 
-        override fun getOptions(): ChatOptions = options
+    @Test
+    fun `LlmService copies wrapping the same ChatModel do not probe again`() {
+        val chatModel = CountingChatModel { Flux.just(chatResponse("ok")) }
+        val original = SpringAiLlmService(name = "original", provider = "test", chatModel = chatModel)
 
-        override fun call(prompt: Prompt): ChatResponse =
-            ChatResponse(listOf(Generation(AssistantMessage("unused"))))
+        assertThat(original.supportsStreaming()).isTrue()
+        assertThat(original.copy(name = "renamed").supportsStreaming()).isTrue()
 
-        override fun stream(prompt: Prompt): Flux<ChatResponse> {
-            streamCalls.incrementAndGet()
-            return streamBehavior()
-        }
+        assertThat(chatModel.streamCalls.get()).isEqualTo(1)
     }
 }
