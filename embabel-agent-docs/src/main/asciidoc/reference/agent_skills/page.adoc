@@ -229,12 +229,40 @@ metadata:
 Quick ratio = (cash and equivalents + short-term investments + receivables) / current liabilities...
 ----
 
+The natural way to use it with a `PromptRunner` is as a `PromptContributor`:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+var selector = new EmbeddingSkillSelector(embeddingService);
+
+var response = context.ai()
+    .withLlm(llm)
+    .withPromptContributor(selector.contributorFor(question, skills))
+    .respond(conversation.getMessages());
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 val selector = EmbeddingSkillSelector(embeddingService)
-val guidance = selector.select(userQuestion, skills.skills)
-    .joinToString("\n\n") { it.skill.instructions.orEmpty() }
+
+val response = context.ai()
+    .withLlm(llm)
+    .withPromptContributor(selector.contributorFor(question, skills))
+    .respond(conversation.messages)
 ----
+====
+
+The contributor is lazy: selection happens when the prompt is assembled, so a runner that
+is configured and never used costs no embedding call.
+Callers assembling a prompt by hand — rendering into a template, for example — can use
+`guidanceFor(query, skills)` for the same content as a string, or `select(...)` for the
+chosen skills and their scores.
 
 Notes:
 

@@ -17,6 +17,7 @@ package com.embabel.agent.skills
 
 import com.embabel.agent.skills.support.LoadedSkill
 import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.prompt.PromptContributor
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 
@@ -94,6 +95,45 @@ class EmbeddingSkillSelector @JvmOverloads constructor(
         }
     }
 
+    /**
+     * The selected skills' instructions, rendered as one block, or empty when nothing
+     * matches. For callers assembling a prompt themselves.
+     */
+    @JvmOverloads
+    fun guidanceFor(query: String, skills: List<LoadedSkill>, heading: (String) -> String = { "## $it" }): String =
+        select(query, skills).joinToString("\n\n") { retrieved ->
+            "${heading(retrieved.skill.name)}\n${retrieved.skill.instructions.orEmpty().trim()}"
+        }
+
+    /**
+     * A [PromptContributor] carrying whatever this selector chooses for [query] — the
+     * natural way to use skill guidance with a `PromptRunner`:
+     *
+     * ```kotlin
+     * ai.withLlm(llm)
+     *     .withPromptContributor(selector.contributorFor(question, skills))
+     *     .respond(messages)
+     * ```
+     *
+     * Selection is DEFERRED to prompt assembly, so a runner that is configured and never
+     * used costs no embedding call, and the contribution reflects the skills as they are
+     * when the prompt is built. Contributes an empty string when nothing matches.
+     */
+    @JvmOverloads
+    fun contributorFor(
+        query: String,
+        skills: List<LoadedSkill>,
+        role: String = GUIDANCE_ROLE,
+    ): PromptContributor = PromptContributor.dynamic({ guidanceFor(query, skills) }, role)
+
+    /** As [contributorFor], over a whole [Skills] library. */
+    @JvmOverloads
+    fun contributorFor(
+        query: String,
+        skills: Skills,
+        role: String = GUIDANCE_ROLE,
+    ): PromptContributor = contributorFor(query, skills.skills, role)
+
     private fun vectorFor(skill: LoadedSkill): FloatArray =
         cache.computeIfAbsent(skill.description) { embeddingService.embed(it) }
 
@@ -131,6 +171,9 @@ class EmbeddingSkillSelector @JvmOverloads constructor(
 
         /** Injected guidance competes with retrieved evidence for the model's attention. */
         const val DEFAULT_MAX_SKILLS = 2
+
+        /** Role stamped on the contribution, so assembled prompts stay identifiable. */
+        const val GUIDANCE_ROLE = "skill_guidance"
     }
 }
 

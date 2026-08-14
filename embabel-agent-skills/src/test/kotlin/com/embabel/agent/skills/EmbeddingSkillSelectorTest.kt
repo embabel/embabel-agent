@@ -103,6 +103,32 @@ class EmbeddingSkillSelectorTest {
     }
 
     @Test
+    fun `contributorFor defers selection until the prompt is assembled`() {
+        val embedder = AxisEmbedder()
+        val contributor = EmbeddingSkillSelector(embedder)
+            .contributorFor("contract question", listOf(contractSkill, financeSkill))
+        assertEquals(0, embedder.calls, "configuring a runner must not embed anything")
+        val contribution = contributor.contribution()
+        assertTrue(contribution.contains("## contract-negation"), contribution)
+        assertTrue(contribution.contains("guidance body for contract-negation"), contribution)
+        assertTrue(embedder.calls > 0, "assembly embeds")
+    }
+
+    @Test
+    fun `a contributor with no match contributes nothing`() {
+        val contributor = EmbeddingSkillSelector(AxisEmbedder())
+            .contributorFor("weather tomorrow", listOf(contractSkill))
+        assertTrue(contributor.contribution().isEmpty())
+    }
+
+    @Test
+    fun `the contribution carries the guidance role`() {
+        val contributor = EmbeddingSkillSelector(AxisEmbedder())
+            .contributorFor("contract question", listOf(contractSkill))
+        assertEquals(EmbeddingSkillSelector.GUIDANCE_ROLE, contributor.promptContribution().role)
+    }
+
+    @Test
     fun `an embedding failure yields no skills rather than breaking the caller`() {
         val selected = EmbeddingSkillSelector(AxisEmbedder(fail = true))
             .select("contract question", listOf(contractSkill))
