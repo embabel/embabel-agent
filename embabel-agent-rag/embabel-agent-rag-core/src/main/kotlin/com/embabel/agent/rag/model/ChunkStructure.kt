@@ -24,6 +24,7 @@ package com.embabel.agent.rag.model
  */
 data class ChunkStructure(
     val rootDocumentId: String? = null,
+    val rootDocumentTitle: String? = null,
     val containerSectionId: String? = null,
     val containerSectionTitle: String? = null,
     val containerSectionUrl: String? = null,
@@ -44,6 +45,7 @@ data class ChunkStructure(
         if (isEmpty()) return emptyMap()
         val result = LinkedHashMap<String, Any?>(KEYS.size)
         rootDocumentId?.let { result[ROOT_DOCUMENT_ID] = it }
+        rootDocumentTitle?.let { result[ROOT_DOCUMENT_TITLE] = it }
         containerSectionId?.let { result[CONTAINER_SECTION_ID] = it }
         containerSectionTitle?.let { result[CONTAINER_SECTION_TITLE] = it }
         containerSectionUrl?.let { result[CONTAINER_SECTION_URL] = it }
@@ -61,6 +63,7 @@ data class ChunkStructure(
      */
     fun merge(other: ChunkStructure): ChunkStructure = ChunkStructure(
         rootDocumentId = other.rootDocumentId ?: rootDocumentId,
+        rootDocumentTitle = other.rootDocumentTitle ?: rootDocumentTitle,
         containerSectionId = other.containerSectionId ?: containerSectionId,
         containerSectionTitle = other.containerSectionTitle ?: containerSectionTitle,
         containerSectionUrl = other.containerSectionUrl ?: containerSectionUrl,
@@ -78,6 +81,7 @@ data class ChunkStructure(
         const val TOTAL_CHUNKS = "total_chunks"
         const val SEQUENCE_NUMBER = "sequence_number"
         const val ROOT_DOCUMENT_ID = "root_document_id"
+        const val ROOT_DOCUMENT_TITLE = "root_document_title"
         const val CONTAINER_SECTION_ID = "container_section_id"
         const val CONTAINER_SECTION_TITLE = "container_section_title"
         const val CONTAINER_SECTION_URL = "container_section_url"
@@ -90,6 +94,7 @@ data class ChunkStructure(
             TOTAL_CHUNKS,
             SEQUENCE_NUMBER,
             ROOT_DOCUMENT_ID,
+            ROOT_DOCUMENT_TITLE,
             CONTAINER_SECTION_ID,
             CONTAINER_SECTION_TITLE,
             CONTAINER_SECTION_URL,
@@ -107,6 +112,7 @@ data class ChunkStructure(
             }
             return ChunkStructure(
                 rootDocumentId = stringOrNull(metadata[ROOT_DOCUMENT_ID]),
+                rootDocumentTitle = stringOrNull(metadata[ROOT_DOCUMENT_TITLE]),
                 containerSectionId = stringOrNull(metadata[CONTAINER_SECTION_ID]),
                 containerSectionTitle = stringOrNull(metadata[CONTAINER_SECTION_TITLE]),
                 containerSectionUrl = stringOrNull(metadata[CONTAINER_SECTION_URL]),

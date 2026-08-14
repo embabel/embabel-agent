@@ -35,6 +35,7 @@ class ChunkStructureTest {
             val structure = ChunkStructure.fromMetadata(
                 mapOf(
                     ChunkStructure.ROOT_DOCUMENT_ID to "doc-1",
+                    ChunkStructure.ROOT_DOCUMENT_TITLE to "Acme 10-K",
                     ChunkStructure.CONTAINER_SECTION_ID to "sec-1",
                     ChunkStructure.CONTAINER_SECTION_TITLE to "Intro",
                     ChunkStructure.CONTAINER_SECTION_URL to "https://example.com",
@@ -49,6 +50,7 @@ class ChunkStructureTest {
             )
 
             assertEquals("doc-1", structure.rootDocumentId)
+            assertEquals("Acme 10-K", structure.rootDocumentTitle)
             assertEquals("sec-1", structure.containerSectionId)
             assertEquals("Intro", structure.containerSectionTitle)
             assertEquals("https://example.com", structure.containerSectionUrl)
@@ -67,6 +69,7 @@ class ChunkStructureTest {
                 ChunkStructure.SEQUENCE_NUMBER to 1,
                 "author" to "alice",
                 ChunkStructure.ROOT_DOCUMENT_ID to "doc",
+                ChunkStructure.ROOT_DOCUMENT_TITLE to "Acme 10-K",
             )
             val freeform = ChunkStructure.withoutStructuralKeys(original)
             assertEquals(mapOf("author" to "alice"), freeform)
@@ -80,6 +83,7 @@ class ChunkStructureTest {
         fun `round trips non-null fields`() {
             val structure = ChunkStructure(
                 rootDocumentId = "doc-1",
+                rootDocumentTitle = "Acme 10-K",
                 containerSectionId = "sec-1",
                 sequenceNumber = 3,
                 chunkIndex = 0,
@@ -101,10 +105,11 @@ class ChunkStructureTest {
 
         @Test
         fun `prefers non-null values from other`() {
-            val base = ChunkStructure(rootDocumentId = "doc", sequenceNumber = 1)
+            val base = ChunkStructure(rootDocumentId = "doc", rootDocumentTitle = "Acme 10-K", sequenceNumber = 1)
             val other = ChunkStructure(sequenceNumber = 9, containerSectionId = "c1")
             val merged = base.merge(other)
             assertEquals("doc", merged.rootDocumentId)
+            assertEquals("Acme 10-K", merged.rootDocumentTitle)
             assertEquals(9, merged.sequenceNumber)
             assertEquals("c1", merged.containerSectionId)
         }
