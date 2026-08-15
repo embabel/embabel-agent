@@ -28,6 +28,9 @@ import java.time.Duration
  * Spring AI's ChatModel interface extends StreamingChatModel, but some implementations throw
  * [UnsupportedOperationException] from [ChatModel.stream]. This object performs that check;
  * [StreamingCapabilityDetector] decides whether to cache the answer.
+ *
+ * Only exceptions thrown directly from [ChatModel.stream] are treated as capability signals;
+ * errors emitted by the returned Flux are ignored.
  */
 internal object StreamingCapabilityVerifier {
     private const val TEST_PROMPT_MESSAGE = "Say 'test' to confirm streaming works"

@@ -19,8 +19,8 @@ import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.internal.streaming.StreamingLlmOperationsFactory
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.loggerFor
+import org.jetbrains.annotations.ApiStatus
 import org.springframework.ai.chat.model.ChatModel
-import java.util.Collections
 import java.util.IdentityHashMap
 import java.util.concurrent.ConcurrentHashMap
 
@@ -31,12 +31,19 @@ import java.util.concurrent.ConcurrentHashMap
  * name. [com.embabel.agent.spi.LlmService.supportsStreaming] goes through the [ChatModel]
  * overload, which runs [StreamingCapabilityVerifier] once per instance.
  */
-internal object StreamingCapabilityDetector {
+@ApiStatus.Internal
+object StreamingCapabilityDetector {
     private val logger = loggerFor<StreamingCapabilityDetector>()
-    private val byModelName = ConcurrentHashMap<String, Boolean>()
-    private val byChatModel = Collections.synchronizedMap(IdentityHashMap<ChatModel, Boolean>())
+    private val byModelNameCache = ConcurrentHashMap<String, Boolean>()
+
+    @Volatile
+    private var byChatModelCache: IdentityHashMap<ChatModel, Boolean> = IdentityHashMap()
 
     private const val CACHE_MISS_LOG_MESSAGE = "Cache miss for {}, testing streaming capability..."
+
+    private const val PROBE_FAILED_LOG_MESSAGE =
+        "Streaming capability probe for {} failed for a reason unrelated to streaming. " +
+            "Reporting no streaming support for this call only; the next call probes again"
 
     /**
      * Tests whether the LLM resolved from the given operations and options supports streaming.
@@ -53,7 +60,7 @@ internal object StreamingCapabilityDetector {
 
         // Cache by model (or criteria string)
         val cacheKey = llmOptions.model ?: llmOptions.criteria?.toString() ?: "default"
-        return byModelName.computeIfAbsent(cacheKey) {
+        return byModelNameCache.computeIfAbsent(cacheKey) {
             logger.debug(CACHE_MISS_LOG_MESSAGE, cacheKey)
             llmOperations.supportsStreaming(llmOptions)
         }
@@ -63,26 +70,39 @@ internal object StreamingCapabilityDetector {
      * Probes [chatModel] via [StreamingCapabilityVerifier] and caches a definitive answer.
      *
      * A successful probe or [UnsupportedOperationException] is remembered. Other failures
-     * (missing key, network) answer false for this call but are not cached.
+     * (missing key, network) answer false for this call but are not cached, and are logged so a
+     * provider outage does not present as a missing capability with no explanation.
      */
     fun supportsStreaming(chatModel: ChatModel): Boolean {
-        byChatModel[chatModel]?.let { return it }
+        byChatModelCache[chatModel]?.let { return it }
 
+        // Multiple probes possible on first access, harmless because result is deterministic.
         return try {
             StreamingCapabilityVerifier.probe(chatModel)
-            byChatModel[chatModel] = true
+            rememberChatModel(chatModel, true)
             true
         } catch (_: UnsupportedOperationException) {
-            byChatModel[chatModel] = false
+            rememberChatModel(chatModel, false)
             false
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            logger.warn(PROBE_FAILED_LOG_MESSAGE, chatModel.javaClass.simpleName, e)
             false
         }
     }
 
     /** Clears memoized results. For tests only. */
-    internal fun clearCache() {
-        byModelName.clear()
-        byChatModel.clear()
+    fun clearCache() {
+        byModelNameCache.clear()
+        synchronized(this) {
+            byChatModelCache = IdentityHashMap()
+        }
+    }
+
+    private fun rememberChatModel(chatModel: ChatModel, supported: Boolean) {
+        synchronized(this) {
+            val next = IdentityHashMap(byChatModelCache)
+            next[chatModel] = supported
+            byChatModelCache = next
+        }
     }
 }

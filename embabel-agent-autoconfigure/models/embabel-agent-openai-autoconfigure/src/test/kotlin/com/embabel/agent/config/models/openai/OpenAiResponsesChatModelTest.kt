@@ -17,6 +17,7 @@ package com.embabel.agent.config.models.openai
 
 import com.embabel.agent.spi.loop.StructuredOutputRequest
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.openai.client.OpenAIClient
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseCreateParams
@@ -37,6 +38,7 @@ import io.micrometer.observation.ObservationRegistry
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -79,6 +81,11 @@ class OpenAiResponsesChatModelTest {
         client = client,
         defaultOptions = OpenAiChatOptions.builder().model("gpt-5-pro").build(),
     )
+
+    @AfterEach
+    fun clearStreamingCapabilityCache() {
+        StreamingCapabilityDetector.clearCache()
+    }
 
     /** Stubs the SDK call and returns the params the adapter built. */
     private fun capture(prompt: Prompt, response: Response = textResponse("ok")): ResponseCreateParams {

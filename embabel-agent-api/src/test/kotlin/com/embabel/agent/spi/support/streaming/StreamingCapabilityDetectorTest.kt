@@ -15,6 +15,10 @@
  */
 package com.embabel.agent.spi.support.streaming
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.internal.streaming.StreamingLlmOperationsFactory
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
@@ -25,12 +29,14 @@ import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 import reactor.core.publisher.Flux
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -155,6 +161,40 @@ class StreamingCapabilityDetectorTest {
             assertFalse(StreamingCapabilityDetector.supportsStreaming(chatModel))
 
             assertEquals(2, chatModel.streamCalls.get())
+        }
+
+        /**
+         * The caller only learns "no streaming", so without this the reason a provider outage
+         * changed the execution path would never surface anywhere.
+         */
+        @Test
+        fun `a non-capability failure names the model and keeps the cause`() {
+            val logger = LoggerFactory.getLogger(StreamingCapabilityDetector::class.java) as Logger
+            val originalLevel = logger.level
+            val appender = ListAppender<ILoggingEvent>().apply { start() }
+            logger.level = Level.WARN
+            logger.addAppender(appender)
+
+            try {
+                assertFalse(
+                    StreamingCapabilityDetector.supportsStreaming(
+                        CountingChatModel { throw RuntimeException("provider unreachable") },
+                    )
+                )
+
+                val event = appender.list.singleOrNull { it.level == Level.WARN }
+                assertNotNull(
+                    event,
+                    "Expected a warning for the swallowed probe failure, captured: " +
+                        appender.list.map { it.formattedMessage },
+                )
+                assertEquals(CountingChatModel::class.simpleName, event.argumentArray[0])
+                assertEquals("provider unreachable", event.throwableProxy?.message)
+            } finally {
+                logger.detachAppender(appender)
+                logger.level = originalLevel
+                appender.stop()
+            }
         }
 
         @Test

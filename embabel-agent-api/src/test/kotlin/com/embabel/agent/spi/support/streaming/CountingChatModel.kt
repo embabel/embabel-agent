@@ -25,6 +25,10 @@ import org.springframework.ai.model.tool.ToolCallingChatOptions
 import reactor.core.publisher.Flux
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * Test [ChatModel] that counts [stream] calls so tests can assert the live capability probe
+ * ran once per instance, not on every [com.embabel.agent.spi.LlmService.supportsStreaming] call.
+ */
 internal class CountingChatModel(
     private val options: ChatOptions = ToolCallingChatOptions.builder().build(),
     private val streamBehavior: () -> Flux<ChatResponse>,

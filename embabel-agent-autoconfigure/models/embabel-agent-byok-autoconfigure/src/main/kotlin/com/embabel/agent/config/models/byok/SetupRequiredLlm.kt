@@ -62,9 +62,11 @@ internal class SetupRequiredChatModel : ChatModel {
      * catch it at all.
      *
      * Note the platform still reports this model as not supporting streaming:
-     * `StreamingCapabilityDetector` probes via `StreamingCapabilityVerifier` and treats any
-     * exception as "no". That is the right answer either way; this only fixes what the caller
-     * is told when something streams anyway.
+     * `StreamingCapabilityDetector` probes via `StreamingCapabilityVerifier` and answers "no" to
+     * any exception. Only `UnsupportedOperationException` is cached as definitive, so this model
+     * is re-probed on each call - free here, because it throws locally without reaching a
+     * provider. That is the right answer either way; this only fixes what the caller is told
+     * when something streams anyway.
      */
     override fun stream(prompt: Prompt): Flux<ChatResponse> =
         throw NoLlmConfiguredException(SetupRequiredLlm.MESSAGE)
