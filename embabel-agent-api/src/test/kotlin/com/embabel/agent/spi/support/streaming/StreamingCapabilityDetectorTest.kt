@@ -82,9 +82,10 @@ class StreamingCapabilityDetectorTest {
 
             every { mockFactory.supportsStreaming(options) } returns false
 
-            val result = StreamingCapabilityDetector.supportsStreaming(mockFactory, options)
+            assertFalse(StreamingCapabilityDetector.supportsStreaming(mockFactory, options))
+            assertFalse(StreamingCapabilityDetector.supportsStreaming(mockFactory, options))
 
-            assertFalse(result)
+            verify(exactly = 2) { mockFactory.supportsStreaming(options) }
         }
 
         @Test
@@ -111,6 +112,34 @@ class StreamingCapabilityDetectorTest {
             StreamingCapabilityDetector.supportsStreaming(mockFactory, options)
 
             verify(exactly = 1) { mockFactory.supportsStreaming(options) }
+        }
+
+        /**
+         * computeIfAbsent would have stored the first false under the model name and left
+         * PromptRunner non-streaming after a blip. The ChatModel cache must stay the source
+         * of truth for a no.
+         */
+        @Test
+        fun `a transient no on the PromptRunner path is not stored under the model name`() {
+            val failuresLeft = java.util.concurrent.atomic.AtomicInteger(1)
+            val chatModel = CountingChatModel {
+                if (failuresLeft.getAndDecrement() > 0) {
+                    throw RuntimeException("provider unreachable")
+                }
+                Flux.just(chatResponse("ok"))
+            }
+            val options = LlmOptions.withModel("recovering-prompt-runner-model")
+            val factory = mockk<TestStreamingLlmOperationsFactory>()
+            every { factory.supportsStreaming(options) } answers {
+                StreamingCapabilityDetector.supportsStreaming(chatModel)
+            }
+
+            assertFalse(StreamingCapabilityDetector.supportsStreaming(factory, options))
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(factory, options))
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(factory, options))
+
+            assertEquals(2, chatModel.streamCalls.get())
+            verify(exactly = 2) { factory.supportsStreaming(options) }
         }
     }
 
@@ -174,22 +203,19 @@ class StreamingCapabilityDetectorTest {
             val appender = ListAppender<ILoggingEvent>().apply { start() }
             logger.level = Level.WARN
             logger.addAppender(appender)
+            val chatModel = CountingChatModel { throw RuntimeException("provider unreachable") }
 
             try {
-                assertFalse(
-                    StreamingCapabilityDetector.supportsStreaming(
-                        CountingChatModel { throw RuntimeException("provider unreachable") },
-                    )
-                )
+                assertFalse(StreamingCapabilityDetector.supportsStreaming(chatModel))
+                assertFalse(StreamingCapabilityDetector.supportsStreaming(chatModel))
 
-                val event = appender.list.singleOrNull { it.level == Level.WARN }
-                assertNotNull(
-                    event,
-                    "Expected a warning for the swallowed probe failure, captured: " +
-                        appender.list.map { it.formattedMessage },
-                )
+                val warnings = appender.list.filter { it.level == Level.WARN }
+                assertEquals(1, warnings.size, "Expected one warning, captured: ${appender.list.map { it.formattedMessage }}")
+                val event = warnings.single()
+                assertNotNull(event)
                 assertEquals(CountingChatModel::class.simpleName, event.argumentArray[0])
                 assertEquals("provider unreachable", event.throwableProxy?.message)
+                assertEquals(2, chatModel.streamCalls.get())
             } finally {
                 logger.detachAppender(appender)
                 logger.level = originalLevel

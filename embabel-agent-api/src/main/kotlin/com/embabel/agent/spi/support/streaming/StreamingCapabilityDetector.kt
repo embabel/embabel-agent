@@ -27,9 +27,11 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Detects and caches streaming capability.
  *
- * PromptRunner goes through [supportsStreaming] with operations and options, cached by model
- * name. [com.embabel.agent.spi.LlmService.supportsStreaming] goes through the [ChatModel]
- * overload, which runs [StreamingCapabilityVerifier] once per instance.
+ * PromptRunner goes through [supportsStreaming] with operations and options. A definitive yes
+ * is cached by model name; a no is not, so a timeout or missing key cannot pin that name to
+ * non-streaming. [com.embabel.agent.spi.LlmService.supportsStreaming] goes through the
+ * [ChatModel] overload, which runs [StreamingCapabilityVerifier] once per instance for a
+ * definitive answer.
  */
 @ApiStatus.Internal
 object StreamingCapabilityDetector {
@@ -38,6 +40,9 @@ object StreamingCapabilityDetector {
 
     @Volatile
     private var byChatModelCache: IdentityHashMap<ChatModel, Boolean> = IdentityHashMap()
+
+    @Volatile
+    private var warnedChatModels: IdentityHashMap<ChatModel, Boolean> = IdentityHashMap()
 
     private const val CACHE_MISS_LOG_MESSAGE = "Cache miss for {}, testing streaming capability..."
 
@@ -48,7 +53,9 @@ object StreamingCapabilityDetector {
     /**
      * Tests whether the LLM resolved from the given operations and options supports streaming.
      *
-     * Results are cached by model to avoid repeated tests.
+     * Only a definitive yes is stored under the model (or criteria) key. A no is re-checked
+     * on the next call; if the underlying [ChatModel] already has a cached answer, that
+     * lookup is cheap.
      *
      * @param llmOperations The LLM operations instance
      * @param llmOptions Options used to resolve the LLM
@@ -58,20 +65,25 @@ object StreamingCapabilityDetector {
         // Must be a StreamingLlmOperationsFactory to support streaming
         if (llmOperations !is StreamingLlmOperationsFactory) return false
 
-        // Cache by model (or criteria string)
         val cacheKey = llmOptions.model ?: llmOptions.criteria?.toString() ?: "default"
-        return byModelNameCache.computeIfAbsent(cacheKey) {
-            logger.debug(CACHE_MISS_LOG_MESSAGE, cacheKey)
-            llmOperations.supportsStreaming(llmOptions)
+        byModelNameCache[cacheKey]?.let { return it }
+
+        logger.debug(CACHE_MISS_LOG_MESSAGE, cacheKey)
+        val supported = llmOperations.supportsStreaming(llmOptions)
+        // Do not store false: computeIfAbsent would pin a timeout or missing key on this name.
+        if (supported) {
+            byModelNameCache[cacheKey] = true
         }
+        return supported
     }
 
     /**
      * Probes [chatModel] via [StreamingCapabilityVerifier] and caches a definitive answer.
      *
      * A successful probe or [UnsupportedOperationException] is remembered. Other failures
-     * (missing key, network) answer false for this call but are not cached, and are logged so a
-     * provider outage does not present as a missing capability with no explanation.
+     * (missing key, network) answer false for this call but are not cached, and are logged
+     * once per instance so a provider outage does not present as a missing capability with
+     * no explanation.
      */
     fun supportsStreaming(chatModel: ChatModel): Boolean {
         byChatModelCache[chatModel]?.let { return it }
@@ -85,7 +97,9 @@ object StreamingCapabilityDetector {
             rememberChatModel(chatModel, false)
             false
         } catch (e: Exception) {
-            logger.warn(PROBE_FAILED_LOG_MESSAGE, chatModel.javaClass.simpleName, e)
+            if (firstWarningFor(chatModel)) {
+                logger.warn(PROBE_FAILED_LOG_MESSAGE, chatModel.javaClass.simpleName, e)
+            }
             false
         }
     }
@@ -95,6 +109,7 @@ object StreamingCapabilityDetector {
         byModelNameCache.clear()
         synchronized(this) {
             byChatModelCache = IdentityHashMap()
+            warnedChatModels = IdentityHashMap()
         }
     }
 
@@ -103,6 +118,17 @@ object StreamingCapabilityDetector {
             val next = IdentityHashMap(byChatModelCache)
             next[chatModel] = supported
             byChatModelCache = next
+        }
+    }
+
+    private fun firstWarningFor(chatModel: ChatModel): Boolean {
+        if (warnedChatModels.containsKey(chatModel)) return false
+        synchronized(this) {
+            if (warnedChatModels.containsKey(chatModel)) return false
+            val next = IdentityHashMap(warnedChatModels)
+            next[chatModel] = true
+            warnedChatModels = next
+            return true
         }
     }
 }
