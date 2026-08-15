@@ -19,7 +19,6 @@ import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.internal.streaming.StreamingLlmOperationsFactory
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.loggerFor
-import org.jetbrains.annotations.ApiStatus
 import org.springframework.ai.chat.model.ChatModel
 import java.util.IdentityHashMap
 import java.util.concurrent.ConcurrentHashMap
@@ -33,22 +32,31 @@ import java.util.concurrent.ConcurrentHashMap
  * [ChatModel] overload, which runs [StreamingCapabilityVerifier] once per instance for a
  * definitive answer.
  */
-@ApiStatus.Internal
+@InternalStreamingApi
 object StreamingCapabilityDetector {
     private val logger = loggerFor<StreamingCapabilityDetector>()
     private val byModelNameCache = ConcurrentHashMap<String, Boolean>()
 
+    /**
+     * Definitive streaming answers per [ChatModel] instance. Identity, not equals: two beans
+     * wrapping the same model name are probed separately.
+     */
     @Volatile
     private var byChatModelCache: IdentityHashMap<ChatModel, Boolean> = IdentityHashMap()
 
+    /**
+     * ChatModels that have already logged a non-capability probe failure. Identity-keyed so
+     * a keyless BYOK placeholder warns once per instance, not on every supportsStreaming() check.
+     */
     @Volatile
     private var warnedChatModels: IdentityHashMap<ChatModel, Boolean> = IdentityHashMap()
 
     private const val CACHE_MISS_LOG_MESSAGE = "Cache miss for {}, testing streaming capability..."
 
-    private const val PROBE_FAILED_LOG_MESSAGE =
-        "Streaming capability probe for {} failed for a reason unrelated to streaming. " +
-            "Reporting no streaming support for this call only; the next call probes again"
+    private val PROBE_FAILED_LOG_MESSAGE = """
+        Streaming capability probe for {} failed for a reason unrelated to streaming ({}: {}).
+        Reporting no streaming support for this call only; the next call probes again
+        """.trimIndent()
 
     /**
      * Tests whether the LLM resolved from the given operations and options supports streaming.
@@ -98,7 +106,13 @@ object StreamingCapabilityDetector {
             false
         } catch (e: Exception) {
             if (firstWarningFor(chatModel)) {
-                logger.warn(PROBE_FAILED_LOG_MESSAGE, chatModel.javaClass.simpleName, e)
+                // Message and type only: the full stack is noise when this fires on a missing key.
+                logger.warn(
+                    PROBE_FAILED_LOG_MESSAGE,
+                    chatModel.javaClass.simpleName,
+                    e.javaClass.simpleName,
+                    e.message,
+                )
             }
             false
         }
@@ -121,6 +135,12 @@ object StreamingCapabilityDetector {
         }
     }
 
+    /**
+     * Whether this [chatModel] still needs the non-capability warning.
+     *
+     * The map is copy-on-write, so the unguarded read is a volatile load. Two threads can both
+     * miss and both log once; that is harmless. Later calls see the new map and skip the lock.
+     */
     private fun firstWarningFor(chatModel: ChatModel): Boolean {
         if (warnedChatModels.containsKey(chatModel)) return false
         synchronized(this) {

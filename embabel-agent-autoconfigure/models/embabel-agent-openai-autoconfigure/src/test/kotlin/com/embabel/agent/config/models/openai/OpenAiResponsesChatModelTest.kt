@@ -17,6 +17,7 @@ package com.embabel.agent.config.models.openai
 
 import com.embabel.agent.spi.loop.StructuredOutputRequest
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.agent.spi.support.streaming.InternalStreamingApi
 import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.openai.client.OpenAIClient
 import com.openai.models.responses.Response
@@ -72,6 +73,7 @@ import java.util.concurrent.atomic.AtomicInteger
  *
  * @see <a href="https://github.com/embabel/embabel-agent/issues/1758">Issue 1758</a>
  */
+@OptIn(InternalStreamingApi::class)
 class OpenAiResponsesChatModelTest {
 
     private val client = mockk<OpenAIClient>()
@@ -792,6 +794,11 @@ class OpenAiResponsesChatModelTest {
             .build()
 }
 
+/**
+ * Wraps a real [ChatModel] and counts [stream] calls so a test can assert
+ * [com.embabel.agent.spi.LlmService.supportsStreaming] probes once per instance.
+ * Keeps the delegate's own stream behaviour: [OpenAiResponsesChatModel] throws locally.
+ */
 private class ProbeCountingChatModel(
     private val delegate: ChatModel,
 ) : ChatModel by delegate {

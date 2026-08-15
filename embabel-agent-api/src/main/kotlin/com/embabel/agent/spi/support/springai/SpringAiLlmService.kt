@@ -19,6 +19,7 @@ import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.support.springai.streaming.SpringAiLlmMessageStreamer
+import com.embabel.agent.spi.support.streaming.InternalStreamingApi
 import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.*
@@ -104,6 +105,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
         )
     }
 
+    @OptIn(InternalStreamingApi::class)
     override fun supportsStreaming(): Boolean = StreamingCapabilityDetector.supportsStreaming(chatModel)
 
     override fun supportsThinking(): Boolean = thinkingSupported

@@ -16,6 +16,7 @@
 package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.*
+import com.embabel.agent.spi.support.streaming.InternalStreamingApi
 import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.api.tool.ArtifactSinkingTool
 import com.embabel.agent.api.tool.Tool
@@ -325,6 +326,7 @@ internal data class OperationContextDelegate(
         }
     }
 
+    @OptIn(InternalStreamingApi::class)
     override fun supportsStreaming(): Boolean {
         val llmOperations = context.agentPlatform().platformServices.llmOperations
         return StreamingCapabilityDetector.supportsStreaming(llmOperations, this.llm)

@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+@file:OptIn(InternalStreamingApi::class)
+
 package com.embabel.agent.spi.support.streaming
 
 import ch.qos.logback.classic.Level
@@ -36,7 +38,6 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -212,10 +213,44 @@ class StreamingCapabilityDetectorTest {
                 val warnings = appender.list.filter { it.level == Level.WARN }
                 assertEquals(1, warnings.size, "Expected one warning, captured: ${appender.list.map { it.formattedMessage }}")
                 val event = warnings.single()
-                assertNotNull(event)
                 assertEquals(CountingChatModel::class.simpleName, event.argumentArray[0])
-                assertEquals("provider unreachable", event.throwableProxy?.message)
+                assertEquals("RuntimeException", event.argumentArray[1])
+                assertEquals("provider unreachable", event.argumentArray[2])
+                assertEquals(null, event.throwableProxy, "the warning must not attach a stack")
                 assertEquals(2, chatModel.streamCalls.get())
+            } finally {
+                logger.detachAppender(appender)
+                logger.level = originalLevel
+                appender.stop()
+            }
+        }
+
+        @Test
+        fun `a missing key and a network failure are named differently in the warning`() {
+            val logger = LoggerFactory.getLogger(StreamingCapabilityDetector::class.java) as Logger
+            val originalLevel = logger.level
+            val appender = ListAppender<ILoggingEvent>().apply { start() }
+            logger.level = Level.WARN
+            logger.addAppender(appender)
+
+            try {
+                assertFalse(
+                    StreamingCapabilityDetector.supportsStreaming(
+                        CountingChatModel { throw RuntimeException("No LLM is configured") },
+                    )
+                )
+                assertFalse(
+                    StreamingCapabilityDetector.supportsStreaming(
+                        CountingChatModel { throw java.io.IOException("connection timed out") },
+                    )
+                )
+
+                val warnings = appender.list.filter { it.level == Level.WARN }
+                assertEquals(2, warnings.size, "Expected two warnings, captured: ${appender.list.map { it.formattedMessage }}")
+                assertEquals("RuntimeException", warnings[0].argumentArray[1])
+                assertEquals("No LLM is configured", warnings[0].argumentArray[2])
+                assertEquals("IOException", warnings[1].argumentArray[1])
+                assertEquals("connection timed out", warnings[1].argumentArray[2])
             } finally {
                 logger.detachAppender(appender)
                 logger.level = originalLevel

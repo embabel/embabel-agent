@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-@file:OptIn(InternalObservabilityApi::class)
+@file:OptIn(InternalObservabilityApi::class, InternalStreamingApi::class)
 
 package com.embabel.agent.e2e
 
@@ -31,6 +31,7 @@ import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.support.FakeChatModel
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.agent.spi.support.streaming.InternalStreamingApi
 import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.ModelProvider
