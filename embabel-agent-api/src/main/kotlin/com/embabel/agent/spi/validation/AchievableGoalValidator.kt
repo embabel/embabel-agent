@@ -13,22 +13,16 @@ import java.lang.reflect.Method
 
 /**
  * Validator that checks methods annotated with AchievesGoal.
- *
  * Specific check includes:
  *  - Verifying that @Action annotation is present on it.
  */
-open class AchievableGoalValidator ( private val agentName: String,
-                                     private val agentClass: Class<*>,
-                                     private val agentInstance: Any,
-                                     private val requireInterfaceDeserializationAnnotations: Boolean): AgentValidator
-{
+open class AchievableGoalValidator (
+    private val agentName: String,
+    private val agentClass: Class<*>,
+    private val agentInstance: Any,
+    private val requireInterfaceDeserializationAnnotations: Boolean
+): AgentValidator {
     private val logger = LoggerFactory.getLogger(AchievableGoalValidator::class.java)
-
-    private fun isMethodAnnotatedWithAchievesGoal(
-        method: Method,
-    ): Boolean {
-        return method.isAnnotationPresent(AchievesGoal::class.java)
-    }
 
     override fun validate(agentScope: AgentScope): ValidationResult {
         val errors = mutableListOf<ValidationError>()
@@ -53,5 +47,9 @@ open class AchievableGoalValidator ( private val agentName: String,
             },
             { method -> isMethodAnnotatedWithAchievesGoal(method) })
         return ValidationResult(errors.isEmpty(), errors)
+    }
+
+    private fun isMethodAnnotatedWithAchievesGoal(method: Method, ): Boolean {
+        return method.isAnnotationPresent(AchievesGoal::class.java)
     }
 }

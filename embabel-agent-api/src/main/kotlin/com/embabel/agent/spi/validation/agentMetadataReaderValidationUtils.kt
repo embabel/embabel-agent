@@ -20,9 +20,9 @@ fun isActionMethod(
     agentClass: Class<*>,
     requireInterfaceDeserializationAnnotations : Boolean,
 ): Boolean {
-    // annotated with Action ?
+    // Check whether given method is annotated with Action.
     return method.isAnnotationPresent(Action::class.java) &&
-            // declared in the given agent class, or in its super type?
+            // Check whether given method is declared in the given agent class, or in its super type.
             (agentClass.declaredMethods.contains(method) || isMethodFromSupertype(method, agentClass)) &&
              // TODO please fill after discussion.
             (!method.returnType.isInterface || !requireInterfaceDeserializationAnnotations || hasRequiredJsonDeserializeAnnotationOnInterfaceReturnType(
@@ -38,7 +38,7 @@ fun isMethodFromSupertype(
     method: Method,
     type: Class<*>,
 ): Boolean {
-    // Check interfaces
+    // Check for the method in its interfaces.
     if (type.interfaces.any { interfaceType ->
             interfaceType.declaredMethods.any { interfaceMethod ->
                 methodSignaturesMatch(method, interfaceMethod)
@@ -47,7 +47,7 @@ fun isMethodFromSupertype(
         return true
     }
 
-    // Check superclasses
+    // Check for the method in its superclasses.
     var superclass = type.superclass
     while (superclass != null && superclass != Any::class.java) {
         if (superclass.declaredMethods.any { superMethod ->
@@ -57,7 +57,6 @@ fun isMethodFromSupertype(
         }
         superclass = superclass.superclass
     }
-
     return false
 }
 
