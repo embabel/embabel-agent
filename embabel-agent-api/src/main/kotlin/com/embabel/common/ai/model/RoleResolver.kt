@@ -87,10 +87,10 @@ fun interface RoleResolver {
 /**
  * Builds an [LlmService] from a user-supplied key.
  *
- * No implementation ships with the platform yet, so an application returning
- * [RoleResolution.Credential] must register one - otherwise the role fails with
- * [NoSuitableModelException] and a log line naming the provider nothing handled. It is a one-liner
- * over the provider's own BYOK factory:
+ * The BYOK starter supplies implementations for OpenAI and Anthropic. Applications using another
+ * provider must register one - otherwise [RoleResolution.Credential] fails with
+ * [NoSuitableModelException] and a log line naming the provider nothing handled. An implementation
+ * is a one-liner over the provider's own BYOK factory:
  *
  * ```kotlin
  * @Bean
@@ -104,9 +104,8 @@ fun interface RoleResolver {
  * The platform caches what this returns, per (provider, key, model), so an implementation should
  * build rather than maintain a cache of its own.
  *
- * Provider-supplied implementations are follow-up work: they belong with the provider modules, and
- * a pure bring-your-own-key deployment deliberately has no provider autoconfiguration on the
- * classpath to carry them.
+ * A bean with the same name as a starter-supplied implementation replaces it, allowing an
+ * application to customize details such as the base URL or proxy.
  */
 fun interface CredentialLlmServiceFactory {
 

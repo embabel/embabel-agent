@@ -23,6 +23,7 @@ import com.embabel.agent.spi.LlmService;
 import com.embabel.agent.spi.PlaceholderEmbeddingService;
 import com.embabel.common.ai.model.ConfigurableModelProvider;
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties;
+import com.embabel.common.ai.model.CredentialLlmServiceFactory;
 import com.embabel.common.ai.model.DefaultModelSelectionCriteria;
 import com.embabel.common.ai.model.EmbeddingService;
 import com.embabel.common.ai.model.ModelProvider;
@@ -80,6 +81,12 @@ class ByokStarterBootTest {
             assertThat(context).hasNotFailed();
             assertThat(context).hasBean(SetupRequiredLlm.NAME);
         });
+    }
+
+    @Test
+    void shipsCredentialFactoriesForItsProviderDependencies() {
+        contextRunner.run(context -> assertThat(context.getBeansOfType(CredentialLlmServiceFactory.class))
+                .containsOnlyKeys("anthropicCredentialLlmServiceFactory", "openAiCredentialLlmServiceFactory"));
     }
 
     @Test

@@ -448,6 +448,13 @@ The name is available as the constant `SetupRequiredLlm.NAME`. Opting in through
 deliberate — the placeholder is registered unconditionally but is only ever selected if you name it,
 so adding the starter alongside a real provider changes nothing.
 
+The starter also registers `CredentialLlmServiceFactory` beans for OpenAI and Anthropic. A
+`RoleResolver` can therefore return `RoleResolution.Credential` for either provider without any
+application factory code; the platform builds the requested model and caches it per provider, key,
+and model. Provider names are matched case-insensitively. To use a custom base URL or proxy, register
+a factory under `openAiCredentialLlmServiceFactory` or `anthropicCredentialLlmServiceFactory`; the
+starter backs off when a bean with that name exists.
+
 The placeholder completes nothing. Any call that reaches it throws `NoLlmConfiguredException`, so a
 missing key surfaces as an actionable error rather than a silently empty answer. Catch it to render
 your own "add an API key" experience:
@@ -535,8 +542,8 @@ is a different problem: the existing index keeps its original dimension, and vec
 the new model disagree with everything already stored. That is drift, and it needs the corpus
 re-embedded — see the note under <<Embedding services>> above.
 
-NOTE: The starter stops at the factories and the placeholder. Key storage and lifecycle remain the
-application's responsibility, as described under <<reference.customizing.byok>> above.
+NOTE: The starter stops at model construction and the placeholders. Key storage and lifecycle remain
+the application's responsibility, as described under <<reference.customizing.byok>> above.
 
 ===== Error handling
 
@@ -617,4 +624,3 @@ embabel.agent.logging.personality=severance
 Remove the `embabel.agent.logging.personality` key to disable personality-based logging.
 
 As all logging results from listening to events via an `AgenticEventListener`, you can also easily create your own customized logging.
-

@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.autoconfigure.models.byok;
 
+import com.embabel.agent.config.models.byok.AnthropicCredentialLlmServiceFactoryConfig;
+import com.embabel.agent.config.models.byok.OpenAiCredentialLlmServiceFactoryConfig;
 import com.embabel.agent.config.models.byok.SetupRequiredEmbeddingConfig;
 import com.embabel.agent.config.models.byok.SetupRequiredLlmConfig;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -25,10 +27,11 @@ import org.springframework.context.annotation.Import;
  * Autoconfiguration for Bring Your Own Key deployments.
  * <p>
  * Unlike the provider autoconfigurations, this registers no real models and requires no API key.
- * It contributes only the {@code setup-required} placeholder LLM and its embedding counterpart,
- * which let a deployment holding no provider key start up and resolve
- * {@code embabel.models.default-llm} and {@code embabel.models.default-embedding-model}. Keys arrive
- * at runtime and reach a call through {@code PromptRunner.withLlmService(...)}.
+ * It contributes the {@code setup-required} placeholders and credential-backed LLM service
+ * factories for supported providers on the classpath. The placeholders let a deployment holding
+ * no provider key start up and resolve
+ * {@code embabel.models.default-llm} and {@code embabel.models.default-embedding-model}. Keys can
+ * arrive at runtime through role resolution or an explicitly built service.
  * <p>
  * The embedding placeholder never reports a dimension: a vector index built at a guessed dimension
  * would accept writes and disagree with the real model later, so anything provisioning one must
@@ -39,6 +42,11 @@ import org.springframework.context.annotation.Import;
  */
 @AutoConfiguration
 @AutoConfigureBefore(name = {"com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration"})
-@Import({SetupRequiredLlmConfig.class, SetupRequiredEmbeddingConfig.class})
+@Import({
+        SetupRequiredLlmConfig.class,
+        SetupRequiredEmbeddingConfig.class,
+        AnthropicCredentialLlmServiceFactoryConfig.class,
+        OpenAiCredentialLlmServiceFactoryConfig.class
+})
 public class AgentByokAutoConfiguration {
 }

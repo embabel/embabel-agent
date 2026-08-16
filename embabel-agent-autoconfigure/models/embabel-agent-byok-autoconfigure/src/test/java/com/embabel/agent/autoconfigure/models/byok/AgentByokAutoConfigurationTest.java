@@ -15,11 +15,15 @@
  */
 package com.embabel.agent.autoconfigure.models.byok;
 
+import com.embabel.agent.api.models.AnthropicModels;
+import com.embabel.agent.api.models.OpenAiModels;
 import com.embabel.agent.config.models.byok.SetupRequiredEmbedding;
 import com.embabel.agent.config.models.byok.SetupRequiredLlm;
 import com.embabel.agent.spi.LlmService;
 import com.embabel.agent.spi.PlaceholderEmbeddingService;
+import com.embabel.common.ai.model.CredentialLlmServiceFactory;
 import com.embabel.common.ai.model.EmbeddingService;
+import com.embabel.common.ai.model.ProviderCredential;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -72,5 +76,43 @@ class AgentByokAutoConfigurationTest {
         contextRunner.run(context ->
                 assertThat(context.getBeansOfType(EmbeddingService.class))
                         .containsOnlyKeys(SetupRequiredEmbedding.NAME));
+    }
+
+    @Test
+    void registersCredentialFactoriesForProvidersOnTheClasspath() {
+        contextRunner.run(context -> assertThat(context.getBeansOfType(CredentialLlmServiceFactory.class))
+                .containsOnlyKeys("anthropicCredentialLlmServiceFactory", "openAiCredentialLlmServiceFactory"));
+    }
+
+    @Test
+    void credentialFactoriesOnlyHandleTheirProvider() {
+        contextRunner.run(context -> {
+            var factories = context.getBeansOfType(CredentialLlmServiceFactory.class);
+            var anthropic = factories.get("anthropicCredentialLlmServiceFactory");
+            var openAi = factories.get("openAiCredentialLlmServiceFactory");
+            var anthropicService = anthropic.createLlmService(
+                    new ProviderCredential("ANTHROPIC", "key"), "claude-test");
+            var openAiService = openAi.createLlmService(
+                    new ProviderCredential("OPENAI", "key"), "gpt-test");
+
+            assertThat(anthropicService).isNotNull();
+            assertThat(anthropicService.getProvider()).isEqualTo(AnthropicModels.PROVIDER);
+            assertThat(anthropic.createLlmService(new ProviderCredential("openai", "key"), "gpt-test"))
+                    .isNull();
+            assertThat(openAiService).isNotNull();
+            assertThat(openAiService.getProvider()).isEqualTo(OpenAiModels.PROVIDER);
+            assertThat(openAi.createLlmService(new ProviderCredential("anthropic", "key"), "claude-test"))
+                    .isNull();
+        });
+    }
+
+    @Test
+    void applicationFactoryWithTheProviderBeanNameWins() {
+        CredentialLlmServiceFactory custom = (credential, model) -> null;
+
+        contextRunner
+                .withBean("openAiCredentialLlmServiceFactory", CredentialLlmServiceFactory.class, () -> custom)
+                .run(context -> assertThat(context.getBean("openAiCredentialLlmServiceFactory"))
+                        .isSameAs(custom));
     }
 }
