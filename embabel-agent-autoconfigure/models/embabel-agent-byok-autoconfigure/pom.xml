@@ -31,6 +31,28 @@
             <artifactId>embabel-agent-byok</artifactId>
         </dependency>
 
+        <!--
+        The provider modules, NOT their autoconfigurations - a pure BYOK deployment deliberately has
+        no provider autoconfiguration on the classpath, and embabel-agent-starter-byok enforces that
+        with a banned-dependency rule. These carry the factories the CredentialLlmServiceFactory
+        beans delegate to.
+
+        Optional so this module can be used without them: the beans are each gated on their factory
+        class being present, so a consumer that omits one simply gets no factory for that provider.
+        embabel-agent-starter-byok depends on both, so the common path has both.
+        -->
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-anthropic</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-openai</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-test-internal</artifactId>

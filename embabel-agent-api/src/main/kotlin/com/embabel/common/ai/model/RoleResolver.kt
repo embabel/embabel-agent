@@ -87,26 +87,36 @@ fun interface RoleResolver {
 /**
  * Builds an [LlmService] from a user-supplied key.
  *
- * No implementation ships with the platform yet, so an application returning
- * [RoleResolution.Credential] must register one - otherwise the role fails with
- * [NoSuitableModelException] and a log line naming the provider nothing handled. It is a one-liner
- * over the provider's own BYOK factory:
+ * `embabel-agent-starter-byok` ships one for OpenAI and one for Anthropic, so per-user keys work
+ * for those two with no application code at all - see
+ * `com.embabel.agent.config.models.byok.CredentialLlmServiceFactoryConfig`. Register one of your
+ * own for any other provider, or to override a shipped one for a custom base URL or a proxy;
+ * the shipped beans stand aside for a bean of the same name.
+ *
+ * Without a factory that handles the provider, a role resolving to [RoleResolution.Credential]
+ * fails with [NoSuitableModelException] and a log line naming the provider nothing handled. An
+ * implementation is a one-liner over the provider's own BYOK factory:
  *
  * ```kotlin
  * @Bean
- * fun openAiCredentialFactory() = CredentialLlmServiceFactory { credential, model ->
- *     if (!credential.provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) null
- *     else OpenAiCompatibleModelFactory(baseUrl = null, apiKey = credential.apiKey)
- *         .openAiCompatibleLlm(model = model, provider = OpenAiModels.PROVIDER)
+ * fun mistralCredentialFactory() = CredentialLlmServiceFactory { credential, model ->
+ *     if (!credential.provider.equals(MistralAiModels.PROVIDER, ignoreCase = true)) null
+ *     else OpenAiCompatibleModelFactory(baseUrl = MISTRAL_BASE_URL, apiKey = credential.apiKey)
+ *         .openAiCompatibleLlm(
+ *             model = model,
+ *             pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+ *             provider = MistralAiModels.PROVIDER,
+ *             knowledgeCutoffDate = null,
+ *         )
  * }
  * ```
  *
+ * Return null for a provider this factory does not handle, rather than building something: the
+ * platform tries each factory in turn, and a factory that answers for everything would hand back a
+ * client pointed at the wrong endpoint for someone else's key.
+ *
  * The platform caches what this returns, per (provider, key, model), so an implementation should
  * build rather than maintain a cache of its own.
- *
- * Provider-supplied implementations are follow-up work: they belong with the provider modules, and
- * a pure bring-your-own-key deployment deliberately has no provider autoconfiguration on the
- * classpath to carry them.
  */
 fun interface CredentialLlmServiceFactory {
 

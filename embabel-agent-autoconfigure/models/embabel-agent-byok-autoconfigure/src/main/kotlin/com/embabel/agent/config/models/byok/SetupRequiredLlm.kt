@@ -46,10 +46,12 @@ class NoLlmConfiguredException(message: String) : RuntimeException(message)
  * A [ChatModel] that never completes anything. It exists only so the platform has a model to
  * resolve before any key is supplied; every call fails with [NoLlmConfiguredException].
  */
-internal class SetupRequiredChatModel : ChatModel {
+internal class SetupRequiredChatModel(
+    private val message: String = SetupRequiredLlm.MESSAGE,
+) : ChatModel {
 
     override fun call(prompt: Prompt): ChatResponse =
-        throw NoLlmConfiguredException(SetupRequiredLlm.MESSAGE)
+        throw NoLlmConfiguredException(message)
 
     /**
      * Streaming fails the same way as a blocking call.
@@ -67,7 +69,7 @@ internal class SetupRequiredChatModel : ChatModel {
      * something streams anyway.
      */
     override fun stream(prompt: Prompt): Flux<ChatResponse> =
-        throw NoLlmConfiguredException(SetupRequiredLlm.MESSAGE)
+        throw NoLlmConfiguredException(message)
 
     override fun getOptions(): ChatOptions = ChatOptions.builder().build()
 
@@ -121,6 +123,45 @@ object SetupRequiredLlm {
     """.trimIndent()
 
     /**
+     * The message for a role this deployment cannot satisfy, naming the role and the model it
+     * wanted.
+     *
+     * Both halves are load-bearing. Naming the role tells the operator which configuration entry
+     * to look at; naming the model is what makes a typo visible, because in setup-required mode a
+     * misspelled name and a name simply awaiting a key are indistinguishable at startup and fail
+     * identically here. The "check the spelling" line is a prompt to compare the two, not a claim
+     * that either has happened - the platform genuinely cannot tell which it is.
+     *
+     * Keeps the [MESSAGE] guidance about supplying a key per request, because that is still what
+     * fixes the common case.
+     *
+     * Assembled from whole paragraphs rather than by interpolating one raw string into another.
+     * `trimIndent` computes the common indent across every line of the finished string, so a
+     * fragment that has already been trimmed to flush arrives with zero indent, drags that common
+     * indent to zero, and leaves every surrounding line with its source indentation baked in.
+     * Trimming each paragraph in full and joining them keeps each `trimIndent` over text it owns.
+     */
+    fun messageFor(role: String, model: String?): String {
+        val wanted =
+            if (model != null) "Role '$role' wanted model '$model', which nothing has registered."
+            else "Role '$role' names no model, so nothing can satisfy it."
+        val opening = """
+            No LLM is configured. $wanted
+            This deployment holds no provider API key, so a key must be supplied per request
+            via PromptRunner.withLlmService(...).
+        """.trimIndent()
+        val checkSpelling = model?.let {
+            """
+                If a key HAS been supplied and this persists, check that '$it' is spelled correctly
+                and is a model that provider offers - a name that never resolves fails exactly like
+                a missing key.
+            """.trimIndent()
+        }
+        val seeAlso = "See the Bring Your Own Key section of the Embabel reference documentation."
+        return listOfNotNull(opening, checkSpelling, seeAlso).joinToString(separator = "\n")
+    }
+
+    /**
      * Builds the placeholder service. Registered as a bean by [SetupRequiredLlmConfig]; call this
      * directly only when constructing a model provider outside a Spring context.
      */
@@ -146,13 +187,23 @@ internal class SetupRequiredLlmService private constructor(
 ) : LlmService<SetupRequiredLlmService>, AiModel<ChatModel>, PlaceholderLlmService,
     LlmMetadata by delegate {
 
-    constructor() : this(
+    constructor(message: String = SetupRequiredLlm.MESSAGE) : this(
         SpringAiLlmService(
             name = SetupRequiredLlm.NAME,
             provider = SetupRequiredLlm.PROVIDER,
-            chatModel = SetupRequiredChatModel(),
+            chatModel = SetupRequiredChatModel(message),
         ),
     )
+
+    /**
+     * Another placeholder, identical but for the message, so the failure names what the role wanted.
+     *
+     * Same name and provider deliberately: this is still the `setup-required` placeholder, and
+     * anything matching on the name - the model provider's own default-llm lookup included - must
+     * not see a different model just because a role happened to route through it.
+     */
+    override fun forUnsatisfiedRole(role: String, model: String?): LlmService<*> =
+        SetupRequiredLlmService(SetupRequiredLlm.messageFor(role, model))
 
     override val model: ChatModel get() = delegate.model
 
