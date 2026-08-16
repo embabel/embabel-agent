@@ -15,6 +15,11 @@
  */
 package com.embabel.agent.api.tool
 
+import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.annotation.JsonPropertyDescription
+import com.fasterxml.jackson.annotation.JsonPropertyOrder
+import com.fasterxml.jackson.annotation.JsonSubTypes
+import com.fasterxml.jackson.annotation.JsonTypeInfo
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
@@ -54,6 +59,45 @@ class TypeBasedInputSchemaTest {
     data class NestedObjectClass(
         val name: String,
         val nested: SimpleKotlinClass,
+    )
+
+    data class DescribedNestedObjectClass(
+        @get:JsonPropertyDescription("More details")
+        val searchTerm: String,
+    )
+
+    data class SearchFilterClass(
+        val filter: DescribedNestedObjectClass,
+    )
+
+    @JsonPropertyOrder("optionalValue", "requiredValue")
+    data class JacksonConfiguredNestedClass(
+        @get:JsonProperty(required = true)
+        val requiredValue: String?,
+        val optionalValue: String?,
+    )
+
+    data class JacksonConfiguredClass(
+        val nested: JacksonConfiguredNestedClass,
+    )
+
+    @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
+    @JsonSubTypes(
+        JsonSubTypes.Type(value = ExpressionGroup::class, name = "group"),
+        JsonSubTypes.Type(value = ExpressionLeaf::class, name = "leaf"),
+    )
+    interface Expression
+
+    data class ExpressionGroup(
+        val expressions: List<Expression>,
+    ) : Expression
+
+    data class ExpressionLeaf(
+        val value: String,
+    ) : Expression
+
+    data class PolymorphicParameterClass(
+        val expression: Expression,
     )
 
     // Test classes for array items schema tests
@@ -294,6 +338,49 @@ class TypeBasedInputSchemaTest {
             val properties = parsed.get("properties")
 
             assertEquals("object", properties.get("nested").get("type").asString())
+        }
+
+        @Test
+        fun `toJsonSchema honors Jackson descriptions on nested properties`() {
+            val schema = TypeBasedInputSchema.of(SearchFilterClass::class.java)
+
+            val jsonSchema = schema.toJsonSchema()
+            val parsed = objectMapper.readTree(jsonSchema)
+            val searchTerm = parsed.get("properties")
+                .get("filter")
+                .get("properties")
+                .get("searchTerm")
+
+            assertEquals("More details", searchTerm.get("description").asString())
+        }
+
+        @Test
+        fun `toJsonSchema honors Jackson required and property order annotations`() {
+            val schema = TypeBasedInputSchema.of(JacksonConfiguredClass::class.java)
+
+            val parsed = objectMapper.readTree(schema.toJsonSchema())
+            val nested = parsed.get("properties").get("nested")
+            val propertyNames = nested.get("properties").propertyNames().asSequence().toList()
+            val required = mutableListOf<String>()
+            nested.get("required").forEach { node ->
+                if (node.isArray) node.forEach { required.add(it.asString()) }
+                else required.add(node.asString())
+            }
+
+            assertEquals(listOf("optionalValue", "requiredValue"), propertyNames)
+            assertEquals(listOf("requiredValue"), required)
+        }
+
+        @Test
+        fun `toJsonSchema does not generate unresolved references for polymorphic parameters`() {
+            val schema = TypeBasedInputSchema.of(PolymorphicParameterClass::class.java)
+
+            val jsonSchema = schema.toJsonSchema()
+            val parsed = objectMapper.readTree(jsonSchema)
+
+            assertFalse(jsonSchema.contains("\"${'$'}ref\""))
+            assertFalse(jsonSchema.contains("\"${'$'}defs\""))
+            assertEquals("object", parsed.get("properties").get("expression").get("type").asString())
         }
     }
 
