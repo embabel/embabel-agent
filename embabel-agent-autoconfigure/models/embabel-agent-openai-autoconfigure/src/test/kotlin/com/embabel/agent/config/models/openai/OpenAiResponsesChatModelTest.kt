@@ -91,6 +91,21 @@ class OpenAiResponsesChatModelTest {
     @Nested
     inner class RequestMapping {
 
+        @Test
+        fun `previous response id is forwarded from OpenAI extra body options`() {
+            val params = capture(
+                Prompt(
+                    listOf(UserMessage("Continue")),
+                    OpenAiChatOptions.builder()
+                        .model("gpt-5-pro")
+                        .extraBody(mapOf(OpenAiResponsesOptions.PREVIOUS_RESPONSE_ID to "resp_previous"))
+                        .build(),
+                )
+            )
+
+            assertEquals("resp_previous", params.previousResponseId().orElse(null))
+        }
+
         /**
          * The Responses API has no system role: a system message carried as an input item is
          * treated as ordinary user text, quietly losing its authority over the model.
@@ -416,6 +431,13 @@ class OpenAiResponsesChatModelTest {
 
     @Nested
     inner class ResponseMapping {
+
+        @Test
+        fun `response id is reported in standard response metadata`() {
+            respondWith(textResponse("ok"))
+
+            assertEquals("resp_1", model.call(Prompt("Hi")).metadata.id)
+        }
 
         @Test
         fun `text output becomes the assistant message`() {
