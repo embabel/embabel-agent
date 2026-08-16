@@ -224,6 +224,27 @@
     </build>
 
     <profiles>
+        <!-- Run integration tests that follow the *IT naming convention -->
+        <profile>
+            <id>integration-tests</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <includes>
+                                <include>**/*IT.*</include>
+                            </includes>
+                            <excludes combine.self="override">
+                                <exclude>none</exclude>
+                            </excludes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
         <!-- Build Embabel Agent Documentation -->
         <profile>
             <id>embabel-agent-docs</id>

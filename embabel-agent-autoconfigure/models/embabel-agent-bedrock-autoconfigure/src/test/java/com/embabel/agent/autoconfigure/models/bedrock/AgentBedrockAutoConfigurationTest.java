@@ -33,7 +33,7 @@ import static com.embabel.agent.config.models.bedrock.BedrockModelsConfig.EU_ANT
 import static com.embabel.agent.config.models.bedrock.BedrockModelsConfig.EU_ANTHROPIC_CLAUDE_SONNET_4;
 
 @SpringBootTest(
-        classes = AgentBedrockAutoConfigurationIT.class,
+        classes = AgentBedrockAutoConfigurationTest.class,
         properties = {
                 "embabel.models.default-llm=" + EU_ANTHROPIC_CLAUDE_SONNET_4,
                 "embabel.models.llms.cheapest=" + EU_ANTHROPIC_CLAUDE_SONNET_4,
@@ -44,8 +44,8 @@ import static com.embabel.agent.config.models.bedrock.BedrockModelsConfig.EU_ANT
         })
 @ComponentScan(basePackages = "com.embabel.agent.autoconfigure")
 @ImportAutoConfiguration(classes = {JacksonAutoConfiguration.class, AgentBedrockAutoConfiguration.class})
-        @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-class AgentBedrockAutoConfigurationIT {
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+class AgentBedrockAutoConfigurationTest {
 
     @Autowired
     private ApplicationContext applicationContext;

@@ -30,6 +30,7 @@ import com.embabel.agent.domain.io.UserInput
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration
@@ -73,6 +74,11 @@ import org.springframework.test.context.ActiveProfiles
 )
 @Import(AgentOpenAiAutoConfiguration::class)
 @ImportAutoConfiguration(AgentPlatformAutoConfiguration::class)
+@EnabledIfEnvironmentVariable(
+    named = "OPENAI_API_KEY",
+    matches = ".+",
+    disabledReason = "Integration test requires OPENAI_API_KEY",
+)
 class AgentProcessCostAggregationRealLlmIT {
 
     private val logger = LoggerFactory.getLogger(AgentProcessCostAggregationRealLlmIT::class.java)

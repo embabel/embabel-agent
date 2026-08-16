@@ -22,6 +22,7 @@ import com.embabel.agent.spi.LlmService
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.opentest4j.TestAbortedException
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan
@@ -56,6 +57,11 @@ class Opus48TestConfig
 )
 @ActiveProfiles("opus48-test")
 @Import(Opus48TestConfig::class, AgentAnthropicAutoConfiguration::class)
+@EnabledIfEnvironmentVariable(
+    named = "ANTHROPIC_API_KEY",
+    matches = ".+",
+    disabledReason = "Integration test requires ANTHROPIC_API_KEY",
+)
 class Opus48IntegrationIT(
     @param:Autowired private val ai: Ai,
     @param:Autowired private val llms: List<LlmService<*>>,

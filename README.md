@@ -971,25 +971,31 @@ mvn test
 
 ### Integration tests
 
-Integration tests (`*IT`) hit real provider APIs and are excluded from the default `mvn test` run.
-To run them, ensure the following environment variables are set:
+Integration tests (`*IT`) are excluded from the default `mvn test` run. Run the complete suite with:
+
+```bash
+mvn -Pintegration-tests test
+```
+
+Tests that require credentials or live services are skipped when their environment variables are absent, so you only
+need to configure the integrations you want to exercise:
 
 - `OPENAI_API_KEY`
 - `ANTHROPIC_API_KEY`
 - `DEEPSEEK_API_KEY`
 - `MISTRAL_API_KEY`
+- `GEMINI_API_KEY`
+- `GOOGLE_GENAI_API_KEY`
+- `DASHSCOPE_API_KEY`
+- `ZAI_API_KEY`
+- `OLLAMA_BASE_URL` for tests using a local Ollama service
+- `EMBABEL_RUN_ONNX_INTEGRATION_TESTS` to opt into the slow Hugging Face model download
 
-Then run:
+Self-contained integration tests still run when none of these variables are set. To run a specific module's
+integration tests, add `-pl`:
 
 ```bash
-mvn -Dtest='*IT,!LLMOllama*IT' -Dsurefire.failIfNoSpecifiedTests=false test
-```
-
-This runs all integration tests except Ollama (which requires a local Ollama server).
-To run a specific module's integration tests, add `-pl`:
-
-```bash
-mvn -Dtest='*IT,!LLMOllama*IT' -Dsurefire.failIfNoSpecifiedTests=false test -pl embabel-agent-openai
+mvn -Pintegration-tests test -pl embabel-agent-openai
 ```
 
 ## Spring profiles

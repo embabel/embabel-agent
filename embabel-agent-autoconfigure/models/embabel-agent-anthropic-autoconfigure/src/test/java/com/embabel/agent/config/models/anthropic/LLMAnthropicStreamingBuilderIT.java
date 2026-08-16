@@ -29,6 +29,7 @@ import com.embabel.common.ai.model.LlmOptions;
 import com.embabel.common.ai.model.Thinking;
 import com.embabel.common.core.streaming.StreamingEvent;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -104,6 +105,8 @@ import static org.junit.jupiter.api.Assertions.*;
         }
 )
 @Import({AgentAnthropicAutoConfiguration.class})
+@EnabledIfEnvironmentVariable(named = "ANTHROPIC_API_KEY", matches = ".+",
+        disabledReason = "Integration test requires ANTHROPIC_API_KEY")
 class LLMAnthropicStreamingBuilderIT {
 
     private static final Logger logger = LoggerFactory.getLogger(LLMAnthropicStreamingBuilderIT.class);
@@ -292,6 +295,4 @@ class LLMAnthropicStreamingBuilderIT {
 
         logger.info("Integration streaming test completed successfully with {} total events", receivedEvents.size());
     }
-
-
 }

@@ -25,6 +25,7 @@ import com.embabel.common.ai.model.Thinking;
 import com.embabel.common.core.thinking.ThinkingBlock;
 import com.embabel.common.core.thinking.ThinkingResponse;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.tool.annotation.Tool;
@@ -92,6 +93,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
         }
 )
 @Import({AgentOllamaAutoConfiguration.class})
+@EnabledIfEnvironmentVariable(named = "OLLAMA_BASE_URL", matches = ".+",
+        disabledReason = "Integration test requires OLLAMA_BASE_URL")
 class LLMOllamaThinkingIT {
 
     @SpringBootConfiguration

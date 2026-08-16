@@ -21,6 +21,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
@@ -37,6 +38,8 @@ import org.springframework.test.annotation.DirtiesContext;
 @ComponentScan(basePackages = "com.embabel.agent.autoconfigure")
 @ImportAutoConfiguration(classes = {JacksonAutoConfiguration.class, AgentPlatformAutoConfiguration.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+",
+        disabledReason = "Integration test requires OPENAI_API_KEY")
 class AgentPlatformAutoConfigurationIT {
 
 

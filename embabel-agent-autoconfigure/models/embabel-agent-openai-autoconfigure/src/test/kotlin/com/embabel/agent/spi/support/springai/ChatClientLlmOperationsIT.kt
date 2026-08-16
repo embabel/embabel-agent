@@ -32,6 +32,7 @@ import com.embabel.common.core.validation.ValidationResult
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -45,6 +46,11 @@ import org.springframework.boot.test.context.SpringBootTest
 data class TestPerson(val name: String, val sign: String)
 
 @SpringBootTest
+@EnabledIfEnvironmentVariable(
+    named = "OPENAI_API_KEY",
+    matches = ".+",
+    disabledReason = "Integration test requires OPENAI_API_KEY",
+)
 internal class ChatClientLlmOperationsIT {
     @Autowired
     @Qualifier("chatClientLlmOperations")
