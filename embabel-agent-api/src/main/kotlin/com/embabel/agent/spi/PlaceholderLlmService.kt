@@ -33,4 +33,26 @@ package com.embabel.agent.spi
  * a placeholder without depending on the BYOK module - carrying the placeholder without dragging
  * in that module is the reason the module exists.
  */
-interface PlaceholderLlmService
+interface PlaceholderLlmService {
+
+    /**
+     * A placeholder that reports what was actually wanted, for a role this deployment cannot yet
+     * satisfy.
+     *
+     * In setup-required mode a model name that is merely unregistered and a model name that is
+     * misspelled are the same thing at startup - nothing is registered, so neither resolves - and
+     * both end up here. The platform cannot tell them apart, but it does know which role asked and
+     * which name that role carried, and saying so is what lets the operator tell them apart:
+     * `cheapest wanted 'gpt-4.1-nanoo'` points at the typo, where a bare "no LLM is configured"
+     * points at the key, the one thing that is not wrong.
+     *
+     * Returning a distinct instance rather than mutating: one placeholder bean serves every call on
+     * any thread, so the role that failed cannot be state on it.
+     *
+     * @param role the role that could not be satisfied
+     * @param model the model name that role named, or null if it named none
+     * @return a placeholder failing with a message naming [role] and [model], or null to use this
+     * placeholder unchanged - which is what a placeholder with nothing to add should do
+     */
+    fun forUnsatisfiedRole(role: String, model: String?): LlmService<*>? = null
+}

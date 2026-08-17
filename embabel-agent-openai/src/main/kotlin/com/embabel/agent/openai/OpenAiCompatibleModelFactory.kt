@@ -90,13 +90,39 @@ open class OpenAiCompatibleModelFactory(
         private const val CONNECT_TIMEOUT_MS = 5_000L
         private const val READ_TIMEOUT_MS = 600_000L
 
+        private val OPEN_AI = ProviderEndpoint(OpenAiModels.PROVIDER, null)
+        private val DEEP_SEEK = ProviderEndpoint(DeepSeekModels.PROVIDER, "https://api.deepseek.com")
+        private val MISTRAL = ProviderEndpoint(MistralAiModels.PROVIDER, "https://api.mistral.ai")
+        private val GEMINI = ProviderEndpoint(
+            GoogleGenAiModels.PROVIDER,
+            "https://generativelanguage.googleapis.com/v1beta/openai",
+        )
+        private val ATLAS_CLOUD = ProviderEndpoint(AtlasCloudModels.PROVIDER, "https://api.atlascloud.ai/v1")
+
+        private val ENDPOINTS_BY_PROVIDER: Map<String, ProviderEndpoint> =
+            listOf(OPEN_AI, DEEP_SEEK, MISTRAL, GEMINI, ATLAS_CLOUD)
+                .associateBy { it.provider.lowercase() }
+
+        /**
+         * The endpoint for [provider], or null if this module does not speak to it.
+         *
+         * Lets a caller holding only a provider name - a user's stored credential, say - build a
+         * service for any provider this module supports, without repeating the base URLs. Every
+         * such copy is a place to mistype a URL or fall behind one that changes.
+         *
+         * Null means "not one of ours", which is distinct from [ProviderEndpoint.baseUrl] being
+         * null: OpenAI itself is supported and takes the SDK default.
+         */
+        @JvmStatic
+        fun endpointFor(provider: String): ProviderEndpoint? =
+            ENDPOINTS_BY_PROVIDER[provider.trim().lowercase()]
 
         /**
          * Returns a [ByokSpec] for OpenAI.
          * Validates against [OpenAiModels.GPT_41_MINI] by default.
          */
         fun openAi(apiKey: String): ByokSpec =
-            ByokSpec(null, apiKey, OpenAiModels.GPT_41_MINI, OpenAiModels.PROVIDER)
+            ByokSpec(OPEN_AI.baseUrl, apiKey, OpenAiModels.GPT_41_MINI, OPEN_AI.provider)
 
         /**
          * Returns a [ByokSpec] for DeepSeek (OpenAI-compatible endpoint).
@@ -105,7 +131,7 @@ open class OpenAiCompatibleModelFactory(
          * Note: uses the OpenAI wire protocol, not the native Spring AI DeepSeek client.
          */
         fun deepSeek(apiKey: String): ByokSpec =
-            ByokSpec("https://api.deepseek.com", apiKey, DeepSeekModels.DEEPSEEK_V4_FLASH, DeepSeekModels.PROVIDER)
+            ByokSpec(DEEP_SEEK.baseUrl, apiKey, DeepSeekModels.DEEPSEEK_V4_FLASH, DEEP_SEEK.provider)
 
         /**
          * Returns a [ByokSpec] for Mistral AI (OpenAI-compatible endpoint).
@@ -114,31 +140,21 @@ open class OpenAiCompatibleModelFactory(
          * Note: uses the OpenAI wire protocol, not the native Spring AI Mistral client.
          */
         fun mistral(apiKey: String): ByokSpec =
-            ByokSpec("https://api.mistral.ai", apiKey, MistralAiModels.MINISTRAL_8B, MistralAiModels.PROVIDER)
+            ByokSpec(MISTRAL.baseUrl, apiKey, MistralAiModels.MINISTRAL_8B, MISTRAL.provider)
 
         /**
          * Returns a [ByokSpec] for Google Gemini (OpenAI-compatible endpoint).
          * Validates against [GoogleGenAiModels.GEMINI_2_5_FLASH] by default.
          */
         fun gemini(apiKey: String): ByokSpec =
-            ByokSpec(
-                "https://generativelanguage.googleapis.com/v1beta/openai",
-                apiKey,
-                GoogleGenAiModels.GEMINI_2_5_FLASH,
-                GoogleGenAiModels.PROVIDER,
-            )
+            ByokSpec(GEMINI.baseUrl, apiKey, GoogleGenAiModels.GEMINI_2_5_FLASH, GEMINI.provider)
 
         /**
          * Returns a [ByokSpec] for Atlas Cloud (OpenAI-compatible endpoint).
          * Validates against [AtlasCloudModels.QWEN3_5_FLASH] by default.
          */
         fun atlasCloud(apiKey: String): ByokSpec =
-            ByokSpec(
-                "https://api.atlascloud.ai/v1",
-                apiKey,
-                AtlasCloudModels.QWEN3_5_FLASH,
-                AtlasCloudModels.PROVIDER,
-            )
+            ByokSpec(ATLAS_CLOUD.baseUrl, apiKey, AtlasCloudModels.QWEN3_5_FLASH, ATLAS_CLOUD.provider)
 
         /**
          * Returns a [ByokSpec] for a custom OpenAI-compatible provider.
@@ -198,6 +214,20 @@ open class OpenAiCompatibleModelFactory(
         ): ByokEmbeddingSpec =
             ByokEmbeddingSpec(baseUrl, apiKey, model, provider, pricingModel)
     }
+
+    /**
+     * Where an OpenAI-compatible provider lives, under the name this framework knows it by.
+     *
+     * [provider] is the canonical constant - `OpenAiModels.PROVIDER` and friends - rather than
+     * whatever spelling a caller looked it up with, so a service built from a stored credential
+     * reports the same provider as one built from configuration.
+     *
+     * A null [baseUrl] means the SDK default, which is OpenAI's own endpoint.
+     */
+    data class ProviderEndpoint(
+        val provider: String,
+        val baseUrl: String?,
+    )
 
     /**
      * A self-contained BYOK spec for an OpenAI-compatible provider. Implements [ByokFactory]

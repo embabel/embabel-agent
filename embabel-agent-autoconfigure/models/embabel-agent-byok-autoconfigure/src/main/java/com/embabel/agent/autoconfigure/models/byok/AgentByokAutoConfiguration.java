@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.autoconfigure.models.byok;
 
+import com.embabel.agent.config.models.byok.CredentialLlmServiceFactoryConfig;
 import com.embabel.agent.config.models.byok.SetupRequiredEmbeddingConfig;
 import com.embabel.agent.config.models.byok.SetupRequiredLlmConfig;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -25,10 +26,14 @@ import org.springframework.context.annotation.Import;
  * Autoconfiguration for Bring Your Own Key deployments.
  * <p>
  * Unlike the provider autoconfigurations, this registers no real models and requires no API key.
- * It contributes only the {@code setup-required} placeholder LLM and its embedding counterpart,
- * which let a deployment holding no provider key start up and resolve
+ * It contributes the {@code setup-required} placeholder LLM and its embedding counterpart, which
+ * let a deployment holding no provider key start up and resolve
  * {@code embabel.models.default-llm} and {@code embabel.models.default-embedding-model}. Keys arrive
  * at runtime and reach a call through {@code PromptRunner.withLlmService(...)}.
+ * <p>
+ * It also contributes a {@link com.embabel.common.ai.model.CredentialLlmServiceFactory} per
+ * provider it can see, so a role resolving to a user's own key builds a real service without the
+ * application writing one - see {@link CredentialLlmServiceFactoryConfig}.
  * <p>
  * The embedding placeholder never reports a dimension: a vector index built at a guessed dimension
  * would accept writes and disagree with the real model later, so anything provisioning one must
@@ -39,6 +44,6 @@ import org.springframework.context.annotation.Import;
  */
 @AutoConfiguration
 @AutoConfigureBefore(name = {"com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration"})
-@Import({SetupRequiredLlmConfig.class, SetupRequiredEmbeddingConfig.class})
+@Import({SetupRequiredLlmConfig.class, SetupRequiredEmbeddingConfig.class, CredentialLlmServiceFactoryConfig.class})
 public class AgentByokAutoConfiguration {
 }

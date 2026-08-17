@@ -15,6 +15,12 @@
  */
 package com.embabel.agent.starter.byok;
 
+import com.embabel.agent.api.models.AnthropicModels;
+import com.embabel.agent.api.models.AtlasCloudModels;
+import com.embabel.agent.api.models.DeepSeekModels;
+import com.embabel.agent.api.models.GoogleGenAiModels;
+import com.embabel.agent.api.models.MistralAiModels;
+import com.embabel.agent.api.models.OpenAiModels;
 import com.embabel.agent.autoconfigure.models.byok.AgentByokAutoConfiguration;
 import com.embabel.agent.config.models.byok.NoEmbeddingServiceConfiguredException;
 import com.embabel.agent.config.models.byok.SetupRequiredEmbedding;
@@ -23,9 +29,11 @@ import com.embabel.agent.spi.LlmService;
 import com.embabel.agent.spi.PlaceholderEmbeddingService;
 import com.embabel.common.ai.model.ConfigurableModelProvider;
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties;
+import com.embabel.common.ai.model.CredentialLlmServiceFactory;
 import com.embabel.common.ai.model.DefaultModelSelectionCriteria;
 import com.embabel.common.ai.model.EmbeddingService;
 import com.embabel.common.ai.model.ModelProvider;
+import com.embabel.common.ai.model.ProviderCredential;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
@@ -37,6 +45,7 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -79,6 +88,37 @@ class ByokStarterBootTest {
         contextRunner.run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context).hasBean(SetupRequiredLlm.NAME);
+        });
+    }
+
+    /**
+     * The issue's acceptance test, at the level it was written about: put the starter on the
+     * classpath, and per-user keys work. Asserted here rather than only in the autoconfigure
+     * module because it is the starter's dependency set that decides which provider modules are
+     * visible, and so how many providers the shipped factories actually cover.
+     */
+    @Test
+    void shipsCredentialFactoriesCoveringEveryProviderByokSupports() {
+        contextRunner.run(context -> {
+            var factories = new ArrayList<>(
+                    context.getBeansOfType(CredentialLlmServiceFactory.class).values());
+            var wholeSurface = Map.of(
+                    AnthropicModels.PROVIDER, AnthropicModels.CLAUDE_HAIKU_4_5,
+                    OpenAiModels.PROVIDER, OpenAiModels.GPT_41_MINI,
+                    DeepSeekModels.PROVIDER, DeepSeekModels.DEEPSEEK_V4_FLASH,
+                    MistralAiModels.PROVIDER, MistralAiModels.MINISTRAL_8B,
+                    GoogleGenAiModels.PROVIDER, GoogleGenAiModels.GEMINI_2_5_FLASH,
+                    AtlasCloudModels.PROVIDER, AtlasCloudModels.QWEN3_5_FLASH);
+
+            wholeSurface.forEach((provider, model) -> {
+                var credential = new ProviderCredential(provider, "sk-test-not-a-real-key");
+                var service = factories.stream()
+                        .map(factory -> factory.createLlmService(credential, model))
+                        .filter(java.util.Objects::nonNull)
+                        .findFirst();
+                assertThat(service).describedAs(provider).isPresent();
+                assertThat(service.get().getProvider()).describedAs(provider).isEqualTo(provider);
+            });
         });
     }
 

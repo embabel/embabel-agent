@@ -662,7 +662,7 @@ is expected and only worth reporting.
 
 |Deployment awaiting a key (BYOK, `default-llm` resolving to the placeholder)
 |Warns
-|Nothing is registered yet, so every role is unresolvable and none of it is a typo. Roles resolve to the placeholder, which fails with an actionable "no LLM configured" error until a key arrives.
+|Nothing is registered yet, so every role is unresolvable and none of it is a typo. Roles resolve to the placeholder, which fails with an actionable "no LLM configured" error until a key arrives. That error names the role and the model it wanted — `cheapest wanted 'gpt-4.1-nanoo'` — because in this mode a misspelled model name and a name merely awaiting a key are indistinguishable at startup, and naming both is what lets you tell them apart.
 
 |A role reached through a user's own credential
 |n/a
@@ -697,6 +697,33 @@ role means under that provider, builds the service through a `CredentialLlmServi
 caches it so the service is not rebuilt on every call. Return `RoleResolution.Options` to name a
 model and its tuning directly, or `RoleResolution.Service` to supply an `LlmService` you built
 yourself.
+
+`embabel-agent-starter-byok` ships the `CredentialLlmServiceFactory` beans, covering every provider
+BYOK supports — Anthropic, OpenAI, DeepSeek, Mistral, Gemini and Atlas Cloud. The resolver above is
+therefore all the code a deployment needs; there is no factory to write.
+
+Register a bean of your own only for a provider outside that set, or to override a shipped one for a
+custom base URL or a proxy — the shipped beans stand aside for a bean of the same name:
+
+[source,kotlin]
+----
+@Bean("openAiCompatibleCredentialLlmServiceFactory")
+fun openAiCompatibleCredentialLlmServiceFactory() = CredentialLlmServiceFactory { credential, model ->
+    if (!credential.provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) null
+    else OpenAiCompatibleModelFactory(baseUrl = ourProxyUrl, apiKey = credential.apiKey)
+        .openAiCompatibleLlm(
+            model = model,
+            pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+            provider = OpenAiModels.PROVIDER,
+            knowledgeCutoffDate = null,
+        )
+}
+----
+
+Return `null` for a provider your factory does not handle. The platform tries each factory in turn,
+and one that answers for everything would build a client pointed at the wrong endpoint for someone
+else's key. If no factory handles the provider, the role fails with `NoSuitableModelException` and
+a log line naming it.
 
 The `ModelSelectionContext` a resolver receives comes from `ModelSelectionContextHolder`, which the
 application sets at its request boundary:
