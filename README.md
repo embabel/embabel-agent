@@ -990,6 +990,8 @@ need to configure the integrations you want to exercise:
 - `ZAI_API_KEY`
 - `OLLAMA_BASE_URL` for tests using a local Ollama service
 - `EMBABEL_RUN_ONNX_INTEGRATION_TESTS` to opt into the slow Hugging Face model download
+- `GOOGLE_PROJECT_ID` plus `EMBABEL_RUN_VERTEX_INTEGRATION_TESTS` to opt into the Vertex AI tests, which
+  also need application default credentials (`gcloud auth application-default login`)
 
 Self-contained integration tests still run when none of these variables are set. To run a specific module's
 integration tests, add `-pl`:

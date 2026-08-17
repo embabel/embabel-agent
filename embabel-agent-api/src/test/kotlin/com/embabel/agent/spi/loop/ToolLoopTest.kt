@@ -19,6 +19,7 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
+import com.embabel.agent.domain.io.AssistantContent
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.AssistantMessageWithToolCalls
@@ -397,10 +398,14 @@ internal class MockLlmMessageSender(
 
     private var callIndex = 0
 
+    /** The history handed to each call, in order. */
+    val historiesSent = mutableListOf<List<Message>>()
+
     override fun call(messages: List<Message>, tools: List<Tool>): LlmMessageResponse {
         if (callIndex >= responses.size) {
             throw IllegalStateException("MockSingleLlmCaller ran out of responses")
         }
+        historiesSent += messages.toList()
         return responses[callIndex++]
     }
 
@@ -409,6 +414,17 @@ internal class MockLlmMessageSender(
             return LlmMessageResponse(
                 message = AssistantMessage(text),
                 textContent = text,
+            )
+        }
+
+        /**
+         * A turn with no text and no tool call, built the way the real conversion builds it.
+         * Not `textResponse(" ")`: a space is content, and providers accept it.
+         */
+        fun blankResponse(): LlmMessageResponse {
+            return LlmMessageResponse(
+                message = AssistantMessageWithToolCalls(content = "", toolCalls = emptyList()),
+                textContent = "",
             )
         }
 
@@ -1474,6 +1490,132 @@ class ToolLoopAdditionalTests {
             )
 
             assertEquals("Final answer", result.result)
+        }
+
+        /**
+         * Vertex and Mistral answer 400 to a turn with no text and no tool call, so the re-prompt
+         * must not carry it as it is. OpenAI and Anthropic accept it, which is why the loop cannot
+         * leave this to the provider. Each provider module has a live `BlankTurnRePromptIT`.
+         *
+         * The turn is replaced, not removed: removing it would put the nudge straight after the
+         * user question and the roles would stop alternating.
+         */
+        @Test
+        fun `the re-prompt after a blank turn is well formed`() {
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.blankResponse(),
+                    MockLlmMessageSender.textResponse("Recovered answer"),
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                emptyResponsePolicy = RetryWithFeedbackPolicy(maxRetries = 1),
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("question")),
+                initialTools = emptyList(),
+                outputParser = { it },
+            )
+
+            assertEquals("Recovered answer", result.result)
+            assertEquals(2, mockCaller.historiesSent.size)
+
+            val rePrompt = mockCaller.historiesSent[1]
+            assertTrue(
+                rePrompt.none { it is AssistantContent && it.content.isBlank() },
+                "an empty assistant turn is what the provider rejects: $rePrompt",
+            )
+            val nudgeIndex = rePrompt.indexOfFirst {
+                it is UserMessage && it.content.contains("no response", ignoreCase = true)
+            }
+            assertTrue(nudgeIndex > 0, "the nudge is what the re-prompt is for: $rePrompt")
+            val beforeNudge = rePrompt[nudgeIndex - 1]
+            assertTrue(
+                beforeNudge is AssistantContent && beforeNudge.content.isNotBlank(),
+                "the nudge must follow a sendable assistant turn: $rePrompt",
+            )
+        }
+
+        /**
+         * The case the policy exists for: the model goes blank after a tool call. Some providers
+         * carry a tool result in a user turn, so the nudge must not land straight after one.
+         */
+        @Test
+        fun `a blank turn after a tool call still leaves an assistant turn before the nudge`() {
+            val mockTool = MockTool(
+                name = "get_weather",
+                description = "Get the weather",
+                onCall = { Tool.Result.text("""{"temperature": 72}""") },
+            )
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.toolCallResponse("call_1", "get_weather", "{}"),
+                    MockLlmMessageSender.blankResponse(),
+                    MockLlmMessageSender.textResponse("Recovered answer"),
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                emptyResponsePolicy = RetryWithFeedbackPolicy(maxRetries = 1),
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("what is the weather?")),
+                initialTools = listOf(mockTool),
+                outputParser = { it },
+            )
+
+            assertEquals("Recovered answer", result.result)
+            assertEquals(3, mockCaller.historiesSent.size)
+
+            val rePrompt = mockCaller.historiesSent[2]
+            val nudgeIndex = rePrompt.indexOfFirst {
+                it is UserMessage && it.content.contains("no response", ignoreCase = true)
+            }
+            assertTrue(nudgeIndex > 0, "the nudge is what the re-prompt is for: $rePrompt")
+            val beforeNudge = rePrompt[nudgeIndex - 1]
+            assertTrue(
+                beforeNudge !is ToolResultMessage,
+                "the nudge must not follow the tool result: $rePrompt",
+            )
+            assertTrue(
+                beforeNudge is AssistantContent && beforeNudge.content.isNotBlank(),
+                "the nudge must follow a sendable assistant turn: $rePrompt",
+            )
+        }
+
+        /**
+         * Only the re-prompting path replaces the turn, because only it sends the history again.
+         * When the loop exits instead, the blank turn is the answer and the caller still sees it.
+         */
+        @Test
+        fun `exiting on empty leaves the blank turn in the history`() {
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(MockLlmMessageSender.blankResponse())
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("question")),
+                initialTools = emptyList(),
+                outputParser = { it },
+            )
+
+            assertEquals("", result.result)
+            assertTrue(
+                result.conversationHistory.any { it is AssistantContent && it.content.isBlank() },
+                "unchanged on the exit path: ${result.conversationHistory}",
+            )
         }
     }
 }
