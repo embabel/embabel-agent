@@ -17,6 +17,10 @@ package com.embabel.agent.config.models.byok
 
 import com.embabel.agent.anthropic.AnthropicModelFactory
 import com.embabel.agent.api.models.AnthropicModels
+import com.embabel.agent.api.models.AtlasCloudModels
+import com.embabel.agent.api.models.DeepSeekModels
+import com.embabel.agent.api.models.GoogleGenAiModels
+import com.embabel.agent.api.models.MistralAiModels
 import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.autoconfigure.models.byok.AgentByokAutoConfiguration
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
@@ -48,7 +52,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * over provider names. Putting `starter-byok` on the classpath should be enough, and these tests
  * pin that it is.
  *
- * Nothing here reaches the network. Both provider factories build a chat client from a key without
+ * Nothing here reaches the network. The shipped factories build a chat client from a key without
  * validating it - validation is a separate `buildValidated` call neither bean makes - so the keys
  * below are arbitrary strings and the suite runs the same on a build agent as locally.
  */
@@ -63,8 +67,11 @@ class CredentialLlmServiceFactoryConfigTest {
          */
         const val TEST_API_KEY = "sk-test-not-a-real-key"
 
-        /** Bean name of the shipped OpenAI factory, and the name an application overrides by. */
-        const val OPENAI_FACTORY_BEAN = "openAiCredentialLlmServiceFactory"
+        /**
+         * Bean name of the shipped OpenAI-compatible factory, and the name an application overrides
+         * by. One bean covers every provider `embabel-agent-openai` speaks to, not OpenAI alone.
+         */
+        const val OPENAI_COMPATIBLE_FACTORY_BEAN = "openAiCompatibleCredentialLlmServiceFactory"
 
         /** Bean name of the shipped Anthropic factory. */
         const val ANTHROPIC_FACTORY_BEAN = "anthropicCredentialLlmServiceFactory"
@@ -72,8 +79,8 @@ class CredentialLlmServiceFactoryConfigTest {
         /** Name carried by the service an overriding application builds, to tell it apart. */
         const val OVERRIDE_SERVICE_NAME = "from-the-application"
 
-        /** A provider neither shipped factory handles. */
-        const val UNHANDLED_PROVIDER = "mistral"
+        /** A provider no shipped factory handles: real, but not part of the BYOK surface. */
+        const val UNHANDLED_PROVIDER = "Cohere"
     }
 
     private val contextRunner = ApplicationContextRunner()
@@ -102,11 +109,38 @@ class CredentialLlmServiceFactoryConfigTest {
     }
 
     @Test
-    fun `both providers get a factory with nothing but the starter on the classpath`() {
+    fun `a factory per provider module with nothing but the starter on the classpath`() {
         contextRunner.run { context ->
             assertThat(context).hasNotFailed()
             assertThat(context.getBeansOfType(CredentialLlmServiceFactory::class.java))
-                .containsOnlyKeys(OPENAI_FACTORY_BEAN, ANTHROPIC_FACTORY_BEAN)
+                .containsOnlyKeys(OPENAI_COMPATIBLE_FACTORY_BEAN, ANTHROPIC_FACTORY_BEAN)
+        }
+    }
+
+    @Test
+    fun `every provider the BYOK surface supports builds with no application code`() {
+        /*
+         * The requirement, and the one test that pins its scope: not OpenAI and Anthropic, but
+         * every provider a BYOK deployment can already validate a key against. `embabel-agent-openai`
+         * speaks to five of these over one wire protocol, so shipping OpenAI alone would leave four
+         * for every application to hand-write - which is the duplication this is meant to end.
+         */
+        val wholeSurface = mapOf(
+            AnthropicModels.PROVIDER to AnthropicModels.CLAUDE_HAIKU_4_5,
+            OpenAiModels.PROVIDER to OpenAiModels.GPT_41_MINI,
+            DeepSeekModels.PROVIDER to DeepSeekModels.DEEPSEEK_V4_FLASH,
+            MistralAiModels.PROVIDER to MistralAiModels.MINISTRAL_8B,
+            GoogleGenAiModels.PROVIDER to GoogleGenAiModels.GEMINI_2_5_FLASH,
+            AtlasCloudModels.PROVIDER to AtlasCloudModels.QWEN3_5_FLASH,
+        )
+        contextRunner.run { context ->
+            val factories = factoriesIn(context)
+            wholeSurface.forEach { (provider, model) ->
+                val service = build(factories, provider, model)
+
+                assertThat(service?.provider).describedAs(provider).isEqualTo(provider)
+                assertThat(service?.name).describedAs(provider).isEqualTo(model)
+            }
         }
     }
 
@@ -159,6 +193,19 @@ class CredentialLlmServiceFactoryConfigTest {
             assertThat(build(factories, "OPENAI", OpenAiModels.GPT_41_MINI)).isNotNull()
             assertThat(build(factories, "anthropic", AnthropicModels.CLAUDE_HAIKU_4_5)).isNotNull()
             assertThat(build(factories, "ANTHROPIC", AnthropicModels.CLAUDE_HAIKU_4_5)).isNotNull()
+            assertThat(build(factories, "mistral ai", MistralAiModels.MINISTRAL_8B)).isNotNull()
+            assertThat(build(factories, "deepseek", DeepSeekModels.DEEPSEEK_V4_FLASH)).isNotNull()
+        }
+    }
+
+    @Test
+    fun `the built service reports the framework's spelling of the provider, not the caller's`() {
+        // A credential carries whatever the application stored. If that spelling reached the built
+        // service, cost and metadata lookups would key on two names for one provider.
+        contextRunner.run { context ->
+            val service = build(factoriesIn(context), "MISTRAL AI", MistralAiModels.MINISTRAL_8B)
+
+            assertThat(service?.provider).isEqualTo(MistralAiModels.PROVIDER)
         }
     }
 
@@ -171,7 +218,7 @@ class CredentialLlmServiceFactoryConfigTest {
          */
         contextRunner.run { context ->
             val beans = context.getBeansOfType(CredentialLlmServiceFactory::class.java)
-            val openAi = beans.getValue(OPENAI_FACTORY_BEAN)
+            val openAi = beans.getValue(OPENAI_COMPATIBLE_FACTORY_BEAN)
             val anthropic = beans.getValue(ANTHROPIC_FACTORY_BEAN)
             val anthropicKey = ProviderCredential(AnthropicModels.PROVIDER, TEST_API_KEY)
             val openAiKey = ProviderCredential(OpenAiModels.PROVIDER, TEST_API_KEY)
@@ -198,7 +245,7 @@ class CredentialLlmServiceFactoryConfigTest {
         // the shipped beans back off by name rather than by type.
         contextRunner.withUserConfiguration(OwnOpenAiFactory::class.java).run { context ->
             assertThat(context.getBeansOfType(CredentialLlmServiceFactory::class.java))
-                .containsOnlyKeys(OPENAI_FACTORY_BEAN, ANTHROPIC_FACTORY_BEAN)
+                .containsOnlyKeys(OPENAI_COMPATIBLE_FACTORY_BEAN, ANTHROPIC_FACTORY_BEAN)
             assertThat(build(factoriesIn(context), OpenAiModels.PROVIDER, "anything")?.name)
                 .isEqualTo(OVERRIDE_SERVICE_NAME)
             assertThat(build(factoriesIn(context), AnthropicModels.PROVIDER, AnthropicModels.CLAUDE_HAIKU_4_5)?.name)
@@ -215,7 +262,7 @@ class CredentialLlmServiceFactoryConfigTest {
             .run { context ->
                 assertThat(context).hasNotFailed()
                 assertThat(context.getBeansOfType(CredentialLlmServiceFactory::class.java))
-                    .containsOnlyKeys(OPENAI_FACTORY_BEAN)
+                    .containsOnlyKeys(OPENAI_COMPATIBLE_FACTORY_BEAN)
             }
     }
 
@@ -316,8 +363,8 @@ class CredentialLlmServiceFactoryConfigTest {
     @Configuration(proxyBeanMethods = false)
     class OwnOpenAiFactory {
 
-        @Bean(OPENAI_FACTORY_BEAN)
-        fun openAiCredentialLlmServiceFactory() = CredentialLlmServiceFactory { credential, _ ->
+        @Bean(OPENAI_COMPATIBLE_FACTORY_BEAN)
+        fun openAiCompatibleCredentialLlmServiceFactory() = CredentialLlmServiceFactory { credential, _ ->
             if (!credential.provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) null
             else SpringAiLlmService(
                 name = OVERRIDE_SERVICE_NAME,

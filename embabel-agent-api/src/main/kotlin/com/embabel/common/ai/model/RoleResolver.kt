@@ -87,11 +87,11 @@ fun interface RoleResolver {
 /**
  * Builds an [LlmService] from a user-supplied key.
  *
- * `embabel-agent-starter-byok` ships one for OpenAI and one for Anthropic, so per-user keys work
- * for those two with no application code at all - see
- * `com.embabel.agent.config.models.byok.CredentialLlmServiceFactoryConfig`. Register one of your
- * own for any other provider, or to override a shipped one for a custom base URL or a proxy;
- * the shipped beans stand aside for a bean of the same name.
+ * `embabel-agent-starter-byok` ships these for every provider BYOK supports - Anthropic, OpenAI,
+ * DeepSeek, Mistral, Gemini and Atlas Cloud - so per-user keys work with no application code at
+ * all; see `com.embabel.agent.config.models.byok.CredentialLlmServiceFactoryConfig`. Register one
+ * of your own only for a provider outside that set, or to override a shipped one for a custom base
+ * URL or a proxy: the shipped beans stand aside for a bean of the same name.
  *
  * Without a factory that handles the provider, a role resolving to [RoleResolution.Credential]
  * fails with [NoSuitableModelException] and a log line naming the provider nothing handled. An
@@ -99,13 +99,13 @@ fun interface RoleResolver {
  *
  * ```kotlin
  * @Bean
- * fun mistralCredentialFactory() = CredentialLlmServiceFactory { credential, model ->
- *     if (!credential.provider.equals(MistralAiModels.PROVIDER, ignoreCase = true)) null
- *     else OpenAiCompatibleModelFactory(baseUrl = MISTRAL_BASE_URL, apiKey = credential.apiKey)
+ * fun ourGatewayCredentialFactory() = CredentialLlmServiceFactory { credential, model ->
+ *     if (!credential.provider.equals("OurGateway", ignoreCase = true)) null
+ *     else OpenAiCompatibleModelFactory(baseUrl = GATEWAY_URL, apiKey = credential.apiKey)
  *         .openAiCompatibleLlm(
  *             model = model,
  *             pricingModel = PricingModel.ALL_YOU_CAN_EAT,
- *             provider = MistralAiModels.PROVIDER,
+ *             provider = "OurGateway",
  *             knowledgeCutoffDate = null,
  *         )
  * }

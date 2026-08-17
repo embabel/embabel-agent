@@ -698,15 +698,17 @@ caches it so the service is not rebuilt on every call. Return `RoleResolution.Op
 model and its tuning directly, or `RoleResolution.Service` to supply an `LlmService` you built
 yourself.
 
-`embabel-agent-starter-byok` ships a `CredentialLlmServiceFactory` for OpenAI and one for
-Anthropic, so the resolver above is all the code a deployment using those two providers needs.
-Register a bean of your own for any other provider — or to override a shipped one for a custom
-base URL or a proxy, which the shipped beans stand aside for by name:
+`embabel-agent-starter-byok` ships the `CredentialLlmServiceFactory` beans, covering every provider
+BYOK supports — Anthropic, OpenAI, DeepSeek, Mistral, Gemini and Atlas Cloud. The resolver above is
+therefore all the code a deployment needs; there is no factory to write.
+
+Register a bean of your own only for a provider outside that set, or to override a shipped one for a
+custom base URL or a proxy — the shipped beans stand aside for a bean of the same name:
 
 [source,kotlin]
 ----
-@Bean("openAiCredentialLlmServiceFactory")
-fun openAiCredentialLlmServiceFactory() = CredentialLlmServiceFactory { credential, model ->
+@Bean("openAiCompatibleCredentialLlmServiceFactory")
+fun openAiCompatibleCredentialLlmServiceFactory() = CredentialLlmServiceFactory { credential, model ->
     if (!credential.provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) null
     else OpenAiCompatibleModelFactory(baseUrl = ourProxyUrl, apiKey = credential.apiKey)
         .openAiCompatibleLlm(
