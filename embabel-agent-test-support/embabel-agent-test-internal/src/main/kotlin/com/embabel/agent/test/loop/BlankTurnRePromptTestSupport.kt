@@ -79,9 +79,9 @@ abstract class BlankTurnRePromptTestSupport(
                 outputParser = { it },
             )
 
-            assertEquals(2, sender.calls, "the policy re-prompts once after the blank turn")
+            assertEquals(EXPECTED_CALLS, sender.calls, "the policy re-prompts once after the blank turn")
             assertTrue(
-                result.result.contains("4"),
+                result.result.contains(EXPECTED_ANSWER),
                 "the model answered the re-prompt: ${result.result}",
             )
         }
@@ -96,7 +96,7 @@ abstract class BlankTurnRePromptTestSupport(
             llmMessageSender = sender,
             objectMapper = jacksonObjectMapper(),
             injectionStrategy = ToolInjectionStrategy.NONE,
-            maxIterations = 4,
+            maxIterations = MAX_ITERATIONS,
             toolDecorator = null,
             toolLoopInspectors = emptyList(),
             toolLoopTransformers = emptyList(),
@@ -129,5 +129,14 @@ abstract class BlankTurnRePromptTestSupport(
 
     private companion object {
         const val QUESTION = "What is 2 + 2? Reply with the number only."
+
+        /** The answer to [QUESTION], which only a model that saw the nudge can give. */
+        const val EXPECTED_ANSWER = "4"
+
+        /** The forced blank turn, plus the single re-prompt `maxRetries = 1` allows. */
+        const val EXPECTED_CALLS = 2
+
+        /** Room for the re-prompt without letting a misbehaving model loop for long. */
+        const val MAX_ITERATIONS = 4
     }
 }
