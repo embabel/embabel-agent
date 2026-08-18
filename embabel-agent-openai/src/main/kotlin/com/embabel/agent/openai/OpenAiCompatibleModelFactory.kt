@@ -92,7 +92,7 @@ open class OpenAiCompatibleModelFactory(
 
         private val OPEN_AI = ProviderEndpoint(OpenAiModels.PROVIDER, null)
         private val DEEP_SEEK = ProviderEndpoint(DeepSeekModels.PROVIDER, "https://api.deepseek.com")
-        private val MISTRAL = ProviderEndpoint(MistralAiModels.PROVIDER, "https://api.mistral.ai")
+        private val MISTRAL = ProviderEndpoint(MistralAiModels.PROVIDER, "https://api.mistral.ai/v1")
         private val GEMINI = ProviderEndpoint(
             GoogleGenAiModels.PROVIDER,
             "https://generativelanguage.googleapis.com/v1beta/openai",
