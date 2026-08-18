@@ -20,18 +20,23 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Script execution engine that runs scripts inside a Docker container for sandboxed execution.
+ * Script execution engine that runs scripts inside a Podman container for sandboxed execution.
  *
  * This provides isolation from the host system while still allowing scripts to:
  * - Read input files via INPUT_DIR
  * - Write output artifacts via OUTPUT_DIR
  * - Access network (can be disabled)
  *
- * All staging, I/O, timeout, and artifact logic is inherited from
- * [AbstractContainerSkillScriptExecutionEngine]; this class only supplies Docker-specific
- * details (the `docker` CLI, `--workdir` support, daemon-running hint).
+ * Podman is a daemonless, rootless container engine that is CLI-compatible with Docker.
+ * Unlike Docker, it does not require a running daemon or root privileges, making it
+ * suitable for environments where Docker Desktop is unavailable or undesired.
  *
- * @param image the Docker image to use for execution
+ * All staging, I/O, timeout, and artifact logic is inherited from
+ * [AbstractContainerSkillScriptExecutionEngine]; this class only supplies Podman-specific
+ * details (the `podman` CLI, no `--workdir` support — a shell wrapper is used instead,
+ * and the "installed and functional?" availability hint).
+ *
+ * @param image the OCI image to use for execution (compatible with Docker-built images)
  * @param timeout maximum execution time before killing the container
  * @param supportedLanguages which script languages this engine supports
  * @param networkEnabled whether to allow network access from the container
@@ -44,7 +49,7 @@ import kotlin.time.Duration.Companion.seconds
  *                  Input paths are resolved relative to the fileTools root with path traversal protection.
  *                  Defaults to current working directory.
  */
-class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
+class PodmanSkillScriptExecutionEngine @JvmOverloads constructor(
     image: String = DEFAULT_IMAGE,
     timeout: Duration = 60.seconds,
     supportedLanguages: Set<ScriptLanguage> = ScriptLanguage.entries.toSet(),
@@ -68,20 +73,23 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
     fileTools = fileTools,
 ) {
 
-    override val containerCommand = "docker"
-    override val containerName = "Docker"
-    override val tempDirPrefix = "skills-docker-"
-    override val daemonErrorMessage = "is the Docker daemon running?"
+    override val containerCommand = "podman"
+    override val containerName = "Podman"
+    override val tempDirPrefix = "skills-podman-"
+    override val daemonErrorMessage = "is Podman installed and functional?"
 
-    // Docker accepts --workdir directly and auto-creates the directory in the image.
-    override val useWorkdir = true
+    // Podman does not auto-create the working directory if it doesn't exist in the image
+    // (would cause exit 126). The base class wraps the command in /bin/sh to mkdir -p + cd
+    // when this flag is false, matching Docker's implicit behavior.
+    override val useWorkdir = false
 
     companion object {
         /**
-         * Default Docker image for script execution.
-         * Build from the Dockerfile in embabel-agent-skills/docker:
+         * Default OCI image for script execution.
+         * Build from the Dockerfile in embabel-agent-skills/docker (Podman can build
+         * Dockerfiles directly):
          * ```
-         * docker build -t embabel/agent-sandbox:latest ./embabel-agent-skills/docker
+         * podman build -t embabel/agent-sandbox:latest ./embabel-agent-skills/docker
          * ```
          */
         const val DEFAULT_IMAGE = AbstractContainerSkillScriptExecutionEngine.DEFAULT_IMAGE
@@ -96,16 +104,16 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
          * factory exposes the one knob a per-request/multi-tenant caller needs.
          */
         @JvmStatic
-        fun confinedTo(root: String): DockerSkillScriptExecutionEngine =
-            DockerSkillScriptExecutionEngine(fileTools = FileTools.readWrite(root))
+        fun confinedTo(root: String): PodmanSkillScriptExecutionEngine =
+            PodmanSkillScriptExecutionEngine(fileTools = FileTools.readWrite(root))
 
-        /** Check if Docker is available on this system. */
-        fun isDockerAvailable(): Boolean =
-            AbstractContainerSkillScriptExecutionEngine.isAvailable("docker")
+        /** Check if Podman is available on this system. */
+        fun isPodmanAvailable(): Boolean =
+            AbstractContainerSkillScriptExecutionEngine.isAvailable("podman")
 
-        /** Check if a Docker image exists locally. */
+        /** Check if an OCI image exists locally. */
         fun imageExists(image: String): Boolean =
-            AbstractContainerSkillScriptExecutionEngine.imageExists("docker", image)
+            AbstractContainerSkillScriptExecutionEngine.imageExists("podman", image)
 
         /**
          * Ensure the default sandbox image exists, logging build instructions if not.
@@ -114,16 +122,16 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
          */
         fun ensureDefaultImageExists(): Boolean =
             AbstractContainerSkillScriptExecutionEngine.ensureDefaultImageExists(
-                containerCommand = "docker",
-                containerName = "Docker",
+                containerCommand = "podman",
+                containerName = "Podman",
                 buildInstructions = """
-                    |Docker image '$DEFAULT_IMAGE' not found.
+                    |OCI image '$DEFAULT_IMAGE' not found.
                     |
-                    |Build it from the embabel-agent-skills module:
-                    |  docker build -t $DEFAULT_IMAGE ./embabel-agent-skills/docker
+                    |Build it from the embabel-agent-skills module (Podman can build Dockerfiles):
+                    |  podman build -t $DEFAULT_IMAGE ./embabel-agent-skills/docker
                     |
                     |Or specify a different image:
-                    |  DockerSkillScriptExecutionEngine(image = "your-image:tag")
+                    |  PodmanSkillScriptExecutionEngine(image = "your-image:tag")
                     """.trimMargin(),
             )
 
@@ -131,7 +139,7 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
         fun pythonOnly(
             image: String = DEFAULT_IMAGE,
             timeout: Duration = 60.seconds,
-        ) = DockerSkillScriptExecutionEngine(
+        ) = PodmanSkillScriptExecutionEngine(
             image = image,
             timeout = timeout,
             supportedLanguages = setOf(ScriptLanguage.PYTHON),
@@ -141,7 +149,7 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
         fun isolated(
             image: String = DEFAULT_IMAGE,
             timeout: Duration = 30.seconds,
-        ) = DockerSkillScriptExecutionEngine(
+        ) = PodmanSkillScriptExecutionEngine(
             image = image,
             timeout = timeout,
             networkEnabled = false,
