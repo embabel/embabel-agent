@@ -53,6 +53,35 @@ internal fun chatResponse(text: String): ChatResponse =
     ChatResponse(listOf(Generation(AssistantMessage(text))))
 
 /**
+ * Counts probes like [CountingChatModel], but calls any instance naming the same model equal.
+ *
+ * The detector must key on identity. An equals-based map, [java.util.WeakHashMap] included, would
+ * hand this instance the answer probed from its sibling, which is wrong whenever two instances
+ * share a model name and reach different endpoints.
+ */
+internal class EqualsByNameChatModel(
+    private val modelName: String,
+    private val streamBehavior: () -> Flux<ChatResponse>,
+) : ChatModel {
+    val streamCalls = AtomicInteger()
+
+    override fun getOptions(): ChatOptions = ToolCallingChatOptions.builder().build()
+
+    override fun call(prompt: Prompt): ChatResponse =
+        ChatResponse(listOf(Generation(AssistantMessage("unused"))))
+
+    override fun stream(prompt: Prompt): Flux<ChatResponse> {
+        streamCalls.incrementAndGet()
+        return streamBehavior()
+    }
+
+    override fun equals(other: Any?): Boolean =
+        other is EqualsByNameChatModel && other.modelName == modelName
+
+    override fun hashCode(): Int = modelName.hashCode()
+}
+
+/**
  * Relies on Spring AI's default [ChatModel.stream], which throws
  * [UnsupportedOperationException]. Same contract as production fakes that do not override stream.
  */

@@ -424,6 +424,12 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
      * Check if true reactive streaming is supported by the underlying LLM model.
      * Always check this before calling streaming() to avoid exceptions.
      *
+     * The answer is established by streaming a short prompt at the model the first time it is
+     * asked for, then remembered, so repeated checks on a configured model cost nothing. A model
+     * built per request, as bring-your-own-key setups do, is new each time and so is probed each
+     * time. A false may therefore be a model that cannot stream, or a provider that could not be
+     * reached on this attempt; the latter is logged and re-checked on the next call.
+     *
      * @return true if real-time streaming is supported, false if streaming is not available
      */
     fun supportsStreaming(): Boolean = false

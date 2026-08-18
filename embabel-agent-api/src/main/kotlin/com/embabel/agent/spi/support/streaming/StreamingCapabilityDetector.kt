@@ -17,8 +17,15 @@ package com.embabel.agent.spi.support.streaming
 
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.internal.streaming.StreamingLlmOperationsFactory
+import com.embabel.common.ai.model.AutoModelSelectionCriteria
+import com.embabel.common.ai.model.ByNameModelSelectionCriteria
+import com.embabel.common.ai.model.ByRoleModelSelectionCriteria
+import com.embabel.common.ai.model.DefaultModelSelectionCriteria
+import com.embabel.common.ai.model.FallbackByNameModelSelectionCriteria
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.ModelSelectionCriteria
 import com.embabel.common.ai.model.PreResolvedModelSelectionCriteria
+import com.embabel.common.ai.model.RandomByNameModelSelectionCriteria
 import com.embabel.common.util.loggerFor
 import org.springframework.ai.chat.model.ChatModel
 import java.lang.ref.ReferenceQueue
@@ -29,12 +36,14 @@ import java.util.concurrent.ConcurrentHashMap
  * Detects and caches streaming capability.
  *
  * PromptRunner goes through [supportsStreaming] with operations and options. A definitive yes
- * is cached by model name when the key actually names a model; a no is not, so a timeout or
- * missing key cannot pin that name to non-streaming. Pre-resolved services (BYOK via
- * `withLlmService()`) skip the name cache because every wrapper shares one `toString()`.
+ * is cached by model name, and only when the options name one model for the life of the process
+ * (see [modelNameCacheKey]); a no is never cached, so a timeout or a missing key cannot pin a
+ * name to non-streaming.
+ *
  * [com.embabel.agent.spi.LlmService.supportsStreaming] goes through the [ChatModel] overload,
- * which runs [StreamingCapabilityVerifier] once per instance for a definitive answer.
- * ChatModel entries are weakly held so a per-request BYOK model can be collected.
+ * which runs [StreamingCapabilityVerifier] once per instance for a definitive answer. That
+ * overload is the source of truth: everything the name cache declines to key falls through to
+ * it. Entries are weakly held so a per-request BYOK model can be collected.
  */
 @InternalStreamingApi
 object StreamingCapabilityDetector {
@@ -56,10 +65,9 @@ object StreamingCapabilityDetector {
 
     private const val CACHE_MISS_LOG_MESSAGE = "Cache miss for {}, testing streaming capability..."
 
-    private val PROBE_FAILED_LOG_MESSAGE = """
-        Streaming capability probe for {} failed for a reason unrelated to streaming ({}: {}).
-        Reporting no streaming support for this call only; the next call probes again
-        """.trimIndent()
+    private const val PROBE_FAILED_LOG_MESSAGE =
+        "Streaming capability probe for {} failed for a reason unrelated to streaming ({}: {}). " +
+            "Reporting no streaming support for this call only; the next call probes again"
 
     /**
      * Tests whether the LLM resolved from the given operations and options supports streaming.
@@ -73,7 +81,6 @@ object StreamingCapabilityDetector {
      * @return true if streaming is supported, false otherwise
      */
     fun supportsStreaming(llmOperations: LlmOperations, llmOptions: LlmOptions): Boolean {
-        // Must be a StreamingLlmOperationsFactory to support streaming
         if (llmOperations !is StreamingLlmOperationsFactory) return false
 
         val cacheKey = modelNameCacheKey(llmOptions)
@@ -131,18 +138,43 @@ object StreamingCapabilityDetector {
     }
 
     /**
-     * Name-cache key when it identifies a model, otherwise null so the ChatModel identity
-     * cache is the source of truth.
+     * The model name these options cache under, or null when they do not name one model.
      *
-     * `withLlmService()` stores a [PreResolvedModelSelectionCriteria] whose `toString()` is
-     * the wrapper class name (`PreResolvedModelSelectionCriteria(SpringAiLlmService)`). Every
-     * BYOK runner in the process would share that string, so caching a yes there would make
-     * a later non-streaming service take the streaming path without probing.
+     * A name is only a sound key if the same model owns it for as long as the process runs, so
+     * [ByNameModelSelectionCriteria] is the only criteria that qualifies. The rest resolve
+     * later, or elsewhere, or differently each time:
+     *
+     * - [PreResolvedModelSelectionCriteria] renders every `withLlmService()` wrapper as
+     *   `PreResolvedModelSelectionCriteria(SpringAiLlmService)`, so one BYOK user's yes would
+     *   be read as the answer for the next user's model.
+     * - [RandomByNameModelSelectionCriteria] resolves to a different member of `names` per call.
+     * - [ByRoleModelSelectionCriteria] is keyed here before the role resolves, and resolution
+     *   reads the ambient selection context and can land on a per-credential service, so one
+     *   role means different models in the same process.
+     * - [AutoModelSelectionCriteria] is stable under the default resolver, but
+     *   `AutoLlmSelectionCriteriaResolver` exists so applications can vary it.
+     * - [FallbackByNameModelSelectionCriteria] and [DefaultModelSelectionCriteria] resolve
+     *   against whatever is registered, which a deployment awaiting a key changes after boot.
+     *
+     * Anything excluded here still avoids repeat probes: it resolves to a [ChatModel], and for
+     * a Spring bean that is the same instance every time, so the identity cache answers. Only
+     * a model built fresh per request pays a probe, which is what stamping capability on the
+     * service would fix.
+     *
+     * Exhaustive on purpose, with no `else`. A new [ModelSelectionCriteria] then fails to
+     * compile until someone chooses a side, rather than joining the cache by default, which is
+     * how the pre-resolved case became a bug.
      */
-    private fun modelNameCacheKey(llmOptions: LlmOptions): String? {
-        if (llmOptions.criteria is PreResolvedModelSelectionCriteria<*>) return null
-        return llmOptions.model ?: llmOptions.criteria.toString()
-    }
+    private fun modelNameCacheKey(llmOptions: LlmOptions): String? =
+        when (val criteria = llmOptions.criteria) {
+            is ByNameModelSelectionCriteria -> criteria.name
+            is PreResolvedModelSelectionCriteria<*>,
+            is RandomByNameModelSelectionCriteria,
+            is ByRoleModelSelectionCriteria,
+            is AutoModelSelectionCriteria,
+            is FallbackByNameModelSelectionCriteria,
+            is DefaultModelSelectionCriteria -> null
+        }
 
     /**
      * Whether this [chatModel] still needs the non-capability warning.

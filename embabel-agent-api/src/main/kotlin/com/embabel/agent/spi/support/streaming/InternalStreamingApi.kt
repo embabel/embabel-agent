@@ -19,6 +19,8 @@ package com.embabel.agent.spi.support.streaming
  * Marks streaming-capability types as internal SPI. The core and tests may use them; they are
  * not part of the public agent API and may change without notice. Kotlin callers must opt in
  * with `@OptIn(InternalStreamingApi::class)`.
+ *
+ * Note: opt-in is enforced by the Kotlin compiler only; Java callers are not checked.
  */
 @RequiresOptIn(
     message = "Internal streaming capability API. Use with caution as it may change without notice.",

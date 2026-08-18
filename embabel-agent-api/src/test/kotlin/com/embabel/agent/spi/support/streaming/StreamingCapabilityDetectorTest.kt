@@ -25,6 +25,7 @@ import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.internal.streaming.StreamingLlmOperationsFactory
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.ModelSelectionCriteria
 import com.embabel.common.ai.model.PreResolvedModelSelectionCriteria
 import io.mockk.every
 import io.mockk.mockk
@@ -103,17 +104,82 @@ class StreamingCapabilityDetectorTest {
             verify(exactly = 1) { mockFactory.supportsStreaming(options) }
         }
 
+        /**
+         * Only a model name is a safe key. Each of these resolves against whatever is registered,
+         * or against a resolver the application supplies, so a yes stored under the criteria
+         * string would answer for a model that was never probed.
+         */
         @Test
-        fun `supportsStreaming caches by criteria when model name is absent`() {
-            val mockFactory = mockk<TestStreamingLlmOperationsFactory>()
-            val options = LlmOptions.withAutoLlm()
+        fun `criteria that do not name one model are not cached`() {
+            val mustNotCache = listOf(
+                LlmOptions.withAutoLlm(),
+                LlmOptions.withDefaultLlm(),
+                LlmOptions.withFirstAvailableLlmOf("primary", "secondary"),
+                LlmOptions(modelSelectionCriteria = ModelSelectionCriteria.randomOf("first", "second")),
+                LlmOptions.withLlmForRole("cheapest"),
+            )
 
-            every { mockFactory.supportsStreaming(options) } returns true
+            mustNotCache.forEach { options ->
+                val factory = mockk<TestStreamingLlmOperationsFactory>()
+                every { factory.supportsStreaming(options) } returns true
 
-            StreamingCapabilityDetector.supportsStreaming(mockFactory, options)
-            StreamingCapabilityDetector.supportsStreaming(mockFactory, options)
+                assertTrue(StreamingCapabilityDetector.supportsStreaming(factory, options))
+                assertTrue(StreamingCapabilityDetector.supportsStreaming(factory, options))
 
-            verify(exactly = 1) { mockFactory.supportsStreaming(options) }
+                verify(exactly = 2) { factory.supportsStreaming(options) }
+            }
+        }
+
+        /**
+         * randomOf() resolves with models.random(), so one key covers every name in the list.
+         * A yes cached from the streaming pick would send the non-streaming pick down the
+         * streaming path without ever probing it. No BYOK needed to reach this.
+         */
+        @Test
+        fun `a random criteria resolving to a second model does not reuse the first answer`() {
+            val streams = CountingChatModel { Flux.just(chatResponse("ok")) }
+            val doesNotStream = CountingChatModel {
+                throw UnsupportedOperationException("streaming not supported")
+            }
+            val options = LlmOptions(
+                modelSelectionCriteria = ModelSelectionCriteria.randomOf("streams", "does-not"),
+            )
+            val picks = listOf(streams, doesNotStream).iterator()
+            val factory = mockk<TestStreamingLlmOperationsFactory>()
+            every { factory.supportsStreaming(options) } answers {
+                StreamingCapabilityDetector.supportsStreaming(picks.next())
+            }
+
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(factory, options))
+            assertFalse(StreamingCapabilityDetector.supportsStreaming(factory, options))
+
+            assertEquals(1, streams.streamCalls.get())
+            assertEquals(1, doesNotStream.streamCalls.get())
+        }
+
+        /**
+         * A role is keyed here before withRoleResolved() runs, and resolution reads the ambient
+         * selection context and can land on a per-credential service. So the same role means
+         * Alice's model on one call and Bob's on the next.
+         */
+        @Test
+        fun `a role resolving per credential does not reuse the first answer`() {
+            val aliceModel = CountingChatModel { Flux.just(chatResponse("ok")) }
+            val bobModel = CountingChatModel {
+                throw UnsupportedOperationException("streaming not supported")
+            }
+            val options = LlmOptions.withLlmForRole("cheapest")
+            val perCredential = listOf(aliceModel, bobModel).iterator()
+            val factory = mockk<TestStreamingLlmOperationsFactory>()
+            every { factory.supportsStreaming(options) } answers {
+                StreamingCapabilityDetector.supportsStreaming(perCredential.next())
+            }
+
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(factory, options))
+            assertFalse(StreamingCapabilityDetector.supportsStreaming(factory, options))
+
+            assertEquals(1, aliceModel.streamCalls.get())
+            assertEquals(1, bobModel.streamCalls.get())
         }
 
         /**
@@ -321,6 +387,27 @@ class StreamingCapabilityDetectorTest {
             assertTrue(StreamingCapabilityDetector.supportsStreaming(chatModel))
 
             assertEquals(2, chatModel.streamCalls.get())
+        }
+
+        /**
+         * Guards the identity keying. Two instances that report themselves equal must still be
+         * probed separately, or a later switch to an equals-based map would silently give the
+         * second one an answer that was never measured on it.
+         */
+        @Test
+        fun `ChatModels that call themselves equal are still probed separately`() {
+            val streams = EqualsByNameChatModel("gpt-4o") { Flux.just(chatResponse("ok")) }
+            val doesNotStream = EqualsByNameChatModel("gpt-4o") {
+                throw UnsupportedOperationException("streaming not supported")
+            }
+
+            assertEquals(streams, doesNotStream)
+
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(streams))
+            assertFalse(StreamingCapabilityDetector.supportsStreaming(doesNotStream))
+
+            assertEquals(1, streams.streamCalls.get())
+            assertEquals(1, doesNotStream.streamCalls.get())
         }
 
         @Test
