@@ -11,8 +11,8 @@ import java.lang.reflect.Method
 /**
  * Returns true, if the given method is
  *   - annotated with Action and
- *   - declared in the given agent class, or in it's super type.
- *   - TODO -
+ *   - declared in the given agent class, or in it's super type and 
+ *   - can be deserialized.
  */
 fun isActionMethod(
     logger: Logger,
@@ -24,7 +24,7 @@ fun isActionMethod(
     return method.isAnnotationPresent(Action::class.java) &&
             // Check whether given method is declared in the given agent class, or in its super type.
             (agentClass.declaredMethods.contains(method) || isMethodFromSupertype(method, agentClass)) &&
-             // TODO please fill after discussion.
+             // Check whether given method can be deserialized.
             (!method.returnType.isInterface || !requireInterfaceDeserializationAnnotations || hasRequiredJsonDeserializeAnnotationOnInterfaceReturnType(
                 method,
                 logger
