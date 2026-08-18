@@ -25,6 +25,7 @@ import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.internal.streaming.StreamingLlmOperationsFactory
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.PreResolvedModelSelectionCriteria
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -141,6 +142,53 @@ class StreamingCapabilityDetectorTest {
 
             assertEquals(2, chatModel.streamCalls.get())
             verify(exactly = 2) { factory.supportsStreaming(options) }
+        }
+
+        /**
+         * withLlmService() keys every runner as PreResolvedModelSelectionCriteria(SpringAiLlmService).
+         * Caching a yes under that string would make Bob's non-streaming model take the streaming path.
+         */
+        @Test
+        fun `pre-resolved services do not share a model name cache entry`() {
+            val aliceModel = CountingChatModel { Flux.just(chatResponse("ok")) }
+            val bobModel = CountingChatModel {
+                throw UnsupportedOperationException("streaming not supported")
+            }
+            val aliceOptions = preResolvedOptions("alice", aliceModel)
+            val bobOptions = preResolvedOptions("bob", bobModel)
+            val factory = mockk<TestStreamingLlmOperationsFactory>()
+            every { factory.supportsStreaming(aliceOptions) } answers {
+                StreamingCapabilityDetector.supportsStreaming(aliceModel)
+            }
+            every { factory.supportsStreaming(bobOptions) } answers {
+                StreamingCapabilityDetector.supportsStreaming(bobModel)
+            }
+
+            assertEquals(aliceOptions.criteria.toString(), bobOptions.criteria.toString())
+
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(factory, aliceOptions))
+            assertFalse(StreamingCapabilityDetector.supportsStreaming(factory, bobOptions))
+
+            verify(exactly = 1) { factory.supportsStreaming(aliceOptions) }
+            verify(exactly = 1) { factory.supportsStreaming(bobOptions) }
+            assertEquals(1, aliceModel.streamCalls.get())
+            assertEquals(1, bobModel.streamCalls.get())
+        }
+
+        @Test
+        fun `a pre-resolved service still reuses the ChatModel identity cache`() {
+            val chatModel = CountingChatModel { Flux.just(chatResponse("ok")) }
+            val options = preResolvedOptions("alice", chatModel)
+            val factory = mockk<TestStreamingLlmOperationsFactory>()
+            every { factory.supportsStreaming(options) } answers {
+                StreamingCapabilityDetector.supportsStreaming(chatModel)
+            }
+
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(factory, options))
+            assertTrue(StreamingCapabilityDetector.supportsStreaming(factory, options))
+
+            verify(exactly = 2) { factory.supportsStreaming(options) }
+            assertEquals(1, chatModel.streamCalls.get())
         }
     }
 
@@ -400,6 +448,13 @@ class StreamingCapabilityDetectorTest {
             assertEquals(probesDuringRace, chatModel.streamCalls.get())
         }
     }
+
+    private fun preResolvedOptions(name: String, chatModel: CountingChatModel): LlmOptions =
+        LlmOptions(
+            modelSelectionCriteria = PreResolvedModelSelectionCriteria(
+                SpringAiLlmService(name = name, provider = "test", chatModel = chatModel),
+            ),
+        )
 
     /**
      * Test interface that combines LlmOperations and StreamingLlmOperationsFactory

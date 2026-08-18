@@ -18,19 +18,23 @@ package com.embabel.agent.spi.support.streaming
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.internal.streaming.StreamingLlmOperationsFactory
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.PreResolvedModelSelectionCriteria
 import com.embabel.common.util.loggerFor
 import org.springframework.ai.chat.model.ChatModel
-import java.util.IdentityHashMap
+import java.lang.ref.ReferenceQueue
+import java.lang.ref.WeakReference
 import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Detects and caches streaming capability.
  *
  * PromptRunner goes through [supportsStreaming] with operations and options. A definitive yes
- * is cached by model name; a no is not, so a timeout or missing key cannot pin that name to
- * non-streaming. [com.embabel.agent.spi.LlmService.supportsStreaming] goes through the
- * [ChatModel] overload, which runs [StreamingCapabilityVerifier] once per instance for a
- * definitive answer.
+ * is cached by model name when the key actually names a model; a no is not, so a timeout or
+ * missing key cannot pin that name to non-streaming. Pre-resolved services (BYOK via
+ * `withLlmService()`) skip the name cache because every wrapper shares one `toString()`.
+ * [com.embabel.agent.spi.LlmService.supportsStreaming] goes through the [ChatModel] overload,
+ * which runs [StreamingCapabilityVerifier] once per instance for a definitive answer.
+ * ChatModel entries are weakly held so a per-request BYOK model can be collected.
  */
 @InternalStreamingApi
 object StreamingCapabilityDetector {
@@ -39,17 +43,16 @@ object StreamingCapabilityDetector {
 
     /**
      * Definitive streaming answers per [ChatModel] instance. Identity, not equals: two beans
-     * wrapping the same model name are probed separately.
+     * wrapping the same model name are probed separately. Keys are weak so a factory that
+     * builds a new ChatModel per call does not pin every instance for the life of the process.
      */
-    @Volatile
-    private var byChatModelCache: IdentityHashMap<ChatModel, Boolean> = IdentityHashMap()
+    private val byChatModelCache = IdentityWeakMap<ChatModel, Boolean>()
 
     /**
-     * ChatModels that have already logged a non-capability probe failure. Identity-keyed so
-     * a keyless BYOK placeholder warns once per instance, not on every supportsStreaming() check.
+     * ChatModels that have already logged a non-capability probe failure. Identity-keyed and
+     * weak so a keyless BYOK placeholder warns once per instance without retaining it.
      */
-    @Volatile
-    private var warnedChatModels: IdentityHashMap<ChatModel, Boolean> = IdentityHashMap()
+    private val warnedChatModels = IdentityWeakMap<ChatModel, Boolean>()
 
     private const val CACHE_MISS_LOG_MESSAGE = "Cache miss for {}, testing streaming capability..."
 
@@ -61,9 +64,9 @@ object StreamingCapabilityDetector {
     /**
      * Tests whether the LLM resolved from the given operations and options supports streaming.
      *
-     * Only a definitive yes is stored under the model (or criteria) key. A no is re-checked
-     * on the next call; if the underlying [ChatModel] already has a cached answer, that
-     * lookup is cheap.
+     * Only a definitive yes is stored, and only when [modelNameCacheKey] identifies a model.
+     * A no is re-checked on the next call; if the underlying [ChatModel] already has a cached
+     * answer, that lookup is cheap.
      *
      * @param llmOperations The LLM operations instance
      * @param llmOptions Options used to resolve the LLM
@@ -73,13 +76,15 @@ object StreamingCapabilityDetector {
         // Must be a StreamingLlmOperationsFactory to support streaming
         if (llmOperations !is StreamingLlmOperationsFactory) return false
 
-        val cacheKey = llmOptions.model ?: llmOptions.criteria?.toString() ?: "default"
-        byModelNameCache[cacheKey]?.let { return it }
+        val cacheKey = modelNameCacheKey(llmOptions)
+        if (cacheKey != null) {
+            byModelNameCache[cacheKey]?.let { return it }
+        }
 
-        logger.debug(CACHE_MISS_LOG_MESSAGE, cacheKey)
+        logger.debug(CACHE_MISS_LOG_MESSAGE, cacheKey ?: llmOptions.criteria)
         val supported = llmOperations.supportsStreaming(llmOptions)
         // Do not store false: computeIfAbsent would pin a timeout or missing key on this name.
-        if (supported) {
+        if (supported && cacheKey != null) {
             byModelNameCache[cacheKey] = true
         }
         return supported
@@ -99,10 +104,10 @@ object StreamingCapabilityDetector {
         // Multiple probes possible on first access, harmless because result is deterministic.
         return try {
             StreamingCapabilityVerifier.probe(chatModel)
-            rememberChatModel(chatModel, true)
+            byChatModelCache[chatModel] = true
             true
         } catch (_: UnsupportedOperationException) {
-            rememberChatModel(chatModel, false)
+            byChatModelCache[chatModel] = false
             false
         } catch (e: Exception) {
             if (firstWarningFor(chatModel)) {
@@ -121,34 +126,91 @@ object StreamingCapabilityDetector {
     /** Clears memoized results. For tests only. */
     fun clearCache() {
         byModelNameCache.clear()
-        synchronized(this) {
-            byChatModelCache = IdentityHashMap()
-            warnedChatModels = IdentityHashMap()
-        }
+        byChatModelCache.clear()
+        warnedChatModels.clear()
     }
 
-    private fun rememberChatModel(chatModel: ChatModel, supported: Boolean) {
-        synchronized(this) {
-            val next = IdentityHashMap(byChatModelCache)
-            next[chatModel] = supported
-            byChatModelCache = next
-        }
+    /**
+     * Name-cache key when it identifies a model, otherwise null so the ChatModel identity
+     * cache is the source of truth.
+     *
+     * `withLlmService()` stores a [PreResolvedModelSelectionCriteria] whose `toString()` is
+     * the wrapper class name (`PreResolvedModelSelectionCriteria(SpringAiLlmService)`). Every
+     * BYOK runner in the process would share that string, so caching a yes there would make
+     * a later non-streaming service take the streaming path without probing.
+     */
+    private fun modelNameCacheKey(llmOptions: LlmOptions): String? {
+        if (llmOptions.criteria is PreResolvedModelSelectionCriteria<*>) return null
+        return llmOptions.model ?: llmOptions.criteria.toString()
     }
 
     /**
      * Whether this [chatModel] still needs the non-capability warning.
      *
-     * The map is copy-on-write, so the unguarded read is a volatile load. Two threads can both
-     * miss and both log once; that is harmless. Later calls see the new map and skip the lock.
+     * Two threads can both miss and both log once; that is harmless. Later calls see the
+     * entry and skip.
      */
     private fun firstWarningFor(chatModel: ChatModel): Boolean {
-        if (warnedChatModels.containsKey(chatModel)) return false
-        synchronized(this) {
-            if (warnedChatModels.containsKey(chatModel)) return false
-            val next = IdentityHashMap(warnedChatModels)
-            next[chatModel] = true
-            warnedChatModels = next
-            return true
+        if (warnedChatModels[chatModel] != null) return false
+        return warnedChatModels.putIfAbsent(chatModel, true) == null
+    }
+}
+
+/**
+ * Identity-keyed map whose keys do not keep the referent alive.
+ *
+ * [java.util.WeakHashMap] is equals-based, and a copy-on-write [java.util.IdentityHashMap]
+ * strongly retains every ChatModel ever probed. This keeps identity lookup and lets a
+ * per-request BYOK model be collected.
+ */
+private class IdentityWeakMap<K : Any, V : Any> {
+    private val queue = ReferenceQueue<K>()
+    private val map = ConcurrentHashMap<Key<K>, V>()
+
+    operator fun get(key: K): V? {
+        purge()
+        return map[Key(key, null)]
+    }
+
+    operator fun set(key: K, value: V) {
+        purge()
+        map[Key(key, queue)] = value
+    }
+
+    fun putIfAbsent(key: K, value: V): V? {
+        purge()
+        return map.putIfAbsent(Key(key, queue), value)
+    }
+
+    fun clear() {
+        map.clear()
+        while (queue.poll() != null) {
+            // drain
         }
+    }
+
+    private fun purge() {
+        while (true) {
+            @Suppress("UNCHECKED_CAST")
+            val stale = queue.poll() as Key<K>? ?: return
+            map.remove(stale)
+        }
+    }
+
+    private class Key<T : Any>(
+        referent: T,
+        queue: ReferenceQueue<T>?,
+    ) : WeakReference<T>(referent, queue) {
+        private val identity = System.identityHashCode(referent)
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is Key<*>) return false
+            val a = get()
+            val b = other.get()
+            return a != null && a === b
+        }
+
+        override fun hashCode(): Int = identity
     }
 }
