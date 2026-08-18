@@ -39,6 +39,7 @@ import com.embabel.agent.spi.loop.ToolLoop
 import com.embabel.agent.spi.loop.ToolLoopResult
 import com.embabel.agent.spi.loop.ToolNotFoundAction
 import com.embabel.agent.spi.loop.ToolNotFoundPolicy
+import com.embabel.chat.AssistantMessage
 import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.EmptyLlmResponseException
 import com.embabel.chat.Message
@@ -47,6 +48,9 @@ import com.embabel.chat.ToolResultMessage
 import com.embabel.chat.UserMessage
 import tools.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
+
+/** Stands in for an empty assistant turn, which some providers reject. */
+private const val NO_RESPONSE_PLACEHOLDER = "(no response)"
 
 /**
  * Default implementation of [com.embabel.agent.spi.loop.ToolLoop].
@@ -154,6 +158,14 @@ internal open class DefaultToolLoop(
                                 "Empty LLM response at iteration {} — feeding back to model",
                                 state.iterations,
                             )
+                            // The turn we are about to re-prompt on is already in the history. If
+                            // it is truly empty — no text, no tool call — Vertex and Mistral answer
+                            // 400 to it and the nudge below never reaches the model. Replace it
+                            // rather than drop it, so the roles still alternate around the nudge.
+                            if (transformedResponse.content.isEmpty()) {
+                                state.conversationHistory[state.conversationHistory.lastIndex] =
+                                    AssistantMessage(NO_RESPONSE_PLACEHOLDER)
+                            }
                             state.conversationHistory.add(UserMessage(action.message))
                             continue
                         }
