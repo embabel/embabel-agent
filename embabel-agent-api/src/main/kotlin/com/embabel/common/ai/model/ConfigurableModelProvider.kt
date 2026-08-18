@@ -458,11 +458,18 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             // Not a silent substitution of the kind this method otherwise refuses. The objection to
             // falling back is that "cheapest" would quietly become a real, expensive model; the
             // placeholder answers nothing and bills nothing.
+            //
+            // The placeholder is told which role it is standing in for, so the eventual failure can
+            // name the role and the model it wanted. That is the only thing separating a typo from
+            // a key that has not arrived, and at this point it is the last chance to say it: both
+            // look identical at startup, and after this the caller sees only "no LLM configured".
+            val wantedModel = wantedModelFor(role, resolution)
             logger.debug(
-                "Role '{}' has no registered model and this deployment is awaiting a key; using the placeholder",
-                role,
+                "Role '{}' (model '{}') has no registered model and this deployment is awaiting a key; using the placeholder",
+                role, wantedModel ?: "unspecified",
             )
-            return ResolvedRole(defaultLlm, LlmOptions.withDefaults())
+            val placeholder = (defaultLlm as? PlaceholderLlmService)?.forUnsatisfiedRole(role, wantedModel)
+            return ResolvedRole(placeholder ?: defaultLlm, LlmOptions.withDefaults())
         }
         logger.warn(
             "No model available for role '{}' (provider: {})",
@@ -470,6 +477,26 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         )
         throw NoSuitableModelException(ByRoleModelSelectionCriteria(role), llms.map { it.name })
     }
+
+    /**
+     * The model name [role] carried, taken from whatever answered for it.
+     *
+     * Read back off the resolution rather than re-queried, so it is the name resolution actually
+     * tried and not a second, possibly different, lookup. A [RoleResolution.Credential] carries a
+     * key rather than a model, so that one case does have to ask - the same call
+     * [fromCredential] made.
+     *
+     * Null when nothing named a model: no resolver answered at all, or the entry that did names
+     * only a provider. There is then nothing to report beyond the role itself.
+     */
+    private fun wantedModelFor(role: String, resolution: RoleResolution?): String? =
+        when (resolution) {
+            is RoleResolution.Options -> resolution.llmOptions.modelName
+            is RoleResolution.Credential ->
+                configurableRoleResolver.optionsFor(role, resolution.credential.provider)?.modelName
+            // A Service resolved to a built service, so it never reaches the placeholder.
+            is RoleResolution.Service, null -> null
+        }
 
     /**
      * Build - or reuse - a service for the model this role names under the user's own provider.

@@ -33,13 +33,62 @@ data class DynamicType(
     override val creationPermitted: Boolean = true,
 ) : DomainType {
 
+    /**
+     * A dynamic type has no JVM class, so no class can be assignable to it.
+     * (Unchanged: whether a dynamic type declaring a JVM parent should be
+     * assignable TO that `Class` is a separate question — see [isAssignableTo].)
+     */
     override fun isAssignableFrom(other: Class<*>): Boolean = false
 
-    override fun isAssignableFrom(other: DomainType): Boolean = other.name == name
+    /**
+     * True when [other] IS this type or DECLARES it as an ancestor, transitively.
+     *
+     * [parents] existed but was never consulted here, so a declared hierarchy
+     * conferred no subtyping: with `Employee -> Person`, `Person.isAssignableFrom(Employee)`
+     * was false. [JvmType] has always walked the real class hierarchy, so the two
+     * halves of `DomainType` disagreed about what inheritance means.
+     */
+    override fun isAssignableFrom(other: DomainType): Boolean = other.isAssignableTo(this)
 
+    /** A dynamic type has no JVM class, so it is assignable to none. */
     override fun isAssignableTo(other: Class<*>): Boolean = false
 
-    override fun isAssignableTo(other: DomainType): Boolean = other.name == name
+    /**
+     * True when this type IS [other] or DECLARES it as an ancestor, transitively.
+     *
+     * An ancestor may be a [JvmType] — a realm declaring `parents: [Signal]` in its
+     * type YAML — in which case that ancestor's own (class-hierarchy) assignability
+     * decides, so a type declaring `Signal` is also assignable to `Signal`'s
+     * supertypes.
+     */
+    override fun isAssignableTo(other: DomainType): Boolean =
+        selfAndAncestors().any { ancestor ->
+            // A dynamic ancestor matches by name (the identity dynamic types have);
+            // a JVM ancestor delegates to its own class-hierarchy walk.
+            if (ancestor is DynamicType) ancestor.name == other.name else ancestor.isAssignableTo(other)
+        }
+
+    /**
+     * This type and every ancestor reachable through [parents], nearest first.
+     *
+     * Iterative and de-duplicated by name, so a hand-built cyclic chain terminates
+     * instead of overflowing the stack — nothing stops a caller constructing one.
+     * Only DYNAMIC parents are expanded: a [JvmType] ancestor answers for its own
+     * hierarchy above, and expanding it here would reflectively load every
+     * superclass and interface for a question they can answer themselves.
+     */
+    private fun selfAndAncestors(): Collection<DomainType> {
+        val seen = LinkedHashMap<String, DomainType>()
+        val queue = ArrayDeque<DomainType>()
+        queue.add(this)
+        while (queue.isNotEmpty()) {
+            val next = queue.removeFirst()
+            if (seen.containsKey(next.name)) continue
+            seen[next.name] = next
+            if (next is DynamicType) queue.addAll(next.parents)
+        }
+        return seen.values
+    }
 
     override fun children(additionalBasePackages: Collection<String>): Collection<DomainType> {
         // Dynamic types don't have classpath descendants

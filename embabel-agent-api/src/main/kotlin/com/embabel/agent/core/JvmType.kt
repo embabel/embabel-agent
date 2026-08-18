@@ -90,7 +90,10 @@ data class JvmType @JsonCreator constructor(
     override fun isAssignableFrom(other: DomainType): Boolean =
         when (other) {
             is JvmType -> clazz.isAssignableFrom(other.clazz)
-            is DynamicType -> false
+            // A dynamic type may DECLARE a JVM parent (a realm's `parents: [Signal]`).
+            // Delegating keeps the invariant `a.isAssignableFrom(b) == b.isAssignableTo(a)`,
+            // which a bare `false` here would break once DynamicType walks its parents.
+            is DynamicType -> other.isAssignableTo(this)
         }
 
     override fun isAssignableTo(other: Class<*>): Boolean =

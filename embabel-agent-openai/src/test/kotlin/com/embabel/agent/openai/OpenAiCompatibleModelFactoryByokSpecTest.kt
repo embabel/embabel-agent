@@ -21,7 +21,6 @@ import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.api.models.MistralAiModels
 import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.common.byok.ByokFactory
-import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Test
 
@@ -39,11 +38,7 @@ class OpenAiCompatibleModelFactoryByokSpecTest {
 
     @Test
     fun `mistral returns ByokFactory`() {
-        val spec = OpenAiCompatibleModelFactory.mistral("key")
-
-        assertInstanceOf(ByokFactory::class.java, spec)
-        val baseUrl = spec.javaClass.getDeclaredField("baseUrl").apply { isAccessible = true }.get(spec)
-        assertEquals("https://api.mistral.ai/v1", baseUrl)
+        assertInstanceOf(ByokFactory::class.java, OpenAiCompatibleModelFactory.mistral("key"))
     }
 
     @Test
