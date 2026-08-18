@@ -171,6 +171,40 @@ The sandbox image includes:
 val engine = DockerSkillScriptExecutionEngine.isolated()  // No network, limited CPU/memory
 ```
 
+### PodmanSkillScriptExecutionEngine (Daemonless Sandboxed)
+
+Runs scripts in an isolated Podman container. Podman is a daemonless, rootless container engine that is CLI-compatible with Docker — it does not require a running daemon or root privileges, making it suitable for environments where Docker Desktop is unavailable or undesired.
+
+```kotlin
+import com.embabel.agent.skills.script.PodmanSkillScriptExecutionEngine
+
+val engine = PodmanSkillScriptExecutionEngine(
+    image = "embabel/agent-sandbox:latest",
+    timeout = 60.seconds,
+    supportedLanguages = setOf(ScriptLanguage.PYTHON, ScriptLanguage.BASH),
+    memoryLimit = "512m",
+    cpuLimit = "1.0",
+)
+
+val skills = Skills("my-skills", "Skills with sandboxed scripts")
+    .withGitHubUrl("https://github.com/anthropics/skills/tree/main/skills/pdf")
+    .withScriptExecutionEngine(engine)
+```
+
+**Building the sandbox image with Podman** (Podman can build Dockerfiles directly):
+
+```bash
+podman build -t embabel/agent-sandbox:latest ./embabel-agent-skills/docker
+```
+
+The same OCI image built with Docker can also be used with Podman, and vice versa.
+
+**Maximum isolation:**
+
+```kotlin
+val engine = PodmanSkillScriptExecutionEngine.isolated()  // No network, limited CPU/memory
+```
+
 ### Script Environment
 
 Scripts receive these environment variables:
