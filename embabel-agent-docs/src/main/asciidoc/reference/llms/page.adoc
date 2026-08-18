@@ -693,37 +693,13 @@ class ByokRoleResolver(
 ----
 
 `RoleResolution.Credential` hands back a key and lets the platform do the rest: it looks up what the
-role means under that provider, builds the service through a `CredentialLlmServiceFactory`, and
-caches it so the service is not rebuilt on every call. Return `RoleResolution.Options` to name a
-model and its tuning directly, or `RoleResolution.Service` to supply an `LlmService` you built
-yourself.
+role means under that provider, builds the service for it, and caches it per (provider, key, model)
+so it is not rebuilt on every call. Return `RoleResolution.Options` to name a model and its tuning
+directly, or `RoleResolution.Service` to supply an `LlmService` you built yourself.
 
-`embabel-agent-starter-byok` ships the `CredentialLlmServiceFactory` beans, covering every provider
-BYOK supports — Anthropic, OpenAI, DeepSeek, Mistral, Gemini and Atlas Cloud. The resolver above is
-therefore all the code a deployment needs; there is no factory to write.
-
-Register a bean of your own only for a provider outside that set, or to override a shipped one for a
-custom base URL or a proxy — the shipped beans stand aside for a bean of the same name:
-
-[source,kotlin]
-----
-@Bean("openAiCompatibleCredentialLlmServiceFactory")
-fun openAiCompatibleCredentialLlmServiceFactory() = CredentialLlmServiceFactory { credential, model ->
-    if (!credential.provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) null
-    else OpenAiCompatibleModelFactory(baseUrl = ourProxyUrl, apiKey = credential.apiKey)
-        .openAiCompatibleLlm(
-            model = model,
-            pricingModel = PricingModel.ALL_YOU_CAN_EAT,
-            provider = OpenAiModels.PROVIDER,
-            knowledgeCutoffDate = null,
-        )
-}
-----
-
-Return `null` for a provider your factory does not handle. The platform tries each factory in turn,
-and one that answers for everything would build a client pointed at the wrong endpoint for someone
-else's key. If no factory handles the provider, the role fails with `NoSuitableModelException` and
-a log line naming it.
+`embabel-agent-starter-byok` already knows where to send a key for every provider BYOK supports —
+Anthropic, OpenAI, DeepSeek, Mistral, Gemini and Atlas Cloud. The resolver above is therefore all
+the code a deployment using any of them needs.
 
 The `ModelSelectionContext` a resolver receives comes from `ModelSelectionContextHolder`, which the
 application sets at its request boundary:
@@ -739,6 +715,43 @@ The platform carries the context across the threads it starts itself — a backg
 parallel actions, `OperationContext.parallelMap` — so setting it once at the request boundary is
 enough. It does not reach threads your own code spawns: capture it there with
 `ModelSelectionContextHolder.get()` and re-establish it inside the new thread.
+
+===== Adding a provider of your own
+
+For a provider the starter does not cover — a gateway, a proxy, a self-hosted endpoint — register a
+`CredentialEndpointResolver`. It says where a key goes and what the service built from it should
+call itself; the platform builds the client:
+
+[source,kotlin]
+----
+@Bean
+fun ourGatewayEndpoint() = CredentialEndpointResolver { credential, _ ->
+    if (!credential.provider.equals("OurGateway", ignoreCase = true)) null
+    else CredentialEndpoint.OpenAiCompatible(baseUrl = GATEWAY_URL, provider = "OurGateway")
+}
+----
+
+The case names the wire protocol, which is what decides the client: `OpenAiCompatible` for the
+OpenAI protocol — OpenAI itself, DeepSeek, Mistral, Gemini, Atlas Cloud and most gateways — or
+`Anthropic` for Anthropic's. Both carry `pricingModel`, which defaults to
+`PricingModel.ALL_YOU_CAN_EAT` because a BYOK call is billed to the user's key rather than to the
+deployment, and `knowledgeCutoffDate`, which is null unless you know it for the model the role named.
+
+Your resolvers are asked first, in `Ordered` order, and the endpoints the starter already knows are
+the fallback — so answering for a provider the framework handles overrides it, which is how you
+route OpenAI through your own proxy. No `@Order` is needed for that; it decides only which of your
+own resolvers is asked first. Return `null` for a provider you do not handle: a resolver that
+answers for everything would point someone else's key at your endpoint. If nothing handles the
+provider, the role fails with `NoSuitableModelException` and a log line naming it.
+
+A resolver returns a value, so it needs no Spring context to test and nothing from
+`com.embabel.agent.spi`, which <<reference.api-evolution,application code should not depend on>>.
+
+For a wire protocol this framework has no client for, register a `CredentialLlmServiceFactory`
+instead and build the service yourself. That one does name `LlmService`, an SPI type, which is why
+it is the second choice rather than the first. The shipped implementations — one per protocol —
+stand aside for a bean of the same name, but replacing one that way also replaces the code that
+builds what your `CredentialEndpointResolver` beans resolve for that protocol.
 
 ===== Reading what a role is configured to mean
 
