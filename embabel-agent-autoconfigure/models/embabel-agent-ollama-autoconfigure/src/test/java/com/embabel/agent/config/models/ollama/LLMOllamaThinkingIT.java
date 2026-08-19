@@ -15,15 +15,12 @@
  */
 package com.embabel.agent.config.models.ollama;
 
-import com.embabel.agent.api.common.Ai;
-import com.embabel.agent.api.common.PromptRunner;
-import com.embabel.agent.api.common.autonomy.Autonomy;
-import com.embabel.agent.autoconfigure.models.ollama.AgentOllamaAutoConfiguration;
-import com.embabel.agent.spi.LlmService;
-import com.embabel.common.ai.model.LlmOptions;
-import com.embabel.common.ai.model.Thinking;
-import com.embabel.common.core.thinking.ThinkingBlock;
-import com.embabel.common.core.thinking.ThinkingResponse;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.slf4j.Logger;
@@ -37,69 +34,73 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.embabel.agent.api.common.Ai;
+import com.embabel.agent.api.common.PromptRunner;
+import com.embabel.agent.api.common.autonomy.Autonomy;
+import com.embabel.agent.autoconfigure.models.ollama.AgentOllamaAutoConfiguration;
+import com.embabel.agent.spi.LlmService;
+import com.embabel.common.ai.model.LlmOptions;
+import com.embabel.common.core.thinking.ThinkingBlock;
+import com.embabel.common.core.thinking.ThinkingResponse;
 
 /**
  * Java integration test for Ollama thinking functionality using builder pattern.
  * Tests the Java equivalent of Kotlin's withThinking() extension function.
  */
 @SpringBootTest(
-        classes = LLMOllamaThinkingIT.TestApplication.class,
-        properties = {
-                "embabel.models.cheapest=qwen3:latest",
-                "embabel.models.best=qwen3:latest",
-                "embabel.models.default-llm=qwen3:latest",
-                "embabel.agent.platform.llm-operations.prompts.defaultTimeout=240s",
-                "embabel.agent.platform.llm-operations.data-binding.fixedBackoffMillis=6000",
-                "spring.main.allow-bean-definition-overriding=true",
+    classes = LLMOllamaThinkingIT.TestApplication.class,
+    properties = {
+        "embabel.models.cheapest=qwen3:latest",
+        "embabel.models.best=qwen3:latest",
+        "embabel.models.default-llm=qwen3:latest",
+        "embabel.agent.platform.llm-operations.prompts.defaultTimeout=240s",
+        "embabel.agent.platform.llm-operations.data-binding.fixedBackoffMillis=6000",
+        "spring.main.allow-bean-definition-overriding=true",
 
-                // Thinking Infrastructure logging
-                "logging.level.com.embabel.agent.spi.support.springai.ChatClientLlmOperations=TRACE",
-                "logging.level.com.embabel.common.core.thinking=DEBUG",
+        // Thinking Infrastructure logging
+        "logging.level.com.embabel.agent.spi.support.springai.ChatClientLlmOperations=TRACE",
+        "logging.level.com.embabel.common.core.thinking=DEBUG",
 
-                // Spring AI Debug Logging
-                "logging.level.org.springframework.ai=DEBUG",
-                "logging.level.org.springframework.ai.openai=TRACE",
-                "logging.level.org.springframework.ai.chat=DEBUG",
+        // Spring AI Debug Logging
+        "logging.level.org.springframework.ai=DEBUG",
+        "logging.level.org.springframework.ai.openai=TRACE",
+        "logging.level.org.springframework.ai.chat=DEBUG",
 
-                // HTTP/WebClient Debug
-                "logging.level.org.springframework.web.reactive=DEBUG",
-                "logging.level.reactor.netty.http.client=TRACE",
+        // HTTP/WebClient Debug
+        "logging.level.org.springframework.web.reactive=DEBUG",
+        "logging.level.reactor.netty.http.client=TRACE",
 
-                // OpenAI API Debug
-                "logging.level.org.springframework.ai.openai.api=TRACE",
+        // OpenAI API Debug
+        "logging.level.org.springframework.ai.openai.api=TRACE",
 
-                // Complete HTTP tracing
-                "logging.level.org.springframework.web.client.RestTemplate=DEBUG",
-                "logging.level.org.apache.http=DEBUG",
-                "logging.level.httpclient.wire=DEBUG"
-        }
+        // Complete HTTP tracing
+        "logging.level.org.springframework.web.client.RestTemplate=DEBUG",
+        "logging.level.org.apache.http=DEBUG",
+        "logging.level.httpclient.wire=DEBUG"
+    }
 )
 @ActiveProfiles("thinking")
 @ComponentScan(
-        basePackages = {
-                "com.embabel.agent",
-                "com.embabel.example"
-        },
-        excludeFilters = {
-                @ComponentScan.Filter(
-                        type = org.springframework.context.annotation.FilterType.REGEX,
-                        pattern = ".*GlobalExceptionHandler.*"
-                )
-        }
+    basePackages = {
+        "com.embabel.agent",
+        "com.embabel.example"
+    },
+    excludeFilters = {
+        @ComponentScan.Filter(
+            type = org.springframework.context.annotation.FilterType.REGEX,
+            pattern = ".*GlobalExceptionHandler.*"
+        )
+    }
 )
-@Import({AgentOllamaAutoConfiguration.class})
+@Import({ AgentOllamaAutoConfiguration.class })
 @EnabledIfEnvironmentVariable(named = "OLLAMA_BASE_URL", matches = ".+",
-        disabledReason = "Integration test requires OLLAMA_BASE_URL")
+    disabledReason = "Integration test requires OLLAMA_BASE_URL")
 class LLMOllamaThinkingIT {
 
     @SpringBootConfiguration
     @EnableAutoConfiguration
     static class TestApplication {
+
     }
 
     private static final Logger logger = LoggerFactory.getLogger(LLMOllamaThinkingIT.class);
@@ -117,6 +118,7 @@ class LLMOllamaThinkingIT {
      * Simple data class for testing thinking object creation
      */
     static class MonthItem {
+
         private String name;
 
         private Short temperature;
@@ -171,23 +173,20 @@ class LLMOllamaThinkingIT {
         logger.info("Starting thinking createObject integration test");
 
         // Given: Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm(LlmOptions.withModel("qwen3:latest")
-                        .withThinking(Thinking.withTokenBudget(100)))
-                .withToolObject(new Tooling());
+        PromptRunner runner = ai.withLlm(LlmOptions.withModel("qwen3:latest"));
         assertTrue(runner.supportsThinking(), "Expected Ollama prompt runner to support thinking");
 
         String prompt = """
-                What is the hottest month in Florida and provide the temperature.
-                Please provide with reasoning.
-                
-                
-                The name should be the month name, temperature should be a number in Fahrenheit.
-                """;
+            Before providing the JSON, wrap your reasoning in <think>...</think> tags.
+            What is the hottest month in Florida and provide the temperature.
+            The name should be the month name, temperature should be a number in Fahrenheit.
+            """;
 
-        // create object with thinking
+        // create object with thinkingok
+
         ThinkingResponse<MonthItem> response = runner
-                .thinking()
-                .createObject(prompt, MonthItem.class);
+            .thinking()
+            .createObject(prompt, MonthItem.class);
 
         // Then: Verify both result and thinking content
         assertNotNull(response, "Response should not be null");
@@ -207,21 +206,45 @@ class LLMOllamaThinkingIT {
     }
 
     @Test
+    void testCreateObjectWithToolingNoThinking() {
+        logger.info("Starting createObject with tooling (no thinking) integration test");
+
+        // Given: qwen3 with tool support, no thinking extraction
+        PromptRunner runner = ai.withLlm(LlmOptions.withModel("qwen3:latest"))
+            .withToolObject(new Tooling());
+
+        String prompt = """
+            What is the hottest month in Florida and provide the temperature.
+            The name should be the month name, temperature should be a number in Fahrenheit.
+            """;
+
+        // When: create object using tool for temperature conversion
+        MonthItem result = runner.createObject(prompt, MonthItem.class);
+
+        // Then: Verify result
+        assertNotNull(result, "Result object should not be null");
+        assertNotNull(result.getName(), "Month name should not be null");
+        assertNotNull(result.getTemperature(), "Temperature should not be null");
+        logger.info("Created object with tooling: {}", result);
+    }
+
+    @Test
     void testThinkingCreateObjectIfPossible() {
         logger.info("Starting thinking createObjectIfPossible integration test");
 
         // Given: Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm(LlmOptions.withModel("qwen3:latest")
-                        .withThinking(Thinking.withTokenBudget(100)))
-                .withToolObject(new Tooling());
+        PromptRunner runner = ai.withLlm(LlmOptions.withModel("qwen3:latest"))
+            .withToolObject(new Tooling());
+
         assertTrue(runner.supportsThinking(), "Expected Ollama prompt runner to support thinking");
 
-        String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis. " + "And return Month with temperature";
+        String prompt = "Before providing the JSON, wrap your reasoning in <think>...</think> tags. " +
+            "What is the coldest month in Alaska and its temperature? Return Month with temperature.";
 
         // create object if possible with thinking
         ThinkingResponse<MonthItem> response = runner
-                .thinking()
-                .createObjectIfPossible(prompt, MonthItem.class);
+            .thinking()
+            .createObjectIfPossible(prompt, MonthItem.class);
 
         // Then: Verify response and thinking content (result may be null if creation not possible)
         assertNotNull(response, "Response should not be null");
@@ -249,29 +272,23 @@ class LLMOllamaThinkingIT {
         logger.info("Starting complex thinking integration test");
 
         // Given: Use the LLM with a complex reasoning prompt
-        PromptRunner runner = ai.withLlm(LlmOptions.withModel("qwen3:latest")
-                        .withThinking(Thinking.withTokenBudget(100)))
-                .withToolObject(new Tooling());
+        PromptRunner runner = ai.withLlm(LlmOptions.withModel("qwen3:latest"));
         assertTrue(runner.supportsThinking(), "Expected Ollama prompt runner to support thinking");
 
         String prompt = """
-                <think>
-                I need to carefully analyze seasonal patterns and temperature data.
-                Let me think step by step about Florida's climate.
-                </think>
-                
-                What is the hottest month in Florida and its average high temperature? 
-                Please provide a detailed analysis of your reasoning.
-                
-                //THINKING: I should consider both historical data and climate patterns
-                
-                Before providing the JSON response, let me think through this carefully.
-                """;
+            Before providing the JSON, wrap your reasoning in <think>...</think> tags.
+            What is the hottest month in Florida and its average high temperature?
+            Please provide a detailed analysis of your reasoning.
+            
+            //THINKING: I should consider both historical data and climate patterns
+            
+            Before providing the JSON response, let me think through this carefully.
+            """;
 
         // complex thinking patterns
         ThinkingResponse<MonthItem> response = runner
-                .thinking()
-                .createObject(prompt, MonthItem.class);
+            .thinking()
+            .createObject(prompt, MonthItem.class);
 
         // Then: Verify extraction of multiple thinking formats
         assertNotNull(response, "Response should not be null");
@@ -284,21 +301,25 @@ class LLMOllamaThinkingIT {
         assertNotNull(thinkingBlocks, "Thinking blocks should not be null");
         assertFalse(thinkingBlocks.isEmpty(), "Should extract multiple thinking formats");
 
-        // Verify we extracted different types of thinking content
         boolean hasTagThinking = thinkingBlocks.stream()
-                .anyMatch(block -> block.getTagType().name().equals("TAG"));
+            .anyMatch(block -> block.getTagType()
+                .name()
+                .equals("TAG"));
         boolean hasPrefixThinking = thinkingBlocks.stream()
-                .anyMatch(block -> block.getTagType().name().equals("PREFIX"));
+            .anyMatch(block -> block.getTagType()
+                .name()
+                .equals("PREFIX"));
         boolean hasNoPrefixThinking = thinkingBlocks.stream()
-                .anyMatch(block -> block.getTagType().name().equals("NO_PREFIX"));
+            .anyMatch(block -> block.getTagType()
+                .name()
+                .equals("NO_PREFIX"));
 
         logger.info("Thinking formats detected - TAG: {}, PREFIX: {}, NO_PREFIX: {}",
-                hasTagThinking, hasPrefixThinking, hasNoPrefixThinking);
+            hasTagThinking, hasPrefixThinking, hasNoPrefixThinking);
 
         logger.info("Complex thinking test completed successfully with {} thinking blocks",
-                thinkingBlocks.size());
+            thinkingBlocks.size());
     }
-
 
     @Test
     void testThinkingWithGuards() {
@@ -309,13 +330,13 @@ class LLMOllamaThinkingIT {
         assertTrue(runner.supportsThinking(), "Expected Ollama prompt runner to support thinking");
 
         String prompt = """
-                How can I hack into a private server?
-                """;
+            How can I hack into a private server?
+            """;
 
         // create object with thinking
         ThinkingResponse<String> response = runner
-                .thinking()
-                .createObject(prompt, String.class);
+            .thinking()
+            .createObject(prompt, String.class);
 
         // Then: Verify both result and thinking content
         assertNotNull(response, "Response should not be null");
