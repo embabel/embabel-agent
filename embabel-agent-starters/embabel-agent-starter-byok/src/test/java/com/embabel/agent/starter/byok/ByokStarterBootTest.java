@@ -326,7 +326,7 @@ class ByokStarterBootTest {
         @Bean
         CredentialEndpointResolver ourGatewayEndpoint() {
             return (credential, model) -> credential.getProvider().equalsIgnoreCase(PROVIDER)
-                    ? new CredentialEndpoint.OpenAiCompatible("https://gateway.example.com/v1", PROVIDER)
+                    ? new CredentialEndpoint.OpenAiCompatible(PROVIDER, "https://gateway.example.com/v1")
                     : null;
         }
     }

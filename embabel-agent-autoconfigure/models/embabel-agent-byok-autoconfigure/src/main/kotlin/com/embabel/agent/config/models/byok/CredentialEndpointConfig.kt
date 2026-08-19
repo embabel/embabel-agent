@@ -152,6 +152,6 @@ class CredentialEndpointConfig {
      */
     private fun openAiCompatibleEndpointFor(credential: ProviderCredential): CredentialEndpoint? =
         OpenAiCompatibleModelFactory.endpointFor(credential.provider)?.let {
-            CredentialEndpoint.OpenAiCompatible(baseUrl = it.baseUrl, provider = it.provider)
+            CredentialEndpoint.OpenAiCompatible(provider = it.provider, baseUrl = it.baseUrl)
         }
 }

@@ -727,7 +727,7 @@ call itself; the platform builds the client:
 @Bean
 fun ourGatewayEndpoint() = CredentialEndpointResolver { credential, _ ->
     if (!credential.provider.equals("OurGateway", ignoreCase = true)) null
-    else CredentialEndpoint.OpenAiCompatible(baseUrl = GATEWAY_URL, provider = "OurGateway")
+    else CredentialEndpoint.OpenAiCompatible(provider = "OurGateway", baseUrl = GATEWAY_URL)
 }
 ----
 

@@ -19,7 +19,6 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.lang.reflect.Method
-import java.time.LocalDate
 
 /**
  * The point of these types, asserted rather than stated: a deployment can add a BYOK provider
@@ -67,30 +66,5 @@ class CredentialEndpointTest {
 
         private fun typesIn(method: Method): List<String> =
             method.parameterTypes.map { it.name } + method.returnType.name
-    }
-
-    @Nested
-    inner class Defaults {
-
-        @Test
-        fun `a BYOK endpoint is free to the deployment unless it says otherwise`() {
-            // The user's own key is billed, so the deployment's cost accounting must not count it.
-            assertThat(CredentialEndpoint.OpenAiCompatible(baseUrl = null, provider = "OurGateway").pricingModel)
-                .isEqualTo(PricingModel.ALL_YOU_CAN_EAT)
-            assertThat(CredentialEndpoint.Anthropic(provider = "OurGateway").pricingModel)
-                .isEqualTo(PricingModel.ALL_YOU_CAN_EAT)
-        }
-
-        @Test
-        fun `a cutoff date is stated rather than guessed`() {
-            // It reaches the LLM as a prompt contribution, and the model name comes from
-            // configuration - so defaulting to anything but "unknown" would be a guess.
-            assertThat(CredentialEndpoint.OpenAiCompatible(baseUrl = null, provider = "OurGateway").knowledgeCutoffDate)
-                .isNull()
-            assertThat(
-                CredentialEndpoint.Anthropic(provider = "OurGateway", knowledgeCutoffDate = LocalDate.of(2026, 1, 1))
-                    .knowledgeCutoffDate,
-            ).isEqualTo(LocalDate.of(2026, 1, 1))
-        }
     }
 }

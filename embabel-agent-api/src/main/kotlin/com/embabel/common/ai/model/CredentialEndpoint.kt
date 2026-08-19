@@ -43,9 +43,13 @@ sealed interface CredentialEndpoint {
      * Base URL to talk to, or null for the protocol's default host.
      *
      * Non-null is the usual case for a gateway or a proxy - which, along with a provider this
-     * framework does not ship, is the reason to write a resolver at all. [OpenAiCompatible]
-     * requires it and [Anthropic] defaults it, because "Anthropic's protocol" names a host and
-     * "OpenAI-compatible" does not: defaulting the latter would send a gateway's key to OpenAI.
+     * framework does not ship, is the reason to write a resolver at all. Set it. Null on an
+     * [OpenAiCompatible] endpoint means OpenAI's own servers, so a null that reached one by
+     * accident - an unset property, say - would send a gateway's key to OpenAI under the gateway's
+     * name. The one legitimate null is OpenAI itself, which is why the type still permits it.
+     *
+     * [OpenAiCompatible] states it and [Anthropic] defaults it: "Anthropic's protocol" names a
+     * host, "OpenAI-compatible" names none.
      */
     val baseUrl: String?
 
@@ -70,8 +74,8 @@ sealed interface CredentialEndpoint {
      * gateway.
      */
     data class OpenAiCompatible @JvmOverloads constructor(
-        override val baseUrl: String?,
         override val provider: String,
+        override val baseUrl: String?,
         override val pricingModel: PricingModel = PricingModel.ALL_YOU_CAN_EAT,
         override val knowledgeCutoffDate: LocalDate? = null,
     ) : CredentialEndpoint
@@ -92,8 +96,10 @@ sealed interface CredentialEndpoint {
  *
  * Application API, not SPI: you implement it and register it as a bean, and the platform calls it.
  * The extension point for BYOK against a provider the framework does not ship. Register as many as
- * you like: the platform takes the first non-null answer, in [org.springframework.core.Ordered]
- * order, so a resolver answers for the providers it knows and returns null for the rest.
+ * you like: the first non-null answer wins, in [org.springframework.core.Ordered] order, so a
+ * resolver answers for the providers it knows and returns null for the rest. What reads them is
+ * the `embabel-agent-starter-byok` machinery that builds services from user keys, so a deployment
+ * without that starter can register these and never be asked.
  *
  * What these beans say is the first word, and the endpoints `embabel-agent-starter-byok` knows for
  * Anthropic, OpenAI, DeepSeek, Mistral, Gemini and Atlas Cloud are the last: answering for one of
@@ -105,7 +111,7 @@ sealed interface CredentialEndpoint {
  * @Bean
  * fun ourGatewayEndpoint() = CredentialEndpointResolver { credential, _ ->
  *     if (!credential.provider.equals("OurGateway", ignoreCase = true)) null
- *     else CredentialEndpoint.OpenAiCompatible(baseUrl = GATEWAY_URL, provider = "OurGateway")
+ *     else CredentialEndpoint.OpenAiCompatible(provider = "OurGateway", baseUrl = GATEWAY_URL)
  * }
  * ```
  *
@@ -116,6 +122,10 @@ sealed interface CredentialEndpoint {
  * on a cache miss rather than on every call - though possibly more than once within one, as each
  * wire protocol's builder gets its turn. Implementations must be thread-safe, and should be pure
  * and cheap for the same reason.
+ *
+ * That cache is keyed on (provider, key, model) and not on what you return here, so a resolver that
+ * answers differently for the same three - per tenant, say, read from some ambient context - will
+ * have its first answer serve every later caller sharing them.
  */
 fun interface CredentialEndpointResolver {
 
