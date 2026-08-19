@@ -518,7 +518,9 @@ internal data class OperationContextDelegate(
     private fun thinkingInteraction(
         toolGroups: Set<ToolGroupRequirement> = this.toolGroups,
     ): LlmInteraction {
-        val thinkingEnabledLlm = llm.withThinking(Thinking.withExtraction())
+        val thinkingEnabledLlm = llm.withThinking(
+            (llm.thinking ?: Thinking.withExtraction()).applyExtraction()
+        )
         val toolConfig = resolveToolConfig()
         return LlmInteraction(
             llm = thinkingEnabledLlm,
