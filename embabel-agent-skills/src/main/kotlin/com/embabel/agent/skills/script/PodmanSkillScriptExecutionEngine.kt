@@ -85,16 +85,6 @@ class PodmanSkillScriptExecutionEngine @JvmOverloads constructor(
 
     companion object {
         /**
-         * Default OCI image for script execution.
-         * Build from the Dockerfile in embabel-agent-skills/docker (Podman can build
-         * Dockerfiles directly):
-         * ```
-         * podman build -t embabel/agent-sandbox:latest ./embabel-agent-skills/docker
-         * ```
-         */
-        const val DEFAULT_IMAGE = AbstractContainerSkillScriptExecutionEngine.DEFAULT_IMAGE
-
-        /**
          * Create an engine confined to [root]: input files are resolved against [root]
          * and anything outside it (absolute paths, `..` traversal) is rejected.
          *

@@ -126,7 +126,7 @@ abstract class AbstractContainerSkillScriptExecutionEngine(
             inputFiles.map { inputs.resolve(it) }
         } catch (e: SecurityException) {
             return ScriptExecutionResult.Denied("Path traversal not allowed: ${e.message}")
-        } catch (e: IllegalArgumentException) {
+        } catch (e: Exception) {
             return ScriptExecutionResult.Denied("Input file error: ${e.message}")
         }
 
@@ -157,7 +157,7 @@ abstract class AbstractContainerSkillScriptExecutionEngine(
             try {
                 tempBase.toFile().deleteRecursively()
             } catch (e: Exception) {
-                logger.warn("Failed to cleanup temp directory: {}", tempBase, e)
+                logger.warn("Failed to cleanup temp directory: ${tempBase}, error:${e.message}")
             }
         }
     }

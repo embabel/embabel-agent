@@ -77,14 +77,6 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
     override val useWorkdir = true
 
     companion object {
-        /**
-         * Default Docker image for script execution.
-         * Build from the Dockerfile in embabel-agent-skills/docker:
-         * ```
-         * docker build -t embabel/agent-sandbox:latest ./embabel-agent-skills/docker
-         * ```
-         */
-        const val DEFAULT_IMAGE = AbstractContainerSkillScriptExecutionEngine.DEFAULT_IMAGE
 
         /**
          * Create an engine confined to [root]: input files are resolved against [root]
