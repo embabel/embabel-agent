@@ -78,6 +78,29 @@ internal fun List<SimilarityResult<out Retrievable>>.withNeighbours(
     return this + extra
 }
 
+@Suppress("UNCHECKED_CAST")
+internal fun <T : Retrievable> VectorSearch.searchWithFilter(
+    request: TextSimilaritySearchRequest,
+    clazz: Class<T>,
+    metadataFilter: PropertyFilter?,
+    entityFilter: EntityFilter?,
+): List<SimilarityResult<T>> {
+    if (metadataFilter == null && entityFilter == null) {
+        return vectorSearch(request, clazz)
+    }
+    if (this is FilteringVectorSearch) {
+        return vectorSearchWithFilter(request, clazz, metadataFilter, entityFilter)
+    }
+    return PostFilteringSearch.search(
+        request,
+        metadataFilter,
+        entityFilter,
+        TopKInflationStrategy.DEFAULT,
+    ) { inflatedRequest ->
+        vectorSearch(inflatedRequest, clazz)
+    } as List<SimilarityResult<T>>
+}
+
 internal class VectorSearchTools @JvmOverloads constructor(
     private val vectorSearch: VectorSearch,
     private val searchFor: List<Class<out Retrievable>> = listOf(Chunk::class.java),
@@ -107,47 +130,26 @@ internal class VectorSearchTools @JvmOverloads constructor(
             query, topK, threshold, searchFor.map { it.simpleName }, metadataFilter, entityFilter
         )
         val request = TextSimilaritySearchRequest(query, threshold, topK)
+        val results = search(request)
+        return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList<Retrievable>(results))
+    }
+
+    internal fun search(request: TextSimilaritySearchRequest): List<SimilarityResult<out Retrievable>> {
         val (hits, ms) = time {
             searchForAllTypes(request)
         }
         // Expanded BEFORE the listener fires: an observer must see what the model sees, or
         // reported provenance and the answer's actual evidence drift apart.
         val results = hits.withNeighbours(resultExpander, searchDefaults.expandNeighbours)
-        resultsListener?.onResultsEvent(ResultsEvent(this, query, results, Duration.ofMillis(ms)))
-        return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList<Retrievable>(results))
+        resultsListener?.onResultsEvent(ResultsEvent(this, request.query, results, Duration.ofMillis(ms)))
+        return results
     }
 
     private fun searchForAllTypes(request: TextSimilaritySearchRequest): List<SimilarityResult<out Retrievable>> {
         val allResults = searchFor.flatMap { clazz ->
-            searchWithFilter(request, clazz)
+            vectorSearch.searchWithFilter(request, clazz, metadataFilter, entityFilter)
         }
         return deduplicateByIdKeepingHighestScore(allResults)
-    }
-
-    @Suppress("UNCHECKED_CAST")
-    private fun <T : Retrievable> searchWithFilter(
-        request: TextSimilaritySearchRequest,
-        clazz: Class<T>,
-    ): List<SimilarityResult<T>> {
-        if (metadataFilter == null && entityFilter == null) {
-            return vectorSearch.vectorSearch(request, clazz)
-        }
-
-        // If backend supports native filtering, use it
-        if (vectorSearch is FilteringVectorSearch) {
-            return vectorSearch.vectorSearchWithFilter(request, clazz, metadataFilter, entityFilter)
-        }
-
-        // Fallback: inflate topK, search, post-filter, take topK
-        // Note: PostFilteringSearch requires Datum constraint, so we cast
-        return PostFilteringSearch.search(
-            request,
-            metadataFilter,
-            entityFilter,
-            TopKInflationStrategy.DEFAULT
-        ) { inflatedRequest ->
-            vectorSearch.vectorSearch(inflatedRequest, clazz)
-        } as List<SimilarityResult<T>>
     }
 }
 

@@ -15,8 +15,12 @@
  */
 package com.embabel.agent.rag.tools
 
+import com.embabel.agent.filter.PropertyFilter
+import com.embabel.agent.rag.filter.EntityFilter
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.Retrievable
+import com.embabel.agent.rag.service.FilteringVectorSearch
+import com.embabel.agent.rag.service.ResultExpander
 import com.embabel.agent.rag.service.SearchOperations
 import com.embabel.agent.rag.service.VectorSearch
 import com.embabel.common.core.types.SimpleSimilaritySearchResult
@@ -30,6 +34,8 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
 class ToolishRagEagerSearchTest {
+
+    private interface ExpandableVectorSearch : VectorSearch, ResultExpander
 
     private fun createChunk(id: String, text: String): Chunk =
         Chunk(id = id, text = text, parentId = "parent", metadata = emptyMap())
@@ -148,6 +154,103 @@ class ToolishRagEagerSearchTest {
                 )
             }
             assertTrue(eagerRag.hints.isNotEmpty())
+        }
+
+        @Test
+        fun `eager search applies filters natively when supported`() {
+            val vectorSearch = mockk<FilteringVectorSearch>()
+            val metadataFilter = PropertyFilter.eq("ownerId", "alice")
+            val entityFilter = EntityFilter.hasAnyLabel("Person")
+            val chunk = createChunk("chunk1", "Alice's content")
+            every {
+                vectorSearch.vectorSearchWithFilter(
+                    any<TextSimilaritySearchRequest>(),
+                    Chunk::class.java,
+                    metadataFilter,
+                    entityFilter,
+                )
+            } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.9))
+            val rag = ToolishRag(
+                name = "test-rag",
+                description = "Test RAG",
+                searchOperations = vectorSearch,
+                metadataFilter = metadataFilter,
+                entityFilter = entityFilter,
+            )
+
+            val eagerRag = rag.withEagerSearchAbout("test query", 5)
+
+            verify(exactly = 1) {
+                vectorSearch.vectorSearchWithFilter(
+                    any<TextSimilaritySearchRequest>(),
+                    Chunk::class.java,
+                    metadataFilter,
+                    entityFilter,
+                )
+            }
+            assertTrue(eagerRag.notes().contains("Alice's content"))
+        }
+
+        @Test
+        fun `eager search expands results before notifying listener`() {
+            val vectorSearch = mockk<ExpandableVectorSearch>()
+            val hit = createChunk("hit", "Matching content")
+            val neighbour = createChunk("neighbour", "Neighbouring content")
+            every {
+                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = hit, score = 0.9))
+            every {
+                vectorSearch.expandResult("hit", ResultExpander.Method.SEQUENCE, 1)
+            } returns listOf(neighbour)
+            var event: ResultsEvent? = null
+            val rag = ToolishRag(
+                name = "test-rag",
+                description = "Test RAG",
+                searchOperations = vectorSearch,
+                listener = ResultsListener { event = it },
+                searchDefaults = SearchDefaults(expandNeighbours = 1),
+            )
+
+            val eagerRag = rag.withEagerSearchAbout("test query", 5)
+
+            assertTrue(eagerRag.notes().contains("Matching content"))
+            assertTrue(eagerRag.notes().contains("Neighbouring content"))
+            assertEquals(listOf("hit", "neighbour"), event?.results?.map { it.match.id })
+            assertEquals("test query", event?.query)
+        }
+
+        @Test
+        fun `eager search post-filters metadata when native filtering is unavailable`() {
+            val vectorSearch = mockk<VectorSearch>()
+            val included = Chunk(
+                id = "included",
+                text = "Alice's content",
+                parentId = "parent",
+                metadata = mapOf("ownerId" to "alice"),
+            )
+            val excluded = Chunk(
+                id = "excluded",
+                text = "Bob's content",
+                parentId = "parent",
+                metadata = mapOf("ownerId" to "bob"),
+            )
+            every {
+                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } returns listOf(
+                SimpleSimilaritySearchResult(match = included, score = 0.9),
+                SimpleSimilaritySearchResult(match = excluded, score = 0.8),
+            )
+            val rag = ToolishRag(
+                name = "test-rag",
+                description = "Test RAG",
+                searchOperations = vectorSearch,
+                metadataFilter = PropertyFilter.eq("ownerId", "alice"),
+            )
+
+            val notes = rag.withEagerSearchAbout("test query", 5).notes()
+
+            assertTrue(notes.contains("Alice's content"))
+            assertFalse(notes.contains("Bob's content"))
         }
 
         @Test
