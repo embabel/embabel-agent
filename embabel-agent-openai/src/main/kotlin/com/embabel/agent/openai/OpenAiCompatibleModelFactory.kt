@@ -20,6 +20,7 @@ import com.embabel.agent.api.models.DeepSeekModels
 import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.api.models.MistralAiModels
 import com.embabel.agent.api.models.OpenAiModels
+import com.embabel.agent.api.models.OrcaRouterModels
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
@@ -98,9 +99,10 @@ open class OpenAiCompatibleModelFactory(
             "https://generativelanguage.googleapis.com/v1beta/openai",
         )
         private val ATLAS_CLOUD = ProviderEndpoint(AtlasCloudModels.PROVIDER, "https://api.atlascloud.ai/v1")
+        private val ORCA_ROUTER = ProviderEndpoint(OrcaRouterModels.PROVIDER, "https://api.orcarouter.ai/v1")
 
         private val ENDPOINTS_BY_PROVIDER: Map<String, ProviderEndpoint> =
-            listOf(OPEN_AI, DEEP_SEEK, MISTRAL, GEMINI, ATLAS_CLOUD)
+            listOf(OPEN_AI, DEEP_SEEK, MISTRAL, GEMINI, ATLAS_CLOUD, ORCA_ROUTER)
                 .associateBy { it.provider.lowercase() }
 
         /**
@@ -155,6 +157,13 @@ open class OpenAiCompatibleModelFactory(
          */
         fun atlasCloud(apiKey: String): ByokSpec =
             ByokSpec(ATLAS_CLOUD.baseUrl, apiKey, AtlasCloudModels.QWEN3_5_FLASH, ATLAS_CLOUD.provider)
+
+        /**
+         * Returns a [ByokSpec] for OrcaRouter (OpenAI-compatible gateway endpoint).
+         * Validates against [OrcaRouterModels.AUTO] by default.
+         */
+        fun orcaRouter(apiKey: String): ByokSpec =
+            ByokSpec(ORCA_ROUTER.baseUrl, apiKey, OrcaRouterModels.AUTO, ORCA_ROUTER.provider)
 
         /**
          * Returns a [ByokSpec] for a custom OpenAI-compatible provider.

@@ -20,6 +20,7 @@ import com.embabel.agent.api.models.DeepSeekModels
 import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.api.models.MistralAiModels
 import com.embabel.agent.api.models.OpenAiModels
+import com.embabel.agent.api.models.OrcaRouterModels
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Nested
@@ -44,6 +45,7 @@ class OpenAiCompatibleModelFactoryEndpointTest {
                 MistralAiModels.PROVIDER to "https://api.mistral.ai/v1",
                 GoogleGenAiModels.PROVIDER to "https://generativelanguage.googleapis.com/v1beta/openai",
                 AtlasCloudModels.PROVIDER to "https://api.atlascloud.ai/v1",
+                OrcaRouterModels.PROVIDER to "https://api.orcarouter.ai/v1",
             )
             expected.forEach { (provider, baseUrl) ->
                 assertEquals(baseUrl, OpenAiCompatibleModelFactory.endpointFor(provider)?.baseUrl, provider)
