@@ -40,8 +40,8 @@ import kotlin.time.measureTimedValue
  * @param timeout maximum execution time before killing the container
  * @param supportedLanguages which script languages this engine supports
  * @param networkEnabled whether to allow network access from the container
- * @param memoryLimit memory limit for the container (e.g., "512m", "1g")
- * @param cpuLimit CPU limit for the container (e.g., "1.0" for 1 CPU)
+ * @param memoryLimit memory limit for the container (e.g., [MemorySize.megabytes] (512)), passed to `--memory`
+ * @param cpuLimit CPU limit for the container as a number of cores (e.g., [CpuLimit.cores] (1)), passed to `--cpus`
  * @param environment additional environment variables to pass to the container
  * @param workDir working directory inside the container
  * @param user user to run as inside the container
@@ -52,8 +52,8 @@ abstract class AbstractContainerSkillScriptExecutionEngine(
     protected val timeout: Duration,
     protected val supportedLanguages: Set<ScriptLanguage>,
     protected val networkEnabled: Boolean,
-    protected val memoryLimit: String?,
-    protected val cpuLimit: String?,
+    protected val memoryLimit: MemorySize?,
+    protected val cpuLimit: CpuLimit?,
     protected val environment: Map<String, String>,
     protected val workDir: String,
     protected val user: String?,
@@ -175,8 +175,8 @@ abstract class AbstractContainerSkillScriptExecutionEngine(
             // delivered; without it the runtime attaches stdin to /dev/null and drops it.
             add(containerCommand); add("run"); add("--rm"); add("-i")
 
-            memoryLimit?.let { addAll(listOf("--memory", it)) }
-            cpuLimit?.let { addAll(listOf("--cpus", it)) }
+            memoryLimit?.let { addAll(listOf("--memory", it.render())) }
+            cpuLimit?.let { addAll(listOf("--cpus", it.render())) }
 
             if (!networkEnabled) {
                 addAll(listOf("--network", "none"))
@@ -311,6 +311,7 @@ abstract class AbstractContainerSkillScriptExecutionEngine(
                 .start()
             process.waitFor(5, TimeUnit.SECONDS) && process.exitValue() == 0
         } catch (e: Exception) {
+            logger.warn("containerCommand: $containerCommand failed. error: ${e.message}")
             false
         }
 

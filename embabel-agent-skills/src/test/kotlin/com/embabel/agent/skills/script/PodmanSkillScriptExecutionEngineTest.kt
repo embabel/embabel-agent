@@ -42,7 +42,7 @@ class PodmanSkillScriptExecutionEngineTest {
 
     companion object {
         // Use ubuntu image for tests since it's widely available
-        private const val TEST_IMAGE = "ubuntu:22.04"
+        private const val TEST_IMAGE = "ubuntu:26.04"
 
         @JvmStatic
         fun isPodmanAvailable(): Boolean {
@@ -129,7 +129,6 @@ class PodmanSkillScriptExecutionEngineTest {
         val success = result as ScriptExecutionResult.Success
         assertEquals(0, success.exitCode)
         assertTrue(success.stdout.contains("Hello from Podman"))
-        println(success.stdout)
     }
 
     @Test

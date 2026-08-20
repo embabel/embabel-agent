@@ -41,7 +41,7 @@ class DockerSkillScriptExecutionEngineTest {
 
     companion object {
         // Use ubuntu image for tests since it's widely available
-        private const val TEST_IMAGE = "ubuntu:22.04"
+        private const val TEST_IMAGE = "ubuntu:26.04"
 
         @JvmStatic
         fun isDockerAvailable(): Boolean {

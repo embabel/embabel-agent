@@ -35,8 +35,8 @@ import kotlin.time.Duration.Companion.seconds
  * @param timeout maximum execution time before killing the container
  * @param supportedLanguages which script languages this engine supports
  * @param networkEnabled whether to allow network access from the container
- * @param memoryLimit memory limit for the container (e.g., "512m", "1g")
- * @param cpuLimit CPU limit for the container (e.g., "1.0" for 1 CPU)
+ * @param memoryLimit memory limit for the container (e.g., [MemorySize.megabytes] (512)), passed to `--memory`
+ * @param cpuLimit CPU limit for the container as a number of cores (e.g., [CpuLimit.cores] (1)), passed to `--cpus`
  * @param environment additional environment variables to pass to the container
  * @param workDir working directory inside the container
  * @param user user to run as inside the container (default: "agent" for the embabel image)
@@ -49,8 +49,8 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
     timeout: Duration = 60.seconds,
     supportedLanguages: Set<ScriptLanguage> = ScriptLanguage.entries.toSet(),
     networkEnabled: Boolean = true,
-    memoryLimit: String? = "512m",
-    cpuLimit: String? = "1.0",
+    memoryLimit: MemorySize? = MemorySize.megabytes(512),
+    cpuLimit: CpuLimit? = CpuLimit.cores(1),
     environment: Map<String, String> = emptyMap(),
     workDir: String = "/home/agent/workspace",
     user: String? = "agent",
@@ -137,8 +137,8 @@ class DockerSkillScriptExecutionEngine @JvmOverloads constructor(
             image = image,
             timeout = timeout,
             networkEnabled = false,
-            memoryLimit = "256m",
-            cpuLimit = "0.5",
+            memoryLimit = MemorySize.megabytes(256),
+            cpuLimit = CpuLimit.millicores(500),
         )
     }
 }

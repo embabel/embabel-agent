@@ -145,8 +145,8 @@ val engine = DockerSkillScriptExecutionEngine(
     image = "embabel/agent-sandbox:latest",
     timeout = 60.seconds,
     supportedLanguages = setOf(ScriptLanguage.PYTHON, ScriptLanguage.BASH),
-    memoryLimit = "512m",
-    cpuLimit = "1.0",
+    memoryLimit = MemorySize.megabytes(512),
+    cpuLimit = CpuLimit.cores(1),
 )
 
 val skills = Skills("my-skills", "Skills with sandboxed scripts")
@@ -182,8 +182,8 @@ val engine = PodmanSkillScriptExecutionEngine(
     image = "embabel/agent-sandbox:latest",
     timeout = 60.seconds,
     supportedLanguages = setOf(ScriptLanguage.PYTHON, ScriptLanguage.BASH),
-    memoryLimit = "512m",
-    cpuLimit = "1.0",
+    memoryLimit = MemorySize.megabytes(512),
+    cpuLimit = CpuLimit.cores(1),
 )
 
 val skills = Skills("my-skills", "Skills with sandboxed scripts")

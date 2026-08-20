@@ -40,8 +40,16 @@ import kotlin.time.Duration.Companion.seconds
  * @param timeout maximum execution time before killing the container
  * @param supportedLanguages which script languages this engine supports
  * @param networkEnabled whether to allow network access from the container
- * @param memoryLimit memory limit for the container (e.g., "512m", "1g")
- * @param cpuLimit CPU limit for the container (e.g., "1.0" for 1 CPU)
+ * @param memoryLimit memory limit for the container (e.g., [MemorySize.megabytes] (512)), passed to Podman's `--memory`.
+ *                    This is a safety guardrail: skill scripts are untrusted code, so a hard memory
+ *                    cap prevents a runaway or malicious script from exhausting host RAM (OOM/DoS).
+ *                    The default 512 MB is a conservative "enough for typical Python/shell scripts"
+ *                    value rather than a benchmarked figure; raise it for memory-heavy workloads or
+ *                    pass `null` to disable the limit entirely.
+ * @param cpuLimit CPU limit for the container as a number of cores (e.g., [CpuLimit.cores] (1)), passed to Podman's `--cpus`.
+ *                 Like [memoryLimit], this bounds untrusted scripts so they cannot starve the host of
+ *                 CPU. The default 1 core is a safe, general-purpose default; increase it
+ *                 for compute-heavy scripts or pass `null` to remove the limit.
  * @param environment additional environment variables to pass to the container
  * @param workDir working directory inside the container
  * @param user user to run as inside the container (default: "agent" for the embabel image)
@@ -54,8 +62,8 @@ class PodmanSkillScriptExecutionEngine @JvmOverloads constructor(
     timeout: Duration = 60.seconds,
     supportedLanguages: Set<ScriptLanguage> = ScriptLanguage.entries.toSet(),
     networkEnabled: Boolean = true,
-    memoryLimit: String? = "512m",
-    cpuLimit: String? = "1.0",
+    memoryLimit: MemorySize? = MemorySize.megabytes(512),
+    cpuLimit: CpuLimit? = CpuLimit.cores(1),
     environment: Map<String, String> = emptyMap(),
     workDir: String = "/home/agent/workspace",
     user: String? = "agent",
@@ -135,7 +143,12 @@ class PodmanSkillScriptExecutionEngine @JvmOverloads constructor(
             supportedLanguages = setOf(ScriptLanguage.PYTHON),
         )
 
-        /** Create an engine with maximum isolation (no network, reduced resources). */
+        /**
+         * Create an engine with maximum isolation for the least-trusted scripts: no network access
+         * and tighter resource caps (256 MB memory, 0.5 CPU) than the constructor defaults. The
+         * reduced limits shrink the blast radius of a hostile or buggy script at the cost of raw
+         * performance; use this when running arbitrary/third-party skills.
+         */
         fun isolated(
             image: String = DEFAULT_IMAGE,
             timeout: Duration = 30.seconds,
@@ -143,8 +156,8 @@ class PodmanSkillScriptExecutionEngine @JvmOverloads constructor(
             image = image,
             timeout = timeout,
             networkEnabled = false,
-            memoryLimit = "256m",
-            cpuLimit = "0.5",
+            memoryLimit = MemorySize.megabytes(256),
+            cpuLimit = CpuLimit.millicores(500),
         )
     }
 }
