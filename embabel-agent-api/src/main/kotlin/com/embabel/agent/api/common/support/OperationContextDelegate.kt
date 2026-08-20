@@ -527,7 +527,7 @@ internal data class OperationContextDelegate(
         val tagHintContributor = thinking?.includedTags
             ?.takeIf { thinking.injectSystemPrompt }
             ?.first()
-            ?.let { tag -> PromptContributor.fixed("When reasoning, wrap your thoughts in <$tag></$tag> tags.") }
+            ?.let { tag -> PromptContributor.fixed("You must provide your reasoning wrapped in <$tag></$tag> tags.") }
         val toolConfig = resolveToolConfig()
         return LlmInteraction(
             llm = thinkingEnabledLlm,
