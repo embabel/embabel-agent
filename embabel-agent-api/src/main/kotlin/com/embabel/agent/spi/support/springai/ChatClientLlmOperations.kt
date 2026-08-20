@@ -403,7 +403,11 @@ internal class ChatClientLlmOperations(
                     recordUsage(llm, chatResponse, llmRequestEvent)
                     val rawText = chatResponse.result!!.output.text as String
 
-                    val thinkingBlocks = extractAllThinkingBlocks(rawText)
+                    val thinkingBlocks = extractAllThinkingBlocks(
+                        rawText,
+                        includedTags = interaction.llm.thinking?.includedTags,
+                        excludedTags = interaction.llm.thinking?.excludedTags,
+                    )
                     logger.debug("Extracted {} thinking blocks for String response", thinkingBlocks.size)
 
                     val thinkingResponse = ThinkingResponse(
@@ -421,7 +425,11 @@ internal class ChatClientLlmOperations(
                     recordUsage(llm, chatResponse, llmRequestEvent)
                     val rawText = chatResponse.result!!.output.text ?: ""
 
-                    val thinkingBlocks = extractAllThinkingBlocks(rawText)
+                    val thinkingBlocks = extractAllThinkingBlocks(
+                        rawText,
+                        includedTags = interaction.llm.thinking?.includedTags,
+                        excludedTags = interaction.llm.thinking?.excludedTags,
+                    )
                     logger.debug(
                         "Extracted {} thinking blocks for {} response",
                         thinkingBlocks.size,
@@ -558,7 +566,11 @@ internal class ChatClientLlmOperations(
                     val chatResponse = requireChatResponse(callResponse, interaction)
                     recordUsage(llm, chatResponse, llmRequestEvent)
                     val rawText = chatResponse.result!!.output.text ?: ""
-                    val thinkingBlocks = extractAllThinkingBlocks(rawText)
+                    val thinkingBlocks = extractAllThinkingBlocks(
+                        rawText,
+                        includedTags = interaction.llm.thinking?.includedTags,
+                        excludedTags = interaction.llm.thinking?.excludedTags,
+                    )
 
                     // Execute converter chain manually instead of using responseEntity
                     try {

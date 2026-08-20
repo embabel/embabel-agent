@@ -463,6 +463,64 @@ class OperationContextDelegateTest {
                 assertTrue(thinking!!.extractThinking, "extractThinking must be true even without explicit thinking config")
                 assertNull(thinking.tokenBudget, "tokenBudget should remain null when not configured")
             }
+
+            @Nested
+            inner class TagHintInjectionTest {
+
+                private fun captureInteractionWith(thinking: com.embabel.common.ai.model.Thinking): LlmInteraction {
+                    val (mockContext, _, _) = createMockedContext()
+                    val mockProcessContext = mockk<ProcessContext>(relaxed = true)
+                    every { mockContext.processContext } returns mockProcessContext
+                    val capturedInteraction = slot<LlmInteraction>()
+                    every {
+                        mockProcessContext.createObjectWithThinking<TestResult>(
+                            any(), capture(capturedInteraction), any(), any(), any()
+                        )
+                    } returns ThinkingResponse(result = TestResult("test"), thinkingBlocks = emptyList())
+                    OperationContextDelegate(
+                        context = mockContext,
+                        llm = LlmOptions().withThinking(thinking),
+                        toolGroups = emptySet(),
+                        toolObjects = emptyList(),
+                        promptContributors = emptyList(),
+                    ).createObjectWithThinking(listOf(UserMessage("test")), TestResult::class.java)
+                    return capturedInteraction.captured
+                }
+
+                @Test
+                fun `injects tag hint when includedTags set and injectSystemPrompt true`() {
+                    val interaction = captureInteractionWith(
+                        Thinking.withIncludedTags("analysis", "plan")
+                    )
+                    val contributions = interaction.promptContributors.map { it.contribution() }
+                    assertTrue(
+                        contributions.any { it.contains("<analysis>") },
+                        "Expected tag hint with first includedTag in prompt contributors"
+                    )
+                }
+
+                @Test
+                fun `does not inject tag hint when injectSystemPrompt false`() {
+                    val interaction = captureInteractionWith(
+                        Thinking.withIncludedTags("analysis").withInjectSystemPrompt(false)
+                    )
+                    val contributions = interaction.promptContributors.map { it.contribution() }
+                    assertFalse(
+                        contributions.any { it.contains("<analysis>") },
+                        "Expected no tag hint when injectSystemPrompt=false"
+                    )
+                }
+
+                @Test
+                fun `does not inject tag hint when includedTags is null`() {
+                    val interaction = captureInteractionWith(Thinking.withExtraction())
+                    val contributions = interaction.promptContributors.map { it.contribution() }
+                    assertFalse(
+                        contributions.any { it.contains("<") && it.contains(">") },
+                        "Expected no tag hint when includedTags is null"
+                    )
+                }
+            }
         }
 
         @Test

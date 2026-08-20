@@ -138,6 +138,48 @@ if (result != null) {
 ----
 ====
 
+==== Thinking Tag Control
+
+Without changing your prompt, you can control which XML-tagged reasoning blocks the model produces and returns.
+
+Use `includedTags` to keep only blocks wrapped in the named tags — the model is automatically instructed (via a system prompt hint) to use those tags for its reasoning.
+Use `excludedTags` to drop blocks with specific tag names while keeping all others.
+
+NOTE: `includedTags` and `excludedTags` apply only to named TAG blocks. Untagged reasoning (PREFIX and NO_PREFIX style blocks) always passes through.
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Only return the "analysis" reasoning block; model is guided to use that tag
+ThinkingResponse<MonthItem> response = runner
+        .thinking(Thinking.withIncludedTags("analysis"))
+        .createObject(prompt, MonthItem.class);
+
+// Drop "scratchpad" blocks, keep all others
+ThinkingResponse<MonthItem> response2 = runner
+        .thinking(Thinking.withExcludedTags("scratchpad"))
+        .createObject(prompt, MonthItem.class);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Only return the "analysis" reasoning block; model is guided to use that tag
+val response = runner
+        .thinking(Thinking.withIncludedTags("analysis"))
+        .createObject(prompt, MonthItem::class.java)
+
+// Drop "scratchpad" blocks, keep all others
+val response2 = runner
+        .thinking(Thinking.withExcludedTags("scratchpad"))
+        .createObject(prompt, MonthItem::class.java)
+----
+====
+
 ==== Provider Notes
 
 Embabel exposes thinking through a provider-neutral API:

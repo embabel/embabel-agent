@@ -24,7 +24,10 @@ import com.embabel.agent.api.validation.guardrails.UserInputGuardRail;
 import com.embabel.agent.autoconfigure.models.anthropic.AgentAnthropicAutoConfiguration;
 import com.embabel.agent.core.Blackboard;
 import com.embabel.agent.spi.LlmService;
+import com.embabel.common.ai.model.LlmOptions;
+import com.embabel.common.ai.model.Thinking;
 import com.embabel.common.core.thinking.ThinkingBlock;
+import com.embabel.common.core.thinking.ThinkingTagType;
 import com.embabel.common.core.thinking.ThinkingResponse;
 import com.embabel.common.core.validation.ValidationError;
 import com.embabel.common.core.validation.ValidationResult;
@@ -459,6 +462,42 @@ class LLMAnthropicThinkingIT {
         logger.info("Thinking testThinkingCreateObjectIfPossibleWithCriticalGuardRailSeverity test completed successfully");
     }
 
+
+    @Test
+    void testThinkingWithIncludedTags() {
+        logger.info("Starting thinking includedTags integration test");
+
+        PromptRunner runner = ai.withLlm(
+                LlmOptions.withModel("claude-sonnet-4-5")
+                        .withThinking(Thinking.withIncludedTags("analysis"))
+        );
+        assertTrue(runner.supportsThinking(), "Expected Anthropic prompt runner to support thinking");
+
+        String prompt = "What is the hottest month in Florida and its average high temperature?";
+
+        ThinkingResponse<MonthItem> response = runner
+                .thinking()
+                .createObject(prompt, MonthItem.class);
+
+        assertNotNull(response, "Response should not be null");
+
+        MonthItem result = response.getResult();
+        assertNotNull(result, "Result object should not be null");
+        assertNotNull(result.getName(), "Month name should not be null");
+        logger.info("Created object: {}", result);
+
+        List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
+        assertNotNull(thinkingBlocks, "Thinking blocks should not be null");
+        assertFalse(thinkingBlocks.isEmpty(), "Should have thinking content");
+
+        // Only TAG blocks with tagValue "analysis" should be present; no other TAG blocks
+        thinkingBlocks.stream()
+                .filter(b -> b.getTagType() == ThinkingTagType.TAG)
+                .forEach(b -> assertEquals("analysis", b.getTagValue(),
+                        "Expected only 'analysis' TAG blocks, got: " + b.getTagValue()));
+
+        logger.info("includedTags test completed with {} thinking blocks", thinkingBlocks.size());
+    }
 
     @Test
     void testThinkingWithComplexPrompt() {
