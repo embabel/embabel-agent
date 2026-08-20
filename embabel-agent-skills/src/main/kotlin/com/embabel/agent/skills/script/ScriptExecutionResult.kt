@@ -15,7 +15,12 @@
  */
 package com.embabel.agent.skills.script
 
+import com.embabel.agent.api.reference.LlmReference
+import com.embabel.chat.MaterializableAsset
+import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Instant
+import java.util.UUID
 import kotlin.time.Duration
 
 /**
@@ -31,11 +36,27 @@ import kotlin.time.Duration
  * @param sizeBytes the size of the file in bytes
  */
 data class ScriptArtifact(
-    val name: String,
+    override val name: String,
     val path: Path,
-    val mimeType: String? = null,
-    val sizeBytes: Long,
-) {
+    override val mimeType: String? = null,
+    override val sizeBytes: Long,
+) : MaterializableAsset {
+
+    override val id: String = UUID.randomUUID().toString()
+
+    override val timestamp: Instant = Instant.now()
+
+    override fun persistent(): Boolean = false
+
+    override fun openStream() = Files.newInputStream(path)
+
+    override fun reference(): LlmReference = LlmReference.of(
+        name = name,
+        description = "Artifact produced by a skill script",
+        tools = emptyList(),
+        notes = "MIME type: ${mimeType ?: "unknown"}; size: $sizeBytes bytes; path: $path",
+    )
+
     companion object {
         /**
          * Common MIME types by file extension.
