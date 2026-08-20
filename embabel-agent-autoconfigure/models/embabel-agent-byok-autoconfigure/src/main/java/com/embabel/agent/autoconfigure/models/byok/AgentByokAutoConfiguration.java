@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.autoconfigure.models.byok;
 
-import com.embabel.agent.config.models.byok.CredentialLlmServiceFactoryConfig;
+import com.embabel.agent.config.models.byok.CredentialEndpointConfig;
 import com.embabel.agent.config.models.byok.SetupRequiredEmbeddingConfig;
 import com.embabel.agent.config.models.byok.SetupRequiredLlmConfig;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -32,8 +32,10 @@ import org.springframework.context.annotation.Import;
  * at runtime and reach a call through {@code PromptRunner.withLlmService(...)}.
  * <p>
  * It also contributes a {@link com.embabel.common.ai.model.CredentialLlmServiceFactory} per
- * provider it can see, so a role resolving to a user's own key builds a real service without the
- * application writing one - see {@link CredentialLlmServiceFactoryConfig}.
+ * provider module it can see, so a role resolving to a user's own key builds a real service
+ * without the application writing one. Those factories ask any
+ * {@link com.embabel.common.ai.model.CredentialEndpointResolver} the application registered before
+ * falling back to the endpoints this module knows - see {@link CredentialEndpointConfig}.
  * <p>
  * The embedding placeholder never reports a dimension: a vector index built at a guessed dimension
  * would accept writes and disagree with the real model later, so anything provisioning one must
@@ -44,6 +46,6 @@ import org.springframework.context.annotation.Import;
  */
 @AutoConfiguration
 @AutoConfigureBefore(name = {"com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration"})
-@Import({SetupRequiredLlmConfig.class, SetupRequiredEmbeddingConfig.class, CredentialLlmServiceFactoryConfig.class})
+@Import({SetupRequiredLlmConfig.class, SetupRequiredEmbeddingConfig.class, CredentialEndpointConfig.class})
 public class AgentByokAutoConfiguration {
 }

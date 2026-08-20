@@ -29,6 +29,8 @@ import com.embabel.agent.spi.LlmService;
 import com.embabel.agent.spi.PlaceholderEmbeddingService;
 import com.embabel.common.ai.model.ConfigurableModelProvider;
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties;
+import com.embabel.common.ai.model.CredentialEndpoint;
+import com.embabel.common.ai.model.CredentialEndpointResolver;
 import com.embabel.common.ai.model.CredentialLlmServiceFactory;
 import com.embabel.common.ai.model.DefaultModelSelectionCriteria;
 import com.embabel.common.ai.model.EmbeddingService;
@@ -119,6 +121,29 @@ class ByokStarterBootTest {
                 assertThat(service).describedAs(provider).isPresent();
                 assertThat(service.get().getProvider()).describedAs(provider).isEqualTo(provider);
             });
+        });
+    }
+
+    /**
+     * The extension point as a Java application meets it: one bean, one value, and no import from
+     * {@code com.embabel.agent.spi} - which is the whole reason it exists alongside
+     * {@link CredentialLlmServiceFactory}.
+     */
+    @Test
+    void anApplicationAddsAProviderTheFrameworkDoesNotShip() {
+        contextRunner.withUserConfiguration(OwnGatewayEndpoint.class).run(context -> {
+            var factories = new ArrayList<>(
+                    context.getBeansOfType(CredentialLlmServiceFactory.class).values());
+            var credential = new ProviderCredential(OwnGatewayEndpoint.PROVIDER, "sk-test-not-a-real-key");
+
+            var service = factories.stream()
+                    .map(factory -> factory.createLlmService(credential, "some-model"))
+                    .filter(java.util.Objects::nonNull)
+                    .findFirst();
+
+            assertThat(service).isPresent();
+            assertThat(service.get().getProvider()).isEqualTo(OwnGatewayEndpoint.PROVIDER);
+            assertThat(service.get().getName()).isEqualTo("some-model");
         });
     }
 
@@ -290,6 +315,19 @@ class ByokStarterBootTest {
             List<EmbeddingService> embeddingServices =
                     new ArrayList<>(applicationContext.getBeansOfType(EmbeddingService.class).values());
             return new ConfigurableModelProvider(llms, embeddingServices, properties);
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class OwnGatewayEndpoint {
+
+        static final String PROVIDER = "OurGateway";
+
+        @Bean
+        CredentialEndpointResolver ourGatewayEndpoint() {
+            return (credential, model) -> credential.getProvider().equalsIgnoreCase(PROVIDER)
+                    ? new CredentialEndpoint.OpenAiCompatible(PROVIDER, "https://gateway.example.com/v1")
+                    : null;
         }
     }
 }

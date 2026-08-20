@@ -41,7 +41,7 @@ class OpenAiCompatibleModelFactoryEndpointTest {
         fun `every provider this module supports has an endpoint`() {
             val expected = mapOf(
                 DeepSeekModels.PROVIDER to "https://api.deepseek.com",
-                MistralAiModels.PROVIDER to "https://api.mistral.ai",
+                MistralAiModels.PROVIDER to "https://api.mistral.ai/v1",
                 GoogleGenAiModels.PROVIDER to "https://generativelanguage.googleapis.com/v1beta/openai",
                 AtlasCloudModels.PROVIDER to "https://api.atlascloud.ai/v1",
             )
