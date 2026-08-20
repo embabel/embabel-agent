@@ -111,7 +111,7 @@ class MemorySizeTest {
             assertEquals("k", MemoryUnit.KILOBYTES.unit)
             assertEquals("m", MemoryUnit.MEGABYTES.unit)
             assertEquals("g", MemoryUnit.GIGABYTES.unit)
-            assertEquals("t", MemoryUnit.MEGABYTES.unit)
+            assertEquals("t", MemoryUnit.TERABYTES.unit)
         }
 
         @Test
