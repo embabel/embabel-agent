@@ -22,6 +22,7 @@ import com.embabel.common.ai.model.CredentialEndpoint
 import com.embabel.common.ai.model.CredentialEndpointResolver
 import com.embabel.common.ai.model.CredentialLlmServiceFactory
 import com.embabel.common.ai.model.ProviderCredential
+import com.embabel.common.util.loggerFor
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -61,6 +62,8 @@ import org.springframework.context.annotation.Configuration
 @Configuration(proxyBeanMethods = false)
 class CredentialEndpointConfig {
 
+    private val logger = loggerFor<CredentialEndpointConfig>()
+
     /**
      * Builds anything routed to Anthropic's protocol, whoever routed it there.
      *
@@ -73,16 +76,22 @@ class CredentialEndpointConfig {
     @ConditionalOnMissingBean(name = ["anthropicCredentialLlmServiceFactory"])
     fun anthropicCredentialLlmServiceFactory(
         resolvers: ObjectProvider<CredentialEndpointResolver>,
-    ) = CredentialLlmServiceFactory { credential, model ->
-        val endpoint = resolvedByApplication(resolvers, credential, model) ?: anthropicEndpointFor(credential)
-        (endpoint as? CredentialEndpoint.Anthropic)?.let {
-            AnthropicModelFactory(apiKey = credential.apiKey, baseUrl = it.baseUrl)
-                .build(
-                    model = model,
-                    provider = it.provider,
-                    pricingModel = it.pricingModel,
-                    knowledgeCutoffDate = it.knowledgeCutoffDate,
-                )
+    ): CredentialLlmServiceFactory {
+        logger.info(
+            "Per-user keys can build a service over Anthropic's protocol, for provider '{}' or any a CredentialEndpointResolver routes there",
+            AnthropicModels.PROVIDER,
+        )
+        return CredentialLlmServiceFactory { credential, model ->
+            val endpoint = resolvedByApplication(resolvers, credential, model) ?: anthropicEndpointFor(credential)
+            (endpoint as? CredentialEndpoint.Anthropic)?.let {
+                AnthropicModelFactory(apiKey = credential.apiKey, baseUrl = it.baseUrl)
+                    .build(
+                        model = model,
+                        provider = it.provider,
+                        pricingModel = it.pricingModel,
+                        knowledgeCutoffDate = it.knowledgeCutoffDate,
+                    )
+            }
         }
     }
 
@@ -98,16 +107,22 @@ class CredentialEndpointConfig {
     @ConditionalOnMissingBean(name = ["openAiCompatibleCredentialLlmServiceFactory"])
     fun openAiCompatibleCredentialLlmServiceFactory(
         resolvers: ObjectProvider<CredentialEndpointResolver>,
-    ) = CredentialLlmServiceFactory { credential, model ->
-        val endpoint = resolvedByApplication(resolvers, credential, model) ?: openAiCompatibleEndpointFor(credential)
-        (endpoint as? CredentialEndpoint.OpenAiCompatible)?.let {
-            OpenAiCompatibleModelFactory(baseUrl = it.baseUrl, apiKey = credential.apiKey)
-                .openAiCompatibleLlm(
-                    model = model,
-                    pricingModel = it.pricingModel,
-                    provider = it.provider,
-                    knowledgeCutoffDate = it.knowledgeCutoffDate,
-                )
+    ): CredentialLlmServiceFactory {
+        logger.info(
+            "Per-user keys can build a service over the OpenAI protocol, for any provider {} knows or a CredentialEndpointResolver routes there",
+            OpenAiCompatibleModelFactory::class.java.simpleName,
+        )
+        return CredentialLlmServiceFactory { credential, model ->
+            val endpoint = resolvedByApplication(resolvers, credential, model) ?: openAiCompatibleEndpointFor(credential)
+            (endpoint as? CredentialEndpoint.OpenAiCompatible)?.let {
+                OpenAiCompatibleModelFactory(baseUrl = it.baseUrl, apiKey = credential.apiKey)
+                    .openAiCompatibleLlm(
+                        model = model,
+                        pricingModel = it.pricingModel,
+                        provider = it.provider,
+                        knowledgeCutoffDate = it.knowledgeCutoffDate,
+                    )
+            }
         }
     }
 

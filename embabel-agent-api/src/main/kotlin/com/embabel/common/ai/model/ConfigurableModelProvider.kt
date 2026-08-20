@@ -532,8 +532,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 ?.also { credentialLlmServices[key] = it }
         if (llmService == null) {
             logger.warn(
-                "Nothing built a service for provider '{}', needed for role '{}'. Register a " +
-                    "CredentialEndpointResolver for it, and check that the module speaking its wire protocol is on the classpath",
+                """Nothing built a service for provider '{}', needed for role '{}'. Register a CredentialEndpointResolver for it, and check that the module speaking its wire protocol is on the classpath""",
                 credential.provider, role,
             )
             return null

@@ -26,9 +26,19 @@ import java.time.LocalDate
  * documentation asks application code not to depend on.
  *
  * The case is the wire protocol, because that is what decides which client can talk to the
- * endpoint. Everything that varies within a protocol is a field. A protocol this framework has no
- * client for is not a case here: register a [CredentialLlmServiceFactory] for that, accepting the
- * SPI dependency it carries.
+ * endpoint. Everything that varies within a protocol is a field.
+ *
+ * Adding a provider therefore does not mean adding a case, and cannot: the interface is sealed, so
+ * only this module can. Nearly every provider speaks one of the protocols below, and reaching it is
+ * a [CredentialEndpointResolver] returning [OpenAiCompatible] or [Anthropic] with your base URL -
+ * no framework change, no new type.
+ *
+ * A case earns its place only when a protocol needs a *client* this framework does not have, and
+ * whoever adds one has to add that client too. Sealed so that the two stay together: an open
+ * hierarchy would let an application define a case nothing here can build, and it would fail at
+ * runtime with a key already in hand. Until such a protocol is shipped, reach it by registering a
+ * [CredentialLlmServiceFactory] and building the service yourself, accepting the SPI dependency
+ * that carries.
  */
 sealed interface CredentialEndpoint {
 
