@@ -22,6 +22,7 @@ import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
 import com.embabel.common.byok.requireUsableApiKey
@@ -35,6 +36,7 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.retry.support.RetryTemplate
 import org.springframework.web.client.RestClient
 import java.time.Duration
+import java.time.LocalDate
 
 /**
  * Builds Anthropic [LlmService] instances from a raw API key.
@@ -114,12 +116,23 @@ open class AnthropicModelFactory(
      * is ignored — retries are handled at the ChatClientLlmOperations layer via spring-retry.
      *
      * @param model Model identifier, e.g. [AnthropicModels.CLAUDE_HAIKU_4_5].
+     * @param provider Provider name the built service reports. Defaults to [AnthropicModels.PROVIDER];
+     * override it when the endpoint is a gateway fronting Anthropic, so cost and metadata lookups
+     * key on the gateway rather than on Anthropic itself.
+     * @param pricingModel What the call costs the deployment. Null - the default - is unknown rather
+     * than free; a BYOK caller passes [com.embabel.common.ai.model.PricingModel.ALL_YOU_CAN_EAT],
+     * since the user's own key is billed.
+     * @param knowledgeCutoffDate Reaches the LLM as a prompt contribution, so state it only if you
+     * know it for this model.
      */
     @JvmOverloads
     fun build(
         model: String,
         @Suppress("UNUSED_PARAMETER")
         retryTemplate: RetryTemplate? = null,
+        provider: String = AnthropicModels.PROVIDER,
+        pricingModel: PricingModel? = null,
+        knowledgeCutoffDate: LocalDate? = null,
     ): LlmService<*> {
         val chatModel = AnthropicChatModel.builder()
             .options(AnthropicChatOptions.builder().model(model).build())
@@ -133,8 +146,10 @@ open class AnthropicModelFactory(
         return SpringAiLlmService(
             name = model,
             chatModel = chatModel,
-            provider = AnthropicModels.PROVIDER,
+            provider = provider,
             optionsConverter = AnthropicOptionsConverter,
+            knowledgeCutoffDate = knowledgeCutoffDate,
+            pricingModel = pricingModel,
             thinkingSupported = true,
         )
     }

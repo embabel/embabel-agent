@@ -29,13 +29,17 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ByRoleModelSelectionCriteria
 import com.embabel.common.ai.model.ConfigurableModelProvider
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
+import com.embabel.common.ai.model.CredentialEndpoint
+import com.embabel.common.ai.model.CredentialEndpointResolver
 import com.embabel.common.ai.model.CredentialLlmServiceFactory
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
 import com.embabel.common.ai.model.ModelSelectionContext
 import com.embabel.common.ai.model.ModelSelectionContextHolder
+import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.ai.model.ProviderCredential
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.FilteredClassLoader
@@ -43,7 +47,15 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.Ordered
+import org.springframework.core.annotation.Order
+import com.embabel.chat.UserMessage
+import com.sun.net.httpserver.HttpServer
+import java.net.InetSocketAddress
+import java.time.LocalDate
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Per-user keys do not work out of the box unless something ships a [CredentialLlmServiceFactory]:
@@ -56,7 +68,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * validating it - validation is a separate `buildValidated` call neither bean makes - so the keys
  * below are arbitrary strings and the suite runs the same on a build agent as locally.
  */
-class CredentialLlmServiceFactoryConfigTest {
+class CredentialEndpointConfigTest {
 
     private companion object {
 
@@ -81,6 +93,17 @@ class CredentialLlmServiceFactoryConfigTest {
 
         /** A provider no shipped factory handles: real, but not part of the BYOK surface. */
         const val UNHANDLED_PROVIDER = "Cohere"
+
+        /** A provider this framework does not ship, reached through an application's own gateway. */
+        const val GATEWAY_PROVIDER = "OurGateway"
+
+        const val GATEWAY_URL = "https://gateway.example.com/v1"
+
+        /** A gateway speaking Anthropic's protocol, so the other half of the routing is exercised. */
+        const val ANTHROPIC_GATEWAY_PROVIDER = "OurAnthropicGateway"
+
+        /** What a service built through the proxy below reports, so precedence is visible. */
+        const val PROXIED_OPENAI_PROVIDER = "openai-via-our-proxy"
     }
 
     private val contextRunner = ApplicationContextRunner()
@@ -107,6 +130,14 @@ class CredentialLlmServiceFactoryConfigTest {
     ): LlmService<*>? = factories.firstNotNullOfOrNull {
         it.createLlmService(ProviderCredential(provider, TEST_API_KEY), model)
     }
+
+    /** As above, for a test that needs the gateway to be a socket it controls. */
+    private fun build(
+        factories: List<CredentialLlmServiceFactory>,
+        provider: String,
+        model: String,
+        gatewayUrl: String,
+    ): LlmService<*>? = OwnGatewayEndpoint.gatewayUrl.set(gatewayUrl).let { build(factories, provider, model) }
 
     @Test
     fun `a factory per provider module with nothing but the starter on the classpath`() {
@@ -371,6 +402,187 @@ class CredentialLlmServiceFactoryConfigTest {
                 provider = OpenAiModels.PROVIDER,
                 chatModel = SetupRequiredChatModel(),
             )
+        }
+    }
+
+    /**
+     * The tier an application is meant to reach for: state where a key goes, and let the platform
+     * build the client. Nothing here names a type under `com.embabel.agent.spi`, which is the whole
+     * point - the documentation asks application code not to depend on that package, and the only
+     * other extension point does.
+     */
+    @Nested
+    inner class Endpoints {
+
+        @Test
+        fun `an application adds a provider the framework does not ship`() {
+            contextRunner.withUserConfiguration(OwnGatewayEndpoint::class.java).run { context ->
+                val service = build(factoriesIn(context), GATEWAY_PROVIDER, "some-model")
+
+                assertThat(service?.provider).isEqualTo(GATEWAY_PROVIDER)
+                assertThat(service?.name).isEqualTo("some-model")
+            }
+        }
+
+        @Test
+        fun `an application resolver takes precedence over the shipped endpoint for the same provider`() {
+            /*
+             * Overriding a shipped provider - for a proxy, or a custom base URL - is answering for
+             * it, with no bean name to match and no `@Order` to get right. The resolver below is
+             * deliberately at LOWEST_PRECEDENCE, the worst case: had the shipped endpoints been
+             * resolver beans they would have tied with it, and the winner would have come down to
+             * bean registration order.
+             */
+            contextRunner.withUserConfiguration(OwnOpenAiEndpoint::class.java).run { context ->
+                val service = build(factoriesIn(context), OpenAiModels.PROVIDER, OpenAiModels.GPT_41_MINI)
+
+                assertThat(service?.provider).isEqualTo(PROXIED_OPENAI_PROVIDER)
+            }
+        }
+
+        @Test
+        fun `nothing shipped competes as a resolver bean`() {
+            // The other half of the test above, and the reason it holds whatever an application does:
+            // what this module knows about a provider is a fallback, not a bean in the same stream.
+            contextRunner.run { context ->
+                assertThat(context.getBeansOfType(CredentialEndpointResolver::class.java)).isEmpty()
+            }
+            contextRunner.withUserConfiguration(OwnGatewayEndpoint::class.java).run { context ->
+                assertThat(context.getBeansOfType(CredentialEndpointResolver::class.java)).hasSize(1)
+            }
+        }
+
+        @Test
+        fun `the key goes to the base URL the resolver named`() {
+            /*
+             * The one property a gateway deployment actually depends on, and the one no assertion
+             * on the built service can see: provider and model come from elsewhere, so dropping
+             * `baseUrl` on the way to the client would leave every other test here green and send
+             * every user's key to OpenAI. Asserted against a real socket for that reason.
+             */
+            val server = HttpServer.create(InetSocketAddress(0), 0)
+            val hit = CompletableFuture<String>()
+            try {
+                server.createContext("/") { exchange ->
+                    hit.complete(exchange.requestURI.path)
+                    exchange.requestBody.use { it.readBytes() }
+                    val body = "{}".toByteArray()
+                    exchange.responseHeaders.set("Content-Type", "application/json")
+                    exchange.sendResponseHeaders(200, body.size.toLong())
+                    exchange.responseBody.use { it.write(body) }
+                }
+                server.start()
+                val gateway = "http://localhost:${server.address.port}"
+
+                contextRunner.withUserConfiguration(OwnGatewayEndpoint::class.java).run { context ->
+                    val service = build(factoriesIn(context), GATEWAY_PROVIDER, "some-model", gateway)
+                    // The response above is not a chat completion, so the call fails - after the
+                    // request has arrived, which is the whole question.
+                    runCatching {
+                        service?.createMessageSender(LlmOptions())?.call(listOf(UserMessage("Hi")), emptyList())
+                    }
+
+                    assertThat(hit.getNow(null)).describedAs("request never reached the gateway").isNotNull()
+                }
+            } finally {
+                server.stop(0)
+            }
+        }
+
+        @Test
+        fun `an application endpoint on Anthropic's protocol carries its own metadata`() {
+            // The Anthropic half of the resolver path: everything the endpoint states has to reach
+            // the built service, or a gateway fronting Anthropic reports itself as Anthropic.
+            contextRunner.withUserConfiguration(OwnAnthropicEndpoint::class.java).run { context ->
+                val service = build(factoriesIn(context), ANTHROPIC_GATEWAY_PROVIDER, "some-model")
+
+                assertThat(service?.provider).isEqualTo(ANTHROPIC_GATEWAY_PROVIDER)
+                assertThat(service?.pricingModel).isEqualTo(PricingModel.ALL_YOU_CAN_EAT)
+                assertThat(service?.knowledgeCutoffDate).isEqualTo(LocalDate.of(2026, 1, 31))
+            }
+        }
+
+        @Test
+        fun `each factory builds only the protocol it speaks`() {
+            /*
+             * The routing this split turns on. A resolver names a wire protocol, and the factory for
+             * the other protocol must decline rather than point a client at an endpoint it cannot
+             * talk to - which, taking the first non-null answer, would otherwise depend on bean order.
+             */
+            contextRunner.withUserConfiguration(OwnGatewayEndpoint::class.java).run { context ->
+                val beans = context.getBeansOfType(CredentialLlmServiceFactory::class.java)
+                val gatewayKey = ProviderCredential(GATEWAY_PROVIDER, TEST_API_KEY)
+
+                assertThat(beans.getValue(ANTHROPIC_FACTORY_BEAN).createLlmService(gatewayKey, "some-model")).isNull()
+                assertThat(beans.getValue(OPENAI_COMPATIBLE_FACTORY_BEAN).createLlmService(gatewayKey, "some-model"))
+                    .isNotNull()
+            }
+        }
+
+        @Test
+        fun `a BYOK call is not charged to the deployment`() {
+            // The user's own key is billed, so counting the call against the deployment's cost
+            // accounting would be wrong in the one direction that matters.
+            contextRunner.run { context ->
+                val factories = factoriesIn(context)
+
+                assertThat(build(factories, OpenAiModels.PROVIDER, OpenAiModels.GPT_41_MINI)?.pricingModel)
+                    .isEqualTo(PricingModel.ALL_YOU_CAN_EAT)
+                assertThat(build(factories, AnthropicModels.PROVIDER, AnthropicModels.CLAUDE_HAIKU_4_5)?.pricingModel)
+                    .isEqualTo(PricingModel.ALL_YOU_CAN_EAT)
+            }
+        }
+
+        @Test
+        fun `a resolver declining every provider leaves the shipped ones answering`() {
+            contextRunner.withUserConfiguration(OwnGatewayEndpoint::class.java).run { context ->
+                val service = build(factoriesIn(context), AnthropicModels.PROVIDER, AnthropicModels.CLAUDE_HAIKU_4_5)
+
+                assertThat(service?.provider).isEqualTo(AnthropicModels.PROVIDER)
+            }
+        }
+    }
+
+    /** An application bringing a provider of its own: one value, no SPI import. */
+    @Configuration(proxyBeanMethods = false)
+    class OwnGatewayEndpoint {
+
+        companion object {
+            /** Overridden by the test that needs the gateway to be a socket it can watch. */
+            val gatewayUrl = AtomicReference(GATEWAY_URL)
+        }
+
+        @Bean
+        fun ourGatewayEndpoint() = CredentialEndpointResolver { credential, _ ->
+            if (!credential.provider.equals(GATEWAY_PROVIDER, ignoreCase = true)) null
+            else CredentialEndpoint.OpenAiCompatible(provider = GATEWAY_PROVIDER, baseUrl = gatewayUrl.get())
+        }
+    }
+
+    /** The same for a gateway speaking Anthropic's protocol rather than OpenAI's. */
+    @Configuration(proxyBeanMethods = false)
+    class OwnAnthropicEndpoint {
+
+        @Bean
+        fun ourAnthropicGatewayEndpoint() = CredentialEndpointResolver { credential, _ ->
+            if (!credential.provider.equals(ANTHROPIC_GATEWAY_PROVIDER, ignoreCase = true)) null
+            else CredentialEndpoint.Anthropic(
+                provider = ANTHROPIC_GATEWAY_PROVIDER,
+                baseUrl = GATEWAY_URL,
+                knowledgeCutoffDate = LocalDate.of(2026, 1, 31),
+            )
+        }
+    }
+
+    /** An application routing a provider the framework already ships through its own proxy. */
+    @Configuration(proxyBeanMethods = false)
+    class OwnOpenAiEndpoint {
+
+        @Bean
+        @Order(Ordered.LOWEST_PRECEDENCE)
+        fun proxiedOpenAiEndpoint() = CredentialEndpointResolver { credential, _ ->
+            if (!credential.provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) null
+            else CredentialEndpoint.OpenAiCompatible(provider = PROXIED_OPENAI_PROVIDER, baseUrl = GATEWAY_URL)
         }
     }
 }

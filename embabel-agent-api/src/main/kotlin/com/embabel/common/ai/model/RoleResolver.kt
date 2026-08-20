@@ -41,7 +41,7 @@ sealed interface RoleResolution {
 
     /**
      * A provider key. The platform looks the role up for that provider and builds the service
-     * through a [CredentialLlmServiceFactory], caching it.
+     * through a [CredentialEndpointResolver], caching it.
      */
     data class Credential(
         val credential: ProviderCredential,
@@ -85,31 +85,23 @@ fun interface RoleResolver {
 }
 
 /**
- * Builds an [LlmService] from a user-supplied key.
+ * Builds an [LlmService] from a user-supplied key, for a wire protocol the framework has no client
+ * for.
  *
- * `embabel-agent-starter-byok` ships these for every provider BYOK supports - Anthropic, OpenAI,
- * DeepSeek, Mistral, Gemini and Atlas Cloud - so per-user keys work with no application code at
- * all; see `com.embabel.agent.config.models.byok.CredentialLlmServiceFactoryConfig`. Register one
- * of your own only for a provider outside that set, or to override a shipped one for a custom base
- * URL or a proxy: the shipped beans stand aside for a bean of the same name.
+ * The second of two tiers, and the one to reach for last: it names [LlmService], which lives in
+ * `com.embabel.agent.spi` - a package application code is asked not to depend on. Adding a provider
+ * that speaks the OpenAI or Anthropic protocol - which is nearly all of them - is a
+ * [CredentialEndpointResolver] returning a value instead, with no SPI type in sight.
+ *
+ * `embabel-agent-starter-byok` ships an implementation per wire protocol, covering every provider
+ * BYOK supports - Anthropic, OpenAI, DeepSeek, Mistral, Gemini and Atlas Cloud - so per-user keys
+ * work with no application code at all; see
+ * `com.embabel.agent.config.models.byok.CredentialEndpointConfig`. The shipped beans stand aside
+ * for a bean of the same name, but replacing one that way also replaces the code that builds what
+ * [CredentialEndpointResolver]s resolve for that protocol.
  *
  * Without a factory that handles the provider, a role resolving to [RoleResolution.Credential]
- * fails with [NoSuitableModelException] and a log line naming the provider nothing handled. An
- * implementation is a one-liner over the provider's own BYOK factory:
- *
- * ```kotlin
- * @Bean
- * fun ourGatewayCredentialFactory() = CredentialLlmServiceFactory { credential, model ->
- *     if (!credential.provider.equals("OurGateway", ignoreCase = true)) null
- *     else OpenAiCompatibleModelFactory(baseUrl = GATEWAY_URL, apiKey = credential.apiKey)
- *         .openAiCompatibleLlm(
- *             model = model,
- *             pricingModel = PricingModel.ALL_YOU_CAN_EAT,
- *             provider = "OurGateway",
- *             knowledgeCutoffDate = null,
- *         )
- * }
- * ```
+ * fails with [NoSuitableModelException] and a log line naming the provider nothing handled.
  *
  * Return null for a provider this factory does not handle, rather than building something: the
  * platform tries each factory in turn, and a factory that answers for everything would hand back a
