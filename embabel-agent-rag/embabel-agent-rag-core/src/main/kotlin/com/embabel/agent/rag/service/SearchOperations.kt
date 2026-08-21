@@ -145,14 +145,14 @@ enum class TextQueryMode {
      * owns precision, and owns escaping: an unbalanced `/` or a bare `:` is a parse failure, not a
      * search for those characters.
      */
-    EXPRESSION,
+    LUCENE_EXPRESSION,
 }
 
 /**
  * Full-text search.
  *
  * How the `query` string is interpreted depends on [queryMode] — see [TextQueryMode]. Every
- * implementation historically behaved as [TextQueryMode.EXPRESSION], which remains the default.
+ * implementation historically behaved as [TextQueryMode.LUCENE_EXPRESSION], which remains the default.
  */
 interface TextSearch : TypeRetrievalOperations {
 
@@ -161,11 +161,11 @@ interface TextSearch : TypeRetrievalOperations {
      *
      * A capability, not a preference. An implementation backed by substring matching cannot honour
      * an expression however it is configured, and one backed by an engine whose syntax differs from
-     * Lucene's should not claim [TextQueryMode.EXPRESSION] merely because it has a parser.
+     * Lucene's should not claim [TextQueryMode.LUCENE_EXPRESSION] merely because it has a parser.
      * Deployments choose among these; they cannot choose outside them.
      */
     val supportedQueryModes: Set<TextQueryMode>
-        get() = setOf(TextQueryMode.EXPRESSION)
+        get() = setOf(TextQueryMode.LUCENE_EXPRESSION)
 
     /**
      * The mode currently in effect. Must be a member of [supportedQueryModes].
@@ -180,13 +180,13 @@ interface TextSearch : TypeRetrievalOperations {
     /**
      * Performs full-text search.
      *
-     * The syntax below applies when [queryMode] is [TextQueryMode.EXPRESSION]. Under
+     * The syntax below applies when [queryMode] is [TextQueryMode.LUCENE_EXPRESSION]. Under
      * [TextQueryMode.LITERAL] the query is escaped and matched as text, so none of these operators
      * has any effect.
      *
      * Not all implementations will support all capabilities (such as fuzzy matching).
      * However, the use of quotes for phrases and + / - for required / excluded terms should be
-     * widely supported among implementations that declare [TextQueryMode.EXPRESSION].
+     * widely supported among implementations that declare [TextQueryMode.LUCENE_EXPRESSION].
      *
      * The "query" field of request supports the following syntax:
      *
