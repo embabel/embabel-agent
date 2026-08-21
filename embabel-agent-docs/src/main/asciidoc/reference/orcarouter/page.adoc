@@ -1,0 +1,179 @@
+[[reference.orcarouter]]
+=== OrcaRouter Integration
+
+https://www.orcarouter.ai[OrcaRouter] is a model gateway that routes to models from multiple vendors through one OpenAI-compatible API.
+Embabel integrates OrcaRouter as a first-class provider using the same `OpenAiCompatibleModelFactory` pattern as other OpenAI-compatible providers (MiniMax, Atlas Cloud).
+
+It also runs gateway-level, zero-trust security for AI agents on the same endpoint — screening every prompt/response and governing every tool call on a default-deny basis, with no application code changes.
+
+==== Add the Dependency
+
+[tabs]
+====
+Maven::
++
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-orcarouter</artifactId>
+</dependency>
+----
+
+Gradle (Kotlin)::
++
+[source,kotlin]
+----
+implementation("com.embabel.agent:embabel-agent-starter-orcarouter")
+----
+
+Gradle (Groovy)::
++
+[source,groovy]
+----
+implementation 'com.embabel.agent:embabel-agent-starter-orcarouter'
+----
+====
+
+==== API Key Configuration
+
+Set your OrcaRouter API key via environment variable (recommended) or Spring property:
+
+[source,bash]
+----
+export ORCAROUTER_API_KEY=your-api-key
+----
+
+Or in `application.yml`:
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        orcarouter:
+          api-key: your-api-key
+----
+
+TIP: The environment variable `ORCAROUTER_API_KEY` takes precedence over the property value.
+Use the property for local development and the environment variable in production deployments.
+
+==== Available Models
+
+[cols="2,3,1,1",options="header"]
+|===
+|Model Name |Model ID |Context Window |Route
+
+|`OrcaRouter Auto`
+|`orcarouter/auto`
+|Smart
+|Automatic per-request model selection
+
+|`OrcaRouter Fusion`
+|`orcarouter/fusion`
+|1M tokens
+|Flagship long-context
+
+|`OrcaRouter Fusion Flash`
+|`orcarouter/fusion-flash`
+|200K tokens
+|Fast, cost-effective
+
+|`OrcaRouter Fusion Mini`
+|`orcarouter/fusion-mini`
+|1M tokens
+|Cheapest tier
+
+|===
+
+`orcarouter/auto` is the smart-routing default: the gateway picks the best available model for each request.
+`orcarouter/fusion` is the flagship long-context model, `orcarouter/fusion-flash` trades some quality for lower latency and cost, and `orcarouter/fusion-mini` is the cheapest tier for high-volume extraction and classification steps.
+
+==== Using OrcaRouter Models
+
+Reference models by name in `@LlmCall` or programmatically via `ai.withLlm()`:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+// Declarative
+@LlmCall(llm = "orcarouter/auto")
+fun summarize(article: Article): Summary
+
+// Programmatic
+ai.withLlm("orcarouter/fusion-flash")
+    .create<Classification>("Classify this input")
+----
+
+Java::
++
+[source,java]
+----
+// Declarative
+@LlmCall(llm = "orcarouter/auto")
+Summary summarize(Article article);
+
+// Programmatic
+ai.withLlm("orcarouter/fusion-flash")
+    .create("Classify this input", Classification.class);
+----
+====
+
+Or map OrcaRouter models to roles in your configuration:
+
+[source,yaml]
+----
+embabel:
+  models:
+    llms:
+      cheapest: orcarouter/fusion-mini
+      best: orcarouter/fusion
+----
+
+Then reference by role with the `#` prefix:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+@LlmCall(llm = "#cheapest")
+fun extractEntities(text: String): EntityList
+----
+
+Java::
++
+[source,java]
+----
+@LlmCall(llm = "#cheapest")
+EntityList extractEntities(String text);
+----
+====
+
+==== Configuration Reference
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        orcarouter:
+          api-key: your-api-key                   # Alternative to ORCAROUTER_API_KEY env var
+          base-url: https://api.orcarouter.ai/v1  # Default
+          max-attempts: 4                          # Retry attempts (default: 4)
+          backoff-millis: 1500                     # Initial backoff ms (default: 1500)
+          backoff-multiplier: 2.0                  # Backoff multiplier (default: 2.0)
+          backoff-max-interval: 60000              # Max backoff ms (default: 60000)
+----
+
+==== See Also
+
+* <<reference.llms,Working with LLMs>>
+* <<reference.configuration,Configuration Reference>>
+* https://www.orcarouter.ai[OrcaRouter]

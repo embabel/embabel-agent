@@ -618,6 +618,7 @@ Optional:
 - `ANTHROPIC_API_KEY`: For the Anthropic API. Necessary for the coding agent.
 - `MINIMAX_API_KEY`: For the [MiniMax](https://www.minimax.io) API. Supports MiniMax-M3, MiniMax-M2.7 and MiniMax-M2.7-highspeed models.
 - `ZAI_API_KEY`: For the [Z.ai](https://z.ai) (Zhipu AI) API. Supports GLM-5.2, GLM-4.7, GLM-4.6, GLM-4.5-Air and GLM-4.7-Flash models.
+- `ORCAROUTER_API_KEY`: For the [OrcaRouter](https://www.orcarouter.ai) API. Supports orcarouter/auto, orcarouter/fusion, orcarouter/fusion-flash and orcarouter/fusion-mini models.
 - OCI Generative AI uses OCI SDK authentication providers. Add `embabel-agent-starter-oci-genai` and set
   `embabel.agent.platform.models.ocigenai.compartment-id`; OCI config file, instance principal, resource principal,
   workload identity, session token and simple key authentication are supported.
@@ -988,6 +989,7 @@ need to configure the integrations you want to exercise:
 - `GOOGLE_GENAI_API_KEY`
 - `DASHSCOPE_API_KEY`
 - `ZAI_API_KEY`
+- `ORCAROUTER_API_KEY`
 - `OLLAMA_BASE_URL` for tests using a local Ollama service
 - `EMBABEL_RUN_ONNX_INTEGRATION_TESTS` to opt into the slow Hugging Face model download
 - `GOOGLE_PROJECT_ID` plus `EMBABEL_RUN_VERTEX_INTEGRATION_TESTS` to opt into the Vertex AI tests, which
