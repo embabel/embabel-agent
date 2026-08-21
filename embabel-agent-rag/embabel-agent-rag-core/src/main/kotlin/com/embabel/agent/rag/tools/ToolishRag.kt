@@ -154,12 +154,7 @@ data class ToolishRag @JvmOverloads constructor(
             }
             if (searchOperations is VectorSearch) {
                 logger.debug("Adding VectorSearchTools to ToolishRag '{}'", name)
-                add(
-                    VectorSearchTools(
-                        searchOperations, vectorSearchFor, metadataFilter, entityFilter, listener, searchDefaults,
-                        searchOperations as? ResultExpander,
-                    )
-                )
+                add(vectorSearchTools(searchOperations))
             } else {
                 if (hints.any { it is TryHyDE }) {
                     logger.warn(
@@ -196,6 +191,16 @@ data class ToolishRag @JvmOverloads constructor(
 
     private val toolObjects: List<Any> get() = initState.toolObjects
     private val validHints: List<PromptContributor> get() = initState.validHints
+
+    private fun vectorSearchTools(vectorSearch: VectorSearch) = VectorSearchTools(
+        vectorSearch,
+        vectorSearchFor,
+        metadataFilter,
+        entityFilter,
+        listener,
+        searchDefaults,
+        searchOperations as? ResultExpander,
+    )
 
     /**
      * Set the types to search for with vector and text search
@@ -276,11 +281,8 @@ data class ToolishRag @JvmOverloads constructor(
             ?: throw UnsupportedOperationException(
                 "Eager search requires VectorSearch but searchOperations is ${searchOperations::class.simpleName}"
             )
-        val results = vectorSearchFor.flatMap { clazz ->
-            vs.vectorSearch(request, clazz)
-        }
-        val deduplicated = deduplicateByIdKeepingHighestScore(results)
-        val formatted = formatter.formatResults(SimilarityResults.fromList(deduplicated))
+        val results = vectorSearchTools(vs).search(request)
+        val formatted = formatter.formatResults(SimilarityResults.fromList(results))
         return copy(
             hints = hints + PromptContributor.fixed("Preloaded search results for '${request.query}':\n$formatted"),
         )

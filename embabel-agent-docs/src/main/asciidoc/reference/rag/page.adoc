@@ -561,7 +561,7 @@ context.ai()
 ----
 ====
 
-The preloaded results are included in the prompt as hints. The LLM still has access to all the usual search tools and can perform additional searches as needed.
+The preloaded results are included in the prompt as hints. Any metadata and entity filters configured on the `ToolishRag` are applied to eager search as well as subsequent tool searches. The LLM still has access to all the usual search tools and can perform additional searches as needed.
 
 For more control over the search parameters, pass a `TextSimilaritySearchRequest` directly:
 
@@ -1632,4 +1632,3 @@ See the https://github.com/embabel/rag-demo[rag-demo] project for a complete wor
 - Chatbot with RAG-powered responses
 - Jinja prompt templates for system prompts
 - Spring Shell commands for interactive testing
-
