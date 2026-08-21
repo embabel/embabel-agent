@@ -38,16 +38,16 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.SpringApplication
 import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.core.env.ConfigurableEnvironment
-import org.springframework.shell.standard.ShellComponent
-import org.springframework.shell.standard.ShellMethod
-import org.springframework.shell.standard.ShellOption
+import org.springframework.shell.core.command.annotation.Command
+import org.springframework.shell.core.command.annotation.Option
+import org.springframework.stereotype.Component
 import kotlin.system.exitProcess
 
 
 /**
  * Main shell entry point
  */
-@ShellComponent
+@Component
 class ShellCommands(
     private val autonomy: Autonomy,
     private val asyncer: Asyncer,
@@ -93,20 +93,21 @@ class ShellCommands(
         )
     )
 
-    @ShellMethod(value = "Clear blackboard")
+    @Command(description = "Clear blackboard")
     fun clear(): String {
         blackboard = null
         return "Blackboard cleared"
     }
 
-    @ShellMethod(
-        value = "Set persistent tool call context as key=value pairs, passed to all tools during execution. " +
+    @Command(
+        description = "Set persistent tool call context as key=value pairs, passed to all tools during execution. " +
                 "Example: set-context tenantId=acme,apiKey=secret123",
-        key = ["set-context", "sc"],
+        name = ["set-context"],
+        alias = ["sc"],
     )
     fun setContext(
-        @ShellOption(
-            help = "Comma-separated key=value pairs (e.g. tenantId=acme,apiKey=secret). Use 'clear' to reset.",
+        @Option(
+            description = "Comma-separated key=value pairs (e.g. tenantId=acme,apiKey=secret). Use 'clear' to reset.",
             defaultValue = "",
         ) context: String,
     ): String {
@@ -118,9 +119,9 @@ class ShellCommands(
         return "Tool call context set: ${persistentToolCallContext.toMap()}".color(colorPalette.color2)
     }
 
-    @ShellMethod(
-        value = "Show current tool call context",
-        key = ["show-context"],
+    @Command(
+        description = "Show current tool call context",
+        name = ["show-context"],
     )
     fun showContext(): String {
         val ctx = persistentToolCallContext.toMap()
@@ -131,7 +132,7 @@ class ShellCommands(
         }.color(colorPalette.color2)
     }
 
-    @ShellMethod(value = "Show recent agent process runs. This is what actually happened, not just what was planned.")
+    @Command(description = "Show recent agent process runs. This is what actually happened, not just what was planned.")
     fun runs(): String {
         val plans = agentProcesses.map {
             "[${it.id}] Goal: ${it.agent.goals.map { g -> g.name }}; usage - ${it.costInfoString(verbose = false)}\n\t\t" +
@@ -140,7 +141,7 @@ class ShellCommands(
         return "Recent runs:\n\t${plans.joinToString("\n\t")}"
     }
 
-    @ShellMethod(value = "List all active Spring profiles")
+    @Command(description = "List all active Spring profiles")
     fun profiles(): String {
         val profiles = environment.activeProfiles
         return "Active profiles: ${profiles.joinToString()}"
@@ -161,7 +162,7 @@ class ShellCommands(
             })
     }
 
-    @ShellMethod("Chat")
+    @Command("Chat")
     fun chat(): String {
 
         fun runChat(): String {
@@ -187,7 +188,7 @@ class ShellCommands(
         }
     }
 
-    @ShellMethod("List agents")
+    @Command("List agents")
     fun agents(): String {
         val detail = "${"Agents:".bold()}\n${
             agentPlatform.agents()
@@ -198,7 +199,7 @@ class ShellCommands(
         return detail + "\n\nTL;DR\n${agentPlatform.agents().joinToString("\n") { "${it.name}: ${it.description}" }}"
     }
 
-    @ShellMethod("List actions")
+    @Command("List actions")
     fun actions(): String {
         val detail = "${"Actions:".bold()}\n${
             agentPlatform.actions
@@ -207,7 +208,7 @@ class ShellCommands(
         return detail + "\n\nTL;DR\n${agentPlatform.actions.joinToString("\n") { "${it.name}: ${it.description}" }}"
     }
 
-    @ShellMethod("List conditions")
+    @Command("List conditions")
     fun conditions(): String {
         return "${"Conditions:".bold()}\n${
             agentPlatform.conditions
@@ -215,7 +216,7 @@ class ShellCommands(
         }"
     }
 
-    @ShellMethod("List goals")
+    @Command("List goals")
     fun goals(): String {
         return "${"Goals:".bold()}\n${
             agentPlatform.goals
@@ -223,9 +224,9 @@ class ShellCommands(
         }"
     }
 
-    @ShellMethod("Try to choose a goal for a given intent. Show all goal rankings")
+    @Command("Try to choose a goal for a given intent. Show all goal rankings")
     fun chooseGoal(
-        @ShellOption(help = "what the agent system should do") intent: String,
+        @Option(description = "what the agent system should do") intent: String,
     ): String {
         try {
             val goalSeeker = autonomy.createGoalSeeker(
@@ -245,13 +246,14 @@ class ShellCommands(
         }
     }
 
-    @ShellMethod("Information about the AgentPlatform")
+    @Command("Information about the AgentPlatform")
     fun platform(): String = "AgentPlatform: ${agentPlatform.name}"
 
 
-    @ShellMethod(
+    @Command(
         "Show last blackboard: The final state of a previous operation",
-        key = ["blackboard", "bb"],
+        name = ["blackboard"],
+        alias = ["bb"],
     )
     fun blackboard(): String {
         return if (blackboard == null) {
@@ -259,7 +261,7 @@ class ShellCommands(
         } else blackboard!!.infoString(verbose = true)
     }
 
-    @ShellMethod("List available tool groups")
+    @Command("List available tool groups")
     fun tools(): String {
         val tgr = agentPlatform.toolGroupResolver
         return String.format(
@@ -275,16 +277,16 @@ class ShellCommands(
         )
     }
 
-    @ShellMethod("Show tool stats")
+    @Command("Show tool stats")
     fun toolStats(): String {
         return toolsStats.infoString(verbose = true)
     }
 
-    @ShellMethod("List available models")
+    @Command("List available models")
     fun models(): String =
         modelProvider.infoString(true)
 
-    @ShellMethod("Show options")
+    @Command("Show options")
     fun showOptions(): String {
         // Don't show the blackboard as it's long
         return embabelObjectMapperHolder.get().writerWithDefaultPrettyPrinter().writeValueAsString(
@@ -298,24 +300,26 @@ class ShellCommands(
             .color(colorPalette.color2)
     }
 
-    @ShellMethod(
+    @Command(
         "Set options",
     )
     fun setOptions(
-        @ShellOption(
-            value = ["-o", "--open"],
-            help = "run in open mode, choosing a goal and using all actions that can help achieve it",
+        @Option(
+            shortName = 'o',
+            longName = "open",
+            description = "run in open mode, choosing a goal and using all actions that can help achieve it",
         ) open: Boolean = false,
-        @ShellOption(value = ["-t", "--test"], help = "run in help mode") test: Boolean = false,
-        @ShellOption(value = ["-p", "--showPrompts"], help = "show prompts to LLMs") showPrompts: Boolean,
-        @ShellOption(value = ["-r", "--showResponses"], help = "show LLM responses") showLlmResponses: Boolean = false,
-        @ShellOption(value = ["-d", "--debug"], help = "show debug info") debug: Boolean = false,
-        @ShellOption(value = ["-s", "--state"], help = "Use existing blackboard") state: Boolean = false,
-        @ShellOption(value = ["-td", "--toolDelay"], help = "Tool delay") toolDelay: Boolean = false,
-        @ShellOption(value = ["-od", "--operationDelay"], help = "Operation delay") operationDelay: Boolean = false,
-        @ShellOption(
-            value = ["-s", "--showPlanning"],
-            help = "show detailed planning info",
+        @Option(shortName = 't', longName = "test", description = "run in help mode") test: Boolean = false,
+        @Option(shortName = 'p', longName = "showPrompts", description = "show prompts to LLMs") showPrompts: Boolean,
+        @Option(shortName = 'r', longName = "showResponses", description = "show LLM responses") showLlmResponses: Boolean = false,
+        @Option(shortName = 'd', longName = "debug", description = "show debug info") debug: Boolean = false,
+        @Option(shortName = 's', longName = "state", description = "Use existing blackboard") state: Boolean = false,
+        @Option(longName = "toolDelay", description = "Tool delay") toolDelay: Boolean = false,
+        @Option(longName = "operationDelay", description = "Operation delay") operationDelay: Boolean = false,
+        @Option(
+            shortName = 'P',
+            longName = "showPlanning",
+            description = "show detailed planning info",
             defaultValue = "true",
         ) showPlanning: Boolean = true,
     ): String {
@@ -338,32 +342,35 @@ class ShellCommands(
         return "Options updated:\nOpen mode:$openMode\n${showOptions()}".color(colorPalette.color2)
     }
 
-    @ShellMethod(
+    @Command(
         "Execute a task. Put the task in double quotes. For example:\n\tx \"Lynda is a scorpio. Find news for her\" -p",
-        key = ["execute", "x"],
+        name = ["execute"],
+        alias = ["x"],
     )
     fun execute(
-        @ShellOption(help = "what the agent system should do") intent: String,
-        @ShellOption(
-            value = ["-o", "--open"],
-            help = "run in open mode, choosing a goal and using all actions that can help achieve it",
+        @Option(description = "what the agent system should do") intent: String,
+        @Option(
+            shortName = 'o',
+            longName = "open",
+            description = "run in open mode, choosing a goal and using all actions that can help achieve it",
         ) open: Boolean = false,
-        @ShellOption(value = ["-p", "--showPrompts"], help = "show prompts to LLMs") showPrompts: Boolean,
-        @ShellOption(value = ["-r", "--showResponses"], help = "show LLM responses") showLlmResponses: Boolean = false,
-        @ShellOption(value = ["-d", "--debug"], help = "show debug info") debug: Boolean = false,
-        @ShellOption(value = ["-s", "--state"], help = "Use existing blackboard") state: Boolean = false,
-        @ShellOption(value = ["-td", "--toolDelay"], help = "Tool delay") toolDelay: Boolean = false,
-        @ShellOption(value = ["-od", "--operationDelay"], help = "Operation delay") operationDelay: Boolean = false,
-        @ShellOption(
-            value = ["-P", "--showPlanning"],
-            help = "show detailed planning info",
+        @Option(shortName = 'p', longName = "showPrompts", description = "show prompts to LLMs") showPrompts: Boolean,
+        @Option(shortName = 'r', longName = "showResponses", description = "show LLM responses") showLlmResponses: Boolean = false,
+        @Option(shortName = 'd', longName = "debug", description = "show debug info") debug: Boolean = false,
+        @Option(shortName = 's', longName = "state", description = "Use existing blackboard") state: Boolean = false,
+        @Option(longName = "toolDelay", description = "Tool delay") toolDelay: Boolean = false,
+        @Option(longName = "operationDelay", description = "Operation delay") operationDelay: Boolean = false,
+        @Option(
+            shortName = 'P',
+            longName = "showPlanning",
+            description = "show detailed planning info",
             defaultValue = "true",
         ) showPlanning: Boolean = true,
-        @ShellOption(
-            value = ["-c", "--context"],
-            help = "Tool call context as comma-separated key=value pairs (e.g. tenantId=acme,apiKey=secret). " +
+        @Option(
+            shortName = 'c',
+            longName = "context",
+            description = "Tool call context as comma-separated key=value pairs (e.g. tenantId=acme,apiKey=secret). " +
                     "Merged with persistent context set via set-context; these values win on conflict.",
-            defaultValue = ShellOption.NULL,
         ) context: String? = null,
     ): String {
         // Override any options
@@ -398,7 +405,7 @@ class ShellCommands(
         )
     }
 
-    @ShellMethod(value = "Exit the application", key = ["exit", "quit", "bye"])
+    @Command(description = "Exit the application", name = ["exit"], alias = ["quit", "bye"])
     fun exit(): String {
         println("Exiting...".color(colorPalette.color2))
         logger.info("Shutting down application...")
