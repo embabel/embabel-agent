@@ -29,11 +29,21 @@ import java.time.Duration
 /**
  * Thinking config. Set on Anthropic models
  * and some Ollama models.
+ *
+ * @property includedTags when set, only [ThinkingBlock][com.embabel.common.core.thinking.ThinkingBlock]s
+ *   whose tag name is in this set are returned. PREFIX and NO_PREFIX blocks are suppressed.
+ * @property excludedTags when set, [ThinkingBlock][com.embabel.common.core.thinking.ThinkingBlock]s
+ *   whose tag name is in this set are dropped. PREFIX and NO_PREFIX blocks pass through.
+ * @property injectSystemPrompt when true and [includedTags] is set, a system prompt hint is injected
+ *   instructing the model to wrap reasoning in the first included tag.
  */
 class Thinking private constructor(
     val enabled: Boolean = false,
     val tokenBudget: Int? = null,
     val extractThinking: Boolean = false,
+    val includedTags: Set<String>? = null,
+    val excludedTags: Set<String>? = null,
+    val injectSystemPrompt: Boolean = true,
 ) {
 
     companion object {
@@ -49,6 +59,18 @@ class Thinking private constructor(
             extractThinking = true,
         )
 
+        @JvmStatic
+        fun withIncludedTags(vararg tags: String): Thinking = Thinking(
+            extractThinking = true,
+            includedTags = tags.toSet(),
+        )
+
+        @JvmStatic
+        fun withExcludedTags(vararg tags: String): Thinking = Thinking(
+            extractThinking = true,
+            excludedTags = tags.toSet(),
+        )
+
         val NONE: Thinking = Thinking(
             enabled = false,
         )
@@ -61,6 +83,9 @@ class Thinking private constructor(
         enabled = this.enabled,
         tokenBudget = this.tokenBudget,
         extractThinking = true,
+        includedTags = this.includedTags,
+        excludedTags = this.excludedTags,
+        injectSystemPrompt = this.injectSystemPrompt,
     )
 
     /**
@@ -70,6 +95,21 @@ class Thinking private constructor(
         enabled = true,
         tokenBudget = tokenBudget,
         extractThinking = this.extractThinking,
+        includedTags = this.includedTags,
+        excludedTags = this.excludedTags,
+        injectSystemPrompt = this.injectSystemPrompt,
+    )
+
+    /**
+     * Control whether a system prompt hint is injected when [includedTags] is set.
+     */
+    fun withInjectSystemPrompt(inject: Boolean): Thinking = Thinking(
+        enabled = this.enabled,
+        tokenBudget = this.tokenBudget,
+        extractThinking = this.extractThinking,
+        includedTags = this.includedTags,
+        excludedTags = this.excludedTags,
+        injectSystemPrompt = inject,
     )
 }
 

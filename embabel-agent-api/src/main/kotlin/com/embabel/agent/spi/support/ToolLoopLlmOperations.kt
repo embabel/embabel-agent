@@ -384,7 +384,11 @@ open class ToolLoopLlmOperations(
         // For String output: return raw text (with thinking tags preserved)
         // For other types: converter chain handles thinking suppression for JSON parsing
         val outputParser: (String) -> ThinkingResponse<O> = { text ->
-            val thinkingBlocks = extractAllThinkingBlocks(text)
+            val thinkingBlocks = extractAllThinkingBlocks(
+                text,
+                includedTags = interaction.llm.thinking?.includedTags,
+                excludedTags = interaction.llm.thinking?.excludedTags,
+            )
             val result = if (outputClass == String::class.java) {
                 @Suppress("UNCHECKED_CAST")
                 text as O  // Raw text, not sanitized - thinking blocks preserved in response
@@ -449,7 +453,13 @@ open class ToolLoopLlmOperations(
         // Filter by role to catch both AssistantMessage and AssistantMessageWithToolCalls
         val allThinkingBlocks = result.conversationHistory
             .filter { it.role == com.embabel.chat.Role.ASSISTANT }
-            .flatMap { extractAllThinkingBlocks(it.content) }
+            .flatMap {
+                extractAllThinkingBlocks(
+                    it.content,
+                    includedTags = interaction.llm.thinking?.includedTags,
+                    excludedTags = interaction.llm.thinking?.excludedTags,
+                )
+            }
 
         // Merge accumulated thinking blocks with the final result
         val thinkingResponse = ThinkingResponse(
@@ -490,7 +500,11 @@ open class ToolLoopLlmOperations(
 
             // Output parser: extract thinking blocks FIRST, then parse MaybeReturn
             val outputParser: (String) -> Result<ThinkingResponse<O>> = { text ->
-                val thinkingBlocks = extractAllThinkingBlocks(text)
+                val thinkingBlocks = extractAllThinkingBlocks(
+                    text,
+                    includedTags = interaction.llm.thinking?.includedTags,
+                    excludedTags = interaction.llm.thinking?.excludedTags,
+                )
                 try {
                     val maybeResult = if (text.isNotBlank()) {
                         converter.convert(text)!!
@@ -584,7 +598,11 @@ open class ToolLoopLlmOperations(
 
             // Accumulate thinking blocks from ALL assistant messages across all iterations
             // Filter by role to catch both AssistantMessage and AssistantMessageWithToolCalls
-            val allThinkingBlocks = accumulateThinkingBlocks(result.conversationHistory)
+            val allThinkingBlocks = accumulateThinkingBlocks(
+                result.conversationHistory,
+                includedTags = interaction.llm.thinking?.includedTags,
+                excludedTags = interaction.llm.thinking?.excludedTags,
+            )
 
             // Merge accumulated thinking blocks with the final result (success or failure path)
             val thinkingResult = mergeThinkingBlocksWithResult(finalIterationResult, allThinkingBlocks)
@@ -976,10 +994,20 @@ open class ToolLoopLlmOperations(
      * Filters by ASSISTANT role to catch both AssistantMessage and AssistantMessageWithToolCalls.
      */
     @OptIn(InternalThinkingApi::class)
-    private fun accumulateThinkingBlocks(conversationHistory: List<Message>): List<ThinkingBlock> {
+    private fun accumulateThinkingBlocks(
+        conversationHistory: List<Message>,
+        includedTags: Set<String>? = null,
+        excludedTags: Set<String>? = null,
+    ): List<ThinkingBlock> {
         return conversationHistory
             .filter { it.role == com.embabel.chat.Role.ASSISTANT }
-            .flatMap { extractAllThinkingBlocks(it.content) }
+            .flatMap {
+                extractAllThinkingBlocks(
+                    it.content,
+                    includedTags = includedTags,
+                    excludedTags = excludedTags,
+                )
+            }
     }
 
     /**

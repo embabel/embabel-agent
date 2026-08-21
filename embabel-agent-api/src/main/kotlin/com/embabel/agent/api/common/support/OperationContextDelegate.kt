@@ -521,14 +521,21 @@ internal data class OperationContextDelegate(
         val thinkingEnabledLlm = llm.withThinking(
             (llm.thinking ?: Thinking.withExtraction()).applyExtraction()
         )
+        val thinking = thinkingEnabledLlm.thinking
+        // Inject a system prompt hint so the model knows which tag to use for reasoning.
+        // Placed after the agent identity prompt but before contextual contributors.
+        val tagHintContributor = thinking?.includedTags
+            ?.takeIf { thinking.injectSystemPrompt }
+            ?.first()
+            ?.let { tag -> PromptContributor.fixed("You must provide your reasoning wrapped in <$tag></$tag> tags.") }
         val toolConfig = resolveToolConfig()
         return LlmInteraction(
             llm = thinkingEnabledLlm,
             toolGroups = toolGroups,
             tools = toolConfig.tools,
-            promptContributors = promptContributors + contextualPromptContributors.map {
-                it.toPromptContributor(context)
-            },
+            promptContributors = promptContributors +
+                listOfNotNull(tagHintContributor) +
+                contextualPromptContributors.map { it.toPromptContributor(context) },
             id = interactionId ?: InteractionId("${context.operation.name}-thinking"),
             generateExamples = generateExamples,
             fieldFilter = fieldFilter,
