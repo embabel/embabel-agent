@@ -16,6 +16,7 @@
 package com.embabel.agent.core
 
 import com.embabel.agent.api.common.PlatformServices
+import com.embabel.agent.core.support.distinctByNameReportingCollisions
 import com.embabel.agent.spi.ToolGroupResolver
 import com.embabel.agent.spi.common.Constants
 import java.util.concurrent.CompletableFuture
@@ -133,15 +134,19 @@ interface AgentPlatform : AgentScope {
     ): AgentProcess
 
     override val domainTypes: Collection<DomainType>
-        get() = agents().flatMap { it.domainTypes }.distinctBy { it.name }
+        get() = agents().flatMap { it.domainTypes }
+            .distinctByNameReportingCollisions(kind = "domain type") { it.name }
 
     override val actions: List<Action>
-        get() = agents().filterNot { it.opaque }.flatMap { it.actions }.distinctBy { it.name }
+        get() = agents().filterNot { it.opaque }.flatMap { it.actions }
+            .distinctByNameReportingCollisions(kind = "action") { it.name }
 
     override val goals: Set<Goal>
-        get() = agents().flatMap { it.goals }.distinctBy { it.name }.toSet()
+        get() = agents().flatMap { it.goals }
+            .distinctByNameReportingCollisions(kind = "goal") { it.name }.toSet()
 
     override val conditions: Set<Condition>
-        get() = agents().filterNot { it.opaque }.flatMap { it.conditions }.distinctBy { it.name }.toSet()
+        get() = agents().filterNot { it.opaque }.flatMap { it.conditions }
+            .distinctByNameReportingCollisions(kind = "condition") { it.name }.toSet()
 
 }
