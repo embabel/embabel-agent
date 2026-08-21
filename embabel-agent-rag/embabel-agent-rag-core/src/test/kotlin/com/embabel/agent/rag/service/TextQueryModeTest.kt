@@ -29,9 +29,8 @@ import org.junit.jupiter.api.Test
  */
 class TextQueryModeTest {
 
-    private open class Stub(
-        override val supportedQueryModes: Set<TextQueryMode> = setOf(TextQueryMode.LUCENE_EXPRESSION),
-    ) : TextSearch {
+    /** Implements only what [TextSearch] leaves abstract, so every mode default is the real one. */
+    private open class Bare : TextSearch {
         override fun supportsType(type: String) = true
         override fun <T : Retrievable> textSearch(
             request: TextSimilaritySearchRequest,
@@ -39,14 +38,26 @@ class TextQueryModeTest {
         ): List<SimilarityResult<T>> = emptyList()
     }
 
+    private open class Stub(
+        override val supportedQueryModes: Set<TextQueryMode>,
+    ) : Bare()
+
     @Test
     @DisplayName("an implementation that declares nothing behaves as it always has")
     fun `default is LUCENE_EXPRESSION`() {
         // Every implementation predating the mode passed the caller's query through untouched.
         // Defaulting anywhere else would silently change what those stores do with an operator.
-        val store = object : Stub() {}
+        val store = object : Bare() {}
         assertEquals(setOf(TextQueryMode.LUCENE_EXPRESSION), store.supportedQueryModes)
         assertEquals(TextQueryMode.LUCENE_EXPRESSION, store.queryMode)
+    }
+
+    @Test
+    @DisplayName("a store that declares nothing still describes its syntax to the model")
+    fun `luceneSyntaxNotes defaults to empty rather than failing`() {
+        // The tool description is composed from this. A minimal implementation must not be the
+        // reason the search tool cannot be built.
+        assertEquals("", (object : Bare() {}).luceneSyntaxNotes)
     }
 
     @Test
@@ -63,7 +74,7 @@ class TextQueryModeTest {
         // loudly — it quietly stops honouring operators, or starts escaping input the caller
         // composed, and the tool description tells the model the opposite of what happens.
         val stores = listOf(
-            object : Stub() {},
+            object : Bare() {},
             object : Stub(setOf(TextQueryMode.LITERAL)) {},
             object : Stub(setOf(TextQueryMode.LITERAL, TextQueryMode.LUCENE_EXPRESSION)) {},
         )
