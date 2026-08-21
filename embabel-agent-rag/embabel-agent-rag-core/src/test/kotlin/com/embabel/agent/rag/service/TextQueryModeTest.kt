@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test
 class TextQueryModeTest {
 
     private open class Stub(
-        override val supportedQueryModes: Set<TextQueryMode> = setOf(TextQueryMode.EXPRESSION),
+        override val supportedQueryModes: Set<TextQueryMode> = setOf(TextQueryMode.LUCENE_EXPRESSION),
     ) : TextSearch {
         override fun supportsType(type: String) = true
         override fun <T : Retrievable> textSearch(
@@ -41,12 +41,12 @@ class TextQueryModeTest {
 
     @Test
     @DisplayName("an implementation that declares nothing behaves as it always has")
-    fun `default is EXPRESSION`() {
+    fun `default is LUCENE_EXPRESSION`() {
         // Every implementation predating the mode passed the caller's query through untouched.
         // Defaulting anywhere else would silently change what those stores do with an operator.
         val store = object : Stub() {}
-        assertEquals(setOf(TextQueryMode.EXPRESSION), store.supportedQueryModes)
-        assertEquals(TextQueryMode.EXPRESSION, store.queryMode)
+        assertEquals(setOf(TextQueryMode.LUCENE_EXPRESSION), store.supportedQueryModes)
+        assertEquals(TextQueryMode.LUCENE_EXPRESSION, store.queryMode)
     }
 
     @Test
@@ -65,7 +65,7 @@ class TextQueryModeTest {
         val stores = listOf(
             object : Stub() {},
             object : Stub(setOf(TextQueryMode.LITERAL)) {},
-            object : Stub(setOf(TextQueryMode.LITERAL, TextQueryMode.EXPRESSION)) {},
+            object : Stub(setOf(TextQueryMode.LITERAL, TextQueryMode.LUCENE_EXPRESSION)) {},
         )
         stores.forEach { store ->
             assertTrue(
@@ -78,10 +78,10 @@ class TextQueryModeTest {
     @Test
     @DisplayName("supporting both leaves the choice to the deployment")
     fun `an implementation may serve both modes`() {
-        val store = object : Stub(setOf(TextQueryMode.LITERAL, TextQueryMode.EXPRESSION)) {
+        val store = object : Stub(setOf(TextQueryMode.LITERAL, TextQueryMode.LUCENE_EXPRESSION)) {
             override val queryMode = TextQueryMode.LITERAL
         }
         assertEquals(TextQueryMode.LITERAL, store.queryMode)
-        assertTrue(TextQueryMode.EXPRESSION in store.supportedQueryModes, "still available to configure")
+        assertTrue(TextQueryMode.LUCENE_EXPRESSION in store.supportedQueryModes, "still available to configure")
     }
 }
