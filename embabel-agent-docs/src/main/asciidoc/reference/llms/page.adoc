@@ -39,6 +39,35 @@ Smaller chat models behave differently from frontier models in ways that the fra
 These settings are off-by-default so existing deployments using strong models behave exactly as before.
 Turn them on per-deployment when the model you've picked benefits from them.
 
+[[reference.llms.openai-responses-continuation]]
+==== Continuing an OpenAI Responses API conversation
+
+Models routed through OpenAI's Responses API return a response ID that can be used to continue the
+server-side conversation without resending its earlier turns. The ID is available as the standard
+Spring AI `ChatResponseMetadata.id` value.
+
+Pass that value on the next call through `OpenAiChatOptions.extraBody` using
+`OpenAiResponsesOptions.PREVIOUS_RESPONSE_ID`:
+
+[source,kotlin]
+----
+val firstResponse = model.call(Prompt("Tell me a short story"))
+
+val nextOptions = OpenAiChatOptions.builder()
+    .model("gpt-5-pro")
+    .extraBody(mapOf(OpenAiResponsesOptions.PREVIOUS_RESPONSE_ID to firstResponse.metadata.id))
+    .build()
+
+val nextResponse = model.call(Prompt(listOf(UserMessage("Give it a happier ending")), nextOptions))
+----
+
+Send only the new input when using a previous response ID. Resending the complete local history
+would duplicate context already retained by OpenAI. Applications are responsible for persisting the
+latest response ID and should apply their OpenAI account's data-retention requirements to it.
+
+This option applies only to models whose catalog entry selects the Responses API. It does not add
+server-side tool execution; Embabel continues to own and execute the tool loop.
+
 
 [[reference.llms.custom-integration]]
 ==== Advanced: Custom LLM Integration
@@ -1470,4 +1499,3 @@ static class MonthItem {
 - **Streaming**: Native structured output is not supported for streaming by Spring AI currently
 - **`ifPossible` APIs**: `createObjectIfPossible` and related paths use `MaybeReturn` semantics and stay on Embabel's fallback object construction path.
 - **Provider coverage**: OpenAI-compatible `response_format` is the primary supported path. Anthropic native structured output is currently disabled by default until its semantics are verified.
-
