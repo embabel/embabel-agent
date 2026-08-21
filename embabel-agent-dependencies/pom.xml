@@ -18,6 +18,7 @@
     <properties>
         <bouncycastle.version>1.84</bouncycastle.version>
         <oci-sdk.version>3.86.1</oci-sdk.version>
+        <apache-httpcomponents.version>5.4.3</apache-httpcomponents.version>
     </properties>
 
     <scm>
@@ -454,6 +455,18 @@
                 <groupId>io.opentelemetry.semconv</groupId>
                 <artifactId>opentelemetry-semconv</artifactId>
                 <version>1.29.0-alpha</version>
+            </dependency>
+
+            <!-- High Vulnerability Fix: overrides httpcore5 version managed through parent chain -->
+            <dependency>
+                <groupId>org.apache.httpcomponents.core5</groupId>
+                <artifactId>httpcore5</artifactId>
+                <version>${apache-httpcomponents.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.httpcomponents.core5</groupId>
+                <artifactId>httpcore5-h2</artifactId>
+                <version>${apache-httpcomponents.version}</version>
             </dependency>
 
             <!--
