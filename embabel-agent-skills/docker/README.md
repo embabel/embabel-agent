@@ -7,11 +7,19 @@ Docker image for sandboxed script execution.
 ```bash
 docker build -t embabel/agent-sandbox:latest .
 ```
+or, with `Podman`
+```bash
+podman build -t embabel/agent-sandbox:latest .
+```
 
 Or from the repository root:
 
 ```bash
 docker build -t embabel/agent-sandbox:latest ./embabel-agent-skills/docker
+```
+or, with `Podman`
+```bash
+podman build -t embabel/agent-sandbox:latest ./embabel-agent-skills/docker
 ```
 
 ## Usage
