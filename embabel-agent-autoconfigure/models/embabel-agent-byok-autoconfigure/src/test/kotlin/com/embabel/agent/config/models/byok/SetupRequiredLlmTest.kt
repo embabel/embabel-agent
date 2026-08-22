@@ -107,7 +107,9 @@ class SetupRequiredLlmTest {
 
     @Test
     fun `the platform still reports the placeholder as not supporting streaming`() {
-        assertThat(SetupRequiredLlm.llmService().supportsStreaming()).isFalse()
+        val service = SetupRequiredLlm.llmService()
+        assertThat(service.supportsStreaming()).isFalse()
+        assertThat(service.supportsStreaming()).isFalse()
     }
 
     @Test

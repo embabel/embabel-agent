@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-@file:OptIn(InternalObservabilityApi::class)
+@file:OptIn(InternalObservabilityApi::class, InternalStreamingApi::class)
 
 package com.embabel.agent.e2e
 
@@ -31,12 +31,15 @@ import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.support.FakeChatModel
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.agent.spi.support.streaming.InternalStreamingApi
+import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.textio.template.TemplateRenderer
 import com.embabel.common.util.EmbabelObjectMapperHolder
 import jakarta.validation.Validator
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
@@ -177,6 +180,11 @@ class LLMStreamingIntegrationTest(
 
     private val logger = LoggerFactory.getLogger(LLMStreamingIntegrationTest::class.java)
     private val agentPlatform: AgentPlatform = autonomy.agentPlatform
+
+    @AfterEach
+    fun clearStreamingCapabilityCache() {
+        StreamingCapabilityDetector.clearCache()
+    }
 
     @Test
     fun `test streaming capability detection`() {

@@ -104,7 +104,7 @@ class OpenAiResponsesChatModel(
     /** Defensive copy: Spring AI hands these to callers that may mutate them. */
     override fun getDefaultOptions(): ChatOptions = defaultOptions.mutate().build()
 
-    /** Throwing is how `SpringAiLlmService.StreamingCapabilityVerifier` learns this model has no stream. */
+    /** Throwing is how `StreamingCapabilityVerifier` learns this model has no stream. */
     override fun stream(prompt: Prompt): Flux<ChatResponse> =
         throw UnsupportedOperationException(
             "Streaming is not supported for OpenAI models served over the Responses API"

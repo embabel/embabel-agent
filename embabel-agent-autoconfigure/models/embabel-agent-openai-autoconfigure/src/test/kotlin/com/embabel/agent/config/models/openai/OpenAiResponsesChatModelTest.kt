@@ -16,6 +16,9 @@
 package com.embabel.agent.config.models.openai
 
 import com.embabel.agent.spi.loop.StructuredOutputRequest
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.agent.spi.support.streaming.InternalStreamingApi
+import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.openai.client.OpenAIClient
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseCreateParams
@@ -36,7 +39,9 @@ import io.micrometer.observation.ObservationRegistry
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -47,6 +52,8 @@ import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage
+import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.content.Media
 import org.springframework.ai.openai.OpenAiChatModel
@@ -55,7 +62,9 @@ import org.springframework.ai.retry.NonTransientAiException
 import org.springframework.ai.tool.definition.ToolDefinition
 import org.springframework.core.io.ByteArrayResource
 import org.springframework.util.MimeTypeUtils
+import reactor.core.publisher.Flux
 import java.util.Optional
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * The adapter is the only thing standing between Embabel and a wire format Spring AI cannot
@@ -64,6 +73,7 @@ import java.util.Optional
  *
  * @see <a href="https://github.com/embabel/embabel-agent/issues/1758">Issue 1758</a>
  */
+@OptIn(InternalStreamingApi::class)
 class OpenAiResponsesChatModelTest {
 
     private val client = mockk<OpenAIClient>()
@@ -73,6 +83,11 @@ class OpenAiResponsesChatModelTest {
         client = client,
         defaultOptions = OpenAiChatOptions.builder().model("gpt-5-pro").build(),
     )
+
+    @AfterEach
+    fun clearStreamingCapabilityCache() {
+        StreamingCapabilityDetector.clearCache()
+    }
 
     /** Stubs the SDK call and returns the params the adapter built. */
     private fun capture(prompt: Prompt, response: Response = textResponse("ok")): ResponseCreateParams {
@@ -635,6 +650,20 @@ class OpenAiResponsesChatModelTest {
         }
 
         @Test
+        fun `LlmService reports the Responses model as non-streaming after a single probe`() {
+            val counting = ProbeCountingChatModel(model)
+            val service = SpringAiLlmService(
+                name = "gpt-5-pro",
+                provider = "openai",
+                chatModel = counting,
+            )
+
+            assertFalse(service.supportsStreaming())
+            assertFalse(service.supportsStreaming())
+            assertEquals(1, counting.streamCalls.get())
+        }
+
+        @Test
         fun `default options expose the configured model`() {
             assertEquals("gpt-5-pro", model.defaultOptions.model)
         }
@@ -763,4 +792,20 @@ class OpenAiResponsesChatModelTest {
             .apply { usage?.let { usage(it) } }
             .apply { status?.let { status(it) } }
             .build()
+}
+
+/**
+ * Wraps a real [ChatModel] and counts [stream] calls so a test can assert
+ * [com.embabel.agent.spi.LlmService.supportsStreaming] probes once per instance.
+ * Keeps the delegate's own stream behaviour: [OpenAiResponsesChatModel] throws locally.
+ */
+private class ProbeCountingChatModel(
+    private val delegate: ChatModel,
+) : ChatModel by delegate {
+    val streamCalls = AtomicInteger()
+
+    override fun stream(prompt: Prompt): Flux<ChatResponse> {
+        streamCalls.incrementAndGet()
+        return delegate.stream(prompt)
+    }
 }

@@ -15,6 +15,7 @@
  */
 package architecture
 
+import com.embabel.agent.spi.support.streaming.InternalStreamingApi
 import com.tngtech.archunit.base.DescribedPredicate
 import com.tngtech.archunit.base.DescribedPredicate.not
 import com.tngtech.archunit.core.domain.JavaAnnotation
@@ -82,6 +83,7 @@ class ArchitectureRules {
     ): DescribedPredicate<JavaClass> =
         areKotlinPublic()
             .and(not(annotatedWith(ApiStatus.Internal::class.java)))
+            .and(not(annotatedWith(InternalStreamingApi::class.java)))
             .and(
                 resideInAPackage(packageIdentifier)
                     .and(not(resideInAPackage("..spring..")))

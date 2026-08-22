@@ -19,6 +19,7 @@ import com.embabel.agent.api.common.*
 import com.embabel.agent.api.common.nested.support.PromptRunnerCreating
 import com.embabel.agent.api.common.nested.support.PromptRunnerRendering
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
+import com.embabel.agent.spi.support.streaming.InternalStreamingApi
 import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.api.common.support.streaming.StreamingImpl
 import com.embabel.agent.api.common.thinking.support.ThinkingPromptRunnerOperationsImpl
@@ -271,6 +272,7 @@ internal data class OperationContextPromptRunner(
      * 1. Must be ChatClientLlmOperations for Spring AI integration
      * 2. Must have StreamingChatModel
      */
+    @OptIn(InternalStreamingApi::class)
     override fun supportsStreaming(): Boolean {
         val llmOperations = context.agentPlatform().platformServices.llmOperations
 
