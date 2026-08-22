@@ -17,8 +17,10 @@ package com.embabel.agent.rag.filter
 
 import com.embabel.agent.filter.PropertyFilter
 import com.embabel.agent.rag.model.Chunk
+import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.model.SimpleNamedEntityData
 import com.embabel.common.core.types.SimpleSimilaritySearchResult
+import com.embabel.common.core.types.SimilarityResult
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -108,8 +110,8 @@ class InMemoryPropertyFilterTest {
         }
 
         @Test
-        fun `an entity filter never matches a non-entity object`() {
-            assertFalse(
+        fun `an entity filter does not exclude a non-entity object`() {
+            assertTrue(
                 InMemoryPropertyFilter.matchesObject(EntityFilter.hasAnyLabel("Person"), PlainDocument("alice", "active"))
             )
         }
@@ -197,6 +199,24 @@ class InMemoryPropertyFilterTest {
 
             assertEquals(1, filtered.size)
             assertEquals("1", filtered.single().match.id)
+        }
+
+        @Test
+        fun `an entity filter retains chunks while filtering entities`() {
+            val results: List<SimilarityResult<Retrievable>> = listOf(
+                SimpleSimilaritySearchResult(match = chunk("1"), score = 0.9),
+                SimpleSimilaritySearchResult(match = entity("person", labels = setOf("Person")), score = 0.8),
+                SimpleSimilaritySearchResult(match = entity("company", labels = setOf("Company")), score = 0.7),
+                SimpleSimilaritySearchResult(match = chunk("2"), score = 0.6),
+            )
+
+            val filtered = InMemoryPropertyFilter.filterResults(
+                results,
+                metadataFilter = null,
+                entityFilter = EntityFilter.hasAnyLabel("Person"),
+            )
+
+            assertEquals(listOf("1", "person", "2"), filtered.map { it.match.id })
         }
 
         @Test

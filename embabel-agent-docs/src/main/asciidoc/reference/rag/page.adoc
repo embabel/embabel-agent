@@ -1096,6 +1096,7 @@ return InMemoryPropertyFilter.filterResults(results, metadataFilter, entityFilte
 ====
 
 For `EntityFilter.HasAnyLabel`, the in-memory filter checks if the entity has any of the specified labels via `NamedEntityData.labels()`.
+Non-entity results such as chunks pass through unchanged, so an entity filter can be used with searches that return both chunks and entities.
 
 This ensures filtering works across all backends, with native optimization for metadata filters where available.
 
