@@ -101,7 +101,9 @@ class AgentPlatformConfiguration(
     }
 
     @Bean
-    fun templateRenderer(): TemplateRenderer = JinjavaTemplateRenderer()
+    @ConditionalOnMissingBean(TemplateRenderer::class)
+    fun templateRenderer(properties: AgentPlatformProperties): TemplateRenderer =
+        JinjavaTemplateRenderer(properties.template)
 
     /**
      * Fallback if we don't have a more interesting logger

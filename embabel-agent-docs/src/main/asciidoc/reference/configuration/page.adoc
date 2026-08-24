@@ -726,6 +726,36 @@ TIP: For models with extended thinking enabled (like Claude with thinking mode),
 
 NOTE: The HTTP client configuration applies to all model providers that use Spring's `RestClient` and `WebClient`, including OpenAI, Anthropic, and OpenAI-compatible endpoints.
 
+===== Template Renderer
+
+From the `JinjaProperties` nested in `AgentPlatformProperties` - Jinja template renderer configuration.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.template.prefix`
+|String
+|`classpath:/prompts/`
+|Spring resource prefix used to load templates
+
+|`embabel.agent.platform.template.suffix`
+|String
+|`.jinja`
+|Suffix added to template names that do not already include it
+
+|`embabel.agent.platform.template.fail-on-unknown-tokens`
+|Boolean
+|`false`
+|Whether rendering fails when a template contains unknown tokens
+
+|`embabel.agent.platform.template.nested-interpretation-enabled`
+|Boolean
+|`false`
+|Whether template syntax inside substituted values is evaluated recursively. Do not enable this for untrusted or user-provided values.
+
+|===
+
 ===== Server-Sent Events
 
 From `AgentPlatformProperties.SseConfig` - server-sent events configuration.
