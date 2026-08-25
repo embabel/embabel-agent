@@ -1112,8 +1112,8 @@ Java::
 +
 [source,java]
 ----
-@ShellMethod("Ingest URL or file path")
-String ingest(@ShellOption(defaultValue = "./data/document.md") String location) {
+@Command("Ingest URL or file path")
+String ingest(@Option(defaultValue = "./data/document.md") String location) {
     var uri = location.startsWith("http://") || location.startsWith("https://")
             ? location
             : Path.of(location).toAbsolutePath().toUri().toString();
@@ -1133,8 +1133,8 @@ Kotlin::
 +
 [source,kotlin]
 ----
-@ShellMethod("Ingest URL or file path")
-fun ingest(@ShellOption(defaultValue = "./data/document.md") location: String): String {
+@Command("Ingest URL or file path")
+fun ingest(@Option(defaultValue = "./data/document.md") location: String): String {
     val uri = if (location.startsWith("http://") || location.startsWith("https://")) {
         location
     } else {

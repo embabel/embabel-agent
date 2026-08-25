@@ -21,6 +21,7 @@
         <!-- Matches the openai-java-core that spring-ai-openai 2.0.0 depends on. Bump in
              step with spring-ai-openai; drop once embabel-build-dependencies catches up. -->
         <openai-java.version>4.39.1</openai-java.version>
+        <spring-shell.version>4.0.2</spring-shell.version>
         <spotbugs-maven-plugin.version>4.9.8.2</spotbugs-maven-plugin.version>
         <sb-contrib.version>7.7.4</sb-contrib.version>
     </properties>
@@ -75,6 +76,16 @@
                 <groupId>com.openai</groupId>
                 <artifactId>openai-java-client-okhttp</artifactId>
                 <version>${openai-java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.shell</groupId>
+                <artifactId>spring-shell-starter</artifactId>
+                <version>${spring-shell.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.shell</groupId>
+                <artifactId>spring-shell-jline</artifactId>
+                <version>${spring-shell.version}</version>
             </dependency>
             <!-- Embabel Agent BOM -->
             <dependency>

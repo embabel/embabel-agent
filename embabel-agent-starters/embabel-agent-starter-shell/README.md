@@ -158,7 +158,7 @@ fun main(args: Array<String>) {
 
 1. **Auto-Configuration**: `AgentShellAutoConfiguration` activates when the starter is present
 2. **Component Scanning**: Shell commands and services are discovered via `@ComponentScan`
-3. **Spring Shell Integration**: Commands are registered as `@ShellComponent` beans
+3. **Spring Shell Integration**: Commands are registered from Spring `@Component` beans
 4. **Agent Platform Access**: Shell commands interact with the `Autonomy` and `AgentPlatform` APIs
 
 ## Architecture
