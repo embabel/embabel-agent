@@ -18,6 +18,7 @@ package com.embabel.common.ai.model;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import static com.embabel.common.ai.model.NativeStructuredOutputModeKt.getNativeStructuredOutput;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class LlmOptionsConstructionTest {
@@ -56,6 +57,24 @@ public class LlmOptionsConstructionTest {
         assertNotNull(llmo1.getModelSelectionCriteria());
         assertEquals(0.7, llmo1.getTemperature());
         assertEquals(1000, llmo1.getMaxTokens());
+    }
+
+    @Test
+    void shouldEnableNativeStructuredOutput() {
+        var options = NativeStructuredOutputMode.ENABLED.applyTo(
+                LlmOptions.withLlmForRole("large")
+        );
+
+        assertEquals(NativeStructuredOutputMode.ENABLED, getNativeStructuredOutput(options));
+    }
+
+    @Test
+    void shouldConfigureNativeStructuredOutputMode() {
+        var options = NativeStructuredOutputMode.DISABLED.applyTo(
+                LlmOptions.withLlmForRole("large")
+        );
+
+        assertEquals(NativeStructuredOutputMode.DISABLED, getNativeStructuredOutput(options));
     }
 
     @Nested
