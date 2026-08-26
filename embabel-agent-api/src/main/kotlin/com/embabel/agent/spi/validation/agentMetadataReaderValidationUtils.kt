@@ -5,6 +5,7 @@ import com.embabel.agent.api.annotation.Condition
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import org.slf4j.Logger
+import org.springframework.core.annotation.AnnotationUtils
 import org.springframework.util.ClassUtils
 import java.lang.reflect.Method
 
@@ -20,6 +21,7 @@ fun isActionMethod(
     agentClass: Class<*>,
     requireInterfaceDeserializationAnnotations : Boolean,
 ): Boolean {
+    AnnotationUtils.findAnnotation(method, Action::class.java) != null
     // Check whether given method is annotated with Action.
     return method.isAnnotationPresent(Action::class.java) &&
             // Check whether given method is declared in the given agent class, or in its super type.

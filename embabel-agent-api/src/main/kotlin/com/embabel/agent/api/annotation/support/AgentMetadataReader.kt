@@ -32,7 +32,6 @@ import com.embabel.agent.spi.validation.AgentStructureAgentValidator
 import com.embabel.agent.spi.validation.DefaultAgentValidationManager
 import com.embabel.agent.spi.validation.GoapPathToCompletionValidator
 import com.embabel.agent.spi.validation.PathToCompletionAgentValidator
-import com.embabel.agent.spi.validation.appendValidators
 import com.embabel.agent.spi.validation.isActionMethod
 import com.embabel.agent.spi.validation.isConditionMethod
 import com.embabel.agent.spi.validation.isMethodFromSupertype
@@ -112,8 +111,8 @@ internal data class AgenticInfo(
 class AgentMetadataReader(
     private val actionMethodManager: ActionMethodManager = DefaultActionMethodManager(),
     private val nameGenerator: MethodDefinedOperationNameGenerator = MethodDefinedOperationNameGenerator(),
-    private val  agentStructureValidator: AgentStructureAgentValidator = AgentStructureAgentValidator.PERMIT_ALL,
-    private val  pathToCompletionValidator: PathToCompletionAgentValidator = GoapPathToCompletionValidator(),
+    private val agentStructureValidator: AgentStructureAgentValidator = AgentStructureAgentValidator.PERMIT_ALL,
+    private val pathToCompletionValidator: PathToCompletionAgentValidator = GoapPathToCompletionValidator(),
     private val requireInterfaceDeserializationAnnotations: Boolean = false,
     @Value("\${embabel.agent.platform.planner.restricted-goals:false}")
     private val restrictedGoals: Boolean = false,
@@ -124,11 +123,6 @@ class AgentMetadataReader(
     private val supervisorAgentFactory = SupervisorAgentFactory()
 
     private val logger = LoggerFactory.getLogger(AgentMetadataReader::class.java)
-
-    private var agentValidationManager: AgentValidationManager = DefaultAgentValidationManager(
-        listOf(
-            agentStructureValidator,
-            pathToCompletionValidator))
 
     fun createAgentScopes(vararg instances: Any): List<AgentScope> =
         instances.mapNotNull { createAgentMetadata(it) }
@@ -178,8 +172,11 @@ class AgentMetadataReader(
         rejectOperationContextConstructorInjection(targetType)
 
         val plannerType = agenticInfo.agentAnnotation?.planner ?: PlannerType.GOAP
-        agentValidationManager= (agentValidationManager as? DefaultAgentValidationManager)
-            ?.appendValidators(AchievableGoalValidator(agenticInfo.agentName(), targetType, instance, requireInterfaceDeserializationAnnotations))!!
+        var agentValidationManager: AgentValidationManager = DefaultAgentValidationManager(
+            listOf(
+                agentStructureValidator,
+                pathToCompletionValidator,
+                AchievableGoalValidator(agenticInfo.agentName(), targetType, instance, requireInterfaceDeserializationAnnotations)))
         val getterGoals = findGoalGetters(targetType).map { getGoal(it, instance) }
         val actionMethods = findActionMethods(targetType)
         val conditionMethods = findConditionMethods(targetType)
@@ -236,7 +233,15 @@ class AgentMetadataReader(
         val agent = if (agenticInfo.agentAnnotation != null) {
             val goalActions = actionMethods.filter { it.isAnnotationPresent(AchievesGoal::class.java) }
             if (plannerType == PlannerType.SUPERVISOR) {
-                if (goalActions.size > 1) {
+                if (goalActions.isEmpty()) {
+                    logger.warn(
+                        "SUPERVISOR planner requires at least one @AchievesGoal action on {}",
+                        targetType.name,
+                    )
+                    if (skipAgentDeploymentOnError) {
+                        return null
+                    }
+                } else if (goalActions.size > 1) {
                     logger.warn(
                         "SUPERVISOR planner currently supports only one @AchievesGoal action, found {} on {}",
                         goalActions.size,

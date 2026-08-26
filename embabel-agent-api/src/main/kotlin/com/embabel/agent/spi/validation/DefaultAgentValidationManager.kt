@@ -66,10 +66,3 @@ class DefaultAgentValidationManager(
         )
     }
 }
-
-/**
- * Append the given validator to the existing validators of the DefaultAgentValidationManager.
- */
-fun DefaultAgentValidationManager.appendValidators(validator: AgentValidator): DefaultAgentValidationManager {
-    return DefaultAgentValidationManager(this.validators + validator)
-}

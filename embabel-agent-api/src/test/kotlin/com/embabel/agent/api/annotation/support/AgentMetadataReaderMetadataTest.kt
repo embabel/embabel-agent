@@ -43,7 +43,7 @@ class AgentMetadataReaderMetadataTest {
         @Test
         fun `no annotation`() {
             val reader = AgentMetadataReader(skipAgentDeploymentOnError = true)
-            val metadata = reader.createAgentMetadata(PersonWithReverseTool("John Doe"), )
+            val metadata = reader.createAgentMetadata(PersonWithReverseTool("John Doe"))
             assertNull(metadata)
         }
 
@@ -134,7 +134,6 @@ class AgentMetadataReaderMetadataTest {
             assertTrue(ex.message!!.contains("OperationContext"))
             assertTrue(ex.message!!.contains("@Action"))
         }
-
     }
 
     @Nested
