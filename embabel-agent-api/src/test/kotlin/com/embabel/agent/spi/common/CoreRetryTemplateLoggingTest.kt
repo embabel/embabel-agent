@@ -113,6 +113,8 @@ class CoreRetryTemplateLoggingTest {
         val outcome = failWith(NonTransientAiException("429 - Rate limit reached for $MODEL"))
 
         assertThat(outcome.retryAnnouncements)
+            .describedAs("allMatch is vacuous on an empty list, so the lines must exist first, in %s", outcome.messages)
+            .isNotEmpty()
             .describedAs("the operator must be able to tell a rate limit from any other failure")
             .allMatch { it.contains("RATE LIMITED") }
             .describedAs("and to tell which of the twelve providers is being throttled")
@@ -136,12 +138,12 @@ class CoreRetryTemplateLoggingTest {
     fun `the announced ceiling is the configured maxAttempts`() {
         val outcome = failWith(NonTransientAiException("429 - Rate limit reached for $MODEL"))
 
-        assertThat(outcome.messages)
-            .describedAs("core.retry counts retries, the operator configures attempts")
-            .noneMatch { it.contains("unknown") }
-        assertThat(outcome.messages)
-            .describedAs("the configured ceiling must appear")
-            .anyMatch { it.contains("of $MAX_ATTEMPTS") }
+        // beforeRetry fires only ahead of a retry, and its counter already numbers that retry from
+        // one. The announcements therefore stop one short of the ceiling, because the last attempt
+        // has no retry left to announce, not because of any off-by-one in the counter.
+        assertThat(outcome.retryAnnouncements.map { it.substringAfter("retry attempt ") })
+            .describedAs("attempts are numbered from one against the configured ceiling, in %s", outcome.messages)
+            .containsExactly("1 of $MAX_ATTEMPTS", "2 of $MAX_ATTEMPTS")
     }
 
     @Test
