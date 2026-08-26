@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import static com.embabel.common.ai.model.NativeStructuredOutputModeKt.getNativeStructuredOutput;
+import static com.embabel.common.ai.model.NativeStructuredOutputModeKt.withNativeStructuredOutput;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class LlmOptionsConstructionTest {
@@ -75,6 +76,14 @@ public class LlmOptionsConstructionTest {
         );
 
         assertEquals(NativeStructuredOutputMode.DISABLED, getNativeStructuredOutput(options));
+    }
+
+    @Test
+    void shouldEnableNativeStructuredOutputUsingStaticExtension() {
+        var options = LlmOptions.withDefaultLlm();
+        options = withNativeStructuredOutput(options, NativeStructuredOutputMode.ENABLED);
+
+        assertEquals(NativeStructuredOutputMode.ENABLED, getNativeStructuredOutput(options));
     }
 
     @Nested
