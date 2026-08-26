@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.autoconfigure.models.mistralai;
+package com.embabel.agent.autoconfigure.models.deepseek;
 
-import com.embabel.agent.autoconfigure.models.mistralai.StubMistralServer.Reply;
 import com.embabel.agent.spi.support.springai.SpringAiLlmService;
+import com.embabel.agent.test.http.StubChatServer;
+import com.embabel.agent.test.http.StubChatServer.Reply;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
@@ -28,27 +29,30 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Drives the real Mistral autoconfiguration against a scripted local server to check what the Spring
+ * Drives the real DeepSeek autoconfiguration against a scripted local server to check what the Spring
  * Framework 7 retry template actually replays. A rate limit must be retried; a malformed request must
  * not. Counting requests on the server is what separates the two — the caller sees a failure either way.
  *
- * <p>{@code ...IT} because it opens a socket and waits out a real backoff.
+ * <p>{@link DeepSeekRetryPropertiesTest} covers the attempt count; this covers which failures earn an
+ * attempt at all.
  */
-class MistralAiRetryIT {
+class DeepSeekRetryTest {
 
-    private static final String MODEL = "mistral-small-2603";
+    private static final String MODEL = "deepseek-v4-pro";
 
-    private ApplicationContextRunner runnerAgainst(StubMistralServer server) {
+    private ApplicationContextRunner runnerAgainst(StubChatServer server) {
         return new ApplicationContextRunner()
-                .withConfiguration(AutoConfigurations.of(AgentMistralAiAutoConfiguration.class))
+                .withConfiguration(AutoConfigurations.of(AgentDeepSeekAutoConfiguration.class))
                 .withPropertyValues(
-                        "embabel.agent.platform.models.mistralai.api-key=test-key",
-                        "embabel.agent.platform.models.mistralai.base-url=" + server.baseUrl(),
-                        "embabel.agent.platform.models.mistralai.max-attempts=3",
+                        "DEEPSEEK_API_KEY=test-key",
+                        "DEEPSEEK_BASE_URL=" + server.getBaseUrl(),
+                        "embabel.agent.platform.models.deepseek.api-key=test-key",
+                        "embabel.agent.platform.models.deepseek.base-url=" + server.getBaseUrl(),
+                        "embabel.agent.platform.models.deepseek.max-attempts=3",
                         // Keep the backoff short enough that the test does not idle.
-                        "embabel.agent.platform.models.mistralai.backoff-millis=50",
-                        "embabel.agent.platform.models.mistralai.backoff-multiplier=2",
-                        "embabel.agent.platform.models.mistralai.backoff-max-interval=200"
+                        "embabel.agent.platform.models.deepseek.backoff-millis=50",
+                        "embabel.agent.platform.models.deepseek.backoff-multiplier=2",
+                        "embabel.agent.platform.models.deepseek.backoff-max-interval=200"
                 );
     }
 
@@ -61,14 +65,14 @@ class MistralAiRetryIT {
 
     @Test
     void aRateLimitIsRetriedAndTheSecondAttemptSucceeds() throws IOException {
-        try (var server = StubMistralServer.replyingInSequence(
-                new Reply(429, StubMistralServer.RATE_LIMITED_RESPONSE),
-                new Reply(200, StubMistralServer.OK_RESPONSE))) {
+        try (var server = StubChatServer.replyingInSequence(
+                new Reply(429, DeepSeekResponses.RATE_LIMITED),
+                new Reply(200, DeepSeekResponses.OK))) {
             runnerAgainst(server).run(context -> {
                 var response = modelIn(context).getChatModel().call("hello");
 
                 assertThat(response).isEqualTo("OK");
-                assertThat(server.requestCount())
+                assertThat(server.getRequestCount())
                         .as("the 429 was replayed once, and the retry succeeded")
                         .isEqualTo(2);
             });
@@ -79,15 +83,15 @@ class MistralAiRetryIT {
     void aMalformedRequestIsNotRetried() throws IOException {
         // The server would answer the second request with 200. Reaching it at all means the template
         // replayed a request that can never succeed.
-        try (var server = StubMistralServer.replyingInSequence(
-                new Reply(400, StubMistralServer.BAD_REQUEST_RESPONSE),
-                new Reply(200, StubMistralServer.OK_RESPONSE))) {
+        try (var server = StubChatServer.replyingInSequence(
+                new Reply(400, DeepSeekResponses.BAD_REQUEST),
+                new Reply(200, DeepSeekResponses.OK))) {
             runnerAgainst(server).run(context -> {
                 var model = modelIn(context);
 
                 assertThatThrownBy(() -> model.getChatModel().call("hello"))
-                        .hasMessageContaining("Invalid model");
-                assertThat(server.requestCount())
+                        .hasMessageContaining("Model Not Exist");
+                assertThat(server.getRequestCount())
                         .as("a 400 is deterministic, so it must fail on the first attempt")
                         .isEqualTo(1);
             });

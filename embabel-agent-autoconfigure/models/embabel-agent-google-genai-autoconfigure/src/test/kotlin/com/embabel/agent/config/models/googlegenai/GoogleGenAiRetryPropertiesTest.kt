@@ -15,15 +15,10 @@
  */
 package com.embabel.agent.config.models.googlegenai
 
-import com.embabel.agent.autoconfigure.models.googlegenai.AgentGoogleGenAiAutoConfiguration
-import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import org.springframework.ai.google.genai.GoogleGenAiChatModel
-import org.springframework.boot.autoconfigure.AutoConfigurations
-import org.springframework.boot.test.context.runner.ApplicationContextRunner
-import org.springframework.core.retry.RetryTemplate
+import org.springframework.ai.retry.TransientAiException
 import org.springframework.core.retry.Retryable
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -44,29 +39,14 @@ class GoogleGenAiRetryPropertiesTest {
 
     @Test
     fun `honours the configured max-attempts`() {
-        ApplicationContextRunner()
-            .withConfiguration(AutoConfigurations.of(AgentGoogleGenAiAutoConfiguration::class.java))
-            .withPropertyValues(
-                "GOOGLE_API_KEY=test-key",
-                "embabel.agent.platform.models.googlegenai.api-key=test-key",
-                "embabel.agent.platform.models.googlegenai.max-attempts=1",
-            )
+        googleGenAiRunner("embabel.agent.platform.models.googlegenai.max-attempts=1")
             .run { context ->
-                val chatModel = context.getBeansOfType(SpringAiLlmService::class.java).values
-                    .firstOrNull()
-                    ?.chatModel as? GoogleGenAiChatModel
-                    ?: throw AssertionError("no Google GenAI chat model registered")
-
-                val retryTemplate = GoogleGenAiChatModel::class.java
-                    .getDeclaredField("retryTemplate")
-                    .apply { isAccessible = true }
-                    .get(chatModel) as RetryTemplate
-
+                val retryTemplate = retryTemplateOf(context)
                 val attempts = AtomicInteger()
                 assertThrows<Throwable> {
                     retryTemplate.execute(Retryable<Any> {
                         attempts.incrementAndGet()
-                        throw IllegalStateException("transport down")
+                        throw TransientAiException("upstream unavailable")
                     })
                 }
 
