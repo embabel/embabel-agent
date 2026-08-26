@@ -216,7 +216,7 @@ class GoogleGenAiModelsConfig(
             ToolCallingManager.builder()
                 .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
                 .build(),
-            properties.coreRetryTemplate(),
+            properties.coreRetryTemplate(modelDef.modelId),
             observationRegistry.getIfUnique { ObservationRegistry.NOOP }
         )
 

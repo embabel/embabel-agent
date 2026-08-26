@@ -53,7 +53,7 @@ class CoreRetryTemplateFilteringTest {
     /** Number of times the call was actually made through the core.retry template. */
     private fun attemptsFor(error: Throwable): Int {
         val attempts = AtomicInteger()
-        val template = properties.coreRetryTemplate()
+        val template = properties.coreRetryTemplate(MODEL)
         try {
             template.execute<Any> {
                 attempts.incrementAndGet()

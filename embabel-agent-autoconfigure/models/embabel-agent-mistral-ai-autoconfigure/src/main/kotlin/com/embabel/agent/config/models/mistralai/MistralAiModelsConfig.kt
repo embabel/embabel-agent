@@ -168,7 +168,7 @@ class MistralAiModelsConfig(
                     .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
                     .build()
             )
-            .retryTemplate(properties.coreRetryTemplate())
+            .retryTemplate(properties.coreRetryTemplate(modelDef.modelId))
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
             .build()
 

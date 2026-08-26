@@ -30,19 +30,18 @@ import org.springframework.ai.retry.TransientAiException
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * B3: the retry listener in [RetryProperties] reports the state of the loop, not the decision
- * the policy took. `onError` fires after the throwable is registered but before `canRetry` is
- * consulted, and `close` fires on every failing exit, not only on exhaustion. So the operator
- * reads "Retry attempt 1 of unknown" followed by "Maximum attempts of 10 have reached" on a run
- * that made a single attempt, and raises `max-attempts` for nothing.
- *
- * These tests pin what the messages must claim, by comparing them to what the loop actually did.
+ * The three core.retry providers (deepseek, mistral-ai, google-genai) used to run silently: their
+ * template carried a policy and no listener, so a rate limit, a give-up and an exhaustion all
+ * passed unlogged. These tests hold the core.retry path to the same account as the spring-retry
+ * one in [RetryPropertiesLoggingTest]: announce a retry only when one follows, name the configured
+ * ceiling, and claim exhaustion only when the attempts really ran out.
  */
-class RetryPropertiesLoggingTest {
+class CoreRetryTemplateLoggingTest {
 
     private companion object {
         const val MAX_ATTEMPTS = 3
-        const val MODEL = "gpt-4o"
+        const val MODEL = "mistral-small-2603"
+        const val PREFIX = "embabel.agent.platform.models.test"
     }
 
     /** A rate limited failure that is nevertheless marked as never worth retrying. */
@@ -52,7 +51,7 @@ class RetryPropertiesLoggingTest {
         override val backoffMillis = 1L
         override val backoffMultiplier = 2.0
         override val backoffMaxInterval = 5L
-        override val propertyPrefix = "embabel.agent.platform.models.test"
+        override val propertyPrefix = PREFIX
     }
 
     private lateinit var logger: Logger
@@ -76,10 +75,10 @@ class RetryPropertiesLoggingTest {
     }
 
     /** What the loop actually did, alongside what it said about it. */
-    private class Outcome(val attempts: Int, val events: List<ILoggingEvent>) {
+    private class Outcome(val attempts: Int, events: List<ILoggingEvent>) {
         val retries: Int get() = attempts - 1
-        val messages: List<String> get() = events.map { it.formattedMessage }
-        val warnings: List<String> get() = events.filter { it.level == Level.WARN }.map { it.formattedMessage }
+        val messages: List<String> = events.map { it.formattedMessage }
+        val warnings: List<String> = events.filter { it.level == Level.WARN }.map { it.formattedMessage }
 
         /** Lines that tell the operator a retry is happening. */
         val retryAnnouncements: List<String> get() = messages.filter { it.contains("retry attempt", ignoreCase = true) }
@@ -87,28 +86,37 @@ class RetryPropertiesLoggingTest {
 
     private fun failWith(error: Throwable, maxAttempts: Int = MAX_ATTEMPTS): Outcome {
         val attempts = AtomicInteger()
-        val template = TestRetryProperties(maxAttempts).retryTemplate(MODEL)
+        val template = TestRetryProperties(maxAttempts).coreRetryTemplate(MODEL)
         try {
-            template.execute<Any, Throwable> {
+            template.execute<Any> {
                 attempts.incrementAndGet()
                 throw error
             }
         } catch (expected: Throwable) {
-            // the retry loop rethrows the last failure; the logs are what we are testing
+            // core.retry wraps the last failure in a RetryException; the logs are what we are testing
         }
         return Outcome(attempts.get(), appender.list.toList())
     }
 
     @Test
     fun `a retry is announced only when a retry follows`() {
-        // Retryable rate limit: the loop makes MAX_ATTEMPTS attempts, so only MAX_ATTEMPTS - 1
-        // of them are followed by another try. The last failure is the end of the road.
         val outcome = failWith(NonTransientAiException("429 - Rate limit reached for $MODEL"))
 
         assertThat(outcome.attempts).describedAs("attempts made").isEqualTo(MAX_ATTEMPTS)
         assertThat(outcome.retryAnnouncements)
             .describedAs("one announcement per retry actually performed, in %s", outcome.messages)
             .hasSize(outcome.retries)
+    }
+
+    @Test
+    fun `a rate limit is named as one`() {
+        val outcome = failWith(NonTransientAiException("429 - Rate limit reached for $MODEL"))
+
+        assertThat(outcome.retryAnnouncements)
+            .describedAs("the operator must be able to tell a rate limit from any other failure")
+            .allMatch { it.contains("RATE LIMITED") }
+            .describedAs("and to tell which of the twelve providers is being throttled")
+            .allMatch { it.contains(MODEL) }
     }
 
     @Test
@@ -119,6 +127,9 @@ class RetryPropertiesLoggingTest {
         assertThat(outcome.retryAnnouncements)
             .describedAs("nothing was retried, so nothing may claim a retry, in %s", outcome.messages)
             .isEmpty()
+        assertThat(outcome.messages)
+            .describedAs("but the give-up must still be reported, or the run looks silent")
+            .anyMatch { it.contains("not retrying") }
     }
 
     @Test
@@ -126,7 +137,7 @@ class RetryPropertiesLoggingTest {
         val outcome = failWith(NonTransientAiException("429 - Rate limit reached for $MODEL"))
 
         assertThat(outcome.messages)
-            .describedAs("the policy must expose its ceiling rather than report it as unknown")
+            .describedAs("core.retry counts retries, the operator configures attempts")
             .noneMatch { it.contains("unknown") }
         assertThat(outcome.messages)
             .describedAs("the configured ceiling must appear")
@@ -135,9 +146,9 @@ class RetryPropertiesLoggingTest {
 
     @Test
     fun `exhaustion is not claimed when the attempts were not exhausted`() {
-        // A malformed request is rejected by the policy on the first failure. One attempt was
-        // made out of three. Nothing is exhausted.
-        val outcome = failWith(IllegalArgumentException("Unknown model 'gpt-4o-typo'"))
+        // The predicate rejects a malformed request on the first failure, yet core.retry still
+        // calls onRetryPolicyExhaustion. One attempt out of three: nothing is exhausted.
+        val outcome = failWith(IllegalArgumentException("Unknown model 'mistral-typo'"))
 
         assertThat(outcome.attempts).describedAs("attempts made").isEqualTo(1)
         assertThat(outcome.warnings)
@@ -155,7 +166,7 @@ class RetryPropertiesLoggingTest {
             .anyMatch { it.contains("Maximum attempts of $MAX_ATTEMPTS") }
         assertThat(outcome.warnings)
             .describedAs("and told which property to raise")
-            .anyMatch { it.contains("embabel.agent.platform.models.test.max-attempts") }
+            .anyMatch { it.contains("$PREFIX.max-attempts") }
         assertThat(outcome.warnings)
             .describedAs("this WARN is often the only line an operator sees, so it must name the call")
             .allMatch { it.contains(MODEL) }

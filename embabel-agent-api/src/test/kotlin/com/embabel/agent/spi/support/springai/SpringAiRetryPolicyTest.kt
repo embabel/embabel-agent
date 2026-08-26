@@ -339,5 +339,22 @@ class SpringAiRetryPolicyTest {
             val context = createContext(1, exception)
             assertTrue(policy.canRetry(context), "Explicit Retryable marker should take precedence")
         }
+
+        @Test
+        fun `explicit Retryable marker takes precedence over the databind check`() {
+            // The marker is a deliberate declaration by the exception's author; the databind walk is
+            // a platform heuristic over a third-party type. Explicit wins, so this pair must retry.
+            class TestDatabindException(msg: String) : DatabindException(msg)
+            class RetryableWrapper(cause: Throwable) : RuntimeException(cause), Retryable
+
+            val exception = RetryableWrapper(TestDatabindException("annotation misconfiguration"))
+            assertTrue(
+                LlmDataBindingProperties.hasNonRetryableDatabindException(exception),
+                "precondition: the cause chain does carry a non-retryable DatabindException",
+            )
+
+            val context = createContext(1, exception)
+            assertTrue(policy.canRetry(context), "Explicit Retryable marker should take precedence")
+        }
     }
 }

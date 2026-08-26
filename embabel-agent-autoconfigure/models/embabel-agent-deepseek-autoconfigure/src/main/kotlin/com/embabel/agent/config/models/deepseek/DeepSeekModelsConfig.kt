@@ -200,7 +200,7 @@ class DeepSeekModelsConfig(
                     .build()
             )
             .deepSeekApi(createDeepSeekApi())
-            .retryTemplate(properties.coreRetryTemplate())
+            .retryTemplate(properties.coreRetryTemplate(name))
             .build()
         return SpringAiLlmService(
             name = name,

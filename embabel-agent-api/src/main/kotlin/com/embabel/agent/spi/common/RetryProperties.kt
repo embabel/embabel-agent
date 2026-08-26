@@ -17,15 +17,18 @@ package com.embabel.agent.spi.common
 
 import com.embabel.agent.api.tool.ToolControlFlowSignal
 import com.embabel.agent.spi.support.springai.SpringAiRetryPolicy
-import com.embabel.common.util.loggerFor
+import org.springframework.core.retry.RetryException
+import org.springframework.core.retry.RetryState
 import org.springframework.retry.RetryCallback
 import org.springframework.retry.RetryContext
 import org.springframework.retry.RetryListener
 import org.springframework.retry.RetryPolicy
 import org.springframework.retry.support.RetryTemplate
 import java.time.Duration
+import org.springframework.core.retry.RetryListener as CoreRetryListener
 import org.springframework.core.retry.RetryPolicy as CoreRetryPolicy
 import org.springframework.core.retry.RetryTemplate as CoreRetryTemplate
+import org.springframework.core.retry.Retryable as CoreRetryable
 
 interface RetryTemplateProvider {
     val maxAttempts: Int
@@ -48,6 +51,7 @@ interface RetryProperties : RetryTemplateProvider {
     val retryPolicy: RetryPolicy get() = SpringAiRetryPolicy(maxAttempts)
 
     override fun retryTemplate(name: String): RetryTemplate {
+        val log = LlmRetryLogger(name, maxAttempts, propertyPrefix)
         return RetryTemplate.builder()
             .exponentialBackoff(
                 Duration.ofMillis(backoffMillis),
@@ -74,30 +78,9 @@ interface RetryProperties : RetryTemplateProvider {
                     // same verdict itself rather than announce a retry that may never happen.
                     val attemptsMade = context.retryCount
                     if (attemptsMade >= maxAttempts || !LlmRetryDecision.isRetryable(throwable)) {
-                        loggerFor<RetryProperties>().info(
-                            "LLM invocation {} failed on attempt {} of {}, not retrying: {}",
-                            name,
-                            attemptsMade,
-                            maxAttempts,
-                            throwable.message,
-                            throwable,
-                        )
-                    } else if (LlmRetryDecision.isRateLimit(throwable)) {
-                        loggerFor<RetryProperties>().info(
-                            "LLM invocation {} RATE LIMITED: retry attempt {} of {}",
-                            name,
-                            attemptsMade + 1,
-                            maxAttempts,
-                        )
+                        log.notRetrying(attemptsMade, throwable)
                     } else {
-                        loggerFor<RetryProperties>().info(
-                            "LLM invocation {} retry attempt {} of {} after: {}",
-                            name,
-                            attemptsMade + 1,
-                            maxAttempts,
-                            throwable.message,
-                            throwable,
-                        )
+                        log.retrying(attemptsMade + 1, throwable)
                     }
                 }
 
@@ -108,11 +91,7 @@ interface RetryProperties : RetryTemplateProvider {
                 ) {
                     // close fires on every failing exit, exhausted or not
                     if (throwable != null && context.retryCount >= maxAttempts) {
-                        loggerFor<RetryProperties>().warn(
-                            "Maximum attempts of {} have reached. The maximum attempt can be configured using property {}.max-attempts",
-                            maxAttempts,
-                            propertyPrefix
-                        )
+                        log.exhausted()
                     }
                 }
             })
@@ -120,20 +99,51 @@ interface RetryProperties : RetryTemplateProvider {
     }
 
     /**
-     * Spring Framework 7 template, as taken by the Spring AI 2.0 model builders. Filters on the
-     * same [LlmRetryDecision] as [retryTemplate]: with no predicate, core.retry replays every
-     * throwable, including a malformed request or a bad API key.
+     * Spring Framework 7 template, as taken by the Spring AI 2.0 model builders. Filters on the same
+     * [LlmRetryDecision] as [retryTemplate] and reports through the same [LlmRetryLogger]: with no
+     * predicate core.retry replays every throwable, including a malformed request or a bad API key,
+     * and with no listener it does so without a word.
      */
-    fun coreRetryTemplate(): CoreRetryTemplate =
-        CoreRetryTemplate(
-            CoreRetryPolicy.builder()
-                .maxRetries((maxAttempts - 1).coerceAtLeast(0).toLong())
-                .delay(Duration.ofMillis(backoffMillis))
-                .multiplier(backoffMultiplier)
-                .maxDelay(Duration.ofMillis(backoffMaxInterval))
-                .predicate(LlmRetryDecision::isRetryable)
-                .build()
-        )
+    fun coreRetryTemplate(name: String): CoreRetryTemplate {
+        val log = LlmRetryLogger(name, maxAttempts, propertyPrefix)
+        // core.retry counts the retries that follow the first call, where maxAttempts counts calls.
+        val corePolicy = CoreRetryPolicy.builder()
+            .maxRetries((maxAttempts - 1).coerceAtLeast(0).toLong())
+            .delay(Duration.ofMillis(backoffMillis))
+            .multiplier(backoffMultiplier)
+            .maxDelay(Duration.ofMillis(backoffMaxInterval))
+            .predicate(LlmRetryDecision::isRetryable)
+            .build()
+        return CoreRetryTemplate(corePolicy).apply {
+            setRetryListener(object : CoreRetryListener {
+
+                /** Fires only when a retry really follows, so there is no verdict to recompute here. */
+                override fun beforeRetry(
+                    policy: CoreRetryPolicy,
+                    retryable: CoreRetryable<*>,
+                    state: RetryState,
+                ) {
+                    log.retrying(state.retryCount, state.lastException)
+                }
+
+                /**
+                 * Fires on every failing exit, so "exhaustion" is a misnomer: the predicate rejecting
+                 * the first failure lands here too. The exceptions it carries are the attempts made.
+                 */
+                override fun onRetryPolicyExhaustion(
+                    policy: CoreRetryPolicy,
+                    retryable: CoreRetryable<*>,
+                    exception: RetryException,
+                ) {
+                    val attemptsMade = exception.exceptions.size
+                    log.notRetrying(attemptsMade, exception.lastException)
+                    if (attemptsMade >= maxAttempts) {
+                        log.exhausted()
+                    }
+                }
+            })
+        }
+    }
 
     companion object {
         /** Optional dependency, matched by name so spring-security stays off the classpath. */
