@@ -18,6 +18,7 @@ package com.embabel.agent.spi.support
 import com.embabel.agent.api.tool.ToolControlFlowSignal
 import com.embabel.agent.api.validation.guardrails.GuardRailViolationException
 import com.embabel.agent.core.ReplanRequestedException
+import com.embabel.agent.spi.common.LlmRetryDecision
 import com.embabel.agent.spi.common.RetryTemplateProvider
 import com.embabel.agent.spi.support.LlmDataBindingProperties.Companion.PREFIX
 import org.slf4j.LoggerFactory
@@ -70,18 +71,18 @@ class LlmDataBindingProperties(
                     if (hasNonRetryableDatabindException(throwable)) throw throwable
                     if (isRateLimitError(throwable)) {
                         logger.info(
-                            "LLM invocation {} RATE LIMITED: Retry attempt {} of {}.{}",
-                            name,
-                            context.retryCount,
-                            maxAttempts
-                        )
-                    } else {
-                        logger.warn(
-                            "LLM invocation {}: Retry attempt {} of {} due to: {}. {}",
+                            "LLM invocation {} RATE LIMITED: Retry attempt {} of {}",
                             name,
                             context.retryCount,
                             maxAttempts,
-                            throwable.message ?: "Unknown error"
+                        )
+                    } else {
+                        logger.warn(
+                            "LLM invocation {}: Retry attempt {} of {} due to: {}",
+                            name,
+                            context.retryCount,
+                            maxAttempts,
+                            throwable.message ?: "Unknown error",
                         )
                     }
                 }
@@ -105,22 +106,9 @@ class LlmDataBindingProperties(
     }
 
     companion object {
-        private val RATE_LIMIT_PATTERNS = listOf(
-            "rate limit",
-            "too many requests",
-            "quota exceeded",
-            "rate-limited",
-            "429",
-        )
-
         const val PREFIX  = "embabel.agent.platform.llm-operations.data-binding"
 
-        fun isRateLimitError(t: Throwable): Boolean {
-            val message = t.message?.lowercase() ?: return false
-            return RATE_LIMIT_PATTERNS.any { pattern ->
-                message.contains(pattern)
-            }
-        }
+        fun isRateLimitError(t: Throwable): Boolean = LlmRetryDecision.isRateLimit(t)
 
         /**
          * Walks the full exception cause chain looking for a DatabindException that is NOT

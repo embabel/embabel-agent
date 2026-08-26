@@ -22,8 +22,10 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A local HTTP server that returns a canned Mistral chat-completion body, optionally after a delay.
@@ -31,6 +33,9 @@ import java.util.concurrent.Executors;
  *
  * <p>Handlers run on a dedicated executor so {@link #close()} can interrupt an in-flight delayed reply.
  * Use with try-with-resources: {@code try (var server = StubMistralServer.replyingWith(BODY)) { ... }}.
+ *
+ * <p>{@link #replyingInSequence} scripts one {@link Reply} per request, the last one repeating, so a
+ * test can drive a failure-then-recovery exchange and assert on {@link #requestCount()}.
  */
 final class StubMistralServer implements AutoCloseable {
 
@@ -40,11 +45,26 @@ final class StubMistralServer implements AutoCloseable {
             "usage":{"prompt_tokens":1,"total_tokens":2,"completion_tokens":1},\
             "choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"OK"}}]}""";
 
+    /** Mistral's 429 body, as returned when the per-minute request quota is hit. */
+    static final String RATE_LIMITED_RESPONSE = """
+            {"object":"error","message":"Requests rate limit exceeded","type":"rate_limit_exceeded",\
+            "param":null,"code":"3505"}""";
+
+    /** Mistral's 400 body for a request that can never succeed however often it is replayed. */
+    static final String BAD_REQUEST_RESPONSE = """
+            {"object":"error","message":"Invalid model: no-such-model","type":"invalid_model",\
+            "param":null,"code":"1500"}""";
+
+    /** One scripted HTTP reply. */
+    record Reply(int status, String body) {
+    }
+
     private final HttpServer server;
     private final ExecutorService executor;
     private final int port;
+    private final AtomicInteger requests = new AtomicInteger();
 
-    private StubMistralServer(String responseBody, Duration delay) throws IOException {
+    private StubMistralServer(List<Reply> script, Duration delay) throws IOException {
         executor = Executors.newCachedThreadPool();
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.setExecutor(executor);
@@ -53,9 +73,10 @@ final class StubMistralServer implements AutoCloseable {
                 if (!delay.isZero()) {
                     Thread.sleep(delay.toMillis());
                 }
-                var bytes = responseBody.getBytes(StandardCharsets.UTF_8);
+                var reply = script.get(Math.min(requests.getAndIncrement(), script.size() - 1));
+                var bytes = reply.body().getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/json");
-                exchange.sendResponseHeaders(200, bytes.length);
+                exchange.sendResponseHeaders(reply.status(), bytes.length);
                 try (OutputStream os = exchange.getResponseBody()) {
                     os.write(bytes);
                 }
@@ -72,16 +93,26 @@ final class StubMistralServer implements AutoCloseable {
 
     /** Starts a server that replies immediately with {@code responseBody}. */
     static StubMistralServer replyingWith(String responseBody) throws IOException {
-        return new StubMistralServer(responseBody, Duration.ZERO);
+        return new StubMistralServer(List.of(new Reply(200, responseBody)), Duration.ZERO);
     }
 
     /** Starts a server that replies with {@code responseBody} only after {@code delay}. */
     static StubMistralServer replyingAfter(Duration delay, String responseBody) throws IOException {
-        return new StubMistralServer(responseBody, delay);
+        return new StubMistralServer(List.of(new Reply(200, responseBody)), delay);
+    }
+
+    /** Starts a server that walks {@code replies} one per request, then repeats the last one. */
+    static StubMistralServer replyingInSequence(Reply... replies) throws IOException {
+        return new StubMistralServer(List.of(replies), Duration.ZERO);
     }
 
     String baseUrl() {
         return "http://127.0.0.1:" + port;
+    }
+
+    /** Requests received so far, which is the number of attempts the retry layer actually made. */
+    int requestCount() {
+        return requests.get();
     }
 
     @Override

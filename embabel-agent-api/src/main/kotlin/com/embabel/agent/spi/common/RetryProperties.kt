@@ -16,7 +16,6 @@
 package com.embabel.agent.spi.common
 
 import com.embabel.agent.api.tool.ToolControlFlowSignal
-import com.embabel.agent.spi.support.LlmDataBindingProperties.Companion.isRateLimitError
 import com.embabel.agent.spi.support.springai.SpringAiRetryPolicy
 import com.embabel.common.util.loggerFor
 import org.springframework.retry.RetryCallback
@@ -25,6 +24,8 @@ import org.springframework.retry.RetryListener
 import org.springframework.retry.RetryPolicy
 import org.springframework.retry.support.RetryTemplate
 import java.time.Duration
+import org.springframework.core.retry.RetryPolicy as CoreRetryPolicy
+import org.springframework.core.retry.RetryTemplate as CoreRetryTemplate
 
 interface RetryTemplateProvider {
     val maxAttempts: Int
@@ -66,29 +67,47 @@ interface RetryProperties : RetryTemplateProvider {
                         throw throwable
                     }
                     // Security denials are deterministic - retrying will never succeed
-                    if (throwable.javaClass.name == "org.springframework.security.access.AccessDeniedException") {
+                    if (throwable.javaClass.name == ACCESS_DENIED_EXCEPTION) {
                         throw throwable
                     }
-                    if (isRateLimitError(throwable)) {
+                    // onError fires before the policy is consulted, so the listener has to reach the
+                    // same verdict itself rather than announce a retry that may never happen.
+                    val attemptsMade = context.retryCount
+                    if (attemptsMade >= maxAttempts || !LlmRetryDecision.isRetryable(throwable)) {
                         loggerFor<RetryProperties>().info(
-                            "LLM invocation {} RATE LIMITED: Retry attempt {} of {}",
+                            "LLM invocation {} failed on attempt {} of {}, not retrying: {}",
                             name,
-                            context.retryCount,
-                            if (retryPolicy.maxAttempts > 0) retryPolicy.maxAttempts else "unknown",
+                            attemptsMade,
+                            maxAttempts,
+                            throwable.message,
+                            throwable,
                         )
-                        return
+                    } else if (LlmRetryDecision.isRateLimit(throwable)) {
+                        loggerFor<RetryProperties>().info(
+                            "LLM invocation {} RATE LIMITED: retry attempt {} of {}",
+                            name,
+                            attemptsMade + 1,
+                            maxAttempts,
+                        )
+                    } else {
+                        loggerFor<RetryProperties>().info(
+                            "LLM invocation {} retry attempt {} of {} after: {}",
+                            name,
+                            attemptsMade + 1,
+                            maxAttempts,
+                            throwable.message,
+                            throwable,
+                        )
                     }
-                    loggerFor<RetryProperties>().info(
-                        "Operation $name: Retry error. Retry count: ${context.retryCount}",
-                        throwable,
-                    )
                 }
+
                 override fun <T, E : Throwable> close(
                     context: RetryContext,
                     callback: RetryCallback<T, E>,
                     throwable: Throwable?,
                 ) {
-                    throwable?.let {
+                    // close fires on every failing exit, exhausted or not
+                    if (throwable != null && context.retryCount >= maxAttempts) {
                         loggerFor<RetryProperties>().warn(
                             "Maximum attempts of {} have reached. The maximum attempt can be configured using property {}.max-attempts",
                             maxAttempts,
@@ -98,5 +117,26 @@ interface RetryProperties : RetryTemplateProvider {
                 }
             })
             .build()
+    }
+
+    /**
+     * Spring Framework 7 template, as taken by the Spring AI 2.0 model builders. Filters on the
+     * same [LlmRetryDecision] as [retryTemplate]: with no predicate, core.retry replays every
+     * throwable, including a malformed request or a bad API key.
+     */
+    fun coreRetryTemplate(): CoreRetryTemplate =
+        CoreRetryTemplate(
+            CoreRetryPolicy.builder()
+                .maxRetries((maxAttempts - 1).coerceAtLeast(0).toLong())
+                .delay(Duration.ofMillis(backoffMillis))
+                .multiplier(backoffMultiplier)
+                .maxDelay(Duration.ofMillis(backoffMaxInterval))
+                .predicate(LlmRetryDecision::isRetryable)
+                .build()
+        )
+
+    companion object {
+        /** Optional dependency, matched by name so spring-security stays off the classpath. */
+        private const val ACCESS_DENIED_EXCEPTION = "org.springframework.security.access.AccessDeniedException"
     }
 }

@@ -168,4 +168,39 @@ class LlmDataBindingPropertiesTest {
             assertTrue(output.out.contains("Maximum attempts of 1 have reached. The maximum attempt can be configured using property embabel.agent.platform.llm-operations.data-binding.max-attempts"))
         }
     }
+
+    @Nested
+    inner class RetryLoggingTest {
+
+        /** Lines the retry listener rendered, so unrelated console output cannot mask a stray placeholder. */
+        private fun retryLines(output: CapturedOutput): List<String> =
+            output.out.lines().filter { it.contains("LLM invocation") }
+
+        private fun failWith(error: Throwable) {
+            val retryTemplate = LlmDataBindingProperties(maxAttempts = 2).retryTemplate("bind-1")
+            assertThrows<RuntimeException> {
+                retryTemplate.execute<Unit, RuntimeException> { throw error }
+            }
+        }
+
+        @Test
+        fun `rate limited retry is logged with every placeholder filled`(output: CapturedOutput) {
+            failWith(RuntimeException("429 - Too many requests"))
+
+            val lines = retryLines(output)
+            assertTrue(lines.isNotEmpty(), "expected the listener to log")
+            assertTrue(lines.none { it.contains("{}") }, "unfilled placeholder in $lines")
+            assertTrue(lines.any { it.contains("LLM invocation bind-1 RATE LIMITED: Retry attempt 1 of 2") }, "$lines")
+        }
+
+        @Test
+        fun `retry failure is logged with every placeholder filled`(output: CapturedOutput) {
+            failWith(RuntimeException("connection reset"))
+
+            val lines = retryLines(output)
+            assertTrue(lines.isNotEmpty(), "expected the listener to log")
+            assertTrue(lines.none { it.contains("{}") }, "unfilled placeholder in $lines")
+            assertTrue(lines.any { it.contains("LLM invocation bind-1: Retry attempt 1 of 2 due to: connection reset") }, "$lines")
+        }
+    }
 }
