@@ -34,7 +34,7 @@ import org.springframework.stereotype.Service
  */
 @Service
 class DefaultAgentValidationManager(
-    private val validators: List<AgentValidator>,
+     val validators: List<AgentValidator>,
 ) : AgentValidationManager {
 
     private val logger = LoggerFactory.getLogger(DefaultAgentValidationManager::class.java)
@@ -65,4 +65,11 @@ class DefaultAgentValidationManager(
             isValid = validationResults.values.all { it.isValid }
         )
     }
+}
+
+/**
+ * Append the given validator to the existing validators of the DefaultAgentValidationManager.
+ */
+fun DefaultAgentValidationManager.appendValidators(validator: AgentValidator): DefaultAgentValidationManager {
+    return DefaultAgentValidationManager(this.validators + validator)
 }

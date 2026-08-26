@@ -32,6 +32,7 @@ import com.embabel.agent.spi.validation.AgentStructureAgentValidator
 import com.embabel.agent.spi.validation.DefaultAgentValidationManager
 import com.embabel.agent.spi.validation.GoapPathToCompletionValidator
 import com.embabel.agent.spi.validation.PathToCompletionAgentValidator
+import com.embabel.agent.spi.validation.appendValidators
 import com.embabel.agent.spi.validation.isActionMethod
 import com.embabel.agent.spi.validation.isConditionMethod
 import com.embabel.agent.spi.validation.isMethodFromSupertype
@@ -124,7 +125,10 @@ class AgentMetadataReader(
 
     private val logger = LoggerFactory.getLogger(AgentMetadataReader::class.java)
 
-    private lateinit var agentValidationManager: AgentValidationManager
+    private var agentValidationManager: AgentValidationManager = DefaultAgentValidationManager(
+        listOf(
+            agentStructureValidator,
+            pathToCompletionValidator))
 
     fun createAgentScopes(vararg instances: Any): List<AgentScope> =
         instances.mapNotNull { createAgentMetadata(it) }
@@ -174,14 +178,8 @@ class AgentMetadataReader(
         rejectOperationContextConstructorInjection(targetType)
 
         val plannerType = agenticInfo.agentAnnotation?.planner ?: PlannerType.GOAP
-        agentValidationManager = DefaultAgentValidationManager(
-            listOf(
-                agentStructureValidator,
-                pathToCompletionValidator,
-                AchievableGoalValidator(agenticInfo.agentName(), targetType, instance, requireInterfaceDeserializationAnnotations)
-            )
-        )
-
+        agentValidationManager= (agentValidationManager as? DefaultAgentValidationManager)
+            ?.appendValidators(AchievableGoalValidator(agenticInfo.agentName(), targetType, instance, requireInterfaceDeserializationAnnotations))!!
         val getterGoals = findGoalGetters(targetType).map { getGoal(it, instance) }
         val actionMethods = findActionMethods(targetType)
         val conditionMethods = findConditionMethods(targetType)

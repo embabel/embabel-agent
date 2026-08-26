@@ -11,7 +11,7 @@ import java.lang.reflect.Method
 /**
  * Returns true, if the given method is
  *   - annotated with Action and
- *   - declared in the given agent class, or in it's super type and 
+ *   - declared in the given agent class, or in its super type and
  *   - can be deserialized.
  */
 fun isActionMethod(
@@ -77,9 +77,11 @@ private fun methodSignaturesMatch(
 /**
  * Checks if a method returning an interface returns a type with a @JsonDeserialize annotation.
  * @param method The Java method to check.
- * @return true if the return type has a @JsonDeserialize annotation, false otherwise
+ * @return true if the return type has a @JsonDeserialize annotation, false otherwise.
  */
-private fun hasRequiredJsonDeserializeAnnotationOnInterfaceReturnType(method: Method,      logger: Logger): Boolean {
+private fun hasRequiredJsonDeserializeAnnotationOnInterfaceReturnType(
+    method: Method,
+    logger: Logger): Boolean {
     val hasRequiredAnnotation = method.returnType.isAnnotationPresent(JsonDeserialize::class.java) ||
             method.returnType.isAnnotationPresent(JsonTypeInfo::class.java)
     if (!hasRequiredAnnotation) {

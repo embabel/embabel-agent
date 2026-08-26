@@ -16,7 +16,7 @@ import java.lang.reflect.Method
  * Specific check includes:
  *  - Verifying that @Action annotation is present on it.
  */
-open class AchievableGoalValidator (
+class AchievableGoalValidator (
     private val agentName: String,
     private val agentClass: Class<*>,
     private val agentInstance: Any,
@@ -24,6 +24,9 @@ open class AchievableGoalValidator (
 ): AgentValidator {
     private val logger = LoggerFactory.getLogger(AchievableGoalValidator::class.java)
 
+    /**
+     * Validate the agent and return the verification status accordingly.
+     */
     override fun validate(agentScope: AgentScope): ValidationResult {
         val errors = mutableListOf<ValidationError>()
         ReflectionUtils.doWithMethods(
@@ -49,7 +52,7 @@ open class AchievableGoalValidator (
         return ValidationResult(errors.isEmpty(), errors)
     }
 
-    private fun isMethodAnnotatedWithAchievesGoal(method: Method, ): Boolean {
+    private fun isMethodAnnotatedWithAchievesGoal(method: Method ): Boolean {
         return method.isAnnotationPresent(AchievesGoal::class.java)
     }
 }
