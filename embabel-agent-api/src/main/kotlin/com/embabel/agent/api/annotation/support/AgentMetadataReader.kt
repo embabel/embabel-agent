@@ -34,7 +34,6 @@ import com.embabel.agent.spi.validation.GoapPathToCompletionValidator
 import com.embabel.agent.spi.validation.PathToCompletionAgentValidator
 import com.embabel.agent.spi.validation.isActionMethod
 import com.embabel.agent.spi.validation.isConditionMethod
-import com.embabel.agent.spi.validation.isMethodFromSupertype
 import com.embabel.common.core.types.Semver
 import com.embabel.common.util.NameUtils
 import org.slf4j.LoggerFactory
@@ -507,8 +506,8 @@ class AgentMetadataReader(
                 costMethods[name] = CostMethodInfo(method, instance)
             },
             { method ->
-                AnnotationUtils.findAnnotation(method, Cost::class.java) != null &&
-                        (type.declaredMethods.contains(method) || isMethodFromSupertype(method, type))
+                        AnnotationUtils.findAnnotation(method, Cost::class.java) != null &&
+                        (ReflectionUtils.findMethod(type, method.name, *method.parameterTypes) != null)
             })
         return costMethods
     }
