@@ -42,14 +42,14 @@ class AgentMetadataReaderMetadataTest {
 
         @Test
         fun `no annotation`() {
-            val reader = AgentMetadataReader()
+            val reader = AgentMetadataReader(skipAgentDeploymentOnError = true)
             val metadata = reader.createAgentMetadata(PersonWithReverseTool("John Doe"))
             assertNull(metadata)
         }
 
         @Test
         fun `no methods`() {
-            val reader = AgentMetadataReader()
+            val reader = AgentMetadataReader(skipAgentDeploymentOnError = true)
             assertNull(reader.createAgentMetadata(NoMethods()))
         }
 
@@ -60,7 +60,7 @@ class AgentMetadataReaderMetadataTest {
 
         @Test
         fun `invalid action signature returning interface without serialization annotation with check`() {
-            val reader = AgentMetadataReader(requireInterfaceDeserializationAnnotations = true)
+            val reader = AgentMetadataReader(requireInterfaceDeserializationAnnotations = true, skipAgentDeploymentOnError = true)
             assertNull(reader.createAgentMetadata(InvalidActionNoDeserializationInInterfaceGoal()))
         }
 
@@ -134,7 +134,6 @@ class AgentMetadataReaderMetadataTest {
             assertTrue(ex.message!!.contains("OperationContext"))
             assertTrue(ex.message!!.contains("@Action"))
         }
-
     }
 
     @Nested

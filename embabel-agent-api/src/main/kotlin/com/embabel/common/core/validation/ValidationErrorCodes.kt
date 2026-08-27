@@ -37,5 +37,8 @@ class ValidationErrorCodes {
 
         /** Agent has goals but no actions, so no plan can ever reach them. */
         const val NO_ACTIONS_TO_GOALS = "NO_ACTIONS_TO_GOALS"
+
+        /** Action annotation is missing on the method. */
+        const val MISSING_ACTION_ANNOTATION = "MISSING_ACTION_ANNOTATION"
     }
 }
