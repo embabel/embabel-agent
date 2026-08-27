@@ -102,7 +102,7 @@ class OciGenAiChatModel(
         return toSpringChatResponse(response.chatResult, options)
     }
 
-    override fun getDefaultOptions(): ChatOptions = defaultOptions.copy()
+    override fun getOptions(): ChatOptions = defaultOptions.copy()
 
     internal fun chatRequest(prompt: Prompt, options: OciGenAiChatOptions): BaseChatRequest =
         when (options.apiFormat) {

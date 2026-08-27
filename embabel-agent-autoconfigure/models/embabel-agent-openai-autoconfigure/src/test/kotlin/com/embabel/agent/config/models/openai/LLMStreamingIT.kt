@@ -27,6 +27,7 @@ import com.embabel.common.core.streaming.StreamingEvent
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.slf4j.LoggerFactory
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.beans.factory.annotation.Autowired
@@ -109,6 +110,11 @@ class SimpleTool {
 )
 @ActiveProfiles("streaming-test")
 @Import(StreamingTestConfig::class, AgentOpenAiAutoConfiguration::class)
+@EnabledIfEnvironmentVariable(
+    named = "OPENAI_API_KEY",
+    matches = ".+",
+    disabledReason = "Integration test requires OPENAI_API_KEY",
+)
 class LLMStreamingIT(
     @param:Autowired private val autonomy: Autonomy,
     @param:Autowired private val ai: Ai,

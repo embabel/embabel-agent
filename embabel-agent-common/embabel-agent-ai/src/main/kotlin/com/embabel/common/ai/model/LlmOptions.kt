@@ -21,6 +21,7 @@ import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byRole
 import com.embabel.common.ai.model.spi.InternalExtensionApi
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
+import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonProperty
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.Duration
@@ -28,11 +29,21 @@ import java.time.Duration
 /**
  * Thinking config. Set on Anthropic models
  * and some Ollama models.
+ *
+ * @property includedTags when set, only [ThinkingBlock][com.embabel.common.core.thinking.ThinkingBlock]s
+ *   whose tag name is in this set are returned. PREFIX and NO_PREFIX blocks are suppressed.
+ * @property excludedTags when set, [ThinkingBlock][com.embabel.common.core.thinking.ThinkingBlock]s
+ *   whose tag name is in this set are dropped. PREFIX and NO_PREFIX blocks pass through.
+ * @property injectSystemPrompt when true and [includedTags] is set, a system prompt hint is injected
+ *   instructing the model to wrap reasoning in the first included tag.
  */
 class Thinking private constructor(
     val enabled: Boolean = false,
     val tokenBudget: Int? = null,
     val extractThinking: Boolean = false,
+    val includedTags: Set<String>? = null,
+    val excludedTags: Set<String>? = null,
+    val injectSystemPrompt: Boolean = true,
 ) {
 
     companion object {
@@ -48,6 +59,18 @@ class Thinking private constructor(
             extractThinking = true,
         )
 
+        @JvmStatic
+        fun withIncludedTags(vararg tags: String): Thinking = Thinking(
+            extractThinking = true,
+            includedTags = tags.toSet(),
+        )
+
+        @JvmStatic
+        fun withExcludedTags(vararg tags: String): Thinking = Thinking(
+            extractThinking = true,
+            excludedTags = tags.toSet(),
+        )
+
         val NONE: Thinking = Thinking(
             enabled = false,
         )
@@ -60,6 +83,9 @@ class Thinking private constructor(
         enabled = this.enabled,
         tokenBudget = this.tokenBudget,
         extractThinking = true,
+        includedTags = this.includedTags,
+        excludedTags = this.excludedTags,
+        injectSystemPrompt = this.injectSystemPrompt,
     )
 
     /**
@@ -69,6 +95,21 @@ class Thinking private constructor(
         enabled = true,
         tokenBudget = tokenBudget,
         extractThinking = this.extractThinking,
+        includedTags = this.includedTags,
+        excludedTags = this.excludedTags,
+        injectSystemPrompt = this.injectSystemPrompt,
+    )
+
+    /**
+     * Control whether a system prompt hint is injected when [includedTags] is set.
+     */
+    fun withInjectSystemPrompt(inject: Boolean): Thinking = Thinking(
+        enabled = this.enabled,
+        tokenBudget = this.tokenBudget,
+        extractThinking = this.extractThinking,
+        includedTags = this.includedTags,
+        excludedTags = this.excludedTags,
+        injectSystemPrompt = inject,
     )
 }
 
@@ -188,6 +229,42 @@ data class LlmOptions @JvmOverloads constructor(
     fun withTimeout(timeout: Duration): LlmOptions {
         return copy(timeout = timeout)
     }
+
+    /**
+     * The model these options name, however they name it.
+     *
+     * [withModel] records the choice as a [ByNameModelSelectionCriteria] while configuration
+     * binding sets the [model] field, so neither one alone answers the question.
+     */
+    @get:JsonIgnore
+    val modelName: String?
+        get() = model ?: (criteria as? ByNameModelSelectionCriteria)?.name
+
+    /**
+     * Fill in anything this instance leaves unset from [defaults], keeping every value set here.
+     *
+     * Used to apply the hyperparameters configured against a role without overriding what the
+     * caller asked for: a role may say `temperature: 0.3`, but a caller that passed its own
+     * temperature still gets that one.
+     *
+     * Model selection is taken from [defaults] wholesale, since the point of resolving a role is
+     * to decide which model it means.
+     */
+    fun withDefaultsFrom(defaults: LlmOptions): LlmOptions =
+        copy(
+            modelSelectionCriteria = defaults.modelSelectionCriteria,
+            model = defaults.model,
+            role = defaults.role,
+            temperature = temperature ?: defaults.temperature,
+            frequencyPenalty = frequencyPenalty ?: defaults.frequencyPenalty,
+            maxTokens = maxTokens ?: defaults.maxTokens,
+            presencePenalty = presencePenalty ?: defaults.presencePenalty,
+            topK = topK ?: defaults.topK,
+            topP = topP ?: defaults.topP,
+            thinking = thinking ?: defaults.thinking,
+            timeout = timeout ?: defaults.timeout,
+            extensions = defaults.extensions + extensions,
+        )
 
     /**
      * Get a provider-specific extension value by key.

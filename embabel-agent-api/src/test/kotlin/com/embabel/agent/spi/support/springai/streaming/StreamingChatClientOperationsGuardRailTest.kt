@@ -47,7 +47,7 @@ import com.embabel.common.core.validation.ValidationLocation
 import com.embabel.common.core.validation.ValidationResult
 import com.embabel.common.core.validation.ValidationSeverity
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -58,7 +58,6 @@ import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
 import org.springframework.ai.chat.prompt.ChatOptions
-import org.springframework.ai.chat.prompt.DefaultChatOptions
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 import reactor.core.publisher.Flux
@@ -69,7 +68,7 @@ import org.springframework.ai.chat.messages.AssistantMessage as SpringAssistantM
  */
 class StreamingGuardRailTestFakeChatModel(
     val responses: List<String>,
-    // Spring AI 2.0: ChatClient merges via getDefaultOptions; use ToolCallingChatOptions so
+    // Spring AI 2.0: ChatClient merges via getOptions; use ToolCallingChatOptions so
     // the subtype survives the merge.
     private val options: ChatOptions = ToolCallingChatOptions.builder().build(),
 ) : ChatModel {
@@ -88,7 +87,7 @@ class StreamingGuardRailTestFakeChatModel(
     val promptsPassed = mutableListOf<Prompt>()
     val optionsPassed = mutableListOf<ChatOptions>()
 
-    override fun getDefaultOptions(): ChatOptions = options
+    override fun getOptions(): ChatOptions = options
 
     override fun call(prompt: Prompt): ChatResponse {
         promptsPassed.add(prompt)
@@ -172,7 +171,7 @@ class StreamingChatClientOperationsGuardRailTest {
             validator = Validation.buildDefaultValidatorFactory().validator,
             validationPromptGenerator = DefaultValidationPromptGenerator(),
             templateRenderer = JinjavaTemplateRenderer(),
-            objectMapper = jacksonObjectMapper(),
+            embabelObjectMapperHolder = EmbabelObjectMapperHolder.createDefault(),
             dataBindingProperties = dataBindingProperties,
             asyncer = com.embabel.agent.spi.support.ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
         )

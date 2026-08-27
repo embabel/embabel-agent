@@ -26,6 +26,7 @@ import com.embabel.common.core.thinking.ThinkingResponse;
 import com.embabel.common.core.validation.ValidationResult;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -81,6 +82,8 @@ import static org.junit.jupiter.api.Assertions.*;
         }
 )
 @Import({AgentAnthropicAutoConfiguration.class})
+@EnabledIfEnvironmentVariable(named = "ANTHROPIC_API_KEY", matches = ".+",
+        disabledReason = "Integration test requires ANTHROPIC_API_KEY")
 class LLMAnthropicGuardRailsIntegrationIT {
 
     private static final Logger logger = LoggerFactory.getLogger(LLMAnthropicGuardRailsIntegrationIT.class);

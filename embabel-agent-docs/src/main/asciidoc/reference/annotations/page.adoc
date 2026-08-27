@@ -1648,10 +1648,11 @@ More specifically, policy categorises non-retryable exception in the order:
 - TerminateActionException
 - TerminateAgentException
 - ToolControlFlowSignal
-- NonTransientAiException
+- NonTransientAiException, unless it reports a rate limit (HTTP 429), which is retried
 - IllegalArgumentException
 - IllegalStateException
 - UnsupportedOperationException
+- NullPointerException
 - ClassCastException
 
 If exception does not belong to any of the exceptions from the list above - it gets mapped to retryable exception.

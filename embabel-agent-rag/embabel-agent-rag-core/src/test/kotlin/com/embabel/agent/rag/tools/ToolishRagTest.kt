@@ -16,6 +16,7 @@
 package com.embabel.agent.rag.tools
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.filter.PropertyFilter
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.ContentElement
 import com.embabel.agent.rag.model.NamedEntityData.Companion.ENTITY_LABEL
@@ -463,6 +464,28 @@ class ToolishRagTest {
     }
 
     @Nested
+    inner class FilterDispatchExtensionsTests {
+
+        @Test
+        fun `filter dispatch extensions should default filters to null`() {
+            val searchOperations = mockk<CoreSearchOperations>()
+            val request = TextSimilaritySearchRequest("test query", 0.5, 5)
+            every {
+                searchOperations.vectorSearch(request, Chunk::class.java)
+            } returns emptyList()
+            every {
+                searchOperations.textSearch(request, Chunk::class.java)
+            } returns emptyList()
+
+            val vectorResults = searchOperations.vectorSearchWithFilterDispatch(request, Chunk::class.java)
+            val textResults = searchOperations.textSearchWithFilterDispatch(request, Chunk::class.java)
+
+            assertTrue(vectorResults.isEmpty())
+            assertTrue(textResults.isEmpty())
+        }
+    }
+
+    @Nested
     inner class TextSearchToolsTests {
 
         @Test
@@ -504,6 +527,78 @@ class ToolishRagTest {
             val result = tools.textSearch("nonexistent", 10, 0.5)
 
             assertEquals("0 results:", result)
+        }
+
+        @Test
+        fun `textSearch should use native filtering when supported`() {
+            val textSearch = mockk<FilteringTextSearch>()
+            val metadataFilter = PropertyFilter.eq("ownerId", "alice")
+            val chunk = createChunk("chunk1", "Alice's content")
+            every {
+                textSearch.textSearchWithFilter(
+                    any<TextSimilaritySearchRequest>(),
+                    Chunk::class.java,
+                    metadataFilter,
+                    null,
+                )
+            } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.9))
+            val tools = TextSearchTools(textSearch, metadataFilter = metadataFilter)
+
+            val result = tools.textSearch("test query", 5, 0.5)
+
+            verify(exactly = 1) {
+                textSearch.textSearchWithFilter(
+                    match<TextSimilaritySearchRequest> { it.topK == 5 },
+                    Chunk::class.java,
+                    metadataFilter,
+                    null,
+                )
+            }
+            assertTrue(result.contains("Alice's content"))
+        }
+
+        @Test
+        fun `textSearch should inflate topK and post-filter when native filtering is unavailable`() {
+            val textSearch = mockk<TextSearch>()
+            val metadataFilter = PropertyFilter.eq("ownerId", "alice")
+            val included = Chunk(
+                id = "included",
+                text = "Alice's content",
+                parentId = "parent",
+                metadata = mapOf("ownerId" to "alice"),
+            )
+            val excluded = Chunk(
+                id = "excluded",
+                text = "Bob's content",
+                parentId = "parent",
+                metadata = mapOf("ownerId" to "bob"),
+            )
+            val truncated = Chunk(
+                id = "truncated",
+                text = "Alice's lower-ranked content",
+                parentId = "parent",
+                metadata = mapOf("ownerId" to "alice"),
+            )
+            every {
+                textSearch.textSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } returns listOf(
+                SimpleSimilaritySearchResult(match = excluded, score = 0.9),
+                SimpleSimilaritySearchResult(match = included, score = 0.8),
+                SimpleSimilaritySearchResult(match = truncated, score = 0.7),
+            )
+            val tools = TextSearchTools(textSearch, metadataFilter = metadataFilter)
+
+            val result = tools.textSearch("test query", 1, 0.5)
+
+            verify(exactly = 1) {
+                textSearch.textSearch(
+                    match<TextSimilaritySearchRequest> { it.topK == 3 },
+                    Chunk::class.java,
+                )
+            }
+            assertTrue(result.contains("Alice's content"))
+            assertFalse(result.contains("Bob's content"))
+            assertFalse(result.contains("Alice's lower-ranked content"))
         }
 
     }

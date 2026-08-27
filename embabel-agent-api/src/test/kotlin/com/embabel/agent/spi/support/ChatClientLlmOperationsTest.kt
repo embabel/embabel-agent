@@ -31,7 +31,6 @@ import com.embabel.agent.core.support.InvalidLlmReturnTypeException
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
-import com.embabel.agent.spi.support.MaybeReturn
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.support.SimpleTestAgent
@@ -43,6 +42,7 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
@@ -58,7 +58,6 @@ import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
 import org.springframework.ai.chat.prompt.ChatOptions
-import org.springframework.ai.chat.prompt.DefaultChatOptions
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 import java.time.LocalDate
@@ -74,7 +73,7 @@ import kotlin.test.assertEquals
  */
 class FakeChatModel(
     val responses: List<String>,
-    // Spring AI 2.0: ChatClient merges options via ChatModel.getDefaultOptions(); the merged
+    // Spring AI 2.0: ChatClient merges options via ChatModel.getOptions(); the merged
     // result inherits the default's runtime type. Default to ToolCallingChatOptions so tool
     // callbacks and the subtype survive the merge — even when the prompt sets its own options.
     private val options: ChatOptions = ToolCallingChatOptions.builder().build(),
@@ -94,7 +93,7 @@ class FakeChatModel(
     val promptsPassed = mutableListOf<Prompt>()
     val optionsPassed = mutableListOf<ChatOptions>()
 
-    override fun getDefaultOptions(): ChatOptions = options
+    override fun getOptions(): ChatOptions = options
 
     override fun call(prompt: Prompt): ChatResponse {
         promptsPassed.add(prompt)
@@ -160,7 +159,7 @@ class ChatClientLlmOperationsTest {
             validator = Validation.buildDefaultValidatorFactory().validator,
             validationPromptGenerator = DefaultValidationPromptGenerator(),
             templateRenderer = JinjavaTemplateRenderer(),
-            objectMapper = jacksonObjectMapper(),
+            embabelObjectMapperHolder = EmbabelObjectMapperHolder.createDefault(),
             dataBindingProperties = dataBindingProperties,
             asyncer = ExecutorAsyncer(Executors.newCachedThreadPool()),
         )
@@ -604,12 +603,11 @@ class ChatClientLlmOperationsTest {
         inner class DelayingFakeChatModel(
             private val response: String,
             private val delayMillis: Long,
-            options: ChatOptions = ToolCallingChatOptions.builder().build(),
+            private val options: ChatOptions = ToolCallingChatOptions.builder().build(),
         ) : ChatModel {
-            private val defaultOptions = options
             val callCount = java.util.concurrent.atomic.AtomicInteger(0)
 
-            override fun getDefaultOptions(): ChatOptions = defaultOptions
+            override fun getOptions(): ChatOptions = options
 
             override fun call(prompt: Prompt): ChatResponse {
                 callCount.incrementAndGet()
@@ -689,7 +687,7 @@ class ChatClientLlmOperationsTest {
                 validator = Validation.buildDefaultValidatorFactory().validator,
                 validationPromptGenerator = DefaultValidationPromptGenerator(),
                 templateRenderer = JinjavaTemplateRenderer(),
-                objectMapper = jacksonObjectMapper(),
+                embabelObjectMapperHolder = EmbabelObjectMapperHolder.createDefault(),
                 dataBindingProperties = LlmDataBindingProperties(maxAttempts = 1),  // No retries for timeout tests
                 llmOperationsPromptsProperties = promptsProperties,
                 asyncer = ExecutorAsyncer(Executors.newCachedThreadPool()),
@@ -937,7 +935,7 @@ class ChatClientLlmOperationsTest {
         inner class ErrorThrowingChatModel(
             private val exception: RuntimeException = RuntimeException("401 Unauthorized: Invalid API key")
         ) : ChatModel {
-            override fun getDefaultOptions(): ChatOptions = ToolCallingChatOptions.builder().build()
+            override fun getOptions(): ChatOptions = ToolCallingChatOptions.builder().build()
             override fun call(prompt: Prompt): ChatResponse = throw exception
         }
 
@@ -985,7 +983,7 @@ class ChatClientLlmOperationsTest {
                 validator = Validation.buildDefaultValidatorFactory().validator,
                 validationPromptGenerator = DefaultValidationPromptGenerator(),
                 templateRenderer = JinjavaTemplateRenderer(),
-                objectMapper = jacksonObjectMapper(),
+                embabelObjectMapperHolder = EmbabelObjectMapperHolder.createDefault(),
                 dataBindingProperties = LlmDataBindingProperties(maxAttempts = 1),
                 asyncer = ExecutorAsyncer(Executors.newCachedThreadPool()),
             )

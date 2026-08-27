@@ -35,11 +35,11 @@ class ContentPartDeserializer : ValueDeserializer<ContentPart>() {
     override fun deserialize(parser: JsonParser, context: DeserializationContext): ContentPart {
         val node: JsonNode = context.readTree(parser)
 
-        node[TEXT_FIELD]?.asText()?.let { text ->
+        node[TEXT_FIELD]?.asString()?.let { text ->
             return TextPart(text)
         }
 
-        val mimeType = node[MIME_TYPE_FIELD]?.asText()
+        val mimeType = node[MIME_TYPE_FIELD]?.asString()
             ?: throw MismatchedInputException.from(
                 parser, ContentPart::class.java,
                 "Content part must contain '$TEXT_FIELD' or '$MIME_TYPE_FIELD'",
@@ -53,7 +53,7 @@ class ContentPartDeserializer : ValueDeserializer<ContentPart>() {
 
         return when (classifyMimeType(mimeType)) {
             MediaKind.IMAGE -> ImagePart(mimeType, data)
-            MediaKind.DOCUMENT -> DocumentPart(mimeType, data, node[FILENAME_FIELD]?.takeUnless { it.isNull }?.asText())
+            MediaKind.DOCUMENT -> DocumentPart(mimeType, data, node[FILENAME_FIELD]?.takeUnless { it.isNull }?.asString())
             null -> throw MismatchedInputException.from(
                 parser, ContentPart::class.java,
                 "Unsupported media MIME type: $mimeType",

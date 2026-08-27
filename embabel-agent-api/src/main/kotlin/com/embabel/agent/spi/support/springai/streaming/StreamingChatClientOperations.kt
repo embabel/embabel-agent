@@ -491,10 +491,20 @@ internal class StreamingChatClientOperations(
     ): Flux<String> {
         return if (useMessageStreamer) {
             val streamerMessages = buildMessagesWithContributions(messages, promptContributions)
-            SpringAiLlmMessageStreamer(chatClient, chatOptions).stream(streamerMessages, tools, toolCallInspectors)
+            val toolCallbacks = tools.toSpringToolCallbacks()
+            val effectiveOptions = if (chatOptions is org.springframework.ai.model.tool.ToolCallingChatOptions) {
+                chatOptions.mutate().toolCallbacks(toolCallbacks).build()
+            } else {
+                chatOptions
+            }
+            chatClient
+                .prompt(Prompt(streamerMessages.map { it.toSpringAiMessage() }, effectiveOptions))
+                .tools(toolCallbacks)
+                .stream()
+                .content()
         } else {
             // Spring AI 2.0: bake toolCallbacks into ToolCallingChatOptions AND pass them via
-            // .toolCallbacks() on the request spec. The former preserves the ToolCallingChatOptions
+            // .tools() on the request spec. The former preserves the ToolCallingChatOptions
             // subtype through the chatModel-defaults merge; the latter survives the merge that
             // would otherwise reset prompt.options.toolCallbacks to the model's empty default.
             val springAiToolCallbacks = tools.toSpringToolCallbacks()
@@ -508,7 +518,7 @@ internal class StreamingChatClientOperations(
             val promptWithOptions = Prompt(springAiPrompt.instructions, effectiveOptions)
             chatClient
                 .prompt(promptWithOptions)
-                .toolCallbacks(springAiToolCallbacks)
+                .tools(springAiToolCallbacks)
                 .stream()
                 .content()
         }

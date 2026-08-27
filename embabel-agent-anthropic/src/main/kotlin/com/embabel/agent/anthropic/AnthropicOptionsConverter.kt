@@ -21,9 +21,10 @@ import com.embabel.common.ai.model.OptionsConverter
 import org.springframework.ai.anthropic.AnthropicCacheOptions
 import org.springframework.ai.anthropic.AnthropicCacheStrategy
 import org.springframework.ai.anthropic.AnthropicChatOptions
+import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.messages.MessageType
 
-object AnthropicOptionsConverter : OptionsConverter<AnthropicChatOptions> {
+object AnthropicOptionsConverter : OptionsConverter {
 
     private val logger = org.slf4j.LoggerFactory.getLogger(AnthropicOptionsConverter::class.java)
 
@@ -32,8 +33,9 @@ object AnthropicOptionsConverter : OptionsConverter<AnthropicChatOptions> {
      */
     const val DEFAULT_MAX_TOKENS = 8192
 
-    override fun convertOptions(options: LlmOptions): AnthropicChatOptions {
+    override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
         val builder = AnthropicChatOptions.builder()
+            .model(model)
             .temperature(options.temperature)
             .topP(options.topP)
             .maxTokens(options.maxTokens ?: DEFAULT_MAX_TOKENS)

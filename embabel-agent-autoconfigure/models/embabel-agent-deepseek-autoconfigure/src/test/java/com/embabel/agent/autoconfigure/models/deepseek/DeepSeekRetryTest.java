@@ -1,0 +1,100 @@
+/*
+ * Copyright 2024-2026 Embabel Pty Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.embabel.agent.autoconfigure.models.deepseek;
+
+import com.embabel.agent.spi.support.springai.SpringAiLlmService;
+import com.embabel.agent.test.http.StubChatServer;
+import com.embabel.agent.test.http.StubChatServer.Reply;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+
+import java.io.IOException;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+/**
+ * Drives the real DeepSeek autoconfiguration against a scripted local server to check what the Spring
+ * Framework 7 retry template actually replays. A rate limit must be retried; a malformed request must
+ * not. Counting requests on the server is what separates the two — the caller sees a failure either way.
+ *
+ * <p>{@link DeepSeekRetryPropertiesTest} covers the attempt count; this covers which failures earn an
+ * attempt at all.
+ */
+class DeepSeekRetryTest {
+
+    private static final String MODEL = "deepseek-v4-pro";
+
+    private ApplicationContextRunner runnerAgainst(StubChatServer server) {
+        return new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(AgentDeepSeekAutoConfiguration.class))
+                .withPropertyValues(
+                        "DEEPSEEK_API_KEY=test-key",
+                        "DEEPSEEK_BASE_URL=" + server.getBaseUrl(),
+                        "embabel.agent.platform.models.deepseek.api-key=test-key",
+                        "embabel.agent.platform.models.deepseek.base-url=" + server.getBaseUrl(),
+                        "embabel.agent.platform.models.deepseek.max-attempts=3",
+                        // Keep the backoff short enough that the test does not idle.
+                        "embabel.agent.platform.models.deepseek.backoff-millis=50",
+                        "embabel.agent.platform.models.deepseek.backoff-multiplier=2",
+                        "embabel.agent.platform.models.deepseek.backoff-max-interval=200"
+                );
+    }
+
+    private SpringAiLlmService modelIn(AssertableApplicationContext context) {
+        return context.getBeansOfType(SpringAiLlmService.class).values().stream()
+                .filter(s -> MODEL.equals(s.getName()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError(MODEL + " not registered"));
+    }
+
+    @Test
+    void aRateLimitIsRetriedAndTheSecondAttemptSucceeds() throws IOException {
+        try (var server = StubChatServer.replyingInSequence(
+                new Reply(429, DeepSeekResponses.RATE_LIMITED),
+                new Reply(200, DeepSeekResponses.OK))) {
+            runnerAgainst(server).run(context -> {
+                var response = modelIn(context).getChatModel().call("hello");
+
+                assertThat(response).isEqualTo("OK");
+                assertThat(server.getRequestCount())
+                        .as("the 429 was replayed once, and the retry succeeded")
+                        .isEqualTo(2);
+            });
+        }
+    }
+
+    @Test
+    void aMalformedRequestIsNotRetried() throws IOException {
+        // The server would answer the second request with 200. Reaching it at all means the template
+        // replayed a request that can never succeed.
+        try (var server = StubChatServer.replyingInSequence(
+                new Reply(400, DeepSeekResponses.BAD_REQUEST),
+                new Reply(200, DeepSeekResponses.OK))) {
+            runnerAgainst(server).run(context -> {
+                var model = modelIn(context);
+
+                assertThatThrownBy(() -> model.getChatModel().call("hello"))
+                        .hasMessageContaining("Model Not Exist");
+                assertThat(server.getRequestCount())
+                        .as("a 400 is deterministic, so it must fail on the first attempt")
+                        .isEqualTo(1);
+            });
+        }
+    }
+}

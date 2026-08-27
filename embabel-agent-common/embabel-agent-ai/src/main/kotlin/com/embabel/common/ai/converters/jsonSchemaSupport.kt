@@ -60,7 +60,7 @@ fun parseJsonSchema(schema: String): JsonNode? =
 /**
  * Return the schema `type` value if present.
  */
-fun JsonNode.schemaType(): String? = get("type")?.asText()
+fun JsonNode.schemaType(): String? = get("type")?.asString()
 
 /**
  * Return the `properties` node if present.
@@ -77,7 +77,7 @@ fun JsonNode.propertiesNode(): JsonNode? = get("properties")
 fun JsonNode.requiredFieldNames(): Set<String> =
     get("required")
         ?.takeIf { it.isArray }
-        ?.mapNotNull { if (it.isTextual) it.asText() else null }
+        ?.mapNotNull { if (it.isString) it.asString() else null }
         ?.toSet()
         .orEmpty()
 
@@ -193,7 +193,7 @@ private fun normalizeArraySchema(
 }
 
 private fun resolveLocalSchemaRef(rootSchemaNode: JsonNode, schemaNode: ObjectNode): ObjectNode? {
-    val ref = schemaNode.get("\$ref")?.takeIf { it.isTextual }?.asText() ?: return null
+    val ref = schemaNode.get("\$ref")?.takeIf { it.isString }?.asString() ?: return null
     if (!ref.startsWith("#/")) {
         return null
     }

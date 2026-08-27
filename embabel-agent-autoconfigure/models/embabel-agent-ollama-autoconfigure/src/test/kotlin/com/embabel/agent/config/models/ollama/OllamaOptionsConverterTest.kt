@@ -19,43 +19,100 @@ import com.embabel.agent.test.models.OptionsConverterTestSupport
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.Thinking
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.ollama.api.OllamaChatOptions
 import org.springframework.ai.ollama.api.ThinkOption
 
-// Calls the deprecated 1-arg convertOptions() directly to verify field mapping in isolation.
-// Model stamping is not tested here — it is covered by OptionsConverter.convertOptions(options, model).
-class OllamaOptionsConverterTest : OptionsConverterTestSupport<OllamaChatOptions>(
-    optionsConverter = OllamaOptionsConverter
+class OllamaOptionsConverterTest : OptionsConverterTestSupport(
+    optionsConverter = OllamaOptionsConverter()
 ) {
 
     @Test
-    fun `should set thinking to disabled when not provided`() {
-        val options = optionsConverter.convertOptions(LlmOptions())
+    fun `should disable thinking when no thinking config provided`() {
+        val options = optionsConverter.convertOptions(LlmOptions(), "test-model") as OllamaChatOptions
         assertEquals(ThinkOption.ThinkBoolean.DISABLED, options.thinkOption)
     }
 
     @Test
-    fun `should set thinking to low when budget is under 2000`() {
+    fun `should omit think parameter for withExtraction (prompt-driven thinking)`() {
         val options = optionsConverter.convertOptions(
-            LlmOptions().withThinking(Thinking.withTokenBudget(1000))
-        )
-        assertEquals(ThinkOption.ThinkLevel.LOW, options.thinkOption)
+            LlmOptions().withThinking(Thinking.withExtraction()), "test-model"
+        ) as OllamaChatOptions
+        assertNull(options.thinkOption)
     }
 
-    @Test
-    fun `should set thinking to medium when budget is between 2000 and 4000`() {
-        val options = optionsConverter.convertOptions(
-            LlmOptions().withThinking(Thinking.withTokenBudget(3000))
-        )
-        assertEquals(ThinkOption.ThinkLevel.MEDIUM, options.thinkOption)
+    @Nested
+    inner class BooleanThinkingTest {
+        private val converter = OllamaOptionsConverter(thinkLevelsSupported = false)
+
+        @Test
+        fun `any budget enables thinking as boolean`() {
+            listOf(1000, 2000, 3000, 4000, 5000).forEach { budget ->
+                val options = converter.convertOptions(
+                    LlmOptions().withThinking(Thinking.withTokenBudget(budget)), "test-model"
+                ) as OllamaChatOptions
+                assertEquals(ThinkOption.ThinkBoolean.ENABLED, options.thinkOption,
+                    "Expected ENABLED for budget=$budget")
+            }
+        }
+
+        @Test
+        fun `no thinking config disables thinking`() {
+            val options = converter.convertOptions(LlmOptions(), "test-model") as OllamaChatOptions
+            assertEquals(ThinkOption.ThinkBoolean.DISABLED, options.thinkOption)
+        }
+
+        @Test
+        fun `withExtraction omits think parameter`() {
+            val options = converter.convertOptions(
+                LlmOptions().withThinking(Thinking.withExtraction()), "test-model"
+            ) as OllamaChatOptions
+            assertNull(options.thinkOption)
+        }
     }
 
-    @Test
-    fun `should set thinking to high when budget is 4000 or more`() {
-        val options = optionsConverter.convertOptions(
-            LlmOptions().withThinking(Thinking.withTokenBudget(5000))
-        )
-        assertEquals(ThinkOption.ThinkLevel.HIGH, options.thinkOption)
+    @Nested
+    inner class LevelThinkingTest {
+        private val converter = OllamaOptionsConverter(thinkLevelsSupported = true)
+
+        @Test
+        fun `budget under 2000 maps to low`() {
+            val options = converter.convertOptions(
+                LlmOptions().withThinking(Thinking.withTokenBudget(1000)), "test-model"
+            ) as OllamaChatOptions
+            assertEquals(ThinkOption.ThinkLevel.LOW, options.thinkOption)
+        }
+
+        @Test
+        fun `budget between 2000 and 4000 maps to medium`() {
+            val options = converter.convertOptions(
+                LlmOptions().withThinking(Thinking.withTokenBudget(3000)), "test-model"
+            ) as OllamaChatOptions
+            assertEquals(ThinkOption.ThinkLevel.MEDIUM, options.thinkOption)
+        }
+
+        @Test
+        fun `budget 4000 or more maps to high`() {
+            val options = converter.convertOptions(
+                LlmOptions().withThinking(Thinking.withTokenBudget(5000)), "test-model"
+            ) as OllamaChatOptions
+            assertEquals(ThinkOption.ThinkLevel.HIGH, options.thinkOption)
+        }
+
+        @Test
+        fun `no thinking config disables thinking`() {
+            val options = converter.convertOptions(LlmOptions(), "test-model") as OllamaChatOptions
+            assertEquals(ThinkOption.ThinkBoolean.DISABLED, options.thinkOption)
+        }
+
+        @Test
+        fun `withExtraction omits think parameter`() {
+            val options = converter.convertOptions(
+                LlmOptions().withThinking(Thinking.withExtraction()), "test-model"
+            ) as OllamaChatOptions
+            assertNull(options.thinkOption)
+        }
     }
 }

@@ -26,6 +26,9 @@ import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.ExtendWith
 import org.springframework.boot.test.system.CapturedOutput
 import org.springframework.boot.test.system.OutputCaptureExtension
+import tools.jackson.databind.DatabindException
+import tools.jackson.databind.exc.MismatchedInputException
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @ExtendWith(OutputCaptureExtension::class)
@@ -101,6 +104,54 @@ class LlmDataBindingPropertiesTest {
             verify { mockBlackboard["target"] = "handleSupport" }
         }
 
+        // DatabindException constructors are protected — subclass to instantiate in tests
+        private inner class TestDatabindException(msg: String) : DatabindException(msg)
+
+        @Test
+        fun `retryTemplate aborts immediately on DatabindException — not retried`() {
+            val properties = LlmDataBindingProperties(maxAttempts = 5)
+            val retryTemplate = properties.retryTemplate("test")
+            var attemptCount = 0
+            assertThrows<TestDatabindException> {
+                retryTemplate.execute<Unit, Exception> {
+                    attemptCount++
+                    throw TestDatabindException("wrong @JsonDeserialize annotation")
+                }
+            }
+            assertEquals(1, attemptCount, "DatabindException must not be retried")
+        }
+
+        @Test
+        fun `retryTemplate aborts immediately on DatabindException wrapped in RuntimeException`() {
+            // Mirrors real production chain: JacksonOutputConverter wraps DatabindException
+            // in RuntimeException before it reaches the retry layer
+            val properties = LlmDataBindingProperties(maxAttempts = 5)
+            val retryTemplate = properties.retryTemplate("test")
+            var attemptCount = 0
+            val root = TestDatabindException("annotation misconfiguration")
+            assertThrows<RuntimeException> {
+                retryTemplate.execute<Unit, Exception> {
+                    attemptCount++
+                    throw RuntimeException(root)
+                }
+            }
+            assertEquals(1, attemptCount, "Wrapped DatabindException must be detected via cause-chain walk and not retried")
+        }
+
+        @Test
+        fun `retryTemplate retries on MismatchedInputException (LLM omitted required field)`() {
+            val properties = LlmDataBindingProperties(maxAttempts = 3)
+            val retryTemplate = properties.retryTemplate("test")
+            var attemptCount = 0
+            assertThrows<MismatchedInputException> {
+                retryTemplate.execute<Unit, Exception> {
+                    attemptCount++
+                    throw MismatchedInputException.from(null, String::class.java, "missing field")
+                }
+            }
+            assertEquals(3, attemptCount, "MismatchedInputException is retryable — LLM may include field on next attempt")
+        }
+
         @Test
         fun `should log how to configure maximum attempt`(output: CapturedOutput) {
             val properties = LlmDataBindingProperties(maxAttempts = 1)
@@ -114,7 +165,42 @@ class LlmDataBindingPropertiesTest {
             }
             // Should only attempt once
             assertEquals(1, attemptCount)
-            assertTrue(output.out.contains("Maximum attempts of 1 have reached. The maximum attempt can be configured using property embabel.agent.platform.llm-operations.data-binding.max-attempts"))
+            assertTrue(output.out.contains("Maximum attempts of 1 have been reached. The maximum attempt can be configured using property embabel.agent.platform.llm-operations.data-binding.max-attempts"))
+        }
+    }
+
+    @Nested
+    inner class RetryLoggingTest {
+
+        /** Lines the retry listener rendered, so unrelated console output cannot mask a stray placeholder. */
+        private fun retryLines(output: CapturedOutput): List<String> =
+            output.out.lines().filter { it.contains("LLM invocation") }
+
+        private fun failWith(error: Throwable) {
+            val retryTemplate = LlmDataBindingProperties(maxAttempts = 2).retryTemplate("bind-1")
+            assertThrows<RuntimeException> {
+                retryTemplate.execute<Unit, RuntimeException> { throw error }
+            }
+        }
+
+        @Test
+        fun `rate limited retry is logged with every placeholder filled`(output: CapturedOutput) {
+            failWith(RuntimeException("429 - Too many requests"))
+
+            val lines = retryLines(output)
+            assertTrue(lines.isNotEmpty(), "expected the listener to log")
+            assertTrue(lines.none { it.contains("{}") }, "unfilled placeholder in $lines")
+            assertTrue(lines.any { it.contains("LLM invocation bind-1 RATE LIMITED: Retry attempt 1 of 2") }, "$lines")
+        }
+
+        @Test
+        fun `retry failure is logged with every placeholder filled`(output: CapturedOutput) {
+            failWith(RuntimeException("connection reset"))
+
+            val lines = retryLines(output)
+            assertTrue(lines.isNotEmpty(), "expected the listener to log")
+            assertTrue(lines.none { it.contains("{}") }, "unfilled placeholder in $lines")
+            assertTrue(lines.any { it.contains("LLM invocation bind-1: Retry attempt 1 of 2 due to: connection reset") }, "$lines")
         }
     }
 }

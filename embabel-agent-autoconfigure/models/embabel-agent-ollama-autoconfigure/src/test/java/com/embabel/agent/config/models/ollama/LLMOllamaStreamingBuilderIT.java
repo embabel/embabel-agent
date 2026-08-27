@@ -24,6 +24,7 @@ import com.embabel.agent.spi.LlmService;
 import com.embabel.agent.spi.support.springai.SpringAiLlmService;
 import com.embabel.common.core.streaming.StreamingEvent;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.tool.annotation.Tool;
@@ -100,6 +101,8 @@ import static org.junit.jupiter.api.Assertions.*;
         }
 )
 @Import({AgentOllamaAutoConfiguration.class})
+@EnabledIfEnvironmentVariable(named = "OLLAMA_BASE_URL", matches = ".+",
+        disabledReason = "Integration test requires OLLAMA_BASE_URL")
 class LLMOllamaStreamingBuilderIT {
 
     private static final Logger logger = LoggerFactory.getLogger(LLMOllamaStreamingBuilderIT.class);

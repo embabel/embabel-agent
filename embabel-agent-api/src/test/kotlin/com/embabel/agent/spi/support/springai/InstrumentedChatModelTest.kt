@@ -162,26 +162,83 @@ class InstrumentedChatModelTest {
 
             verify { delegate.call(prompt) }
         }
+
+        @Test
+        fun `retries once after unsupported temperature rejection`() {
+            val options = org.springframework.ai.model.tool.ToolCallingChatOptions.builder()
+                .temperature(0.8)
+                .topP(0.9)
+                .build()
+            val prompt = Prompt(listOf(UserMessage("hello")), options)
+            val expectedResponse: ChatResponse = mockk()
+            // Spring AI surfaces OpenAI body as "NNN - {json}" with structured error.param
+            val rejection = RuntimeException(
+                """400 - { "error": { "message": "Unsupported value: 'temperature' does not support 0.8 with this model. Only the default (1) value is supported.", "type": "invalid_request_error", "param": "temperature", "code": "unsupported_value" } }"""
+            )
+            every { delegate.call(any<Prompt>()) } throws rejection andThen expectedResponse
+
+            val result = instrumentedModel.call(prompt)
+
+            assertThat(result).isSameAs(expectedResponse)
+            val prompts = mutableListOf<Prompt>()
+            verify(exactly = 2) { delegate.call(capture(prompts)) }
+            assertThat(prompts[0]).isSameAs(prompt)
+            assertThat(prompts[1].options).extracting("temperature").isNull()
+            assertThat(prompts[1].options).extracting("topP").isEqualTo(0.9)
+        }
+
+        @Test
+        fun `does not retry prose-only temperature rejection without error param`() {
+            // Fail-closed *contract* test (not leftover unstructured matching):
+            // prose-only rejection must not strip/retry. Only structured JSON error.param
+            // drives a recovery path; English wording alone rethrows after one call.
+            val options = org.springframework.ai.model.tool.ToolCallingChatOptions.builder()
+                .temperature(0.8)
+                .build()
+            val prompt = Prompt(listOf(UserMessage("hello")), options)
+            every { delegate.call(prompt) } throws RuntimeException(
+                "400 Unsupported value: 'temperature' does not support 0.8 with this model. Only the default (1) value is supported."
+            )
+
+            assertThrows<RuntimeException> {
+                instrumentedModel.call(prompt)
+            }
+            verify(exactly = 1) { delegate.call(any<Prompt>()) }
+        }
+
+        @Test
+        fun `does not retry for unrelated errors`() {
+            val options = org.springframework.ai.model.tool.ToolCallingChatOptions.builder()
+                .temperature(0.8)
+                .build()
+            val prompt = Prompt(listOf(UserMessage("fail")), options)
+            every { delegate.call(prompt) } throws RuntimeException("rate limit exceeded")
+
+            assertThrows<RuntimeException> {
+                instrumentedModel.call(prompt)
+            }
+            verify(exactly = 1) { delegate.call(any<Prompt>()) }
+        }
     }
 
     @Nested
     inner class DefaultOptionsTests {
 
         @Test
-        fun `delegates getDefaultOptions to underlying ChatModel`() {
+        fun `delegates getOptions to underlying ChatModel`() {
             val expectedOptions: ChatOptions = mockk()
-            every { delegate.defaultOptions } returns expectedOptions
+            every { delegate.options } returns expectedOptions
 
-            val result = instrumentedModel.defaultOptions
+            val result = instrumentedModel.options
 
             assertThat(result).isSameAs(expectedOptions)
         }
 
         @Test
         fun `does not emit any event`() {
-            every { delegate.defaultOptions } returns mockk()
+            every { delegate.options } returns mockk()
 
-            instrumentedModel.defaultOptions
+            instrumentedModel.options
 
             verify(exactly = 0) { processContext.onProcessEvent(any()) }
         }

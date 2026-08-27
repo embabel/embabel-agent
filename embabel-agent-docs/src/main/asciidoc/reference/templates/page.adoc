@@ -51,6 +51,40 @@ val distinctFactualAssertions = context.ai()
 ----
 ====
 
+==== System Prompts from Templates
+
+To render a template into the _system_ prompt of a regular `PromptRunner` chain, wrap the runner in a `TemplatedPromptRunnerBuilder`.
+It renders the template with the platform's `TemplateRenderer` and returns a runner with the result applied via `withSystemPrompt()`, leaving all downstream operations unchanged.
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+PromptRunner runner = new TemplatedPromptRunnerBuilder(context, context.ai().withLlm(llm))
+    .withSystemPromptTemplate(
+            "support/system_prompt",
+            Map.of("company", companyName)
+    );
+
+Answer answer = runner.createObject(question, Answer.class);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val runner = TemplatedPromptRunnerBuilder(context, context.ai().withLlm(llm))
+    .withSystemPromptTemplate(
+            "support/system_prompt",
+            mapOf("company" to companyName)
+    )
+
+val answer = runner.createObject(question, Answer::class.java)
+----
+====
+
 ==== Custom Template Renderer
 
 By default, `rendering()` uses the platform's `TemplateRenderer` (a Jinja-based renderer that loads templates from the classpath).

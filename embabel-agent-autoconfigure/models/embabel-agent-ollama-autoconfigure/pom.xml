@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.agent</groupId>
         <artifactId>embabel-agent-autoconfigure</artifactId>
-        <version>1.5.0-SNAPSHOT</version>
+        <version>1.5.2-SNAPSHOT</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
     <artifactId>embabel-agent-ollama-autoconfigure</artifactId>
@@ -12,6 +12,10 @@
     <name>Embabel Agent Autoconfiguration Models Ollama</name>
     <description>Ollama Models for Embabel Agent API</description>
     <url>https://github.com/embabel/embabel-agent</url>
+
+    <properties>
+        <langchain4j.version>1.14.1</langchain4j.version>
+    </properties>
 
     <scm>
         <url>https://github.com/embabel/embabel-agent</url>
@@ -34,6 +38,20 @@
         <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-test-internal</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j</artifactId>
+            <version>${langchain4j.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-ollama</artifactId>
+            <version>${langchain4j.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

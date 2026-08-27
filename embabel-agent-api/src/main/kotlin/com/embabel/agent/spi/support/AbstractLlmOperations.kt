@@ -34,6 +34,7 @@ import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.AutoModelSelectionCriteria
+import com.embabel.common.ai.model.ByRoleModelSelectionCriteria
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
@@ -144,6 +145,14 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): O {
+        // Shadowed deliberately. After this line the resolved interaction IS the interaction for
+        // the rest of the method, and shadowing makes the unresolved one unreachable. A distinct
+        // name would leave both in scope, differing only in whether a role has become a concrete
+        // model plus its hyperparameters - and picking the wrong one is not a compile error, it is
+        // a call that silently skips role resolution and runs on the default model.
+        @Suppress("NAME_SHADOWING")
+        val interaction = withRoleResolved(interaction)
+
         val (allTools, llmRequestEvent) = getToolsAndEvent(
             agentProcess = agentProcess,
             interaction = interaction,
@@ -260,6 +269,14 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): Result<O> {
+        // Shadowed deliberately. After this line the resolved interaction IS the interaction for
+        // the rest of the method, and shadowing makes the unresolved one unreachable. A distinct
+        // name would leave both in scope, differing only in whether a role has become a concrete
+        // model plus its hyperparameters - and picking the wrong one is not a compile error, it is
+        // a call that silently skips role resolution and runs on the default model.
+        @Suppress("NAME_SHADOWING")
+        val interaction = withRoleResolved(interaction)
+
         val (allTools, llmRequestEvent) = getToolsAndEvent(
             agentProcess = agentProcess,
             interaction = interaction,
@@ -312,6 +329,14 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): ThinkingResponse<O> {
+        // Shadowed deliberately. After this line the resolved interaction IS the interaction for
+        // the rest of the method, and shadowing makes the unresolved one unreachable. A distinct
+        // name would leave both in scope, differing only in whether a role has become a concrete
+        // model plus its hyperparameters - and picking the wrong one is not a compile error, it is
+        // a call that silently skips role resolution and runs on the default model.
+        @Suppress("NAME_SHADOWING")
+        val interaction = withRoleResolved(interaction)
+
         val (allTools, llmRequestEvent) = getToolsAndEvent(
             agentProcess = agentProcess,
             interaction = interaction,
@@ -364,6 +389,14 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): Result<ThinkingResponse<O>> {
+        // Shadowed deliberately. After this line the resolved interaction IS the interaction for
+        // the rest of the method, and shadowing makes the unresolved one unreachable. A distinct
+        // name would leave both in scope, differing only in whether a role has become a concrete
+        // model plus its hyperparameters - and picking the wrong one is not a compile error, it is
+        // a call that silently skips role resolution and runs on the default model.
+        @Suppress("NAME_SHADOWING")
+        val interaction = withRoleResolved(interaction)
+
         val (allTools, llmRequestEvent) = getToolsAndEvent(
             agentProcess = agentProcess,
             interaction = interaction,
@@ -409,6 +442,33 @@ abstract class AbstractLlmOperations(
         return response
     }
 
+    /**
+     * Resolve any role named by this interaction before anything reads its options: a role can
+     * carry hyperparameters, and which model it means depends on the provider active for this call.
+     *
+     * Interactions naming no role are returned untouched, so the common path costs nothing.
+     *
+     * Idempotent, so a subclass may call it on a path this class has already resolved: resolution
+     * replaces the role criteria with a pre-resolved one, and a second call sees no role and does
+     * nothing. That is what lets the low-level `doTransform` entry points resolve for themselves
+     * without double-resolving the `createObject` path that reaches them.
+     */
+    protected fun withRoleResolved(interaction: LlmInteraction): LlmInteraction {
+        val resolved = withRoleResolved(interaction.llm)
+        return if (resolved === interaction.llm) interaction else interaction.copy(llm = resolved)
+    }
+
+    /**
+     * As above, for the paths that carry options rather than a whole interaction - streaming,
+     * and the capability queries that pick a model without running a prompt.
+     */
+    private fun withRoleResolved(options: LlmOptions): LlmOptions =
+        if (options.criteria is ByRoleModelSelectionCriteria) {
+            modelProvider.resolveLlmOptions(options)
+        } else {
+            options
+        }
+
     protected fun chooseLlm(
         llmOptions: LlmOptions,
     ): LlmService<*> {
@@ -426,18 +486,22 @@ abstract class AbstractLlmOperations(
     }
 
     override fun supportsStreaming(options: LlmOptions): Boolean {
-        val llmService = chooseLlm(options)
+        val llmService = chooseLlm(withRoleResolved(options))
         return llmService.supportsStreaming()
     }
 
     override fun supportsThinking(options: LlmOptions): Boolean {
-        val llmService = chooseLlm(options)
+        val llmService = chooseLlm(withRoleResolved(options))
         return llmService.supportsThinking()
     }
 
     override fun createStreamingOperations(options: LlmOptions): StreamingLlmOperations {
-        val llmService = chooseLlm(options)
-        val messageStreamer = llmService.createMessageStreamer(options)
+        // Resolve once and stream with the SAME options. The streamer reads hyperparameters, so
+        // resolving only far enough to pick a model would silently drop the tuning a role carries -
+        // and streaming is the chat path, where that tuning matters most.
+        val resolved = withRoleResolved(options)
+        val llmService = chooseLlm(resolved)
+        val messageStreamer = llmService.createMessageStreamer(resolved)
         return StreamingLlmOperationsImpl(
             messageStreamer = messageStreamer,
             objectMapper = objectMapper,

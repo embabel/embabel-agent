@@ -19,11 +19,16 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import org.junit.jupiter.api.Assertions.assertEquals
 
-// Calls the deprecated 1-arg convertOptions() directly to verify field mapping in isolation.
-// Model stamping is not tested here — it is covered by OptionsConverter.convertOptions(options, model).
-fun checkOptionsConverterPreservesCoreValues(optionsConverter: OptionsConverter<*>) {
+/**
+ * Verifies that the given [optionsConverter] preserves core LLM option values
+ * when converting to provider-specific [ChatOptions].
+ *
+ * A dummy model name is supplied to [OptionsConverter.convertOptions] since
+ * model stamping is not the concern of this helper.
+ */
+fun checkOptionsConverterPreservesCoreValues(optionsConverter: OptionsConverter) {
     val llmo = LlmOptions().withTemperature(temperature = 0.5).withTopK(10).withTopP(.2).withFrequencyPenalty(.2)
-    val options = optionsConverter.convertOptions(llmo)
+    val options = optionsConverter.convertOptions(llmo, "test-model")
     assertEquals(llmo.temperature, options.temperature, "Should have preserved temperature")
 //    assertEquals(llmo.topK, options.topK, "Should have preserved topK")
     assertEquals(llmo.topP, options.topP, "Should have preserved topP")

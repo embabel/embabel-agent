@@ -18,6 +18,7 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.api.common.Asyncer
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.event.observation.AgentInstrumentation
 import com.embabel.agent.api.event.observation.InternalObservabilityApi
@@ -59,9 +60,6 @@ import com.embabel.common.core.thinking.spi.InternalThinkingApi
 import com.embabel.common.core.thinking.spi.extractAllThinkingBlocks
 import com.embabel.common.textio.template.TemplateRenderer
 import tools.jackson.databind.DatabindException
-import tools.jackson.databind.ObjectMapper
-import org.springframework.beans.factory.annotation.Qualifier
-import tools.jackson.module.kotlin.jacksonObjectMapper
 import io.micrometer.observation.ObservationRegistry
 import jakarta.annotation.PostConstruct
 import jakarta.validation.Validator
@@ -74,7 +72,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import javax.annotation.concurrent.ThreadSafe
 import org.springframework.ai.chat.client.ChatClient
-import org.springframework.ai.chat.client.ChatClientCustomizer
+import org.springframework.ai.chat.client.ChatClientBuilderCustomizer
 import org.springframework.ai.chat.client.ResponseEntity
 import org.springframework.ai.chat.client.advisor.observation.DefaultAdvisorObservationConvention
 import org.springframework.ai.chat.client.observation.DefaultChatClientObservationConvention
@@ -120,15 +118,14 @@ internal class ChatClientLlmOperations(
     llmOperationsPromptsProperties: LlmOperationsPromptsProperties = LlmOperationsPromptsProperties(),
     private val applicationContext: ApplicationContext? = null,
     autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
-    @Qualifier("embabelJacksonObjectMapper")
-    objectMapper: ObjectMapper = jacksonObjectMapper(),
+    embabelObjectMapperHolder: EmbabelObjectMapperHolder = EmbabelObjectMapperHolder.createDefault(),
     // Drives ONLY Spring AI's own ChatClient/advisor observations (see createChatClient). The embabel
     // master-switch (`tracing-enabled`) gates the [instrumentation] adapter — i.e. the embabel core
     // spans — NOT this registry: disabling tracing stops embabel spans but leaves Spring AI's native
     // chat-client spans intact, since this registry stays injected with the real bean.
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
     instrumentation: AgentInstrumentation = NoOpAgentInstrumentation,
-    private val customizers: List<ChatClientCustomizer> = emptyList(),
+    private val customizers: List<ChatClientBuilderCustomizer> = emptyList(),
     asyncer: Asyncer,
     toolLoopFactory: ToolLoopFactory = ToolLoopFactory.create(ToolLoopConfiguration(), asyncer, AutoCorrectionPolicy()),
     @Value("\${embabel.agent.platform.streaming.use-legacy-streaming:false}")
@@ -141,7 +138,7 @@ internal class ChatClientLlmOperations(
     dataBindingProperties = dataBindingProperties,
     autoLlmSelectionCriteriaResolver = autoLlmSelectionCriteriaResolver,
     promptsProperties = llmOperationsPromptsProperties,
-    objectMapper = objectMapper,
+    objectMapper = embabelObjectMapperHolder.get(),
     instrumentation = instrumentation,
     toolLoopFactory = toolLoopFactory,
     asyncer = asyncer,
@@ -363,7 +360,7 @@ internal class ChatClientLlmOperations(
         // Resolve tool groups and decorate tools
         val tools = resolveAndDecorateTools(interaction, agentProcess, action)
 
-        // Spring AI 2.0: ChatClient merges chatModel.getDefaultOptions() with prompt.options
+        // Spring AI 2.0: ChatClient merges chatModel.getOptions() with prompt.options
         // and adds spec-level toolCallbacks last. We bake toolCallbacks into the ToolCallingChatOptions
         // (preserving the subtype through the merge) AND also pass them via .toolCallbacks() on the
         // request spec — the latter survives Spring AI's options merge that would otherwise reset
@@ -385,7 +382,7 @@ internal class ChatClientLlmOperations(
                 val future = asyncer.async {
                     chatClient
                         .prompt(springAiPrompt)
-                        .toolCallbacks(springAiToolCallbacks)
+                        .tools(springAiToolCallbacks)
                         .call()
                 }
 
@@ -406,7 +403,11 @@ internal class ChatClientLlmOperations(
                     recordUsage(llm, chatResponse, llmRequestEvent)
                     val rawText = chatResponse.result!!.output.text as String
 
-                    val thinkingBlocks = extractAllThinkingBlocks(rawText)
+                    val thinkingBlocks = extractAllThinkingBlocks(
+                        rawText,
+                        includedTags = interaction.llm.thinking?.includedTags,
+                        excludedTags = interaction.llm.thinking?.excludedTags,
+                    )
                     logger.debug("Extracted {} thinking blocks for String response", thinkingBlocks.size)
 
                     val thinkingResponse = ThinkingResponse(
@@ -424,7 +425,11 @@ internal class ChatClientLlmOperations(
                     recordUsage(llm, chatResponse, llmRequestEvent)
                     val rawText = chatResponse.result!!.output.text ?: ""
 
-                    val thinkingBlocks = extractAllThinkingBlocks(rawText)
+                    val thinkingBlocks = extractAllThinkingBlocks(
+                        rawText,
+                        includedTags = interaction.llm.thinking?.includedTags,
+                        excludedTags = interaction.llm.thinking?.excludedTags,
+                    )
                     logger.debug(
                         "Extracted {} thinking blocks for {} response",
                         thinkingBlocks.size,
@@ -543,7 +548,7 @@ internal class ChatClientLlmOperations(
                     val future = asyncer.async {
                         chatClient
                             .prompt(springAiPrompt)
-                            .toolCallbacks(springAiToolCallbacks)
+                            .tools(springAiToolCallbacks)
                             .call()
                     }
 
@@ -561,7 +566,11 @@ internal class ChatClientLlmOperations(
                     val chatResponse = requireChatResponse(callResponse, interaction)
                     recordUsage(llm, chatResponse, llmRequestEvent)
                     val rawText = chatResponse.result!!.output.text ?: ""
-                    val thinkingBlocks = extractAllThinkingBlocks(rawText)
+                    val thinkingBlocks = extractAllThinkingBlocks(
+                        rawText,
+                        includedTags = interaction.llm.thinking?.includedTags,
+                        excludedTags = interaction.llm.thinking?.excludedTags,
+                    )
 
                     // Execute converter chain manually instead of using responseEntity
                     try {

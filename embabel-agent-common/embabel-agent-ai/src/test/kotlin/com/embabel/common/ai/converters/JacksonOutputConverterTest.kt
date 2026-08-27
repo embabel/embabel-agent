@@ -25,7 +25,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.Arguments
+import org.junit.jupiter.params.provider.MethodSource
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -144,7 +148,72 @@ class JacksonOutputConverterTest {
     }
 
     @Nested
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
     inner class MalformedEscapedQuotesTests {
+
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("validJson")
+        fun `repair returns valid JSON unchanged`(json: String) {
+            assertEquals(json, fixMalformedEscapedQuotes(json))
+        }
+
+        fun validJson() = listOf(
+            // Repro from #1804
+            """{"title": "Hello \"World\", \"How\" are you?"}""",
+            // Mermaid diagram from #1788
+            """{"name": "flowchart LR\n  a[\"A\"]\n  b[\"B\"]\n  a --> b", "value": 42}""",
+            """["\"A\""]""",
+            """{"name": "test \"quoted\" value", "value": 42}""",
+            """{"name": "ends with \" }", "value": 1}""",
+            """{"items": ["closes \" ]"], "value": 1}""",
+            """{"note": ": \" after colon", "value": 1}""",
+            """{"path": "C:\\temp\\file"}""",
+            // Output truncated mid-string, e.g. at a token limit
+            """{"name": "truncated \"mid""",
+            """{"name": "b""" + "\\",
+        )
+
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("malformedJson")
+        fun `repair rewrites only delimiter quotes`(malformed: String, expected: String) {
+            assertEquals(expected, fixMalformedEscapedQuotes(malformed))
+        }
+
+        fun malformedJson() = listOf(
+            Arguments.of(
+                """{"name": \"test\", "value": 42}""",
+                """{"name": "test", "value": 42}""",
+            ),
+            Arguments.of(
+                """{"value": 42, "name": \"test\"}""",
+                """{"value": 42, "name": "test"}""",
+            ),
+            Arguments.of(
+                """{\"name\": \"test\"}""",
+                """{"name": "test"}""",
+            ),
+            Arguments.of(
+                """{"text": \"User said \"hello\" to Bob\", "confidence": 0.9}""",
+                """{"text": "User said \"hello\" to Bob", "confidence": 0.9}""",
+            ),
+            Arguments.of(
+                "{\"name\": \\\"test\\\"\n}",
+                "{\"name\": \"test\"\n}",
+            ),
+            // Escaped opening quote but plain closing quote
+            Arguments.of(
+                """{"name": \"test"}""",
+                """{"name": "test"}""",
+            ),
+            Arguments.of(
+                """[\"a\", \"b\"]""",
+                """["a", "b"]""",
+            ),
+            Arguments.of(
+                """{"a": \"\", "b": 1}""",
+                """{"a": "", "b": 1}""",
+            ),
+        )
 
         @Test
         fun `parses valid JSON unchanged`() {
@@ -608,7 +677,7 @@ World"""
 private fun tools.jackson.databind.JsonNode.requiredFieldNamesOrRefResolved(
     rootSchema: tools.jackson.databind.JsonNode,
 ): Set<String> {
-    val ref = get("\$ref")?.takeIf { it.isTextual }?.asText()
+    val ref = get("\$ref")?.takeIf { it.isString }?.asString()
     if (ref != null && ref.startsWith("#/")) {
         val resolved = ref
             .removePrefix("#/")

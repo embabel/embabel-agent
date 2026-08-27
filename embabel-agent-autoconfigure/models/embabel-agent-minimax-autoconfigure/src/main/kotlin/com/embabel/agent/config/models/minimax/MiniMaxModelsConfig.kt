@@ -26,6 +26,7 @@ import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.embabel.common.util.loggerFor
 import io.micrometer.observation.ObservationRegistry
+import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
@@ -178,12 +179,12 @@ class MiniMaxModelsConfig(
  * MiniMax requires temperature to be in the range (0.0, 1.0].
  * Values outside this range are clamped accordingly.
  */
-object MiniMaxOptionsConverter : OptionsConverter<OpenAiChatOptions> {
+object MiniMaxOptionsConverter : OptionsConverter {
 
     private const val MIN_TEMPERATURE = 0.01
     private const val MAX_TEMPERATURE = 1.0
 
-    override fun convertOptions(options: LlmOptions): OpenAiChatOptions {
+    override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
         val temperature = options.temperature?.let { temp ->
             temp.coerceIn(MIN_TEMPERATURE, MAX_TEMPERATURE).also { clamped ->
                 if (clamped != temp) {
@@ -195,6 +196,7 @@ object MiniMaxOptionsConverter : OptionsConverter<OpenAiChatOptions> {
             }
         }
         return OpenAiChatOptions.builder()
+            .model(model)
             .temperature(temperature)
             .topP(options.topP)
             .maxTokens(options.maxTokens)

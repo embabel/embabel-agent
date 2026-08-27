@@ -29,6 +29,7 @@ import com.embabel.chat.UserMessage;
 import com.embabel.chat.support.InMemoryConversation;
 import com.embabel.common.ai.model.LlmOptions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -102,6 +103,8 @@ import static org.junit.jupiter.api.Assertions.*;
         }
 )
 @Import({AgentAnthropicAutoConfiguration.class})
+@EnabledIfEnvironmentVariable(named = "ANTHROPIC_API_KEY", matches = ".+",
+        disabledReason = "Integration test requires ANTHROPIC_API_KEY")
 class LlmAnthropicCachingIT {
 
     private static final Logger logger = LoggerFactory.getLogger(LlmAnthropicCachingIT.class);

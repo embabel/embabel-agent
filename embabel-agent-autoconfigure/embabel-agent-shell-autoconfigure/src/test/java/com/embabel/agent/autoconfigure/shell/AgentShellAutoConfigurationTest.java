@@ -16,6 +16,7 @@
 package com.embabel.agent.autoconfigure.shell;
 
 import com.embabel.agent.api.common.Asyncer;
+import com.embabel.common.util.EmbabelObjectMapperHolder;
 import com.embabel.agent.api.common.ToolsStats;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.core.AgentPlatform;
@@ -24,7 +25,6 @@ import com.embabel.agent.shell.config.ShellProperties;
 import com.embabel.agent.spi.logging.ColorPalette;
 import com.embabel.agent.spi.logging.LoggingPersonality;
 import com.embabel.common.ai.model.ModelProvider;
-import tools.jackson.databind.ObjectMapper;
 import org.jline.terminal.Terminal;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -58,7 +58,7 @@ class AgentShellAutoConfigurationTest {
            .withBean(ColorPalette.class, () -> mock(ColorPalette.class))
            .withBean(LoggingPersonality.class, () -> mock(LoggingPersonality.class))
            .withBean(ModelProvider.class, () -> mock(ModelProvider.class))
-           .withBean(ObjectMapper.class, ObjectMapper::new);
+           .withBean(EmbabelObjectMapperHolder.class, EmbabelObjectMapperHolder::createDefault);
 
    /**
     * Confirms that a user-supplied {@link PromptProvider} suppresses the fallback bean, proving the {@code @ConditionalOnMissingBean} behavior rather than metadata only.

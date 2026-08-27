@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.observability.tracing;
 
+import com.embabel.agent.observability.SpanAttributes;
+
 import io.micrometer.common.KeyValue;
 import io.micrometer.common.KeyValues;
 import io.micrometer.observation.Observation;
@@ -27,6 +29,8 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.observation.ChatModelObservationContext;
+import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.ai.chat.prompt.DefaultChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 
 import java.util.List;
@@ -210,6 +214,52 @@ class ChatModelObservationFilterTest {
             assertSame(plain, result);
             assertFalse(result.getHighCardinalityKeyValues().iterator().hasNext());
             assertFalse(result.getLowCardinalityKeyValues().iterator().hasNext());
+        }
+    }
+
+    @Nested
+    @DisplayName("request max tokens")
+    class RequestMaxTokens {
+
+        /** Providers that reject {@code max_tokens} — the GPT-5 family — carry the limit here instead. */
+        private static final class OptionsWithCompletionTokens extends DefaultChatOptions {
+            private OptionsWithCompletionTokens() {
+                super(null, null, null, null, null, null, null, null);
+            }
+
+            public Integer getMaxCompletionTokens() {
+                return 512;
+            }
+        }
+
+        private Map<String, String> mappedKeyValues(ChatOptions options) {
+            ChatModelObservationContext context = contextWith(new Prompt(List.of(new UserMessage("hi")), options));
+            return highCardinality(new ChatModelObservationFilter(4000).map(context));
+        }
+
+        @Test
+        @DisplayName("maxTokens is reported when the provider uses it")
+        void maxTokensReported() {
+            Map<String, String> kv = mappedKeyValues(ChatOptions.builder().maxTokens(256).build());
+
+            assertEquals("256", kv.get(SpanAttributes.GEN_AI_REQUEST_MAX_TOKENS));
+        }
+
+        @Test
+        @DisplayName("maxCompletionTokens stands in when the provider rejects max_tokens")
+        void maxCompletionTokensReported() {
+            Map<String, String> kv = mappedKeyValues(new OptionsWithCompletionTokens());
+
+            assertEquals("512", kv.get(SpanAttributes.GEN_AI_REQUEST_MAX_TOKENS),
+                    "Without this the whole GPT-5 family loses its token limit from every trace");
+        }
+
+        @Test
+        @DisplayName("no limit set means no attribute")
+        void noLimitNoAttribute() {
+            Map<String, String> kv = mappedKeyValues(ChatOptions.builder().build());
+
+            assertNull(kv.get(SpanAttributes.GEN_AI_REQUEST_MAX_TOKENS));
         }
     }
 }

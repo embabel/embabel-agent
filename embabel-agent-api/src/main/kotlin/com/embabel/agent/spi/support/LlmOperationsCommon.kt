@@ -23,6 +23,7 @@ import tools.jackson.databind.DeserializationContext
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ValueDeserializer
 import tools.jackson.databind.annotation.JsonDeserialize
+import tools.jackson.databind.DatabindException
 import tools.jackson.databind.deser.std.StdDeserializer
 import tools.jackson.databind.exc.MismatchedInputException
 import tools.jackson.databind.node.NullNode
@@ -167,9 +168,9 @@ internal class MaybeReturnDeserializer<T> private constructor(
 
     private fun deserializeFailure(failureNode: JsonNode): MaybeReturn<T> = when {
         failureNode is NullNode -> MaybeReturn.failure(ERROR_FAILURE_NULL)
-        !failureNode.isTextual -> MaybeReturn.failure(ERROR_FAILURE_NOT_STRING)
-        failureNode.asText().isBlank() -> MaybeReturn.failure(ERROR_FAILURE_EMPTY)
-        else -> MaybeReturn.failure(failureNode.asText())
+        !failureNode.isString -> MaybeReturn.failure(ERROR_FAILURE_NOT_STRING)
+        failureNode.asString().isBlank() -> MaybeReturn.failure(ERROR_FAILURE_EMPTY)
+        else -> MaybeReturn.failure(failureNode.asString())
     }
 
     private fun deserializeSuccess(successNode: JsonNode, ctxt: DeserializationContext): MaybeReturn<T> {
@@ -192,6 +193,7 @@ internal class MaybeReturnDeserializer<T> private constructor(
                         ERROR_INVALID_FORMAT
                     }
                 }
+                is DatabindException -> throw e  // Jackson config/binding error — not transient
                 else -> "$ERROR_INVALID_SUCCESS${e.message}"
             }
             MaybeReturn.failure(errorMessage)

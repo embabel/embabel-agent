@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
-class OciGenAiOptionsConverterTest : OptionsConverterTestSupport<OciGenAiChatOptions>(
+class OciGenAiOptionsConverterTest : OptionsConverterTestSupport(
     optionsConverter = OciGenAiOptionsConverter,
 ) {
 
@@ -33,8 +33,9 @@ class OciGenAiOptionsConverterTest : OptionsConverterTestSupport<OciGenAiChatOpt
                 .withTemperature(0.2)
                 .withTopP(0.9)
                 .withTopK(50)
-                .withMaxTokens(123)
-        )
+                .withMaxTokens(123),
+            "test-model"
+        ) as OciGenAiChatOptions
 
         assertEquals(0.2, options.temperature)
         assertEquals(0.9, options.topP)
@@ -44,9 +45,9 @@ class OciGenAiOptionsConverterTest : OptionsConverterTestSupport<OciGenAiChatOpt
 
     @Test
     fun `should not override provider defaults`() {
-        val options = OciGenAiOptionsConverter.convertOptions(LlmOptions())
+        val options = OciGenAiOptionsConverter.convertOptions(LlmOptions(), "test-model") as OciGenAiChatOptions
 
-        assertNull(options.model)
+        assertEquals("test-model", options.model)
         assertNull(options.compartmentId)
         assertFalse(options.getInternalToolExecutionEnabled() ?: true)
     }
@@ -62,12 +63,12 @@ class OciGenAiOptionsConverterTest : OptionsConverterTestSupport<OciGenAiChatOpt
             .temperature(0.7)
             .build()
         val runtimeOptions = OciGenAiOptionsConverter.convertOptions(
-            LlmOptions().withTemperature(0.2)
-        )
+            LlmOptions().withTemperature(0.2), "test-model"
+        ) as OciGenAiChatOptions
 
         val merged = defaults.merge(runtimeOptions)
 
-        assertEquals("cohere.command-a-03-2025", merged.model)
+        assertEquals("test-model", merged.model)
         assertEquals("ocid1.compartment.oc1..test", merged.compartmentId)
         assertEquals(OciGenAiServingMode.DEDICATED, merged.servingMode)
         assertEquals("ocid1.generativeaiendpoint.oc1..test", merged.endpointId)
@@ -106,7 +107,9 @@ class OciGenAiOptionsConverterTest : OptionsConverterTestSupport<OciGenAiChatOpt
             .build()
             .copy<OciGenAiChatOptions>()
 
-        val preservedDefaults = explicitCopy.merge(OciGenAiOptionsConverter.convertOptions(LlmOptions()))
+        val preservedDefaults = explicitCopy.merge(
+            OciGenAiOptionsConverter.convertOptions(LlmOptions(), "test-model") as OciGenAiChatOptions
+        )
         val preservedAfterUnconfiguredMerge = defaults.merge(unconfiguredCopy)
 
         assertEquals(OciGenAiServingMode.DEDICATED, preservedDefaults.servingMode)

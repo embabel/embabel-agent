@@ -125,6 +125,9 @@ val filtered = InMemoryPropertyFilter.filterResults(
 )
 ```
 
+Entity filters apply only to `NamedEntityData`. Non-entity results such as chunks pass through unchanged, which allows
+the same filter to be used for searches that return both chunks and entities.
+
 ## Native Filter Translation
 
 Some backends support native filter translation:

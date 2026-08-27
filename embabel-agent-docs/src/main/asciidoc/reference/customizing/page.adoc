@@ -224,10 +224,25 @@ val service: LlmService<*> = OpenAiCompatibleModelFactory.mistral(userKey).build
 
 // Gemini (OpenAI-compatible endpoint)
 val service: LlmService<*> = OpenAiCompatibleModelFactory.gemini(userKey).buildValidated()
+
+// Atlas Cloud (OpenAI-compatible endpoint)
+val service: LlmService<*> = OpenAiCompatibleModelFactory.atlasCloud(userKey).buildValidated()
 ----
 
 `buildValidated()` makes a single probe call with no retries.
 On success it returns a production `LlmService`; on failure it throws `InvalidApiKeyException`.
+
+A **blank** key is treated as absent and rejected before any network call, also with
+`InvalidApiKeyException`. This matters more than it sounds: Docker Compose passes
+`ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}`, so in a container the variable is routinely
+set-but-empty, and a caller reading it with a null default — `@Value("${ANTHROPIC_API_KEY:#{null}}")`
+or `System.getenv(...)` — gets `""` rather than null. That empty string passes a null check and
+would otherwise reach the provider, coming back as an opaque authentication failure far from its
+cause. Callers therefore do not need to pre-check for blank keys themselves.
+
+NOTE: This applies to the BYOK path only. Provider autoconfiguration documents its API key as
+required (see <<reference.environment_setup>>) and still fails at startup when one is missing —
+putting a provider starter on the classpath is a statement that the deployment has that key.
 
 ===== Auto-detecting the provider
 
@@ -246,6 +261,7 @@ val service: LlmService<*> = detectProvider(
     OpenAiCompatibleModelFactory.deepSeek(userKey),
     OpenAiCompatibleModelFactory.mistral(userKey),
     OpenAiCompatibleModelFactory.gemini(userKey),
+    OpenAiCompatibleModelFactory.atlasCloud(userKey),
 )
 val detectedProvider: String = service.provider
 ----
@@ -307,6 +323,64 @@ val service = detectProvider(
 )
 ----
 
+===== Embedding services
+
+Embedding models are resolved through the same BYOK mechanism, so a key that arrives after
+startup can activate an embedding model without a restart.
+
+[source,kotlin]
+----
+// OpenAI
+val embeddings: EmbeddingService =
+    OpenAiCompatibleModelFactory.openAiEmbedding(userKey, "text-embedding-3-small")
+        .buildValidated()
+
+// Any OpenAI-compatible provider
+val acmeEmbeddings: EmbeddingService = OpenAiCompatibleModelFactory.byokEmbedding(
+    baseUrl = "https://api.acme.example.com/v1",
+    apiKey = userKey,
+    model = "acme-embed-small",
+    provider = "Acme",
+).buildValidated()
+----
+
+`buildValidated()` embeds a short probe text. On failure it throws `InvalidApiKeyException`.
+A *blank* key is treated as absent and rejected before any network call — in a container
+`OPENAI_API_KEY` is routinely set-but-empty, and that empty string would otherwise reach the
+provider and come back as an opaque authentication error. The message names the model: an
+embedding model name is caller-supplied and mandatory here, so a typo in it reaches the provider
+the same way a bad key does. On success the returned `EmbeddingService` already knows its
+dimension — it was observed during the probe — so no live `dimensions()` call is made later.
+
+Two things work differently from LLM BYOK, because an embedding model is a schema commitment
+rather than a stateless per-call service:
+
+* **No provider detection.** The vector index is built at a fixed dimension and every stored
+  vector must come from the same model at that dimension. Whichever provider happens to accept
+  a pasted key first must not be allowed to decide that, so there is no embedding equivalent of
+  `detectProvider()` and the model is always named explicitly.
+* **Installation or world scope, not per-user.** Per-user LLM keys are coherent; per-user
+  embedding keys are not, because vectors from different models would land in one shared index.
+  The dimension belongs to the store, not to the user.
+
+The dimension is never configured on the BYOK path — it is whatever the model actually returned
+during validation. When writing into an index that already exists, compare the two yourself
+before storing anything, since vectors of different widths cannot share an index:
+
+[source,kotlin]
+----
+val embeddings = OpenAiCompatibleModelFactory
+    .openAiEmbedding(userKey, "text-embedding-3-small")
+    .buildValidated()
+
+check(embeddings.dimensions == index.dimensions) {
+    "Index is ${index.dimensions}-dimensional; ${embeddings.name} returns ${embeddings.dimensions}"
+}
+----
+
+NOTE: Changing the embedding model of an existing corpus still requires re-embedding it. BYOK
+only builds and validates the service.
+
 ===== Using the validated service
 
 Once you have an `LlmService`, pass it directly to `PromptRunner` or `Ai` via
@@ -339,6 +413,130 @@ promptRunner
 
 Internally this flows through the same model selection path as all other LLM resolution via
 `PreResolvedModelSelectionCriteria` — no separate resolution path is needed.
+
+[[reference.customizing.byok.pure]]
+===== Pure BYOK deployments
+
+Everything above assumes the application already has an `LlmService` to fall back on. A *pure BYOK*
+deployment has none: it ships with no provider key at all and obtains one at runtime, per user or
+per tenant. Two things get in its way, and `embabel-agent-starter-byok` addresses both.
+
+**Depend on the BYOK starter, not a provider starter.** The provider starters bundle their
+autoconfiguration, which requires an API key at startup — exactly what this deployment does not
+have. The BYOK starter carries the model factories and none of that autoconfiguration:
+
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-byok</artifactId>
+</dependency>
+----
+
+**Point `default-llm` at the placeholder.** With no models registered, the platform has nothing to
+resolve `embabel.models.default-llm` to. The starter contributes a placeholder `LlmService` named
+`setup-required` for precisely this case:
+
+[source,yaml]
+----
+embabel:
+  models:
+    default-llm: setup-required
+----
+
+The name is available as the constant `SetupRequiredLlm.NAME`. Opting in through configuration is
+deliberate — the placeholder is registered unconditionally but is only ever selected if you name it,
+so adding the starter alongside a real provider changes nothing.
+
+The placeholder completes nothing. Any call that reaches it throws `NoLlmConfiguredException`, so a
+missing key surfaces as an actionable error rather than a silently empty answer. Catch it to render
+your own "add an API key" experience:
+
+[source,kotlin]
+----
+try {
+    promptRunner.withLlmService(userLlm).creating(MyOutput::class.java).create(messages)
+} catch (e: NoLlmConfiguredException) {
+    // no key for this user yet — send them to your settings page
+}
+----
+
+In normal operation the placeholder is never reached: resolve the user's key, build a service with
+one of the factories above, and pass it to `withLlmService()`.
+
+**Point `default-embedding-model` at the embedding placeholder, if the application uses RAG or
+memory.** Anything that resolves the default embedding service while its own beans are being
+created — which is what RAG and memory components do — would otherwise fail the context refresh,
+for the same reason the LLM side did before its placeholder existed:
+
+[source,yaml]
+----
+embabel:
+  models:
+    default-llm: setup-required
+    default-embedding-model: setup-required-embedding
+----
+
+The name is available as `SetupRequiredEmbedding.NAME`. Calls that reach it throw
+`NoEmbeddingServiceConfiguredException`, the embedding counterpart of `NoLlmConfiguredException`.
+
+CAUTION: The embedding placeholder *refuses to report a dimension*. `dimensions` throws like every
+other call rather than returning a number, and this is deliberate. Any value it returned would be
+used to create a vector index; writes to that index would succeed; and a real model configured
+later would silently disagree with everything already stored. That failure surfaces as bad search
+results rather than as an error, which is far worse than not starting.
+
+So code that provisions a vector index must ask *whether there is a model yet* rather than call
+`dimensions` and handle the failure — a thrown exception cannot be told apart from a provider that
+is merely unreachable right now. Test for the marker and skip:
+
+[source,kotlin]
+----
+if (embeddingService.awaitingProviderKey) {
+    // No model yet. Skip provisioning — do NOT invent a dimension.
+    logger.info("Awaiting an embedding key; vector index not provisioned yet")
+} else {
+    provisioner.ensure(VectorIndexSpec(label, "embedding", embeddingService.dimensions))
+}
+----
+
+Three things about that check are easy to get wrong, and each costs an afternoon.
+
+**Ask `awaitingProviderKey`, never `is PlaceholderEmbeddingService`.** Wrapping is common — event tracking
+decorates the configured service, and applications add layers for hot-swapping the model, metering,
+or per-tenant routing. A wrapper around a placeholder is not itself a placeholder, so a type test
+answers "there is a model" and the caller commits an index at a dimension it obtained by catching an
+exception. `awaitingProviderKey` is a property of the interface, so Kotlin's `by` delegation forwards it
+through any depth of wrapping at no cost.
+
+CAUTION: A wrapper that implements `EmbeddingService` member by member rather than `by delegate`
+must forward `awaitingProviderKey` explicitly. It defaults to false, so a wrapper that forgets reports
+"there is a model" on behalf of one that cannot embed.
+
+**Re-resolve the reference; do not hold it.** The marker lives on the object, so a held reference
+that *is* the placeholder stays the placeholder for the life of the process — re-checking it can
+never notice the key arriving, and recovery needs a restart. A component that wants to start working
+without one should take a supplier and ask the platform each time:
+
+[source,kotlin]
+----
+class MyProvisioner(private val embeddingService: () -> EmbeddingService) {
+    fun ensure() {
+        val embeddings = embeddingService()          // asks again; the answer changes
+        if (embeddings.isAwaitingKey()) return
+        // ... provision at embeddings.dimensions
+    }
+}
+----
+
+**The marker answers "is there a model yet", not "is it still the same one".** Once a real model is
+registered the placeholder is out of the picture, and a later change to a model of a different width
+is a different problem: the existing index keeps its original dimension, and vectors written under
+the new model disagree with everything already stored. That is drift, and it needs the corpus
+re-embedded — see the note under <<Embedding services>> above.
+
+NOTE: The starter stops at the factories and the placeholder. Key storage and lifecycle remain the
+application's responsibility, as described under <<reference.customizing.byok>> above.
 
 ===== Error handling
 
@@ -419,5 +617,4 @@ embabel.agent.logging.personality=severance
 Remove the `embabel.agent.logging.personality` key to disable personality-based logging.
 
 As all logging results from listening to events via an `AgenticEventListener`, you can also easily create your own customized logging.
-
 

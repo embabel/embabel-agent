@@ -47,7 +47,7 @@ object CommunicateTool {
         ),
     ) { input ->
         val parsed = tools.jackson.databind.ObjectMapper().readTree(input)
-        val message = parsed.get("message")?.asText()
+        val message = parsed.get("message")?.asString()
             ?: return@of Tool.Result.error("Missing 'message' parameter")
 
         val process = AgentProcess.get()

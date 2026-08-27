@@ -17,6 +17,9 @@ package com.embabel.agent.anthropic
 
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.common.ai.model.PricingModel
+import com.embabel.common.ai.prompt.KnowledgeCutoffDate
+import com.embabel.common.byok.BLANK_API_KEY_MESSAGE
 import com.embabel.common.byok.InvalidApiKeyException
 import com.sun.net.httpserver.HttpServer
 import io.micrometer.observation.ObservationRegistry
@@ -27,6 +30,7 @@ import io.mockk.mockk
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -34,6 +38,7 @@ import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.web.client.RestClient
 import java.net.InetSocketAddress
+import java.time.LocalDate
 import java.util.function.Supplier
 
 class AnthropicModelFactoryTest {
@@ -53,6 +58,40 @@ class AnthropicModelFactoryTest {
         val service = factory.build(model = AnthropicModels.CLAUDE_HAIKU_4_5) as SpringAiLlmService
         assertEquals(AnthropicModels.CLAUDE_HAIKU_4_5, service.name)
         assertEquals(AnthropicModels.PROVIDER, service.provider)
+    }
+
+    @Test
+    fun `build states the provider, price and cutoff a BYOK caller asks for`() {
+        // A gateway fronting Anthropic reports itself, not Anthropic, so cost and metadata lookups
+        // key on the gateway; and a BYOK call is billed to the user's key, not the deployment's.
+        val factory = AnthropicModelFactory(
+            apiKey = "test-key",
+            observationRegistry = ObservationRegistry.NOOP,
+            restClientBuilder = restClientBuilder,
+        )
+        val service = factory.build(
+            model = AnthropicModels.CLAUDE_HAIKU_4_5,
+            provider = "OurGateway",
+            pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+            knowledgeCutoffDate = LocalDate.of(2026, 1, 31),
+        ) as SpringAiLlmService
+        assertEquals("OurGateway", service.provider)
+        assertEquals(PricingModel.ALL_YOU_CAN_EAT, service.pricingModel)
+        assertEquals(LocalDate.of(2026, 1, 31), service.knowledgeCutoffDate)
+        assertTrue(service.promptContributors.any { it is KnowledgeCutoffDate })
+    }
+
+    @Test
+    fun `build defaults to Anthropic itself, at an unstated price`() {
+        val factory = AnthropicModelFactory(
+            apiKey = "test-key",
+            observationRegistry = ObservationRegistry.NOOP,
+            restClientBuilder = restClientBuilder,
+        )
+        val service = factory.build(model = AnthropicModels.CLAUDE_HAIKU_4_5) as SpringAiLlmService
+        assertEquals(AnthropicModels.PROVIDER, service.provider)
+        assertNull(service.pricingModel)
+        assertNull(service.knowledgeCutoffDate)
     }
 
     @Test
@@ -153,5 +192,27 @@ class AnthropicModelFactoryBuildValidatedTest {
         assertThrows<InvalidApiKeyException> {
             factory().buildValidated(AnthropicModels.CLAUDE_HAIKU_4_5)
         }
+    }
+
+    @Test
+    fun `buildValidated rejects a blank key without calling the provider`() {
+        var requests = 0
+        server.createContext("/v1/messages") { exchange ->
+            requests++
+            exchange.sendResponseHeaders(500, -1)
+            exchange.close()
+        }
+        server.start()
+
+        val blankKeyFactory = AnthropicModelFactory(
+            apiKey = "   ",
+            baseUrl = "http://localhost:$port",
+            observationRegistry = ObservationRegistry.NOOP,
+            restClientBuilder = restClientBuilder,
+        )
+
+        val e = assertThrows<InvalidApiKeyException> { blankKeyFactory.buildValidated() }
+        assertEquals(BLANK_API_KEY_MESSAGE, e.message)
+        assertEquals(0, requests, "a blank key must not reach the provider")
     }
 }

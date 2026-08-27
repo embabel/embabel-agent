@@ -15,14 +15,9 @@
  */
 package com.embabel.agent.a2a.server.support
 
-import tools.jackson.databind.ObjectMapper
-import org.springframework.beans.factory.annotation.Qualifier
-import io.a2a.spec.Message
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import io.a2a.spec.SendStreamingMessageResponse
 import io.a2a.spec.StreamingEventKind
-import io.a2a.spec.Task
-import io.a2a.spec.TaskArtifactUpdateEvent
-import io.a2a.spec.TaskStatusUpdateEvent
 import org.slf4j.LoggerFactory
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
@@ -37,8 +32,7 @@ import java.util.concurrent.TimeUnit
  */
 @Service
 class A2AStreamingHandler(
-    @Qualifier("embabelJacksonObjectMapper")
-    private val objectMapper: ObjectMapper,
+    private val embabelObjectMapperHolder: EmbabelObjectMapperHolder,
     private val taskStateManager: TaskStateManager
 ) {
     private val logger = LoggerFactory.getLogger(A2AStreamingHandler::class.java)
@@ -134,7 +128,7 @@ class A2AStreamingHandler(
             )
 
             val eventData = SseEmitter.event()
-                .data(objectMapper.writeValueAsString(response), MediaType.APPLICATION_JSON)
+                .data(embabelObjectMapperHolder.get().writeValueAsString(response), MediaType.APPLICATION_JSON)
             emitter.send(eventData)
         } catch (e: Exception) {
             logger.error("Error sending stream event", e)

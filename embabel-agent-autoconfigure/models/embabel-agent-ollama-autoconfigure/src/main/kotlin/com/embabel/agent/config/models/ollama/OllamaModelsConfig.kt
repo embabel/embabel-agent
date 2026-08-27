@@ -29,6 +29,7 @@ import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.ai.ollama.OllamaChatModel
 import org.springframework.ai.ollama.OllamaEmbeddingModel
 import org.springframework.ai.ollama.api.OllamaApi
+import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.ollama.api.OllamaChatOptions
 import org.springframework.ai.ollama.api.OllamaEmbeddingOptions
 import org.springframework.ai.ollama.api.ThinkOption
@@ -179,7 +180,7 @@ class OllamaModelsConfig(
             chatModel = springChatModel,
             provider = OllamaModels.PROVIDER,
             pricingModel = PricingModel.ALL_YOU_CAN_EAT,
-            optionsConverter = OllamaOptionsConverter,
+            optionsConverter = OllamaOptionsConverter(),
             thinkingSupported = true,
         )
     }
@@ -320,28 +321,72 @@ class OllamaModelsConfig(
     }
 }
 
-object OllamaOptionsConverter : OptionsConverter<OllamaChatOptions> {
-    private const val OLLAMA_THINK_LEVEL_LOW_THRESHOLD = 2000
+class OllamaOptionsConverter(
+    private val thinkLevelsSupported: Boolean = false,
+) : OptionsConverter {
 
-    private const val OLLAMA_THINK_LEVEL_MEDIUM_THRESHOLD = 4000
+    private companion object {
+        const val OLLAMA_THINK_LEVEL_LOW_THRESHOLD = 2000
+        const val OLLAMA_THINK_LEVEL_MEDIUM_THRESHOLD = 4000
+    }
 
-    override fun convertOptions(options: LlmOptions): OllamaChatOptions =
-        OllamaChatOptions.builder()
+    override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
+        val builder = OllamaChatOptions.builder()
+            .model(model)
             .temperature(options.temperature)
             .topP(options.topP)
             .presencePenalty(options.presencePenalty)
             .frequencyPenalty(options.frequencyPenalty)
             .topK(options.topK)
-            .thinkOption(toThinkOption(options.thinking))
-            .build()
+        toThinkOption(options.thinking)?.let { builder.thinkOption(it) }
+        return builder.build()
+    }
 
-    private fun toThinkOption(thinkingConfig: Thinking?): ThinkOption {
-        val budget = thinkingConfig?.tokenBudget ?: return ThinkOption.ThinkBoolean.DISABLED
+    /**
+     * Maps embabel's [Thinking] config to the Ollama API's `think` parameter.
+     *
+     * **Three distinct states — all matter:**
+     *  - `think=true`  — native thinking: model reasons internally; Ollama routes the reasoning to
+     *                    a separate `message.thinking` field, NOT to `message.content`. Triggered
+     *                    when [Thinking.tokenBudget] is non-null.
+     *  - `think=false` — thinking suppressed: Ollama injects an empty `<think></think>` block that
+     *                    signals the model to skip all reasoning. Prompt instructions asking for
+     *                    `<think>` tags are overridden and ignored by the model.
+     *  - *(absent)*    — model default: Ollama omits the parameter entirely. Models like
+     *                    deepseek-r1 then output `<think>...</think>` naturally in `message.content`,
+     *                    which [extractAllThinkingBlocks] can extract. This is the correct mode for
+     *                    prompt-driven thinking ([Thinking.withExtraction]).
+     *
+     * This method returns `null` when no budget is set, intentionally omitting the `think`
+     * parameter from the request so prompt-driven models behave correctly.
+     *
+     * **Two-gate model for end-to-end thinking:**
+     *  1. embabel gate — [Thinking.enabled]=true, enforced by [PromptRunner.thinking] which rejects
+     *                    [Thinking.NONE]. Also consumed by Anthropic/Google GenAI converters.
+     *  2. Ollama gate  — THIS method. Both gates must be open for thinking to occur.
+     *
+     * [Thinking.extractThinking] is orthogonal to both gates — it controls embabel's post-processing
+     * that strips `<think>` tags and populates [ThinkingResponse.thinkingBlocks].
+     */
+    private fun toThinkOption(thinkingConfig: Thinking?): ThinkOption? {
+        // No thinking config at all → suppress qwen3/deepseek default thinking behavior
+        if (thinkingConfig == null) return ThinkOption.ThinkBoolean.DISABLED
+        // withExtraction() has no budget → omit think so model outputs <think> naturally in content
+        val budget = thinkingConfig.tokenBudget ?: return null
 
-        return when {
+        // level-capable models (e.g. gpt-oss) map budget to Ollama's three effort strings.
+        // Ollama defines exactly three levels (LOW/MEDIUM/HIGH); HIGH is the ceiling.
+        //   budget < 2000  → LOW    (light reasoning)
+        //   budget < 4000  → MEDIUM (moderate reasoning)
+        //   budget >= 4000 → HIGH   (maximum reasoning; no higher level exists)
+        if (thinkLevelsSupported) return when {
             budget < OLLAMA_THINK_LEVEL_LOW_THRESHOLD -> ThinkOption.ThinkLevel.LOW
             budget < OLLAMA_THINK_LEVEL_MEDIUM_THRESHOLD -> ThinkOption.ThinkLevel.MEDIUM
             else -> ThinkOption.ThinkLevel.HIGH
         }
+
+        // boolean-only models (e.g. qwen3): budget presence drives think=true (native thinking).
+        // extractThinking is an embabel-side concern, not an Ollama API concern.
+        return ThinkOption.ThinkBoolean.ENABLED
     }
 }

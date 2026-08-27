@@ -15,8 +15,11 @@
  */
 package com.embabel.agent.openai
 
+import com.embabel.common.byok.InvalidApiKeyException
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 
 /**
@@ -55,5 +58,34 @@ class OpenAiCompatibleModelFactoryByokIT {
         val service = OpenAiCompatibleModelFactory.gemini(System.getenv("GOOGLE_GENAI_API_KEY"))
             .buildValidated()
         assertNotNull(service)
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "ATLASCLOUD_API_KEY", matches = ".+")
+    fun `atlasCloud buildValidated succeeds with valid key`() {
+        val service = OpenAiCompatibleModelFactory.atlasCloud(System.getenv("ATLASCLOUD_API_KEY"))
+            .buildValidated()
+        assertNotNull(service)
+        assertEquals("Atlas Cloud", service.provider)
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+")
+    fun `openAiEmbedding buildValidated succeeds with valid key`() {
+        val service = OpenAiCompatibleModelFactory
+            .openAiEmbedding(System.getenv("OPENAI_API_KEY"), "text-embedding-3-small")
+            .buildValidated()
+        assertNotNull(service)
+        assertEquals(1536, service.dimensions)
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+")
+    fun `openAiEmbedding rejects an invalid key`() {
+        assertThrows<InvalidApiKeyException> {
+            OpenAiCompatibleModelFactory
+                .openAiEmbedding("sk-not-a-real-key", "text-embedding-3-small")
+                .buildValidated()
+        }
     }
 }

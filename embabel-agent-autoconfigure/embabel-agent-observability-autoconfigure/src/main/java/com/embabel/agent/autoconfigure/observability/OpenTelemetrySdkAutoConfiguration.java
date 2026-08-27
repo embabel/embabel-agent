@@ -25,6 +25,7 @@ import io.opentelemetry.sdk.trace.SdkTracerProviderBuilder;
 import io.opentelemetry.sdk.trace.SpanProcessor;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
+import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.semconv.ServiceAttributes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +38,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 
 import java.util.List;
 import java.util.Objects;
@@ -61,6 +63,18 @@ public class OpenTelemetrySdkAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(OpenTelemetrySdkAutoConfiguration.class);
 
+    /** Order of the built-in customizer attaching the {@link Resource}. */
+    public static final int RESOURCE_CUSTOMIZER_ORDER = 0;
+
+    /** Order of the built-in customizer applying the {@code Sampler}. */
+    public static final int SAMPLER_CUSTOMIZER_ORDER = 100;
+
+    /** Order of the built-in customizer attaching the {@code SpanProcessor} beans. */
+    public static final int PROCESSOR_CUSTOMIZER_ORDER = 200;
+
+    /** Order of the built-in customizer attaching the {@code SpanExporter} beans. */
+    public static final int EXPORTER_CUSTOMIZER_ORDER = 300;
+
     /**
      * Creates the OpenTelemetry Resource with service name.
      *
@@ -77,63 +91,120 @@ public class OpenTelemetrySdkAutoConfiguration {
     }
 
     /**
-     * Creates the SdkTracerProvider with all configured SpanExporters and SpanProcessors.
+     * Attaches the OpenTelemetry {@link Resource} carrying the service identity.
      *
-     * @param exportersProvider provider for the list of SpanExporter beans
-     * @param processorsProvider provider for the list of SpanProcessor beans
-     * @param resource the OpenTelemetry Resource to associate with traces
+     * @param resource the resource to associate with every span
+     * @return the resource customizer
+     */
+    @Bean
+    @Order(RESOURCE_CUSTOMIZER_ORDER)
+    public SdkTracerProviderCustomizer embabelResourceCustomizer(Resource resource) {
+        return builder -> builder.setResource(resource);
+    }
+
+    /**
+     * Applies the {@link Sampler} bean, which is what makes {@code management.tracing.sampling.*}
+     * effective. Without it the provider keeps its {@code AlwaysOn} default and the configured
+     * sampling probability is silently ignored.
+     *
+     * <p>The sampler is resolved through an {@link ObjectProvider} rather than required as a bean
+     * condition: {@code @ConditionalOnBean} across auto-configuration boundaries is order-sensitive,
+     * and the sampler is contributed by a different auto-configuration.
+     *
+     * @param samplerProvider lazy provider for the sampler, absent when no tracing bridge is present
+     * @return the sampler customizer
+     */
+    @Bean
+    @Order(SAMPLER_CUSTOMIZER_ORDER)
+    public SdkTracerProviderCustomizer embabelSamplerCustomizer(ObjectProvider<Sampler> samplerProvider) {
+        return builder -> {
+            Sampler sampler = samplerProvider.getIfUnique();
+            if (sampler != null) {
+                log.debug("Applying Sampler: {}", sampler.getDescription());
+                builder.setSampler(sampler);
+            }
+        };
+    }
+
+    /**
+     * Attaches every {@code SpanProcessor} bean, whoever contributed it.
+     *
+     * @param processorsProvider provider for the SpanProcessor beans
+     * @return the span processor customizer
+     */
+    @Bean
+    @Order(PROCESSOR_CUSTOMIZER_ORDER)
+    public SdkTracerProviderCustomizer embabelSpanProcessorCustomizer(
+            ObjectProvider<List<SpanProcessor>> processorsProvider) {
+        return builder -> {
+            for (SpanProcessor processor : nonNullElements(processorsProvider)) {
+                log.debug("Added SpanProcessor: {}", processor.getClass().getSimpleName());
+                builder.addSpanProcessor(processor);
+            }
+        };
+    }
+
+    /**
+     * Wraps each {@code SpanExporter} bean in its own batch processor, but only when no span
+     * processor is present at all. An exporter reaches a backend only through a processor, and
+     * Spring Boot's tracing auto-configuration contributes one that wraps <em>every</em> exporter
+     * bean; wrapping them again attaches each exporter twice and exports every span twice.
+     *
+     * <p>Whether a given processor exports a given exporter cannot be determined generically, so
+     * this assumes it does. An application whose processor does <em>not</em> export them can attach
+     * them itself by contributing a {@link SdkTracerProviderCustomizer} of its own.
+     *
+     * @param exportersProvider provider for the SpanExporter beans
+     * @param processorsProvider provider for the SpanProcessor beans
+     * @return the span exporter customizer
+     */
+    @Bean
+    @Order(EXPORTER_CUSTOMIZER_ORDER)
+    public SdkTracerProviderCustomizer embabelSpanExporterCustomizer(
+            ObjectProvider<List<SpanExporter>> exportersProvider,
+            ObjectProvider<List<SpanProcessor>> processorsProvider) {
+        return builder -> {
+            List<SpanExporter> exporters = nonNullElements(exportersProvider);
+            if (!nonNullElements(processorsProvider).isEmpty()) {
+                log.info("Delegating export of {} SpanExporter bean(s) to the span processors already present. " +
+                        "Contribute an SdkTracerProviderCustomizer if those processors do not export them.",
+                        exporters.size());
+                return;
+            }
+            for (SpanExporter exporter : exporters) {
+                log.debug("Added SpanExporter: {}", exporter.getClass().getSimpleName());
+                builder.addSpanProcessor(BatchSpanProcessor.builder(exporter).build());
+            }
+        };
+    }
+
+    private static <T> List<T> nonNullElements(ObjectProvider<List<T>> provider) {
+        List<T> elements = provider.getIfAvailable();
+        return elements == null ? List.of() : elements.stream().filter(Objects::nonNull).toList();
+    }
+
+    /**
+     * Assembles the SdkTracerProvider by applying every {@link SdkTracerProviderCustomizer} in order.
+     *
+     * @param customizers the ordered customizers contributing each aspect of the provider
+     * @param exportersProvider provider for the SpanExporter beans, used only to detect that there
+     *                          is nothing to export to
      * @return the configured SdkTracerProvider, or null if no exporters are available
      */
     @Bean
     @ConditionalOnMissingBean(SdkTracerProvider.class)
     public SdkTracerProvider sdkTracerProvider(
-            ObjectProvider<List<SpanExporter>> exportersProvider,
-            ObjectProvider<List<SpanProcessor>> processorsProvider,
-            Resource resource) {
-
-        List<SpanExporter> exporters = exportersProvider.getIfAvailable();
-        List<SpanProcessor> processors = processorsProvider.getIfAvailable();
-
-        List<SpanExporter> validExporters = exporters == null
-                ? List.of()
-                : exporters.stream()
-                    .filter(Objects::nonNull)
-                    .toList();
-
-        List<SpanProcessor> validProcessors = processors == null
-                ? List.of()
-                : processors.stream()
-                    .filter(Objects::nonNull)
-                    .toList();
-
-        if (validExporters.isEmpty()) {
+            ObjectProvider<SdkTracerProviderCustomizer> customizers,
+            ObjectProvider<List<SpanExporter>> exportersProvider) {
+        if (nonNullElements(exportersProvider).isEmpty()) {
             log.warn("No SpanExporter beans found. OpenTelemetry tracing will be disabled. " +
                     "To enable tracing, add an exporter dependency (e.g., opentelemetry-exporter-langfuse, " +
                     "opentelemetry-exporter-zipkin) and configure it properly.");
             return null;
         }
-
-        SdkTracerProviderBuilder tracerProviderBuilder = SdkTracerProvider.builder()
-                .setResource(resource);
-
-        for (SpanProcessor processor : validProcessors) {
-            tracerProviderBuilder.addSpanProcessor(processor);
-            log.debug("Added SpanProcessor: {}", processor.getClass().getSimpleName());
-        }
-
-        for (SpanExporter exporter : validExporters) {
-            tracerProviderBuilder.addSpanProcessor(
-                    BatchSpanProcessor.builder(exporter).build()
-            );
-            log.debug("Added SpanExporter: {}", exporter.getClass().getSimpleName());
-        }
-
-        SdkTracerProvider tracerProvider = tracerProviderBuilder.build();
-
-        log.info("SdkTracerProvider configured with {} processor(s) and {} exporter(s)",
-                validProcessors.size(), validExporters.size());
-
-        return tracerProvider;
+        SdkTracerProviderBuilder builder = SdkTracerProvider.builder();
+        customizers.orderedStream().forEach(customizer -> customizer.customize(builder));
+        return builder.build();
     }
 
     /**

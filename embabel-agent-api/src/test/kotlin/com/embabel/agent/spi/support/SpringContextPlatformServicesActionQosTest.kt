@@ -25,12 +25,12 @@ import com.embabel.agent.api.event.observation.InternalObservabilityApi
 import com.embabel.agent.api.event.observation.NoOpAgentInstrumentation
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcessRepository
-import com.embabel.agent.core.expression.LogicalExpressionParser
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.spi.OperationScheduler
 import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import com.embabel.agent.spi.expression.spel.SpelLogicalExpressionParser
 import com.embabel.common.textio.template.TemplateRenderer
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import tools.jackson.databind.ObjectMapper
 import io.micrometer.observation.Observation
 import io.mockk.every
@@ -88,7 +88,7 @@ class SpringContextPlatformServicesActionQosTest {
             operationScheduler = mockOperationScheduler,
             agentProcessRepository = mockAgentProcessRepository,
             asyncer = mockAsyncer,
-            objectMapper = mockObjectMapper,
+            embabelObjectMapperHolder = EmbabelObjectMapperHolder(mockObjectMapper),
             outputChannel = mockOutputChannel,
             templateRenderer = mockTemplateRenderer,
             customLogicalExpressionParser = SpelLogicalExpressionParser(),

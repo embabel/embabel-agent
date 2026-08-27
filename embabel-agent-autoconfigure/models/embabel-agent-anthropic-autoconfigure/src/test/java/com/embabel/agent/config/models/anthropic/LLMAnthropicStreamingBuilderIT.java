@@ -16,6 +16,7 @@
 package com.embabel.agent.config.models.anthropic;
 
 import com.embabel.agent.api.annotation.LlmTool;
+import com.embabel.common.ai.converters.streaming.StringResult;
 import com.embabel.agent.api.common.Ai;
 import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.autonomy.Autonomy;
@@ -24,8 +25,11 @@ import com.embabel.agent.api.tool.callback.LogLevel;
 import com.embabel.agent.api.tool.callback.ToolCallLoggingInspector;
 import com.embabel.agent.autoconfigure.models.anthropic.AgentAnthropicAutoConfiguration;
 import com.embabel.agent.spi.LlmService;
+import com.embabel.common.ai.model.LlmOptions;
+import com.embabel.common.ai.model.Thinking;
 import com.embabel.common.core.streaming.StreamingEvent;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,8 +54,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest(
         properties = {
-                "embabel.models.cheapest=claude_-sonnet-4-5",
-                "embabel.models.best=claude_-sonnet-4-5",
+                "embabel.models.cheapest=claude-sonnet-4-5",
+                "embabel.models.best=claude-sonnet-4-5",
                 "embabel.models.default-llm=claude-sonnet-4-5",
                 "spring.main.allow-bean-definition-overriding=true",
 
@@ -101,6 +105,8 @@ import static org.junit.jupiter.api.Assertions.*;
         }
 )
 @Import({AgentAnthropicAutoConfiguration.class})
+@EnabledIfEnvironmentVariable(named = "ANTHROPIC_API_KEY", matches = ".+",
+        disabledReason = "Integration test requires ANTHROPIC_API_KEY")
 class LLMAnthropicStreamingBuilderIT {
 
     private static final Logger logger = LoggerFactory.getLogger(LLMAnthropicStreamingBuilderIT.class);
@@ -171,9 +177,10 @@ class LLMAnthropicStreamingBuilderIT {
     void realStreamingAnthropicIntegrationWithReactiveCallbacks() {
         // Enable Reactor debugging
         reactor.util.Loggers.useVerboseConsoleLoggers();
+        LlmOptions thinkingOptions = new LlmOptions().withThinking(Thinking.withTokenBudget(8000));
 
         // Given: Use the existing streaming test LLM (configured as "best")
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+        PromptRunner runner = ai.withDefaultLlm().withLlm(thinkingOptions)
                 .withToolObject(new Tooling((short) 0))
                 .withToolCallInspectors(new ToolCallLoggingInspector(LogLevel.INFO, logger));
         assertTrue(runner.supportsStreaming(), "Test LLM should support streaming");
@@ -228,4 +235,64 @@ class LLMAnthropicStreamingBuilderIT {
         logger.info("Integration streaming test completed successfully with {} total events", receivedEvents.size());
     }
 
+    @Test
+    void realStreamingAnthropicIntegrationWithReactiveCallbacksForString() {
+        // Enable Reactor debugging
+        reactor.util.Loggers.useVerboseConsoleLoggers();
+        LlmOptions thinkingOptions = new LlmOptions().withThinking(Thinking.withTokenBudget(8000));
+
+        // Given: Use the existing streaming test LLM (configured as "best")
+        PromptRunner runner = ai.withDefaultLlm().withLlm(thinkingOptions)
+            .withToolObject(new Tooling((short) 0))
+            .withToolCallInspectors(new ToolCallLoggingInspector(LogLevel.INFO, logger));
+        assertTrue(runner.supportsStreaming(), "Test LLM should support streaming");
+
+        // When: Subscribe with real reactive callbacks using builder pattern
+        List<String> receivedEvents = new CopyOnWriteArrayList<>();
+        AtomicReference<Throwable> errorOccurred = new AtomicReference<>();
+        AtomicBoolean completionCalled = new AtomicBoolean(false);
+
+        String prompt = """
+                            What are exactly two the most hottest months in Florida and their respective highest temperatures.
+                            Use Tooling instance to convert temperature units to Celsius.
+                            """.trim();
+
+        Flux<StreamingEvent<StringResult>> results = new StreamingPromptRunnerBuilder(runner)
+            .streaming()
+            .withPrompt(prompt)
+            .createObjectStreamWithThinking(StringResult.class);
+
+        results
+            .timeout(Duration.ofSeconds(60))
+            .doOnSubscribe(subscription -> {
+                logger.info("Stream subscription started");
+            })
+            .doOnNext(event -> {
+                if (event.isThinking()) {
+                    String content = event.getThinking();
+                    receivedEvents.add("THINKING: " + content);
+                    logger.info("Integration test received thinking: {}", content);
+                } else if (event.isObject()) {
+                    String obj = event.getObject().getValue();
+                    receivedEvents.add("OBJECT: " + obj);
+                    logger.info("Integration test received object: {}", obj);
+                }
+            })
+            .doOnError(error -> {
+                errorOccurred.set(error);
+                logger.error("Integration test stream error: {}", error.getMessage());
+            })
+            .doOnComplete(() -> {
+                completionCalled.set(true);
+                logger.info("Integration test stream completed successfully");
+            })
+            .blockLast(Duration.ofSeconds(600));
+
+        // Then: Verify real integration streaming behavior
+        assertNull(errorOccurred.get(), "Integration streaming should not produce errors");
+        assertTrue(completionCalled.get(), "Integration stream should complete successfully");
+        assertFalse(receivedEvents.isEmpty(), "Should receive object events");
+
+        logger.info("Integration streaming test completed successfully with {} total events", receivedEvents.size());
+    }
 }

@@ -19,59 +19,16 @@ import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.support.springai.streaming.SpringAiLlmMessageStreamer
+import com.embabel.agent.spi.support.streaming.InternalStreamingApi
+import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.*
 import com.embabel.common.ai.prompt.KnowledgeCutoffDate
 import com.embabel.common.ai.prompt.PromptContributor
 import tools.jackson.databind.annotation.JsonSerialize
-import org.springframework.ai.chat.client.ChatClient
-import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatModel
-import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.prompt.ChatOptions
-import org.springframework.ai.chat.prompt.Prompt
-import reactor.core.publisher.Flux
-import java.time.Duration
 import java.time.LocalDate
-
-/**
- * Helper object for verifying streaming capability of ChatModel instances.
- *
- * Spring AI's ChatModel interface extends StreamingChatModel, but not all implementations
- * provide meaningful streaming support. Some may throw UnsupportedOperationException,
- * return empty Flux, or provide stub implementations.
- *
- * This helper performs lightweight behavioral testing to determine if a model
- * actually supports streaming operations.
- */
-private object StreamingCapabilityVerifier {
-    private const val TEST_PROMPT_MESSAGE = "Say 'test' to confirm streaming works"
-    private const val STREAMING_TEST_TIMEOUT_MS = 100L
-
-    fun supportsStreaming(chatModel: ChatModel): Boolean {
-        return try {
-            val testRequest = Prompt(listOf(UserMessage(TEST_PROMPT_MESSAGE)))
-            val stream = chatModel.stream(testRequest)
-            canConsumeStream(stream)
-            true
-        } catch (e: UnsupportedOperationException) {
-            false
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    private fun canConsumeStream(stream: Flux<ChatResponse>): Boolean {
-        return try {
-            stream.hasElements()
-                .timeout(Duration.ofMillis(STREAMING_TEST_TIMEOUT_MS))
-                .block()
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
-}
 
 /**
  * Spring AI implementation that provides decoupled LLM operations.
@@ -108,7 +65,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
     override val provider: String,
     @get:JvmName("getChatModel")
     val chatModel: ChatModel,
-    val optionsConverter: OptionsConverter<*> = DefaultOptionsConverter,
+    val optionsConverter: OptionsConverter = DefaultOptionsConverter,
     override val knowledgeCutoffDate: LocalDate? = null,
     override val promptContributors: List<PromptContributor> =
         buildList { knowledgeCutoffDate?.let { add(KnowledgeCutoffDate(it)) } },
@@ -141,11 +98,15 @@ data class SpringAiLlmService @JvmOverloads constructor(
     }
 
     override fun createMessageStreamer(options: LlmOptions): LlmMessageStreamer {
-        val chatClient = ChatClient.create(chatModel)
-        return SpringAiLlmMessageStreamer(chatClient, convertOptions(options))
+        return SpringAiLlmMessageStreamer(
+            chatModel = chatModel,
+            chatOptions = convertOptions(options),
+            toolResponseContentAdapter = toolResponseContentAdapter,
+        )
     }
 
-    override fun supportsStreaming(): Boolean = StreamingCapabilityVerifier.supportsStreaming(chatModel)
+    @OptIn(InternalStreamingApi::class)
+    override fun supportsStreaming(): Boolean = StreamingCapabilityDetector.supportsStreaming(chatModel)
 
     override fun supportsThinking(): Boolean = thinkingSupported
 
@@ -161,6 +122,6 @@ data class SpringAiLlmService @JvmOverloads constructor(
     /**
      * Returns a copy with a different options converter.
      */
-    fun withOptionsConverter(converter: OptionsConverter<*>): SpringAiLlmService =
+    fun withOptionsConverter(converter: OptionsConverter): SpringAiLlmService =
         copy(optionsConverter = converter)
 }

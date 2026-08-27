@@ -182,6 +182,12 @@ The following are modules intended for direct use (versus supporting infrastruct
 | Quick start with GPT
 | Stable
 
+| `embabel-agent-starter-byok`
+| This repo
+| BYOK starter
+| Model factories and the `setup-required` placeholder, with no provider autoconfiguration — starts with no keys configured
+| Incubating
+
 | `embabel-agent-starter-ollama`
 | This repo
 | Ollama starter

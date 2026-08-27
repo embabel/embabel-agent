@@ -16,6 +16,7 @@
 package com.embabel.agent.a2a.server.support
 
 import com.embabel.agent.a2a.server.AgentCardHandler
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import tools.jackson.databind.ObjectMapper
 import io.a2a.spec.AgentCard
 import io.a2a.spec.CancelTaskRequest
@@ -47,7 +48,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 class A2AEndpointRegistrar(
     private val agentCardHandlers: List<AgentCardHandler>,
     private val requestMappingHandlerMapping: RequestMappingHandlerMapping,
-    private val objectMapper: ObjectMapper,
+    private val embabelObjectMapperHolder: EmbabelObjectMapperHolder,
 ) {
 
     private val logger = LoggerFactory.getLogger(A2AEndpointRegistrar::class.java)
@@ -73,7 +74,7 @@ class A2AEndpointRegistrar(
             .build()
         val achwf = AgentCardHandlerWebFacade(
             agentCardHandler,
-            objectMapper,
+            embabelObjectMapperHolder.get(),
         )
         requestMappingHandlerMapping.registerMapping(
             agentCardGetMapping,

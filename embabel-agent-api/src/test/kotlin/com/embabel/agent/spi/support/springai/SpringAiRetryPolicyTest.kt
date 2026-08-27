@@ -29,6 +29,9 @@ import org.springframework.ai.retry.NonTransientAiException
 import org.springframework.ai.retry.TransientAiException
 import org.springframework.retry.RetryContext
 import org.springframework.retry.context.RetryContextSupport
+import com.embabel.agent.spi.support.LlmDataBindingProperties
+import tools.jackson.databind.DatabindException
+import tools.jackson.databind.exc.MismatchedInputException
 
 /**
  * Tests for SpringAiRetryPolicy retry decision logic.
@@ -240,6 +243,83 @@ class SpringAiRetryPolicyTest {
     }
 
     @Nested
+    inner class JacksonDatabindExceptionTests {
+
+        // DatabindException constructors are protected — subclass to instantiate in tests
+        private inner class TestDatabindException(msg: String) : DatabindException(msg)
+
+        @Test
+        fun `direct DatabindException does not retry`() {
+            val context = createContext(1, TestDatabindException("Jackson config error"))
+            assertFalse(policy.canRetry(context))
+        }
+
+        @Test
+        fun `DatabindException wrapped in RuntimeException does not retry`() {
+            // Mirrors real production chain: JacksonOutputConverter wraps DatabindException
+            // in RuntimeException before it reaches the retry layer
+            val wrapped = RuntimeException(TestDatabindException("annotation misconfiguration"))
+            val context = createContext(1, wrapped)
+            assertFalse(policy.canRetry(context), "DatabindException must be detected even when wrapped in RuntimeException")
+        }
+
+        @Test
+        fun `MismatchedInputException retries (LLM omitted required field is transient)`() {
+            val mismatched = MismatchedInputException.from(null, String::class.java, "missing field")
+            val context = createContext(1, mismatched)
+            assertTrue(policy.canRetry(context), "MismatchedInputException is retryable — LLM may include field on next attempt")
+        }
+
+        @Test
+        fun `MismatchedInputException wrapped in RuntimeException retries`() {
+            val wrapped = RuntimeException(MismatchedInputException.from(null, String::class.java, "missing field"))
+            val context = createContext(1, wrapped)
+            assertTrue(policy.canRetry(context))
+        }
+    }
+
+    @Nested
+    inner class HasNonRetryableDatabindExceptionTests {
+
+        private inner class TestDatabindException(msg: String) : DatabindException(msg)
+
+        @Test
+        fun `returns true for direct DatabindException`() {
+            assert(LlmDataBindingProperties.hasNonRetryableDatabindException(TestDatabindException("config error")))
+        }
+
+        @Test
+        fun `returns true for DatabindException wrapped in RuntimeException`() {
+            val wrapped = RuntimeException(TestDatabindException("config error"))
+            assert(LlmDataBindingProperties.hasNonRetryableDatabindException(wrapped))
+        }
+
+        @Test
+        fun `returns true for deeply nested DatabindException`() {
+            val root = TestDatabindException("config error")
+            val wrapped = RuntimeException(RuntimeException(root))
+            assert(LlmDataBindingProperties.hasNonRetryableDatabindException(wrapped))
+        }
+
+        @Test
+        fun `returns false for MismatchedInputException`() {
+            val mismatched = MismatchedInputException.from(null, String::class.java, "missing field")
+            assert(!LlmDataBindingProperties.hasNonRetryableDatabindException(mismatched))
+        }
+
+        @Test
+        fun `returns false for MismatchedInputException wrapped in RuntimeException`() {
+            val wrapped = RuntimeException(MismatchedInputException.from(null, String::class.java, "missing field"))
+            assert(!LlmDataBindingProperties.hasNonRetryableDatabindException(wrapped))
+        }
+
+        @Test
+        fun `returns false for unrelated exception`() {
+            assert(!LlmDataBindingProperties.hasNonRetryableDatabindException(RuntimeException("transient")))
+        }
+    }
+
+    @Nested
     inner class PriorityTests {
 
         @Test
@@ -256,6 +336,23 @@ class SpringAiRetryPolicyTest {
             class RetryableIllegalArg(message: String) : IllegalArgumentException(message), Retryable
 
             val exception = RetryableIllegalArg("should retry despite being IllegalArgument")
+            val context = createContext(1, exception)
+            assertTrue(policy.canRetry(context), "Explicit Retryable marker should take precedence")
+        }
+
+        @Test
+        fun `explicit Retryable marker takes precedence over the databind check`() {
+            // The marker is a deliberate declaration by the exception's author; the databind walk is
+            // a platform heuristic over a third-party type. Explicit wins, so this pair must retry.
+            class TestDatabindException(msg: String) : DatabindException(msg)
+            class RetryableWrapper(cause: Throwable) : RuntimeException(cause), Retryable
+
+            val exception = RetryableWrapper(TestDatabindException("annotation misconfiguration"))
+            assertTrue(
+                LlmDataBindingProperties.hasNonRetryableDatabindException(exception),
+                "precondition: the cause chain does carry a non-retryable DatabindException",
+            )
+
             val context = createContext(1, exception)
             assertTrue(policy.canRetry(context), "Explicit Retryable marker should take precedence")
         }

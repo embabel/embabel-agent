@@ -211,14 +211,14 @@ class DockerLocalModelsConfig(
     }
 
     private fun dockerEmbeddingServiceOf(model: Model): SpringAiEmbeddingService {
-        val springEmbeddingModel = OpenAiEmbeddingModel(
-            openAiClient,
-            MetadataMode.EMBED,
-            OpenAiEmbeddingOptions.builder()
+        val springEmbeddingModel = OpenAiEmbeddingModel.builder()
+            .openAiClient(openAiClient)
+            .metadataMode(MetadataMode.EMBED)
+            .options(OpenAiEmbeddingOptions.builder()
                 .model(model.id)
-                .build(),
-            observationRegistry.getIfUnique { ObservationRegistry.NOOP },
-        )
+                .build())
+            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+            .build()
 
         return SpringAiEmbeddingService(
             name = model.id,

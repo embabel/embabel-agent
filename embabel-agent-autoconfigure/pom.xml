@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.agent</groupId>
         <artifactId>embabel-agent-parent</artifactId>
-        <version>1.5.0-SNAPSHOT</version>
+        <version>1.5.2-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-agent-autoconfigure</artifactId>
     <packaging>pom</packaging>
@@ -27,6 +27,7 @@
         <module>embabel-agent-mcpserver-autoconfigure</module>
         <module>embabel-agent-mcpserver-security-autoconfigure</module>
         <module>embabel-agent-netty-client-autoconfigure</module>
+        <module>models/embabel-agent-byok-autoconfigure</module>
         <module>models/embabel-agent-bedrock-autoconfigure</module>
         <module>models/embabel-agent-openai-autoconfigure</module>
         <module>models/embabel-agent-openai-custom-autoconfigure</module>
@@ -40,6 +41,7 @@
         <module>models/embabel-agent-oci-genai-autoconfigure</module>
         <module>models/embabel-agent-minimax-autoconfigure</module>
         <module>models/embabel-agent-zai-autoconfigure</module>
+        <module>models/embabel-agent-dashscope-autoconfigure</module>
         <module>models/embabel-agent-mistral-ai-autoconfigure</module>
         <module>models/embabel-agent-onnx-autoconfigure</module>
     </modules>

@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.embabel.agent</groupId>
+        <artifactId>embabel-agent-starters</artifactId>
+        <version>1.5.2-SNAPSHOT</version>
+    </parent>
+    <artifactId>embabel-agent-starter-byok</artifactId>
+    <packaging>jar</packaging>
+    <name>Embabel Agent BYOK Starter</name>
+    <description>Embabel Agent Bring Your Own Key Starter — model factories and the setup-required
+        placeholder, with no provider autoconfiguration and no key required at startup</description>
+    <url>https://github.com/embabel/embabel-agent</url>
+
+    <scm>
+        <url>https://github.com/embabel/embabel-agent</url>
+        <connection>scm:git:https://github.com/embabel/embabel-agent.git</connection>
+        <developerConnection>scm:git:https://github.com/embabel/embabel-agent.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-platform-autoconfigure</artifactId>
+        </dependency>
+
+        <!--
+          The placeholder LLM, so a deployment holding no key can resolve default-llm and start.
+        -->
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-byok-autoconfigure</artifactId>
+        </dependency>
+
+        <!--
+          The BYOK factory libraries, deliberately WITHOUT their *-autoconfigure counterparts.
+          The provider autoconfigurations demand an API key at construction time, which is exactly
+          what a BYOK deployment does not have; these artifacts carry the factories alone.
+        -->
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-anthropic</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-openai</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-test-internal</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!--
+              The whole point of this starter is the absence of provider autoconfiguration: those
+              modules demand an API key at construction time. Adding one — directly or transitively
+              via another starter — would reintroduce the fail-fast this starter exists to avoid,
+              and would do so silently for anyone with a key exported in their environment.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>ban-provider-autoconfiguration</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <!--
+                              The parent leaves enforcer non-failing; this rule is a hard gate.
+                              combine.self=override keeps the parent's plugin-level rules (notably
+                              DependencyConvergence, which the repo currently tolerates as a warning)
+                              out of this execution, so fail=true applies to the ban and nothing else.
+                            -->
+                            <fail>true</fail>
+                            <rules combine.self="override">
+                                <bannedDependencies>
+                                    <excludes>
+                                        <exclude>com.embabel.agent:*-autoconfigure</exclude>
+                                    </excludes>
+                                    <includes>
+                                        <include>com.embabel.agent:embabel-agent-platform-autoconfigure</include>
+                                        <include>com.embabel.agent:embabel-agent-byok-autoconfigure</include>
+                                    </includes>
+                                    <message>
+                                        embabel-agent-starter-byok must not pull in provider autoconfiguration.
+                                        Provider *-autoconfigure modules require an API key at startup, which is
+                                        exactly what a BYOK deployment does not have. Depend on the factory
+                                        artifact (e.g. embabel-agent-anthropic) instead of its autoconfigure.
+                                    </message>
+                                </bannedDependencies>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

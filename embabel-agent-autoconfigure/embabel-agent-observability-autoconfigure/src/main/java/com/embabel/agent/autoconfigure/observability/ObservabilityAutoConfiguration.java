@@ -31,9 +31,11 @@ import com.embabel.agent.api.event.observation.AgentInstrumentation;
 import com.embabel.agent.observability.metrics.EmbabelMetricsEventListener;
 import com.embabel.agent.observability.tracing.MicrometerAgentInstrumentation;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.micrometer.observation.autoconfigure.ObservationRegistryCustomizer;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -56,8 +58,9 @@ import org.springframework.context.annotation.Primary;
 @AutoConfiguration(
         after = MicrometerTracingAutoConfiguration.class,
         afterName = {
-                "org.springframework.boot.actuate.autoconfigure.tracing.MicrometerTracingAutoConfiguration",
-                "org.springframework.boot.actuate.autoconfigure.observation.ObservationAutoConfiguration"
+                // Spring Boot 4 moved these out of spring-boot-actuator-autoconfigure
+                "org.springframework.boot.micrometer.tracing.autoconfigure.MicrometerTracingAutoConfiguration",
+                "org.springframework.boot.micrometer.observation.autoconfigure.ObservationAutoConfiguration"
         }
 )
 @EnableConfigurationProperties(ObservabilityProperties.class)
@@ -300,17 +303,30 @@ public class ObservabilityAutoConfiguration {
     /**
      * Creates the Micrometer business metrics listener.
      *
-     * @param meterRegistry the meter registry
+     * <p>The {@link MeterRegistry} is resolved lazily through an {@link ObjectProvider} rather than
+     * required as a bean condition: {@code @ConditionalOnBean} is evaluated while bean definitions
+     * are still being registered, so across auto-configuration boundaries it only sees registries
+     * declared by an auto-configuration that happened to run earlier. Spring Boot 4 split metrics
+     * and observation into separate modules and dropped the ordering edge that used to make that
+     * true, which silently suppressed this listener and with it every business metric. The provider
+     * defers resolution to instantiation time, when every definition is known.
+     *
+     * <p>Falls back to an empty {@code CompositeMeterRegistry}, which discards every measurement, so
+     * the listener stays wired without a registry rather than disappearing.
+     *
+     * @param meterRegistryProvider lazy provider for the meter registry
      * @param properties the observability properties
      * @return the metrics event listener
      */
     @Bean
-    @ConditionalOnBean(MeterRegistry.class)
+    @ConditionalOnClass(MeterRegistry.class)
     @ConditionalOnProperty(prefix = "embabel.agent.platform.observability", name = "metrics-enabled",
             havingValue = "true", matchIfMissing = true)
     public EmbabelMetricsEventListener embabelMetricsEventListener(
-            MeterRegistry meterRegistry, ObservabilityProperties properties) {
-        log.info("Configuring Embabel Agent Micrometer metrics listener");
+            ObjectProvider<MeterRegistry> meterRegistryProvider, ObservabilityProperties properties) {
+        MeterRegistry meterRegistry = meterRegistryProvider.getIfUnique(CompositeMeterRegistry::new);
+        log.info("Configuring Embabel Agent Micrometer metrics listener on {}",
+                meterRegistry.getClass().getSimpleName());
         return new EmbabelMetricsEventListener(meterRegistry, properties);
     }
 

@@ -16,6 +16,7 @@
 package com.embabel.agent.autoconfigure.models.mistralai;
 
 import com.embabel.agent.spi.support.springai.SpringAiLlmService;
+import com.embabel.agent.test.http.StubChatServer;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -51,14 +52,14 @@ class MistralSharedClientBuilderTest {
 
     @Test
     void usesTheSharedPlatformRestClientBuilder() throws IOException {
-        try (var server = StubMistralServer.replyingAfter(SERVER_DELAY, StubMistralServer.OK_RESPONSE)) {
+        try (var server = StubChatServer.replyingAfter(SERVER_DELAY, MistralResponses.OK)) {
             new ApplicationContextRunner()
                     .withConfiguration(AutoConfigurations.of(AgentMistralAiAutoConfiguration.class))
                     .withBean("aiModelRestClientBuilder", RestClient.Builder.class,
                             MistralSharedClientBuilderTest::shortTimeoutSharedBuilder)
                     .withPropertyValues(
                             "embabel.agent.platform.models.mistralai.api-key=test-key",
-                            "embabel.agent.platform.models.mistralai.base-url=" + server.baseUrl(),
+                            "embabel.agent.platform.models.mistralai.base-url=" + server.getBaseUrl(),
                             "embabel.agent.platform.models.mistralai.max-attempts=1"
                     )
                     .run(context -> {
@@ -67,10 +68,21 @@ class MistralSharedClientBuilderTest {
                                 .findFirst()
                                 .orElseThrow(() -> new AssertionError("mistral-small-2603 model not registered"));
 
+                        Runnable callAndExpectAbort = () ->
+                                assertThatThrownBy(() -> model.getChatModel().call("hello"))
+                                        .as("the shared builder's 300ms timeout must abort the 3s reply")
+                                        .hasStackTraceContaining("ReadTimeout");
+
+                        // The first HTTP call in the JVM starts the reactor-netty event loop and DNS
+                        // resolver, and warms Jackson and the observation stack. That is one-off work
+                        // unrelated to the timeout, but it lands inside the window measured below: in a
+                        // full reactor build this read 2.679s and then passed on surefire's immediate
+                        // rerun in the same, now-warm JVM. Spend it on a throwaway call so the timed
+                        // one measures the abort rather than the startup.
+                        callAndExpectAbort.run();
+
                         var start = System.nanoTime();
-                        assertThatThrownBy(() -> model.getChatModel().call("hello"))
-                                .as("the shared builder's 300ms timeout must abort the 3s reply")
-                                .hasStackTraceContaining("ReadTimeout");
+                        callAndExpectAbort.run();
                         var elapsed = Duration.ofNanos(System.nanoTime() - start);
 
                         assertThat(elapsed)

@@ -112,6 +112,82 @@ class TableAwareChunkingTest {
     }
 
     @Test
+    fun `a row wider than maxChunkSize survives WHOLE as an oversized chunk — never a character cut`() {
+        // Observed with real financial registers (wide tables, verbose headers): the
+        // header plus a SINGLE row exceeds the budget. The emergency character cut
+        // then severed rows from headers and even split numeric tokens in half,
+        // leaving values retrievable next to the wrong label or not at all.
+        val wideChunker = ContentChunker(
+            ContentChunker.Config(maxChunkSize = 800, overlapSize = 100),
+            ChunkTransformer.NO_OP,
+        )
+        val headerCells = (1..11).joinToString(" | ") { "Reporting column heading number $it" }
+        val header = "| $headerCells |\n|${"---------------------------------|".repeat(11)}"
+        val rows = (1..5).joinToString("\n") { i ->
+            val cells = (1..10).joinToString(" | ") { c -> "value ${i * 100 + c}".padEnd(30) }
+            "| Facility register row $i | $cells | ${i},200,00$i |"
+        }
+        val leaf = LeafSection(id = "leaf-1", title = "", text = "Intro prose.\n\n$header\n$rows\n\nClosing prose.")
+        val container = MaterializedDocument(
+            id = "doc-1", title = "Register", children = listOf(leaf), metadata = emptyMap(), uri = "test://register",
+        )
+        val texts = wideChunker.chunk(container).map { it.text }
+
+        (1..5).forEach { i ->
+            val carrying = texts.filter { it.contains("${i},200,00$i") }
+            assertTrue(carrying.isNotEmpty()) { "row $i's value must survive chunking INTACT" }
+            carrying.forEach { text ->
+                assertTrue(text.contains("Facility register row $i")) {
+                    "value severed from its row label:\n$text"
+                }
+                assertTrue(text.contains("Reporting column heading number 1")) {
+                    "row emitted without its table header:\n$text"
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `a heading glued to a table by single newlines still splits by rows — never by fake sentences`() {
+        // Observed with a real quarterly report: the section parser serialized
+        // "Appendix" and its reconciliation table into ONE paragraph (single
+        // newlines). The whole block fell through to sentence splitting, which cut
+        // at "excl." and even INSIDE the numeric token "5,120" — the value became
+        // unfindable by exact match in every chunk.
+        val tightChunker = ContentChunker(
+            ContentChunker.Config(maxChunkSize = 800, overlapSize = 100),
+            ChunkTransformer.NO_OP,
+        )
+        val header = "| Key financials reconciliation                            | 2H25 | Qtr avg | vs 1Q25 | vs 2H25 |\n" +
+            "|----------------------------------------------------------|------|---------|---------|---------|"
+        val rows = listOf(
+            "| Total operating income                                   | 14,368 | 7,184 | 6% | 3% |",
+            "| Operating expenses excl. restructuring and notable items | (6,494) | (3,247) | 7% | 4% |",
+            "| Restructuring and notable items                          | (130) | (65) | n/a | 88% |",
+            "| Total operating expenses                                 | (6,624) | (3,312) | 11% | 5% |",
+            "| Operating performance                                    | 7,744 | 3,872 | 2% | 1% |",
+            "| Loan impairment expense                                  | (406) | (203) | 38% | 8% |",
+            "| Cash NPAT from continuing operations                     | 5,120 | 2,560 | 2% | 1% |",
+        ).joinToString("\n")
+        val leaf = LeafSection(id = "leaf-1", title = "", text = "Appendix\n$header\n$rows\nFootnotes follow.")
+        val container = MaterializedDocument(
+            id = "doc-1", title = "Update", children = listOf(leaf), metadata = emptyMap(), uri = "test://update",
+        )
+        val texts = tightChunker.chunk(container).map { it.text }
+
+        val carrying = texts.filter { it.contains("5,120") }
+        assertTrue(carrying.isNotEmpty()) { "the value must survive INTACT (not cut into '5' + ',120')" }
+        carrying.forEach { text ->
+            assertTrue(text.contains("Cash NPAT from continuing operations")) {
+                "value severed from its row label:\n$text"
+            }
+            assertTrue(text.contains("Key financials reconciliation")) {
+                "row emitted without its table header:\n$text"
+            }
+        }
+    }
+
+    @Test
     fun `a table that fits is left intact — no header duplication, no re-slicing`() {
         val table = """
             | Metric | Value |

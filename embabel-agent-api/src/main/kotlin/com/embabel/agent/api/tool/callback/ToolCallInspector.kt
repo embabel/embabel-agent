@@ -22,8 +22,7 @@ import com.embabel.chat.ToolCall
  * Read-only observer for individual tool call events.
  *
  * Provides observation of tool execution without access to conversation history
- * or iteration state. Works in both streaming mode (where the framework manages
- * the tool loop internally) and non-streaming mode (as a lightweight alternative
+ * or iteration state. Works in both streaming and non-streaming modes as a lightweight alternative
  * to [ToolLoopInspector] when history/iteration context is not needed).
  *
  * @see ToolLoopInspector for tool loop-level inspection with full conversation context
@@ -49,10 +48,9 @@ interface ToolCallInspector {
  * Lightweight context without conversation history or iteration state.
  * Used in both streaming and non-streaming modes.
  *
- * **Note:** In streaming mode (Spring AI), `toolCall.id` is a generated UUID
- * because the underlying framework does not expose LLM-assigned call IDs during
- * tool execution. The ID is unique per call and can be used to correlate
- * before/after events for the same tool execution.
+ * In streaming mode, adapters preserve the provider-assigned tool-call ID when the
+ * provider supplies one. The same ID is passed to both callbacks so inspectors can
+ * correlate the execution without depending on a specific provider.
  *
  * @property toolCall The tool call about to be executed
  */

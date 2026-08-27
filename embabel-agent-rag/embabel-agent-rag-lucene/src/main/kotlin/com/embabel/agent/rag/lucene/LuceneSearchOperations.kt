@@ -35,6 +35,7 @@ import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.CoreSearchOperations
 import com.embabel.agent.rag.service.RagRequest
 import com.embabel.agent.rag.service.ResultExpander
+import com.embabel.agent.rag.service.support.Bm25Normalization
 import com.embabel.agent.rag.service.support.RagFacetResults
 import com.embabel.agent.rag.service.support.VectorMath
 import com.embabel.agent.rag.store.AbstractChunkingContentElementRepository
@@ -428,6 +429,12 @@ class LuceneSearchOperations @JvmOverloads constructor(
             similarityResults.size,
             similarityResults.map { "(${it.match.id}, score=${"%.2f".format(it.score)})" },
         )
+        // RagRequest defaults similarityThreshold to 0.8 — a COSINE number. It used to be
+        // inert here because raw BM25 scores are unbounded; now that they are bounded it
+        // rejects everything, so say so rather than returning a silent empty list.
+        Bm25Normalization.warnIfThresholdSuppressedResults(
+            logger, ragRequest.query, ragRequest.similarityThreshold, similarityResults.size,
+        )
         return RagFacetResults(
             facetName = name,
             results = similarityResults
@@ -543,8 +550,10 @@ class LuceneSearchOperations @JvmOverloads constructor(
         chunk: Chunk,
         chunksToAdd: Int,
     ): List<Chunk> {
-        val containerSectionId = chunk.metadata[CONTAINER_SECTION_ID]?.toString()
-        val sequenceNumber = chunk.metadata[SEQUENCE_NUMBER]?.toString()?.toIntOrNull()
+        val containerSectionId = chunk.structure.containerSectionId
+            ?: chunk.metadata[CONTAINER_SECTION_ID]?.toString()
+        val sequenceNumber = chunk.structure.sequenceNumber
+            ?: chunk.metadata[SEQUENCE_NUMBER]?.toString()?.toIntOrNull()
 
         if (containerSectionId == null || sequenceNumber == null) {
             logger.warn(
@@ -559,9 +568,12 @@ class LuceneSearchOperations @JvmOverloads constructor(
         // Find all chunks in the same container section
         val chunksInSection = contentElementStorage.values
             .filterIsInstance<Chunk>()
-            .filter { it.metadata[CONTAINER_SECTION_ID]?.toString() == containerSectionId }
             .mapNotNull { c ->
-                val seqNum = c.metadata[SEQUENCE_NUMBER]?.toString()?.toIntOrNull()
+                val sectionId = c.structure.containerSectionId
+                    ?: c.metadata[CONTAINER_SECTION_ID]?.toString()
+                if (sectionId != containerSectionId) return@mapNotNull null
+                val seqNum = c.structure.sequenceNumber
+                    ?: c.metadata[SEQUENCE_NUMBER]?.toString()?.toIntOrNull()
                 if (seqNum != null) c to seqNum else null
             }
             .sortedBy { it.second }
@@ -589,8 +601,10 @@ class LuceneSearchOperations @JvmOverloads constructor(
             chunk.id,
             sequenceNumber,
             expandedChunks.size,
-            expandedChunks.firstOrNull()?.metadata?.get(SEQUENCE_NUMBER),
-            expandedChunks.lastOrNull()?.metadata?.get(SEQUENCE_NUMBER)
+            expandedChunks.firstOrNull()?.structure?.sequenceNumber
+                ?: expandedChunks.firstOrNull()?.metadata?.get(SEQUENCE_NUMBER),
+            expandedChunks.lastOrNull()?.structure?.sequenceNumber
+                ?: expandedChunks.lastOrNull()?.metadata?.get(SEQUENCE_NUMBER)
         )
 
         return expandedChunks
@@ -622,6 +636,9 @@ class LuceneSearchOperations @JvmOverloads constructor(
             request.query,
             results.size,
         )
+        Bm25Normalization.warnIfThresholdSuppressedResults(
+            logger, request.query, request.similarityThreshold, results.size,
+        )
         return results
     }
 
@@ -637,7 +654,10 @@ class LuceneSearchOperations @JvmOverloads constructor(
             val retrievable = createChunkFromLuceneDocument(doc)
             SimpleSimilaritySearchResult(
                 match = retrievable,
-                score = scoreDoc.score.toDouble()
+                // Raw Lucene BM25 scores are unbounded — they routinely exceed 1.0, which
+                // made the caller's `score >= similarityThreshold` filter a no-op. Map onto
+                // [0, 1) monotonically so the threshold means something. See [Bm25Normalization].
+                score = Bm25Normalization.normalize(scoreDoc.score.toDouble())
             )
         }
     }
@@ -659,9 +679,11 @@ class LuceneSearchOperations @JvmOverloads constructor(
             val doc = searcher.doc(scoreDoc.doc)
             val retrievable = createChunkFromLuceneDocument(doc)
 
-            // Get text similarity (normalized)
-            val textScore = scoreDoc.score.toDouble()
-            val normalizedTextScore = minOf(1.0, textScore / 10.0) // Rough normalization
+            // Get text similarity, mapped onto [0, 1) so it is commensurable with the
+            // cosine score below. The previous `min(1.0, score / 10.0)` clipped every
+            // strong match to exactly 1.0, collapsing the ranking among the best hits —
+            // precisely the ones the weighting is meant to discriminate between.
+            val normalizedTextScore = Bm25Normalization.normalize(scoreDoc.score.toDouble())
 
             // Calculate vector similarity if embedding exists
             val vectorScore = doc.getBinaryValue(LuceneFields.EMBEDDING_FIELD)?.let { embeddingBytes ->

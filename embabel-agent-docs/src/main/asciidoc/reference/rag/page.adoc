@@ -185,7 +185,8 @@ Each chunk:
 
 - Contains a `text` field with the content
 - Has a `parentId` linking to its source section
-- Includes `metadata` with information about its origin (root document, container section, leaf section)
+- Carries a typed `structure` (`ChunkStructure`) describing its origin (root document, container section, leaf section) and position (chunk index, sequence number)
+- Includes `metadata` for user-supplied data; during a deprecation window the structural fields also remain readable there under their legacy keys such as `sequence_number`. Numeric structural values are re-emitted as `Int` regardless of the type originally written, so stores that persisted them as `Long` should assert on `structure` rather than on the metadata view
 - Can compute its `pathFromRoot` through the document hierarchy
 
 This hierarchical model enables advanced RAG capabilities like "zoom out" to parent sections or expansion to adjacent chunks.
@@ -443,12 +444,86 @@ fun respond(conversation: Conversation, context: ActionContext) {
 
 Based on the capabilities of the underlying `SearchOperations`, `ToolishRag` exposes:
 
-- **VectorSearchTools**: `vectorSearch(query, topK, threshold)` - semantic similarity search
-- **TextSearchTools**: `textSearch(query, topK, threshold)` - BM25 full-text search with Lucene syntax
+- **VectorSearchTools**: `vectorSearch(query, topK, [threshold])` - semantic similarity search
+- **TextSearchTools**: `textSearch(query, topK, [threshold])` - BM25 full-text search with Lucene syntax
 - **RegexSearchTools**: `regexSearch(regex, topK)` - pattern-based search using regular expressions
 - **ResultExpanderTools**: `broadenChunk(chunkId, chunksToAdd)` - expand to adjacent chunks, `zoomOut(id)` - expand to parent section
 
 The LLM autonomously decides when to use these tools based on user queries.
+
+===== Similarity Thresholds
+
+`threshold` is **optional** on the search tools, and normally you should let the model omit it.
+
+An absolute similarity cutoff is a hyperparameter the model has no feedback signal for.
+Similarity scores are not calibrated across embedding models — 0.7 against one model does not
+mean what 0.7 means against another — and the right cutoff varies per query.
+Models asked to supply one tend to guess high, retrieve nothing, and conclude that the corpus
+does not cover the question when the answer was sitting in the index.
+
+`topK` is the real limiter. The threshold is a noise floor, and when the model omits it the
+floor comes from `SearchDefaults`:
+
+[source,kotlin]
+----
+val rag = ToolishRag(
+    name = "docs",
+    description = "Product documentation",
+    searchOperations = store,
+).withSearchDefaults(
+    SearchDefaults(
+        vectorSimilarityThreshold = 0.25,
+        // BM25 scores are corpus-relative, so rank — not an absolute floor — is
+        // what meaningfully selects results
+        textSimilarityThreshold = 0.0,
+    )
+)
+----
+
+Set these if you have calibrated a cutoff against your own evaluation set. Do not expect the
+LLM to pass one.
+
+[IMPORTANT]
+.Migrating: full-text scores changed scale
+====
+Full-text scoring is **not** backward compatible, deliberately. Ranking is unchanged, but
+absolute scores are:
+
+* Lucene previously returned **raw, unbounded** BM25 scores (routinely 2-15), so any `0..1`
+  threshold was inert and admitted everything.
+* Graph stores previously divided by the **maximum score in the same result set**, so the top
+  hit always scored exactly `1.0` regardless of quality.
+
+Both now return `score/(score + k)` in `[0, 1)`.
+
+What this breaks:
+
+* Code that filters full-text results by threshold. A filter that was silently doing nothing
+  now takes effect. In particular `RagRequest` defaults `similarityThreshold` to `0.8` — a
+  *cosine* value — which on a full-text path now demands a raw score of roughly 12 and so
+  returns nothing. Pass an explicit low threshold on full-text searches, or omit it.
+* Code asserting that the best match scores `1.0`.
+* Persisted scores compared across versions.
+
+When a full-text search returns no results with a threshold above `0.5`, the store logs a WARN
+naming this as the likely cause, so the failure is not silent.
+
+The API itself is source-compatible: `threshold` only moves from required to optional, and
+`ToolishRag` gained a trailing constructor parameter with a default (its `@JvmOverloads`
+constructors are unchanged for Java callers). Pre-compiled *Kotlin* code calling
+`ToolishRag.copy(...)` needs recompilation, as with any data-class parameter addition.
+====
+
+[NOTE]
+====
+Full-text scores are mapped onto `[0, 1)` by `Bm25Normalization` (`score / (score + k)`) before
+any threshold is applied. This is monotonic, so ranking is unchanged, and — unlike normalizing
+against the best score in the result set — a document's score does not depend on what else
+happened to match. Stores that previously divided by the maximum score always gave their top hit
+exactly 1.0, so a threshold could never exclude a poor best-match. If your corpus produces
+unusually large or small raw scores, tune `k` (`Bm25Normalization.DEFAULT_K`, and `RagDialect.bm25K`
+for graph stores).
+====
 
 ===== Eager Search
 
@@ -486,7 +561,7 @@ context.ai()
 ----
 ====
 
-The preloaded results are included in the prompt as hints. The LLM still has access to all the usual search tools and can perform additional searches as needed.
+The preloaded results are included in the prompt as hints. Any metadata and entity filters configured on the `ToolishRag` are applied to eager search as well as subsequent tool searches. The LLM still has access to all the usual search tools and can perform additional searches as needed.
 
 For more control over the search parameters, pass a `TextSimilaritySearchRequest` directly:
 
@@ -1021,6 +1096,7 @@ return InMemoryPropertyFilter.filterResults(results, metadataFilter, entityFilte
 ====
 
 For `EntityFilter.HasAnyLabel`, the in-memory filter checks if the entity has any of the specified labels via `NamedEntityData.labels()`.
+Non-entity results such as chunks pass through unchanged, so an entity filter can be used with searches that return both chunks and entities.
 
 This ensures filtering works across all backends, with native optimization for metadata filters where available.
 
@@ -1557,4 +1633,3 @@ See the https://github.com/embabel/rag-demo[rag-demo] project for a complete wor
 - Chatbot with RAG-powered responses
 - Jinja prompt templates for system prompts
 - Spring Shell commands for interactive testing
-

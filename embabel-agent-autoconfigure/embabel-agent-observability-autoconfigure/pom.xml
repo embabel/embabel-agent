@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.agent</groupId>
         <artifactId>embabel-agent-autoconfigure</artifactId>
-        <version>1.5.0-SNAPSHOT</version>
+        <version>1.5.2-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-agent-observability-autoconfigure</artifactId>
     <packaging>jar</packaging>
@@ -48,6 +48,19 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-micrometer-observation</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!--
+            Spring Boot 4 moved MicrometerTracingAutoConfiguration out of
+            spring-boot-actuator-autoconfigure into spring-boot-micrometer-tracing
+            (org.springframework.boot.micrometer.tracing.autoconfigure).
+            Optional here so afterName FQCN can resolve when present; the
+            observability starter brings spring-boot-micrometer-tracing-opentelemetry.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-tracing</artifactId>
             <optional>true</optional>
         </dependency>
 
@@ -103,6 +116,27 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-sdk-testing</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--
+            Boot's OpenTelemetryTracingAutoConfiguration lives here. The observability starter
+            ships it, so consumers always have it on the classpath; test scope lets this module
+            verify how Embabel's auto-configuration composes with Boot's (#1871).
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-tracing-opentelemetry</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--
+            Boot's CompositeMeterRegistryAutoConfiguration lives here; test scope so this module
+            can verify MeterRegistry-dependent wiring across auto-configuration boundaries (#1871).
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-metrics</artifactId>
             <scope>test</scope>
         </dependency>
 

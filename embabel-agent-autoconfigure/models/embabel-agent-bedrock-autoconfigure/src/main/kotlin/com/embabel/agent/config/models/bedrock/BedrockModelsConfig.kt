@@ -35,11 +35,11 @@ import org.springframework.ai.bedrock.titan.BedrockTitanEmbeddingModel
 import org.springframework.ai.bedrock.titan.api.TitanEmbeddingBedrockApi
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.observation.ChatModelObservationConvention
+import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.model.bedrock.autoconfigure.BedrockAwsConnectionConfiguration
 import org.springframework.ai.model.bedrock.autoconfigure.BedrockAwsConnectionProperties
 import org.springframework.ai.model.bedrock.cohere.autoconfigure.BedrockCohereEmbeddingProperties
 import org.springframework.ai.model.bedrock.titan.autoconfigure.BedrockTitanEmbeddingProperties
-import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -54,6 +54,8 @@ import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.regions.providers.AwsRegionProvider
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient
+import tools.jackson.databind.json.JsonMapper
+import java.time.Duration
 
 /**
  * Configuration properties for Bedrock models.
@@ -236,7 +238,7 @@ class BedrockModelsConfig(
                     embeddingDef.modelId,
                     credentialsProvider,
                     regionProvider.region,
-                    tools.jackson.databind.json.JsonMapper.builder().build(),
+                    JsonMapper.builder().build(),
                     connectionProperties.timeout,
                 ), observationRegistry.getIfUnique { ObservationRegistry.NOOP }
             ).withInputType(bedrockTitanEmbeddingProperties.inputType),
@@ -252,12 +254,12 @@ class BedrockModelsConfig(
                     embeddingDef.modelId,
                     credentialsProvider,
                     regionProvider.region,
-                    tools.jackson.databind.json.JsonMapper.builder().build(),
+                    JsonMapper.builder().build(),
                     connectionProperties.timeout
                 ),
                 BedrockCohereEmbeddingOptions.builder()
-                    .inputType(bedrockCohereEmbeddingProperties.options.inputType)
-                    .truncate(bedrockCohereEmbeddingProperties.options.truncate)
+                    .inputType(bedrockCohereEmbeddingProperties.inputType)
+                    .truncate(bedrockCohereEmbeddingProperties.truncate)
                     .build()
             ),
             provider = PROVIDER,
@@ -294,9 +296,10 @@ class BedrockModelsConfig(
     }
 }
 
-object BedrockOptionsConverter : OptionsConverter<ToolCallingChatOptions> {
-    override fun convertOptions(options: LlmOptions) =
-        ToolCallingChatOptions.builder()
+object BedrockOptionsConverter : OptionsConverter {
+    override fun convertOptions(options: LlmOptions, model: String): ChatOptions =
+        BedrockChatOptions.builder()
+            .model(model)
             .temperature(options.temperature)
             .topP(options.topP)
             .maxTokens(options.maxTokens)
@@ -313,7 +316,7 @@ object BedrockOptionsConverter : OptionsConverter<ToolCallingChatOptions> {
 class EmbabelBedrockProxyChatModelBuilder internal constructor() {
     private var credentialsProvider: AwsCredentialsProvider? = null
     private var region: Region? = Region.US_EAST_1
-    private var timeout: java.time.Duration? = java.time.Duration.ofMinutes(10)
+    private var timeout: Duration? = Duration.ofMinutes(10)
     private var toolCallingManager: ToolCallingManager? = null
     private var defaultOptions = BedrockChatOptions.builder().build()
     private var observationRegistry = ObservationRegistry.NOOP
@@ -337,7 +340,7 @@ class EmbabelBedrockProxyChatModelBuilder internal constructor() {
         return this
     }
 
-    fun timeout(timeout: java.time.Duration): EmbabelBedrockProxyChatModelBuilder {
+    fun timeout(timeout: Duration): EmbabelBedrockProxyChatModelBuilder {
         this.timeout = timeout
         return this
     }
@@ -383,7 +386,7 @@ class EmbabelBedrockProxyChatModelBuilder internal constructor() {
                 .httpClientBuilder(
                     NettyNioAsyncHttpClient.builder()
                         .tcpKeepAlive(true)
-                        .connectionAcquisitionTimeout(java.time.Duration.ofSeconds(30))
+                        .connectionAcquisitionTimeout(Duration.ofSeconds(30))
                         .maxConcurrency(200)
                 )
                 .credentialsProvider(this.credentialsProvider)

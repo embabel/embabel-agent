@@ -79,6 +79,22 @@ interface EmbeddingService : EmbeddingServiceMetadata, HasInfoString {
      */
     val dimensions: Int
 
+    /**
+     * Whether this service is standing in for a model the deployment does not have a key for yet,
+     * so nothing may be embedded and — above all — no dimension may be read from it.
+     *
+     * False for every real service, which is why it defaults. A placeholder overrides it, and
+     * anything that would commit a vector index asks THIS rather than testing the service's type:
+     * wrapping is common (event tracking decorates the configured service; applications add layers
+     * to hot-swap the model or meter it), a wrapper around a placeholder is not itself a
+     * placeholder, and Kotlin's `by` delegation forwards this property through any depth of
+     * wrapping for free. A type test answers about the outermost layer only.
+     *
+     * A wrapper that implements [EmbeddingService] member by member rather than by delegation must
+     * forward this too, or it will report "there is a model" on behalf of one that cannot embed.
+     */
+    val awaitingProviderKey: Boolean get() = false
+
     override fun infoString(verbose: Boolean?, indent: Int): String =
         "name: $name, provider: $provider".indent(indent)
 }

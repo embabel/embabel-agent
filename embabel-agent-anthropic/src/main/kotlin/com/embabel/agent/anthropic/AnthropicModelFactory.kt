@@ -22,8 +22,10 @@ import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
+import com.embabel.common.byok.requireUsableApiKey
 import com.embabel.common.util.ObjectProviders
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
@@ -34,6 +36,7 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.retry.support.RetryTemplate
 import org.springframework.web.client.RestClient
 import java.time.Duration
+import java.time.LocalDate
 
 /**
  * Builds Anthropic [LlmService] instances from a raw API key.
@@ -113,12 +116,23 @@ open class AnthropicModelFactory(
      * is ignored — retries are handled at the ChatClientLlmOperations layer via spring-retry.
      *
      * @param model Model identifier, e.g. [AnthropicModels.CLAUDE_HAIKU_4_5].
+     * @param provider Provider name the built service reports. Defaults to [AnthropicModels.PROVIDER];
+     * override it when the endpoint is a gateway fronting Anthropic, so cost and metadata lookups
+     * key on the gateway rather than on Anthropic itself.
+     * @param pricingModel What the call costs the deployment. Null - the default - is unknown rather
+     * than free; a BYOK caller passes [com.embabel.common.ai.model.PricingModel.ALL_YOU_CAN_EAT],
+     * since the user's own key is billed.
+     * @param knowledgeCutoffDate Reaches the LLM as a prompt contribution, so state it only if you
+     * know it for this model.
      */
     @JvmOverloads
     fun build(
         model: String,
         @Suppress("UNUSED_PARAMETER")
         retryTemplate: RetryTemplate? = null,
+        provider: String = AnthropicModels.PROVIDER,
+        pricingModel: PricingModel? = null,
+        knowledgeCutoffDate: LocalDate? = null,
     ): LlmService<*> {
         val chatModel = AnthropicChatModel.builder()
             .options(AnthropicChatOptions.builder().model(model).build())
@@ -132,8 +146,10 @@ open class AnthropicModelFactory(
         return SpringAiLlmService(
             name = model,
             chatModel = chatModel,
-            provider = AnthropicModels.PROVIDER,
+            provider = provider,
             optionsConverter = AnthropicOptionsConverter,
+            knowledgeCutoffDate = knowledgeCutoffDate,
+            pricingModel = pricingModel,
             thinkingSupported = true,
         )
     }
@@ -155,10 +171,17 @@ open class AnthropicModelFactory(
      * On any exception the provider-specific error is translated to [InvalidApiKeyException],
      * keeping Spring AI types out of the caller.
      *
+     * A blank key is rejected before any network call. A key is routinely blank rather than
+     * absent: Compose passes `ANTHROPIC_API_KEY=${'$'}{ANTHROPIC_API_KEY:-}`, so in a container the
+     * variable is set-but-empty, and callers reading it with a null default get `""`. Without
+     * this check that empty string reaches the provider and comes back as an opaque auth error,
+     * which is why BYOK callers otherwise re-derive "blank counts as absent" for themselves.
+     *
      * @param model Model to use for the probe.
-     * @throws InvalidApiKeyException if the key is invalid.
+     * @throws InvalidApiKeyException if the key is blank or invalid.
      */
     fun buildValidated(model: String): LlmService<*> {
+        requireUsableApiKey(apiKey)
         val probe = build(model)
         try {
             probe.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())

@@ -2,8 +2,8 @@
 
 <a href="https://hub.embabel.com"><img align="left" src="https://github.com/embabel/embabel-agent/blob/main/embabel-agent-api/images/315px-Meister_der_Weltenchronik_001.jpg?raw=true" width="180"></a>
 
-[![Docs](https://img.shields.io/badge/docs-live-brightgreen)](https://docs.embabel.com/embabel-agent/guide/0.1.2-SNAPSHOT/)
-[![MvnRepository](https://badges.mvnrepository.com/badge/com.embabel.agent/embabel-agent-api/badge.svg?label=MvnRepository)](https://mvnrepository.com/artifact/com.embabel.agent/embabel-agent-api)
+[![Docs](https://img.shields.io/badge/docs-live-brightgreen)](https://docs.embabel.com/embabel-agent/guide/1.5.0-SNAPSHOT/)
+[![Maven Central](https://img.shields.io/maven-central/v/com.embabel.agent/embabel-agent-api.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/com.embabel.agent/embabel-agent-api)
 ![Build](https://github.com/embabel/embabel-agent/actions/workflows/maven.yml/badge.svg)
 [![YourKit](https://img.shields.io/badge/Profiling-YourKit-blue)](https://www.yourkit.com/)
 [![JProfiler](https://img.shields.io/badge/Profiled%20with-JProfiler-blue)](https://www.ej-technologies.com/products/jprofiler/overview.html)
@@ -898,6 +898,25 @@ spring:
 This configuration sets up an MCP client that connects to a Docker-based MCP server. The connection uses STDIO transport
 through Docker's socat utility to connect to a TCP endpoint.
 
+### Remote Streamable HTTP MCP Connection
+
+Embabel applications can also connect directly to remote Streamable HTTP MCP servers. For example, Parallel Search MCP
+provides `web_search` and `web_fetch` without requiring an account or API key:
+
+```yaml
+spring:
+  ai:
+    mcp:
+      client:
+        streamable-http:
+          connections:
+            parallel:
+              url: https://search.parallel.ai
+```
+
+Spring AI appends the default `/mcp` endpoint, so this configuration connects to
+`https://search.parallel.ai/mcp`.
+
 ### Docker Desktop MCP Integration
 
 Docker has embraced MCP with their Docker MCP Catalog and Toolkit, which provides:
@@ -952,25 +971,33 @@ mvn test
 
 ### Integration tests
 
-Integration tests (`*IT`) hit real provider APIs and are excluded from the default `mvn test` run.
-To run them, ensure the following environment variables are set:
+Integration tests (`*IT`) are excluded from the default `mvn test` run. Run the complete suite with:
+
+```bash
+mvn -Pintegration-tests test
+```
+
+Tests that require credentials or live services are skipped when their environment variables are absent, so you only
+need to configure the integrations you want to exercise:
 
 - `OPENAI_API_KEY`
 - `ANTHROPIC_API_KEY`
 - `DEEPSEEK_API_KEY`
 - `MISTRAL_API_KEY`
+- `GEMINI_API_KEY`
+- `GOOGLE_GENAI_API_KEY`
+- `DASHSCOPE_API_KEY`
+- `ZAI_API_KEY`
+- `OLLAMA_BASE_URL` for tests using a local Ollama service
+- `EMBABEL_RUN_ONNX_INTEGRATION_TESTS` to opt into the slow Hugging Face model download
+- `GOOGLE_PROJECT_ID` plus `EMBABEL_RUN_VERTEX_INTEGRATION_TESTS` to opt into the Vertex AI tests, which
+  also need application default credentials (`gcloud auth application-default login`)
 
-Then run:
+Self-contained integration tests still run when none of these variables are set. To run a specific module's
+integration tests, add `-pl`:
 
 ```bash
-mvn -Dtest='*IT,!LLMOllama*IT' -Dsurefire.failIfNoSpecifiedTests=false test
-```
-
-This runs all integration tests except Ollama (which requires a local Ollama server).
-To run a specific module's integration tests, add `-pl`:
-
-```bash
-mvn -Dtest='*IT,!LLMOllama*IT' -Dsurefire.failIfNoSpecifiedTests=false test -pl embabel-agent-openai
+mvn -Pintegration-tests test -pl embabel-agent-openai
 ```
 
 ## Spring profiles
@@ -1306,7 +1333,8 @@ embabel:
 # Enable Spring Boot tracing
 management:
   tracing:
-    enabled: true
+    export:
+      enabled: true
     sampling:
       probability: 1.0
 
@@ -1416,9 +1444,15 @@ This file also informs coding agent behavior.
 - Don't forget to join [Discord](https://discord.gg/t6bjkyj93q) to collaborate with the Embabel community. It is a good
   place to receive support, showcase your work, discuss ideas and connect with like-minded people.
 
-## Star history
+## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=embabel/embabel-agent&type=Date)](https://star-history.com/#embabel/embabel-agent&Date)
+<a href="https://www.star-history.com/?type=date&repos=embabel%2Fembabel-agent">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=embabel/embabel-agent&type=date&theme=dark&legend=top-left&sealed_token=o_Xas8flsJ6FnBc3OsNxlONU7injjAqptb37gc2ndwhbXuMGU9Jh9KLQWdlwB5Q_64JvuTvugY_DjT9VwFUTh16vEVNIcLK_VnkygJoDzN1PSH1rT_94LA" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=embabel/embabel-agent&type=date&legend=top-left&sealed_token=o_Xas8flsJ6FnBc3OsNxlONU7injjAqptb37gc2ndwhbXuMGU9Jh9KLQWdlwB5Q_64JvuTvugY_DjT9VwFUTh16vEVNIcLK_VnkygJoDzN1PSH1rT_94LA" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=embabel/embabel-agent&type=date&legend=top-left&sealed_token=o_Xas8flsJ6FnBc3OsNxlONU7injjAqptb37gc2ndwhbXuMGU9Jh9KLQWdlwB5Q_64JvuTvugY_DjT9VwFUTh16vEVNIcLK_VnkygJoDzN1PSH1rT_94LA" />
+ </picture>
+</a>
 
 ## Contributors
 

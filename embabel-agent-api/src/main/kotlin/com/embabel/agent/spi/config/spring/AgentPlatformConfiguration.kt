@@ -32,18 +32,20 @@ import com.embabel.agent.spi.logging.ColorPalette
 import com.embabel.agent.spi.logging.DefaultColorPalette
 import com.embabel.agent.spi.logging.LoggingAgenticEventListener
 import com.embabel.agent.spi.support.*
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.model.ConfigurableModelProvider
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
+import com.embabel.common.ai.model.CredentialLlmServiceFactory
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.ModelProvider
+import com.embabel.common.ai.model.RoleResolver
 import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.NameGenerator
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
 import com.embabel.common.textio.template.TemplateRenderer
 import com.embabel.common.util.StringTransformer
 import com.embabel.common.util.loggerFor
-import tools.jackson.databind.ObjectMapper
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -52,7 +54,6 @@ import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
-import tools.jackson.module.kotlin.jacksonObjectMapper
 
 
 /**
@@ -120,13 +121,12 @@ class AgentPlatformConfiguration(
     fun defaultColorPalette(): ColorPalette = DefaultColorPalette()
 
     @Bean
-    @ConditionalOnMissingBean(name = ["embabelJacksonObjectMapper"])
-    fun embabelJacksonObjectMapper(): ObjectMapper {
-        // Jackson 3: build directly via the Kotlin module factory.
-        // Spring Boot 4 dropped Jackson2ObjectMapperBuilder (Jackson 2 type) auto-configuration,
-        // and no longer auto-registers a tools.jackson.databind.ObjectMapper. defaultCandidate=true
-        // (the default) so this bean satisfies generic ObjectMapper autowiring across the app.
-        return jacksonObjectMapper()
+    @ConditionalOnMissingBean
+    fun embabelJacksonObjectMapper(): EmbabelObjectMapperHolder {
+        // The ObjectMapper is deliberately NOT registered as a Spring bean as a defensive mechanism to avoid
+        // ObjectMapper conflicts and simplify provision of own ObjectMapper beans for Embabel.
+        // Instead we expose the EmbabelObjectMapper wrapper and consumers call unwrap() at the point of use.
+        return EmbabelObjectMapperHolder.createDefault()
     }
 
     @Bean
@@ -196,6 +196,12 @@ class AgentPlatformConfiguration(
             llms = applicationContext.getBeansOfType(LlmService::class.java).values.toList(),
             embeddingServices = applicationContext.getBeansOfType(EmbeddingService::class.java).values.toList(),
             properties = properties,
+            // Ordered, so that one application resolver can take precedence over another
+            roleResolvers = applicationContext.getBeanProvider(RoleResolver::class.java)
+                .orderedStream().toList(),
+            credentialLlmServiceFactories = applicationContext
+                .getBeanProvider(CredentialLlmServiceFactory::class.java)
+                .orderedStream().toList(),
         )
     }
 

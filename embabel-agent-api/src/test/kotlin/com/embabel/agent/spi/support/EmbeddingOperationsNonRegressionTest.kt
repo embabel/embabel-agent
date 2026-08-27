@@ -419,6 +419,31 @@ class EmbeddingOperationsNonRegressionTest {
             assertTrue(wrappedSpringAi is EmbeddingService)
         }
 
+        /**
+         * The decorator must not hide "this deployment has no embedding model yet".
+         *
+         * This is the wrapper that actually stands between a consumer and the configured service in
+         * any deployment with embedding tracking on, so it is the one that decides whether
+         * `awaitingProviderKey` reaches the caller. It answers correctly today only because the wrapper is
+         * declared `by delegate`; a hand-written override list would silently report false and let a
+         * consumer commit a vector index at a dimension read from a placeholder.
+         */
+        @Test
+        fun `wrapper reports the delegate's awaitingProviderKey rather than the default`() {
+            val placeholder = object : EmbeddingService by rawSpringAi {
+                override val awaitingProviderKey = true
+            }
+
+            assertTrue(
+                EmbeddingOperations(placeholder).awaitingProviderKey,
+                "the decorator hid awaitingProviderKey; a consumer would provision from a placeholder",
+            )
+            assertFalse(
+                EmbeddingOperations(rawSpringAi).awaitingProviderKey,
+                "a real service must not be reported as awaiting a key",
+            )
+        }
+
         @Test
         fun `wrapper does not call the delegate twice for a single embed call`() {
             // Accidentally double-invoking the underlying provider would double-bill costs.

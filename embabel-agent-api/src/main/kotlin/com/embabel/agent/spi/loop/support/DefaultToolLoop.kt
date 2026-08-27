@@ -21,8 +21,6 @@ import com.embabel.agent.core.support.AbstractAgentProcess
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolControlFlowSignal
-import com.embabel.agent.api.tool.callback.AfterToolCallContext
-import com.embabel.agent.api.tool.callback.BeforeToolCallContext
 import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
@@ -36,13 +34,12 @@ import com.embabel.agent.spi.loop.EmptyResponsePolicy
 import com.embabel.agent.spi.loop.ExitOnEmptyPolicy
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.MaxIterationsExceededException
-import com.embabel.agent.spi.loop.ToolCallResult
-import com.embabel.agent.spi.loop.ToolInjectionContext
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolLoop
 import com.embabel.agent.spi.loop.ToolLoopResult
 import com.embabel.agent.spi.loop.ToolNotFoundAction
 import com.embabel.agent.spi.loop.ToolNotFoundPolicy
+import com.embabel.chat.AssistantMessage
 import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.EmptyLlmResponseException
 import com.embabel.chat.Message
@@ -51,6 +48,9 @@ import com.embabel.chat.ToolResultMessage
 import com.embabel.chat.UserMessage
 import tools.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
+
+/** Stands in for an empty assistant turn, which some providers reject. */
+private const val NO_RESPONSE_PLACEHOLDER = "(no response)"
 
 /**
  * Default implementation of [com.embabel.agent.spi.loop.ToolLoop].
@@ -158,6 +158,14 @@ internal open class DefaultToolLoop(
                                 "Empty LLM response at iteration {} — feeding back to model",
                                 state.iterations,
                             )
+                            // The turn we are about to re-prompt on is already in the history. If
+                            // it is truly empty — no text, no tool call — Vertex and Mistral answer
+                            // 400 to it and the nudge below never reaches the model. Replace it
+                            // rather than drop it, so the roles still alternate around the nudge.
+                            if (transformedResponse.content.isEmpty()) {
+                                state.conversationHistory[state.conversationHistory.lastIndex] =
+                                    AssistantMessage(NO_RESPONSE_PLACEHOLDER)
+                            }
                             state.conversationHistory.add(UserMessage(action.message))
                             continue
                         }
@@ -349,32 +357,13 @@ internal open class DefaultToolLoop(
         toolCall: ToolCall,
     ): Pair<Tool.Result, String> {
         logger.debug("Executing tool: {} with input: {}", toolCall.name, toolCall.arguments)
-
-        // Notify tool call inspectors BEFORE execution
-        toolCallInspectors.notifyBeforeToolCall(BeforeToolCallContext(toolCall))
-
-        // Measure execution time
-        val startTime = System.currentTimeMillis()
-        val result = tool.call(toolCall.arguments, toolCallContext)
-        val durationMs = System.currentTimeMillis() - startTime
-
-        val content = when (result) {
-            is Tool.Result.Text -> result.content
-            is Tool.Result.WithArtifact -> result.content
-            is Tool.Result.Error -> "Error: ${result.message}"
-        }
-
-        // Notify tool call inspectors AFTER execution
-        toolCallInspectors.notifyAfterToolCall(
-            AfterToolCallContext(
-                toolCall = toolCall,
-                result = result,
-                resultAsString = content,
-                durationMs = durationMs,
-            )
+        val executed = executeTool(
+            tool = tool,
+            toolCall = toolCall,
+            toolCallContext = toolCallContext,
+            toolCallInspectors = toolCallInspectors,
         )
-
-        return result to content
+        return executed.result to executed.content
     }
 
     protected fun applyInjectionStrategy(
@@ -382,67 +371,18 @@ internal open class DefaultToolLoop(
         resultContent: String,
         state: LoopState,
     ) {
-        val context = ToolInjectionContext(
+        applyToolInjection(
+            toolCall = toolCall,
+            resultContent = resultContent,
             conversationHistory = state.conversationHistory,
-            currentTools = state.availableTools,
-            lastToolCall = ToolCallResult(
-                toolName = toolCall.name,
-                toolInput = toolCall.arguments,
-                result = resultContent,
-                resultObject = tryDeserialize(resultContent),
-            ),
-            iterationCount = state.iterations,
-        )
-
-        val injectionResult = injectionStrategy.evaluate(context)
-        if (!injectionResult.hasChanges()) return
-
-        removeTools(injectionResult.toolsToRemove, toolCall.name, state)
-        addTools(injectionResult.toolsToAdd, toolCall.name, state)
-    }
-
-    private fun removeTools(
-        toolsToRemove: List<Tool>,
-        afterToolName: String,
-        state: LoopState,
-    ) {
-        if (toolsToRemove.isEmpty()) return
-
-        val namesToRemove = toolsToRemove.map { it.definition.name }.toSet()
-        state.availableTools.removeIf { it.definition.name in namesToRemove }
-        state.removedTools.addAll(toolsToRemove)
-        logger.info("Strategy removed {} tools after {}: {}", toolsToRemove.size, afterToolName, namesToRemove)
-    }
-
-    private fun addTools(
-        toolsToAdd: List<Tool>,
-        afterToolName: String,
-        state: LoopState,
-    ) {
-        if (toolsToAdd.isEmpty()) return
-
-        val decoratedTools = if (toolDecorator != null) {
-            toolsToAdd.map { toolDecorator.invoke(it) }
-        } else {
-            toolsToAdd
-        }
-
-        // Deduplicate: skip tools whose name already exists in the available set
-        val existingNames = state.availableTools.map { it.definition.name }.toSet()
-        val newTools = decoratedTools.filter { it.definition.name !in existingNames }
-
-        if (newTools.isEmpty()) {
-            logger.debug("All {} tools already present after {}, skipping", decoratedTools.size, afterToolName)
-            return
-        }
-
-        state.availableTools.addAll(newTools)
-        state.injectedTools.addAll(newTools)
-        logger.info(
-            "Strategy injected {} tools after {}: {}",
-            newTools.size,
-            afterToolName,
-            newTools.map { it.definition.name }
+            availableTools = state.availableTools,
+            iteration = state.iterations,
+            injectionStrategy = injectionStrategy,
+            objectMapper = objectMapper,
+            toolDecorator = toolDecorator,
+            injectedTools = state.injectedTools,
+            removedTools = state.removedTools,
+            logger = logger,
         )
     }
 
@@ -512,23 +452,6 @@ internal open class DefaultToolLoop(
                 )
                 true
             }
-        }
-    }
-
-    /**
-     * Try to deserialize a JSON result string.
-     * Only attempts parsing if the result looks like JSON (starts with `{` or `[`).
-     */
-    private fun tryDeserialize(jsonResult: String): Any? {
-        val trimmed = jsonResult.trimStart()
-        if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
-            return null
-        }
-        return try {
-            objectMapper.readValue(jsonResult, Any::class.java)
-        } catch (e: Exception) {
-            logger.debug("Could not deserialize tool result as JSON: {}", e.message)
-            null
         }
     }
 }

@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.agent</groupId>
         <artifactId>embabel-agent-parent</artifactId>
-        <version>1.5.0-SNAPSHOT</version>
+        <version>1.5.2-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-agent-openai</artifactId>
     <packaging>jar</packaging>
@@ -37,23 +37,26 @@
 
         <!--
           Spring AI 2.0 swapped its hand-rolled OpenAiApi for the openai-java SDK.
-          The factory references OpenAIClient / OpenAIOkHttpClient directly, so we
-          need both on the compile classpath. Versions pinned inline (matching
-          spring-ai-openai 2.0.0-M8's compile-time expectation) to keep this module
-          self-contained — the parent BOM's `openai-java` entry is for older tests
-          and is scope=test by default, which would hide OpenAIClient from main.
+          The factory references OpenAIClient (openai-java-core) and OpenAIOkHttpClient
+          (openai-java-client-okhttp) directly.
+
+          openai-java-core is deliberately NOT declared here. Nothing in the dependency
+          chain manages it, so it resolves to whatever spring-ai-openai declares — which
+          is the version Spring AI itself compiles against, and therefore the only one
+          guaranteed to satisfy Spring AI's own calls into the SDK. Pinning it would
+          silently roll it back on the next Spring AI upgrade.
+
+          openai-java-client-okhttp has no such source: spring-ai-openai depends on
+          openai-java-core and raw okhttp, never the OpenAI okhttp client. Its version
+          comes from the root pom and has to be bumped in step with spring-ai-openai.
+          The enforcer rule below is what catches it when that is forgotten.
+
+          The openai-java aggregate is not declared either — it carries no classes of its
+          own, only dependencies on the two artifacts above.
         -->
         <dependency>
             <groupId>com.openai</groupId>
-            <artifactId>openai-java</artifactId>
-            <version>4.36.0</version>
-            <scope>compile</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.openai</groupId>
             <artifactId>openai-java-client-okhttp</artifactId>
-            <version>4.36.0</version>
-            <scope>compile</scope>
         </dependency>
 
         <!--
@@ -84,6 +87,45 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
+            </plugin>
+
+            <!--
+              The OpenAI SDK splits across three artifacts that must share a version:
+              spring-ai-openai drags openai-java-core forward on every upgrade, while
+              openai-java-client-okhttp only moves when the root pom's openai-java.version
+              is bumped by hand. When those diverge the mismatch surfaces far from here —
+              spring-ai-openai 2.0.1 moved core 4.39.1 -> 4.49.0, which added a required
+              field to ResponseUsage.InputTokensDetails and broke a test four modules
+              downstream with no mention of a version anywhere in the stack trace.
+
+              Scoped to com.openai so it gates the SDK alone. This reuses the parent's
+              enforce-versions execution id rather than adding a second execution: binding
+              the plugin here would otherwise also activate the parent's managed execution,
+              whose repo-wide DependencyConvergence reports forty lines of pre-existing,
+              non-failing warnings on every build of this module. combine.self=override
+              keeps those plugin-level rules out, so fail=true applies to this rule alone.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-versions</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <fail>true</fail>
+                            <rules combine.self="override">
+                                <dependencyConvergence>
+                                    <includes>
+                                        <include>com.openai:*</include>
+                                    </includes>
+                                </dependencyConvergence>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
 
         </plugins>

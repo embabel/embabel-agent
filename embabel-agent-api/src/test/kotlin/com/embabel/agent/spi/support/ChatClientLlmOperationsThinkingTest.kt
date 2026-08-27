@@ -44,7 +44,7 @@ import com.embabel.common.core.thinking.ThinkingResponse
 import org.junit.jupiter.api.Nested
 import com.embabel.common.core.validation.ValidationResult
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
-import tools.jackson.module.kotlin.jacksonObjectMapper
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -117,7 +117,7 @@ class ChatClientLlmOperationsThinkingTest {
             validator = Validation.buildDefaultValidatorFactory().validator,
             validationPromptGenerator = DefaultValidationPromptGenerator(),
             templateRenderer = JinjavaTemplateRenderer(),
-            objectMapper = jacksonObjectMapper(),
+            embabelObjectMapperHolder = EmbabelObjectMapperHolder.createDefault(),
             dataBindingProperties = dataBindingProperties,
             asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
         )

@@ -20,41 +20,38 @@ import com.embabel.common.ai.model.LlmOptions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.springframework.ai.openai.OpenAiChatOptions
 
-// Calls the deprecated 1-arg convertOptions() directly to verify field mapping in isolation.
-// Model stamping is not tested here — it is covered by OptionsConverter.convertOptions(options, model).
-class MiniMaxOptionsConverterTest : OptionsConverterTestSupport<OpenAiChatOptions>(
+class MiniMaxOptionsConverterTest : OptionsConverterTestSupport(
     optionsConverter = MiniMaxOptionsConverter
 ) {
     @Test
     fun `should set override maxTokens default`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withMaxTokens(200))
+        val options = optionsConverter.convertOptions(LlmOptions().withMaxTokens(200), "test-model")
         assertEquals(200, options.maxTokens)
     }
 
     @Test
     fun `should clamp temperature below minimum to minimum`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withTemperature(0.0))
+        val options = optionsConverter.convertOptions(LlmOptions().withTemperature(0.0), "test-model")
         val temperature = requireNotNull(options.temperature) { "Temperature should not be null after clamping" }
         assertTrue(temperature >= 0.01, "Temperature should be clamped to at least 0.01")
     }
 
     @Test
     fun `should clamp temperature above maximum to maximum`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withTemperature(2.0))
+        val options = optionsConverter.convertOptions(LlmOptions().withTemperature(2.0), "test-model")
         assertEquals(1.0, options.temperature)
     }
 
     @Test
     fun `should preserve valid temperature`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withTemperature(0.7))
+        val options = optionsConverter.convertOptions(LlmOptions().withTemperature(0.7), "test-model")
         assertEquals(0.7, options.temperature)
     }
 
     @Test
     fun `should handle null temperature`() {
-        val options = optionsConverter.convertOptions(LlmOptions())
+        val options = optionsConverter.convertOptions(LlmOptions(), "test-model")
         // Spring AI 2.0's OpenAiChatOptions package is @NullMarked, so Kotlin treats
         // getTemperature() as non-null Double — direct property access NPEs on a null
         // runtime value. Read into a Double? local to bypass. (Migration doc §5.11.)
@@ -64,19 +61,19 @@ class MiniMaxOptionsConverterTest : OptionsConverterTestSupport<OpenAiChatOption
 
     @Test
     fun `should preserve topP`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withTopP(0.9))
+        val options = optionsConverter.convertOptions(LlmOptions().withTopP(0.9), "test-model")
         assertEquals(0.9, options.topP)
     }
 
     @Test
     fun `should preserve presencePenalty`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withPresencePenalty(0.5))
+        val options = optionsConverter.convertOptions(LlmOptions().withPresencePenalty(0.5), "test-model")
         assertEquals(0.5, options.presencePenalty)
     }
 
     @Test
     fun `should preserve frequencyPenalty`() {
-        val options = optionsConverter.convertOptions(LlmOptions().withFrequencyPenalty(0.3))
+        val options = optionsConverter.convertOptions(LlmOptions().withFrequencyPenalty(0.3), "test-model")
         assertEquals(0.3, options.frequencyPenalty)
     }
 }

@@ -24,7 +24,10 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.observation.ChatModelObservationContext;
+import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.util.ReflectionUtils;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -135,9 +138,10 @@ public class ChatModelObservationFilter implements ObservationFilter {
                     context.addHighCardinalityKeyValue(KeyValue.of(SpanAttributes.GEN_AI_REQUEST_TEMPERATURE,
                             String.valueOf(request.getOptions().getTemperature())));
                 }
-                if (request.getOptions().getMaxTokens() != null) {
+                Integer maxTokens = maxTokensOf(request.getOptions());
+                if (maxTokens != null) {
                     context.addHighCardinalityKeyValue(KeyValue.of(SpanAttributes.GEN_AI_REQUEST_MAX_TOKENS,
-                            String.valueOf(request.getOptions().getMaxTokens())));
+                            String.valueOf(maxTokens)));
                 }
                 if (request.getOptions().getTopP() != null) {
                     context.addHighCardinalityKeyValue(KeyValue.of(SpanAttributes.GEN_AI_REQUEST_TOP_P,
@@ -175,6 +179,22 @@ public class ChatModelObservationFilter implements ObservationFilter {
         }
 
         return context;
+    }
+
+    /**
+     * The GPT-5 family rejects {@code max_tokens} and carries the limit on {@code maxCompletionTokens},
+     * a field only provider-specific options declare — hence the reflective read rather than a cast.
+     */
+    private static Integer maxTokensOf(ChatOptions options) {
+        if (options.getMaxTokens() != null) {
+            return options.getMaxTokens();
+        }
+        Method getter = ReflectionUtils.findMethod(options.getClass(), "getMaxCompletionTokens");
+        if (getter == null) {
+            return null;
+        }
+        ReflectionUtils.makeAccessible(getter);
+        return (Integer) ReflectionUtils.invokeMethod(getter, options);
     }
 
     /**

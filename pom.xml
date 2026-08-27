@@ -4,11 +4,11 @@
     <parent>
         <groupId>com.embabel.build</groupId>
         <artifactId>embabel-build-parent</artifactId>
-        <version>2.0.0-SNAPSHOT</version>
+        <version>2.0.2-SNAPSHOT</version>
     </parent>
     <groupId>com.embabel.agent</groupId>
     <artifactId>embabel-agent-parent</artifactId>
-    <version>1.5.0-SNAPSHOT</version>
+    <version>1.5.2-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Embabel Agent Parent</name>
     <description>Parent POM for Embabel Agent Modules</description>
@@ -16,8 +16,11 @@
 
     <properties>
         <argLine />
-        <embabel-common.version>2.0.0-SNAPSHOT</embabel-common.version>
+        <embabel-common.version>2.0.3-SNAPSHOT</embabel-common.version>
         <netty.version>4.2.16.Final</netty.version>
+        <!-- Matches the openai-java-core that spring-ai-openai 2.0.1 depends on. Bump in
+             step with spring-ai-openai; drop once embabel-build-dependencies catches up. -->
+        <openai-java.version>4.49.0</openai-java.version>
         <spotbugs-maven-plugin.version>4.9.8.2</spotbugs-maven-plugin.version>
         <sb-contrib.version>7.7.4</sb-contrib.version>
     </properties>
@@ -52,6 +55,35 @@
     <!-- Embabel Common BOM -->
     <dependencyManagement>
         <dependencies>
+            <!--
+              OpenAI SDK, aligned repo-wide.
+
+              embabel-build-dependencies manages these at 4.36.0, the version
+              spring-ai-openai 2.0.0-M8 compiled against. Each spring-ai-openai release
+              since has moved its own openai-java-core forward (2.0.0 GA to 4.39.1,
+              2.0.1 to 4.49.0), so the managed version puts two releases of the same SDK
+              on the classpath. Managing them here overrides the parent BOM
+              for direct and transitive uses alike — a version set in a module's
+              <dependencies> only governs that module, and reverts to the managed value
+              wherever it is inherited downstream.
+
+              openai-java-core is intentionally absent: unmanaged, it resolves to the
+              version spring-ai-openai declares, which is the one Spring AI's own code is
+              compiled against. Keep it that way and bump the property below to match on
+              every Spring AI upgrade — embabel-agent-openai enforces that they converge.
+              The openai-java aggregate is no longer depended on directly; it stays managed
+              so a transitive path cannot reintroduce it at the parent BOM's 4.36.0.
+            -->
+            <dependency>
+                <groupId>com.openai</groupId>
+                <artifactId>openai-java</artifactId>
+                <version>${openai-java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.openai</groupId>
+                <artifactId>openai-java-client-okhttp</artifactId>
+                <version>${openai-java.version}</version>
+            </dependency>
             <!-- Embabel Agent BOM -->
             <dependency>
                 <groupId>com.embabel.agent</groupId>
@@ -200,6 +232,27 @@
     </build>
 
     <profiles>
+        <!-- Run integration tests that follow the *IT naming convention -->
+        <profile>
+            <id>integration-tests</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <includes>
+                                <include>**/*IT.*</include>
+                            </includes>
+                            <excludes combine.self="override">
+                                <exclude>none</exclude>
+                            </excludes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
         <!-- Build Embabel Agent Documentation -->
         <profile>
             <id>embabel-agent-docs</id>

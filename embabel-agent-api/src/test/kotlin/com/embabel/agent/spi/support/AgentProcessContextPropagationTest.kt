@@ -17,13 +17,16 @@ package com.embabel.agent.spi.support
 
 import com.embabel.agent.core.AgentProcess
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 
 class AgentProcessAccessorTest {
 
@@ -63,6 +66,104 @@ class AgentProcessAccessorTest {
         accessor.reset()
 
         assertNull(AgentProcess.get())
+    }
+
+    /**
+     * [AgentProcessAccessor.with] stated on its own terms.
+     *
+     * [ExecutorAsyncerCallerThreadTest] covers the same guarantee through the executor, which is
+     * where it is reached and why it matters. These pin the contract itself, so a change to `with`
+     * fails against its own rules rather than against the behaviour of a saturated thread pool
+     * several layers away.
+     */
+    @Nested
+    inner class With {
+
+        @AfterEach
+        fun cleanup() {
+            AgentProcess.remove()
+        }
+
+        @Test
+        fun `restores the previous process after the block returns`() {
+            val previous = mock(AgentProcess::class.java)
+            val inner = mock(AgentProcess::class.java)
+            accessor.setValue(previous)
+
+            val seen = accessor.with(inner) { AgentProcess.get() }
+
+            assertSame(inner, seen, "the block must run with the value it was given")
+            assertSame(previous, AgentProcess.get(), "the thread must be left holding what it held before")
+        }
+
+        @Test
+        fun `restores the previous process when the block throws`() {
+            val previous = mock(AgentProcess::class.java)
+            val inner = mock(AgentProcess::class.java)
+            accessor.setValue(previous)
+
+            assertFailsWith<IllegalStateException> {
+                accessor.with(inner) { error("boom") }
+            }
+
+            assertSame(previous, AgentProcess.get())
+        }
+
+        @Test
+        fun `restores the outer value after a nested with, not just the innermost`() {
+            val outer = mock(AgentProcess::class.java)
+            val middle = mock(AgentProcess::class.java)
+            val inner = mock(AgentProcess::class.java)
+
+            accessor.with(outer) {
+                accessor.with(middle) {
+                    accessor.with(inner) {
+                        assertSame(inner, AgentProcess.get())
+                    }
+                    assertSame(middle, AgentProcess.get(), "unwinding one level must land on the middle value")
+                }
+                assertSame(outer, AgentProcess.get(), "unwinding again must land on the outer value")
+            }
+            assertNull(AgentProcess.get(), "and the outermost frame started from nothing")
+        }
+
+        @Test
+        fun `clears the slot when the thread held nothing to begin with`() {
+            val inner = mock(AgentProcess::class.java)
+            assertNull(AgentProcess.get(), "precondition: this thread starts empty")
+
+            accessor.with(inner) { }
+
+            // The case clearing was written for: a pooled worker that arrived empty must not carry
+            // this task's process into whatever lands on it next.
+            assertNull(AgentProcess.get())
+        }
+
+        /**
+         * A null value is not "clear the process for the duration". It means the caller had nothing
+         * to propagate, which is what [ExecutorAsyncer] passes when a task is submitted from
+         * outside any process - so the block runs against whatever the running thread already
+         * holds, and `with` neither sets nor clears anything.
+         */
+        @Test
+        fun `a null value leaves a process the thread already holds in place`() {
+            val current = mock(AgentProcess::class.java)
+            accessor.setValue(current)
+
+            val seen = accessor.with(null) { AgentProcess.get() }
+
+            assertSame(current, seen, "with(null) does not clear for the duration of the block")
+            assertSame(current, AgentProcess.get(), "nor afterwards")
+        }
+
+        @Test
+        fun `a null value leaves an empty thread empty, and still runs the block`() {
+            val seen = accessor.with(null) { AgentProcess.get() to "result" }
+
+            assertNull(seen.first)
+            assertEquals("result", seen.second)
+            assertNull(AgentProcess.get())
+        }
     }
 }
 

@@ -17,38 +17,57 @@ package com.embabel.agent.spi.loop.streaming
 
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.callback.ToolCallInspector
+import com.embabel.agent.core.Usage
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.ToolLoop
+import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import reactor.core.publisher.Flux
+
+/**
+ * Provider-neutral events emitted by one streaming LLM inference call.
+ *
+ * [Content] events are forwarded as soon as they arrive. [Complete] is emitted once,
+ * after provider-specific fragments (including partial tool calls) have been assembled.
+ *
+ * This SPI type is deliberately distinct from
+ * [com.embabel.common.core.streaming.StreamingEvent], which is the public, converted
+ * application stream of thinking and typed objects. These events exist below that layer:
+ * [DefaultStreamingToolLoop] consumes [Complete] internally and forwards only content.
+ */
+sealed interface LlmInferenceStreamEvent {
+    data class Content(val text: String) : LlmInferenceStreamEvent
+
+    data class Complete(
+        val message: Message,
+        val usage: Usage? = null,
+    ) : LlmInferenceStreamEvent
+}
 
 /**
  * Framework-agnostic interface for streaming LLM inference.
  *
  * Streaming counterpart of [LlmMessageSender]. Implementations handle the actual
- * LLM communication (Spring AI, LangChain4j, etc.) and return a reactive stream
- * of raw content chunks.
+ * LLM communication (Spring AI, LangChain4j, etc.). The original [stream] contract
+ * remains the single abstract method for source and binary compatibility. The new
+ * [streamInference] method exposes the assembled terminal message required by an
+ * Embabel-owned streaming tool loop.
  *
  * **Key Differences from Non-Streaming:**
- * - Returns `Flux<String>` instead of `LlmMessageResponse`
- * - Tool execution is managed by the underlying framework (e.g., Spring AI)
- *   since the streaming API is opaque - we cannot inject a custom [ToolLoop]
- * - Only observation of tool execution is possible via [ToolCallInspector]
+ * - Emits content incrementally, followed by the assembled assistant message
+ * - Does not execute tools; [ToolLoop] remains under Embabel's control
+ * - Provider adapters are responsible for assembling partial tool-call fragments
  *
  * @see LlmMessageSender for non-streaming equivalent
- * @see ToolCallInspector for tool execution observation
  */
 fun interface LlmMessageStreamer {
 
     /**
-     * Stream raw content chunks from the LLM.
-     *
-     * The returned Flux emits content as it arrives from the LLM.
-     * Tool calls are handled internally by the underlying framework.
+     * Stream raw content chunks using the original provider-managed tool contract.
      *
      * @param messages The conversation history
      * @param tools Available tools for the LLM to invoke during streaming
-     * @param toolCallInspectors Inspectors to observe tool call events
+     * @param toolCallInspectors Inspectors for provider-managed tool execution
      * @return Flux of raw content chunks
      */
     fun stream(
@@ -56,4 +75,27 @@ fun interface LlmMessageStreamer {
         tools: List<Tool>,
         toolCallInspectors: List<ToolCallInspector>,
     ): Flux<String>
+
+    /**
+     * Stream one inference without delegating tool execution to the provider.
+     *
+     * Provider adapters should override this method to emit an assembled [Complete]
+     * event containing any requested tool calls. The default bridge keeps existing
+     * [LlmMessageStreamer] implementations usable: their raw stream is replayed as
+     * [Content] and summarized as a terminal assistant message. Such legacy adapters
+     * retain their provider-managed tool behavior and cannot expose assembled tool calls
+     * to [DefaultStreamingToolLoop] until they override this method.
+     */
+    fun streamInference(
+        messages: List<Message>,
+        tools: List<Tool>,
+    ): Flux<LlmInferenceStreamEvent> = Flux.defer {
+        val content = stream(messages, tools, emptyList()).cache()
+        Flux.concat(
+            content.map<LlmInferenceStreamEvent> { LlmInferenceStreamEvent.Content(it) },
+            content.collectList().map<LlmInferenceStreamEvent> {
+                LlmInferenceStreamEvent.Complete(AssistantMessage(it.joinToString("")))
+            },
+        )
+    }
 }

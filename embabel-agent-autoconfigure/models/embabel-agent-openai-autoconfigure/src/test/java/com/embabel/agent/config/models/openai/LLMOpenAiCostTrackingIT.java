@@ -23,6 +23,7 @@ import com.embabel.agent.api.event.LlmInvocationEvent;
 import com.embabel.agent.autoconfigure.models.openai.AgentOpenAiAutoConfiguration;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -69,6 +70,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ConfigurationPropertiesScan(basePackages = "com.embabel.agent")
 @ComponentScan(basePackages = "com.embabel.agent")
 @Import({AgentOpenAiAutoConfiguration.class, LLMOpenAiCostTrackingIT.CostListenerConfig.class})
+@EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+",
+        disabledReason = "Integration test requires OPENAI_API_KEY")
 class LLMOpenAiCostTrackingIT {
 
     private static final Logger logger = LoggerFactory.getLogger(LLMOpenAiCostTrackingIT.class);

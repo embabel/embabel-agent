@@ -16,9 +16,11 @@
 package com.embabel.agent.rag.pipeline
 
 import com.embabel.agent.rag.model.Chunk
+import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.RagRequest
 import com.embabel.agent.rag.service.RagResponse
 import com.embabel.common.core.types.SimpleSimilaritySearchResult
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Nested
@@ -94,6 +96,8 @@ class ChunkMergingEnhancerTest {
             val mergedChunk = enhanced.results[0].match as Chunk
             assertEquals("First chunk Second chunk", mergedChunk.text)
             assertEquals(0.9, enhanced.results[0].score)
+            assertEquals("doc1", mergedChunk.structure.rootDocumentId)
+            assertEquals(1, mergedChunk.structure.sequenceNumber)
         }
 
         @Test
@@ -216,6 +220,58 @@ class ChunkMergingEnhancerTest {
                         ),
                         score = 0.85
                     )
+                )
+            )
+
+            val enhanced = ChunkMergingEnhancer.enhance(response)
+            assertEquals(2, enhanced.results.size)
+        }
+
+        @Test
+        fun `test merge chunks whose sequence numbers were stored as strings`() {
+            val response = RagResponse(
+                request = RagRequest("test query"),
+                service = "test",
+                results = listOf(
+                    SimpleSimilaritySearchResult(
+                        match = Chunk(
+                            id = "chunk1",
+                            text = "First chunk",
+                            metadata = mapOf("root_document_id" to "doc1", "sequence_number" to "1"),
+                            parentId = "doc1"
+                        ),
+                        score = 0.9
+                    ),
+                    SimpleSimilaritySearchResult(
+                        match = Chunk(
+                            id = "chunk2",
+                            text = "Second chunk",
+                            metadata = mapOf("root_document_id" to "doc1", "sequence_number" to "2"),
+                            parentId = "doc1"
+                        ),
+                        score = 0.85
+                    )
+                )
+            )
+
+            val enhanced = ChunkMergingEnhancer.enhance(response)
+            assertEquals(1, enhanced.results.size)
+            val mergedChunk = enhanced.results[0].match as Chunk
+            assertEquals("First chunk Second chunk", mergedChunk.text)
+        }
+
+        @Test
+        fun `test non-chunk retrievables are not merged`() {
+            val first = mockk<Retrievable>(relaxed = true)
+            every { first.metadata } returns mapOf("root_document_id" to "doc1", "sequence_number" to 1)
+            val second = mockk<Retrievable>(relaxed = true)
+            every { second.metadata } returns mapOf("root_document_id" to "doc1", "sequence_number" to 2)
+            val response = RagResponse(
+                request = RagRequest("test query"),
+                service = "test",
+                results = listOf(
+                    SimpleSimilaritySearchResult(match = first, score = 0.9),
+                    SimpleSimilaritySearchResult(match = second, score = 0.85)
                 )
             )
 

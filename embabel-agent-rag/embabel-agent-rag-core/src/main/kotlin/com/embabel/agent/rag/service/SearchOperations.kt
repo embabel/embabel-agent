@@ -17,6 +17,7 @@ package com.embabel.agent.rag.service
 
 import com.embabel.agent.filter.PropertyFilter
 import com.embabel.agent.rag.filter.EntityFilter
+import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.ContentElement
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.common.core.types.SimilarityResult
@@ -115,15 +116,77 @@ interface FilteringVectorSearch : VectorSearch {
 }
 
 /**
- * Full-text search using Lucene query syntax
+ * How an implementation interprets the `query` string handed to [TextSearch.textSearch].
+ *
+ * The two are mutually exclusive by design: a surface that escapes *some* of its input is
+ * predictable to nobody, human or model. An implementation declares what it can serve via
+ * [TextSearch.supportedQueryModes], and which it is serving via [TextSearch.queryMode].
+ */
+enum class TextQueryMode {
+
+    /**
+     * The query is **literal text**. The implementation escapes it, so no character can be mistaken
+     * for an operator and no input can fail to parse — a pasted URL, file path or code fragment is
+     * searched for rather than interpreted.
+     *
+     * The caller cannot express required terms, exclusions or phrases, so any precision beyond
+     * ranking has to come from the implementation. What that means varies: an engine-backed store
+     * may escape the text and then ENHANCE it — requiring identifier-shaped tokens on the caller's
+     * behalf — while a substring-matching store simply matches. Both are honest [LITERAL]; the mode
+     * describes how the caller's text is read, not how hard the implementation works afterwards.
+     *
+     * Prefer this for callers that cannot reliably compose an expression, notably small models, for
+     * which a malformed expression is a likelier outcome than a useful one.
+     */
+    LITERAL,
+
+    /**
+     * The query is a **Lucene expression** the caller composes, passed through unaltered. The caller
+     * owns precision, and owns escaping: an unbalanced `/` or a bare `:` is a parse failure, not a
+     * search for those characters.
+     */
+    LUCENE_EXPRESSION,
+}
+
+/**
+ * Full-text search.
+ *
+ * How the `query` string is interpreted depends on [queryMode] — see [TextQueryMode]. Every
+ * implementation historically behaved as [TextQueryMode.LUCENE_EXPRESSION], which remains the default.
  */
 interface TextSearch : TypeRetrievalOperations {
 
     /**
-     * Performs full-text search using Lucene query syntax.
+     * The query modes this implementation can serve. Never empty.
+     *
+     * A capability, not a preference. An implementation backed by substring matching cannot honour
+     * an expression however it is configured, and one backed by an engine whose syntax differs from
+     * Lucene's should not claim [TextQueryMode.LUCENE_EXPRESSION] merely because it has a parser.
+     * Deployments choose among these; they cannot choose outside them.
+     */
+    val supportedQueryModes: Set<TextQueryMode>
+        get() = setOf(TextQueryMode.LUCENE_EXPRESSION)
+
+    /**
+     * The mode currently in effect. Must be a member of [supportedQueryModes].
+     *
+     * [luceneSyntaxNotes] must describe THIS mode. It reaches the model verbatim in the search
+     * tool's description, so a store advertising expression syntax while escaping its input teaches
+     * the model to write queries that cannot work.
+     */
+    val queryMode: TextQueryMode
+        get() = supportedQueryModes.first()
+
+    /**
+     * Performs full-text search.
+     *
+     * The syntax below applies when [queryMode] is [TextQueryMode.LUCENE_EXPRESSION]. Under
+     * [TextQueryMode.LITERAL] the query is escaped and matched as text, so none of these operators
+     * has any effect.
      *
      * Not all implementations will support all capabilities (such as fuzzy matching).
-     * However, the use of quotes for phrases and + / - for required / excluded terms should be widely supported.
+     * However, the use of quotes for phrases and + / - for required / excluded terms should be
+     * widely supported among implementations that declare [TextQueryMode.LUCENE_EXPRESSION].
      *
      * The "query" field of request supports the following syntax:
      *
@@ -239,6 +302,51 @@ interface FilteringRegexSearch : RegexSearchOperations {
         metadataFilter: PropertyFilter? = null,
         entityFilter: EntityFilter? = null,
     ): List<SimilarityResult<T>>
+}
+
+/**
+ * One section heading of an ingested document, as reported by [SectionReader.listSections].
+ */
+data class SectionSummary(
+    val title: String,
+    val documentTitle: String,
+    val chunkCount: Int,
+)
+
+/**
+ * Interface to be implemented by stores that can navigate a document's section
+ * structure by NAME: list the section headings of a document (its table of
+ * contents) and read every chunk of a named section in document order.
+ *
+ * Search finds isolated hits; some content is only usable whole. The motivating
+ * case is structured data split across chunks — a financial statement whose
+ * header row, row labels and values land in different chunks. A model that has
+ * seen a section title (from [listSections], or from provenance embedded in a
+ * retrieved chunk) can read the complete section in order instead of trying to
+ * reassemble it from search results.
+ *
+ * Tenancy: implementations MUST scope results to their own tenant/context. The
+ * tools built over this interface (unlike the vector/text search tools) apply
+ * no metadata filter of their own, because section reads are keyed by title
+ * rather than similarity and per-store scoping is where multi-tenant stores
+ * already enforce isolation.
+ */
+interface SectionReader : SearchOperations {
+
+    /**
+     * The section headings of ingested documents, with chunk counts.
+     * @param documentTitle case-insensitive substring filter on the document
+     * title; null lists sections for all visible documents
+     */
+    fun listSections(documentTitle: String? = null): List<SectionSummary>
+
+    /**
+     * Every chunk of the named section(s), in document sequence order.
+     * @param sectionTitle exact section title, matched case-insensitively
+     * @param documentTitle optional case-insensitive substring filter on the
+     * document title, to disambiguate when documents share section names
+     */
+    fun readSection(sectionTitle: String, documentTitle: String? = null): List<Chunk>
 }
 
 /**

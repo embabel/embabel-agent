@@ -70,7 +70,7 @@ abstract class AbstractYamlModelLoader<T : LlmAutoConfigProvider<*>>(
                 logger.info("Loaded {} {} model definitions", it.models.size, getProviderName())
             }
         } catch (e: Exception) {
-            logger.error("Failed to load {} models from {}", getProviderName(), configPath, e)
+            logger.warn("Failed to load {} models from {}: {}", getProviderName(), configPath, e.message)
             createEmptyProvider()
         }
     }

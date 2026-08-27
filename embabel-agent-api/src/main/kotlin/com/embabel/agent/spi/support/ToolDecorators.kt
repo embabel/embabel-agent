@@ -78,7 +78,7 @@ class ObservabilityTool(
         }
         val currentObservation = observationRegistry.currentObservation
         if (currentObservation == null) {
-            loggerFor<ObservabilityTool>().warn(
+            loggerFor<ObservabilityTool>().info(
                 "No parent observation for tool call {} with input: {}, observation registry: {}",
                 delegate.definition.name,
                 input,

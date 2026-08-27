@@ -21,8 +21,8 @@ import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.AgentProcessStatusReport
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.domain.io.UserInput
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import com.embabel.common.test.ai.config.FakeAiConfiguration
-import tools.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -49,7 +49,7 @@ class AgentProcessControllerIntegrationTest(
     @param:Autowired
     private val mockMvc: MockMvc,
     @param:Autowired
-    private val objectMapper: ObjectMapper,
+    private val embabelObjectMapperHolder: EmbabelObjectMapperHolder,
     @param:Autowired
     private val agentPlatform: AgentPlatform,
 ) {
@@ -73,7 +73,7 @@ class AgentProcessControllerIntegrationTest(
                     status().isOk()
                 }.andReturn()
             val content = result.response.contentAsString
-            val status = objectMapper.readValue(content, AgentProcessStatus::class.java)
+            val status = embabelObjectMapperHolder.get().readValue(content, AgentProcessStatus::class.java)
             assertEquals(AgentProcessStatusCode.NOT_STARTED, status.status)
             assertNull(status.result)
         }
@@ -86,7 +86,7 @@ class AgentProcessControllerIntegrationTest(
                     status().isOk()
                 }.andReturn()
             val content = result.response.contentAsString
-            val status = objectMapper.readValue(content, AgentProcessStatus::class.java)
+            val status = embabelObjectMapperHolder.get().readValue(content, AgentProcessStatus::class.java)
             val result2 = mockMvc.get(status.statusUrl)
                 .andExpect {
                     status().isOk()
@@ -102,7 +102,7 @@ class AgentProcessControllerIntegrationTest(
                     status().isOk()
                 }.andReturn()
             val content = result.response.contentAsString
-            val status = objectMapper.readValue(content, AgentProcessStatus::class.java)
+            val status = embabelObjectMapperHolder.get().readValue(content, AgentProcessStatus::class.java)
             mockMvc.get(status.sseUrl)
                 .andExpect {
                     status().isOk()
@@ -122,7 +122,7 @@ class AgentProcessControllerIntegrationTest(
                     status().isOk()
                 }.andReturn()
             val content = result.response.contentAsString
-            val status = objectMapper.readValue(content, AgentProcessStatus::class.java)
+            val status = embabelObjectMapperHolder.get().readValue(content, AgentProcessStatus::class.java)
             assertEquals(AgentProcessStatusCode.COMPLETED, status.status)
             assertNotNull(status.result)
             val snakeMeal = status.result
@@ -146,7 +146,7 @@ class AgentProcessControllerIntegrationTest(
                 status().isOk()
             }.andReturn()
         val content = result.response.contentAsString
-        val retrievedProcess = objectMapper.readValue(content, AgentProcessStatus::class.java)
+        val retrievedProcess = embabelObjectMapperHolder.get().readValue(content, AgentProcessStatus::class.java)
         assertEquals(agentProcess.id, retrievedProcess.id)
         assertEquals(AgentProcessStatusCode.KILLED, retrievedProcess.status)
 
@@ -155,7 +155,7 @@ class AgentProcessControllerIntegrationTest(
                 status().isOk()
             }.andReturn()
         val content2 = result2.response.contentAsString
-        val retrievedProcess2 = objectMapper.readValue(content2, AgentProcessStatusReport::class.java)
+        val retrievedProcess2 = embabelObjectMapperHolder.get().readValue(content2, AgentProcessStatusReport::class.java)
         assertEquals(agentProcess.id, retrievedProcess2.id)
         assertEquals(AgentProcessStatusCode.KILLED, retrievedProcess2.status)
     }

@@ -56,7 +56,8 @@ class SuppressThinkingConverter<T : Any>(
      * This delegate handles the actual conversion from the cleaned string to the target type T.
      */
     private val delegate: StructuredOutputConverter<T>,
-    private val thinkBlockFinders: List<ThinkBlockFinder> = listOf(FindMarkupThinkBlock, FindPrefixThinkBlock),
+    private val thinkBlockFinders: List<ThinkBlockFinder> =
+        listOf(FindMarkupThinkBlock, FindPrefixThinkBlock, FindSuffixThinkBlock),
 ) : StructuredOutputConverter<T> {
     private val logger = LoggerFactory.getLogger(SuppressThinkingConverter::class.java)
 
@@ -128,6 +129,39 @@ val FindMarkupThinkBlock: ThinkBlockFinder = { input ->
 val FindPrefixThinkBlock: ThinkBlockFinder = { input ->
     val thinkBlockRegex = "[^{]*".toRegex(RegexOption.DOT_MATCHES_ALL)
     thinkBlockRegex.find(input)?.value
+}
+
+/**
+ * Everything AFTER the JSON object — the other half of [FindPrefixThinkBlock].
+ *
+ * A model that wraps its answer in a markdown fence produces text on BOTH sides of
+ * the object:
+ *
+ * ```
+ * Here is what I found:
+ * ```json
+ * {"name": "Rex"}
+ * ```
+ * ```
+ *
+ * The prefix finder removes the preamble and the opening fence, so the object now
+ * starts correctly — and parsing still fails, on the CLOSING fence, with
+ * `Unexpected character ('`' (code 96)): expected a valid value` as the parser
+ * looks for a second value where the input should have ended.
+ *
+ * Measured 2026-08-10 against a local model driving a retrieval loop: it selected
+ * the right document, scored it, and quoted a verbatim snippet — correct JSON,
+ * discarded over a trailing backtick, three retries deep, on every request. The
+ * failure looks exactly like an incapable model, which is why it survived so long.
+ *
+ * Anchored on the LAST `}` so an object spanning multiple lines is kept whole.
+ * Returns null when there is no `}` at all, rather than proposing to delete the
+ * entire input: with no object present there is nothing to salvage, and removing
+ * everything would turn a diagnosable parse error into an empty string.
+ */
+val FindSuffixThinkBlock: ThinkBlockFinder = { input ->
+    if (!input.contains('}')) null
+    else "[^}]*$".toRegex(RegexOption.DOT_MATCHES_ALL).find(input)?.value
 }
 
 fun stringWithoutThinkBlocks(

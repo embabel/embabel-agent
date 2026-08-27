@@ -16,6 +16,7 @@
 package com.embabel.agent.autoconfigure.models.mistralai;
 
 import com.embabel.agent.spi.support.springai.SpringAiLlmService;
+import com.embabel.agent.test.http.StubChatServer;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -40,12 +41,12 @@ class MistralAiHttpClientTimeoutIT {
 
     @Test
     void mistralHonoursPlatformReadTimeoutForSlowResponses() throws IOException {
-        try (var server = StubMistralServer.replyingAfter(SERVER_DELAY, StubMistralServer.OK_RESPONSE)) {
+        try (var server = StubChatServer.replyingAfter(SERVER_DELAY, MistralResponses.OK)) {
             new ApplicationContextRunner()
                     .withConfiguration(AutoConfigurations.of(AgentMistralAiAutoConfiguration.class))
                     .withPropertyValues(
                             "embabel.agent.platform.models.mistralai.api-key=test-key",
-                            "embabel.agent.platform.models.mistralai.base-url=" + server.baseUrl(),
+                            "embabel.agent.platform.models.mistralai.base-url=" + server.getBaseUrl(),
                             // Single attempt: no retries muddying the timing.
                             "embabel.agent.platform.models.mistralai.max-attempts=1",
                             // The platform read timeout the client must honour: comfortably above SERVER_DELAY.

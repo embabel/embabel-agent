@@ -24,7 +24,9 @@ import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.Embeddable
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.*
+import com.embabel.agent.rag.service.support.Bm25Normalization
 import com.embabel.common.core.types.SimilarityResult
+import com.embabel.common.core.types.SimpleSimilaritySearchResult
 import com.embabel.common.core.types.TextSimilaritySearchRequest
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.loggerFor
@@ -37,65 +39,112 @@ import java.time.Instant
 /**
  * Classic vector search
  */
+/**
+ * Neighbouring chunks around each hit, folded into the result set.
+ *
+ * Reuses the same [ResultExpander] seam `broadenChunk` exposes to the model, so a store that
+ * cannot expand simply never expands — no capability check to keep in step.
+ *
+ * A neighbour INHERITS its hit's score rather than being scored itself. It is continuation
+ * text, not a rival candidate: scoring it independently would let context outrank the match
+ * that found it, and reordering results is not what expansion is for.
+ *
+ * Deduplicated by id and appended after the hits, so an expanded set is a superset of the
+ * unexpanded one in the same order. That matters for anything reading these results
+ * positionally, and it means turning the knob on cannot lose a result.
+ */
+internal fun List<SimilarityResult<out Retrievable>>.withNeighbours(
+    expander: ResultExpander?,
+    each: Int,
+): List<SimilarityResult<out Retrievable>> {
+    if (expander == null || each <= 0 || isEmpty()) return this
+    val seen = mapTo(mutableSetOf()) { it.match.id }
+    val extra = flatMap { hit ->
+        runCatching { expander.expandResult(hit.match.id, ResultExpander.Method.SEQUENCE, each) }
+            .getOrElse { e ->
+                LoggerFactory.getLogger("com.embabel.agent.rag.tools.expand")
+                    .warn("Could not expand {}: {}", hit.match.id, e.message)
+                emptyList<com.embabel.agent.rag.model.ContentElement>()
+            }
+            .filterIsInstance<Chunk>()
+            .filter { neighbour -> seen.add(neighbour.id) }
+            .map { neighbour ->
+                object : SimilarityResult<Chunk> {
+                    override val match: Chunk = neighbour
+                    override val score: Double = hit.score
+                }
+            }
+    }
+    return this + extra
+}
+
+internal fun <T : Retrievable> VectorSearch.vectorSearchWithFilterDispatch(
+    request: TextSimilaritySearchRequest,
+    clazz: Class<T>,
+    metadataFilter: PropertyFilter? = null,
+    entityFilter: EntityFilter? = null,
+): List<SimilarityResult<T>> = when {
+    metadataFilter == null && entityFilter == null -> vectorSearch(request, clazz)
+    this is FilteringVectorSearch -> vectorSearchWithFilter(request, clazz, metadataFilter, entityFilter)
+    else -> PostFilteringSearch.search(
+        request,
+        metadataFilter,
+        entityFilter,
+        TopKInflationStrategy.DEFAULT,
+    ) { inflatedRequest ->
+        vectorSearch(inflatedRequest, clazz)
+    }
+}
+
 internal class VectorSearchTools @JvmOverloads constructor(
     private val vectorSearch: VectorSearch,
     private val searchFor: List<Class<out Retrievable>> = listOf(Chunk::class.java),
     private val metadataFilter: PropertyFilter? = null,
     private val entityFilter: EntityFilter? = null,
     private val resultsListener: ResultsListener? = null,
+    private val searchDefaults: SearchDefaults = SearchDefaults.DEFAULT,
+    private val resultExpander: ResultExpander? = null,
 ) : SearchTools {
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
 
-    @LlmTool(description = "Perform vector search. Specify topK and similarity threshold from 0-1")
+    // `threshold` is OPTIONAL on purpose — see [SearchDefaults]. Models routinely
+    // guessed a high cutoff (0.7-0.8), got nothing back, and concluded the corpus
+    // didn't cover the question. topK is the limiter; the threshold is a noise floor.
+    @LlmTool(description = "Perform vector search. Specify topK. Ranking handles relevance — omit threshold unless you have a specific reason to floor it.")
     fun vectorSearch(
         query: String,
         topK: Int,
-        @LlmTool.Param(description = "similarity threshold from 0-1") threshold: ZeroToOne,
+        @LlmTool.Param(
+            description = "Optional similarity floor from 0-1. Omit this unless you need to exclude weak matches: scores are not calibrated across embedding models, and setting it too high silently returns nothing.",
+            required = false,
+        ) threshold: ZeroToOne = searchDefaults.vectorSimilarityThreshold,
     ): String {
         logger.info(
             "Performing vector search with query='{}', topK={}, threshold={}, types={}, metadataFilter={}, entityFilter={}",
             query, topK, threshold, searchFor.map { it.simpleName }, metadataFilter, entityFilter
         )
         val request = TextSimilaritySearchRequest(query, threshold, topK)
-        val (results, ms) = time {
+        val results = search(request)
+        return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList<Retrievable>(results))
+    }
+
+    internal fun search(request: TextSimilaritySearchRequest): List<SimilarityResult<out Retrievable>> {
+        val (hits, ms) = time {
             searchForAllTypes(request)
         }
-        resultsListener?.onResultsEvent(ResultsEvent(this, query, results, Duration.ofMillis(ms)))
-        return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList<Retrievable>(results))
+        // Expanded BEFORE the listener fires: an observer must see what the model sees, or
+        // reported provenance and the answer's actual evidence drift apart.
+        val results = hits.withNeighbours(resultExpander, searchDefaults.expandNeighbours)
+        resultsListener?.onResultsEvent(ResultsEvent(this, request.query, results, Duration.ofMillis(ms)))
+        return results
     }
 
     private fun searchForAllTypes(request: TextSimilaritySearchRequest): List<SimilarityResult<out Retrievable>> {
         val allResults = searchFor.flatMap { clazz ->
-            searchWithFilter(request, clazz)
+            vectorSearch.vectorSearchWithFilterDispatch(request, clazz, metadataFilter, entityFilter)
         }
         return deduplicateByIdKeepingHighestScore(allResults)
-    }
-
-    @Suppress("UNCHECKED_CAST")
-    private fun <T : Retrievable> searchWithFilter(
-        request: TextSimilaritySearchRequest,
-        clazz: Class<T>,
-    ): List<SimilarityResult<T>> {
-        if (metadataFilter == null && entityFilter == null) {
-            return vectorSearch.vectorSearch(request, clazz)
-        }
-
-        // If backend supports native filtering, use it
-        if (vectorSearch is FilteringVectorSearch) {
-            return vectorSearch.vectorSearchWithFilter(request, clazz, metadataFilter, entityFilter)
-        }
-
-        // Fallback: inflate topK, search, post-filter, take topK
-        // Note: PostFilteringSearch requires Datum constraint, so we cast
-        return PostFilteringSearch.search(
-            request,
-            metadataFilter,
-            entityFilter,
-            TopKInflationStrategy.DEFAULT
-        ) { inflatedRequest ->
-            vectorSearch.vectorSearch(inflatedRequest, clazz)
-        } as List<SimilarityResult<T>>
     }
 }
 
@@ -117,6 +166,7 @@ internal class VectorSearchTools @JvmOverloads constructor(
 internal class ResultExpanderTools @JvmOverloads constructor(
     private val resultExpander: ResultExpander,
     private val maxZoomOutChars: Int = DEFAULT_MAX_ZOOM_OUT_CHARS,
+    private val resultsListener: ResultsListener? = null,
 ) : SearchTools {
 
     @LlmTool(description = "given a chunk ID, expand to surrounding chunks")
@@ -124,9 +174,25 @@ internal class ResultExpanderTools @JvmOverloads constructor(
         @LlmTool.Param(description = "id of the chunk to expand") chunkId: String,
         @LlmTool.Param(description = "chunksToAdd", required = false) chunksToAdd: Int = 2,
     ): String {
-        val chunks = resultExpander.expandResult(chunkId, ResultExpander.Method.SEQUENCE, chunksToAdd)
-         .filterIsInstance<Chunk>()
+        val (chunks, ms) = time {
+            resultExpander.expandResult(chunkId, ResultExpander.Method.SEQUENCE, chunksToAdd)
+                .filterIsInstance<Chunk>()
+        }
         if (chunks.isEmpty()) return "No adjacent chunks found for this section."
+        // Expanded chunks are evidence the model SEES and quotes from. An observer
+        // (attribution rollup, quoted-figure verification) that never learns of them
+        // mislabels legitimate quotes as inventions — measured 2026-08-13, where a
+        // fidelity check flagged clause numbers quoted from a broadened table of
+        // contents. Same full-score contract as section reads: the model asked for
+        // these chunks; every one is evidence.
+        resultsListener?.onResultsEvent(
+            ResultsEvent(
+                this,
+                "broadenChunk: $chunkId",
+                chunks.map { SimpleSimilaritySearchResult<Retrievable>(it, 1.0) },
+                Duration.ofMillis(ms),
+            ),
+        )
         return chunks.joinToString("\n") { "Chunk ID: ${it.id}\nContent: ${it.text}\n" }
     }
 
@@ -134,9 +200,23 @@ internal class ResultExpanderTools @JvmOverloads constructor(
     fun zoomOut(
         @LlmTool.Param(description = "id of the content element to expand") id: String,
     ): String {
-        val embeddables = resultExpander.expandResult(id, ResultExpander.Method.ZOOM_OUT, 1)
-         .filter { it is Embeddable }
+        val (embeddables, ms) = time {
+            resultExpander.expandResult(id, ResultExpander.Method.ZOOM_OUT, 1)
+                .filter { it is Embeddable }
+        }
         if (embeddables.isEmpty()) return "No parent section found."
+        // Same observability contract as broadenChunk for whatever is Retrievable.
+        val retrievables = embeddables.filterIsInstance<Retrievable>()
+        if (retrievables.isNotEmpty()) {
+            resultsListener?.onResultsEvent(
+                ResultsEvent(
+                    this,
+                    "zoomOut: $id",
+                    retrievables.map { SimpleSimilaritySearchResult<Retrievable>(it, 1.0) },
+                    Duration.ofMillis(ms),
+                ),
+            )
+        }
         val result = embeddables.joinToString("\n") { contentElement ->
             "${contentElement.javaClass.simpleName}: id=${contentElement.id}\nContent: ${(contentElement as Embeddable).embeddableValue()}\n"
         }
@@ -151,6 +231,165 @@ internal class ResultExpanderTools @JvmOverloads constructor(
 
     companion object {
         const val DEFAULT_MAX_ZOOM_OUT_CHARS = 25_000
+    }
+}
+
+/**
+ * Tools to navigate a document's section structure by NAME, over a [SectionReader] store.
+ *
+ * Search retrieves isolated hits; some content only answers whole. The motivating case is
+ * structured data split across chunks — a financial statement whose header row, row labels
+ * and values land in different chunks, so search-hit reassembly picks wrong rows or a wrong
+ * period column. `listSections` is the document's real table of contents; `readSection`
+ * returns a named section complete and in order.
+ *
+ * Chunks returned by `readSection` are reported to the [ResultsListener] at full score, so
+ * observed-attribution consumers see section reads the same way they see search hits.
+ */
+internal class SectionReadingTools @JvmOverloads constructor(
+    private val sectionReader: SectionReader,
+    private val resultsListener: ResultsListener? = null,
+    private val maxReadSectionChars: Int = DEFAULT_MAX_READ_SECTION_CHARS,
+) : SearchTools {
+
+    private val logger: Logger = LoggerFactory.getLogger(javaClass)
+
+    @LlmTool(
+        description = "List the section headings of a document — its table of contents — with chunk counts. " +
+            "Use to find the exact section that holds structured data (a financial statement, a schedule, an appendix) " +
+            "before reading it with readSection."
+    )
+    fun listSections(
+        @LlmTool.Param(
+            description = "Case-insensitive substring of the document title to scope to. Omit to list all documents' sections.",
+            required = false,
+        ) documentTitle: String? = null,
+    ): String {
+        val sections = sectionReader.listSections(documentTitle)
+        if (sections.isEmpty()) {
+            return "No sections found" + (documentTitle?.let { " for document title containing '$it'" } ?: "") + "."
+        }
+        val listing = sections
+            .groupBy { it.documentTitle }
+            .entries
+            .joinToString("\n") { (doc, docSections) ->
+                "Document: $doc\n" + docSections.joinToString("\n") { "  - ${it.title} (${it.chunkCount} chunks)" }
+            }
+        if (listing.length > maxReadSectionChars) {
+            return listing.take(maxReadSectionChars) +
+                "\n\n[TRUNCATED — narrow with the documentTitle parameter.]"
+        }
+        return listing
+    }
+
+    @LlmTool(
+        description = "Read EVERY chunk of a named section in document order — e.g. a complete financial statement " +
+            "or schedule. Use when you need structured data whole (all rows of a table, with the header row) rather " +
+            "than isolated search hits. Get the exact title from listSections or from a retrieved chunk's Section header."
+    )
+    fun readSection(
+        @LlmTool.Param(description = "Exact section title, as shown by listSections or a chunk's Section header")
+        sectionTitle: String,
+        @LlmTool.Param(
+            description = "Case-insensitive substring of the document title, to disambiguate when documents share section names.",
+            required = false,
+        ) documentTitle: String? = null,
+    ): String {
+        logger.info("Reading section '{}' documentTitle={}", sectionTitle, documentTitle)
+        val (chunks, ms) = time {
+            sectionReader.readSection(sectionTitle, documentTitle)
+        }
+        if (chunks.isEmpty()) {
+            return "No section titled '$sectionTitle' found" +
+                (documentTitle?.let { " in a document whose title contains '$it'" } ?: "") +
+                ". Use listSections to see the available section titles."
+        }
+        // NEVER blend documents. Similar documents share section names (contracts,
+        // periodic filings), and a title match that silently concatenates several
+        // documents hands the model the WRONG one to quote from — measured 2026-08-14
+        // (CUAD): governing-law answers cited a different contract's clause at full
+        // confidence. Ambiguity is surfaced as a choice, not merged.
+        //
+        // Provenance comes from the chunk's structural fields, which the chunker always
+        // populates: keying off a free-form metadata key nobody writes would leave every
+        // chunk indistinguishable and silently re-enable the blending this prevents.
+        val documents = chunks
+            .map { DocumentProvenance(it.structure.rootDocumentId, it.structure.rootDocumentTitle) }
+            .distinct()
+        // Unknown provenance FAILS CLOSED: a chunk we cannot attribute is the least safe
+        // input to concatenate, not an excuse to skip the check.
+        if (documents.size > 1) {
+            return "Section '$sectionTitle' exists in ${documents.size} documents: " +
+                documents.joinToString("; ") { it.describe() } +
+                (documentTitle?.let {
+                    ". The documentTitle '$it' still matches more than one — pass a longer, " +
+                        "more specific substring"
+                } ?: ". Call readSection again with a documentTitle") +
+                " to pick ONE."
+        }
+        val rendered = chunks.map { "Chunk ID: ${it.id}\nContent: ${it.text}\n" }
+        // Truncate at a chunk boundary, and report ONLY the chunks that survived it. Full score:
+        // the model asked for this section by name, so what it was shown is evidence exactly as a
+        // search hit is — but reporting a chunk it never saw lets an attribution check treat an
+        // ungrounded quote as grounded, which is the same failure in the other direction.
+        val shown = rendered
+            .runningFold(0) { chars, chunkText -> chars + chunkText.length + 1 }
+            .drop(1)
+            .takeWhile { it <= maxReadSectionChars }
+            .size
+            .coerceAtLeast(1)
+        val results = chunks.take(shown).map { SimpleSimilaritySearchResult<Retrievable>(it, 1.0) }
+        resultsListener?.onResultsEvent(ResultsEvent(this, "readSection: $sectionTitle", results, Duration.ofMillis(ms)))
+        val text = rendered.take(shown).joinToString("\n")
+        if (shown < chunks.size || text.length > maxReadSectionChars) {
+            val what = if (shown < chunks.size) {
+                "showing $shown of ${chunks.size} chunks"
+            } else {
+                // A single chunk over the cap: the model sees part of a chunk reported whole.
+                "one chunk of ${text.length} chars cut at $maxReadSectionChars"
+            }
+            return text.take(maxReadSectionChars) +
+                "\n\n[TRUNCATED — $what. The chunks above are in document order; " +
+                "use vectorSearch or textSearch for the rest, or broadenChunk from the last chunk shown.]"
+        }
+        return text
+    }
+
+    /**
+     * Which document a section's chunks came from. Identity is the root document id — the
+     * title is what the model is shown, but two documents may legitimately share one.
+     */
+    private data class DocumentProvenance(
+        val id: String?,
+        val title: String?,
+    ) {
+        fun describe(): String = when {
+            title != null -> "'$title'"
+            id != null -> "document $id"
+            else -> "an unattributed document"
+        }
+    }
+
+    companion object {
+        const val DEFAULT_MAX_READ_SECTION_CHARS = 25_000
+    }
+}
+
+internal fun <T : Retrievable> TextSearch.textSearchWithFilterDispatch(
+    request: TextSimilaritySearchRequest,
+    clazz: Class<T>,
+    metadataFilter: PropertyFilter? = null,
+    entityFilter: EntityFilter? = null,
+): List<SimilarityResult<T>> = when {
+    metadataFilter == null && entityFilter == null -> textSearch(request, clazz)
+    this is FilteringTextSearch -> textSearchWithFilter(request, clazz, metadataFilter, entityFilter)
+    else -> PostFilteringSearch.search(
+        request,
+        metadataFilter,
+        entityFilter,
+        TopKInflationStrategy.DEFAULT,
+    ) { inflatedRequest ->
+        textSearch(inflatedRequest, clazz)
     }
 }
 
@@ -175,6 +414,8 @@ internal class TextSearchTools @JvmOverloads constructor(
     private val metadataFilter: PropertyFilter? = null,
     private val entityFilter: EntityFilter? = null,
     private val resultsListener: ResultsListener? = null,
+    private val searchDefaults: SearchDefaults = SearchDefaults.DEFAULT,
+    private val resultExpander: ResultExpander? = null,
 ) : SearchTools, Tool {
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
@@ -197,9 +438,11 @@ internal class TextSearchTools @JvmOverloads constructor(
                     name = "topK",
                     description = "Maximum number of results to return.",
                 ),
+                // Optional — mirrors [VectorSearchTools.vectorSearch]. See [SearchDefaults].
                 Tool.Parameter.double(
                     name = "threshold",
-                    description = "Similarity threshold from 0 to 1.",
+                    description = "Optional similarity floor from 0 to 1. Omit this unless you need to exclude weak matches: BM25 scores are corpus-relative, so ranking is what selects results.",
+                    required = false,
                 ),
             ),
         )
@@ -212,8 +455,10 @@ internal class TextSearchTools @JvmOverloads constructor(
             ?: return Tool.Result.error("'query' parameter is required")
         val topK = (params["topK"] as? Number)?.toInt()
             ?: return Tool.Result.error("'topK' parameter is required")
+        // Absent (or non-numeric, e.g. a JSON null) threshold falls back to the
+        // configured floor rather than erroring — the parameter is optional.
         val threshold = (params["threshold"] as? Number)?.toDouble()
-            ?: return Tool.Result.error("'threshold' parameter is required")
+            ?: searchDefaults.textSimilarityThreshold
         Tool.Result.text(textSearch(query, topK, threshold))
     } catch (e: Exception) {
         Tool.Result.error("textSearch failed: ${e.message}")
@@ -227,7 +472,7 @@ internal class TextSearchTools @JvmOverloads constructor(
     fun textSearch(
         query: String,
         topK: Int,
-        threshold: ZeroToOne,
+        threshold: ZeroToOne = searchDefaults.textSimilarityThreshold,
     ): String {
         logger.info(
             "Performing text search with query='{}', topK={}, threshold={}, types={}, metadataFilter={}, entityFilter={}",
@@ -235,43 +480,22 @@ internal class TextSearchTools @JvmOverloads constructor(
         )
 
         val request = TextSimilaritySearchRequest(query, threshold, topK)
-        val (results, ms) = time {
+        val (hits, ms) = time {
             searchForAllTypes(request)
         }
+        // Warn on the HITS, not the expanded set: the threshold suppressed matches, and
+        // neighbours added afterwards would mask exactly the emptiness worth warning about.
+        Bm25Normalization.warnIfThresholdSuppressedResults(logger, query, threshold, hits.size)
+        val results = hits.withNeighbours(resultExpander, searchDefaults.expandNeighbours)
         resultsListener?.onResultsEvent(ResultsEvent(this, query, results, Duration.ofMillis(ms)))
         return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList<Retrievable>(results))
     }
 
     private fun searchForAllTypes(request: TextSimilaritySearchRequest): List<SimilarityResult<out Retrievable>> {
         val allResults = searchFor.flatMap { clazz ->
-            searchWithFilter(request, clazz)
+            textSearch.textSearchWithFilterDispatch(request, clazz, metadataFilter, entityFilter)
         }
         return deduplicateByIdKeepingHighestScore(allResults)
-    }
-
-    @Suppress("UNCHECKED_CAST")
-    private fun <T : Retrievable> searchWithFilter(
-        request: TextSimilaritySearchRequest,
-        clazz: Class<T>,
-    ): List<SimilarityResult<T>> {
-        if (metadataFilter == null && entityFilter == null) {
-            return textSearch.textSearch(request, clazz)
-        }
-
-        // If backend supports native filtering, use it
-        if (textSearch is FilteringTextSearch) {
-            return textSearch.textSearchWithFilter(request, clazz, metadataFilter, entityFilter)
-        }
-
-        // Fallback: inflate topK, search, post-filter, take topK
-        return PostFilteringSearch.search(
-            request,
-            metadataFilter,
-            entityFilter,
-            TopKInflationStrategy.DEFAULT
-        ) { inflatedRequest ->
-            textSearch.textSearch(inflatedRequest, clazz)
-        } as List<SimilarityResult<T>>
     }
 
     companion object {

@@ -4,12 +4,12 @@
     <parent>
         <groupId>com.embabel.build</groupId>
         <artifactId>embabel-dependencies-parent</artifactId>
-        <version>2.0.0-SNAPSHOT</version>
+        <version>2.0.1</version>
         <relativePath />
     </parent>
     <groupId>com.embabel.agent</groupId>
     <artifactId>embabel-agent-dependencies</artifactId>
-    <version>1.5.0-SNAPSHOT</version>
+    <version>1.5.2-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Embabel Agent BOM</name>
     <description>Embabel Agent BOM</description>
@@ -18,6 +18,7 @@
     <properties>
         <bouncycastle.version>1.84</bouncycastle.version>
         <oci-sdk.version>3.86.1</oci-sdk.version>
+        <apache-httpcomponents.version>5.4.3</apache-httpcomponents.version>
     </properties>
 
     <scm>
@@ -133,6 +134,12 @@
 
             <dependency>
                 <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-byok-autoconfigure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-dockermodels-autoconfigure</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -194,6 +201,12 @@
             <dependency>
                 <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-zai-autoconfigure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-dashscope-autoconfigure</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -307,6 +320,12 @@
 
             <dependency>
                 <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-starter-byok</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-starter-dockermodels</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -344,6 +363,12 @@
             <dependency>
                 <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-starter-zai</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-starter-dashscope</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -432,22 +457,7 @@
                 <version>1.29.0-alpha</version>
             </dependency>
 
-            <!--
-                Bouncy Castle BOM: workaround for CVE-2025-14813 (issue #1638).
-                tika-parsers-standard-package 3.3.0 pulls in bcprov-jdk18on 1.83 transitively
-                via tika-parser-crypto-module. Tika main has moved to BC 1.84 but no patch
-                release is out yet. Importing the BC BOM aligns all bc-*-jdk18on artifacts on
-                a single version, avoiding 1.83/1.84 mixes on the classpath.
-                REMOVE this import once we upgrade to a Tika release that ships BC >= 1.84.
-            -->
-            <dependency>
-                <groupId>org.bouncycastle</groupId>
-                <artifactId>bc-jdk18on-bom</artifactId>
-                <version>${bouncycastle.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-
+            <!-- Not a right place, should be in embabel-build repository-->
             <dependency>
                 <groupId>com.oracle.oci.sdk</groupId>
                 <artifactId>oci-java-sdk-bom</artifactId>

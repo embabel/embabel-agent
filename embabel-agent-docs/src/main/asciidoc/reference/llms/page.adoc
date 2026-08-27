@@ -598,6 +598,179 @@ ai.withLlmByRole("best")
 
 NOTE: If no LLM is specified in `@LlmCall` or `withLlm()`, the `default-llm` from configuration is used.
 
+===== Roles across providers
+
+The flat `llms` map above names one model per role, and a model belongs to one provider. That is the
+right shape when a deployment will only ever be keyed for one provider. When it will not - a
+bring-your-own-key application, or one that fails over between providers - give the role a provider
+dimension with `roles`:
+
+[source,yaml]
+----
+embabel:
+  models:
+    default-llm: gpt-4.1-mini
+    roles:
+      cheapest:
+        openai:
+          model: gpt-4.1-nano       # <1>
+        anthropic:
+          model: claude-haiku-4-5
+          temperature: 0.3          # <2>
+      best:
+        openai:
+          model: gpt-4.1
+        anthropic:
+          model: claude-sonnet-4-6
+----
+<1> The model this role means when OpenAI is the active provider
+<2> Tuning configured against the role, applied whenever this role resolves to this provider
+
+Call sites do not change: `ai.withLlmByRole("cheapest")` resolves against whichever provider is
+active for the call. With no user key in play, that is the provider supplying the `default-llm`, so
+a single-provider deployment needs nothing further.
+
+Anything the caller sets explicitly still wins over what the role configures, so
+`ai.withLlmByRole("cheapest").withTemperature(0.9)` keeps `0.9`.
+
+A role that cannot be satisfied - because the active provider has no entry for it, or the model it
+names is not registered - throws `NoSuitableModelException` at the point of use. It does not quietly
+resolve to something else: falling back to the `default-llm` would let a role like `cheapest` become
+the most capable, and most expensive, model in the deployment without anyone noticing.
+
+Startup is a separate question, and the answer depends on whether the deployment holds a key. A
+deployment that has one is expected to name models it has: an unresolvable name there is a typo,
+and letting it boot would move the failure to whichever unrelated call first asks for that role.
+A deployment still waiting for a key has no models registered yet by definition, so the same name
+is expected and only worth reporting.
+
+[cols="2,1,3", options="header", frame="all", grid="all"]
+|===
+|Configuration |At startup |Notes
+
+|Keyed deployment, `embabel.models.llms` names an unregistered model
+|Fails
+|A typo, and fatal. The message names the role and the models that were available.
+
+|Keyed deployment, `embabel.models.roles` names an unregistered model *under the deployment's own provider*
+|Fails
+|Same rule as the flat map. Applying it to only one of the two shapes was the original defect here.
+
+|Keyed deployment, `embabel.models.roles` names a model under *any other* provider
+|Not checked
+|The point of the nested shape. That entry applies when a user brings a key for that provider, so its model is not expected to be registered here - warning about it would train people to ignore the warning.
+
+|Deployment awaiting a key (BYOK, `default-llm` resolving to the placeholder)
+|Warns
+|Nothing is registered yet, so every role is unresolvable and none of it is a typo. Roles resolve to the placeholder, which fails with an actionable "no LLM configured" error until a key arrives. That error names the role and the model it wanted — `cheapest wanted 'gpt-4.1-nanoo'` — because in this mode a misspelled model name and a name merely awaiting a key are indistinguishable at startup, and naming both is what lets you tell them apart.
+
+|A role reached through a user's own credential
+|n/a
+|Resolved per call against that provider's entry only. It never falls back to the flat `embabel.models.llms` map - a user's key must not silently select a model the deployment pays for.
+|===
+
+Whichever way startup goes, asking for a role that cannot be satisfied still throws at the point of
+use, and the message names the role, the active provider, and the models that were available.
+
+===== Resolving roles in code
+
+To decide what a role means per user rather than per deployment, register a `RoleResolver` bean.
+Resolvers are consulted in `Ordered` order, ahead of the configuration above, and returning `null`
+delegates to the next one.
+
+[source,kotlin]
+----
+@Component
+class ByokRoleResolver(
+    private val userKeyStore: UserKeyStore,
+) : RoleResolver {
+
+    override fun resolve(role: String, context: ModelSelectionContext): RoleResolution? =
+        context.userId
+            ?.let { userKeyStore.activeKeyFor(it) }
+            ?.let { RoleResolution.Credential(ProviderCredential(it.provider, it.apiKey)) }
+}
+----
+
+`RoleResolution.Credential` hands back a key and lets the platform do the rest: it looks up what the
+role means under that provider, builds the service for it, and caches it per (provider, key, model)
+so it is not rebuilt on every call. Return `RoleResolution.Options` to name a model and its tuning
+directly, or `RoleResolution.Service` to supply an `LlmService` you built yourself.
+
+`embabel-agent-starter-byok` already knows where to send a key for every provider BYOK supports —
+Anthropic, OpenAI, DeepSeek, Mistral, Gemini and Atlas Cloud. The resolver above is therefore all
+the code a deployment using any of them needs.
+
+The `ModelSelectionContext` a resolver receives comes from `ModelSelectionContextHolder`, which the
+application sets at its request boundary:
+
+[source,kotlin]
+----
+ModelSelectionContextHolder.with(ModelSelectionContext(userId = currentUserId)) {
+    agentPlatform.runAgent(...)
+}
+----
+
+The platform carries the context across the threads it starts itself — a background agent run,
+parallel actions, `OperationContext.parallelMap` — so setting it once at the request boundary is
+enough. It does not reach threads your own code spawns: capture it there with
+`ModelSelectionContextHolder.get()` and re-establish it inside the new thread.
+
+===== Adding a provider of your own
+
+For a provider the starter does not cover — a gateway, a proxy, a self-hosted endpoint — register a
+`CredentialEndpointResolver`. It says where a key goes and what the service built from it should
+call itself; the platform builds the client:
+
+[source,kotlin]
+----
+@Bean
+fun ourGatewayEndpoint() = CredentialEndpointResolver { credential, _ ->
+    if (!credential.provider.equals("OurGateway", ignoreCase = true)) null
+    else CredentialEndpoint.OpenAiCompatible(provider = "OurGateway", baseUrl = GATEWAY_URL)
+}
+----
+
+The case names the wire protocol, which is what decides the client: `OpenAiCompatible` for the
+OpenAI protocol — OpenAI itself, DeepSeek, Mistral, Gemini, Atlas Cloud and most gateways — or
+`Anthropic` for Anthropic's. Both carry `pricingModel`, which defaults to
+`PricingModel.ALL_YOU_CAN_EAT` because a BYOK call is billed to the user's key rather than to the
+deployment, and `knowledgeCutoffDate`, which is null unless you know it for the model the role named.
+
+Your resolvers are asked first, in `Ordered` order, and the endpoints the starter already knows are
+the fallback — so answering for a provider the framework handles overrides it, which is how you
+route OpenAI through your own proxy. No `@Order` is needed for that; it decides only which of your
+own resolvers is asked first. Return `null` for a provider you do not handle: a resolver that
+answers for everything would point someone else's key at your endpoint. If nothing handles the
+provider, the role fails with `NoSuitableModelException` and a log line naming it.
+
+A resolver returns a value, so it needs no Spring context to test and nothing from
+`com.embabel.agent.spi`, which <<reference.api-evolution,application code should not depend on>>.
+
+For a wire protocol this framework has no client for, register a `CredentialLlmServiceFactory`
+instead and build the service yourself. That one does name `LlmService`, an SPI type, which is why
+it is the second choice rather than the first. The shipped implementations — one per protocol —
+stand aside for a bean of the same name, but replacing one that way also replaces the code that
+builds what your `CredentialEndpointResolver` beans resolve for that protocol.
+
+===== Reading what a role is configured to mean
+
+Resolution answers "what will this call use", which depends on the active key and on any
+`RoleResolver` beans. A settings screen or diagnostic endpoint wants a different question — "what
+does this deployment declare this role to be" — and answering it by reading `embabel.models`
+directly means reimplementing the precedence between the flat and nested shapes, which is how a
+settings screen ends up disagreeing with what actually runs.
+
+`ModelProvider.configuredOptionsForRole` answers that question against the deployment's own
+provider, ignoring user keys and application resolvers:
+
+[source,kotlin]
+----
+val declared: String? = modelProvider.configuredOptionsForRole("cheapest")?.modelName
+----
+
+Use `resolveLlmOptions` instead when you need to know what a specific call will really do.
+
 ===== Using Your Custom Implementation (Alternative)
 
 If you need more control over the LLM operations layer itself, you can extend `ToolLoopLlmOperations`:

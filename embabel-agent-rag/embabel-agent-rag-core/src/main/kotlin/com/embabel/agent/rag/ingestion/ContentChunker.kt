@@ -16,6 +16,7 @@
 package com.embabel.agent.rag.ingestion
 
 import com.embabel.agent.rag.model.Chunk
+import com.embabel.agent.rag.model.ChunkStructure
 import com.embabel.agent.rag.model.NavigableContainerSection
 
 /**
@@ -58,38 +59,41 @@ interface ContentChunker {
     companion object {
 
         /** Metadata key for the zero-based index of this chunk within its parent section */
-        const val CHUNK_INDEX = "chunk_index"
+        const val CHUNK_INDEX = ChunkStructure.CHUNK_INDEX
 
         /** Metadata key for the total number of chunks created from the parent section */
-        const val TOTAL_CHUNKS = "total_chunks"
+        const val TOTAL_CHUNKS = ChunkStructure.TOTAL_CHUNKS
 
         /**
          * Metadata key for a stable sequence number used for sorting chunks within a container section hierarchy.
          * This is a zero-based sequential number assigned to each chunk as it is created from a container section,
          * preserving the original order of leaves and their chunks. Use this for stable, predictable sorting.
          */
-        const val SEQUENCE_NUMBER = "sequence_number"
+        const val SEQUENCE_NUMBER = ChunkStructure.SEQUENCE_NUMBER
 
         /** Metadata key for the unique identifier of the root document */
-        const val ROOT_DOCUMENT_ID = "root_document_id"
+        const val ROOT_DOCUMENT_ID = ChunkStructure.ROOT_DOCUMENT_ID
+
+        /** Metadata key for the human-readable title of the root document */
+        const val ROOT_DOCUMENT_TITLE = ChunkStructure.ROOT_DOCUMENT_TITLE
 
         /** Metadata key for the unique identifier of the container section */
-        const val CONTAINER_SECTION_ID = "container_section_id"
+        const val CONTAINER_SECTION_ID = ChunkStructure.CONTAINER_SECTION_ID
 
         /** Metadata key for the title of the container section */
-        const val CONTAINER_SECTION_TITLE = "container_section_title"
+        const val CONTAINER_SECTION_TITLE = ChunkStructure.CONTAINER_SECTION_TITLE
 
         /** Metadata key for the URI/URL of the container section */
-        const val CONTAINER_SECTION_URL = "container_section_url"
+        const val CONTAINER_SECTION_URL = ChunkStructure.CONTAINER_SECTION_URL
 
         /** Metadata key for the unique identifier of the leaf section */
-        const val LEAF_SECTION_ID = "leaf_section_id"
+        const val LEAF_SECTION_ID = ChunkStructure.LEAF_SECTION_ID
 
         /** Metadata key for the title of the leaf section */
-        const val LEAF_SECTION_TITLE = "leaf_section_title"
+        const val LEAF_SECTION_TITLE = ChunkStructure.LEAF_SECTION_TITLE
 
         /** Metadata key for the URI/URL of the leaf section */
-        const val LEAF_SECTION_URL = "leaf_section_url"
+        const val LEAF_SECTION_URL = ChunkStructure.LEAF_SECTION_URL
 
         /**
          * Factory method to create an InMemoryContentChunker.
