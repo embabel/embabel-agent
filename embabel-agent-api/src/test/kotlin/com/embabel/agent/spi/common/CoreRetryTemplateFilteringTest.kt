@@ -54,13 +54,12 @@ class CoreRetryTemplateFilteringTest {
     private fun attemptsFor(error: Throwable): Int {
         val attempts = AtomicInteger()
         val template = properties.coreRetryTemplate(MODEL)
-        try {
+        // core.retry wraps the last failure in a RetryException; the attempt count is the subject
+        runCatching {
             template.execute<Any> {
                 attempts.incrementAndGet()
                 throw error
             }
-        } catch (expected: Throwable) {
-            // core.retry wraps the last failure in a RetryException; the attempt count is the subject
         }
         return attempts.get()
     }

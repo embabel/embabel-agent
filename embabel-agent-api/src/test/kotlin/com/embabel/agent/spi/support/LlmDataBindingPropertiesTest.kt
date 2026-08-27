@@ -165,7 +165,7 @@ class LlmDataBindingPropertiesTest {
             }
             // Should only attempt once
             assertEquals(1, attemptCount)
-            assertTrue(output.out.contains("Maximum attempts of 1 have reached. The maximum attempt can be configured using property embabel.agent.platform.llm-operations.data-binding.max-attempts"))
+            assertTrue(output.out.contains("Maximum attempts of 1 have been reached. The maximum attempt can be configured using property embabel.agent.platform.llm-operations.data-binding.max-attempts"))
         }
     }
 

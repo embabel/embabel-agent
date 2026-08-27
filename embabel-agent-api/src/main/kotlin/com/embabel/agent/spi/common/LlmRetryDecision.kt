@@ -34,7 +34,24 @@ internal object LlmRetryDecision {
 
     private const val TOO_MANY_REQUESTS = 429
 
-    private val RATE_LIMIT_PHRASES = listOf("rate limit", "rate-limit", "too many requests", "quota exceeded")
+    /**
+     * Last resort, not a registry of provider wording. [httpStatus] runs first and settles every
+     * provider that goes through Spring AI's HTTP layer: either a `RestClientResponseException` in
+     * the cause chain, or the "<status> - <body>" string Spring AI renders. These phrases are
+     * reached only when neither is present, which leaves one case — a native SDK that wraps its own
+     * rate limit in its own exception type.
+     *
+     * Separators are normalised before matching, so this single "rate limit" entry also covers
+     * "rate-limit", "rate_limit_error" and "rate_limit_exceeded".
+     *
+     * Maintenance is the per-provider retry test, not this list. Each provider module ships a
+     * hermetic test that replays its real 429 body (`MistralAiRetryTest`, `DeepSeekRetryTest`,
+     * `GoogleGenAiRetryTest`), so a gap fails a build rather than surfacing in production. Add a
+     * phrase here only alongside a failing test proving no existing entry reaches it.
+     */
+    private val RATE_LIMIT_PHRASES = listOf("rate limit", "too many requests", "quota exceeded")
+
+    private val SEPARATORS = Regex("""[_\-]+""")
 
     /**
      * Spring AI renders an HTTP failure as "<status> - <body>", so the status is always a prefix.
@@ -44,7 +61,7 @@ internal object LlmRetryDecision {
 
     fun isRateLimit(t: Throwable): Boolean {
         httpStatus(t)?.let { return it == TOO_MANY_REQUESTS }
-        val message = t.message?.lowercase() ?: return false
+        val message = t.message?.lowercase()?.replace(SEPARATORS, " ") ?: return false
         return RATE_LIMIT_PHRASES.any { message.contains(it) }
     }
 
@@ -78,8 +95,10 @@ internal object LlmRetryDecision {
     private fun marker(t: Throwable): Boolean? {
         var cause: Throwable? = t
         while (cause != null) {
-            if (cause is NonRetryable) return false
-            if (cause is Retryable) return true
+            when (cause) {
+                is NonRetryable -> return false
+                is Retryable -> return true
+            }
             cause = cause.cause
         }
         return null

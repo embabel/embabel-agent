@@ -126,4 +126,54 @@ class LlmRetryDecisionConsistencyTest {
                 .isFalse()
         }
     }
+
+    /**
+     * With no status to go on, the wording is all we have. Providers spell the same condition
+     * with spaces, hyphens or underscores: DeepSeek returns `rate_limit_exceeded`, Mistral
+     * `rate_limit_exceeded`, OpenAI "Rate limit reached". One normalised phrase must reach all
+     * of them, so the list stays short instead of growing an entry per provider.
+     */
+    @Nested
+    inner class WordingWithoutAStatusCode {
+
+        @Test
+        fun `underscored provider code is a rate limit`() {
+            val e = NonTransientAiException("rate_limit_exceeded")
+            assertThat(announcedAsRateLimited(e))
+                .describedAs("separators must not hide the phrase")
+                .isTrue()
+            assertThat(retried(e))
+                .describedAs("announced as rate limited, so it must be retried")
+                .isTrue()
+        }
+
+        @Test
+        fun `hyphenated wording is a rate limit`() {
+            val e = NonTransientAiException("rate-limit reached, back off")
+            assertThat(announcedAsRateLimited(e)).isTrue()
+            assertThat(retried(e)).isTrue()
+        }
+
+        @Test
+        fun `underscored error type is a rate limit`() {
+            val e = NonTransientAiException("rate_limit_error")
+            assertThat(announcedAsRateLimited(e)).isTrue()
+            assertThat(retried(e)).isTrue()
+        }
+
+        /**
+         * A billing failure spells "quota" too, but never succeeds on retry. Normalising
+         * separators must not widen the list into it.
+         */
+        @Test
+        fun `insufficient quota is not a rate limit`() {
+            val e = NonTransientAiException("insufficient_quota: check your plan and billing details")
+            assertThat(announcedAsRateLimited(e))
+                .describedAs("a billing failure is not a rate limit")
+                .isFalse()
+            assertThat(retried(e))
+                .describedAs("replaying an unpaid account only burns the back off")
+                .isFalse()
+        }
+    }
 }

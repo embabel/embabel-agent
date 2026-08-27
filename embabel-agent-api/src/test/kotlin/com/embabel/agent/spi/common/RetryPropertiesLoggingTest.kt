@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * B3: the retry listener in [RetryProperties] reports the state of the loop, not the decision
  * the policy took. `onError` fires after the throwable is registered but before `canRetry` is
  * consulted, and `close` fires on every failing exit, not only on exhaustion. So the operator
- * reads "Retry attempt 1 of unknown" followed by "Maximum attempts of 10 have reached" on a run
+ * reads "Retry attempt 1 of unknown" followed by "Maximum attempts of 10 have been reached" on a run
  * that made a single attempt, and raises `max-attempts` for nothing.
  *
  * These tests pin what the messages must claim, by comparing them to what the loop actually did.
@@ -131,6 +131,22 @@ class RetryPropertiesLoggingTest {
         assertThat(outcome.messages)
             .describedAs("the configured ceiling must appear")
             .anyMatch { it.contains("of $MAX_ATTEMPTS") }
+    }
+
+    /**
+     * The mirror of the same assertion in [CoreRetryTemplateLoggingTest]. `LlmRetryLogger` exists so
+     * an operator reads one wording whichever template ran, which only holds if both number the
+     * retries alike. `onError` fires after the throwable is registered, so `retryCount` already
+     * numbers the retry that follows: announcing `retryCount + 1` here put this path one ahead of
+     * core.retry. The loose `anyMatch("of 3")` above is true of any number and missed it.
+     */
+    @Test
+    fun `retries are numbered as they are on the core retry path`() {
+        val outcome = failWith(NonTransientAiException("429 - Rate limit reached for $MODEL"))
+
+        assertThat(outcome.retryAnnouncements.map { it.substringAfter("retry attempt ") })
+            .describedAs("attempts are numbered from one against the configured ceiling, in %s", outcome.messages)
+            .containsExactly("1 of $MAX_ATTEMPTS", "2 of $MAX_ATTEMPTS")
     }
 
     @Test

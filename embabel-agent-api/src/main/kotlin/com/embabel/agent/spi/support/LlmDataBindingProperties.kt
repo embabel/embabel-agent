@@ -94,7 +94,7 @@ class LlmDataBindingProperties(
                     throwable?.let {
                         if (context.retryCount >= maxAttempts) {
                             logger.warn(
-                                "LLM invocation {}: Maximum attempts of {} have reached. The maximum attempt can be configured using property {}.max-attempts",
+                                "LLM invocation {}: Maximum attempts of {} have been reached. The maximum attempt can be configured using property {}.max-attempts",
                                 name,
                                 maxAttempts,
                                 propertyPrefix

@@ -76,11 +76,14 @@ interface RetryProperties : RetryTemplateProvider {
                     }
                     // onError fires before the policy is consulted, so the listener has to reach the
                     // same verdict itself rather than announce a retry that may never happen.
+                    // The throwable is registered before the listener runs, so retryCount is already
+                    // 1 on the first failure: it numbers the retry that follows, exactly as
+                    // core.retry's RetryState does. Both paths must announce the same number.
                     val attemptsMade = context.retryCount
                     if (attemptsMade >= maxAttempts || !LlmRetryDecision.isRetryable(throwable)) {
                         log.notRetrying(attemptsMade, throwable)
                     } else {
-                        log.retrying(attemptsMade + 1, throwable)
+                        log.retrying(attemptsMade, throwable)
                     }
                 }
 
