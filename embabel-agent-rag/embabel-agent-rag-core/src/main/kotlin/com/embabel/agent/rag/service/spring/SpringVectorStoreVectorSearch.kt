@@ -18,7 +18,6 @@ package com.embabel.agent.rag.service.spring
 import com.embabel.agent.filter.ObjectFilter
 import com.embabel.agent.filter.PropertyFilter
 import com.embabel.agent.rag.filter.EntityFilter
-import com.embabel.agent.rag.filter.InMemoryPropertyFilter
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.FilteringVectorSearch
@@ -52,16 +51,7 @@ class SpringVectorStoreVectorSearch(
         clazz: Class<T>,
         metadataFilter: PropertyFilter?,
         entityFilter: EntityFilter?,
-    ): List<SimilarityResult<T>> {
-        // Apply metadata filter natively via Spring AI
-        val results = executeSearch<T>(request, metadataFilter?.toSpringAiExpression())
-        // Apply property filter in-memory if specified
-        return if (entityFilter != null) {
-            InMemoryPropertyFilter.filterByProperties(results, entityFilter)
-        } else {
-            results
-        }
-    }
+    ): List<SimilarityResult<T>> = executeSearch(request, metadataFilter?.toSpringAiExpression())
 
     @Suppress("UNCHECKED_CAST")
     private fun <T : Retrievable> executeSearch(
