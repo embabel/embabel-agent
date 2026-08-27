@@ -27,6 +27,6 @@ class RankingPropertiesTest {
         assertEquals(100, properties.backoffMillis)
         assertEquals(5.0, properties.backoffMultiplier)
         assertEquals(180000, properties.backoffMaxInterval)
-        assertTrue(output.out.contains("Maximum attempts of 1 have reached. The maximum attempt can be configured using property embabel.agent.platform.ranking.max-attempts"))
+        assertTrue(output.out.contains("Maximum attempts of 1 have been reached. The maximum attempt can be configured using property embabel.agent.platform.ranking.max-attempts"))
     }
 }

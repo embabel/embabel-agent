@@ -50,9 +50,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.core.retry.RetryPolicy
-import org.springframework.core.retry.RetryTemplate
-import java.time.Duration
 
 /**
  * Configuration properties for Google GenAI models.
@@ -219,11 +216,7 @@ class GoogleGenAiModelsConfig(
             ToolCallingManager.builder()
                 .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
                 .build(),
-            // Spring AI 2.0 requires Spring Framework 7's org.springframework.core.retry.RetryTemplate
-            // here. Build it from the configured retry properties so the model honors
-            // maxAttempts/backoff instead of the no-arg constructor's defaults, which retry every
-            // throwable three times over a fixed one-second backoff.
-            platformRetryTemplate(),
+            properties.coreRetryTemplate(modelDef.modelId),
             observationRegistry.getIfUnique { ObservationRegistry.NOOP }
         )
 
@@ -331,21 +324,6 @@ class GoogleGenAiModelsConfig(
         }
 
         return builder.build()
-    }
-
-    /**
-     * Builds the Spring Framework 7 [RetryTemplate] for the chat model from the configured retry
-     * properties. In core.retry, [RetryPolicy] counts retries after the first attempt, so a
-     * maxAttempts of N maps to N-1 retries (maxAttempts=1 means a single try, no retry).
-     */
-    private fun platformRetryTemplate(): RetryTemplate {
-        val policy = RetryPolicy.builder()
-            .maxRetries((properties.maxAttempts - 1).coerceAtLeast(0).toLong())
-            .delay(Duration.ofMillis(properties.backoffMillis))
-            .multiplier(properties.backoffMultiplier)
-            .maxDelay(Duration.ofMillis(properties.backoffMaxInterval))
-            .build()
-        return RetryTemplate(policy)
     }
 
     /**
