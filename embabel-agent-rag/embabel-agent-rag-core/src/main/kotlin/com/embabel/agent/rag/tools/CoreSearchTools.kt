@@ -78,12 +78,11 @@ internal fun List<SimilarityResult<out Retrievable>>.withNeighbours(
     return this + extra
 }
 
-@Suppress("UNCHECKED_CAST")
-internal fun <T : Retrievable> VectorSearch.vectorSearchWithFilter(
+internal fun <T : Retrievable> VectorSearch.vectorSearchWithFilterDispatch(
     request: TextSimilaritySearchRequest,
     clazz: Class<T>,
-    metadataFilter: PropertyFilter?,
-    entityFilter: EntityFilter?,
+    metadataFilter: PropertyFilter? = null,
+    entityFilter: EntityFilter? = null,
 ): List<SimilarityResult<T>> = when {
     metadataFilter == null && entityFilter == null -> vectorSearch(request, clazz)
     this is FilteringVectorSearch -> vectorSearchWithFilter(request, clazz, metadataFilter, entityFilter)
@@ -94,7 +93,7 @@ internal fun <T : Retrievable> VectorSearch.vectorSearchWithFilter(
         TopKInflationStrategy.DEFAULT,
     ) { inflatedRequest ->
         vectorSearch(inflatedRequest, clazz)
-    } as List<SimilarityResult<T>>
+    }
 }
 
 internal class VectorSearchTools @JvmOverloads constructor(
@@ -143,7 +142,7 @@ internal class VectorSearchTools @JvmOverloads constructor(
 
     private fun searchForAllTypes(request: TextSimilaritySearchRequest): List<SimilarityResult<out Retrievable>> {
         val allResults = searchFor.flatMap { clazz ->
-            vectorSearch.vectorSearchWithFilter(request, clazz, metadataFilter, entityFilter)
+            vectorSearch.vectorSearchWithFilterDispatch(request, clazz, metadataFilter, entityFilter)
         }
         return deduplicateByIdKeepingHighestScore(allResults)
     }
@@ -376,12 +375,11 @@ internal class SectionReadingTools @JvmOverloads constructor(
     }
 }
 
-@Suppress("UNCHECKED_CAST")
-internal fun <T : Retrievable> TextSearch.textSearchWithFilter(
+internal fun <T : Retrievable> TextSearch.textSearchWithFilterDispatch(
     request: TextSimilaritySearchRequest,
     clazz: Class<T>,
-    metadataFilter: PropertyFilter?,
-    entityFilter: EntityFilter?,
+    metadataFilter: PropertyFilter? = null,
+    entityFilter: EntityFilter? = null,
 ): List<SimilarityResult<T>> = when {
     metadataFilter == null && entityFilter == null -> textSearch(request, clazz)
     this is FilteringTextSearch -> textSearchWithFilter(request, clazz, metadataFilter, entityFilter)
@@ -392,7 +390,7 @@ internal fun <T : Retrievable> TextSearch.textSearchWithFilter(
         TopKInflationStrategy.DEFAULT,
     ) { inflatedRequest ->
         textSearch(inflatedRequest, clazz)
-    } as List<SimilarityResult<T>>
+    }
 }
 
 /**
@@ -495,7 +493,7 @@ internal class TextSearchTools @JvmOverloads constructor(
 
     private fun searchForAllTypes(request: TextSimilaritySearchRequest): List<SimilarityResult<out Retrievable>> {
         val allResults = searchFor.flatMap { clazz ->
-            textSearch.textSearchWithFilter(request, clazz, metadataFilter, entityFilter)
+            textSearch.textSearchWithFilterDispatch(request, clazz, metadataFilter, entityFilter)
         }
         return deduplicateByIdKeepingHighestScore(allResults)
     }

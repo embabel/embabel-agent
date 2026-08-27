@@ -464,10 +464,10 @@ class ToolishRagTest {
     }
 
     @Nested
-    inner class SearchWithFilterExtensionsTests {
+    inner class FilterDispatchExtensionsTests {
 
         @Test
-        fun `filter helpers should be callable on CoreSearchOperations`() {
+        fun `filter dispatch extensions should default filters to null`() {
             val searchOperations = mockk<CoreSearchOperations>()
             val request = TextSimilaritySearchRequest("test query", 0.5, 5)
             every {
@@ -477,8 +477,8 @@ class ToolishRagTest {
                 searchOperations.textSearch(request, Chunk::class.java)
             } returns emptyList()
 
-            val vectorResults = searchOperations.vectorSearchWithFilter(request, Chunk::class.java, null, null)
-            val textResults = searchOperations.textSearchWithFilter(request, Chunk::class.java, null, null)
+            val vectorResults = searchOperations.vectorSearchWithFilterDispatch(request, Chunk::class.java)
+            val textResults = searchOperations.textSearchWithFilterDispatch(request, Chunk::class.java)
 
             assertTrue(vectorResults.isEmpty())
             assertTrue(textResults.isEmpty())
