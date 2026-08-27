@@ -67,10 +67,21 @@ class MistralSharedClientBuilderTest {
                                 .findFirst()
                                 .orElseThrow(() -> new AssertionError("mistral-small-2603 model not registered"));
 
+                        Runnable callAndExpectAbort = () ->
+                                assertThatThrownBy(() -> model.getChatModel().call("hello"))
+                                        .as("the shared builder's 300ms timeout must abort the 3s reply")
+                                        .hasStackTraceContaining("ReadTimeout");
+
+                        // The first HTTP call in the JVM starts the reactor-netty event loop and DNS
+                        // resolver, and warms Jackson and the observation stack. That is one-off work
+                        // unrelated to the timeout, but it lands inside the window measured below: in a
+                        // full reactor build this read 2.679s and then passed on surefire's immediate
+                        // rerun in the same, now-warm JVM. Spend it on a throwaway call so the timed
+                        // one measures the abort rather than the startup.
+                        callAndExpectAbort.run();
+
                         var start = System.nanoTime();
-                        assertThatThrownBy(() -> model.getChatModel().call("hello"))
-                                .as("the shared builder's 300ms timeout must abort the 3s reply")
-                                .hasStackTraceContaining("ReadTimeout");
+                        callAndExpectAbort.run();
                         var elapsed = Duration.ofNanos(System.nanoTime() - start);
 
                         assertThat(elapsed)

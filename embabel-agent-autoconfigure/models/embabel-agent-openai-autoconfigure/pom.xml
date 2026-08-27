@@ -37,10 +37,10 @@
         </dependency>
 
         <!--
-          openai-java is not declared here: it arrives at compile scope via
-          embabel-agent-openai, which pins it in step with spring-ai-openai. Declaring
-          it locally would override that version and put a second SDK release on the
-          test classpath.
+          The openai-java SDK is not declared here: openai-java-core arrives at compile
+          scope via spring-ai-openai and openai-java-client-okhttp via embabel-agent-openai,
+          which aligns them. Declaring either locally would override that version for this
+          module only and put a second SDK release on the test classpath.
         -->
 
         <dependency>
