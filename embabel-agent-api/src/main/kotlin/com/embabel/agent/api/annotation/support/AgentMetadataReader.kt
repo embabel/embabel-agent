@@ -166,6 +166,7 @@ class AgentMetadataReader(
                 targetType.name,
             )
             if (skipAgentDeploymentOnError) {
+                logSkipAgentDeploymentOnError( "Agent ${targetType.name} is rejected as it has validation errors as reported above.")
                 return null
             }
         }
@@ -226,6 +227,7 @@ class AgentMetadataReader(
                 targetType.name,
             )
             if (skipAgentDeploymentOnError) {
+                logSkipAgentDeploymentOnError( "Agent ${targetType.name} is rejected as it does not have any action, condition and goals.")
                 return null
             }
         }
@@ -239,6 +241,7 @@ class AgentMetadataReader(
                         targetType.name,
                     )
                     if (skipAgentDeploymentOnError) {
+                        logSkipAgentDeploymentOnError( "Agent ${targetType.name} is rejected as it does not have any @AchievesGoal action.")
                         return null
                     }
                 } else if (goalActions.size > 1) {
@@ -248,6 +251,7 @@ class AgentMetadataReader(
                         targetType.name,
                     )
                     if (skipAgentDeploymentOnError) {
+                        logSkipAgentDeploymentOnError( "Agent ${targetType.name} is rejected as it has more than one @AchievesGoal action.")
                         return null
                     }
                 }
@@ -312,7 +316,8 @@ class AgentMetadataReader(
             if (!validationResult.isValid) {
                 logger.warn("Agent validation failed:\n${validationResult.errors.joinToString("\n")}")
                 if (skipAgentDeploymentOnError) {
-                     return null
+                    logSkipAgentDeploymentOnError( "Agent ${targetType.name} is rejected as it has validation errors as reported above.")
+                    return null
                 }
             }
         }
@@ -430,6 +435,11 @@ class AgentMetadataReader(
         return StateActionMethodManager(
             actionMethodManager = actionMethodManager,
         ).createAction(method, stateClass)
+    }
+
+    private fun logSkipAgentDeploymentOnError(
+        message: String) {
+        logger.warn("{} Set embabel.agent.api.validation.manager.skip-agent-deployment-on-error=false to allow.",message)
     }
 
     /**
