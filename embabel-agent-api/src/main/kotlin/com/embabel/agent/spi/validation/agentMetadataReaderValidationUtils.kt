@@ -42,7 +42,7 @@ private fun hasRequiredJsonDeserializeAnnotationOnInterfaceReturnType(
             AnnotationUtils.findAnnotation(method.returnType, JsonTypeInfo::class.java) != null
     if (!hasRequiredAnnotation) {
         logger.warn(
-            "❓Interface {} used as return type of {}.{} must have @JsonDeserialize or @JsonTypeInfo annotation",
+            "Interface {} used as return type of {}.{} must have @JsonDeserialize or @JsonTypeInfo annotation.",
             method.returnType.name,
             method.declaringClass.name,
             method.name,
