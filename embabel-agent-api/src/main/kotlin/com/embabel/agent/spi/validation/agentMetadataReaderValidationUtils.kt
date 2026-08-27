@@ -21,9 +21,8 @@ fun isActionMethod(
     agentClass: Class<*>,
     requireInterfaceDeserializationAnnotations : Boolean,
 ): Boolean {
-    AnnotationUtils.findAnnotation(method, Action::class.java) != null
     // Check whether given method is annotated with Action.
-    return method.isAnnotationPresent(Action::class.java) &&
+    return AnnotationUtils.findAnnotation(method, Action::class.java) != null &&
             // Check whether given method is declared in the given agent class, or in its super type.
             (agentClass.declaredMethods.contains(method) || isMethodFromSupertype(method, agentClass)) &&
              // Check whether given method can be deserialized.
@@ -84,8 +83,8 @@ private fun methodSignaturesMatch(
 private fun hasRequiredJsonDeserializeAnnotationOnInterfaceReturnType(
     method: Method,
     logger: Logger): Boolean {
-    val hasRequiredAnnotation = method.returnType.isAnnotationPresent(JsonDeserialize::class.java) ||
-            method.returnType.isAnnotationPresent(JsonTypeInfo::class.java)
+    val hasRequiredAnnotation = AnnotationUtils.findAnnotation(method.returnType, JsonDeserialize::class.java) != null ||
+            AnnotationUtils.findAnnotation(method.returnType, JsonTypeInfo::class.java) != null
     if (!hasRequiredAnnotation) {
         logger.warn(
             "❓Interface {} used as return type of {}.{} must have @JsonDeserialize or @JsonTypeInfo annotation",
@@ -106,6 +105,6 @@ fun isConditionMethod(
     method: Method,
     agentClass: Class<*>,
 ): Boolean {
-    return method.isAnnotationPresent(Condition::class.java) &&
+    return AnnotationUtils.findAnnotation(method, Condition::class.java) != null &&
             (agentClass.declaredMethods.contains(method) || isMethodFromSupertype(method, agentClass))
 }

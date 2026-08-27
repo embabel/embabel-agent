@@ -8,6 +8,7 @@ import com.embabel.common.core.validation.ValidationLocation
 import com.embabel.common.core.validation.ValidationResult
 import com.embabel.common.core.validation.ValidationSeverity
 import org.slf4j.LoggerFactory
+import org.springframework.core.annotation.AnnotationUtils
 import org.springframework.util.ReflectionUtils
 import java.lang.reflect.Method
 
@@ -53,6 +54,6 @@ class AchievableGoalValidator (
     }
 
     private fun isMethodAnnotatedWithAchievesGoal(method: Method ): Boolean {
-        return method.isAnnotationPresent(AchievesGoal::class.java)
+        return AnnotationUtils.findAnnotation(method, AchievesGoal::class.java) != null
     }
 }

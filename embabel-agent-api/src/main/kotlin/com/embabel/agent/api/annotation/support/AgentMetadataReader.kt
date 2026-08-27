@@ -40,6 +40,7 @@ import com.embabel.common.util.NameUtils
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.cglib.proxy.Enhancer
+import org.springframework.core.annotation.AnnotationUtils
 import org.springframework.stereotype.Service
 import org.springframework.util.ClassUtils
 import org.springframework.util.ReflectionUtils
@@ -506,7 +507,7 @@ class AgentMetadataReader(
                 costMethods[name] = CostMethodInfo(method, instance)
             },
             { method ->
-                method.isAnnotationPresent(Cost::class.java) &&
+                AnnotationUtils.findAnnotation(method, Cost::class.java) != null &&
                         (type.declaredMethods.contains(method) || isMethodFromSupertype(method, type))
             })
         return costMethods
