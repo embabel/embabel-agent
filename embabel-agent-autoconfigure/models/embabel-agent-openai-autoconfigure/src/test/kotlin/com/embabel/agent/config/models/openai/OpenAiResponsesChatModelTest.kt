@@ -749,7 +749,7 @@ class OpenAiResponsesChatModelTest {
     private fun usage(inputTokens: Long, outputTokens: Long): ResponseUsage =
         ResponseUsage.builder()
             .inputTokens(inputTokens)
-            .inputTokensDetails(ResponseUsage.InputTokensDetails.builder().cachedTokens(0).build())
+            .inputTokensDetails(ResponseUsage.InputTokensDetails.builder().cachedTokens(0).cacheWriteTokens(0).build())
             .outputTokens(outputTokens)
             .outputTokensDetails(ResponseUsage.OutputTokensDetails.builder().reasoningTokens(0).build())
             .totalTokens(inputTokens + outputTokens)
