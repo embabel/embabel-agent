@@ -16,13 +16,18 @@
 package com.embabel.agent.tools.agent
 
 import com.embabel.agent.api.common.autonomy.Autonomy
+import com.embabel.agent.api.dsl.agent
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
 import com.embabel.agent.api.dsl.evenMoreEvilWizardWithStructuredInput
 import com.embabel.agent.api.dsl.exportedEvenMoreEvilWizard
+import com.embabel.agent.api.dsl.MagicVictim
 import com.embabel.agent.api.dsl.userInputToFrogOrPersonBranch
 import com.embabel.agent.test.integration.IntegrationTestUtils
 import com.embabel.agent.test.integration.RandomRanker
 import com.embabel.agent.test.integration.forAutonomyTesting
+import com.embabel.agent.core.Export
+import com.embabel.agent.core.ToolNamingStrategy
+import com.embabel.agent.domain.io.UserInput
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -207,5 +212,43 @@ class PerGoalToolFactoryTest {
             assertNotNull(tool.definition.inputSchema.toJsonSchema(), "Should have generated schema")
         }
     }
+
+    @Test
+    fun `full hierarchy naming keeps same goal names from different agents`() {
+        val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
+        agentPlatform.deploy(agentWithExportedGoal("AardvarkWizard", "Aardvark meaning"))
+        agentPlatform.deploy(agentWithExportedGoal("ZebraWizard", "Zebra meaning"))
+        val autonomy = Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting())
+
+        val factory = PerGoalToolFactory(
+            autonomy = autonomy,
+            applicationName = "testApp",
+            toolNamingStrategy = ToolNamingStrategy.FULL_HIERARCHY,
+        )
+
+        val goalToolNames = factory.goalTools(remoteOnly = true, listeners = emptyList())
+            .map { it.definition.name }
+
+        assertEquals(
+            setOf("AardvarkWizard_done", "ZebraWizard_done"),
+            goalToolNames.toSet(),
+        )
+    }
+
+    private fun agentWithExportedGoal(agentName: String, description: String) =
+        agent(agentName, description = description) {
+            transformation<UserInput, MagicVictim>(name = "$agentName-action") {
+                MagicVictim(agentName)
+            }
+            goal(
+                name = "done",
+                description = description,
+                satisfiedBy = MagicVictim::class,
+                export = Export(
+                    remote = true,
+                    startingInputTypes = setOf(UserInput::class.java),
+                ),
+            )
+        }
 
 }

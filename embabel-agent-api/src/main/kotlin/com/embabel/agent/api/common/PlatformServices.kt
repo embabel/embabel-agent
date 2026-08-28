@@ -25,6 +25,7 @@ import com.embabel.agent.api.event.observation.InternalObservabilityApi
 import com.embabel.agent.api.event.observation.NoOpAgentInstrumentation
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcessRepository
+import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.core.expression.LogicalExpressionParser
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.spi.OperationScheduler
@@ -105,4 +106,9 @@ interface PlatformServices {
      * which causes resolution to fall back to [com.embabel.agent.core.ActionQos] defaults.
      */
     fun actionQosProperties(): AgentPlatformProperties.ActionQosProperties
+
+    /**
+     * Returns the platform-level tool naming strategy.
+     */
+    fun toolNamingStrategy(): ToolNamingStrategy = ToolNamingStrategy.LEGACY
 }

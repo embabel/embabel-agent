@@ -232,6 +232,21 @@ class ToolConsumerTest {
             assertEquals(1, resolved.size)
             assertEquals("static-tool", resolved[0].definition.name)
         }
+
+        @Test
+        fun `resolveTools uses full hierarchy naming when configured`() {
+            val consumer = createToolConsumer(
+                name = "interaction",
+                fullHierarchyName = "com.example.Agent.action",
+                toolNamingStrategy = ToolNamingStrategy.FULL_HIERARCHY,
+                tools = listOf(createMockTool("lookup-tool")),
+                toolGroups = emptySet(),
+            )
+
+            val resolved = consumer.resolveTools(createEmptyResolver())
+
+            assertEquals(listOf("com_example_Agent_action_lookup_tool"), resolved.map { it.definition.name })
+        }
     }
 
     @Nested
@@ -484,16 +499,31 @@ class ToolConsumerTest {
 
             assertTrue(consumer.tools.isEmpty())
         }
+
+        @Test
+        fun `full hierarchy name defaults to the consumer name`() {
+            val consumer = object : ToolConsumer {
+                override val name = "default-tools-consumer"
+                override val toolGroups = emptySet<ToolGroupRequirement>()
+            }
+
+            assertEquals(consumer.name, consumer.fullHierarchyName())
+        }
     }
 
     private fun createToolConsumer(
         name: String,
         tools: List<Tool>,
         toolGroups: Set<ToolGroupRequirement>,
+        fullHierarchyName: String = name,
+        toolNamingStrategy: ToolNamingStrategy = ToolNamingStrategy.LEGACY,
     ): ToolConsumer = object : ToolConsumer {
         override val name = name
         override val tools = tools
         override val toolGroups = toolGroups
+        override val toolNamingStrategy = toolNamingStrategy
+
+        override fun fullHierarchyName(): String = fullHierarchyName
     }
 
     private fun createToolGroup(role: String, tools: List<Tool>): ToolGroup {

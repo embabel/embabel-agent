@@ -25,6 +25,7 @@ import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.core.ToolConsumer
 import com.embabel.agent.core.ToolGroupConsumer
 import com.embabel.agent.core.ToolGroupRequirement
+import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.common.ai.model.LlmOptions
@@ -133,9 +134,14 @@ data class LlmInteraction(
     val toolCallInspectors: List<ToolCallInspector> = emptyList(),
     val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
     val toolNotFoundPolicy: ToolNotFoundPolicy? = null,
+    /** Stable owner hierarchy used for diagnostics and optional tool names. */
+    val hierarchyName: String? = null,
+    override val toolNamingStrategy: ToolNamingStrategy = ToolNamingStrategy.LEGACY,
 ) : LlmCall {
 
     override val name: String = id.value
+
+    override fun fullHierarchyName(): String = hierarchyName ?: id.value
 
     /**
      * Get the interaction ID as a String.
@@ -157,6 +163,8 @@ data class LlmInteraction(
             toolGroups = llm.toolGroups,
             promptContributors = llm.promptContributors,
             generateExamples = llm.generateExamples,
+            hierarchyName = llm.fullHierarchyName(),
+            toolNamingStrategy = llm.toolNamingStrategy,
         )
 
         @JvmStatic

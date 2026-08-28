@@ -54,21 +54,25 @@ class PerGoalMcpAsyncExportToolCallbackPublisher(
         autonomy = autonomy,
         applicationName = applicationName,
         textCommunicator = PromptedTextCommunicator,
+        toolNamingStrategy = autonomy.agentPlatform.platformServices.toolNamingStrategy(),
     )
 
     override val toolCallbacks: List<ToolCallback>
         get() {
-            val goalTools = perGoalToolFactory.goalTools(
+            val tools = perGoalToolFactory.allTools(
                 remoteOnly = true,
                 listeners = emptyList(),
             )
-            // Wrap GoalTools with MCP-aware wrapper, then convert to ToolCallback
-            val goalCallbacks = goalTools.map { goalTool ->
-                McpAwareGoalTool(goalTool, mcpAsyncServer).toSpringToolCallback()
+            // Wrap GoalTools with MCP-aware wrapper, then convert all tools to ToolCallbacks.
+            // allTools performs the final name-based de-duplication across goal and platform tools.
+            return tools.map { tool ->
+                if (tool is GoalTool<*>) {
+                    @Suppress("UNCHECKED_CAST")
+                    McpAwareGoalTool(tool as GoalTool<Any>, mcpAsyncServer).toSpringToolCallback()
+                } else {
+                    tool.toSpringToolCallback()
+                }
             }
-            // Include platform tools (e.g. submitFormAndResumeProcess, _confirm) for HITL support
-            val platformCallbacks = perGoalToolFactory.platformTools.map { it.toSpringToolCallback() }
-            return goalCallbacks + platformCallbacks
         }
 
 

@@ -22,6 +22,9 @@ import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.Goal
+import com.embabel.agent.core.ToolNamingStrategy
+import com.embabel.agent.core.support.distinctByNameReportingCollisions
+import com.embabel.agent.core.support.sameTool
 import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.common.core.types.NamedAndDescribed
 import org.slf4j.LoggerFactory
@@ -72,6 +75,7 @@ class PerGoalToolFactory(
     private val goalToolNamingStrategy: GoalToolNamingStrategy = ApplicationNameGoalToolNamingStrategy(
         applicationName
     ),
+    private val toolNamingStrategy: ToolNamingStrategy = ToolNamingStrategy.LEGACY,
 ) {
 
     private val logger = LoggerFactory.getLogger(PerGoalToolFactory::class.java)
@@ -98,18 +102,25 @@ class PerGoalToolFactory(
         remoteOnly: Boolean,
         listeners: List<AgenticEventListener>,
     ): List<GoalTool<*>> {
-        val goalTools = autonomy.agentPlatform.goals
-            .filter { it.export.local }
-            .filter { !remoteOnly || it.export.remote }
-            .flatMap { goal ->
-                toolsForGoal(goal, listeners)
+        val goalTools = goalsToPublish()
+            .filter { it.goal.export.local }
+            .filter { !remoteOnly || it.goal.export.remote }
+            .flatMap { source ->
+                toolsForGoal(source.goal, listeners, source.ownerHierarchy)
             }
         if (goalTools.isEmpty()) {
             logger.info("No goals found in agent platform, no tools will be published")
             return emptyList()
         }
-        logger.info("{} goal tools found in agent platform: {}", goalTools.size, goalTools)
-        return goalTools
+        val distinctGoalTools = goalTools
+            .distinctByNameReportingCollisions(
+                kind = "goal tool",
+                sameValue = { a, b -> a.goal == b.goal && a.inputType == b.inputType },
+                context = "agent platform",
+                describe = { "${it.goal.name} (${it.goal.description})" },
+            ) { it.definition.name }
+        logger.info("{} goal tools found in agent platform: {}", distinctGoalTools.size, distinctGoalTools)
+        return distinctGoalTools
     }
 
     /**
@@ -126,7 +137,14 @@ class PerGoalToolFactory(
             logger.warn("No goal tools found, no tools will be published")
             emptyList()
         } else {
-            goalTools + platformTools
+            (goalTools + platformTools)
+                .distinctByNameReportingCollisions(
+                    kind = "published tool",
+                    sameValue = ::sameTool,
+                    context = "agent platform",
+                    describe = { "${it.definition.name} (${it::class.qualifiedName})" },
+                ) { it.definition.name }
+                .sortedBy { it.definition.name }
         }
     }
 
@@ -138,8 +156,12 @@ class PerGoalToolFactory(
     fun toolsForGoal(
         goal: Goal,
         listeners: List<AgenticEventListener>,
+        ownerHierarchy: String? = null,
     ): List<GoalTool<*>> {
-        val goalName = goal.export.name ?: goalToolNamingStrategy.nameForGoal(goal)
+        val goalName = goal.export.name ?: when (toolNamingStrategy) {
+            ToolNamingStrategy.LEGACY -> goalToolNamingStrategy.nameForGoal(goal)
+            ToolNamingStrategy.FULL_HIERARCHY -> toolNamingStrategy.nameFor(ownerHierarchy, goal.name)
+        }
         return goal.export.startingInputTypes.map { inputType ->
             GoalTool(
                 autonomy = autonomy,
@@ -152,5 +174,18 @@ class PerGoalToolFactory(
             )
         }
     }
+
+    private fun goalsToPublish(): List<GoalSource> = if (toolNamingStrategy == ToolNamingStrategy.FULL_HIERARCHY) {
+        autonomy.agentPlatform.agents().flatMap { agent ->
+            agent.goals.map { goal -> GoalSource(agent.name, goal) }
+        }
+    } else {
+        autonomy.agentPlatform.goals.map { goal -> GoalSource(null, goal) }
+    }
+
+    private data class GoalSource(
+        val ownerHierarchy: String?,
+        val goal: Goal,
+    )
 
 }

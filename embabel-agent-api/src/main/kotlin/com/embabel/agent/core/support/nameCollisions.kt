@@ -42,31 +42,64 @@ private val reported = ConcurrentHashMap.newKeySet<String>()
  * @param sameValue whether two elements sharing a name are in fact the same thing, and so
  * safe to collapse. Defaults to equality, which is meaningful for the value types the
  * platform aggregates; callers holding types without value semantics should pass identity.
+ * @param context optional owner or resolution context to include in the report
+ * @param describe how to identify retained and dropped elements in the report
  * @param name the name to de-duplicate on
  */
 internal fun <T : Any> Iterable<T>.distinctByNameReportingCollisions(
     kind: String,
     sameValue: (T, T) -> Boolean = { a, b -> a == b },
+    context: String? = null,
+    describe: (T) -> String = { it.toString() },
     name: (T) -> String,
 ): List<T> {
+    val candidates = toList()
     val kept = LinkedHashMap<String, T>()
-    for (element in this) {
+    val collisions = mutableListOf<Triple<String, T, T>>()
+    for (element in candidates) {
         val elementName = name(element)
         val incumbent = kept.putIfAbsent(elementName, element)
         if (incumbent != null && !sameValue(incumbent, element)) {
-            report(kind, elementName)
+            collisions += Triple(elementName, incumbent, element)
         }
+    }
+    collisions.forEach { (elementName, incumbent, dropped) ->
+        report(
+            kind = kind,
+            name = elementName,
+            context = context,
+            candidateCount = candidates.size,
+            publishedCount = kept.size,
+            retained = describe(incumbent),
+            dropped = describe(dropped),
+        )
     }
     return kept.values.toList()
 }
 
-private fun report(kind: String, name: String) {
-    if (reported.size < MAX_REPORTED && reported.add("$kind/$name")) {
+private fun report(
+    kind: String,
+    name: String,
+    context: String?,
+    candidateCount: Int,
+    publishedCount: Int,
+    retained: String,
+    dropped: String,
+) {
+    val reportKey = "$kind/${context ?: "unspecified"}/$name"
+    if (reported.size < MAX_REPORTED && reported.add(reportKey)) {
         logger.error(
-            "🛑 Two different {}s are named '{}'. Only one of them is visible; the other has been dropped. " +
-                "Names must be unique because downstream consumers — published tools, the goal ranker — " +
-                "identify {}s by name alone. Rename one of them.",
-            kind, name, kind,
+            "🛑 Two different {}s are named '{}': reduced {} candidate entries to {} published entries " +
+                "in context '{}'. Retained: {}; dropped: {}. " +
+                "Names must be unique because downstream consumers identify {}s by name alone.",
+            kind,
+            name,
+            candidateCount,
+            publishedCount,
+            context ?: "unspecified",
+            retained,
+            dropped,
+            kind,
         )
     }
 }

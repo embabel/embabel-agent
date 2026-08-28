@@ -33,6 +33,7 @@ import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
+import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetTools
@@ -89,6 +90,24 @@ internal data class OperationContextDelegate(
 ) : PromptExecutionDelegate {
 
     val action = (context as? ActionContext)?.action
+
+    /**
+     * Preserve the legacy path for lightweight or older context implementations that do not
+     * expose platform services. A real ProcessContext always supplies the platform service.
+     */
+    private val toolNamingStrategy: ToolNamingStrategy by lazy {
+        runCatching {
+            context.processContext.platformServices.toolNamingStrategy()
+        }.getOrDefault(ToolNamingStrategy.LEGACY)
+    }
+
+    private val toolConsumerHierarchyName: String? by lazy {
+        if (toolNamingStrategy == ToolNamingStrategy.FULL_HIERARCHY) {
+            "${context.processContext.agentProcess.agent.name}.${context.operation.name}"
+        } else {
+            null
+        }
+    }
 
     // Properties
     override val llmOperations: LlmOperations
@@ -236,6 +255,8 @@ internal data class OperationContextDelegate(
                 toolCallInspectors = toolCallInspectors,
                 toolCallContext = toolCallContext,
                 toolNotFoundPolicy = toolNotFoundPolicy,
+                hierarchyName = toolConsumerHierarchyName,
+                toolNamingStrategy = toolNamingStrategy,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -271,6 +292,8 @@ internal data class OperationContextDelegate(
                 toolCallInspectors = toolCallInspectors,
                 toolCallContext = toolCallContext,
                 toolNotFoundPolicy = toolNotFoundPolicy,
+                hierarchyName = toolConsumerHierarchyName,
+                toolNamingStrategy = toolNamingStrategy,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -402,6 +425,8 @@ internal data class OperationContextDelegate(
             toolLoopTransformers = emptyList(),
             toolCallInspectors = toolCallInspectors,
             toolCallContext = toolCallContext,
+            hierarchyName = toolConsumerHierarchyName,
+            toolNamingStrategy = toolNamingStrategy,
         )
     }
 
@@ -548,6 +573,8 @@ internal data class OperationContextDelegate(
             toolLoopTransformers = toolLoopTransformers,
             toolCallInspectors = toolCallInspectors,
             toolCallContext = toolCallContext,
+            hierarchyName = toolConsumerHierarchyName,
+            toolNamingStrategy = toolNamingStrategy,
         )
     }
 

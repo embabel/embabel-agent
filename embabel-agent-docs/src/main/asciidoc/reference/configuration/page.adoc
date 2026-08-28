@@ -211,6 +211,32 @@ embabel:
         restricted-goals: true
 ----
 
+===== Tool Naming Configuration
+
+Controls how tools are named when they are exposed to LLMs or generated tool endpoints.
+The default preserves existing tool names for backwards compatibility.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.tools.naming-strategy`
+|`ToolNamingStrategy`
+|`LEGACY`
+|`LEGACY` keeps the current tool names. `FULL_HIERARCHY` prefixes names with the stable owner hierarchy to avoid collisions between tools from different consumers or agents.
+
+|===
+
+.Example - opt in to hierarchy-based tool names
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      tools:
+        naming-strategy: full-hierarchy
+----
+
 ===== Ranking Configuration
 
 From `AgentPlatformProperties.RankingConfig` - configures ranking of agents and goals based on user input when the platform should choose the agent or goal.

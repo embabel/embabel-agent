@@ -74,6 +74,28 @@ class NameCollisionsTest {
                 errors().single().contains(name),
                 "The report must name the offending element: ${errors()}",
             )
+            assertTrue(
+                errors().single().contains("reduced 2 candidate entries to 1 published entries"),
+                "The report must include the size reduction: ${errors()}",
+            )
+        }
+
+        @Test
+        fun `reports collision context and retained and dropped elements`() {
+            val name = unique("details")
+            listOf(
+                Named(name, "retained meaning"),
+                Named(name, "dropped meaning"),
+            ).distinctByNameReportingCollisions(
+                kind = "tool",
+                context = "Agent.action",
+                describe = { it.meaning },
+            ) { it.name }
+
+            val error = errors().single()
+            assertTrue(error.contains("Agent.action"), error)
+            assertTrue(error.contains("retained meaning"), error)
+            assertTrue(error.contains("dropped meaning"), error)
         }
 
         @Test

@@ -161,6 +161,7 @@ import org.springframework.test.context.TestPropertySource
         // New AgentPlatformProperties (var properties) - these should always work
         "embabel.agent.platform.name=test-platform",
         "embabel.agent.platform.description=Test Platform Description",
+        "embabel.agent.platform.tools.naming-strategy=full-hierarchy",
         "embabel.agent.platform.scanning.annotation=false",
         "embabel.agent.platform.scanning.bean=true",
         "embabel.agent.platform.ranking.max-attempts=15",
@@ -214,6 +215,7 @@ class AgentPlatformPropertiesIntegrationTest {
     fun `should bind core platform properties correctly`() {
         assertThat(properties.name).isEqualTo("test-platform")
         assertThat(properties.description).isEqualTo("Test Platform Description")
+        assertThat(properties.tools.namingStrategy).isEqualTo(com.embabel.agent.core.ToolNamingStrategy.FULL_HIERARCHY)
     }
 
     @Test
@@ -287,6 +289,8 @@ class AgentPlatformPropertiesIntegrationTest {
         assertThat(defaultProperties.models.anthropic.maxAttempts).isEqualTo(10)
         assertThat(defaultProperties.models.openai.maxAttempts).isEqualTo(10)
         assertThat(defaultProperties.test.mockMode).isTrue()
+        assertThat(defaultProperties.tools.namingStrategy)
+            .isEqualTo(com.embabel.agent.core.ToolNamingStrategy.LEGACY)
     }
 
     // ===================================================================================

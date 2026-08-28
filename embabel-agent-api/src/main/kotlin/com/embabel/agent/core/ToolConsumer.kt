@@ -19,6 +19,8 @@ import com.embabel.agent.api.common.TerminationScope
 import com.embabel.agent.api.tool.TerminateActionException
 import com.embabel.agent.api.tool.TerminateAgentException
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.support.distinctByNameReportingCollisions
+import com.embabel.agent.core.support.sameTool
 import com.embabel.agent.spi.ToolGroupResolver
 import com.embabel.agent.spi.loop.RequiredToolGroupException
 import com.embabel.common.util.loggerFor
@@ -61,6 +63,18 @@ interface ToolConsumer : ToolSpecConsumer,
     ToolGroupConsumer {
 
     val name: String
+
+    /**
+     * Stable hierarchy used to identify this consumer in diagnostics and optional tool names.
+     * Consumers without a parent context fall back to [name].
+     */
+    fun fullHierarchyName(): String = name
+
+    /**
+     * Naming policy for tools exposed by this consumer.
+     */
+    val toolNamingStrategy: ToolNamingStrategy
+        get() = ToolNamingStrategy.LEGACY
 
     /**
      * Tools to expose to LLMs.
@@ -127,15 +141,31 @@ interface ToolConsumer : ToolSpecConsumer,
                     resolvedTools += resolution.resolvedToolGroup.tools
                 }
             }
+            val namedTools = resolvedTools.map { tool ->
+                val newName = toolConsumer.toolNamingStrategy.nameFor(toolConsumer, tool.definition.name)
+                if (newName == tool.definition.name) {
+                    tool
+                } else {
+                    tool.withName(newName)
+                }
+            }
+            val publishedTools = namedTools
+                .distinctByNameReportingCollisions(
+                    kind = "tool",
+                    sameValue = ::sameTool,
+                    context = toolConsumer.fullHierarchyName(),
+                    describe = { "${it.definition.name} (${it::class.qualifiedName})" },
+                ) { it.definition.name }
+                .sortedBy { it.definition.name }
             loggerFor<ToolConsumer>().debug(
-                "{} resolved {} tools from {} tools and {} tool groups: {}",
-                toolConsumer.name,
-                resolvedTools.size,
-                toolConsumer.tools.size,
+                "{} resolved {} tools from {} candidate tools and {} tool groups: {}",
+                toolConsumer.fullHierarchyName(),
+                publishedTools.size,
+                namedTools.size,
                 toolConsumer.toolGroups.size,
-                resolvedTools.map { it.definition.name },
+                publishedTools.map { it.definition.name },
             )
-            return resolvedTools.distinctBy { it.definition.name }.sortedBy { it.definition.name }
+            return publishedTools
         }
     }
 }
