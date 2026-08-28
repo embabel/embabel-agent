@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.config.spring
 
 import com.embabel.agent.core.ActionQos
+import com.embabel.common.textio.template.JinjaProperties
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.NestedConfigurationProperty
 
@@ -52,6 +53,9 @@ class AgentPlatformProperties {
 
     @field:NestedConfigurationProperty
     var llmOperations: LlmOperationsConfig = LlmOperationsConfig()
+
+    @field:NestedConfigurationProperty
+    var template: JinjaProperties = JinjaProperties()
 
     @field:NestedConfigurationProperty
     var processIdGeneration: ProcessIdGenerationConfig = ProcessIdGenerationConfig()
