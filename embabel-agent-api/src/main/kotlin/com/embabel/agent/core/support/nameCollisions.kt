@@ -45,6 +45,7 @@ private val reported = ConcurrentHashMap.newKeySet<String>()
  * @param context optional owner or resolution context to include in the report
  * @param describe how to identify retained and dropped elements in the report
  * @param name the name to de-duplicate on
+ * @return the first element for each name, preserving iteration order
  */
 internal fun <T : Any> Iterable<T>.distinctByNameReportingCollisions(
     kind: String,

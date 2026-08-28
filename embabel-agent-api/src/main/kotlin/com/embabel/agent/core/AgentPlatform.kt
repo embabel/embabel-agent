@@ -135,18 +135,34 @@ interface AgentPlatform : AgentScope {
 
     override val domainTypes: Collection<DomainType>
         get() = agents().flatMap { it.domainTypes }
-            .distinctByNameReportingCollisions(kind = "domain type") { it.name }
+            .distinctByNameReportingCollisions(
+                kind = "domain type",
+                context = name,
+                describe = { it.infoString(verbose = false) },
+            ) { it.name }
 
     override val actions: List<Action>
         get() = agents().filterNot { it.opaque }.flatMap { it.actions }
-            .distinctByNameReportingCollisions(kind = "action") { it.name }
+            .distinctByNameReportingCollisions(
+                kind = "action",
+                context = name,
+                describe = { it.infoString(verbose = false) },
+            ) { it.name }
 
     override val goals: Set<Goal>
         get() = agents().flatMap { it.goals }
-            .distinctByNameReportingCollisions(kind = "goal") { it.name }.toSet()
+            .distinctByNameReportingCollisions(
+                kind = "goal",
+                context = name,
+                describe = { it.infoString(verbose = false) },
+            ) { it.name }.toSet()
 
     override val conditions: Set<Condition>
         get() = agents().filterNot { it.opaque }.flatMap { it.conditions }
-            .distinctByNameReportingCollisions(kind = "condition") { it.name }.toSet()
+            .distinctByNameReportingCollisions(
+                kind = "condition",
+                context = name,
+                describe = { it.infoString(verbose = false) },
+            ) { it.name }.toSet()
 
 }

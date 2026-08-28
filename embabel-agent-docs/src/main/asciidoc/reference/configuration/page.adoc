@@ -215,6 +215,9 @@ embabel:
 
 Controls how tools are named when they are exposed to LLMs or generated tool endpoints.
 The default preserves existing tool names for backwards compatibility.
+With `FULL_HIERARCHY`, tools owned by a `ToolConsumer` are prefixed with that consumer's full hierarchy name,
+while generated goal tools without an explicit export name are prefixed with their owning agent's name.
+Framework-owned HITL callback tools retain their reserved names.
 
 [cols="3,2,1,4",options="header"]
 |===

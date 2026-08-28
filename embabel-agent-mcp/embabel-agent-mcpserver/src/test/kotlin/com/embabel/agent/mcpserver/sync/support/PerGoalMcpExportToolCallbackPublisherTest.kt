@@ -105,6 +105,27 @@ class PerGoalMcpExportToolCallbackPublisherTest {
         )
     }
 
+    @Test
+    fun `toolCallbacks includes platform HITL tools when no remote goals exist`() {
+        val emptyAutonomy = Autonomy(
+            IntegrationTestUtils.dummyAgentPlatform(),
+            RandomRanker(),
+            forAutonomyTesting(),
+        )
+        val publisher = PerGoalMcpExportToolCallbackPublisher(
+            autonomy = emptyAutonomy,
+            mcpSyncServer = mcpSyncServer,
+            applicationName = "testApp",
+        )
+
+        val toolNames = publisher.toolCallbacks.map { it.toolDefinition.name() }
+
+        assertEquals(
+            setOf(CONFIRMATION_TOOL_NAME, FORM_SUBMISSION_TOOL_NAME),
+            toolNames.toSet(),
+        )
+    }
+
     companion object {
         /**
          * Creates an agent with remote export enabled so its goals appear
