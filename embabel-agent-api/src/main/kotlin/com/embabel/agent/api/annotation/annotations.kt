@@ -18,6 +18,7 @@ package com.embabel.agent.api.annotation
 import com.embabel.agent.api.common.PlannerType
 import com.embabel.agent.core.IoBinding
 import com.embabel.agent.core.ActionRetryPolicy
+import com.embabel.agent.core.Delay
 import com.embabel.common.core.types.Semver.Companion.DEFAULT_VERSION
 import com.embabel.common.core.types.ZeroToOne
 import org.springframework.core.annotation.AliasFor
@@ -87,6 +88,7 @@ annotation class Agent(
     val opaque: Boolean = false,
     val actionRetryPolicy: ActionRetryPolicy = ActionRetryPolicy.DEFAULT,
     val actionRetryPolicyExpression: String = "",
+    val delay: Delay = Delay.NONE,
 )
 
 /**
@@ -210,6 +212,7 @@ annotation class Action(
     val trigger: KClass<*> = Unit::class,
     val actionRetryPolicy: ActionRetryPolicy = ActionRetryPolicy.DEFAULT,
     val actionRetryPolicyExpression: String = "",
+    val delayMs: Long = -1L,
 )
 
 /**

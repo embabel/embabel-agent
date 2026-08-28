@@ -78,8 +78,16 @@ data class Verbosity @JvmOverloads constructor(
 
 }
 
-enum class Delay {
-    NONE, MEDIUM, LONG
+enum class Delay(val millis: Long) {
+    NONE(0),
+    MEDIUM(400),
+    LONG(2000);
+
+    companion object {
+        const val NONE_MS   = 0L
+        const val MEDIUM_MS = 400L
+        const val LONG_MS   = 2000L
+    }
 }
 
 /**
@@ -91,6 +99,9 @@ data class ProcessControl @JvmOverloads constructor(
     val operationDelay: Delay = Delay.NONE,
     val earlyTerminationPolicy: EarlyTerminationPolicy = EarlyTerminationPolicy.maxActions(100),
 ) {
+
+    val toolDelayPolicy: DelayPolicy get() = DelayPolicy.of(toolDelay)
+    val operationDelayPolicy: DelayPolicy get() = DelayPolicy.of(operationDelay)
 
     fun withToolDelay(toolDelay: Delay): ProcessControl =
         this.copy(toolDelay = toolDelay)

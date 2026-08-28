@@ -19,6 +19,7 @@ import com.embabel.agent.api.annotation.Action
 import com.embabel.agent.api.annotation.Agent
 import com.embabel.agent.core.ActionQos
 import com.embabel.agent.core.ActionRetryPolicy
+import com.embabel.agent.core.DelayPolicy
 import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import org.springframework.stereotype.Component
 import java.lang.reflect.Method
@@ -41,18 +42,17 @@ class DefaultActionQosProvider(
 
         var defaultActionQos = actionQosProperties.default
 
+        var agentDelay: DelayPolicy = DelayPolicy.None
         var props = instance.javaClass.getAnnotation(Agent::class.java)?.let {
             if (hasRetryExpression(it.actionRetryPolicyExpression)) {
                 defaultActionQos = defaultActionQos
                     .overridingNotNull(getBound(it.actionRetryPolicyExpression))
             }
-
             if (it.actionRetryPolicy == ActionRetryPolicy.FIRE_ONCE) {
                 defaultActionQos = defaultActionQos.copy(maxAttempts = 1)
             }
-
+            agentDelay = DelayPolicy.of(it.delay)
             defaultActionQos
-
         } ?: defaultActionQos
 
         method.getAnnotation(Action::class.java)?.let {
@@ -64,8 +64,16 @@ class DefaultActionQosProvider(
             }
         }
 
+        // delayMs = -1L is the sentinel meaning "not set"; non-negative values (including 0) are explicit.
+        // 0 is treated as None (no delay), consistent with DelayPolicy.of(Long).
+        val actionDelay = method.getAnnotation(Action::class.java)?.let {
+            val ms = it.delayMs
+            if (ms >= 0) DelayPolicy.of(ms) else DelayPolicy.None
+        } ?: DelayPolicy.None
 
-        return props.toActionQos()
+        val delayPolicy = actionDelay.takeIf { it != DelayPolicy.None } ?: agentDelay
+
+        return props.toActionQos().copy(delayPolicy = delayPolicy)
     }
 
 
