@@ -15,12 +15,6 @@
     <description>Embabel Agent BOM</description>
     <url>https://github.com/embabel/embabel-agent</url>
 
-    <properties>
-        <bouncycastle.version>1.84</bouncycastle.version>
-        <oci-sdk.version>3.86.1</oci-sdk.version>
-        <apache-httpcomponents.version>5.4.3</apache-httpcomponents.version>
-    </properties>
-
     <scm>
         <url>https://github.com/embabel/embabel-agent</url>
         <connection>scm:git:https://github.com/embabel/embabel-agent.git</connection>
@@ -455,15 +449,6 @@
                 <groupId>io.opentelemetry.semconv</groupId>
                 <artifactId>opentelemetry-semconv</artifactId>
                 <version>1.29.0-alpha</version>
-            </dependency>
-
-            <!-- Not a right place, should be in embabel-build repository-->
-            <dependency>
-                <groupId>com.oracle.oci.sdk</groupId>
-                <artifactId>oci-java-sdk-bom</artifactId>
-                <version>${oci-sdk.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
