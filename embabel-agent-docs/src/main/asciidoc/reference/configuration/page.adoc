@@ -225,8 +225,8 @@ Framework-owned HITL callback tools retain their reserved names.
 
 |`embabel.agent.platform.tools.naming-strategy`
 |`ToolNamingStrategy`
-|`LEGACY`
-|`LEGACY` keeps the current tool names. `FULL_HIERARCHY` prefixes names with the stable owner hierarchy to avoid collisions between tools from different consumers or agents.
+|`LEGACY_NAME_ONLY`
+|`LEGACY_NAME_ONLY` keeps only the current tool names. `FULL_HIERARCHY` prefixes names with the stable owner hierarchy to avoid collisions between tools from different consumers or agents.
 
 |===
 

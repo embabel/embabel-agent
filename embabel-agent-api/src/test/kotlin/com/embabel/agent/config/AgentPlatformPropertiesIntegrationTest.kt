@@ -16,6 +16,7 @@
 package com.embabel.agent.config
 
 import com.embabel.agent.api.common.autonomy.AutonomyProperties
+import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import com.embabel.agent.spi.support.DefaultProcessIdGeneratorProperties
 import org.assertj.core.api.Assertions.assertThat
@@ -27,6 +28,7 @@ import org.springframework.boot.context.properties.bind.Binder
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Bean
 import org.springframework.core.env.Environment
+import org.springframework.mock.env.MockEnvironment
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.TestPropertySource
 
@@ -290,7 +292,21 @@ class AgentPlatformPropertiesIntegrationTest {
         assertThat(defaultProperties.models.openai.maxAttempts).isEqualTo(10)
         assertThat(defaultProperties.test.mockMode).isTrue()
         assertThat(defaultProperties.tools.namingStrategy)
-            .isEqualTo(com.embabel.agent.core.ToolNamingStrategy.LEGACY)
+            .isEqualTo(ToolNamingStrategy.LEGACY_NAME_ONLY)
+    }
+
+    @Test
+    fun `should bind legacy name only naming strategy`() {
+        val testEnvironment = MockEnvironment()
+            .withProperty("embabel.agent.platform.tools.naming-strategy", "legacy-name-only")
+
+        val bound = Binder.get(testEnvironment).bind(
+            "embabel.agent.platform.tools.naming-strategy",
+            ToolNamingStrategy::class.java,
+        )
+
+        assertThat(bound.isBound).isTrue()
+        assertThat(bound.get()).isEqualTo(ToolNamingStrategy.LEGACY_NAME_ONLY)
     }
 
     // ===================================================================================

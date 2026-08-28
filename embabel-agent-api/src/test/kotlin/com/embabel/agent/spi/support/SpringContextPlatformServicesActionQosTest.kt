@@ -115,7 +115,7 @@ class SpringContextPlatformServicesActionQosTest {
             assertThat(props.default.backoffMultiplier).isNull()
             assertThat(props.default.backoffMaxInterval).isNull()
             assertThat(props.default.idempotent).isNull()
-            assertThat(services.toolNamingStrategy()).isEqualTo(ToolNamingStrategy.LEGACY)
+            assertThat(services.toolNamingStrategy()).isEqualTo(ToolNamingStrategy.LEGACY_NAME_ONLY)
         }
     }
 

@@ -58,7 +58,7 @@ class PerGoalMcpAsyncExportToolCallbackPublisher(
             textCommunicator = PromptedTextCommunicator,
             toolNamingStrategy = runCatching {
                 autonomy.agentPlatform.platformServices.toolNamingStrategy()
-            }.getOrDefault(ToolNamingStrategy.LEGACY),
+            }.getOrDefault(ToolNamingStrategy.LEGACY_NAME_ONLY),
         )
     }
 

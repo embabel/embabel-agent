@@ -136,7 +136,7 @@ data class LlmInteraction(
     val toolNotFoundPolicy: ToolNotFoundPolicy? = null,
     /** Stable owner hierarchy used for diagnostics and optional tool names. */
     val hierarchyName: String? = null,
-    override val toolNamingStrategy: ToolNamingStrategy = ToolNamingStrategy.LEGACY,
+    override val toolNamingStrategy: ToolNamingStrategy = ToolNamingStrategy.LEGACY_NAME_ONLY,
 ) : LlmCall {
 
     override val name: String = id.value

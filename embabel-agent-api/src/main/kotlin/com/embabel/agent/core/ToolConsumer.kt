@@ -74,7 +74,7 @@ interface ToolConsumer : ToolSpecConsumer,
      * Naming policy for tools exposed by this consumer.
      */
     val toolNamingStrategy: ToolNamingStrategy
-        get() = ToolNamingStrategy.LEGACY
+        get() = ToolNamingStrategy.LEGACY_NAME_ONLY
 
     /**
      * Tools to expose to LLMs.

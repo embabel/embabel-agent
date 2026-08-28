@@ -110,5 +110,5 @@ interface PlatformServices {
     /**
      * Returns the platform-level tool naming strategy.
      */
-    fun toolNamingStrategy(): ToolNamingStrategy = ToolNamingStrategy.LEGACY
+    fun toolNamingStrategy(): ToolNamingStrategy = ToolNamingStrategy.LEGACY_NAME_ONLY
 }

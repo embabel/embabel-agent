@@ -235,6 +235,25 @@ class PerGoalToolFactoryTest {
         )
     }
 
+    @Test
+    fun `legacy name only keeps the first same-named goal`() {
+        val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
+        agentPlatform.deploy(agentWithExportedGoal("AardvarkWizard", "Aardvark meaning"))
+        agentPlatform.deploy(agentWithExportedGoal("ZebraWizard", "Zebra meaning"))
+        val autonomy = Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting())
+
+        val factory = PerGoalToolFactory(
+            autonomy = autonomy,
+            applicationName = "testApp",
+            toolNamingStrategy = ToolNamingStrategy.LEGACY_NAME_ONLY,
+        )
+
+        val goalTools = factory.goalTools(remoteOnly = true, listeners = emptyList())
+
+        assertEquals(listOf("testApp_done"), goalTools.map { it.definition.name })
+        assertEquals(listOf("Aardvark meaning"), goalTools.map { it.goal.description })
+    }
+
     private fun agentWithExportedGoal(agentName: String, description: String) =
         agent(agentName, description = description) {
             transformation<UserInput, MagicVictim>(name = "$agentName-action") {

@@ -19,8 +19,8 @@ package com.embabel.agent.core
  * Controls the names published for tools.
  */
 enum class ToolNamingStrategy {
-    /** Preserve the existing tool name. */
-    LEGACY,
+    /** Preserve only the existing tool name. */
+    LEGACY_NAME_ONLY,
 
     /** Prefix the tool name with its stable owner hierarchy. */
     FULL_HIERARCHY,
@@ -33,7 +33,7 @@ enum class ToolNamingStrategy {
         toolConsumer: ToolConsumer,
         toolName: String,
     ): String = when (this) {
-        LEGACY -> toolName
+        LEGACY_NAME_ONLY -> toolName
         FULL_HIERARCHY -> nameFor(toolConsumer.fullHierarchyName(), toolName)
     }
 
@@ -44,7 +44,7 @@ enum class ToolNamingStrategy {
         ownerHierarchy: String?,
         toolName: String,
     ): String = when (this) {
-        LEGACY -> toolName
+        LEGACY_NAME_ONLY -> toolName
         FULL_HIERARCHY -> listOfNotNull(
             ownerHierarchy?.takeIf { it.isNotBlank() },
             toolName,

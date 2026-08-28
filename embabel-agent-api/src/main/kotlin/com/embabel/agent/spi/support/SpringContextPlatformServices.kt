@@ -144,6 +144,6 @@ data class SpringContextPlatformServices(
             ?.firstOrNull()
             ?.tools
             ?.namingStrategy
-            ?: ToolNamingStrategy.LEGACY
+            ?: ToolNamingStrategy.LEGACY_NAME_ONLY
 
 }

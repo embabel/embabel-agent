@@ -247,6 +247,21 @@ class ToolConsumerTest {
 
             assertEquals(listOf("com_example_Agent_action_lookup_tool"), resolved.map { it.definition.name })
         }
+
+        @Test
+        fun `resolveTools keeps existing names with legacy name only strategy`() {
+            val consumer = createToolConsumer(
+                name = "interaction",
+                fullHierarchyName = "com.example.Agent.action",
+                toolNamingStrategy = ToolNamingStrategy.LEGACY_NAME_ONLY,
+                tools = listOf(createMockTool("lookup-tool")),
+                toolGroups = emptySet(),
+            )
+
+            val resolved = consumer.resolveTools(createEmptyResolver())
+
+            assertEquals(listOf("lookup-tool"), resolved.map { it.definition.name })
+        }
     }
 
     @Nested
@@ -501,6 +516,16 @@ class ToolConsumerTest {
         }
 
         @Test
+        fun `tool naming strategy defaults to legacy name only`() {
+            val consumer = object : ToolConsumer {
+                override val name = "default-tools-consumer"
+                override val toolGroups = emptySet<ToolGroupRequirement>()
+            }
+
+            assertEquals(ToolNamingStrategy.LEGACY_NAME_ONLY, consumer.toolNamingStrategy)
+        }
+
+        @Test
         fun `full hierarchy name defaults to the consumer name`() {
             val consumer = object : ToolConsumer {
                 override val name = "default-tools-consumer"
@@ -516,7 +541,7 @@ class ToolConsumerTest {
         tools: List<Tool>,
         toolGroups: Set<ToolGroupRequirement>,
         fullHierarchyName: String = name,
-        toolNamingStrategy: ToolNamingStrategy = ToolNamingStrategy.LEGACY,
+        toolNamingStrategy: ToolNamingStrategy = ToolNamingStrategy.LEGACY_NAME_ONLY,
     ): ToolConsumer = object : ToolConsumer {
         override val name = name
         override val tools = tools

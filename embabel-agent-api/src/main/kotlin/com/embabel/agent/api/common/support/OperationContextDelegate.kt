@@ -98,7 +98,7 @@ internal data class OperationContextDelegate(
     private val toolNamingStrategy: ToolNamingStrategy by lazy {
         runCatching {
             context.processContext.platformServices.toolNamingStrategy()
-        }.getOrDefault(ToolNamingStrategy.LEGACY)
+        }.getOrDefault(ToolNamingStrategy.LEGACY_NAME_ONLY)
     }
 
     private val toolConsumerHierarchyName: String? by lazy {

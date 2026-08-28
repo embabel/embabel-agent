@@ -75,7 +75,7 @@ class PerGoalToolFactory(
     private val goalToolNamingStrategy: GoalToolNamingStrategy = ApplicationNameGoalToolNamingStrategy(
         applicationName
     ),
-    private val toolNamingStrategy: ToolNamingStrategy = ToolNamingStrategy.LEGACY,
+    private val toolNamingStrategy: ToolNamingStrategy = ToolNamingStrategy.LEGACY_NAME_ONLY,
 ) {
 
     private val logger = LoggerFactory.getLogger(PerGoalToolFactory::class.java)
@@ -159,7 +159,7 @@ class PerGoalToolFactory(
         ownerHierarchy: String? = null,
     ): List<GoalTool<*>> {
         val goalName = goal.export.name ?: when (toolNamingStrategy) {
-            ToolNamingStrategy.LEGACY -> goalToolNamingStrategy.nameForGoal(goal)
+            ToolNamingStrategy.LEGACY_NAME_ONLY -> goalToolNamingStrategy.nameForGoal(goal)
             ToolNamingStrategy.FULL_HIERARCHY -> toolNamingStrategy.nameFor(ownerHierarchy, goal.name)
         }
         return goal.export.startingInputTypes.map { inputType ->

@@ -23,15 +23,22 @@ import kotlin.test.assertEquals
 class ToolNamingStrategyTest {
 
     @Nested
-    inner class Legacy {
+    inner class LegacyNameOnly {
 
         @Test
         fun `keeps the existing tool name`() {
             val consumer = consumer("Agent.action")
 
-            val name = ToolNamingStrategy.LEGACY.nameFor(consumer, "lookup")
+            val name = ToolNamingStrategy.LEGACY_NAME_ONLY.nameFor(consumer, "lookup")
 
             assertEquals("lookup", name)
+        }
+
+        @Test
+        fun `keeps the existing generated tool name`() {
+            val name = ToolNamingStrategy.LEGACY_NAME_ONLY.nameFor("Agent", "done")
+
+            assertEquals("done", name)
         }
     }
 

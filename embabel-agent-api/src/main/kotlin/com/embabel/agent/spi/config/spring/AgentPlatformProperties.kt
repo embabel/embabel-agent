@@ -111,7 +111,7 @@ class AgentPlatformProperties {
         /**
          * Naming strategy for tools exposed to LLMs and generated tool endpoints.
          */
-        var namingStrategy: ToolNamingStrategy = ToolNamingStrategy.LEGACY
+        var namingStrategy: ToolNamingStrategy = ToolNamingStrategy.LEGACY_NAME_ONLY
     }
 
     /**
