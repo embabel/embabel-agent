@@ -82,7 +82,7 @@ internal data class AgenticInfo(
             errors += "Both @Agentic and @Agent annotations found on ${targetType.name}. Treating class as Agent, but both should not be used"
         }
         if (agentAnnotation != null && agentAnnotation.description.isBlank()) {
-            errors + "No description provided for @${Agent::class.java.simpleName} on ${targetType.name}"
+            errors += "No description provided for @${Agent::class.java.simpleName} on ${targetType.name}"
         }
         return errors
     }
@@ -157,7 +157,7 @@ class AgentMetadataReader(
                 // Don't put this behind skipAgentDeploymentOnError as any bean can be reached here.
                 return null
         }
-
+        val agenticType =  if (agenticInfo.isAgent()) "Agent" else "Agentic component"
         if (agenticInfo.validationErrors().isNotEmpty()) {
             logger.warn(
                 agenticInfo.validationErrors().joinToString("\n"),
@@ -166,7 +166,7 @@ class AgentMetadataReader(
                 targetType.name,
             )
             if (skipAgentDeploymentOnError) {
-                logSkipAgentDeploymentOnError( "Agent ${targetType.name} is rejected as it has validation errors as reported above.")
+                logSkipAgentDeploymentOnError( "$agenticType ${targetType.name} is rejected as it has validation errors as reported above.")
                 return null
             }
         }
@@ -221,13 +221,13 @@ class AgentMetadataReader(
 
         if (actionMethods.isEmpty() && goals.isEmpty() && conditionMethods.isEmpty()) {
             logger.warn(
-                "❓No methods annotated with @{} or @{} and no goals defined on {}",
+                "$agenticType ${targetType.name} is not registered due to no methods annotated with @{} or @{} and no goals defined on {}",
                 Action::class.simpleName,
                 Condition::class.simpleName,
                 targetType.name,
             )
             if (skipAgentDeploymentOnError) {
-                logSkipAgentDeploymentOnError( "Agent ${targetType.name} is rejected as it does not have any action, condition and goals.")
+                logSkipAgentDeploymentOnError( "$agenticType ${targetType.name} is rejected as it does not have any action, condition and goals.")
                 return null
             }
         }
@@ -241,7 +241,7 @@ class AgentMetadataReader(
                         targetType.name,
                     )
                     if (skipAgentDeploymentOnError) {
-                        logSkipAgentDeploymentOnError( "Agent ${targetType.name} is rejected as it does not have any @AchievesGoal action.")
+                        logSkipAgentDeploymentOnError( "$agenticType ${targetType.name} is rejected as it does not have any @AchievesGoal action.")
                         return null
                     }
                 } else if (goalActions.size > 1) {
@@ -251,7 +251,7 @@ class AgentMetadataReader(
                         targetType.name,
                     )
                     if (skipAgentDeploymentOnError) {
-                        logSkipAgentDeploymentOnError( "Agent ${targetType.name} is rejected as it has more than one @AchievesGoal action.")
+                        logSkipAgentDeploymentOnError( "$agenticType ${targetType.name} is rejected as it has more than one @AchievesGoal action.")
                         return null
                     }
                 }
@@ -275,14 +275,14 @@ class AgentMetadataReader(
                     val typeNames = distinctGoalTypes.joinToString { it.simpleName.ifEmpty { it.name } }
                     if (restrictedGoals) {
                         logger.warn(
-                            "Agent {} has @AchievesGoal actions returning distinct types [{}] - rejected. Set embabel.agent.platform.planner.restricted-goals=false to allow",
+                            "$agenticType {} has @AchievesGoal actions returning distinct types [{}] - rejected. Set embabel.agent.platform.planner.restricted-goals=false to allow",
                             targetType.name,
                             typeNames,
                         )
                         return null
                     }
                     logger.debug(
-                        "Agent {} has @AchievesGoal actions returning distinct types [{}] - allowing (restricted-goals=false)",
+                        "$agenticType {} has @AchievesGoal actions returning distinct types [{}] - allowing (restricted-goals=false)",
                         targetType.name,
                         typeNames,
                     )
