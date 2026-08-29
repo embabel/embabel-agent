@@ -1407,10 +1407,7 @@ Java::
 [source,java]
 ----
 PromptRunner runner = ai.withLlm(
-        withNativeStructuredOutput(
-                LlmOptions.fromCriteria(DefaultModelSelectionCriteria.INSTANCE),
-                NativeStructuredOutputMode.ENABLED
-        )
+        NativeStructuredOutputMode.ENABLED.applyTo(LlmOptions.withDefaultLlm())
 );
 
 MonthItem result = runner.createObject(prompt, MonthItem.class);
@@ -1428,6 +1425,21 @@ val runner = ai.withLlm(
 val result = runner.createObject<MonthItem>(prompt)
 ----
 ====
+
+In Java, call `applyTo` on the desired `NativeStructuredOutputMode`.
+Alternatively, use static imports to keep additional `LlmOptions` configuration in the same chain:
+
+[source,java]
+----
+import static com.embabel.common.ai.model.NativeStructuredOutputMode.ENABLED;
+import static com.embabel.common.ai.model.NativeStructuredOutputModeKt.withNativeStructuredOutput;
+
+LlmOptions options = LlmOptions.withDefaultLlm();
+options = withNativeStructuredOutput(options, ENABLED)
+        .withTemperature(0.8);
+
+PromptRunner runner = ai.withLlm(options);
+----
 
 - `NativeStructuredOutputMode.ENABLED`: Try the native path when model capability and schema compatibility allow it.
 - `NativeStructuredOutputMode.DISABLED`: Force Embabel's normal object construction path.
@@ -1470,4 +1482,3 @@ static class MonthItem {
 - **Streaming**: Native structured output is not supported for streaming by Spring AI currently
 - **`ifPossible` APIs**: `createObjectIfPossible` and related paths use `MaybeReturn` semantics and stay on Embabel's fallback object construction path.
 - **Provider coverage**: OpenAI-compatible `response_format` is the primary supported path. Anthropic native structured output is currently disabled by default until its semantics are verified.
-

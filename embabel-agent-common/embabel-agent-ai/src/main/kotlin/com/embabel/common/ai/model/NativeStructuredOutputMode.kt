@@ -33,7 +33,12 @@ const val NATIVE_STRUCTURED_OUTPUT_EXTENSION = "native.structuredOutput"
 enum class NativeStructuredOutputMode {
     DEFAULT,
     ENABLED,
-    DISABLED,
+    DISABLED;
+
+    /**
+     * Apply this native structured-output mode to [options].
+     */
+    fun applyTo(options: LlmOptions): LlmOptions = options.withNativeStructuredOutput(this)
 }
 
 /**
