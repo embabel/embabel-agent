@@ -1427,6 +1427,19 @@ val result = runner.createObject<MonthItem>(prompt)
 ====
 
 In Java, call `applyTo` on the desired `NativeStructuredOutputMode`.
+Alternatively, use static imports to keep additional `LlmOptions` configuration in the same chain:
+
+[source,java]
+----
+import static com.embabel.common.ai.model.NativeStructuredOutputMode.ENABLED;
+import static com.embabel.common.ai.model.NativeStructuredOutputModeKt.withNativeStructuredOutput;
+
+LlmOptions options = LlmOptions.withDefaultLlm();
+options = withNativeStructuredOutput(options, ENABLED)
+        .withTemperature(0.8);
+
+PromptRunner runner = ai.withLlm(options);
+----
 
 - `NativeStructuredOutputMode.ENABLED`: Try the native path when model capability and schema compatibility allow it.
 - `NativeStructuredOutputMode.DISABLED`: Force Embabel's normal object construction path.
