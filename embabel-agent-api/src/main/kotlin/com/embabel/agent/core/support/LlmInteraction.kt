@@ -134,7 +134,7 @@ data class LlmInteraction(
     val toolCallInspectors: List<ToolCallInspector> = emptyList(),
     val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
     val toolNotFoundPolicy: ToolNotFoundPolicy? = null,
-    /** Stable owner hierarchy used for diagnostics and optional tool names. */
+    /** Stable owner hierarchy used for diagnostics and, when enabled, as the tool-name prefix. */
     val hierarchyName: String? = null,
     override val toolNamingStrategy: ToolNamingStrategy = ToolNamingStrategy.LEGACY_NAME_ONLY,
 ) : LlmCall {

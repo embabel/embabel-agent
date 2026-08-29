@@ -218,6 +218,9 @@ The default preserves existing tool names for backwards compatibility.
 With `FULL_HIERARCHY`, tools owned by a `ToolConsumer` are prefixed with that consumer's full hierarchy name,
 while generated goal tools without an explicit export name are prefixed with their owning agent's name.
 Framework-owned HITL callback tools retain their reserved names.
+For example, `LEGACY_NAME_ONLY` publishes `search` as `search`; with `FULL_HIERARCHY`, a consumer whose hierarchy is
+`AgentA.run` publishes it as `AgentA_run_search`, and a nested hierarchy `Outer.Inner` publishes it as
+`Outer_Inner_search`.
 
 [cols="3,2,1,4",options="header"]
 |===
@@ -239,6 +242,8 @@ embabel:
       tools:
         naming-strategy: full-hierarchy
 ----
+
+The resulting tool names are sanitized exposed names, not full JVM signatures.
 
 ===== Ranking Configuration
 
@@ -759,6 +764,36 @@ TIP: For models with extended thinking enabled (like Claude with thinking mode),
 * *Streaming responses*: The `read-timeout` applies to the initial response; streaming content has its own handling
 
 NOTE: The HTTP client configuration applies to all model providers that use Spring's `RestClient` and `WebClient`, including OpenAI, Anthropic, and OpenAI-compatible endpoints.
+
+===== Template Renderer
+
+From the `JinjaProperties` nested in `AgentPlatformProperties` - Jinja template renderer configuration.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.template.prefix`
+|String
+|`classpath:/prompts/`
+|Spring resource prefix used to load templates
+
+|`embabel.agent.platform.template.suffix`
+|String
+|`.jinja`
+|Suffix added to template names that do not already include it
+
+|`embabel.agent.platform.template.fail-on-unknown-tokens`
+|Boolean
+|`false`
+|Whether rendering fails when a template contains unknown tokens
+
+|`embabel.agent.platform.template.nested-interpretation-enabled`
+|Boolean
+|`false`
+|Whether template syntax inside substituted values is evaluated recursively. Do not enable this for untrusted or user-provided values.
+
+|===
 
 ===== Server-Sent Events
 

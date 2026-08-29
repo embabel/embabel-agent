@@ -55,28 +55,44 @@ internal fun <T : Any> Iterable<T>.distinctByNameReportingCollisions(
     name: (T) -> String,
 ): List<T> {
     val candidates = toList()
+    val groups = LinkedHashMap<String, MutableList<T>>()
+    candidates.forEach { element ->
+        groups.getOrPut(name(element)) { mutableListOf() }.add(element)
+    }
+
     val kept = LinkedHashMap<String, T>()
-    val collisions = mutableListOf<Triple<String, T, T>>()
-    for (element in candidates) {
-        val elementName = name(element)
-        val incumbent = kept.putIfAbsent(elementName, element)
-        if (incumbent != null && !sameValue(incumbent, element)) {
-            collisions += Triple(elementName, incumbent, element)
+    val collisions = mutableListOf<Collision<T>>()
+    groups.forEach { (elementName, elements) ->
+        val incumbent = elements.first()
+        kept[elementName] = incumbent
+        val dropped = elements.drop(1).filter { !sameValue(incumbent, it) }
+        if (dropped.isNotEmpty()) {
+            collisions += Collision(
+                name = elementName,
+                retained = incumbent,
+                dropped = dropped,
+            )
         }
     }
-    collisions.forEach { (elementName, incumbent, dropped) ->
+    collisions.forEach { collision ->
         report(
             kind = kind,
-            name = elementName,
+            name = collision.name,
             context = context,
             candidateCount = candidates.size,
             publishedCount = kept.size,
-            retained = describe(incumbent),
-            dropped = describe(dropped),
+            retained = describe(collision.retained),
+            dropped = collision.dropped.joinToString(", ", prefix = "[", postfix = "]", transform = describe),
         )
     }
     return kept.values.toList()
 }
+
+private data class Collision<T>(
+    val name: String,
+    val retained: T,
+    val dropped: List<T>,
+)
 
 private fun report(
     kind: String,

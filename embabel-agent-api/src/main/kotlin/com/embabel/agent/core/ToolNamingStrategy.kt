@@ -17,6 +17,11 @@ package com.embabel.agent.core
 
 /**
  * Controls the names published for tools.
+ *
+ * [LEGACY_NAME_ONLY] preserves a tool name such as `search` as `search`.
+ * [FULL_HIERARCHY] prefixes it with the sanitized owner hierarchy: `AgentA.run` and
+ * `search` become `AgentA_run_search`, while `Outer.Inner` and `search` become
+ * `Outer_Inner_search`. These are the exposed tool names, not full JVM signatures.
  */
 enum class ToolNamingStrategy {
     /** Preserve only the existing tool name. */

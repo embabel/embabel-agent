@@ -15,6 +15,10 @@
  */
 package com.embabel.agent.core
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.embabel.agent.api.common.TerminationScope
 import com.embabel.agent.api.tool.TerminateActionException
 import com.embabel.agent.api.tool.TerminateAgentException
@@ -23,14 +27,33 @@ import com.embabel.agent.spi.ToolGroupResolver
 import com.embabel.agent.spi.loop.RequiredToolGroupException
 import com.embabel.agent.spi.support.RegistryToolGroupResolver
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.slf4j.LoggerFactory
 
 /**
  * Tests for [ToolConsumer] and related interfaces.
  */
 class ToolConsumerTest {
+
+    private lateinit var collisionLogger: Logger
+    private lateinit var collisionAppender: ListAppender<ILoggingEvent>
+
+    @BeforeEach
+    fun attachCollisionAppender() {
+        collisionLogger = LoggerFactory.getLogger("com.embabel.agent.core.support.NameCollisions") as Logger
+        collisionAppender = ListAppender<ILoggingEvent>().apply { start() }
+        collisionLogger.addAppender(collisionAppender)
+    }
+
+    @AfterEach
+    fun detachCollisionAppender() {
+        collisionLogger.detachAppender(collisionAppender)
+        collisionAppender.stop()
+    }
 
     @Nested
     inner class ToolPublisherTest {
@@ -261,6 +284,31 @@ class ToolConsumerTest {
             val resolved = consumer.resolveTools(createEmptyResolver())
 
             assertEquals(listOf("lookup-tool"), resolved.map { it.definition.name })
+        }
+
+        @Test
+        fun `resolveTools reports original names when hierarchy naming creates a collision`() {
+            val suffix = System.nanoTime().toString()
+            val firstName = "lookup-$suffix"
+            val secondName = "lookup.$suffix"
+            val consumer = createToolConsumer(
+                name = "interaction",
+                fullHierarchyName = "com.example.Agent.action",
+                toolNamingStrategy = ToolNamingStrategy.FULL_HIERARCHY,
+                tools = listOf(createMockTool(firstName), createMockTool(secondName)),
+                toolGroups = emptySet(),
+            )
+
+            val resolved = consumer.resolveTools(createEmptyResolver())
+
+            assertEquals(1, resolved.size)
+            val error = collisionAppender.list
+                .filter { it.level == Level.ERROR }
+                .single()
+                .formattedMessage
+            assertTrue(error.contains(firstName), error)
+            assertTrue(error.contains(secondName), error)
+            assertTrue(error.contains("com_example_Agent_action_lookup_${suffix}"), error)
         }
     }
 

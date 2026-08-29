@@ -12,6 +12,26 @@ You can also specify a full resource path with https://docs.spring.io/spring-fra
 
 Once you have specified the template, you can create objects using a model map.
 
+Template syntax inside substituted values is treated as literal data by default.
+This prevents values such as user-provided text containing `{{ expression }}` from being evaluated recursively.
+
+The renderer can be configured under `embabel.agent.platform.template`:
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      template:
+        prefix: "classpath:/prompts/"
+        suffix: ".jinja"
+        fail-on-unknown-tokens: false
+        nested-interpretation-enabled: false
+----
+
+WARNING: Enabling `nested-interpretation-enabled` re-evaluates template syntax found inside substituted values.
+Do not enable it for templates that interpolate untrusted or user-provided text.
+
 An example:
 
 [tabs]

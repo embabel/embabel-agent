@@ -176,6 +176,10 @@ import org.springframework.test.context.TestPropertySource
         "embabel.agent.platform.llm-operations.prompts.generate-examples-by-default=false",
         "embabel.agent.platform.llm-operations.data-binding.max-attempts=20",
         "embabel.agent.platform.llm-operations.data-binding.fixed-backoff-millis=50",
+        "embabel.agent.platform.template.prefix=classpath:/custom-prompts/",
+        "embabel.agent.platform.template.suffix=.j2",
+        "embabel.agent.platform.template.fail-on-unknown-tokens=true",
+        "embabel.agent.platform.template.nested-interpretation-enabled=true",
         "embabel.agent.platform.models.anthropic.max-attempts=8",
         "embabel.agent.platform.models.anthropic.backoff-millis=3000",
         "embabel.agent.platform.models.openai.max-attempts=12",
@@ -262,6 +266,29 @@ class AgentPlatformPropertiesIntegrationTest {
     }
 
     @Test
+    fun `should bind template properties correctly`() {
+        assertThat(properties.template.prefix).isEqualTo("classpath:/custom-prompts/")
+        assertThat(properties.template.suffix).isEqualTo(".j2")
+        assertThat(properties.template.failOnUnknownTokens).isTrue()
+        assertThat(properties.template.nestedInterpretationEnabled).isTrue()
+    }
+
+    @Test
+    fun `should bind a partial template configuration using defaults`() {
+        val environment = MockEnvironment()
+            .withProperty("embabel.agent.platform.template.nested-interpretation-enabled", "true")
+
+        val bound = Binder.get(environment)
+            .bind("embabel.agent.platform", AgentPlatformProperties::class.java)
+            .get()
+
+        assertThat(bound.template.prefix).isEqualTo("classpath:/prompts/")
+        assertThat(bound.template.suffix).isEqualTo(".jinja")
+        assertThat(bound.template.failOnUnknownTokens).isFalse()
+        assertThat(bound.template.nestedInterpretationEnabled).isTrue()
+    }
+
+    @Test
     fun `should bind model provider properties correctly`() {
         assertThat(properties.models.anthropic.maxAttempts).isEqualTo(8)
         assertThat(properties.models.anthropic.backoffMillis).isEqualTo(3000L)
@@ -288,6 +315,10 @@ class AgentPlatformPropertiesIntegrationTest {
         assertThat(defaultProperties.scanning.annotation).isTrue()
         assertThat(defaultProperties.ranking.maxAttempts).isEqualTo(5)
         assertThat(defaultProperties.autonomy.agentConfidenceCutOff).isEqualTo(0.6)
+        assertThat(defaultProperties.template.prefix).isEqualTo("classpath:/prompts/")
+        assertThat(defaultProperties.template.suffix).isEqualTo(".jinja")
+        assertThat(defaultProperties.template.failOnUnknownTokens).isFalse()
+        assertThat(defaultProperties.template.nestedInterpretationEnabled).isFalse()
         assertThat(defaultProperties.models.anthropic.maxAttempts).isEqualTo(10)
         assertThat(defaultProperties.models.openai.maxAttempts).isEqualTo(10)
         assertThat(defaultProperties.test.mockMode).isTrue()

@@ -99,6 +99,21 @@ class NameCollisionsTest {
         }
 
         @Test
+        fun `reports every distinct element after the retained one in a three-way collision`() {
+            val name = unique("three-way")
+            val kept = listOf(
+                Named(name, "retained meaning"),
+                Named(name, "first dropped meaning"),
+                Named(name, "second dropped meaning"),
+            ).distinctByNameReportingCollisions(kind = "goal") { it.name }
+
+            assertEquals(1, kept.size)
+            val error = errors().single()
+            assertTrue(error.contains("first dropped meaning"), error)
+            assertTrue(error.contains("second dropped meaning"), error)
+        }
+
+        @Test
         fun `a collision is reported once, not on every pass`() {
             val name = unique("hot-path")
             val elements = listOf(Named(name, "A"), Named(name, "B"))

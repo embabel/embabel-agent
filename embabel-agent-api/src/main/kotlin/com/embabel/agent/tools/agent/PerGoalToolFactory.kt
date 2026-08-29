@@ -125,6 +125,8 @@ class PerGoalToolFactory(
 
     /**
      * All tools including goal tools and platform tools.
+     * If no goal tools are available, this returns an empty list even when platform tools
+     * exist, allowing callers to apply their platform-only fallback explicitly.
      * @param remoteOnly if true, only include tools that are remote.
      * @param listeners additional listeners to be notified of events relating to the created process
      */
@@ -134,7 +136,7 @@ class PerGoalToolFactory(
     ): List<Tool> {
         val goalTools = goalTools(remoteOnly, listeners)
         return if (goalTools.isEmpty()) {
-            logger.warn("No goal tools found, no tools will be published")
+            logger.warn("No goal tools found; returning an empty list for platform-only fallback")
             emptyList()
         } else {
             (goalTools + platformTools)

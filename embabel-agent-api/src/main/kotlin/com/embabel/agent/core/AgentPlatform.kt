@@ -133,6 +133,8 @@ interface AgentPlatform : AgentScope {
         parentAgentProcess: AgentProcess,
     ): AgentProcess
 
+    // These registries are name-keyed by downstream consumers: keep the first declaration
+    // and report later distinct declarations instead of silently dropping them.
     override val domainTypes: Collection<DomainType>
         get() = agents().flatMap { it.domainTypes }
             .distinctByNameReportingCollisions(

@@ -243,6 +243,7 @@ class SupervisorAction(
                 val interaction = LlmInteraction(
                     id = InteractionId("$name-supervisor-$iteration"),
                     tools = curriedTools,
+                    // Use the supervisor as the owner so its curried tools are namespaced consistently.
                     hierarchyName = name,
                     toolNamingStrategy = processContext.platformServices.toolNamingStrategy(),
                 )
