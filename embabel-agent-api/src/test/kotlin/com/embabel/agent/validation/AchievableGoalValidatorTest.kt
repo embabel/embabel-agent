@@ -18,6 +18,7 @@ package com.embabel.agent.validation
 import com.embabel.agent.api.annotation.support.AgentMetadataReader
 import com.embabel.agent.api.annotation.support.AgentWithAchievesGoalNoActionAnnotation
 import com.embabel.agent.api.annotation.support.AgentWithValidAchievesGoalMethod
+import com.embabel.agent.api.annotation.support.AgenticComponentWithNoActionNoConditionNoGoalAnnotation
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertNotNull
 import org.junit.jupiter.api.assertNull
@@ -40,11 +41,23 @@ class AchievableGoalValidatorTest {
     }
 
     @Test
-    fun `no Action annotation on AchievesGoal method but skip-agent-on-error is true`(output: CapturedOutput) {
+    fun `no Action annotation on AchievesGoal method of an Agent but skip-agent-on-error is true`(output: CapturedOutput) {
         val reader = AgentMetadataReader(skipAgentDeploymentOnError = true)
         val agentScope = reader.createAgentMetadata(AgentWithAchievesGoalNoActionAnnotation())
         assertNull(agentScope, "Validation error is unexpectedly ignored.")
         assertTrue(output.out.contains(noActionErrorMessage), "Error message about missing @Action is absent.")
+        val className = "com.embabel.agent.api.annotation.support.AgentWithAchievesGoalNoActionAnnotation"
+        assertTrue(output.out.contains("Agent $className is rejected as it has validation errors as reported above."), "Error message mentioning agent is missing.")
+    }
+
+    @Test
+    fun `no Action annotation on AchievesGoal method of an Agentic component but skip-agent-on-error is true`(output: CapturedOutput) {
+        val reader = AgentMetadataReader(skipAgentDeploymentOnError = true)
+        val agentScope = reader.createAgentMetadata(AgenticComponentWithNoActionNoConditionNoGoalAnnotation())
+        assertNull(agentScope, "Validation error is unexpectedly ignored.")
+        val className = "com.embabel.agent.api.annotation.support.AgenticComponentWithNoActionNoConditionNoGoalAnnotation"
+        assertTrue(output.out.contains("Agentic component $className is not registered due to no methods annotated with @Action or @Condition and no goals defined on $className"), "Error message about missing @Action is absent.")
+        assertTrue(output.out.contains("Agentic component $className is rejected as it does not have any action, condition and goals."), "Error message mentioning Agentic component is missing.")
     }
 
     @Test
