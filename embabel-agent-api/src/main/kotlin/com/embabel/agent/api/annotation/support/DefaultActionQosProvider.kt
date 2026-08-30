@@ -64,14 +64,15 @@ class DefaultActionQosProvider(
             }
         }
 
-        // delayMs = -1L is the sentinel meaning "not set"; non-negative values (including 0) are explicit.
-        // 0 is treated as None (no delay), consistent with DelayPolicy.of(Long).
-        val actionDelay = method.getAnnotation(Action::class.java)?.let {
+        // -1L is the sentinel meaning "not set at action level"; null propagates agent-level delay.
+        // 0 is explicit "no delay" and overrides the agent default, so use null (not DelayPolicy.None)
+        // as the "not set" signal — otherwise delayMs=0 and delayMs=-1 are indistinguishable.
+        val actionDelay: DelayPolicy? = method.getAnnotation(Action::class.java)?.let {
             val ms = it.delayMs
-            if (ms >= 0) DelayPolicy.of(ms) else DelayPolicy.None
-        } ?: DelayPolicy.None
+            if (ms >= 0L) DelayPolicy.of(ms) else null
+        }
 
-        val delayPolicy = actionDelay.takeIf { it != DelayPolicy.None } ?: agentDelay
+        val delayPolicy = actionDelay ?: agentDelay
 
         return props.toActionQos().copy(delayPolicy = delayPolicy)
     }

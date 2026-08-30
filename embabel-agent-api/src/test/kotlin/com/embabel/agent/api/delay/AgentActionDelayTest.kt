@@ -115,6 +115,22 @@ class AgentActionDelayTest {
         }
     }
 
+    @Agent(description = "delayMs=0 suppresses agent-level LONG delay", delay = Delay.LONG)
+    class AgentWithZeroDelayOverridingAgentDelay {
+        @Action
+        fun step1(userInput: UserInput, context: ActionContext): DelayStep1 {
+            context["step1End"] = System.currentTimeMillis()
+            return DelayStep1(userInput.content)
+        }
+
+        @Action(delayMs = 0L)
+        @AchievesGoal(description = "final")
+        fun step2(step: DelayStep1, context: ActionContext): DelayStep2 {
+            context["step2Start"] = System.currentTimeMillis()
+            return DelayStep2(step.content)
+        }
+    }
+
     private fun blackboardFor(instance: Any): InMemoryBlackboard {
         val reader = AgentMetadataReader()
         val agent = reader.createAgentMetadata(instance) as CoreAgent
@@ -180,6 +196,13 @@ class AgentActionDelayTest {
                 .`as`("action delay (${ACTION_DELAY_MS}ms) should apply, not agent-level LONG")
                 .isGreaterThanOrEqualTo(ACTION_DELAY_MS - TOLERANCE_MS)
                 .isLessThan(Delay.LONG.millis / 2)
+        }
+
+        @Test
+        fun `delayMs=0 suppresses agent-level delay entirely`() {
+            assertThat(gap(blackboardFor(AgentWithZeroDelayOverridingAgentDelay())))
+                .`as`("explicit delayMs=0 must override agent LONG delay — gap must be near zero")
+                .isLessThan(TOLERANCE_MS)
         }
     }
 }
