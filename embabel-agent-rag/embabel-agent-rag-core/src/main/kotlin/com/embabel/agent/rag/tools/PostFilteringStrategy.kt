@@ -104,6 +104,7 @@ internal object PostFilteringSearch {
         metadataFilter: PropertyFilter?,
         entityFilter: PropertyFilter?,
         inflationStrategy: TopKInflationStrategy,
+        entitiesOnly: Boolean = false,
         search: (TextSimilaritySearchRequest) -> List<SimilarityResult<T>>,
     ): List<SimilarityResult<T>> where T : Datum, T : Retrievable {
         val inflatedTopK = inflationStrategy.inflate(request.topK)
@@ -112,7 +113,7 @@ internal object PostFilteringSearch {
             request.similarityThreshold,
             inflatedTopK
         )
-        return InMemoryPropertyFilter.filterResults(search(inflatedRequest), metadataFilter, entityFilter)
+        return InMemoryPropertyFilter.filterResults(search(inflatedRequest), metadataFilter, entityFilter, entitiesOnly)
             .take(request.topK)
     }
 
@@ -131,10 +132,11 @@ internal object PostFilteringSearch {
         metadataFilter: PropertyFilter?,
         entityFilter: PropertyFilter?,
         inflationStrategy: TopKInflationStrategy,
+        entitiesOnly: Boolean = false,
         search: (Int) -> List<SimilarityResult<T>>,
     ): List<SimilarityResult<T>> where T : Datum, T : Retrievable {
         val inflatedTopK = inflationStrategy.inflate(topK)
-        return InMemoryPropertyFilter.filterResults(search(inflatedTopK), metadataFilter, entityFilter)
+        return InMemoryPropertyFilter.filterResults(search(inflatedTopK), metadataFilter, entityFilter, entitiesOnly)
             .take(topK)
     }
 }

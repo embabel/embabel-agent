@@ -220,6 +220,24 @@ class InMemoryPropertyFilterTest {
         }
 
         @Test
+        fun `an entities-only result filter excludes chunks while retaining matching entities`() {
+            val results: List<SimilarityResult<Retrievable>> = listOf(
+                SimpleSimilaritySearchResult(match = chunk("1"), score = 0.9),
+                SimpleSimilaritySearchResult(match = entity("person", labels = setOf("Person")), score = 0.8),
+                SimpleSimilaritySearchResult(match = entity("company", labels = setOf("Company")), score = 0.7),
+            )
+
+            val filtered = InMemoryPropertyFilter.filterResults(
+                results,
+                metadataFilter = null,
+                entityFilter = EntityFilter.hasAnyLabel("Person"),
+                entitiesOnly = true,
+            )
+
+            assertEquals(listOf("person"), filtered.map { it.match.id })
+        }
+
+        @Test
         fun `requires both metadata and entity filters to match`() {
             val results = listOf(
                 SimpleSimilaritySearchResult(

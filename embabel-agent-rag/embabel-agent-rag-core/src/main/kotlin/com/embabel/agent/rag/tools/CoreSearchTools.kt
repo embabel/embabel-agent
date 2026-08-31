@@ -20,6 +20,7 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.filter.PropertyFilter
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import com.embabel.agent.rag.filter.EntityFilter
+import com.embabel.agent.rag.model.NamedEntityData
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.Embeddable
 import com.embabel.agent.rag.model.Retrievable
@@ -83,8 +84,18 @@ internal fun <T : Retrievable> VectorSearch.vectorSearchWithFilterDispatch(
     clazz: Class<T>,
     metadataFilter: PropertyFilter? = null,
     entityFilter: EntityFilter? = null,
+    entitiesOnly: Boolean = false,
 ): List<SimilarityResult<T>> = when {
-    metadataFilter == null && entityFilter == null -> vectorSearch(request, clazz)
+    metadataFilter == null && entityFilter == null && !entitiesOnly -> vectorSearch(request, clazz)
+    entitiesOnly -> PostFilteringSearch.search(
+        request,
+        metadataFilter,
+        entityFilter,
+        TopKInflationStrategy.DEFAULT,
+        entitiesOnly,
+    ) { inflatedRequest ->
+        vectorSearchWithFilterDispatch(inflatedRequest, clazz, metadataFilter, entityFilter)
+    } as List<SimilarityResult<T>>
     this is FilteringVectorSearch -> vectorSearchWithFilter(request, clazz, metadataFilter, entityFilter)
     else -> PostFilteringSearch.search(
         request,
@@ -104,6 +115,7 @@ internal class VectorSearchTools @JvmOverloads constructor(
     private val resultsListener: ResultsListener? = null,
     private val searchDefaults: SearchDefaults = SearchDefaults.DEFAULT,
     private val resultExpander: ResultExpander? = null,
+    private val entitiesOnly: Boolean = false,
 ) : SearchTools {
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
@@ -136,13 +148,14 @@ internal class VectorSearchTools @JvmOverloads constructor(
         // Expanded BEFORE the listener fires: an observer must see what the model sees, or
         // reported provenance and the answer's actual evidence drift apart.
         val results = hits.withNeighbours(resultExpander, searchDefaults.expandNeighbours)
+            .filter { !entitiesOnly || it.match is NamedEntityData }
         resultsListener?.onResultsEvent(ResultsEvent(this, request.query, results, Duration.ofMillis(ms)))
         return results
     }
 
     private fun searchForAllTypes(request: TextSimilaritySearchRequest): List<SimilarityResult<out Retrievable>> {
         val allResults = searchFor.flatMap { clazz ->
-            vectorSearch.vectorSearchWithFilterDispatch(request, clazz, metadataFilter, entityFilter)
+            vectorSearch.vectorSearchWithFilterDispatch(request, clazz, metadataFilter, entityFilter, entitiesOnly)
         }
         return deduplicateByIdKeepingHighestScore(allResults)
     }
@@ -380,8 +393,18 @@ internal fun <T : Retrievable> TextSearch.textSearchWithFilterDispatch(
     clazz: Class<T>,
     metadataFilter: PropertyFilter? = null,
     entityFilter: EntityFilter? = null,
+    entitiesOnly: Boolean = false,
 ): List<SimilarityResult<T>> = when {
-    metadataFilter == null && entityFilter == null -> textSearch(request, clazz)
+    metadataFilter == null && entityFilter == null && !entitiesOnly -> textSearch(request, clazz)
+    entitiesOnly -> PostFilteringSearch.search(
+        request,
+        metadataFilter,
+        entityFilter,
+        TopKInflationStrategy.DEFAULT,
+        entitiesOnly,
+    ) { inflatedRequest ->
+        textSearchWithFilterDispatch(inflatedRequest, clazz, metadataFilter, entityFilter)
+    } as List<SimilarityResult<T>>
     this is FilteringTextSearch -> textSearchWithFilter(request, clazz, metadataFilter, entityFilter)
     else -> PostFilteringSearch.search(
         request,
@@ -416,6 +439,7 @@ internal class TextSearchTools @JvmOverloads constructor(
     private val resultsListener: ResultsListener? = null,
     private val searchDefaults: SearchDefaults = SearchDefaults.DEFAULT,
     private val resultExpander: ResultExpander? = null,
+    private val entitiesOnly: Boolean = false,
 ) : SearchTools, Tool {
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
@@ -487,13 +511,14 @@ internal class TextSearchTools @JvmOverloads constructor(
         // neighbours added afterwards would mask exactly the emptiness worth warning about.
         Bm25Normalization.warnIfThresholdSuppressedResults(logger, query, threshold, hits.size)
         val results = hits.withNeighbours(resultExpander, searchDefaults.expandNeighbours)
+            .filter { !entitiesOnly || it.match is NamedEntityData }
         resultsListener?.onResultsEvent(ResultsEvent(this, query, results, Duration.ofMillis(ms)))
         return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList<Retrievable>(results))
     }
 
     private fun searchForAllTypes(request: TextSimilaritySearchRequest): List<SimilarityResult<out Retrievable>> {
         val allResults = searchFor.flatMap { clazz ->
-            textSearch.textSearchWithFilterDispatch(request, clazz, metadataFilter, entityFilter)
+            textSearch.textSearchWithFilterDispatch(request, clazz, metadataFilter, entityFilter, entitiesOnly)
         }
         return deduplicateByIdKeepingHighestScore(allResults)
     }
@@ -527,6 +552,7 @@ internal class RegexSearchTools(
     private val metadataFilter: PropertyFilter? = null,
     private val entityFilter: EntityFilter? = null,
     private val resultsListener: ResultsListener? = null,
+    private val entitiesOnly: Boolean = false,
 ) : SearchTools {
 
     @LlmTool(description = "Perform regex search across content elements. Specify topK")
@@ -549,12 +575,12 @@ internal class RegexSearchTools(
         regex: Regex,
         topK: Int,
     ): List<SimilarityResult<Chunk>> {
-        if (metadataFilter == null && entityFilter == null) {
+        if (metadataFilter == null && entityFilter == null && !entitiesOnly) {
             return regexSearch.regexSearch(regex, topK, Chunk::class.java)
         }
 
         // If backend supports native filtering, use it
-        if (regexSearch is FilteringRegexSearch) {
+        if (regexSearch is FilteringRegexSearch && !entitiesOnly) {
             return regexSearch.regexSearchWithFilter(regex, topK, Chunk::class.java, metadataFilter, entityFilter)
         }
 
@@ -563,7 +589,8 @@ internal class RegexSearchTools(
             topK,
             metadataFilter,
             entityFilter,
-            TopKInflationStrategy.DEFAULT
+            TopKInflationStrategy.DEFAULT,
+            entitiesOnly,
         ) { inflatedTopK ->
             regexSearch.regexSearch(regex, inflatedTopK, Chunk::class.java)
         }

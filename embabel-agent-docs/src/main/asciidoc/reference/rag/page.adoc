@@ -778,6 +778,27 @@ val accessFilter = (EntityFilter.hasAnyLabel("Person", "Employee") and eq("activ
 
 Since `EntityFilter` extends `PropertyFilter`, all filter types share the same `and`, `or`, `not` operators and can be freely combined.
 
+====== Entity-only results
+
+An entity filter leaves non-entity results such as chunks unchanged. To select only matching entities from a mixed
+result set, set `entitiesOnly` on `ToolishRag`:
+
+[source,kotlin]
+----
+import com.embabel.agent.rag.filter.EntityFilter
+
+val rag = ToolishRag(
+    name = "people-search",
+    description = "Search for people",
+    searchOperations = repository,
+    entityFilter = EntityFilter.hasAnyLabel("Person"),
+    entitiesOnly = true,
+)
+----
+
+Result selection is applied before the final `topK`. When native selection is unavailable, the search requests an
+inflated candidate set and applies the selector in memory.
+
 NOTE: `EntityFilter.HasAnyLabel` is typically handled via in-memory filtering as most vector stores don't have native label support. When using Neo4j backends, labels can be translated to native Cypher label predicates for optimal performance.
 
 [IMPORTANT]
@@ -1097,6 +1118,7 @@ return InMemoryPropertyFilter.filterResults(results, metadataFilter, entityFilte
 
 For `EntityFilter.HasAnyLabel`, the in-memory filter checks if the entity has any of the specified labels via `NamedEntityData.labels()`.
 Non-entity results such as chunks pass through unchanged, so an entity filter can be used with searches that return both chunks and entities.
+Set `entitiesOnly` in addition to the entity filter when non-entity results should be excluded.
 
 This ensures filtering works across all backends, with native optimization for metadata filters where available.
 
