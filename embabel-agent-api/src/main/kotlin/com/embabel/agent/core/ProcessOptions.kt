@@ -78,15 +78,19 @@ data class Verbosity @JvmOverloads constructor(
 
 }
 
+private const val DELAY_NONE_MS   = 0L
+private const val DELAY_MEDIUM_MS = 400L
+private const val DELAY_LONG_MS   = 2000L
+
 enum class Delay(val millis: Long) {
-    NONE(0),
-    MEDIUM(400),
-    LONG(2000);
+    NONE(DELAY_NONE_MS),
+    MEDIUM(DELAY_MEDIUM_MS),
+    LONG(DELAY_LONG_MS);
 
     companion object {
-        const val NONE_MS   = 0L
-        const val MEDIUM_MS = 400L
-        const val LONG_MS   = 2000L
+        const val NONE_MS   = DELAY_NONE_MS
+        const val MEDIUM_MS = DELAY_MEDIUM_MS
+        const val LONG_MS   = DELAY_LONG_MS
     }
 }
 
