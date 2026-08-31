@@ -17,6 +17,7 @@ package com.embabel.agent.core
 
 import com.embabel.common.util.EmbabelObjectMapperHolder
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -76,13 +77,17 @@ class DelayPolicyTest {
         }
 
         @Test
-        fun `zero millis produces None`() {
-            assertSame(DelayPolicy.None, DelayPolicy.of(0L))
+        fun `zero millis produces Fixed(0) not None`() {
+            val policy = DelayPolicy.of(0L)
+            assertInstanceOf(DelayPolicy.Fixed::class.java, policy)
+            assertEquals(Duration.ZERO, policy.duration)
         }
 
         @Test
-        fun `negative millis produces None`() {
-            assertSame(DelayPolicy.None, DelayPolicy.of(-1L))
+        fun `negative millis is clamped to Fixed(0) not None`() {
+            val policy = DelayPolicy.of(-1L)
+            assertInstanceOf(DelayPolicy.Fixed::class.java, policy)
+            assertEquals(Duration.ZERO, policy.duration)
         }
     }
 
@@ -102,8 +107,10 @@ class DelayPolicyTest {
         }
 
         @Test
-        fun `0 deserializes to None`() {
-            assertSame(DelayPolicy.None, mapper.readValue("0", DelayPolicy::class.java))
+        fun `0 deserializes to Fixed with zero duration`() {
+            val policy = mapper.readValue("0", DelayPolicy::class.java)
+            assertInstanceOf(DelayPolicy.Fixed::class.java, policy)
+            assertEquals(Duration.ZERO, policy.duration)
         }
 
         @Test
