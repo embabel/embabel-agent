@@ -40,7 +40,8 @@ sealed interface DelayPolicy {
     val duration: Duration get() = Duration.ofMillis(millis)
 
     /**
-     * No delay.
+     * Sentinel meaning "not set / inherit from the enclosing scope".
+     * Use [of] with an explicit `0L` when no delay is intentional.
      */
     object None : DelayPolicy {
         override val millis: Long = 0L
@@ -61,11 +62,15 @@ sealed interface DelayPolicy {
             if (delay.millis <= 0) None else Fixed(delay.millis)
 
         /**
-         * Construct a [DelayPolicy] from an explicit millisecond value.
+         * Constructs a [Fixed] policy from an explicit millisecond value.
+         * Negative values are clamped to zero.
+         *
+         * Always returns [Fixed], never [None] — so callers that distinguish
+         * "explicitly zero" from "not set" can use identity equality against [None].
+         * Use [None] directly when the intent is "unset, inherit from the enclosing scope".
          */
         @JsonCreator
         @JvmStatic
-        fun of(millis: Long): DelayPolicy =
-            if (millis <= 0) None else Fixed(millis)
+        fun of(millis: Long): DelayPolicy = Fixed(maxOf(0L, millis))
     }
 }

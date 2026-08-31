@@ -23,6 +23,7 @@ import com.embabel.agent.api.common.ActionContext
 import com.embabel.agent.api.channel.DevNullOutputChannel
 import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.Delay
+import com.embabel.agent.core.ProcessControl
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.expression.LogicalExpressionParser
 import com.embabel.agent.core.support.InMemoryBlackboard
@@ -115,6 +116,22 @@ class AgentActionDelayTest {
         }
     }
 
+    @Agent(description = "delayMs=0 suppresses process-level LONG operation delay")
+    class AgentWithZeroDelayOverridingProcessDelay {
+        @Action
+        fun step1(userInput: UserInput, context: ActionContext): DelayStep1 {
+            context["step1End"] = System.currentTimeMillis()
+            return DelayStep1(userInput.content)
+        }
+
+        @Action(delayMs = 0L)
+        @AchievesGoal(description = "final")
+        fun step2(step: DelayStep1, context: ActionContext): DelayStep2 {
+            context["step2Start"] = System.currentTimeMillis()
+            return DelayStep2(step.content)
+        }
+    }
+
     @Agent(description = "delayMs=0 suppresses agent-level LONG delay", delay = Delay.LONG)
     class AgentWithZeroDelayOverridingAgentDelay {
         @Action
@@ -131,7 +148,7 @@ class AgentActionDelayTest {
         }
     }
 
-    private fun blackboardFor(instance: Any): InMemoryBlackboard {
+    private fun blackboardFor(instance: Any, processOptions: ProcessOptions = ProcessOptions()): InMemoryBlackboard {
         val reader = AgentMetadataReader()
         val agent = reader.createAgentMetadata(instance) as CoreAgent
         val blackboard = InMemoryBlackboard()
@@ -152,7 +169,7 @@ class AgentActionDelayTest {
         val process = SimpleAgentProcess(
             id = "test-${instance.javaClass.simpleName}",
             agent = agent,
-            processOptions = ProcessOptions(),
+            processOptions = processOptions,
             blackboard = blackboard,
             platformServices = platformServices,
             plannerFactory = DefaultPlannerFactory,
@@ -184,6 +201,20 @@ class AgentActionDelayTest {
             assertThat(gap(blackboardFor(AgentWithAgentLevelDelay())))
                 .`as`("gap should be at least ${Delay.MEDIUM.millis}ms")
                 .isGreaterThanOrEqualTo(Delay.MEDIUM.millis - TOLERANCE_MS)
+        }
+    }
+
+    @Nested
+    inner class ActionOverridesProcessDelay {
+
+        @Test
+        fun `delayMs=0 suppresses process-level operation delay`() {
+            val processOptions = ProcessOptions().withProcessControl(
+                ProcessControl().withOperationDelay(Delay.LONG)
+            )
+            assertThat(gap(blackboardFor(AgentWithZeroDelayOverridingProcessDelay(), processOptions)))
+                .`as`("explicit delayMs=0 must override process LONG operation delay — gap must be near zero")
+                .isLessThan(TOLERANCE_MS)
         }
     }
 

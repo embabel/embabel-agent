@@ -32,15 +32,15 @@ import org.slf4j.LoggerFactory
 class ProcessOptionsOperationScheduler(
     @Deprecated("Unused: delay is read directly from DelayPolicy.duration")
     val operationDelays: Map<Delay, Long> = mapOf(
-        Delay.NONE to 0L,
-        Delay.MEDIUM to 400L,
-        Delay.LONG to 2000L,
+        Delay.NONE to Delay.NONE_MS,
+        Delay.MEDIUM to Delay.MEDIUM_MS,
+        Delay.LONG to Delay.LONG_MS,
     ),
     @Deprecated("Unused: delay is read directly from DelayPolicy.duration")
     val toolDelays: Map<Delay, Long> = mapOf(
-        Delay.NONE to 0L,
-        Delay.MEDIUM to 400L,
-        Delay.LONG to 2000L,
+        Delay.NONE to Delay.NONE_MS,
+        Delay.MEDIUM to Delay.MEDIUM_MS,
+        Delay.LONG to Delay.LONG_MS,
     ),
 ) : OperationScheduler {
 
