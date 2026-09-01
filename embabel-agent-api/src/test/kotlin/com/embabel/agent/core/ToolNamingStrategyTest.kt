@@ -15,10 +15,11 @@
  */
 package com.embabel.agent.core
 
-import com.embabel.agent.api.tool.Tool
+
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 
 class ToolNamingStrategyTest {
 
@@ -27,9 +28,7 @@ class ToolNamingStrategyTest {
 
         @Test
         fun `keeps the existing tool name`() {
-            val consumer = consumer("Agent.action")
-
-            val name = ToolNamingStrategy.LEGACY_NAME_ONLY.nameFor(consumer, "lookup")
+            val name = ToolNamingStrategy.LEGACY_NAME_ONLY.nameFor("Agent.action", "lookup")
 
             assertEquals("lookup", name)
         }
@@ -43,30 +42,40 @@ class ToolNamingStrategyTest {
     }
 
     @Nested
-    inner class FullHierarchy {
+    inner class FullyQualified {
 
         @Test
-        fun `uses the consumer hierarchy and sanitizes the published name`() {
-            val consumer = consumer("com.example.Agent.action")
+        fun `uses the owner name to qualify the published name`() {
+            val name = ToolNamingStrategy.FULLY_QUALIFIED.nameFor("com.example.Agent.action", "lookup-tool")
 
-            val name = ToolNamingStrategy.FULL_HIERARCHY.nameFor(consumer, "lookup-tool")
-
-            assertEquals("com_example_Agent_action_lookup_tool", name)
+            assertEquals("com_2e_example_2e_Agent_2e_action_lookup_2d_tool", name)
         }
 
         @Test
-        fun `uses an owner hierarchy for generated tools`() {
-            val name = ToolNamingStrategy.FULL_HIERARCHY.nameFor("Agent", "done")
+        fun `uses an owner name for generated tools`() {
+            val name = ToolNamingStrategy.FULLY_QUALIFIED.nameFor("Agent", "done")
 
             assertEquals("Agent_done", name)
         }
+
+        @Test
+        fun `encodes unsafe characters without collapsing distinct names`() {
+            val hyphenated = ToolNamingStrategy.FULLY_QUALIFIED.nameFor("Agent", "lookup-1")
+            val dotted = ToolNamingStrategy.FULLY_QUALIFIED.nameFor("Agent", "lookup.1")
+
+            assertNotEquals(hyphenated, dotted)
+        }
+
+        @Test
+        fun `bounds long names without collapsing distinct names`() {
+            val owner = "com.example.${"VeryLongOwner".repeat(5)}"
+            val first = ToolNamingStrategy.FULLY_QUALIFIED.nameFor(owner, "first")
+            val second = ToolNamingStrategy.FULLY_QUALIFIED.nameFor(owner, "second")
+
+            assertEquals(64, first.length)
+            assertEquals(64, second.length)
+            assertNotEquals(first, second)
+        }
     }
 
-    private fun consumer(hierarchyName: String): ToolConsumer = object : ToolConsumer {
-        override val name = "interaction"
-        override val tools = emptyList<Tool>()
-        override val toolGroups = emptySet<ToolGroupRequirement>()
-
-        override fun fullHierarchyName(): String = hierarchyName
-    }
 }

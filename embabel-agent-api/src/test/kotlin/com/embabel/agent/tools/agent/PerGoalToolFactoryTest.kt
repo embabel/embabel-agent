@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.tools.agent
 
+import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.dsl.agent
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
@@ -25,6 +26,7 @@ import com.embabel.agent.api.dsl.userInputToFrogOrPersonBranch
 import com.embabel.agent.test.integration.IntegrationTestUtils
 import com.embabel.agent.test.integration.RandomRanker
 import com.embabel.agent.test.integration.forAutonomyTesting
+import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.Export
 import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.domain.io.UserInput
@@ -66,13 +68,19 @@ class PerGoalToolFactoryTest {
         val allToolNames = allTools.map { it.definition.name }
 
         // Should contain goal tools
-        assertTrue(allToolNames.any { !it.startsWith("_") && it != FORM_SUBMISSION_TOOL_NAME },
-            "Should contain at least one goal tool")
+        assertTrue(
+            allToolNames.any { !it.startsWith("_") && it != FORM_SUBMISSION_TOOL_NAME },
+            "Should contain at least one goal tool"
+        )
         // Should also contain platform tools
-        assertTrue(allToolNames.contains(CONFIRMATION_TOOL_NAME),
-            "allTools should include '$CONFIRMATION_TOOL_NAME'")
-        assertTrue(allToolNames.contains(FORM_SUBMISSION_TOOL_NAME),
-            "allTools should include '$FORM_SUBMISSION_TOOL_NAME'")
+        assertTrue(
+            allToolNames.contains(CONFIRMATION_TOOL_NAME),
+            "allTools should include '$CONFIRMATION_TOOL_NAME'"
+        )
+        assertTrue(
+            allToolNames.contains(FORM_SUBMISSION_TOOL_NAME),
+            "allTools should include '$FORM_SUBMISSION_TOOL_NAME'"
+        )
     }
 
     @Test
@@ -214,17 +222,32 @@ class PerGoalToolFactoryTest {
     }
 
     @Test
-    fun `full hierarchy naming keeps same goal names from different agents`() {
+    fun `creates a distinct tool for each starting input type`() {
+        val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
+        agentPlatform.deploy(
+            agentWithExportedGoal(
+                agentName = "Wizard",
+                description = "done",
+                startingInputTypes = setOf(UserInput::class.java, MagicVictim::class.java),
+            )
+        )
+        val autonomy = Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting())
+
+        val goalTools = PerGoalToolFactory(autonomy, "testApp")
+            .goalTools(remoteOnly = true, listeners = emptyList())
+
+        assertEquals(2, goalTools.size)
+        assertEquals(2, goalTools.map { it.definition.name }.toSet().size)
+    }
+
+    @Test
+    fun `fully qualified naming keeps same goal names from different agents`() {
         val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
         agentPlatform.deploy(agentWithExportedGoal("AardvarkWizard", "Aardvark meaning"))
         agentPlatform.deploy(agentWithExportedGoal("ZebraWizard", "Zebra meaning"))
-        val autonomy = Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting())
+        val autonomy = autonomy(agentPlatform, ToolNamingStrategy.FULLY_QUALIFIED)
 
-        val factory = PerGoalToolFactory(
-            autonomy = autonomy,
-            applicationName = "testApp",
-            toolNamingStrategy = ToolNamingStrategy.FULL_HIERARCHY,
-        )
+        val factory = PerGoalToolFactory(autonomy, "testApp")
 
         val goalToolNames = factory.goalTools(remoteOnly = true, listeners = emptyList())
             .map { it.definition.name }
@@ -233,6 +256,27 @@ class PerGoalToolFactoryTest {
             setOf("AardvarkWizard_done", "ZebraWizard_done"),
             goalToolNames.toSet(),
         )
+        val aardvarkGoal = agentPlatform.agents().single { it.name == "AardvarkWizard" }.goals.single()
+        assertEquals(
+            "AardvarkWizard_done",
+            factory.toolsForGoal(aardvarkGoal, emptyList()).single().definition.name,
+        )
+    }
+
+    @Test
+    fun `public goal tools use the owning agent when goals are equal`() {
+        val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
+        agentPlatform.deploy(agentWithExportedGoal("AardvarkWizard", "Same meaning"))
+        agentPlatform.deploy(agentWithExportedGoal("ZebraWizard", "Same meaning"))
+        val factory = PerGoalToolFactory(
+            autonomy(agentPlatform, ToolNamingStrategy.FULLY_QUALIFIED),
+            "testApp",
+        )
+        val zebraGoal = agentPlatform.agents().single { it.name == "ZebraWizard" }.goals.single()
+
+        val tool = factory.toolsForGoal(zebraGoal, emptyList()).single()
+
+        assertEquals("ZebraWizard_done", tool.definition.name)
     }
 
     @Test
@@ -242,11 +286,7 @@ class PerGoalToolFactoryTest {
         agentPlatform.deploy(agentWithExportedGoal("ZebraWizard", "Zebra meaning"))
         val autonomy = Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting())
 
-        val factory = PerGoalToolFactory(
-            autonomy = autonomy,
-            applicationName = "testApp",
-            toolNamingStrategy = ToolNamingStrategy.LEGACY_NAME_ONLY,
-        )
+        val factory = PerGoalToolFactory(autonomy, "testApp")
 
         val goalTools = factory.goalTools(remoteOnly = true, listeners = emptyList())
 
@@ -254,20 +294,33 @@ class PerGoalToolFactoryTest {
         assertEquals(listOf("Aardvark meaning"), goalTools.map { it.goal.description })
     }
 
-    private fun agentWithExportedGoal(agentName: String, description: String) =
-        agent(agentName, description = description) {
-            transformation<UserInput, MagicVictim>(name = "$agentName-action") {
-                MagicVictim(agentName)
-            }
-            goal(
-                name = "done",
-                description = description,
-                satisfiedBy = MagicVictim::class,
-                export = Export(
-                    remote = true,
-                    startingInputTypes = setOf(UserInput::class.java),
-                ),
-            )
+    private fun autonomy(agentPlatform: AgentPlatform, namingStrategy: ToolNamingStrategy): Autonomy {
+        val platformServices = object : PlatformServices by agentPlatform.platformServices {
+            override fun toolNamingStrategy() = namingStrategy
         }
+        val namedPlatform = object : AgentPlatform by agentPlatform {
+            override val platformServices = platformServices
+        }
+        return Autonomy(namedPlatform, RandomRanker(), forAutonomyTesting())
+    }
+
+    private fun agentWithExportedGoal(
+        agentName: String,
+        description: String,
+        startingInputTypes: Set<Class<*>> = setOf(UserInput::class.java),
+    ) = agent(agentName, description = description) {
+        transformation<UserInput, MagicVictim>(name = "$agentName-action") {
+            MagicVictim(agentName)
+        }
+        goal(
+            name = "done",
+            description = description,
+            satisfiedBy = MagicVictim::class,
+            export = Export(
+                remote = true,
+                startingInputTypes = startingInputTypes,
+            ),
+        )
+    }
 
 }

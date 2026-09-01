@@ -20,7 +20,6 @@ import com.embabel.agent.api.event.AgentProcessEvent
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.event.ObjectAddedEvent
 import com.embabel.agent.api.event.ObjectBoundEvent
-import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.mcpserver.McpExportToolCallbackPublisher
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.spi.support.springai.toSpringToolCallback
@@ -51,33 +50,25 @@ class PerGoalMcpAsyncExportToolCallbackPublisher(
     @Value("\${embabel.agent.application.name:agent-api}") applicationName: String,
 ) : McpExportToolCallbackPublisher {
 
-    private val perGoalToolFactory by lazy {
-        PerGoalToolFactory(
-            autonomy = autonomy,
-            applicationName = applicationName,
-            textCommunicator = PromptedTextCommunicator,
-            toolNamingStrategy = runCatching {
-                autonomy.agentPlatform.platformServices.toolNamingStrategy()
-            }.getOrDefault(ToolNamingStrategy.LEGACY_NAME_ONLY),
-        )
-    }
+    private val perGoalToolFactory = PerGoalToolFactory(
+        autonomy = autonomy,
+        applicationName = applicationName,
+        textCommunicator = PromptedTextCommunicator,
+    )
 
     override val toolCallbacks: List<ToolCallback>
         get() {
-            val tools = perGoalToolFactory.allTools(
+            val goalTools = perGoalToolFactory.goalTools(
                 remoteOnly = true,
                 listeners = emptyList(),
-            ).ifEmpty { perGoalToolFactory.platformTools }
-            // Wrap GoalTools with MCP-aware wrapper, then convert all tools to ToolCallbacks.
-            // allTools performs the final name-based de-duplication across goal and platform tools.
-            return tools.map { tool ->
-                if (tool is GoalTool<*>) {
-                    @Suppress("UNCHECKED_CAST")
-                    McpAwareGoalTool(tool as GoalTool<Any>, mcpAsyncServer).toSpringToolCallback()
-                } else {
-                    tool.toSpringToolCallback()
-                }
+            )
+            // Wrap GoalTools with MCP-aware wrapper, then convert to ToolCallback
+            val goalCallbacks = goalTools.map { goalTool ->
+                McpAwareGoalTool(goalTool, mcpAsyncServer).toSpringToolCallback()
             }
+            // Include platform tools (e.g. submitFormAndResumeProcess, _confirm) for HITL support
+            val platformCallbacks = perGoalToolFactory.platformTools.map { it.toSpringToolCallback() }
+            return goalCallbacks + platformCallbacks
         }
 
 

@@ -47,14 +47,14 @@ data class Meal(val bread: String, val description: String)
 )
 class SupervisorWith3Steps {
 
-    @Action(description = "Mix the ingredient into dough")
-    fun makeDough(ingredient: Ingredient): Dough {
-        return Dough(ingredient = ingredient.name)
-    }
-
     @Action(description = "Bake the dough into bread")
     fun bakeBread(dough: Dough): Bread {
         return Bread(dough = dough.ingredient)
+    }
+
+    @Action(description = "Mix the ingredient into dough")
+    fun makeDough(ingredient: Ingredient): Dough {
+        return Dough(ingredient = ingredient.name)
     }
 
     @AchievesGoal(description = "Serve the bread as a meal")

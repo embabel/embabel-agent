@@ -208,6 +208,23 @@ class SupervisorToolProgressionTest {
     }
 
     @Test
+    fun `prompt keeps action signatures with reordered tools`() {
+        val metadata = AgentMetadataReader().createAgentMetadata(SupervisorWith3Steps()) as CoreAgent
+        val scriptedLlm = ScriptedLlmOperations().respond("Done")
+        val agentPlatform = dummyAgentPlatform(llmOperations = scriptedLlm)
+
+        agentPlatform.runAgentFrom(
+            metadata,
+            ProcessOptions(plannerType = PlannerType.SUPERVISOR),
+            mapOf("ingredient" to Ingredient("flour")),
+        )
+
+        val prompt = scriptedLlm.promptsReceived.first()
+        assertTrue(prompt.contains("- bakeBread(it: Dough) -> Bread"), prompt)
+        assertTrue(prompt.contains("- makeDough(it: Ingredient) -> Dough"), prompt)
+    }
+
+    @Test
     fun `tools are sorted by readiness`() {
         // Create a custom 3-step agent for this test
         val reader = AgentMetadataReader()

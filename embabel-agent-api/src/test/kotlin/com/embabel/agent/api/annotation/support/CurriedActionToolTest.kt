@@ -20,8 +20,13 @@ import com.embabel.agent.core.ActionStatus
 import com.embabel.agent.core.ActionStatusCode
 import com.embabel.agent.core.IoBinding
 import com.embabel.agent.core.ProcessContext
+import com.embabel.agent.core.ToolConsumer
+import com.embabel.agent.core.ToolGroupRequirement
+import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.core.support.AbstractAction
 import com.embabel.agent.core.support.InMemoryBlackboard
+import com.embabel.agent.spi.support.RegistryToolGroupResolver
+import com.embabel.agent.spi.support.ToolNamingContext
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
@@ -126,6 +131,29 @@ class CurriedActionToolTest {
     }
 
     @Test
+    fun `fully qualified names keep actions with the same short name`() {
+        val curriedTools = CurriedActionTool.createTools(
+            actions = listOf(action("com.foo.Lookup.lookup"), action("com.bar.Lookup.lookup")),
+            blackboard = InMemoryBlackboard(),
+            objectMapper = objectMapper,
+        )
+        val consumer = object : ToolConsumer {
+            override val name = "supervisor"
+            override val tools = curriedTools
+            override val toolGroups = emptySet<ToolGroupRequirement>()
+        }
+        val namingContext = ToolNamingContext(consumer, ToolNamingStrategy.FULLY_QUALIFIED, "Agent.supervisor")
+
+        val names = namingContext.resolveTools(RegistryToolGroupResolver("test", emptyList()))
+            .map { it.definition.name }
+
+        assertEquals(
+            listOf("com_2e_bar_2e_Lookup_2e_lookup_lookup", "com_2e_foo_2e_Lookup_2e_lookup_lookup"),
+            names,
+        )
+    }
+
+    @Test
     fun `handles duplicate types with unique suffixes`() {
         // Create an action with multiple inputs of the same type
         val action = object : AbstractAction(
@@ -165,7 +193,25 @@ class CurriedActionToolTest {
         )
     }
 
-    // Test data classes
+    private fun action(name: String) = object : AbstractAction(
+        name = name,
+        description = name,
+        pre = emptyList(),
+        post = emptyList(),
+        cost = { 0.0 },
+        value = { 0.0 },
+        inputs = emptySet(),
+        outputs = emptySet(),
+        toolGroups = emptySet(),
+        canRerun = false,
+        qos = ActionQos(),
+    ) {
+        override fun execute(processContext: ProcessContext) =
+            ActionStatus(Duration.ZERO, ActionStatusCode.SUCCEEDED)
+
+        override fun referencedInputProperties(variable: String) = emptySet<String>()
+    }
+
     data class Cook(val name: String)
     data class Order(val dish: String)
     data class Meal(val dish: String, val cookedBy: String)

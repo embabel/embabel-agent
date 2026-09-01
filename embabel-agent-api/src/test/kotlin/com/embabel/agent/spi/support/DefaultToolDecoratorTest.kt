@@ -22,9 +22,13 @@ import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.ReplanRequestedException
+import com.embabel.agent.core.ToolGroup
+import com.embabel.agent.core.ToolGroupResolution
+import com.embabel.agent.spi.ToolGroupResolver
 import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyAgentProcessRunning
 import com.embabel.common.ai.model.LlmOptions
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
@@ -96,6 +100,35 @@ class DefaultToolDecoratorTest {
             result.content.contains("This tool always fails"),
             "Expected result to contain the exception message: Got '${result.content}'"
         )
+    }
+
+    @Test
+    fun `resolves tool metadata from an intermediate alias after namespacing`() {
+        val resolver = mockk<ToolGroupResolver>()
+        val toolGroup = mockk<ToolGroup>(relaxed = true)
+        val original = safelyGetToolsFrom(ToolObject(RuntimeExceptionTool)).single()
+        val alias = original.withName("api_search")
+        val namespaced = alias.withName("Agent_action_api_search")
+        every {
+            resolver.findToolGroupForTool("Agent_action_api_search")
+        } returns ToolGroupResolution(null, "not found")
+        every {
+            resolver.findToolGroupForTool("api_search")
+        } returns ToolGroupResolution(toolGroup)
+
+        DefaultToolDecorator(toolGroupResolver = resolver).decorate(
+            tool = namespaced,
+            agentProcess = dummyAgentProcessRunning(evenMoreEvilWizard()),
+            action = null,
+            llmOptions = LlmOptions(),
+        )
+
+        verify(exactly = 1) {
+            resolver.findToolGroupForTool("Agent_action_api_search")
+        }
+        verify(exactly = 1) {
+            resolver.findToolGroupForTool("api_search")
+        }
     }
 
     @Test

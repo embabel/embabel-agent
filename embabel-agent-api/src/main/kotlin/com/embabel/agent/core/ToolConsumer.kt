@@ -19,8 +19,6 @@ import com.embabel.agent.api.common.TerminationScope
 import com.embabel.agent.api.tool.TerminateActionException
 import com.embabel.agent.api.tool.TerminateAgentException
 import com.embabel.agent.api.tool.Tool
-import com.embabel.agent.core.support.distinctByNameReportingCollisions
-import com.embabel.agent.core.support.sameTool
 import com.embabel.agent.spi.ToolGroupResolver
 import com.embabel.agent.spi.loop.RequiredToolGroupException
 import com.embabel.common.util.loggerFor
@@ -54,6 +52,10 @@ interface ToolPublisher : ToolSpec {
     }
 }
 
+internal interface ToolNameOwner {
+    val ownerName: String
+}
+
 /**
  * Allows consuming tools and exposing them to LLMs.
  * Interface allowing abstraction between tool concept
@@ -63,18 +65,6 @@ interface ToolConsumer : ToolSpecConsumer,
     ToolGroupConsumer {
 
     val name: String
-
-    /**
-     * Stable hierarchy used to identify this consumer in diagnostics and optional tool names.
-     * Consumers without a parent context fall back to [name].
-     */
-    fun fullHierarchyName(): String = name
-
-    /**
-     * Naming policy for tools exposed by this consumer.
-     */
-    val toolNamingStrategy: ToolNamingStrategy
-        get() = ToolNamingStrategy.LEGACY_NAME_ONLY
 
     /**
      * Tools to expose to LLMs.
@@ -98,6 +88,12 @@ interface ToolConsumer : ToolSpecConsumer,
         fun resolveTools(
             toolConsumer: ToolConsumer,
             toolGroupResolver: ToolGroupResolver,
+        ): List<Tool> = resolveTools(toolConsumer, toolGroupResolver) { it }
+
+        internal fun resolveTools(
+            toolConsumer: ToolConsumer,
+            toolGroupResolver: ToolGroupResolver,
+            name: (Tool) -> Tool,
         ): List<Tool> {
             val resolvedTools = mutableListOf<Tool>()
             resolvedTools += toolConsumer.tools
@@ -141,32 +137,14 @@ interface ToolConsumer : ToolSpecConsumer,
                     resolvedTools += resolution.resolvedToolGroup.tools
                 }
             }
-            val namedTools = resolvedTools.map { tool ->
-                val originalName = tool.definition.name
-                val newName = toolConsumer.toolNamingStrategy.nameFor(toolConsumer, tool.definition.name)
-                NamedTool(
-                    originalName = originalName,
-                    tool = if (newName == originalName) {
-                        tool
-                    } else {
-                        tool.withName(newName)
-                    },
-                )
-            }
-            val publishedTools = namedTools
-                .distinctByNameReportingCollisions(
-                    kind = "tool",
-                    sameValue = { first, second -> sameTool(first.tool, second.tool) },
-                    context = toolConsumer.fullHierarchyName(),
-                    describe = { "${it.originalName} (${it.tool::class.qualifiedName})" },
-                ) { it.tool.definition.name }
-                .sortedBy { it.tool.definition.name }
-                .map { it.tool }
+            val publishedTools = resolvedTools.map(name)
+                .distinctBy { it.definition.name }
+                .sortedBy { it.definition.name }
             loggerFor<ToolConsumer>().debug(
-                "{} resolved {} tools from {} candidate tools and {} tool groups: {}",
-                toolConsumer.fullHierarchyName(),
+                "{} resolved {} tools from {} tools and {} tool groups: {}",
+                toolConsumer.name,
                 publishedTools.size,
-                namedTools.size,
+                toolConsumer.tools.size,
                 toolConsumer.toolGroups.size,
                 publishedTools.map { it.definition.name },
             )
@@ -174,15 +152,6 @@ interface ToolConsumer : ToolSpecConsumer,
         }
     }
 }
-
-/**
- * A resolved tool together with the name it had before a naming strategy was applied.
- * Keeping the original name makes collision diagnostics useful after tools are renamed.
- */
-private data class NamedTool(
-    val originalName: String,
-    val tool: Tool,
-)
 
 private fun throwForMissingTools(
     requirement: ToolGroupRequirement,

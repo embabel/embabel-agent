@@ -15,10 +15,13 @@
  */
 package com.embabel.agent.mcpserver.async.support
 
+import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.dsl.agent
 import com.embabel.agent.api.dsl.aggregate
+import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.Export
+import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.test.domain.Frog
 import com.embabel.agent.test.domain.MagicVictim
@@ -82,6 +85,21 @@ class PerGoalAsyncMcpToolExportCallbackPublisherTest {
     }
 
     @Test
+    fun `toolCallbacks uses the owning agent name for generated goal tools`() {
+        val publisher = PerGoalMcpAsyncExportToolCallbackPublisher(
+            autonomy = fullyQualifiedAutonomy(),
+            mcpAsyncServer = mcpAsyncServer,
+            applicationName = "testApp",
+        )
+
+        val toolNames = publisher.toolCallbacks.map { it.toolDefinition.name() }
+
+        assertTrue(toolNames.contains("ExportedWizard_done"), toolNames.toString())
+        assertTrue(toolNames.contains(CONFIRMATION_TOOL_NAME), toolNames.toString())
+        assertTrue(toolNames.contains(FORM_SUBMISSION_TOOL_NAME), toolNames.toString())
+    }
+
+    @Test
     fun `toolCallbacks count equals goal tools plus platform tools`() {
         val publisher = PerGoalMcpAsyncExportToolCallbackPublisher(
             autonomy = autonomy,
@@ -99,7 +117,7 @@ class PerGoalAsyncMcpToolExportCallbackPublisherTest {
             goalCount + platformCount,
             callbacks.size,
             "Should have $goalCount goal tools + $platformCount platform tools = ${goalCount + platformCount} total, " +
-                "but got ${callbacks.size}: ${callbacks.map { it.toolDefinition.name() }}"
+                    "but got ${callbacks.size}: ${callbacks.map { it.toolDefinition.name() }}"
         )
     }
 
@@ -122,6 +140,18 @@ class PerGoalAsyncMcpToolExportCallbackPublisherTest {
             setOf(CONFIRMATION_TOOL_NAME, FORM_SUBMISSION_TOOL_NAME),
             toolNames.toSet(),
         )
+    }
+
+    private fun fullyQualifiedAutonomy(): Autonomy {
+        val basePlatform = IntegrationTestUtils.dummyAgentPlatform()
+        basePlatform.deploy(remoteExportedAgent())
+        val namedServices = object : PlatformServices by basePlatform.platformServices {
+            override fun toolNamingStrategy(): ToolNamingStrategy = ToolNamingStrategy.FULLY_QUALIFIED
+        }
+        val namedPlatform = object : AgentPlatform by basePlatform {
+            override val platformServices: PlatformServices = namedServices
+        }
+        return Autonomy(namedPlatform, RandomRanker(), forAutonomyTesting())
     }
 
     companion object {

@@ -148,7 +148,7 @@ class SpringContextPlatformServicesActionQosTest {
         @Test
         fun `returns configured tool naming strategy from context`() {
             val platformProperties = AgentPlatformProperties().apply {
-                tools.namingStrategy = ToolNamingStrategy.FULL_HIERARCHY
+                tools.namingStrategy = ToolNamingStrategy.FULLY_QUALIFIED
             }
             every {
                 mockApplicationContext.getBeansOfType(AgentPlatformProperties::class.java, any(), any())
@@ -156,7 +156,7 @@ class SpringContextPlatformServicesActionQosTest {
 
             val services = createServices(mockApplicationContext)
 
-            assertThat(services.toolNamingStrategy()).isEqualTo(ToolNamingStrategy.FULL_HIERARCHY)
+            assertThat(services.toolNamingStrategy()).isEqualTo(ToolNamingStrategy.FULLY_QUALIFIED)
         }
 
         @Test

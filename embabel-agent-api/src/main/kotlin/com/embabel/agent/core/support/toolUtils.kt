@@ -18,8 +18,6 @@ package com.embabel.agent.core.support
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.ToolObject
-import java.util.Collections
-import java.util.IdentityHashMap
 
 /**
  * SPI for extracting framework-specific tools (e.g. Spring AI) from an arbitrary
@@ -43,12 +41,7 @@ private val externalToolExtractor: ExternalToolExtractor? = try {
  */
 fun safelyGetTools(instances: Collection<ToolObject>): List<Tool> =
     instances.flatMap { safelyGetToolsFrom(it) }
-        // Tool is an interface with no value semantics, so two tools sharing a name can only
-        // be told apart by identity: the same tool reaching us through two tool objects is
-        // harmless, two distinct tools under one name means one of them is not callable.
-        .distinctByNameReportingCollisions(kind = "tool", sameValue = ::sameTool) {
-            it.definition.name
-        }
+        .distinctBy { it.definition.name }
         .sortedBy { it.definition.name }
 
 /**
@@ -77,12 +70,7 @@ fun safelyGetToolsFrom(toolObject: ToolObject): List<Tool> {
                 it
             }
         }
-        // Renaming happens just above, so a naming strategy that maps two distinct tools onto
-        // one name has its collision created and then discarded here. Report it: the caller
-        // wrote the strategy and is the only one who can fix it.
-        .distinctByNameReportingCollisions(kind = "renamed tool", sameValue = ::sameTool) {
-            it.definition.name
-        }
+        .distinctBy { it.definition.name }
         .sortedBy { it.definition.name }
 }
 
@@ -103,21 +91,4 @@ internal class RenamedTool(
 
     override val metadata: Tool.Metadata = delegate.metadata
 
-}
-
-/**
- * Compare tools by their executable implementation, ignoring transparent naming wrappers.
- */
-internal fun sameTool(
-    first: Tool,
-    second: Tool,
-): Boolean = underlyingTool(first) === underlyingTool(second)
-
-private fun underlyingTool(tool: Tool): Tool {
-    var current = tool
-    val seen = Collections.newSetFromMap(IdentityHashMap<Tool, Boolean>())
-    while (current is DelegatingTool && seen.add(current)) {
-        current = current.delegate
-    }
-    return current
 }

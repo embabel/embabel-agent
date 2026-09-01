@@ -17,20 +17,11 @@ package com.embabel.agent.api.invocation
 
 import com.embabel.agent.api.annotation.Action
 import com.embabel.agent.api.annotation.EmbabelComponent
-import com.embabel.agent.api.annotation.support.SupervisorAction
 import com.embabel.agent.api.annotation.support.supervisor.*
 import com.embabel.agent.api.common.Ai
-import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.PlannerType
 import com.embabel.agent.api.common.scope.AgentScopeBuilder
-import com.embabel.agent.core.Action as CoreAction
-import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.ProcessOptions
-import com.embabel.agent.core.ToolNamingStrategy
-import com.embabel.agent.core.internal.LlmOperations
-import com.embabel.agent.core.support.LlmInteraction
-import com.embabel.agent.test.integration.IntegrationTestUtils
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyAgentPlatform
 import com.embabel.agent.test.integration.ScriptedLlmOperations
 import org.junit.jupiter.api.Assertions.*
@@ -222,33 +213,6 @@ class SupervisorInvocationTest {
     }
 
     @Nested
-    inner class ToolNaming {
-
-        @Test
-        fun `supervisor interaction preserves configured tool naming strategy`() {
-            val recordingLlm = RecordingLlmOperations(ScriptedLlmOperations().respond("Done"))
-            val agentPlatform = dummyAgentPlatform(llmOperations = recordingLlm)
-            val platformServices = object : PlatformServices by agentPlatform.platformServices {
-                override fun toolNamingStrategy(): ToolNamingStrategy = ToolNamingStrategy.FULL_HIERARCHY
-            }
-            val agent = SupervisorInvocation.on(agentPlatform, MarketData::class.java)
-                .withScope(AgentScopeBuilder.fromInstances(MarketDataActions()))
-                .createSupervisorAgent()
-            val agentProcess = IntegrationTestUtils.dummyAgentProcessRunning(agent, platformServices)
-            val processContext = ProcessContext(
-                platformServices = platformServices,
-                agentProcess = agentProcess,
-            )
-
-            (agent.actions.single() as SupervisorAction).execute(processContext)
-
-            val interaction = recordingLlm.interactions.first()
-            assertEquals(ToolNamingStrategy.FULL_HIERARCHY, interaction.toolNamingStrategy)
-            assertEquals("platform.supervisor", interaction.fullHierarchyName())
-        }
-    }
-
-    @Nested
     inner class AgentNaming {
 
         @Test
@@ -307,22 +271,5 @@ class SupervisorInvocationTest {
             assertTrue(original.createSupervisorAgent().name.endsWith(".supervisor"))
             assertEquals("custom-name", modified.createSupervisorAgent().name)
         }
-    }
-}
-
-private class RecordingLlmOperations(
-    private val delegate: ScriptedLlmOperations,
-) : LlmOperations by delegate {
-
-    val interactions = mutableListOf<LlmInteraction>()
-
-    override fun generate(
-        prompt: String,
-        interaction: LlmInteraction,
-        agentProcess: AgentProcess,
-        action: CoreAction?,
-    ): String {
-        interactions += interaction
-        return delegate.generate(prompt, interaction, agentProcess, action)
     }
 }

@@ -23,8 +23,6 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.Goal
 import com.embabel.agent.core.ToolNamingStrategy
-import com.embabel.agent.core.support.distinctByNameReportingCollisions
-import com.embabel.agent.core.support.sameTool
 import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.common.core.types.NamedAndDescribed
 import org.slf4j.LoggerFactory
@@ -75,9 +73,12 @@ class PerGoalToolFactory(
     private val goalToolNamingStrategy: GoalToolNamingStrategy = ApplicationNameGoalToolNamingStrategy(
         applicationName
     ),
-    private val toolNamingStrategy: ToolNamingStrategy = ToolNamingStrategy.LEGACY_NAME_ONLY,
 ) {
 
+    private val toolNamingStrategy by lazy {
+        runCatching { autonomy.agentPlatform.platformServices.toolNamingStrategy() }
+            .getOrDefault(ToolNamingStrategy.LEGACY_NAME_ONLY)
+    }
     private val logger = LoggerFactory.getLogger(PerGoalToolFactory::class.java)
 
     /**
@@ -106,27 +107,18 @@ class PerGoalToolFactory(
             .filter { it.goal.export.local }
             .filter { !remoteOnly || it.goal.export.remote }
             .flatMap { source ->
-                toolsForGoal(source.goal, listeners, source.ownerHierarchy)
+                toolsForGoal(source.goal, listeners, source.ownerName)
             }
         if (goalTools.isEmpty()) {
             logger.info("No goals found in agent platform, no tools will be published")
             return emptyList()
         }
-        val distinctGoalTools = goalTools
-            .distinctByNameReportingCollisions(
-                kind = "goal tool",
-                sameValue = { a, b -> a.goal == b.goal && a.inputType == b.inputType },
-                context = "agent platform",
-                describe = { "${it.goal.name} (${it.goal.description})" },
-            ) { it.definition.name }
-        logger.info("{} goal tools found in agent platform: {}", distinctGoalTools.size, distinctGoalTools)
-        return distinctGoalTools
+        logger.info("{} goal tools found in agent platform: {}", goalTools.size, goalTools)
+        return goalTools
     }
 
     /**
      * All tools including goal tools and platform tools.
-     * If no goal tools are available, this returns an empty list even when platform tools
-     * exist, allowing callers to apply their platform-only fallback explicitly.
      * @param remoteOnly if true, only include tools that are remote.
      * @param listeners additional listeners to be notified of events relating to the created process
      */
@@ -136,17 +128,10 @@ class PerGoalToolFactory(
     ): List<Tool> {
         val goalTools = goalTools(remoteOnly, listeners)
         return if (goalTools.isEmpty()) {
-            logger.warn("No goal tools found; returning an empty list for platform-only fallback")
+            logger.warn("No goal tools found, no tools will be published")
             emptyList()
         } else {
-            (goalTools + platformTools)
-                .distinctByNameReportingCollisions(
-                    kind = "published tool",
-                    sameValue = ::sameTool,
-                    context = "agent platform",
-                    describe = { "${it.definition.name} (${it::class.qualifiedName})" },
-                ) { it.definition.name }
-                .sortedBy { it.definition.name }
+            goalTools + platformTools
         }
     }
 
@@ -158,16 +143,31 @@ class PerGoalToolFactory(
     fun toolsForGoal(
         goal: Goal,
         listeners: List<AgenticEventListener>,
-        ownerHierarchy: String? = null,
+    ): List<GoalTool<*>> = toolsForGoal(
+        goal = goal,
+        listeners = listeners,
+        ownerName = autonomy.agentPlatform.agents()
+            .firstOrNull { agent -> agent.goals.any { it === goal } }
+            ?.name,
+    )
+
+    private fun toolsForGoal(
+        goal: Goal,
+        listeners: List<AgenticEventListener>,
+        ownerName: String?,
     ): List<GoalTool<*>> {
         val goalName = goal.export.name ?: when (toolNamingStrategy) {
             ToolNamingStrategy.LEGACY_NAME_ONLY -> goalToolNamingStrategy.nameForGoal(goal)
-            ToolNamingStrategy.FULL_HIERARCHY -> toolNamingStrategy.nameFor(ownerHierarchy, goal.name)
+            ToolNamingStrategy.FULLY_QUALIFIED -> toolNamingStrategy.nameFor(ownerName, goal.name)
         }
-        return goal.export.startingInputTypes.map { inputType ->
+        val inputTypes = goal.export.startingInputTypes
+        return inputTypes.map { inputType ->
+            val toolName = if (inputTypes.size == 1) goalName else {
+                ToolNamingStrategy.FULLY_QUALIFIED.nameFor(goalName, inputType.name)
+            }
             GoalTool(
                 autonomy = autonomy,
-                name = goalName,
+                name = toolName,
                 description = goal.description,
                 goal = goal,
                 inputType = inputType,
@@ -177,7 +177,7 @@ class PerGoalToolFactory(
         }
     }
 
-    private fun goalsToPublish(): List<GoalSource> = if (toolNamingStrategy == ToolNamingStrategy.FULL_HIERARCHY) {
+    private fun goalsToPublish(): List<GoalSource> = if (toolNamingStrategy == ToolNamingStrategy.FULLY_QUALIFIED) {
         autonomy.agentPlatform.agents().flatMap { agent ->
             agent.goals.map { goal -> GoalSource(agent.name, goal) }
         }
@@ -186,7 +186,7 @@ class PerGoalToolFactory(
     }
 
     private data class GoalSource(
-        val ownerHierarchy: String?,
+        val ownerName: String?,
         val goal: Goal,
     )
 

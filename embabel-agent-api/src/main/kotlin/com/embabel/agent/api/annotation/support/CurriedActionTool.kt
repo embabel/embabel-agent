@@ -37,10 +37,12 @@ import org.slf4j.LoggerFactory
  * @param objectMapper Object mapper for JSON parsing
  */
 internal class CurriedActionTool(
-    private val action: Action,
+    internal val action: Action,
     private val blackboard: Blackboard,
     private val objectMapper: ObjectMapper,
-) : Tool {
+) : Tool, ToolNameOwner {
+
+    override val ownerName = action.name
 
     private val logger = LoggerFactory.getLogger(CurriedActionTool::class.java)
 

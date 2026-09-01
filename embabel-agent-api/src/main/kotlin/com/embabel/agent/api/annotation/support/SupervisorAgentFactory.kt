@@ -243,9 +243,6 @@ class SupervisorAction(
                 val interaction = LlmInteraction(
                     id = InteractionId("$name-supervisor-$iteration"),
                     tools = curriedTools,
-                    // Use the supervisor as the owner so its curried tools are namespaced consistently.
-                    hierarchyName = name,
-                    toolNamingStrategy = processContext.platformServices.toolNamingStrategy(),
                 )
 
                 // Execute with tools
@@ -326,9 +323,11 @@ class SupervisorAction(
     ): String {
         val objectMapper = processContext.platformServices.objectMapper
 
-        // Build action signatures with type schemas
-        val actionSignatures = toolActions.joinToString("\n") { action ->
-            "- " + TypeSchemaExtractor.buildActionSignature(action)
+        val namingStrategy = processContext.platformServices.toolNamingStrategy()
+        val actionSignatures = tools.joinToString("\n") { tool ->
+            val action = (tool as CurriedActionTool).action
+            val signature = TypeSchemaExtractor.buildActionSignature(action)
+            "- ${namingStrategy.nameFor(tool, name)}${signature.removePrefix(action.shortName())}"
         }
 
         // Build artifacts summary showing typed values on blackboard

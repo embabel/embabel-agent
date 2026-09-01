@@ -15,50 +15,71 @@
  */
 package com.embabel.agent.core
 
+import com.embabel.agent.api.tool.Tool
+import java.security.MessageDigest
+
 /**
  * Controls the names published for tools.
  *
- * [LEGACY_NAME_ONLY] preserves a tool name such as `search` as `search`.
- * [FULL_HIERARCHY] prefixes it with the sanitized owner hierarchy: `AgentA.run` and
- * `search` become `AgentA_run_search`, while `Outer.Inner` and `search` become
- * `Outer_Inner_search`. These are the exposed tool names, not full JVM signatures.
+ * [LEGACY_NAME_ONLY] preserves `search`.
+ * [FULLY_QUALIFIED] publishes the complete Embabel owner and tool name, for example
+ * `AgentA.run` and `search` become `AgentA_2e_run_search`.
  */
 enum class ToolNamingStrategy {
-    /** Preserve only the existing tool name. */
+    /** Preserve the existing tool name. */
     LEGACY_NAME_ONLY,
 
-    /** Prefix the tool name with its stable owner hierarchy. */
-    FULL_HIERARCHY,
+    /** Qualify the tool name with its complete Embabel owner name. */
+    FULLY_QUALIFIED,
     ;
 
+
     /**
-     * Return the published name for a tool owned by [toolConsumer].
+     * Return the published name for a generated tool with the given owner name.
      */
     fun nameFor(
-        toolConsumer: ToolConsumer,
+        ownerName: String?,
         toolName: String,
     ): String = when (this) {
         LEGACY_NAME_ONLY -> toolName
-        FULL_HIERARCHY -> nameFor(toolConsumer.fullHierarchyName(), toolName)
+        FULLY_QUALIFIED -> {
+            val owner = ownerName?.takeIf { it.isNotBlank() }
+            val parts = if (owner != null && toolName != owner && !toolName.startsWith("$owner.")) {
+                listOf(owner, toolName)
+            } else {
+                listOf(toolName)
+            }
+            bound(parts.joinToString("_") { sanitize(it) }, parts.joinToString("\u0000"))
+        }
     }
 
-    /**
-     * Return the published name for a generated tool with the given owner hierarchy.
-     */
-    fun nameFor(
-        ownerHierarchy: String?,
-        toolName: String,
-    ): String = when (this) {
-        LEGACY_NAME_ONLY -> toolName
-        FULL_HIERARCHY -> listOfNotNull(
-            ownerHierarchy?.takeIf { it.isNotBlank() },
-            toolName,
-        ).joinToString("_") { sanitize(it) }
+    internal fun nameFor(tool: Tool, defaultOwnerName: String): String =
+        nameFor((tool as? ToolNameOwner)?.ownerName ?: defaultOwnerName, tool.definition.name)
+
+    private fun bound(name: String, source: String): String {
+        if (name.length <= MAX_NAME_LENGTH) return name
+        val hash = MessageDigest.getInstance("SHA-256")
+            .digest(source.toByteArray())
+            .take(HASH_BYTES)
+            .joinToString("") { "%02x".format(it) }
+        return "${name.take(MAX_NAME_LENGTH - hash.length - 1)}_$hash"
     }
 
-    private fun sanitize(name: String): String = name.replace(UNSAFE_NAME_CHARS, "_")
+    private fun sanitize(name: String): String = buildString {
+        name.forEach { character ->
+            if (character.isAsciiLetterOrDigit()) {
+                append(character)
+            } else {
+                append('_').append(character.code.toString(16)).append('_')
+            }
+        }
+    }
+
+    private fun Char.isAsciiLetterOrDigit(): Boolean =
+        this in 'a'..'z' || this in 'A'..'Z' || this in '0'..'9'
 
     private companion object {
-        val UNSAFE_NAME_CHARS = Regex("[^a-zA-Z0-9_]")
+        const val MAX_NAME_LENGTH = 64
+        const val HASH_BYTES = 6
     }
 }

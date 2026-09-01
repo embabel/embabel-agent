@@ -18,8 +18,10 @@ package com.embabel.agent.spi.support
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Action
+import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ProcessContext
+import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.ToolDecorator
 import com.embabel.common.ai.model.LlmOptions
@@ -39,6 +41,7 @@ class ToolResolutionHelperTest {
 
     private lateinit var mockAgentProcess: AgentProcess
     private lateinit var mockProcessContext: ProcessContext
+    private lateinit var mockAgent: Agent
     private lateinit var mockAction: Action
     private lateinit var mockToolDecorator: ToolDecorator
 
@@ -46,20 +49,27 @@ class ToolResolutionHelperTest {
     fun setUp() {
         mockAgentProcess = mockk(relaxed = true)
         mockProcessContext = mockk(relaxed = true)
+        mockAgent = mockk(relaxed = true)
         mockAction = mockk(relaxed = true)
         mockToolDecorator = mockk(relaxed = true)
 
+        every { mockAgent.name } returns "Agent"
+        every { mockAgentProcess.agent } returns mockAgent
         every { mockAgentProcess.processContext } returns mockProcessContext
+        every { mockProcessContext.platformServices.toolNamingStrategy() } returns
+                ToolNamingStrategy.LEGACY_NAME_ONLY
         every { mockProcessContext.platformServices.agentPlatform.toolGroupResolver } returns
-            RegistryToolGroupResolver("test", emptyList())
+                RegistryToolGroupResolver("test", emptyList())
     }
 
-    private fun createMockTool(name: String): Tool {
-        val definition = mockk<Tool.Definition>(relaxed = true)
-        every { definition.name } returns name
-        val tool = mockk<Tool>(relaxed = true)
-        every { tool.definition } returns definition
-        return tool
+    private fun createMockTool(name: String): Tool = object : Tool {
+        override val definition = Tool.Definition(
+            name = name,
+            description = name,
+            inputSchema = Tool.InputSchema.empty(),
+        )
+
+        override fun call(input: String): Tool.Result = error("not used")
     }
 
     @Test
@@ -80,6 +90,44 @@ class ToolResolutionHelperTest {
 
         // Then
         assertEquals(2, result.size)
+    }
+
+    @Test
+    fun `uses the platform naming strategy before decorating tools`() {
+        val tool = createMockTool("search")
+        val interaction = LlmInteraction(
+            id = InteractionId("test"),
+            tools = listOf(tool),
+        )
+        every { mockAction.name } returns "run"
+        every { mockProcessContext.platformServices.toolNamingStrategy() } returns
+                ToolNamingStrategy.FULLY_QUALIFIED
+        every { mockToolDecorator.decorate(any(), any(), any(), any()) } answers { firstArg() }
+
+        val result = ToolResolutionHelper.resolveAndDecorate(
+            interaction, mockAgentProcess, mockAction, mockToolDecorator
+        )
+
+        assertEquals(listOf("Agent_2e_run_search"), result.map { it.definition.name })
+    }
+
+    @Test
+    fun `does not duplicate an agent prefix already present in the action name`() {
+        val tool = createMockTool("search")
+        val interaction = LlmInteraction(
+            id = InteractionId("test"),
+            tools = listOf(tool),
+        )
+        every { mockAction.name } returns "Agent.supervisor"
+        every { mockProcessContext.platformServices.toolNamingStrategy() } returns
+                ToolNamingStrategy.FULLY_QUALIFIED
+        every { mockToolDecorator.decorate(any(), any(), any(), any()) } answers { firstArg() }
+
+        val result = ToolResolutionHelper.resolveAndDecorate(
+            interaction, mockAgentProcess, mockAction, mockToolDecorator
+        )
+
+        assertEquals(listOf("Agent_2e_supervisor_search"), result.map { it.definition.name })
     }
 
     @Test
@@ -142,6 +190,24 @@ class ToolResolutionHelperTest {
         // Then
         assertEquals(1, result.size)
         verify { mockToolDecorator.decorate(tool, mockAgentProcess, null, any()) }
+    }
+
+    @Test
+    fun `uses the agent name when no action is available`() {
+        val tool = createMockTool("search")
+        val interaction = LlmInteraction(
+            id = InteractionId("interaction-id"),
+            tools = listOf(tool),
+        )
+        every { mockProcessContext.platformServices.toolNamingStrategy() } returns
+                ToolNamingStrategy.FULLY_QUALIFIED
+        every { mockToolDecorator.decorate(any(), any(), any(), any()) } answers { firstArg() }
+
+        val result = ToolResolutionHelper.resolveAndDecorate(
+            interaction, mockAgentProcess, null, mockToolDecorator
+        )
+
+        assertEquals(listOf("Agent_search"), result.map { it.definition.name })
     }
 
     @Test
