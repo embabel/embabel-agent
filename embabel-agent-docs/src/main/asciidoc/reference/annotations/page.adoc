@@ -53,6 +53,7 @@ Useful for rate-limited APIs where breathing room is needed between calls.
 Overrides any agent-level `delay` default set on `@Agent`.
 Use `Delay.NONE_MS`, `Delay.MEDIUM_MS`, or `Delay.LONG_MS` for named values, or supply an arbitrary millisecond value (e.g., `1500L`) for precise control.
 A value of `-1` (the default) means inherit from the agent or process level.
+A value of `0` (or `Delay.NONE_MS`) explicitly suppresses any agent- or process-level delay — it does not inherit.
 
 ===== Clearing the Blackboard
 
