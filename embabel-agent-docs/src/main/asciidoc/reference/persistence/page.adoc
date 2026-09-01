@@ -1,0 +1,79 @@
+[[reference.persistence]]
+=== Persistence
+
+Agent process persistence is a checkpointing mechanism for recovering processes
+that are parked for external input, and for advancing durable state at terminal
+lifecycle boundaries.
+
+The framework keeps storage backend-neutral. Applications provide an
+`AgentProcessSnapshotStore`; framework support creates snapshots, serializes
+them, restores process instances, and decorates an
+`InMemoryAgentProcessRepository` or another runtime `AgentProcessRepository`.
+
+==== Lifecycle Boundaries
+
+The initial persistence model supports two checkpoint boundaries:
+
+* `WAITING`: a process has called `waitFor` and can be restored by another
+  runtime after local process state is lost.
+* Finished states: a process has completed, failed, been killed, or been
+  terminated, and durable state should reflect that final lifecycle state.
+
+`WaitForCheckpointPolicy` checkpoints only `WAITING` processes. Use it when the
+snapshot store is only a recovery cache.
+
+`LifecycleCheckpointPolicy` checkpoints `WAITING` and finished processes. Use it
+when the durable snapshot should also show that the resumed process reached a
+terminal state.
+
+==== Storage
+
+`AgentProcessSnapshotStore` is the storage SPI. It stores serialized snapshots
+with process id, parent id, agent name, status, content type, payload, timestamps,
+and optimistic version metadata.
+
+The framework does not ship a JDBC, cache, Redis, or database implementation in
+the agent API. Those backends should live in applications, starters, or tests.
+The API test suite includes an H2/JDBC fixture to prove the end-to-end recovery
+pattern without making JDBC part of the framework.
+
+==== Blackboard Values
+
+Blackboard state is persisted through `BlackboardEntrySerializer`.
+Serializers use `supportsSerialization` for live blackboard values and
+`supportsDeserialization` for stored values.
+
+The default JSON serializer is useful for simple values that can be safely
+materialized. Applications should provide more specific serializers for values
+that need stable identity or special treatment, such as:
+
+* awaitables whose ids must survive restore;
+* JPA/Hibernate entities that should be stored as references;
+* sensitive values that should be encrypted or redacted;
+* runtime handles that must be replaced by a durable DTO.
+
+Custom serializers are resolved before the fallback serializer.
+
+==== Restore
+
+On lookup, `PersistentAgentProcessRepository` first checks the runtime
+repository. In the current tests this is an `InMemoryAgentProcessRepository`.
+If the in-memory process is missing, it loads the serialized snapshot, rebuilds
+the blackboard, reconstructs the process implementation, restores internal
+status and action history, then saves the restored process back into the
+in-memory repository.
+
+This allows a HITL flow to resume after pod-local memory has been lost:
+
+[source,text]
+----
+POST /start
+  -> process WAITING
+  -> snapshot version 1 stored
+  -> runtime process lost
+POST /continue
+  -> snapshot loaded
+  -> awaitable restored
+  -> process resumes
+  -> terminal snapshot version 2 stored
+----

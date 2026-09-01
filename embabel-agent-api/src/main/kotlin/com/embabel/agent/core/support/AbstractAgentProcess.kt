@@ -248,6 +248,16 @@ abstract class AbstractAgentProcess(
     override val history: List<ActionInvocation>
         get() = _history.toList()
 
+    @InternalAgentStateApi
+    internal fun replaceRuntimeState(
+        status: AgentProcessStatusCode,
+        history: List<ActionInvocation>,
+    ) {
+        _status.set(status)
+        _history.clear()
+        _history.addAll(history)
+    }
+
     override val toolsStats: ToolsStats
         get() = agenticEventListenerToolsStats
 
