@@ -37,6 +37,12 @@ internal data class AgentProcessSnapshot(
     val processId: String,
     val parentId: String?,
     val agentName: String,
+    /**
+     * Internal discriminator used to choose the process restorer.
+     *
+     * Existing snapshots depend on this JVM class name. Moving or renaming a
+     * process implementation requires migration support for stored snapshots.
+     */
     val processImplementationClassName: String,
     val status: AgentProcessStatusCode,
     val version: Long,

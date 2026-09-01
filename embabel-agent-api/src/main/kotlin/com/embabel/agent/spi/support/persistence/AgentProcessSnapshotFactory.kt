@@ -48,15 +48,20 @@ internal class AgentProcessSnapshotFactory(
             )
         val pendingAwaitableId =
             when (agentProcess.status) {
-                AgentProcessStatusCode.WAITING ->
-                    blackboard.objects
-                        .filterIsInstance<Awaitable<*, *>>()
-                        .lastOrNull()
-                        ?.id
-                        ?: throw AgentProcessPersistenceException(
+                AgentProcessStatusCode.WAITING -> {
+                    val pendingAwaitables = blackboard.objects.filterIsInstance<Awaitable<*, *>>()
+                    when (pendingAwaitables.size) {
+                        1 -> pendingAwaitables.single().id
+                        0 -> throw AgentProcessPersistenceException(
                             "Cannot create snapshot for WAITING agent process [${agentProcess.id}]: " +
                                     "no pending Awaitable found"
                         )
+                        else -> throw AgentProcessPersistenceException(
+                            "Cannot create snapshot for WAITING agent process [${agentProcess.id}]: " +
+                                    "expected exactly one pending Awaitable but found [${pendingAwaitables.size}]"
+                        )
+                    }
+                }
 
                 else -> null
             }

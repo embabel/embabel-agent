@@ -30,6 +30,13 @@ import com.embabel.agent.spi.persistence.AgentProcessSnapshotStore
  * The runtime repository preserves existing in-memory semantics for active
  * processes. The snapshot store is consulted when the runtime repository
  * misses, allowing another runtime to rebuild a process from durable state.
+ *
+ * This foundation keeps runtime save and snapshot save as separate operations.
+ * The snapshot store's expected-version check prevents stale writes, but a
+ * concurrent writer can still win between lookup and save, causing the store to
+ * reject this checkpoint. Transactional multi-runtime semantics require a
+ * persistent runtime repository and snapshot store that participate in the same
+ * transaction boundary.
  */
 internal class PersistentAgentProcessRepository(
     private val runtimeRepository: AgentProcessRepository,

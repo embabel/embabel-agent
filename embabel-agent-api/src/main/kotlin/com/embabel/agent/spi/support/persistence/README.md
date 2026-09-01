@@ -127,6 +127,19 @@ snapshot store is only consulted when the runtime repository misses.
   need runtime state and snapshots to participate in the same database
   transaction. The current tests use `InMemoryAgentProcessRepository` as the
   pluggable runtime repository.
+- Add a configurable `BlackboardSnapshotter` SPI so persistence is not tied to
+  `InMemoryBlackboard`.
+- Add explicit action-boundary checkpoint support if durable state must advance
+  after intermediate actions, not only at `WAITING` and terminal boundaries.
+- Review direct `AgentProcessSnapshotStore` versioning ergonomics. The
+  persistent repository computes expected versions, but direct store callers must
+  still supply the correct compare-and-set version.
+- Define retry or outbox semantics for rejected checkpoints in multi-runtime
+  deployments.
+- Decide whether repeated `InMemoryBlackboard.bind` calls for the same key
+  should keep historical entry values or replace the earlier entry. Snapshot
+  restore preserves the current behavior, which can make overwritten values
+  visible as unnamed entries.
 
 ## Scope
 

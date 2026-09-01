@@ -54,6 +54,22 @@ that need stable identity or special treatment, such as:
 
 Custom serializers are resolved before the fallback serializer.
 
+==== Current Limitations
+
+The current snapshot factory supports `InMemoryBlackboard` and assumes a
+`WAITING` process has exactly one pending awaitable. Broader blackboard support
+should be added through a `BlackboardSnapshotter` SPI.
+
+Runtime repository writes and snapshot writes are separate operations. The
+expected-version check prevents stale snapshot updates, but rejected checkpoints
+currently propagate to the caller. Transaction-backed runtime and snapshot
+semantics require a persistent `AgentProcessRepository` using the same
+transaction boundary as the snapshot store.
+
+Snapshots use the process implementation JVM class name as an internal restore
+discriminator. Moving or renaming process implementation classes requires
+snapshot migration support.
+
 ==== Restore
 
 On lookup, `PersistentAgentProcessRepository` first checks the runtime
