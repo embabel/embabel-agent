@@ -18,6 +18,7 @@ include::chatbots/page.adoc[]
 
 include::agent-process/page.adoc[]
 include::persistence/page.adoc[]
+include::cache/page.adoc[]
 include::agent-platform/page.adoc[]
 
 include::invoking/page.adoc[]

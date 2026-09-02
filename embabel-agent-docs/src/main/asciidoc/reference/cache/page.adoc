@@ -1,0 +1,97 @@
+[[reference.cache]]
+=== Cache Providers
+
+Agent state that must outlive a single node — process snapshots today, contexts
+and shared runtime state next — needs a backend. `embabel-agent-cache` is the
+integration point for one.
+
+A backend is integrated once, through `AgentCacheProvider`, and then serves every
+consumer. Without this, each consumer would grow its own Redis or Hazelcast
+integration, each with its own connection management, key naming, expiry handling
+and health checks.
+
+The module depends on `embabel-agent-api`, never the reverse. The API module
+declares the consumer contracts; this module adapts them onto a cache.
+
+==== Providers And Regions
+
+`AgentCacheProvider` vends `AgentCacheRegion` instances by name. A region holds
+opaque versioned payloads and supports `get`, `put`, `replace`, `remove`, `clear`
+and an optional secondary `index`.
+
+Regions exist because the data has genuinely different retention needs. The names
+in `CacheRegions` are part of the configuration surface, since users reference
+them when declaring caches or expiry in a backend's own configuration:
+
+[cols="1,2,1"]
+|===
+|Region |Holds |Retention
+
+|`agent-process-snapshots`
+|Durable process checkpoints
+|Compare-and-set required, normally no expiry
+
+|`agent-contexts`
+|Long-lived state shared across processes
+|Time to live
+
+|`agent-processes-runtime`
+|Runtime process state shared between nodes
+|Short time to live
+|===
+
+==== Capabilities
+
+Backends differ in what they can guarantee, and the SPI states this rather than
+settling for a lowest common denominator. A region declares its `capabilities`. A
+consumer that cannot function without one requests it through
+`CacheRegionConfig.requiredCapabilities`, and a provider unable to meet the
+request throws `CacheCapabilityException` when the region is created, rather than
+returning something that quietly degrades.
+
+`ATOMIC_COMPARE_AND_SET` is the one that matters most. Snapshot writes use
+`replace` with an expected version; without atomicity that becomes a
+read-modify-write, which is correct for a single writer but permits a lost update
+when two nodes checkpoint the same process concurrently.
+
+==== Spring Cache Provider
+
+`SpringCacheAgentCacheProvider` adapts any Spring `CacheManager`, so JSR-107 and
+Spring-supported backends work with no additional code, configured through the
+standard `spring.cache` properties.
+
+Its limitations are deliberate and documented rather than hidden:
+
+* No atomic compare-and-set. `replace` is a read-modify-write guarded by an
+  in-JVM lock, so it is correct on a single node only.
+* Secondary indexes are emulated as companion entries under a reserved key
+  prefix, and index updates are not atomic with the data write they accompany.
+* Expiry is not settable through the SPI. Configure it in the backend, keyed by
+  the region names above.
+* Values are stored as `CachedValue` instances, so the cache manager must be able
+  to serialize them. That is automatic for in-memory backends; Redis needs a JSON
+  serializer configured.
+
+Applications needing real compare-and-set or native indexing should use a
+provider written against the backend directly.
+
+==== Process Snapshot Storage
+
+`CacheBackedAgentProcessSnapshotStore` implements the
+`AgentProcessSnapshotStore` described in <<reference.persistence>> over any
+region, so a cache backend gives durable agent processes without further code.
+
+The region never sees agent types. The process payload is stored opaquely and the
+snapshot header travels in `CachedValue.metadata`, which backends with native
+query support may index. Parent-to-child lookup uses a secondary index, so the
+store fails at construction on a region that cannot index, rather than at the
+first `findByParentId`.
+
+==== Writing A Provider
+
+Implement `AgentCacheProvider` and `AgentCacheRegion`, and `AgentCacheIndex` if
+the backend can index. Snapshot headers, versioning, index maintenance and
+restore are already written and shared.
+
+`SpringCacheAgentCacheProvider` is the reference implementation and the shortest
+path for most backends.

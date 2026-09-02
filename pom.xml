@@ -27,6 +27,7 @@
 
     <modules>
         <module>embabel-agent-api</module>
+        <module>embabel-agent-cache</module>
         <module>embabel-agent-a2a</module>
         <module>embabel-agent-autoconfigure</module>
         <module>embabel-agent-code</module>
