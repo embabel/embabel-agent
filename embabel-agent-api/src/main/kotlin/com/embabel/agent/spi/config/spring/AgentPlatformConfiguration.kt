@@ -24,13 +24,17 @@ import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.event.observation.AgentInstrumentation
 import com.embabel.agent.api.event.observation.InternalObservabilityApi
 import com.embabel.agent.api.event.observation.NoOpAgentInstrumentation
+import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcessRepository
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.internal.LlmOperations
+import com.embabel.agent.core.persistence.BlackboardEntrySerializer
 import com.embabel.agent.spi.*
 import com.embabel.agent.spi.logging.ColorPalette
 import com.embabel.agent.spi.logging.DefaultColorPalette
 import com.embabel.agent.spi.logging.LoggingAgenticEventListener
+import com.embabel.agent.spi.persistence.AgentProcessPersistence
+import com.embabel.agent.spi.persistence.AgentProcessSnapshotStore
 import com.embabel.agent.spi.support.*
 import com.embabel.common.util.EmbabelObjectMapperHolder
 import com.embabel.common.ai.autoconfig.ProviderInitialization
@@ -64,6 +68,7 @@ import org.springframework.context.annotation.Primary
     ConfigurableModelProviderProperties::class,
     AgentPlatformProperties::class,
     ProcessRepositoryProperties::class,
+    AgentProcessPersistenceProperties::class,
 )
 class AgentPlatformConfiguration(
 ) {
@@ -140,10 +145,48 @@ class AgentPlatformConfiguration(
         rankingProperties = rankingProperties,
     )
 
+    /**
+     * Runtime repository, decorated for durability when the application supplies an
+     * [AgentProcessSnapshotStore]. Without a store this is the in-memory repository
+     * exactly as before, so behaviour is unchanged for applications that add nothing.
+     *
+     * [agentPlatform] is an [ObjectProvider] because the platform depends on this
+     * repository: it is resolved lazily, only while restoring a process.
+     */
     @Bean
     fun agentProcessRepository(
         processRepositoryProperties: ProcessRepositoryProperties,
-    ): AgentProcessRepository = InMemoryAgentProcessRepository(processRepositoryProperties)
+        persistenceProperties: AgentProcessPersistenceProperties,
+        snapshotStore: ObjectProvider<AgentProcessSnapshotStore>,
+        blackboardEntrySerializers: ObjectProvider<BlackboardEntrySerializer>,
+        embabelObjectMapperHolder: EmbabelObjectMapperHolder,
+        agentPlatform: ObjectProvider<AgentPlatform>,
+    ): AgentProcessRepository {
+        val runtimeRepository = InMemoryAgentProcessRepository(processRepositoryProperties)
+        val store = snapshotStore.getIfAvailable()
+        if (store == null || !persistenceProperties.enabled) {
+            loggerFor<AgentPlatformConfiguration>().info(
+                "Agent processes are not durable: {}",
+                if (store == null) "no AgentProcessSnapshotStore bean is defined"
+                else "embabel.agent.platform.persistence.enabled is false",
+            )
+            return runtimeRepository
+        }
+        loggerFor<AgentPlatformConfiguration>().info(
+            "Agent processes are durable: snapshot store [{}], checkpoint policy [{}]",
+            store.javaClass.name,
+            persistenceProperties.checkpointPolicy,
+        )
+        return AgentProcessPersistence.persistentRepository(
+            runtimeRepository = runtimeRepository,
+            snapshotStore = store,
+            objectMapper = embabelObjectMapperHolder.get(),
+            agents = { agentPlatform.getObject().agents() },
+            platformServices = { agentPlatform.getObject().platformServices },
+            checkpointPolicy = persistenceProperties.resolveCheckpointPolicy(),
+            blackboardEntrySerializers = blackboardEntrySerializers.orderedStream().toList(),
+        )
+    }
 
     @Bean
     fun contextRepository(

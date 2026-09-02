@@ -37,6 +37,44 @@ the agent API. Those backends should live in applications, starters, or tests.
 The API test suite includes an H2/JDBC fixture to prove the end-to-end recovery
 pattern without making JDBC part of the framework.
 
+==== Configuration
+
+Persistence activates when the application context contains an
+`AgentProcessSnapshotStore` bean. Adding a store is enough; no other
+configuration is required. Without one, the platform uses
+`InMemoryAgentProcessRepository` exactly as before.
+
+[source,properties]
+----
+# Turn persistence off without removing the snapshot store. Default true.
+embabel.agent.platform.persistence.enabled=true
+
+# WAITING or LIFECYCLE. Default LIFECYCLE.
+embabel.agent.platform.persistence.checkpoint-policy=LIFECYCLE
+----
+
+`BlackboardEntrySerializer` beans are discovered automatically and consulted in
+Spring `@Order` before the JSON fallback.
+
+Applications that assemble the platform themselves, rather than through Spring
+configuration, can build the same repository directly:
+
+[source,kotlin]
+----
+val repository = AgentProcessPersistence.persistentRepository(
+    runtimeRepository = InMemoryAgentProcessRepository(),
+    snapshotStore = mySnapshotStore,
+    objectMapper = objectMapper,
+    agents = agentPlatform::agents,
+    platformServices = { agentPlatform.platformServices },
+)
+----
+
+The snapshot, serialization and restore machinery stays internal, so the
+snapshot format remains free to change. The contracts an integrator implements,
+`AgentProcessSnapshotStore`, `AgentProcessCheckpointPolicy` and
+`BlackboardEntrySerializer`, are the stable surface.
+
 ==== Blackboard Values
 
 Blackboard state is persisted through `BlackboardEntrySerializer`.
