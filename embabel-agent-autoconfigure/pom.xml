@@ -40,6 +40,7 @@
         <module>models/embabel-agent-google-genai-autoconfigure</module>
         <module>models/embabel-agent-oci-genai-autoconfigure</module>
         <module>models/embabel-agent-minimax-autoconfigure</module>
+        <module>models/embabel-agent-orcarouter-autoconfigure</module>
         <module>models/embabel-agent-zai-autoconfigure</module>
         <module>models/embabel-agent-dashscope-autoconfigure</module>
         <module>models/embabel-agent-mistral-ai-autoconfigure</module>

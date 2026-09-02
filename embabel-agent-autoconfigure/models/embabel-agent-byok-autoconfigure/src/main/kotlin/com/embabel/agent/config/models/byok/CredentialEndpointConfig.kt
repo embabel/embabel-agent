@@ -40,9 +40,9 @@ import org.springframework.context.annotation.Configuration
  * returning a value, with nothing from `com.embabel.agent.spi` in it, because a gateway speaking
  * the OpenAI protocol needs no client this module does not already have.
  *
- * That is one bean per provider *module*, not per provider: `embabel-agent-openai` speaks to five
- * providers over one wire protocol, so the coverage is Anthropic, OpenAI, DeepSeek, Mistral, Gemini
- * and Atlas Cloud - the whole BYOK surface. A deployment using any of them writes nothing at all.
+ * That is one bean per provider *module*, not per provider: `embabel-agent-openai` speaks to six
+ * providers over one wire protocol, so the coverage is Anthropic, OpenAI, DeepSeek, Mistral, Gemini,
+ * Atlas Cloud and OrcaRouter - the whole BYOK surface. A deployment using any of them writes nothing at all.
  *
  * Without these, a [com.embabel.common.ai.model.RoleResolution.Credential] fails with
  * `NoSuitableModelException` until the application registers a factory of its own - and that
@@ -160,10 +160,10 @@ class CredentialEndpointConfig {
      * Every OpenAI-compatible provider, on the same terms.
      *
      * One lookup rather than one per provider, because `embabel-agent-openai` carries OpenAI,
-     * DeepSeek, Mistral, Gemini and Atlas Cloud behind a single wire protocol, and the only thing
-     * that differs is the base URL - which [OpenAiCompatibleModelFactory.endpointFor] already
-     * knows. Reading it there rather than restating it keeps this from drifting when an endpoint
-     * moves.
+     * DeepSeek, Mistral, Gemini, Atlas Cloud and OrcaRouter behind a single wire protocol, and the
+     * only thing that differs is the base URL - which [OpenAiCompatibleModelFactory.endpointFor]
+     * already knows. Reading it there rather than restating it keeps this from drifting when an
+     * endpoint moves.
      */
     private fun openAiCompatibleEndpointFor(credential: ProviderCredential): CredentialEndpoint? =
         OpenAiCompatibleModelFactory.endpointFor(credential.provider)?.let {

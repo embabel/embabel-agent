@@ -20,6 +20,7 @@ import com.embabel.agent.api.models.DeepSeekModels
 import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.api.models.MistralAiModels
 import com.embabel.agent.api.models.OpenAiModels
+import com.embabel.agent.api.models.OrcaRouterModels
 import com.embabel.common.byok.ByokFactory
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Test
@@ -52,6 +53,11 @@ class OpenAiCompatibleModelFactoryByokSpecTest {
     }
 
     @Test
+    fun `orcaRouter returns ByokFactory`() {
+        assertInstanceOf(ByokFactory::class.java, OpenAiCompatibleModelFactory.orcaRouter("key"))
+    }
+
+    @Test
     fun `byok with explicit params returns ByokFactory`() {
         assertInstanceOf(
             ByokFactory::class.java,
@@ -81,6 +87,7 @@ class OpenAiCompatibleModelFactoryByokSpecTest {
         val mistralSpec = OpenAiCompatibleModelFactory.mistral("key")
         val geminiSpec = OpenAiCompatibleModelFactory.gemini("key")
         val atlasCloudSpec = OpenAiCompatibleModelFactory.atlasCloud("key")
+        val orcaRouterSpec = OpenAiCompatibleModelFactory.orcaRouter("key")
 
         // Each spec should construct without error (no network call at this stage)
         assertInstanceOf(ByokFactory::class.java, openAiSpec)
@@ -88,8 +95,11 @@ class OpenAiCompatibleModelFactoryByokSpecTest {
         assertInstanceOf(ByokFactory::class.java, mistralSpec)
         assertInstanceOf(ByokFactory::class.java, geminiSpec)
         assertInstanceOf(ByokFactory::class.java, atlasCloudSpec)
+        assertInstanceOf(ByokFactory::class.java, orcaRouterSpec)
 
         val overridden = atlasCloudSpec.validating(AtlasCloudModels.QWEN3_8_MAX, AtlasCloudModels.PROVIDER)
         assertInstanceOf(ByokFactory::class.java, overridden)
+        val overriddenOrca = orcaRouterSpec.validating(OrcaRouterModels.AUTO, OrcaRouterModels.PROVIDER)
+        assertInstanceOf(ByokFactory::class.java, overriddenOrca)
     }
 }
