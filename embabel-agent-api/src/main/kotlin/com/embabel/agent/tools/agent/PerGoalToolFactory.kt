@@ -73,12 +73,9 @@ class PerGoalToolFactory(
     private val goalToolNamingStrategy: GoalToolNamingStrategy = ApplicationNameGoalToolNamingStrategy(
         applicationName
     ),
+    private val toolNamingStrategy: ToolNamingStrategy = ToolNamingStrategy.LEGACY_NAME_ONLY,
 ) {
 
-    private val toolNamingStrategy by lazy {
-        runCatching { autonomy.agentPlatform.platformServices.toolNamingStrategy() }
-            .getOrDefault(ToolNamingStrategy.LEGACY_NAME_ONLY)
-    }
     private val logger = LoggerFactory.getLogger(PerGoalToolFactory::class.java)
 
     /**
@@ -156,24 +153,35 @@ class PerGoalToolFactory(
         listeners: List<AgenticEventListener>,
         ownerName: String?,
     ): List<GoalTool<*>> {
-        val goalName = goal.export.name ?: when (toolNamingStrategy) {
-            ToolNamingStrategy.LEGACY_NAME_ONLY -> goalToolNamingStrategy.nameForGoal(goal)
-            ToolNamingStrategy.FULLY_QUALIFIED -> toolNamingStrategy.nameFor(ownerName, goal.name)
-        }
         val inputTypes = goal.export.startingInputTypes
+        val qualifyInputType = toolNamingStrategy == ToolNamingStrategy.FULLY_QUALIFIED && inputTypes.size > 1
         return inputTypes.map { inputType ->
-            val toolName = if (inputTypes.size == 1) goalName else {
-                ToolNamingStrategy.FULLY_QUALIFIED.nameFor(goalName, inputType.name)
-            }
             GoalTool(
                 autonomy = autonomy,
-                name = toolName,
+                name = publishedName(goal, ownerName, inputType.takeIf { qualifyInputType }),
                 description = goal.description,
                 goal = goal,
                 inputType = inputType,
                 listeners = listeners,
                 textCommunicator = textCommunicator,
             )
+        }
+    }
+
+    private fun publishedName(
+        goal: Goal,
+        ownerName: String?,
+        discriminator: Class<*>?,
+    ): String {
+        val exportName = goal.export.name
+        return when {
+            discriminator == null && exportName != null -> exportName
+            discriminator == null -> when (toolNamingStrategy) {
+                ToolNamingStrategy.LEGACY_NAME_ONLY -> goalToolNamingStrategy.nameForGoal(goal)
+                ToolNamingStrategy.FULLY_QUALIFIED -> toolNamingStrategy.nameFor(ownerName, goal.name)
+            }
+            exportName != null -> toolNamingStrategy.nameFor(exportName, discriminator.name)
+            else -> toolNamingStrategy.nameFor(ownerName, "${goal.name}.${discriminator.name}")
         }
     }
 

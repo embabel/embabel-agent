@@ -16,7 +16,6 @@
 package com.embabel.agent.core.support
 
 import com.embabel.agent.api.tool.Tool
-import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.ToolObject
 
 /**
@@ -78,17 +77,17 @@ fun safelyGetToolsFrom(toolObject: ToolObject): List<Tool> {
  * Allows renaming a Tool while preserving its behavior.
  */
 internal class RenamedTool(
-    override val delegate: Tool,
+    private val delegate: Tool,
     private val newName: String,
-) : DelegatingTool {
+) : Tool {
 
     override val definition: Tool.Definition = object : Tool.Definition {
         override val name: String = newName
         override val description: String = delegate.definition.description
         override val inputSchema: Tool.InputSchema = delegate.definition.inputSchema
-        override val metadata: Map<String, Any> = delegate.definition.metadata
     }
 
     override val metadata: Tool.Metadata = delegate.metadata
 
+    override fun call(input: String): Tool.Result = delegate.call(input)
 }

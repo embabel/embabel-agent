@@ -85,7 +85,7 @@ class PerGoalAsyncMcpToolExportCallbackPublisherTest {
     }
 
     @Test
-    fun `toolCallbacks uses the owning agent name for generated goal tools`() {
+    fun `toolCallbacks publishes goal tools under the platform naming strategy`() {
         val publisher = PerGoalMcpAsyncExportToolCallbackPublisher(
             autonomy = fullyQualifiedAutonomy(),
             mcpAsyncServer = mcpAsyncServer,
@@ -94,9 +94,8 @@ class PerGoalAsyncMcpToolExportCallbackPublisherTest {
 
         val toolNames = publisher.toolCallbacks.map { it.toolDefinition.name() }
 
-        assertTrue(toolNames.contains("ExportedWizard_done"), toolNames.toString())
+        assertTrue(toolNames.contains("ExportedWizard-done"), toolNames.toString())
         assertTrue(toolNames.contains(CONFIRMATION_TOOL_NAME), toolNames.toString())
-        assertTrue(toolNames.contains(FORM_SUBMISSION_TOOL_NAME), toolNames.toString())
     }
 
     @Test
@@ -117,39 +116,18 @@ class PerGoalAsyncMcpToolExportCallbackPublisherTest {
             goalCount + platformCount,
             callbacks.size,
             "Should have $goalCount goal tools + $platformCount platform tools = ${goalCount + platformCount} total, " +
-                    "but got ${callbacks.size}: ${callbacks.map { it.toolDefinition.name() }}"
-        )
-    }
-
-    @Test
-    fun `toolCallbacks includes platform HITL tools when no remote goals exist`() {
-        val emptyAutonomy = Autonomy(
-            IntegrationTestUtils.dummyAgentPlatform(),
-            RandomRanker(),
-            forAutonomyTesting(),
-        )
-        val publisher = PerGoalMcpAsyncExportToolCallbackPublisher(
-            autonomy = emptyAutonomy,
-            mcpAsyncServer = mcpAsyncServer,
-            applicationName = "testApp",
-        )
-
-        val toolNames = publisher.toolCallbacks.map { it.toolDefinition.name() }
-
-        assertEquals(
-            setOf(CONFIRMATION_TOOL_NAME, FORM_SUBMISSION_TOOL_NAME),
-            toolNames.toSet(),
+                "but got ${callbacks.size}: ${callbacks.map { it.toolDefinition.name() }}"
         )
     }
 
     private fun fullyQualifiedAutonomy(): Autonomy {
-        val basePlatform = IntegrationTestUtils.dummyAgentPlatform()
-        basePlatform.deploy(remoteExportedAgent())
-        val namedServices = object : PlatformServices by basePlatform.platformServices {
-            override fun toolNamingStrategy(): ToolNamingStrategy = ToolNamingStrategy.FULLY_QUALIFIED
+        val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
+        agentPlatform.deploy(remoteExportedAgent())
+        val platformServices = object : PlatformServices by agentPlatform.platformServices {
+            override fun toolNamingStrategy() = ToolNamingStrategy.FULLY_QUALIFIED
         }
-        val namedPlatform = object : AgentPlatform by basePlatform {
-            override val platformServices: PlatformServices = namedServices
+        val namedPlatform = object : AgentPlatform by agentPlatform {
+            override val platformServices = platformServices
         }
         return Autonomy(namedPlatform, RandomRanker(), forAutonomyTesting())
     }

@@ -15,12 +15,15 @@
  */
 package com.embabel.agent.spi.support
 
+import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ToolConsumer
 import com.embabel.agent.core.ToolNamingStrategy
+import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.ToolGroupResolver
+import com.embabel.common.ai.model.LlmOptions
 
 /**
  * Applies the platform tool naming policy only while an LLM resolves its tools.
@@ -31,16 +34,58 @@ internal class ToolNamingContext(
     private val ownerName: String,
 ) : ToolConsumer by delegate {
 
-
     override fun resolveTools(toolGroupResolver: ToolGroupResolver): List<Tool> =
         ToolConsumer.resolveTools(delegate, toolGroupResolver, ::name)
 
     fun name(tool: Tool): Tool {
+        if (generateSequence(tool) { (it as? DelegatingTool)?.delegate }.any { it is QualifiedTool }) return tool
         val qualifiedName = toolNamingStrategy.nameFor(tool, ownerName)
-        return if (qualifiedName == tool.definition.name) tool else tool.withName(qualifiedName)
+        return if (qualifiedName == tool.definition.name) tool else QualifiedTool(tool, qualifiedName)
+    }
+
+    private class QualifiedTool(
+        override val delegate: Tool,
+        qualifiedName: String,
+    ) : DelegatingTool {
+
+        override val definition: Tool.Definition = Tool.Definition(
+            name = qualifiedName,
+            description = delegate.definition.description,
+            inputSchema = delegate.definition.inputSchema,
+            metadata = delegate.definition.metadata,
+        )
+
+        override val metadata: Tool.Metadata
+            get() = delegate.metadata
     }
 
     companion object {
+
+        fun qualifyingToolDecorator(
+            toolConsumer: ToolConsumer,
+            agentProcess: AgentProcess,
+            action: Action?,
+            llmOptions: LlmOptions,
+            toolDecorator: ToolDecorator,
+        ): (Tool) -> Tool {
+            val namingContext = forLlmCall(toolConsumer, agentProcess, action)
+            return { tool ->
+                toolDecorator.decorate(
+                    tool = namingContext.name(tool),
+                    agentProcess = agentProcess,
+                    action = action,
+                    llmOptions = llmOptions,
+                )
+            }
+        }
+
+        fun resolvePublishedTools(
+            toolConsumer: ToolConsumer,
+            agentProcess: AgentProcess,
+            action: Action?,
+        ): List<Tool> = forLlmCall(toolConsumer, agentProcess, action).resolveTools(
+            agentProcess.processContext.platformServices.agentPlatform.toolGroupResolver
+        )
 
         fun forLlmCall(
             toolConsumer: ToolConsumer,
@@ -51,12 +96,7 @@ internal class ToolNamingContext(
                 agentProcess.processContext.platformServices.toolNamingStrategy()
             }.getOrDefault(ToolNamingStrategy.LEGACY_NAME_ONLY)
             val agentName = agentProcess.agent.name
-            val actionName = action?.name?.takeIf { it.isNotBlank() }
-            val ownerName = when {
-                actionName == null -> agentName
-                actionName == agentName || actionName.startsWith("$agentName.") -> actionName
-                else -> "$agentName.$actionName"
-            }
+            val ownerName = action?.shortName()?.takeIf { it.isNotBlank() }?.let { "$agentName.$it" } ?: agentName
             return ToolNamingContext(
                 delegate = toolConsumer,
                 toolNamingStrategy = strategy,

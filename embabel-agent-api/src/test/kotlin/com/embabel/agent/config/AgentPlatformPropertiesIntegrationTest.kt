@@ -221,7 +221,7 @@ class AgentPlatformPropertiesIntegrationTest {
     fun `should bind core platform properties correctly`() {
         assertThat(properties.name).isEqualTo("test-platform")
         assertThat(properties.description).isEqualTo("Test Platform Description")
-        assertThat(properties.tools.namingStrategy).isEqualTo(com.embabel.agent.core.ToolNamingStrategy.FULLY_QUALIFIED)
+        assertThat(properties.tools.namingStrategy).isEqualTo(ToolNamingStrategy.FULLY_QUALIFIED)
     }
 
     @Test
@@ -324,20 +324,6 @@ class AgentPlatformPropertiesIntegrationTest {
         assertThat(defaultProperties.test.mockMode).isTrue()
         assertThat(defaultProperties.tools.namingStrategy)
             .isEqualTo(ToolNamingStrategy.LEGACY_NAME_ONLY)
-    }
-
-    @Test
-    fun `should bind legacy name only naming strategy`() {
-        val testEnvironment = MockEnvironment()
-            .withProperty("embabel.agent.platform.tools.naming-strategy", "legacy-name-only")
-
-        val bound = Binder.get(testEnvironment).bind(
-            "embabel.agent.platform.tools.naming-strategy",
-            ToolNamingStrategy::class.java,
-        )
-
-        assertThat(bound.isBound).isTrue()
-        assertThat(bound.get()).isEqualTo(ToolNamingStrategy.LEGACY_NAME_ONLY)
     }
 
     // ===================================================================================

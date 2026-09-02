@@ -22,8 +22,9 @@ import java.security.MessageDigest
  * Controls the names published for tools.
  *
  * [LEGACY_NAME_ONLY] preserves `search`.
- * [FULLY_QUALIFIED] publishes the complete Embabel owner and tool name, for example
- * `AgentA.run` and `search` become `AgentA_2e_run_search`.
+ * [FULLY_QUALIFIED] publishes the owner and tool name, for example
+ * `AgentA.run` and `search` become `AgentA_2e_run-search`. A tool name that the owner already
+ * ends with is not repeated, so `AgentA.run` and `run` become `AgentA_2e_run`.
  */
 enum class ToolNamingStrategy {
     /** Preserve the existing tool name. */
@@ -32,7 +33,6 @@ enum class ToolNamingStrategy {
     /** Qualify the tool name with its complete Embabel owner name. */
     FULLY_QUALIFIED,
     ;
-
 
     /**
      * Return the published name for a generated tool with the given owner name.
@@ -44,12 +44,13 @@ enum class ToolNamingStrategy {
         LEGACY_NAME_ONLY -> toolName
         FULLY_QUALIFIED -> {
             val owner = ownerName?.takeIf { it.isNotBlank() }
-            val parts = if (owner != null && toolName != owner && !toolName.startsWith("$owner.")) {
-                listOf(owner, toolName)
-            } else {
-                listOf(toolName)
+            val parts = when {
+                owner == null -> listOf(toolName)
+                toolName == owner || toolName.startsWith("$owner.") -> listOf(toolName)
+                owner.endsWith(".$toolName") -> listOf(owner)
+                else -> listOf(owner, toolName)
             }
-            bound(parts.joinToString("_") { sanitize(it) }, parts.joinToString("\u0000"))
+            bound(parts.joinToString("-") { sanitize(it) }, parts.joinToString("\u0000"))
         }
     }
 

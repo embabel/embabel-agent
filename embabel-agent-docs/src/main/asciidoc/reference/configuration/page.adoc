@@ -215,10 +215,11 @@ embabel:
 
 Controls how tools are named when they are exposed to LLMs or generated tool endpoints.
 The default preserves existing tool names for backwards compatibility.
-With `FULLY_QUALIFIED`, tools are qualified by their complete Embabel owner name, while generated goal tools
-without an explicit export name are qualified by their owning agent. Framework-owned HITL callback tools retain
-their reserved names. For example, `LEGACY_NAME_ONLY` publishes `search` as `search`; `FULLY_QUALIFIED` publishes
-it under `AgentA.run` as `AgentA_2e_run_search`. Thus, owners `AgentA.run` and `AgentB.run` publish distinct names.
+With `FULLY_QUALIFIED`, tools are qualified by their owner, the agent name and the action's short name, while generated goal tools
+without an explicit export name are qualified by their owning agent. Framework-owned HITL callback tools published
+alongside goal tools retain their reserved names; HITL tools reaching an LLM as ordinary interaction tools are
+qualified like any other. For example, `LEGACY_NAME_ONLY` publishes `search` as `search`; `FULLY_QUALIFIED` publishes
+it under `AgentA.run` as `AgentA_2e_run-search`. Thus, owners `AgentA.run` and `AgentB.run` publish distinct names.
 Explicit export names remain unchanged.
 
 [cols="3,2,1,4",options="header"]
@@ -228,7 +229,7 @@ Explicit export names remain unchanged.
 |`embabel.agent.platform.tools.naming-strategy`
 |`ToolNamingStrategy`
 |`LEGACY_NAME_ONLY`
-|`LEGACY_NAME_ONLY` preserves current names. `FULLY_QUALIFIED` qualifies names with the complete Embabel owner.
+|`LEGACY_NAME_ONLY` preserves current names. `FULLY_QUALIFIED` qualifies names with the owning agent and action.
 
 |===
 
@@ -242,7 +243,7 @@ embabel:
         naming-strategy: fully-qualified
 ----
 
-Non-alphanumeric characters are encoded (`.` becomes `_2e_`). Names longer than 64 characters use a stable hash suffix.
+Non-alphanumeric characters in each part are encoded (`.` becomes `_2e_`); owner and tool are joined with `-`, which never appears inside an encoded part. Names longer than 64 characters use a stable hash suffix.
 
 ===== Ranking Configuration
 

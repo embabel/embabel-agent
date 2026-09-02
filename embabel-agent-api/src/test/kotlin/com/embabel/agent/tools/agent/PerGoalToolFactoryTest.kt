@@ -15,9 +15,9 @@
  */
 package com.embabel.agent.tools.agent
 
-import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.dsl.agent
+import com.embabel.agent.api.dsl.Frog as DslFrog
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
 import com.embabel.agent.api.dsl.evenMoreEvilWizardWithStructuredInput
 import com.embabel.agent.api.dsl.exportedEvenMoreEvilWizard
@@ -26,7 +26,6 @@ import com.embabel.agent.api.dsl.userInputToFrogOrPersonBranch
 import com.embabel.agent.test.integration.IntegrationTestUtils
 import com.embabel.agent.test.integration.RandomRanker
 import com.embabel.agent.test.integration.forAutonomyTesting
-import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.Export
 import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.domain.io.UserInput
@@ -222,22 +221,51 @@ class PerGoalToolFactoryTest {
     }
 
     @Test
-    fun `creates a distinct tool for each starting input type`() {
+    fun `legacy name only keeps one name for every starting input type`() {
+        val goalTools = multiInputGoalTools(ToolNamingStrategy.LEGACY_NAME_ONLY)
+
+        assertEquals(2, goalTools.size)
+        assertEquals(setOf("testApp_done"), goalTools.map { it.definition.name }.toSet())
+    }
+
+    @Test
+    fun `fully qualified naming creates a distinct tool for each starting input type`() {
+        val goalTools = multiInputGoalTools(ToolNamingStrategy.FULLY_QUALIFIED)
+
+        assertEquals(
+            setOf("Wizard-done_2e_com_2e_embabel_2e_agent_2e_domain_2e_a5195b725e05", "Wizard-done_2e_com_2e_embabel_2e_agent_2e_api_2e_ds_f62afbf0b36f"),
+            goalTools.map { it.definition.name }.toSet(),
+        )
+    }
+
+    @Test
+    fun `fully qualified naming separates starting input types that share a simple name`() {
+        val goalTools = multiInputGoalTools(
+            ToolNamingStrategy.FULLY_QUALIFIED,
+            setOf(DslFrog::class.java, Frog::class.java),
+        )
+
+        assertEquals(
+            setOf("Wizard-done_2e_com_2e_embabel_2e_agent_2e_api_2e_dsl_2e_Frog", "Wizard-done_2e_com_2e_embabel_2e_agent_2e_tools_2e__596b908065a6"),
+            goalTools.map { it.definition.name }.toSet(),
+        )
+    }
+
+    private fun multiInputGoalTools(
+        namingStrategy: ToolNamingStrategy,
+        startingInputTypes: Set<Class<*>> = setOf(UserInput::class.java, MagicVictim::class.java),
+    ): List<GoalTool<*>> {
         val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
         agentPlatform.deploy(
             agentWithExportedGoal(
                 agentName = "Wizard",
                 description = "done",
-                startingInputTypes = setOf(UserInput::class.java, MagicVictim::class.java),
+                startingInputTypes = startingInputTypes,
             )
         )
         val autonomy = Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting())
-
-        val goalTools = PerGoalToolFactory(autonomy, "testApp")
+        return PerGoalToolFactory(autonomy, "testApp", toolNamingStrategy = namingStrategy)
             .goalTools(remoteOnly = true, listeners = emptyList())
-
-        assertEquals(2, goalTools.size)
-        assertEquals(2, goalTools.map { it.definition.name }.toSet().size)
     }
 
     @Test
@@ -245,20 +273,20 @@ class PerGoalToolFactoryTest {
         val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
         agentPlatform.deploy(agentWithExportedGoal("AardvarkWizard", "Aardvark meaning"))
         agentPlatform.deploy(agentWithExportedGoal("ZebraWizard", "Zebra meaning"))
-        val autonomy = autonomy(agentPlatform, ToolNamingStrategy.FULLY_QUALIFIED)
+        val autonomy = Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting())
 
-        val factory = PerGoalToolFactory(autonomy, "testApp")
+        val factory = PerGoalToolFactory(autonomy, "testApp", toolNamingStrategy = ToolNamingStrategy.FULLY_QUALIFIED)
 
         val goalToolNames = factory.goalTools(remoteOnly = true, listeners = emptyList())
             .map { it.definition.name }
 
         assertEquals(
-            setOf("AardvarkWizard_done", "ZebraWizard_done"),
+            setOf("AardvarkWizard-done", "ZebraWizard-done"),
             goalToolNames.toSet(),
         )
         val aardvarkGoal = agentPlatform.agents().single { it.name == "AardvarkWizard" }.goals.single()
         assertEquals(
-            "AardvarkWizard_done",
+            "AardvarkWizard-done",
             factory.toolsForGoal(aardvarkGoal, emptyList()).single().definition.name,
         )
     }
@@ -269,14 +297,15 @@ class PerGoalToolFactoryTest {
         agentPlatform.deploy(agentWithExportedGoal("AardvarkWizard", "Same meaning"))
         agentPlatform.deploy(agentWithExportedGoal("ZebraWizard", "Same meaning"))
         val factory = PerGoalToolFactory(
-            autonomy(agentPlatform, ToolNamingStrategy.FULLY_QUALIFIED),
+            Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting()),
             "testApp",
+            toolNamingStrategy = ToolNamingStrategy.FULLY_QUALIFIED,
         )
         val zebraGoal = agentPlatform.agents().single { it.name == "ZebraWizard" }.goals.single()
 
         val tool = factory.toolsForGoal(zebraGoal, emptyList()).single()
 
-        assertEquals("ZebraWizard_done", tool.definition.name)
+        assertEquals("ZebraWizard-done", tool.definition.name)
     }
 
     @Test
@@ -294,15 +323,7 @@ class PerGoalToolFactoryTest {
         assertEquals(listOf("Aardvark meaning"), goalTools.map { it.goal.description })
     }
 
-    private fun autonomy(agentPlatform: AgentPlatform, namingStrategy: ToolNamingStrategy): Autonomy {
-        val platformServices = object : PlatformServices by agentPlatform.platformServices {
-            override fun toolNamingStrategy() = namingStrategy
-        }
-        val namedPlatform = object : AgentPlatform by agentPlatform {
-            override val platformServices = platformServices
-        }
-        return Autonomy(namedPlatform, RandomRanker(), forAutonomyTesting())
-    }
+    private class Frog
 
     private fun agentWithExportedGoal(
         agentName: String,

@@ -48,14 +48,14 @@ class ToolNamingStrategyTest {
         fun `uses the owner name to qualify the published name`() {
             val name = ToolNamingStrategy.FULLY_QUALIFIED.nameFor("com.example.Agent.action", "lookup-tool")
 
-            assertEquals("com_2e_example_2e_Agent_2e_action_lookup_2d_tool", name)
+            assertEquals("com_2e_example_2e_Agent_2e_action-lookup_2d_tool", name)
         }
 
         @Test
         fun `uses an owner name for generated tools`() {
             val name = ToolNamingStrategy.FULLY_QUALIFIED.nameFor("Agent", "done")
 
-            assertEquals("Agent_done", name)
+            assertEquals("Agent-done", name)
         }
 
         @Test
@@ -64,6 +64,21 @@ class ToolNamingStrategyTest {
             val dotted = ToolNamingStrategy.FULLY_QUALIFIED.nameFor("Agent", "lookup.1")
 
             assertNotEquals(hyphenated, dotted)
+        }
+
+        @Test
+        fun `does not repeat a tool name the owner already ends with`() {
+            val name = ToolNamingStrategy.FULLY_QUALIFIED.nameFor("Wizard.bakeBread", "bakeBread")
+
+            assertEquals("Wizard_2e_bakeBread", name)
+        }
+
+        @Test
+        fun `keeps distinct owner and tool pairs distinct when text mimics an encoding`() {
+            val dottedOwner = ToolNamingStrategy.FULLY_QUALIFIED.nameFor("Agent.2e", "x")
+            val dottedTool = ToolNamingStrategy.FULLY_QUALIFIED.nameFor("Agent", "2e.x")
+
+            assertNotEquals(dottedOwner, dottedTool)
         }
 
         @Test

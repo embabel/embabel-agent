@@ -19,12 +19,14 @@ import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.tool.Tool
-import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ProcessContext
+import com.embabel.agent.core.ToolConsumer
+import com.embabel.agent.core.ToolGroupRequirement
+import com.embabel.agent.core.ToolNameOwner
 import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
@@ -40,7 +42,7 @@ import io.mockk.every
 import io.mockk.mockk
 import jakarta.validation.Validation
 import java.util.concurrent.CompletableFuture
-import java.util.function.Predicate
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.module.kotlin.jacksonObjectMapper
@@ -51,75 +53,160 @@ import kotlin.test.assertEquals
  */
 class AbstractLlmOperationsToolNamingTest {
 
-    @Test
-    fun `resolves tool names from the process agent and action on every object path`() {
-        val fixture = fixture()
-        val interaction = LlmInteraction(
-            id = InteractionId("test"),
-            tools = listOf(tool("search")),
-        )
-        val messages = listOf(UserMessage("search"))
+    @Nested
+    inner class ObjectPaths {
 
-        fixture.operations.createObject(
-            messages = messages,
-            interaction = interaction,
-            outputClass = String::class.java,
-            agentProcess = fixture.agentProcess,
-            action = fixture.action,
-        )
-        assertNamed(fixture.operations)
+        @Test
+        fun `resolves tool names from the process agent and action on every object path`() {
+            val fixture = fixture()
+            val interaction = LlmInteraction(
+                id = InteractionId("test"),
+                tools = listOf(tool("search")),
+            )
+            val messages = listOf(UserMessage("search"))
 
-        fixture.operations.createObjectIfPossible(
-            messages = messages,
-            interaction = interaction,
-            outputClass = String::class.java,
-            agentProcess = fixture.agentProcess,
-            action = fixture.action,
-        )
-        assertNamed(fixture.operations)
+            fixture.operations.createObject(
+                messages = messages,
+                interaction = interaction,
+                outputClass = String::class.java,
+                agentProcess = fixture.agentProcess,
+                action = fixture.action,
+            )
+            assertNamed(fixture.operations)
 
-        fixture.operations.createObjectWithThinking(
-            messages = messages,
-            interaction = interaction,
-            outputClass = String::class.java,
-            agentProcess = fixture.agentProcess,
-            action = fixture.action,
-        )
-        assertNamed(fixture.operations)
+            fixture.operations.createObjectIfPossible(
+                messages = messages,
+                interaction = interaction,
+                outputClass = String::class.java,
+                agentProcess = fixture.agentProcess,
+                action = fixture.action,
+            )
+            assertNamed(fixture.operations)
 
-        fixture.operations.createObjectIfPossibleWithThinking(
-            messages = messages,
-            interaction = interaction,
-            outputClass = String::class.java,
-            agentProcess = fixture.agentProcess,
-            action = fixture.action,
-        )
-        assertNamed(fixture.operations)
+            fixture.operations.createObjectWithThinking(
+                messages = messages,
+                interaction = interaction,
+                outputClass = String::class.java,
+                agentProcess = fixture.agentProcess,
+                action = fixture.action,
+            )
+            assertNamed(fixture.operations)
+
+            fixture.operations.createObjectIfPossibleWithThinking(
+                messages = messages,
+                interaction = interaction,
+                outputClass = String::class.java,
+                agentProcess = fixture.agentProcess,
+                action = fixture.action,
+            )
+            assertNamed(fixture.operations)
+        }
     }
 
-    @Test
-    fun `names tools injected after initial resolution`() {
-        val fixture = fixture()
-        val context = ToolNamingContext.forLlmCall(
-            toolConsumer = LlmInteraction(id = InteractionId("test")),
-            agentProcess = fixture.agentProcess,
-            action = fixture.action,
-        )
+    @Nested
+    inner class InjectedTools {
 
-        val name = context.name(tool("search")).definition.name
+        @Test
+        fun `names tools injected after initial resolution`() {
+            val fixture = fixture()
+            val context = ToolNamingContext.forLlmCall(
+                toolConsumer = LlmInteraction(id = InteractionId("test")),
+                agentProcess = fixture.agentProcess,
+                action = fixture.action,
+            )
 
-        assertEquals("Agent_2e_run_search", name)
+            val name = context.name(tool("search")).definition.name
+
+            assertEquals("Agent_2e_run-search", name)
+        }
+
+        @Test
+        fun `the shared injection decorator qualifies before decorating`() {
+            val fixture = fixture()
+            val seenByDecorator = mutableListOf<String>()
+            val decorator = mockk<ToolDecorator>()
+            every { decorator.decorate(any(), any(), any(), any()) } answers {
+                firstArg<Tool>().also { seenByDecorator += it.definition.name }
+            }
+
+            val decorate = ToolNamingContext.qualifyingToolDecorator(
+                toolConsumer = LlmInteraction(id = InteractionId("test")),
+                agentProcess = fixture.agentProcess,
+                action = fixture.action,
+                llmOptions = LlmOptions(),
+                toolDecorator = decorator,
+            )
+
+            val decorated = decorate(tool("search"))
+
+            assertEquals("Agent_2e_run-search", decorated.definition.name)
+            assertEquals(listOf("Agent_2e_run-search"), seenByDecorator)
+        }
+    }
+
+    @Nested
+    inner class ToolDeclaredOwners {
+
+        @Test
+        fun `a tool declaring its own owner survives beside a namesake`() {
+            val tools = listOf(
+                tool("lookup", owner = "com.foo.Lookup.lookup"),
+                tool("lookup", owner = "com.bar.Lookup.lookup"),
+            )
+            val fixture = fixture()
+
+            val names = ToolNamingContext
+                .forLlmCall(consumerOf(tools), fixture.agentProcess, fixture.action)
+                .resolveTools(RegistryToolGroupResolver("test", emptyList()))
+                .map { it.definition.name }
+
+            assertEquals(
+                listOf("com_2e_bar_2e_Lookup_2e_lookup", "com_2e_foo_2e_Lookup_2e_lookup"),
+                names,
+            )
+        }
+
+        @Test
+        fun `qualifying an already qualified tool is a no-op`() {
+            val fixture = fixture()
+            val context = ToolNamingContext.forLlmCall(
+                toolConsumer = LlmInteraction(id = InteractionId("test")),
+                agentProcess = fixture.agentProcess,
+                action = fixture.action,
+            )
+
+            val once = context.name(tool("search"))
+            val twice = context.name(once)
+
+            assertEquals("Agent_2e_run-search", once.definition.name)
+            assertEquals(once.definition.name, twice.definition.name)
+        }
+
+        @Test
+        fun `qualifying a qualified tool wrapped by another decorator is a no-op`() {
+            val fixture = fixture()
+            val context = ToolNamingContext.forLlmCall(
+                toolConsumer = LlmInteraction(id = InteractionId("test")),
+                agentProcess = fixture.agentProcess,
+                action = fixture.action,
+            )
+            val wrapped = context.name(tool("search")).withDescription("wrapped")
+
+            val again = context.name(wrapped)
+
+            assertEquals("Agent_2e_run-search", again.definition.name)
+        }
     }
 
     private fun assertNamed(operations: TestableAbstractLlmOperations) {
-        assertEquals(listOf("Agent_2e_run_search"), operations.transformedInteraction.tools.map { it.definition.name })
+        assertEquals(listOf("Agent_2e_run-search"), operations.transformedInteraction.tools.map { it.definition.name })
     }
 
     private fun fixture(): Fixture {
         val agent = mockk<Agent>()
         every { agent.name } returns "Agent"
         val action = mockk<Action>()
-        every { action.name } returns "run"
+        every { action.shortName() } returns "run"
         val processContext = mockk<ProcessContext>(relaxed = true)
         val platformServices = processContext.platformServices
         val agentPlatform = mockk<AgentPlatform>(relaxed = true)
@@ -227,5 +314,15 @@ class AbstractLlmOperationsToolNamingTest {
         )
 
         override fun call(input: String): Tool.Result = error("not used")
+    }
+
+    private fun tool(name: String, owner: String): Tool = object : Tool by tool(name), ToolNameOwner {
+        override val ownerName = owner
+    }
+
+    private fun consumerOf(published: List<Tool>): ToolConsumer = object : ToolConsumer {
+        override val name = "consumer"
+        override val tools = published
+        override val toolGroups = emptySet<ToolGroupRequirement>()
     }
 }

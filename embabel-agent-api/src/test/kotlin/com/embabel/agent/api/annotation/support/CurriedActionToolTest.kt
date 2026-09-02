@@ -20,13 +20,8 @@ import com.embabel.agent.core.ActionStatus
 import com.embabel.agent.core.ActionStatusCode
 import com.embabel.agent.core.IoBinding
 import com.embabel.agent.core.ProcessContext
-import com.embabel.agent.core.ToolConsumer
-import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.core.support.AbstractAction
 import com.embabel.agent.core.support.InMemoryBlackboard
-import com.embabel.agent.spi.support.RegistryToolGroupResolver
-import com.embabel.agent.spi.support.ToolNamingContext
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
@@ -68,7 +63,7 @@ class CurriedActionToolTest {
         }
 
         val blackboard = InMemoryBlackboard()
-        val tool = CurriedActionTool.createTools(listOf(action), blackboard, objectMapper).first()
+        val tool = CurriedActionTool.createTools(listOf(action), blackboard, objectMapper, "Agent").first()
 
         // Get parameter names from the schema
         val parameterNames = tool.definition.inputSchema.parameters.map { it.name }
@@ -121,7 +116,7 @@ class CurriedActionToolTest {
         }
 
         val blackboard = InMemoryBlackboard()
-        val tool = CurriedActionTool.createTools(listOf(action), blackboard, objectMapper).first()
+        val tool = CurriedActionTool.createTools(listOf(action), blackboard, objectMapper, "Agent").first()
 
         val parameterNames = tool.definition.inputSchema.parameters.map { it.name }
 
@@ -131,26 +126,16 @@ class CurriedActionToolTest {
     }
 
     @Test
-    fun `fully qualified names keep actions with the same short name`() {
-        val curriedTools = CurriedActionTool.createTools(
-            actions = listOf(action("com.foo.Lookup.lookup"), action("com.bar.Lookup.lookup")),
+    fun `declares the agent and action short name as its owner`() {
+        val tool = CurriedActionTool.createTools(
+            actions = listOf(action("com.foo.Lookup.lookup")),
             blackboard = InMemoryBlackboard(),
             objectMapper = objectMapper,
-        )
-        val consumer = object : ToolConsumer {
-            override val name = "supervisor"
-            override val tools = curriedTools
-            override val toolGroups = emptySet<ToolGroupRequirement>()
-        }
-        val namingContext = ToolNamingContext(consumer, ToolNamingStrategy.FULLY_QUALIFIED, "Agent.supervisor")
+            agentName = "Agent",
+        ).single() as CurriedActionTool
 
-        val names = namingContext.resolveTools(RegistryToolGroupResolver("test", emptyList()))
-            .map { it.definition.name }
-
-        assertEquals(
-            listOf("com_2e_bar_2e_Lookup_2e_lookup_lookup", "com_2e_foo_2e_Lookup_2e_lookup_lookup"),
-            names,
-        )
+        assertEquals("lookup", tool.definition.name)
+        assertEquals("Agent.lookup", tool.ownerName)
     }
 
     @Test
@@ -180,7 +165,7 @@ class CurriedActionToolTest {
         }
 
         val blackboard = InMemoryBlackboard()
-        val tool = CurriedActionTool.createTools(listOf(action), blackboard, objectMapper).first()
+        val tool = CurriedActionTool.createTools(listOf(action), blackboard, objectMapper, "Agent").first()
 
         val parameterNames = tool.definition.inputSchema.parameters.map { it.name }
 

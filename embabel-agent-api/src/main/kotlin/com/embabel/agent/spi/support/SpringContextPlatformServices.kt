@@ -137,7 +137,7 @@ data class SpringContextPlatformServices(
             ?.actionQos
             ?: AgentPlatformProperties.ActionQosProperties()
 
-    override fun toolNamingStrategy(): ToolNamingStrategy =
+    private val resolvedToolNamingStrategy: ToolNamingStrategy by lazy {
         applicationContext
             ?.getBeansOfType<AgentPlatformProperties>()
             ?.values
@@ -145,5 +145,8 @@ data class SpringContextPlatformServices(
             ?.tools
             ?.namingStrategy
             ?: ToolNamingStrategy.LEGACY_NAME_ONLY
+    }
+
+    override fun toolNamingStrategy(): ToolNamingStrategy = resolvedToolNamingStrategy
 
 }

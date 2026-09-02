@@ -310,19 +310,13 @@ internal class StreamingLlmOperationsImpl(
             ?: ToolCallContext.EMPTY
         val toolCallContext = processToolCallContext.merge(interaction.toolCallContext)
         val injectedToolDecorator: ((Tool) -> Tool)? = agentProcess?.let { process ->
-            val namingContext = ToolNamingContext.forLlmCall(
+            ToolNamingContext.qualifyingToolDecorator(
                 toolConsumer = interaction,
                 agentProcess = process,
                 action = action,
+                llmOptions = interaction.llm,
+                toolDecorator = toolDecorator,
             )
-            return@let { tool: Tool ->
-                toolDecorator.decorate(
-                    tool = namingContext.name(tool),
-                    agentProcess = process,
-                    action = action,
-                    llmOptions = interaction.llm,
-                )
-            }
         }
 
         return DefaultStreamingToolLoop(

@@ -99,7 +99,7 @@ class ToolResolutionHelperTest {
             id = InteractionId("test"),
             tools = listOf(tool),
         )
-        every { mockAction.name } returns "run"
+        every { mockAction.shortName() } returns "run"
         every { mockProcessContext.platformServices.toolNamingStrategy() } returns
                 ToolNamingStrategy.FULLY_QUALIFIED
         every { mockToolDecorator.decorate(any(), any(), any(), any()) } answers { firstArg() }
@@ -108,17 +108,17 @@ class ToolResolutionHelperTest {
             interaction, mockAgentProcess, mockAction, mockToolDecorator
         )
 
-        assertEquals(listOf("Agent_2e_run_search"), result.map { it.definition.name })
+        assertEquals(listOf("Agent_2e_run-search"), result.map { it.definition.name })
     }
 
     @Test
-    fun `does not duplicate an agent prefix already present in the action name`() {
+    fun `qualifies with the agent name and the action short name`() {
         val tool = createMockTool("search")
         val interaction = LlmInteraction(
             id = InteractionId("test"),
             tools = listOf(tool),
         )
-        every { mockAction.name } returns "Agent.supervisor"
+        every { mockAction.shortName() } returns "supervisor"
         every { mockProcessContext.platformServices.toolNamingStrategy() } returns
                 ToolNamingStrategy.FULLY_QUALIFIED
         every { mockToolDecorator.decorate(any(), any(), any(), any()) } answers { firstArg() }
@@ -127,7 +127,7 @@ class ToolResolutionHelperTest {
             interaction, mockAgentProcess, mockAction, mockToolDecorator
         )
 
-        assertEquals(listOf("Agent_2e_supervisor_search"), result.map { it.definition.name })
+        assertEquals(listOf("Agent_2e_supervisor-search"), result.map { it.definition.name })
     }
 
     @Test
@@ -207,7 +207,7 @@ class ToolResolutionHelperTest {
             interaction, mockAgentProcess, null, mockToolDecorator
         )
 
-        assertEquals(listOf("Agent_search"), result.map { it.definition.name })
+        assertEquals(listOf("Agent-search"), result.map { it.definition.name })
     }
 
     @Test

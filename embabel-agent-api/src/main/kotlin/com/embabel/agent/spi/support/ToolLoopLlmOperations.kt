@@ -268,7 +268,7 @@ open class ToolLoopLlmOperations(
             if (text.isNotBlank()) converter.convert(text)!! else MaybeReturn.noOutput()
         }
 
-        val injectedToolDecorator = createInjectedToolDecorator(llmRequestEvent, interaction)!!
+        val injectedToolDecorator = createInjectedToolDecorator(llmRequestEvent, interaction)
 
         val injectionStrategy = if (interaction.additionalInjectionStrategies.isNotEmpty()) {
             ChainedToolInjectionStrategy(
@@ -858,19 +858,13 @@ open class ToolLoopLlmOperations(
         llmRequestEvent: LlmRequestEvent<*>?,
         interaction: LlmInteraction,
     ): ((Tool) -> Tool)? = llmRequestEvent?.let { event ->
-        val namingContext = ToolNamingContext.forLlmCall(
+        ToolNamingContext.qualifyingToolDecorator(
             toolConsumer = interaction,
             agentProcess = event.agentProcess,
             action = event.action,
+            llmOptions = interaction.llm,
+            toolDecorator = toolDecorator,
         )
-        return@let { tool: Tool ->
-            toolDecorator.decorate(
-                tool = namingContext.name(tool),
-                agentProcess = event.agentProcess,
-                action = event.action,
-                llmOptions = interaction.llm,
-            )
-        }
     }
 
     /**
