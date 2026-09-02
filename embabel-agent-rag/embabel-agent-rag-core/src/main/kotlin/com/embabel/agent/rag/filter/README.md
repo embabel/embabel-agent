@@ -103,6 +103,8 @@ val results = repository.textSearch(
 ### With ToolishRag
 
 ```kotlin
+import com.embabel.agent.rag.filter.EntityFilter
+
 val rag = ToolishRag(
     name = "people-search",
     description = "Search for people",
@@ -127,6 +129,23 @@ val filtered = InMemoryPropertyFilter.filterResults(
 
 Entity filters apply only to `NamedEntityData`. Non-entity results such as chunks pass through unchanged, which allows
 the same filter to be used for searches that return both chunks and entities.
+
+## Entity-only results
+
+Set `entitiesOnly` with an entity filter when a mixed search should exclude chunks:
+
+```kotlin
+val rag = ToolishRag(
+    name = "people-search",
+    description = "Search for people",
+    searchOperations = repository,
+    entityFilter = EntityFilter.hasAnyLabel("Person"),
+    entitiesOnly = true,
+)
+```
+
+Result filtering is applied before the final `topK`, using the same inflated-result post-filtering strategy as other
+filters when necessary.
 
 ## Native Filter Translation
 

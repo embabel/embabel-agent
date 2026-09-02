@@ -87,6 +87,7 @@ fun interface ResultsListener {
  * @param entityFilter optional filter applied to object properties
  * (e.g., [com.embabel.agent.rag.model.NamedEntityData.properties] or typed entity fields).
  * The filter is applied transparently - the LLM does not see or control it.
+ * @param entitiesOnly whether searches should exclude non-entity results such as chunks.
  */
 data class ToolishRag @JvmOverloads constructor(
     override val name: String,
@@ -116,6 +117,7 @@ data class ToolishRag @JvmOverloads constructor(
      * on the vector/text search tools. See [SearchDefaults] for why it is optional.
      */
     val searchDefaults: SearchDefaults = SearchDefaults.DEFAULT,
+    val entitiesOnly: Boolean = false,
 ) : LlmReference, DelegatingTool, EagerSearch<ToolishRag> {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -168,8 +170,14 @@ data class ToolishRag @JvmOverloads constructor(
                 logger.debug("Adding TextSearchTools to ToolishRag '{}'", name)
                 add(
                     TextSearchTools(
-                        searchOperations, textSearchFor, metadataFilter, entityFilter, listener, searchDefaults,
-                        searchOperations as? ResultExpander,
+                        textSearch = searchOperations,
+                        searchFor = textSearchFor,
+                        metadataFilter = metadataFilter,
+                        entityFilter = entityFilter,
+                        resultsListener = listener,
+                        searchDefaults = searchDefaults,
+                        resultExpander = searchOperations as? ResultExpander,
+                        entitiesOnly = entitiesOnly,
                     )
                 )
             }
@@ -183,7 +191,15 @@ data class ToolishRag @JvmOverloads constructor(
             }
             if (searchOperations is RegexSearchOperations) {
                 logger.debug("Adding RegexSearchTools to ToolishRag '{}'", name)
-                add(RegexSearchTools(searchOperations, metadataFilter, entityFilter, listener))
+                add(
+                    RegexSearchTools(
+                        regexSearch = searchOperations,
+                        metadataFilter = metadataFilter,
+                        entityFilter = entityFilter,
+                        resultsListener = listener,
+                        entitiesOnly = entitiesOnly,
+                    )
+                )
             }
         }
         ToolishRagInitState(tools, mutableHints.toList())
@@ -200,6 +216,7 @@ data class ToolishRag @JvmOverloads constructor(
         listener,
         searchDefaults,
         searchOperations as? ResultExpander,
+        entitiesOnly,
     )
 
     /**
@@ -253,6 +270,12 @@ data class ToolishRag @JvmOverloads constructor(
      */
     fun withEntityFilter(filter: EntityFilter): ToolishRag =
         copy(entityFilter = filter)
+
+    /**
+     * Limit search results to named entities.
+     */
+    fun withEntitiesOnly(entitiesOnly: Boolean = true): ToolishRag =
+        copy(entitiesOnly = entitiesOnly)
 
     /**
      * Set the maximum number of characters for zoomOut results before truncation.

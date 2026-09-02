@@ -112,6 +112,7 @@ object InMemoryPropertyFilter {
         results: List<SimilarityResult<T>>,
         metadataFilter: PropertyFilter?,
         entityFilter: PropertyFilter?,
+        entitiesOnly: Boolean = false,
     ): List<SimilarityResult<T>> where T : Datum, T : Retrievable {
         var filtered = results
 
@@ -121,6 +122,10 @@ object InMemoryPropertyFilter {
 
         if (entityFilter != null) {
             filtered = filtered.filter { matchesObject(entityFilter, it.match) }
+        }
+
+        if (entitiesOnly) {
+            filtered = filtered.filter { it.match is NamedEntityData }
         }
 
         return filtered
