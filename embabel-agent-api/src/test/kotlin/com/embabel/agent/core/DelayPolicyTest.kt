@@ -84,10 +84,8 @@ class DelayPolicyTest {
         }
 
         @Test
-        fun `negative millis is clamped to Fixed(0) not None`() {
-            val policy = DelayPolicy.of(-1L)
-            assertInstanceOf(DelayPolicy.Fixed::class.java, policy)
-            assertEquals(Duration.ZERO, policy.duration)
+        fun `negative millis returns SameAsAgent`() {
+            assertSame(DelayPolicy.SameAsAgent, DelayPolicy.of(-1L))
         }
     }
 

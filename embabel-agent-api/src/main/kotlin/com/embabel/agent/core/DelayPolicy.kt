@@ -62,15 +62,13 @@ sealed interface DelayPolicy {
             if (delay.millis <= 0) SameAsAgent else Fixed(delay.millis)
 
         /**
-         * Constructs a [Fixed] policy from an explicit millisecond value.
-         * Negative values are clamped to zero.
-         *
-         * Always returns [Fixed], never [SameAsAgent] — so callers that distinguish
-         * "explicitly zero" from "not set" can use identity equality against [SameAsAgent].
-         * Use [SameAsAgent] directly when the intent is "unset, inherit from the enclosing agent scope".
+         * Constructs a [DelayPolicy] from an explicit millisecond value.
+         * Negative values (including the [@Action][com.embabel.agent.api.annotation.Action]
+         * default of `-1`) map to [SameAsAgent] — "not set, inherit from the enclosing scope".
+         * Non-negative values produce [Fixed].
          */
         @JsonCreator
         @JvmStatic
-        fun of(millis: Long): DelayPolicy = Fixed(maxOf(0L, millis))
+        fun of(millis: Long): DelayPolicy = if (millis < 0) SameAsAgent else Fixed(millis)
     }
 }
