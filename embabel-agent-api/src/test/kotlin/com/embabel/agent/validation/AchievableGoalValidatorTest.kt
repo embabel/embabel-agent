@@ -19,6 +19,7 @@ import com.embabel.agent.api.annotation.support.AgentMetadataReader
 import com.embabel.agent.api.annotation.support.AgentWithAchievesGoalNoActionAnnotation
 import com.embabel.agent.api.annotation.support.AgentWithValidAchievesGoalMethod
 import com.embabel.agent.api.annotation.support.AgenticComponentWithNoActionNoConditionNoGoalAnnotation
+import com.embabel.agent.core.AgentScope
 import com.embabel.agent.spi.validation.GoapPathToCompletionValidator
 import com.embabel.agent.spi.validation.PathToCompletionAgentValidator
 import com.embabel.common.core.validation.ValidationErrorCodes
@@ -40,7 +41,9 @@ class AchievableGoalValidatorTest {
     @Test
     fun `goal without matching action returns validation error`() {
         val reader = AgentMetadataReader(
-            pathToCompletionValidator = PathToCompletionAgentValidator { ValidationResult.VALID }
+            pathToCompletionValidator = object : PathToCompletionAgentValidator {
+                override fun validate(agentScope: AgentScope): ValidationResult = ValidationResult.VALID
+            }
         )
         val agentScope = reader.createAgentMetadata(AgentWithAchievesGoalNoActionAnnotation())
         assertNotNull(agentScope)
