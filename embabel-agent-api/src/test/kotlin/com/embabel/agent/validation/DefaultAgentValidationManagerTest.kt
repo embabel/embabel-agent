@@ -19,14 +19,16 @@ import com.embabel.agent.api.dsl.evenMoreEvilWizard
 import com.embabel.agent.spi.validation.DefaultAgentStructureValidator
 import com.embabel.agent.spi.validation.DefaultAgentValidationManager
 import com.embabel.agent.spi.validation.GoapPathToCompletionValidator
-import org.junit.jupiter.api.Assertions.assertTrue
+import com.embabel.common.core.validation.ValidationErrorCodes
 import org.junit.jupiter.api.Test
 import org.springframework.context.support.GenericApplicationContext
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class DefaultAgentValidationManagerTest {
 
     @Test
-    fun `evil wizard`() {
+    fun `goal without matching action is invalid`() {
         val ac = GenericApplicationContext()
         ac.refresh()
         val manager = DefaultAgentValidationManager(
@@ -35,10 +37,10 @@ class DefaultAgentValidationManagerTest {
                 GoapPathToCompletionValidator(),
             )
         )
-        val r = manager.validateWithDetails(evenMoreEvilWizard())
+        val r = manager.validate(evenMoreEvilWizard())
+        assertFalse(r.isValid)
         assertTrue(
-            r.isValid,
-            "Evil wizards are valid"
+            r.errors.any { it.code == ValidationErrorCodes.GOAL_ACTION_NOT_FOUND }
         )
     }
 

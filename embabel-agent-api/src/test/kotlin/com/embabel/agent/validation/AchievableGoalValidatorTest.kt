@@ -19,11 +19,7 @@ import com.embabel.agent.api.annotation.support.AgentMetadataReader
 import com.embabel.agent.api.annotation.support.AgentWithAchievesGoalNoActionAnnotation
 import com.embabel.agent.api.annotation.support.AgentWithValidAchievesGoalMethod
 import com.embabel.agent.api.annotation.support.AgenticComponentWithNoActionNoConditionNoGoalAnnotation
-import com.embabel.agent.core.AgentScope
-import com.embabel.agent.spi.validation.GoapPathToCompletionValidator
-import com.embabel.agent.spi.validation.PathToCompletionAgentValidator
 import com.embabel.common.core.validation.ValidationErrorCodes
-import com.embabel.common.core.validation.ValidationResult
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertNotNull
 import org.junit.jupiter.api.assertNull
@@ -39,22 +35,6 @@ class AchievableGoalValidatorTest {
     val noActionErrorMessage = """@Action annotation is missing on the method 'com.embabel.agent.api.annotation.support.AgentWithAchievesGoalNoActionAnnotation.goal' annotated with @AchievesGoal."""
 
     @Test
-    fun `goal without matching action returns validation error`() {
-        val reader = AgentMetadataReader(
-            pathToCompletionValidator = object : PathToCompletionAgentValidator {
-                override fun validate(agentScope: AgentScope): ValidationResult = ValidationResult.VALID
-            }
-        )
-        val agentScope = reader.createAgentMetadata(AgentWithAchievesGoalNoActionAnnotation())
-        assertNotNull(agentScope)
-
-        val result = GoapPathToCompletionValidator().validate(agentScope)
-
-        assertFalse(result.isValid)
-        assertTrue(result.errors.any { it.code == ValidationErrorCodes.GOAL_ACTION_NOT_FOUND })
-    }
-
-    @Test
     fun `no Action annotation on AchievesGoal method and skip-agent-on-error is false`(output: CapturedOutput) {
         val reader = AgentMetadataReader()
         val agentScope = reader.createAgentMetadata(AgentWithAchievesGoalNoActionAnnotation())
@@ -62,8 +42,8 @@ class AchievableGoalValidatorTest {
         assertTrue(output.out.contains(noActionErrorMessage), "Error message about missing @Action is absent.")
         assertEquals(
             1,
-            output.out.lines().count { it.contains("- GOAL_ACTION_NOT_FOUND:") },
-            "Missing goal action should be logged once by the validation manager."
+            output.out.lines().count { it.contains(ValidationErrorCodes.MISSING_ACTION_ANNOTATION) },
+            "Validation error should be logged once by the validation manager."
         )
     }
 
@@ -73,7 +53,6 @@ class AchievableGoalValidatorTest {
         val agentScope = reader.createAgentMetadata(AgentWithAchievesGoalNoActionAnnotation())
         assertNull(agentScope, "Validation error is unexpectedly ignored.")
         assertTrue(output.out.contains(noActionErrorMessage), "Error message about missing @Action is absent.")
-        assertTrue(output.out.contains("- GOAL_ACTION_NOT_FOUND:"), "Error message about missing goal action is absent.")
         val className = "com.embabel.agent.api.annotation.support.AgentWithAchievesGoalNoActionAnnotation"
         assertTrue(output.out.contains("Agent $className is rejected as it has validation errors as reported above."), "Error message mentioning agent is missing.")
     }
