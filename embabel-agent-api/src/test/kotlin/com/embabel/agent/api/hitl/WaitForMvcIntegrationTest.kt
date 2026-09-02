@@ -102,9 +102,11 @@ data class AdventureResult(val outcome: String)
  * Payload is UserChoice (what next action needs)
  */
 class ChoiceAwaitable(
-    val choiceRequest: ChoiceRequest
+    val choiceRequest: ChoiceRequest,
+    id: String = UUID.randomUUID().toString(),
 ) : AbstractAwaitable<UserChoice, UserChoiceResponse>(
-    UserChoice("", choiceRequest)  // Placeholder payload
+    UserChoice("", choiceRequest), // Placeholder payload
+    id = id,
 ) {
 
     override fun onResponse(

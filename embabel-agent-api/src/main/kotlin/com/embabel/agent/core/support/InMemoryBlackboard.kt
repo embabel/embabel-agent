@@ -143,6 +143,36 @@ class InMemoryBlackboard(
         return _map.toMap()
     }
 
+    @InternalAgentStateApi
+    internal fun internalState(): InMemoryBlackboardState =
+        InMemoryBlackboardState(
+            blackboardId = blackboardId,
+            bindings = _map.toMap(),
+            entries = synchronized(_entries) { _entries.toList() },
+            hiddenEntries = hiddens.toSet(),
+            protectedKeys = protectedKeys.toSet(),
+        )
+
+    @InternalAgentStateApi
+    internal fun replaceInternalState(state: InMemoryBlackboardState) {
+        require(state.blackboardId == blackboardId) {
+            "Cannot import blackboard state [${state.blackboardId}] into blackboard [$blackboardId]"
+        }
+        _map.clear()
+        _map.putAll(state.bindings)
+
+        synchronized(_entries) {
+            _entries.clear()
+            _entries.addAll(state.entries)
+        }
+
+        hiddens.clear()
+        hiddens.addAll(state.hiddenEntries)
+
+        protectedKeys.clear()
+        protectedKeys.addAll(state.protectedKeys)
+    }
+
     override fun infoString(
         verbose: Boolean?,
         indent: Int,
@@ -167,3 +197,12 @@ object InMemoryBlackboardProvider : BlackboardProvider {
 
     override fun createBlackboard(): Blackboard = InMemoryBlackboard()
 }
+
+@InternalAgentStateApi
+internal data class InMemoryBlackboardState(
+    val blackboardId: String,
+    val bindings: Map<String, Any>,
+    val entries: List<Any>,
+    val hiddenEntries: Set<Any>,
+    val protectedKeys: Set<String>,
+)
