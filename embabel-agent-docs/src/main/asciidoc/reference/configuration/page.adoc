@@ -197,7 +197,7 @@ Controls how the GOAP planner processes annotated agents during startup.
 |`embabel.agent.api.validation.manager.skip-agent-deployment-on-error`
 |Boolean
 |`false`
-|When `false` (default), validation manager only logs structural errors of `@Agent`s. When `true`, any invalid `@Agent` reported by validation manager is rejected at startup.
+|When `false` (default), the validation manager only logs errors for `@Agent`s. When `true`, any invalid `@Agent` reported by the validation manager is rejected at startup.
 
 |===
 
