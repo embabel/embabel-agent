@@ -32,7 +32,8 @@ import java.nio.file.Path
  * Different implementations may provide varying levels of isolation:
  * - [NoOpExecutionEngine]: Denies all execution (safe default)
  * - [ProcessSkillScriptExecutionEngine]: Runs scripts as subprocesses with OS-level isolation
- * - [DockerSkillScriptExecutionEngine]: Runs scripts in ephemeral containers (strongest isolation)
+ * - [DockerSkillScriptExecutionEngine]: Runs scripts in ephemeral Docker containers (strong isolation)
+ * - [PodmanSkillScriptExecutionEngine]: Runs scripts in ephemeral Podman containers (daemonless, rootless)
  *
  * @see ScriptExecutionResult
  * @see SkillScript

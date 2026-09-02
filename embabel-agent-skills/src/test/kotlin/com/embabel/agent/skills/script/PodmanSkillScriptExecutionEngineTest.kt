@@ -24,17 +24,18 @@ import org.junit.jupiter.api.condition.OS
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Tests for DockerExecutionEngine.
+ * Tests for PodmanSkillScriptExecutionEngine.
  *
- * These tests require Docker to be installed and running.
+ * These tests require Podman to be installed and functional.
  * They use the standard ubuntu:22.04 image which should be widely available.
  */
 @DisabledOnOs(OS.WINDOWS)
-@EnabledIf("shouldRunDockerTests", disabledReason = "Docker tests run in CI or macOS only - skipped on local Linux due to environment differences")
-class DockerSkillScriptExecutionEngineTest {
+@EnabledIf("shouldRunPodmanTests", disabledReason = "Podman tests run when Podman is available")
+class PodmanSkillScriptExecutionEngineTest {
 
     @TempDir
     lateinit var tempDir: Path
@@ -44,9 +45,9 @@ class DockerSkillScriptExecutionEngineTest {
         private const val TEST_IMAGE = "ubuntu:26.04"
 
         @JvmStatic
-        fun isDockerAvailable(): Boolean {
+        fun isPodmanAvailable(): Boolean {
             return try {
-                val process = ProcessBuilder("docker", "version")
+                val process = ProcessBuilder("podman", "version")
                     .redirectErrorStream(true)
                     .start()
                 process.waitFor() == 0
@@ -56,17 +57,16 @@ class DockerSkillScriptExecutionEngineTest {
         }
 
         @JvmStatic
-        fun shouldRunDockerTests(): Boolean {
-            // Run in CI or on macOS only - skip on local Linux due to environment differences
-            val isCI = System.getenv("GITHUB_ACTIONS") != null
-            val isMac = System.getProperty("os.name").lowercase().contains("mac")
-            return isCI || isMac
+        fun shouldRunPodmanTests(): Boolean {
+            // Run whenever Podman is available (Podman is daemonless and rootless,
+            // so it works in more environments than Docker).
+            return isPodmanAvailable()
         }
     }
 
     @Test
     fun `supportedLanguages returns configured languages`() {
-        val engine = DockerSkillScriptExecutionEngine(
+        val engine = PodmanSkillScriptExecutionEngine(
             supportedLanguages = setOf(ScriptLanguage.BASH, ScriptLanguage.PYTHON)
         )
 
@@ -75,7 +75,7 @@ class DockerSkillScriptExecutionEngineTest {
 
     @Test
     fun `validate returns Denied for unsupported language`() {
-        val engine = DockerSkillScriptExecutionEngine(
+        val engine = PodmanSkillScriptExecutionEngine(
             supportedLanguages = setOf(ScriptLanguage.BASH)
         )
 
@@ -88,7 +88,7 @@ class DockerSkillScriptExecutionEngineTest {
 
     @Test
     fun `validate returns Denied for missing script file`() {
-        val engine = DockerSkillScriptExecutionEngine()
+        val engine = PodmanSkillScriptExecutionEngine()
 
         val script = SkillScript(
             skillName = "test",
@@ -104,9 +104,9 @@ class DockerSkillScriptExecutionEngineTest {
     }
 
     @Test
-    @EnabledIf("isDockerAvailable")
-    fun `validate returns null when Docker is available`() {
-        val engine = DockerSkillScriptExecutionEngine()
+    @EnabledIf("isPodmanAvailable")
+    fun `validate returns null when Podman is available`() {
+        val engine = PodmanSkillScriptExecutionEngine()
         val script = createScript("test.sh", ScriptLanguage.BASH, "echo hello")
 
         val result = engine.validate(script)
@@ -115,26 +115,26 @@ class DockerSkillScriptExecutionEngineTest {
     }
 
     @Test
-    @EnabledIf("isDockerAvailable")
+    @EnabledIf("isPodmanAvailable")
     fun `execute runs bash script in container`() {
-        val engine = DockerSkillScriptExecutionEngine(
+        val engine = PodmanSkillScriptExecutionEngine(
             image = TEST_IMAGE,
             user = null,  // ubuntu image doesn't have 'agent' user
         )
-        val script = createScript("test.sh", ScriptLanguage.BASH, "#!/bin/bash\necho 'Hello from Docker'")
+        val script = createScript("test.sh", ScriptLanguage.BASH, "#!/bin/bash\necho 'Hello from Podman'")
 
         val result = engine.execute(script)
 
         assertTrue(result is ScriptExecutionResult.Success, "Expected Success but got: $result")
         val success = result as ScriptExecutionResult.Success
         assertEquals(0, success.exitCode)
-        assertTrue(success.stdout.contains("Hello from Docker"))
+        assertTrue(success.stdout.contains("Hello from Podman"))
     }
 
     @Test
-    @EnabledIf("isDockerAvailable")
+    @EnabledIf("isPodmanAvailable")
     fun `execute captures stderr`() {
-        val engine = DockerSkillScriptExecutionEngine(
+        val engine = PodmanSkillScriptExecutionEngine(
             image = TEST_IMAGE,
             user = null,
         )
@@ -148,9 +148,9 @@ class DockerSkillScriptExecutionEngineTest {
     }
 
     @Test
-    @EnabledIf("isDockerAvailable")
+    @EnabledIf("isPodmanAvailable")
     fun `execute captures non-zero exit code`() {
-        val engine = DockerSkillScriptExecutionEngine(
+        val engine = PodmanSkillScriptExecutionEngine(
             image = TEST_IMAGE,
             user = null,
         )
@@ -164,9 +164,9 @@ class DockerSkillScriptExecutionEngineTest {
     }
 
     @Test
-    @EnabledIf("isDockerAvailable")
+    @EnabledIf("isPodmanAvailable")
     fun `execute passes arguments to script`() {
-        val engine = DockerSkillScriptExecutionEngine(
+        val engine = PodmanSkillScriptExecutionEngine(
             image = TEST_IMAGE,
             user = null,
         )
@@ -180,9 +180,9 @@ class DockerSkillScriptExecutionEngineTest {
     }
 
     @Test
-    @EnabledIf("isDockerAvailable")
+    @EnabledIf("isPodmanAvailable")
     fun `execute times out long-running script`() {
-        val engine = DockerSkillScriptExecutionEngine(
+        val engine = PodmanSkillScriptExecutionEngine(
             image = TEST_IMAGE,
             timeout = 2.seconds,
             user = null,
@@ -198,9 +198,9 @@ class DockerSkillScriptExecutionEngineTest {
     }
 
     @Test
-    @EnabledIf("isDockerAvailable")
+    @EnabledIf("isPodmanAvailable")
     fun `execute collects artifacts from OUTPUT_DIR`() {
-        val engine = DockerSkillScriptExecutionEngine(
+        val engine = PodmanSkillScriptExecutionEngine(
             image = TEST_IMAGE,
             user = null,
         )
@@ -208,10 +208,10 @@ class DockerSkillScriptExecutionEngineTest {
             "test.sh",
             ScriptLanguage.BASH,
             """#!/bin/bash
-echo "Creating artifact..."
-echo "Hello PDF" > "${'$'}OUTPUT_DIR/result.pdf"
-echo "Done"
-"""
+                        echo "Creating artifact..."
+                        echo "Hello PDF" > "${'$'}OUTPUT_DIR/result.pdf"
+                        echo "Done"
+                     """
         )
 
         val result = engine.execute(script)
@@ -227,13 +227,13 @@ echo "Done"
     }
 
     @Test
-    @EnabledIf("isDockerAvailable")
+    @EnabledIf("isPodmanAvailable")
     fun `an artifact produced by one skill must be usable as input to the next skill`() {
         // Chaining scenario: skill A produces a file (e.g. a PDF), skill B takes it as
         // input (e.g. to email it). The engine must keep A's artifact reachable by its
         // confined file access so B can consume it. Guards against artifacts landing in
         // a temp dir outside any trusted root.
-        val engine = DockerSkillScriptExecutionEngine(
+        val engine = PodmanSkillScriptExecutionEngine(
             image = TEST_IMAGE,
             user = null,
             fileTools = FileTools.readWrite(tempDir.toString()),
@@ -268,12 +268,12 @@ echo "Done"
     }
 
     @Test
-    @EnabledIf("isDockerAvailable")
+    @EnabledIf("isPodmanAvailable")
     fun `a container must not inherit host environment secrets`() {
         // EMBABEL_TEST_SECRET is set in the test JVM env (surefire config), standing in for
         // a real secret like an API key. The container must not receive host env vars.
-        // Docker isolates the container env, so this passes.
-        val engine = DockerSkillScriptExecutionEngine(image = TEST_IMAGE, user = null)
+        // Podman isolates the container env, so this passes.
+        val engine = PodmanSkillScriptExecutionEngine(image = TEST_IMAGE, user = null)
         val script = createScript(
             "leak.sh",
             ScriptLanguage.BASH,
@@ -290,13 +290,13 @@ echo "Done"
     }
 
     @Test
-    @EnabledIf("isDockerAvailable")
+    @EnabledIf("isPodmanAvailable")
     fun `two input files with the same name from different folders are both made available`() {
         // Realistic scenario: "merge the monthly report.csv from January and February".
         // Both files are named report.csv but live in different folders; the LLM passes
         // both. They must both reach the script; today the second copy collides on the
         // same target name and the run fails with a confusing "Unexpected error".
-        val engine = DockerSkillScriptExecutionEngine(
+        val engine = PodmanSkillScriptExecutionEngine(
             image = TEST_IMAGE,
             user = null,
             fileTools = FileTools.readWrite(tempDir.toString()),
@@ -326,9 +326,9 @@ echo "Done"
     }
 
     @Test
-    @EnabledIf("isDockerAvailable")
+    @EnabledIf("isPodmanAvailable")
     fun `execute makes input files available in INPUT_DIR`() {
-        val engine = DockerSkillScriptExecutionEngine(
+        val engine = PodmanSkillScriptExecutionEngine(
             image = TEST_IMAGE,
             user = null,
             fileTools = FileTools.readWrite(tempDir.toString()),
@@ -355,7 +355,7 @@ cat "${'$'}INPUT_DIR/data.txt"
 
     @Test
     fun `execute returns Denied for non-existent input file`() {
-        val engine = DockerSkillScriptExecutionEngine(
+        val engine = PodmanSkillScriptExecutionEngine(
             fileTools = FileTools.readWrite(tempDir.toString()),
         )
         val script = createScript("test.sh", ScriptLanguage.BASH, "echo ok")
@@ -369,21 +369,21 @@ cat "${'$'}INPUT_DIR/data.txt"
 
     @Test
     fun `pythonOnly factory creates Python-only engine`() {
-        val engine = DockerSkillScriptExecutionEngine.pythonOnly()
+        val engine = PodmanSkillScriptExecutionEngine.pythonOnly()
 
         assertEquals(setOf(ScriptLanguage.PYTHON), engine.supportedLanguages())
     }
 
     @Test
     fun `isolated factory creates isolated engine`() {
-        val engine = DockerSkillScriptExecutionEngine.isolated()
+        val engine = PodmanSkillScriptExecutionEngine.isolated()
 
         // Just verify it's created - detailed behavior is tested in integration tests
         assertNotNull(engine)
     }
 
     @Test
-    @EnabledIf("isDockerAvailable")
+    @EnabledIf("isPodmanAvailable")
     fun `a text-transform skill must not deadlock and must process all of a large input`() {
         // Same scenario as the process engine: a streaming filter (tr) that reads stdin
         // and writes stdout. If the engine writes ALL of stdin before draining the
@@ -391,13 +391,13 @@ cat "${'$'}INPUT_DIR/data.txt"
         // write blocks forever -> deadlock (before waitFor(timeout) is ever reached).
         // assertTimeoutPreemptively turns that hang into a failure; the content assertions
         // prove the full 1MB round-tripped, not just that the call returned.
-        val engine = DockerSkillScriptExecutionEngine(image = TEST_IMAGE, user = null)
+        val engine = PodmanSkillScriptExecutionEngine(image = TEST_IMAGE, user = null)
         val script = createScript("upper.sh", ScriptLanguage.BASH, "#!/bin/bash\ntr 'a-z' 'A-Z'\n")
 
         val bigInput = "y".repeat(1048576) // ~1MB, all lowercase
 
         var result: ScriptExecutionResult? = null
-        assertTimeoutPreemptively(java.time.Duration.ofSeconds(60)) {
+        assertTimeoutPreemptively(Duration.ofSeconds(60)) {
             result = engine.execute(script, stdin = bigInput)
         }
 
