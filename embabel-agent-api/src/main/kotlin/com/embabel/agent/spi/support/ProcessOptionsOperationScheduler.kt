@@ -53,13 +53,13 @@ class ProcessOptionsOperationScheduler(
      *    annotations (action-level wins over agent-level).
      * 2. Process-level fallback from [com.embabel.agent.core.ProcessControl.operationDelayPolicy].
      *
-     * A [DelayPolicy.None] QoS delay is treated as "not set" and falls through to the process fallback.
+     * A [DelayPolicy.SameAsAgent] QoS delay is treated as "not set" and falls through to the process fallback.
      */
     override fun scheduleAction(actionExecutionStartEvent: ActionExecutionStartEvent): ActionExecutionSchedule {
         val processControl = actionExecutionStartEvent.agentProcess.processContext.processOptions.processControl
-        val actionQosDelay = actionExecutionStartEvent.action.qos.delayPolicy.takeIf { it != DelayPolicy.None }
+        val actionQosDelay = actionExecutionStartEvent.action.qos.delayPolicy.takeIf { it != DelayPolicy.SameAsAgent }
         val delay = actionQosDelay ?: processControl.operationDelayPolicy
-        if (delay != DelayPolicy.None) {
+        if (delay != DelayPolicy.SameAsAgent) {
             val source = if (actionQosDelay != null) "qos" else "process"
             logger.debug(
                 "Scheduling {}ms delay for action {} (source: {})",

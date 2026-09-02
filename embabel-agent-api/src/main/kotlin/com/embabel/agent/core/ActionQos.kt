@@ -26,5 +26,5 @@ data class ActionQos(
     override val backoffMaxInterval: Long = 60000,
     override val propertyPrefix: String = "",
     val idempotent: Boolean = false,
-    val delayPolicy: DelayPolicy = DelayPolicy.None,
+    val delayPolicy: DelayPolicy = DelayPolicy.SameAsAgent,
 ) : RetryProperties

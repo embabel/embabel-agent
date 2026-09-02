@@ -42,7 +42,7 @@ class DefaultActionQosProvider(
 
         var defaultActionQos = actionQosProperties.default
 
-        var agentDelay: DelayPolicy = DelayPolicy.None
+        var agentDelay: DelayPolicy = DelayPolicy.SameAsAgent
         var props = instance.javaClass.getAnnotation(Agent::class.java)?.let {
             if (hasRetryExpression(it.actionRetryPolicyExpression)) {
                 defaultActionQos = defaultActionQos
@@ -65,7 +65,7 @@ class DefaultActionQosProvider(
         }
 
         // -1L is the sentinel meaning "not set at action level"; null propagates agent-level delay.
-        // 0 is explicit "no delay" and overrides the agent default, so use null (not DelayPolicy.None)
+        // 0 is explicit "no delay" and overrides the agent default, so use null (not DelayPolicy.SameAsAgent)
         // as the "not set" signal — otherwise delayMs=0 and delayMs=-1 are indistinguishable.
         val actionDelay: DelayPolicy? = method.getAnnotation(Action::class.java)?.let {
             val ms = it.delayMs

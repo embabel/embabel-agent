@@ -26,16 +26,16 @@ import java.time.Duration
 class DelayPolicyTest {
 
     @Nested
-    inner class None {
+    inner class SameAsAgent {
 
         @Test
         fun `has zero duration`() {
-            assertEquals(Duration.ZERO, DelayPolicy.None.duration)
+            assertEquals(Duration.ZERO, DelayPolicy.SameAsAgent.duration)
         }
 
         @Test
         fun `is singleton`() {
-            assertSame(DelayPolicy.None, DelayPolicy.None)
+            assertSame(DelayPolicy.SameAsAgent, DelayPolicy.SameAsAgent)
         }
     }
 
@@ -53,8 +53,8 @@ class DelayPolicyTest {
     inner class OfDelay {
 
         @Test
-        fun `NONE maps to None`() {
-            assertSame(DelayPolicy.None, DelayPolicy.of(Delay.NONE))
+        fun `NONE maps to SameAsAgent`() {
+            assertSame(DelayPolicy.SameAsAgent, DelayPolicy.of(Delay.NONE))
         }
 
         @Test
@@ -97,8 +97,8 @@ class DelayPolicyTest {
         private val mapper = EmbabelObjectMapperHolder.createDefault().get()
 
         @Test
-        fun `None serializes to 0`() {
-            assertEquals("0", mapper.writeValueAsString(DelayPolicy.None))
+        fun `SameAsAgent serializes to 0`() {
+            assertEquals("0", mapper.writeValueAsString(DelayPolicy.SameAsAgent))
         }
 
         @Test

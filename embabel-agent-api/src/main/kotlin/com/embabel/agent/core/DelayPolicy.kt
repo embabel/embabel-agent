@@ -29,7 +29,7 @@ import java.time.Duration
  * Serialized as a plain millisecond Long value via [millis].
  * A [Duration] view is available via [duration] for callers that require it.
  *
- * Use [DelayPolicy.None] when no delay is required.
+ * Use [DelayPolicy.SameAsAgent] when the action should inherit the enclosing agent's delay.
  * Use [DelayPolicy.of] factory methods to construct from a [Delay] level or raw milliseconds.
  */
 sealed interface DelayPolicy {
@@ -40,10 +40,10 @@ sealed interface DelayPolicy {
     val duration: Duration get() = Duration.ofMillis(millis)
 
     /**
-     * Sentinel meaning "not set / inherit from the enclosing scope".
+     * Sentinel meaning "not set / inherit from the enclosing agent scope".
      * Use [of] with an explicit `0L` when no delay is intentional.
      */
-    object None : DelayPolicy {
+    object SameAsAgent : DelayPolicy {
         override val millis: Long = 0L
     }
 
@@ -59,15 +59,15 @@ sealed interface DelayPolicy {
          */
         @JvmStatic
         fun of(delay: Delay): DelayPolicy =
-            if (delay.millis <= 0) None else Fixed(delay.millis)
+            if (delay.millis <= 0) SameAsAgent else Fixed(delay.millis)
 
         /**
          * Constructs a [Fixed] policy from an explicit millisecond value.
          * Negative values are clamped to zero.
          *
-         * Always returns [Fixed], never [None] — so callers that distinguish
-         * "explicitly zero" from "not set" can use identity equality against [None].
-         * Use [None] directly when the intent is "unset, inherit from the enclosing scope".
+         * Always returns [Fixed], never [SameAsAgent] — so callers that distinguish
+         * "explicitly zero" from "not set" can use identity equality against [SameAsAgent].
+         * Use [SameAsAgent] directly when the intent is "unset, inherit from the enclosing agent scope".
          */
         @JsonCreator
         @JvmStatic
