@@ -88,7 +88,7 @@ annotation class Agent(
     val opaque: Boolean = false,
     val actionRetryPolicy: ActionRetryPolicy = ActionRetryPolicy.DEFAULT,
     val actionRetryPolicyExpression: String = "",
-    val delay: Delay = Delay.NONE,
+    val delay: Delay = Delay.UNSET,
 )
 
 /**

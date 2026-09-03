@@ -15,7 +15,9 @@ You must provide the `description` parameter, which is a human-readable descript
 This is particularly important as it may be used by the LLM in agent selection.
 
 The optional `delay` parameter sets a default delay tier for all actions within this agent, using the `Delay` enum (`NONE`, `MEDIUM`, `LONG`).
-Individual actions can override this with their own `delayMs` value.
+When omitted, the default is `Delay.UNSET`, which means actions inherit the process-level delay.
+`Delay.NONE` explicitly sets zero delay for all actions in the agent, overriding any process-level delay.
+Individual actions can override the agent-level delay with their own `delayMs` value.
 
 ==== The `@EmbabelComponent` annotation
 
@@ -51,8 +53,8 @@ Defaults to false.
 - `delayMs`: Pause in milliseconds inserted after the planner selects this action but before the action body executes.
 Useful for rate-limited APIs where breathing room is needed between calls.
 Overrides any agent-level `delay` default set on `@Agent`.
-Use `Delay.NONE_MS`, `Delay.MEDIUM_MS`, or `Delay.LONG_MS` for named values, or supply an arbitrary millisecond value (e.g., `1500L`) for precise control.
-A value of `-1` (the default) means inherit from the agent or process level.
+Use `Delay.NONE_MS` (0), `Delay.MEDIUM_MS`, or `Delay.LONG_MS` for named values, or supply an arbitrary millisecond value (e.g., `1500L`) for precise control.
+A value of `-1` (the default, `Delay.UNSET_MS`) means inherit from the agent or process level.
 A value of `0` (or `Delay.NONE_MS`) explicitly suppresses any agent- or process-level delay — it does not inherit.
 
 ===== Clearing the Blackboard

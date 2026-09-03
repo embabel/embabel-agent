@@ -29,8 +29,8 @@ class DelayPolicyTest {
     inner class SameAsAgent {
 
         @Test
-        fun `has zero duration`() {
-            assertEquals(Duration.ZERO, DelayPolicy.SameAsAgent.duration)
+        fun `has negative millis sentinel`() {
+            assertEquals(-1L, DelayPolicy.SameAsAgent.millis)
         }
 
         @Test
@@ -53,8 +53,15 @@ class DelayPolicyTest {
     inner class OfDelay {
 
         @Test
-        fun `NONE maps to SameAsAgent`() {
-            assertSame(DelayPolicy.SameAsAgent, DelayPolicy.of(Delay.NONE))
+        fun `UNSET maps to SameAsAgent`() {
+            assertSame(DelayPolicy.SameAsAgent, DelayPolicy.of(Delay.UNSET))
+        }
+
+        @Test
+        fun `NONE maps to Fixed zero`() {
+            val policy = DelayPolicy.of(Delay.NONE)
+            assertInstanceOf(DelayPolicy.Fixed::class.java, policy)
+            assertEquals(Duration.ZERO, policy.duration)
         }
 
         @Test
@@ -95,8 +102,8 @@ class DelayPolicyTest {
         private val mapper = EmbabelObjectMapperHolder.createDefault().get()
 
         @Test
-        fun `SameAsAgent serializes to 0`() {
-            assertEquals("0", mapper.writeValueAsString(DelayPolicy.SameAsAgent))
+        fun `SameAsAgent serializes to -1`() {
+            assertEquals("-1", mapper.writeValueAsString(DelayPolicy.SameAsAgent))
         }
 
         @Test
@@ -123,6 +130,13 @@ class DelayPolicyTest {
             val json = mapper.writeValueAsString(original)
             val restored = mapper.readValue(json, DelayPolicy::class.java)
             assertEquals(original.duration, restored.duration)
+        }
+
+        @Test
+        fun `SameAsAgent round-trips correctly`() {
+            val json = mapper.writeValueAsString(DelayPolicy.SameAsAgent)
+            val restored = mapper.readValue(json, DelayPolicy::class.java)
+            assertSame(DelayPolicy.SameAsAgent, restored)
         }
     }
 }

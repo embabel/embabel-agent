@@ -41,10 +41,12 @@ sealed interface DelayPolicy {
 
     /**
      * Sentinel meaning "not set / inherit from the enclosing agent scope".
-     * Use [of] with an explicit `0L` when no delay is intentional.
+     *
+     * Serialized as `-1` so it round-trips correctly: `of(-1L)` returns [SameAsAgent],
+     * while `of(0L)` returns `Fixed(0)` — explicit zero delay.
      */
     object SameAsAgent : DelayPolicy {
-        override val millis: Long = 0L
+        override val millis: Long = -1L
     }
 
     /**
@@ -56,10 +58,11 @@ sealed interface DelayPolicy {
 
         /**
          * Construct a [DelayPolicy] from a coarse-grained [Delay] level.
+         * Delegates to [of(Long)]: [Delay.UNSET] (millis = -1) maps to [SameAsAgent];
+         * all non-negative values produce [Fixed].
          */
         @JvmStatic
-        fun of(delay: Delay): DelayPolicy =
-            if (delay.millis <= 0) SameAsAgent else Fixed(delay.millis)
+        fun of(delay: Delay): DelayPolicy = of(delay.millis)
 
         /**
          * Constructs a [DelayPolicy] from an explicit millisecond value.
