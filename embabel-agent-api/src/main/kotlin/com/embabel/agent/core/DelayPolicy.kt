@@ -29,7 +29,7 @@ import java.time.Duration
  * Serialized as a plain millisecond Long value via [millis].
  * A [Duration] view is available via [duration] for callers that require it.
  *
- * Use [DelayPolicy.SameAsAgent] when the action should inherit the enclosing agent's delay.
+ * Use [DelayPolicy.Inherit] when the action should inherit the enclosing agent's delay.
  * Use [DelayPolicy.of] factory methods to construct from a [Delay] level or raw milliseconds.
  */
 sealed interface DelayPolicy {
@@ -42,10 +42,10 @@ sealed interface DelayPolicy {
     /**
      * Sentinel meaning "not set / inherit from the enclosing agent scope".
      *
-     * Serialized as `-1` so it round-trips correctly: `of(-1L)` returns [SameAsAgent],
+     * Serialized as `-1` so it round-trips correctly: `of(-1L)` returns [Inherit],
      * while `of(0L)` returns `Fixed(0)` — explicit zero delay.
      */
-    object SameAsAgent : DelayPolicy {
+    object Inherit : DelayPolicy {
         override val millis: Long = -1L
     }
 
@@ -58,7 +58,7 @@ sealed interface DelayPolicy {
 
         /**
          * Construct a [DelayPolicy] from a coarse-grained [Delay] level.
-         * Delegates to [of(Long)]: [Delay.UNSET] (millis = -1) maps to [SameAsAgent];
+         * Delegates to [of(Long)]: [Delay.UNSET] (millis = -1) maps to [Inherit];
          * all non-negative values produce [Fixed].
          */
         @JvmStatic
@@ -67,11 +67,11 @@ sealed interface DelayPolicy {
         /**
          * Constructs a [DelayPolicy] from an explicit millisecond value.
          * Negative values (including the [@Action][com.embabel.agent.api.annotation.Action]
-         * default of `-1`) map to [SameAsAgent] — "not set, inherit from the enclosing scope".
+         * default of `-1`) map to [Inherit] — "not set, inherit from the enclosing scope".
          * Non-negative values produce [Fixed].
          */
         @JsonCreator
         @JvmStatic
-        fun of(millis: Long): DelayPolicy = if (millis < 0) SameAsAgent else Fixed(millis)
+        fun of(millis: Long): DelayPolicy = if (millis < 0) Inherit else Fixed(millis)
     }
 }

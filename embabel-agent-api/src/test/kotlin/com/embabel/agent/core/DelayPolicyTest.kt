@@ -30,13 +30,9 @@ class DelayPolicyTest {
 
         @Test
         fun `has negative millis sentinel`() {
-            assertEquals(-1L, DelayPolicy.SameAsAgent.millis)
+            assertEquals(-1L, DelayPolicy.Inherit.millis)
         }
 
-        @Test
-        fun `is singleton`() {
-            assertSame(DelayPolicy.SameAsAgent, DelayPolicy.SameAsAgent)
-        }
     }
 
     @Nested
@@ -53,8 +49,8 @@ class DelayPolicyTest {
     inner class OfDelay {
 
         @Test
-        fun `UNSET maps to SameAsAgent`() {
-            assertSame(DelayPolicy.SameAsAgent, DelayPolicy.of(Delay.UNSET))
+        fun `UNSET maps to Inherit`() {
+            assertSame(DelayPolicy.Inherit, DelayPolicy.of(Delay.UNSET))
         }
 
         @Test
@@ -91,8 +87,8 @@ class DelayPolicyTest {
         }
 
         @Test
-        fun `negative millis returns SameAsAgent`() {
-            assertSame(DelayPolicy.SameAsAgent, DelayPolicy.of(-1L))
+        fun `negative millis returns Inherit`() {
+            assertSame(DelayPolicy.Inherit, DelayPolicy.of(-1L))
         }
     }
 
@@ -102,8 +98,8 @@ class DelayPolicyTest {
         private val mapper = EmbabelObjectMapperHolder.createDefault().get()
 
         @Test
-        fun `SameAsAgent serializes to -1`() {
-            assertEquals("-1", mapper.writeValueAsString(DelayPolicy.SameAsAgent))
+        fun `Inherit serializes to -1`() {
+            assertEquals("-1", mapper.writeValueAsString(DelayPolicy.Inherit))
         }
 
         @Test
@@ -133,10 +129,10 @@ class DelayPolicyTest {
         }
 
         @Test
-        fun `SameAsAgent round-trips correctly`() {
-            val json = mapper.writeValueAsString(DelayPolicy.SameAsAgent)
+        fun `Inherit round-trips correctly`() {
+            val json = mapper.writeValueAsString(DelayPolicy.Inherit)
             val restored = mapper.readValue(json, DelayPolicy::class.java)
-            assertSame(DelayPolicy.SameAsAgent, restored)
+            assertSame(DelayPolicy.Inherit, restored)
         }
     }
 }

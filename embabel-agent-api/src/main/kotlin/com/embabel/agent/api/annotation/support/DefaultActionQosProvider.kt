@@ -42,7 +42,7 @@ class DefaultActionQosProvider(
 
         var defaultActionQos = actionQosProperties.default
 
-        var agentDelay: DelayPolicy = DelayPolicy.SameAsAgent
+        var agentDelay: DelayPolicy = DelayPolicy.Inherit
         var props = instance.javaClass.getAnnotation(Agent::class.java)?.let {
             if (hasRetryExpression(it.actionRetryPolicyExpression)) {
                 defaultActionQos = defaultActionQos
@@ -66,9 +66,9 @@ class DefaultActionQosProvider(
 
         val actionDelay = method.getAnnotation(Action::class.java)
             ?.let { DelayPolicy.of(it.delayMs) }
-            ?: DelayPolicy.SameAsAgent
+            ?: DelayPolicy.Inherit
 
-        val delayPolicy = actionDelay.takeIf { it != DelayPolicy.SameAsAgent } ?: agentDelay
+        val delayPolicy = actionDelay.takeIf { it != DelayPolicy.Inherit } ?: agentDelay
 
         return props.toActionQos().copy(delayPolicy = delayPolicy)
     }
