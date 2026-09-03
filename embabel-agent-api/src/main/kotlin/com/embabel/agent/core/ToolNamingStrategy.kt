@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.core
 
-import com.embabel.agent.api.tool.Tool
 import java.security.MessageDigest
 
 /**
@@ -35,7 +34,11 @@ enum class ToolNamingStrategy {
     ;
 
     /**
-     * Return the published name for a generated tool with the given owner name.
+     * Return the published name for a tool with the given owner name.
+     *
+     * Under [FULLY_QUALIFIED] the owner and the tool name are encoded separately and joined with `-`.
+     * The owner is dropped when it would repeat what the tool name already says, and the tool name is
+     * dropped when the owner already ends with it, so neither element appears twice.
      */
     fun nameFor(
         ownerName: String?,
@@ -54,9 +57,11 @@ enum class ToolNamingStrategy {
         }
     }
 
-    internal fun nameFor(tool: Tool, defaultOwnerName: String): String =
-        nameFor((tool as? ToolNameOwner)?.ownerName ?: defaultOwnerName, tool.definition.name)
-
+    /**
+     * Keep a published name within [MAX_NAME_LENGTH], the shortest limit tool-calling providers impose.
+     * An over-long name is truncated and given a hash of [source], the unencoded parts, so that two
+     * names sharing a truncated prefix still differ.
+     */
     private fun bound(name: String, source: String): String {
         if (name.length <= MAX_NAME_LENGTH) return name
         val hash = MessageDigest.getInstance("SHA-256")

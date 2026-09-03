@@ -62,7 +62,6 @@ class SupervisorWith2Test {
             actions = supervisorAction.toolActions,
             blackboard = blackboard,
             objectMapper = objectMapper,
-            agentName = "Agent",
         )
 
         assertEquals(1, curriedTools.size, "Should have 1 curried tool")
@@ -89,7 +88,6 @@ class SupervisorWith2Test {
             actions = supervisorAction.toolActions,
             blackboard = blackboard,
             objectMapper = objectMapper,
-            agentName = "Agent",
         )
 
         assertEquals(1, curriedTools.size)
@@ -110,7 +108,6 @@ class SupervisorWith2Test {
             actions = supervisorAction.toolActions,
             blackboard = blackboard,
             objectMapper = objectMapper,
-            agentName = "Agent",
         )
 
         // When called without an AgentProcess context, should return an error

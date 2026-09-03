@@ -216,7 +216,6 @@ class SupervisorAction(
                     actions = toolActions,
                     blackboard = processContext.blackboard,
                     objectMapper = objectMapper,
-                    agentName = processContext.agentProcess.agent.name,
                 )
 
                 logger.info(
@@ -327,7 +326,7 @@ class SupervisorAction(
         val namingStrategy = processContext.platformServices.toolNamingStrategy()
         val actionSignatures = tools.filterIsInstance<CurriedActionTool>().joinToString("\n") { tool ->
             val signature = TypeSchemaExtractor.buildActionSignature(tool.action)
-            "- ${namingStrategy.nameFor(tool, name)}${signature.removePrefix(tool.action.shortName())}"
+            "- ${namingStrategy.nameFor(name, tool.definition.name)}${signature.removePrefix(tool.action.shortName())}"
         }
 
         // Build artifacts summary showing typed values on blackboard

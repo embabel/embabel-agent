@@ -52,10 +52,6 @@ interface ToolPublisher : ToolSpec {
     }
 }
 
-internal interface ToolNameOwner {
-    val ownerName: String
-}
-
 /**
  * Allows consuming tools and exposing them to LLMs.
  * Interface allowing abstraction between tool concept

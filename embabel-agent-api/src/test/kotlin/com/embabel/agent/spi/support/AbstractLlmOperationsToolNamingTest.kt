@@ -24,9 +24,6 @@ import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ProcessContext
-import com.embabel.agent.core.ToolConsumer
-import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.agent.core.ToolNameOwner
 import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
@@ -145,26 +142,7 @@ class AbstractLlmOperationsToolNamingTest {
     }
 
     @Nested
-    inner class ToolDeclaredOwners {
-
-        @Test
-        fun `a tool declaring its own owner survives beside a namesake`() {
-            val tools = listOf(
-                tool("lookup", owner = "com.foo.Lookup.lookup"),
-                tool("lookup", owner = "com.bar.Lookup.lookup"),
-            )
-            val fixture = fixture()
-
-            val names = ToolNamingContext
-                .forLlmCall(consumerOf(tools), fixture.agentProcess, fixture.action)
-                .resolveTools(RegistryToolGroupResolver("test", emptyList()))
-                .map { it.definition.name }
-
-            assertEquals(
-                listOf("com_2e_bar_2e_Lookup_2e_lookup", "com_2e_foo_2e_Lookup_2e_lookup"),
-                names,
-            )
-        }
+    inner class Idempotence {
 
         @Test
         fun `qualifying an already qualified tool is a no-op`() {
@@ -314,15 +292,5 @@ class AbstractLlmOperationsToolNamingTest {
         )
 
         override fun call(input: String): Tool.Result = error("not used")
-    }
-
-    private fun tool(name: String, owner: String): Tool = object : Tool by tool(name), ToolNameOwner {
-        override val ownerName = owner
-    }
-
-    private fun consumerOf(published: List<Tool>): ToolConsumer = object : ToolConsumer {
-        override val name = "consumer"
-        override val tools = published
-        override val toolGroups = emptySet<ToolGroupRequirement>()
     }
 }

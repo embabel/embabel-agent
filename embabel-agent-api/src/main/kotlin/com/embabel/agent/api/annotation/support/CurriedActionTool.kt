@@ -40,10 +40,7 @@ internal class CurriedActionTool(
     internal val action: Action,
     private val blackboard: Blackboard,
     private val objectMapper: ObjectMapper,
-    agentName: String,
-) : Tool, ToolNameOwner {
-
-    override val ownerName = "$agentName.${action.shortName()}"
+) : Tool {
 
     private val logger = LoggerFactory.getLogger(CurriedActionTool::class.java)
 
@@ -262,10 +259,9 @@ internal class CurriedActionTool(
             actions: List<Action>,
             blackboard: Blackboard,
             objectMapper: ObjectMapper,
-            agentName: String,
         ): List<Tool> {
             return actions.map { action ->
-                CurriedActionTool(action, blackboard, objectMapper, agentName)
+                CurriedActionTool(action, blackboard, objectMapper)
             }.sortedBy { tool ->
                 // Put tools with fewer required inputs first (more "ready" to run)
                 (tool as CurriedActionTool).requiredInputs.size

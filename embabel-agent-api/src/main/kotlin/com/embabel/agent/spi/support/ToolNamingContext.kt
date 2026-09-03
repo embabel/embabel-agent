@@ -39,7 +39,7 @@ internal class ToolNamingContext(
 
     fun name(tool: Tool): Tool {
         if (generateSequence(tool) { (it as? DelegatingTool)?.delegate }.any { it is QualifiedTool }) return tool
-        val qualifiedName = toolNamingStrategy.nameFor(tool, ownerName)
+        val qualifiedName = toolNamingStrategy.nameFor(ownerName, tool.definition.name)
         return if (qualifiedName == tool.definition.name) tool else QualifiedTool(tool, qualifiedName)
     }
 

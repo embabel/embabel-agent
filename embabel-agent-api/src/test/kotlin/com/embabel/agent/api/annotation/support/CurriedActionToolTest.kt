@@ -63,7 +63,7 @@ class CurriedActionToolTest {
         }
 
         val blackboard = InMemoryBlackboard()
-        val tool = CurriedActionTool.createTools(listOf(action), blackboard, objectMapper, "Agent").first()
+        val tool = CurriedActionTool.createTools(listOf(action), blackboard, objectMapper).first()
 
         // Get parameter names from the schema
         val parameterNames = tool.definition.inputSchema.parameters.map { it.name }
@@ -116,26 +116,13 @@ class CurriedActionToolTest {
         }
 
         val blackboard = InMemoryBlackboard()
-        val tool = CurriedActionTool.createTools(listOf(action), blackboard, objectMapper, "Agent").first()
+        val tool = CurriedActionTool.createTools(listOf(action), blackboard, objectMapper).first()
 
         val parameterNames = tool.definition.inputSchema.parameters.map { it.name }
 
         assertEquals(2, parameterNames.size)
         assertTrue(parameterNames.contains("myInput1"), "Should preserve explicit name 'myInput1'")
         assertTrue(parameterNames.contains("myInput2"), "Should preserve explicit name 'myInput2'")
-    }
-
-    @Test
-    fun `declares the agent and action short name as its owner`() {
-        val tool = CurriedActionTool.createTools(
-            actions = listOf(action("com.foo.Lookup.lookup")),
-            blackboard = InMemoryBlackboard(),
-            objectMapper = objectMapper,
-            agentName = "Agent",
-        ).single() as CurriedActionTool
-
-        assertEquals("lookup", tool.definition.name)
-        assertEquals("Agent.lookup", tool.ownerName)
     }
 
     @Test
@@ -165,7 +152,7 @@ class CurriedActionToolTest {
         }
 
         val blackboard = InMemoryBlackboard()
-        val tool = CurriedActionTool.createTools(listOf(action), blackboard, objectMapper, "Agent").first()
+        val tool = CurriedActionTool.createTools(listOf(action), blackboard, objectMapper).first()
 
         val parameterNames = tool.definition.inputSchema.parameters.map { it.name }
 

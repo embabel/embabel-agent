@@ -63,7 +63,6 @@ class SupervisorToolProgressionTest {
             actions = supervisorAction.toolActions,
             blackboard = blackboard,
             objectMapper = objectMapper,
-            agentName = "Agent",
         )
 
         assertEquals(1, initialTools.size, "Should have 1 tool")
@@ -87,7 +86,6 @@ class SupervisorToolProgressionTest {
             actions = supervisorAction.toolActions,
             blackboard = blackboard,
             objectMapper = objectMapper,
-            agentName = "Agent",
         )
 
         val curriedTurnIntoFrog = afterUserInputTools.find { it.definition.name == "turnIntoFrog" }!!
@@ -199,7 +197,6 @@ class SupervisorToolProgressionTest {
             actions = supervisorAction.toolActions,
             blackboard = blackboard,
             objectMapper = objectMapper,
-            agentName = "Agent",
         )
         val beforeDesc = beforeTools.first().definition.description
         assertFalse(
@@ -213,7 +210,6 @@ class SupervisorToolProgressionTest {
             actions = supervisorAction.toolActions,
             blackboard = blackboard,
             objectMapper = objectMapper,
-            agentName = "Agent",
         )
         val afterDesc = afterTools.first().definition.description
         assertTrue(
@@ -264,7 +260,7 @@ class SupervisorToolProgressionTest {
         supervisorAction.execute(ProcessContext(platformServices = platformServices, agentProcess = agentProcess))
 
         assertEquals(
-            listOf("SupervisorWith3Steps_2e_bakeBread", "SupervisorWith3Steps_2e_makeDough"),
+            listOf("SupervisorWith3Steps_2e_supervisor-bakeBread", "SupervisorWith3Steps_2e_supervisor-makeDough"),
             published,
         )
         val prompt = scriptedLlm.promptsReceived.first()
@@ -297,7 +293,6 @@ class SupervisorToolProgressionTest {
             actions = supervisorAction.toolActions,
             blackboard = blackboard,
             objectMapper = objectMapper,
-            agentName = "Agent",
         )
 
         // Tools should be sorted by number of required inputs (ready first)
