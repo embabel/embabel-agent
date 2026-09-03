@@ -31,12 +31,10 @@ import com.embabel.agent.spi.persistence.AgentProcessSnapshotStore
  * processes. The snapshot store is consulted when the runtime repository
  * misses, allowing another runtime to rebuild a process from durable state.
  *
- * This foundation keeps runtime save and snapshot save as separate operations.
- * The snapshot store's expected-version check prevents stale writes, but a
- * concurrent writer can still win between lookup and save, causing the store to
- * reject this checkpoint. Transactional multi-runtime semantics require a
- * persistent runtime repository and snapshot store that participate in the same
- * transaction boundary.
+ * The snapshot store is always written before the runtime repository. If the
+ * snapshot save fails, the runtime repository is not updated and the exception
+ * propagates to the caller. Concurrent checkpoint conflicts are caught by the
+ * store's expected-version check. These two writes are not atomic.
  */
 internal class PersistentAgentProcessRepository(
     private val runtimeRepository: AgentProcessRepository,
@@ -50,7 +48,7 @@ internal class PersistentAgentProcessRepository(
 ) : AbstractAgentProcessRepository() {
 
     override fun findById(id: String): AgentProcess? =
-        runtimeRepository.findById(id) ?: restore(snapshotStore.findByProcessId(id))
+        runtimeRepository.findById(id) ?: restore(snapshotStore.findLatestByProcessId(id))
 
     override fun findByParentId(parentId: String): List<AgentProcess> {
         val runtimeChildren = runtimeRepository.findByParentId(parentId)
@@ -62,14 +60,13 @@ internal class PersistentAgentProcessRepository(
     }
 
     override fun doSave(agentProcess: AgentProcess): AgentProcess {
-        val saved = runtimeRepository.save(agentProcess)
-        checkpointIfNeeded(saved)
-        return saved
+        checkpointIfNeeded(agentProcess)
+        return runtimeRepository.save(agentProcess)
     }
 
     override fun doUpdate(agentProcess: AgentProcess) {
-        runtimeRepository.update(agentProcess)
         checkpointIfNeeded(agentProcess)
+        runtimeRepository.update(agentProcess)
     }
 
     override fun delete(agentProcess: AgentProcess) {
@@ -81,7 +78,7 @@ internal class PersistentAgentProcessRepository(
         if (!checkpointPolicy.shouldStoreSnapshot(agentProcess)) {
             return
         }
-        val existing = snapshotStore.findByProcessId(agentProcess.id)
+        val existing = snapshotStore.findLatestByProcessId(agentProcess.id)
         val nextVersion = (existing?.version ?: 0) + 1
         val snapshot = snapshotFactory.snapshot(
             agentProcess = agentProcess,
@@ -93,6 +90,10 @@ internal class PersistentAgentProcessRepository(
         )
     }
 
+    // After the first restore the process is cached in the runtime repository, so
+    // subsequent findById calls will not reach here. Two concurrent misses can both
+    // restore and save the same snapshot; the redundant save is harmless because the
+    // runtime repository stores by process id and the restored state is identical.
     private fun restore(serialized: com.embabel.agent.spi.persistence.SerializedAgentProcessSnapshot?): AgentProcess? =
         serialized?.let {
             val restored = snapshotRestorer.restore(

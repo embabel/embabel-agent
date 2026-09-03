@@ -63,7 +63,7 @@ interface AgentProcessSnapshotStore {
     /**
      * Return the latest serialized snapshot for the process, if one exists.
      */
-    fun findByProcessId(processId: String): SerializedAgentProcessSnapshot?
+    fun findLatestByProcessId(processId: String): SerializedAgentProcessSnapshot?
 
     /**
      * Return latest serialized snapshots for direct child processes.

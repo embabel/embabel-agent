@@ -291,7 +291,7 @@ class WaitForPersistentRepositoryJdbcMvcIntegrationTest {
 
         assertThat(runtimeRepository.findById(awaitableResponse.processId)?.status)
             .isEqualTo(AgentProcessStatusCode.WAITING)
-        assertThat(snapshotStore.findByProcessId(awaitableResponse.processId)).isNotNull
+        assertThat(snapshotStore.findLatestByProcessId(awaitableResponse.processId)).isNotNull
         persistentMvcTestLogger.info(
             "Test step 1 complete: durable snapshots={}",
             (snapshotStore as JdbcAgentProcessSnapshotStoreForTest).describeRows(),
@@ -327,7 +327,7 @@ class WaitForPersistentRepositoryJdbcMvcIntegrationTest {
         assertThat(completedProcess?.status).isEqualTo(AgentProcessStatusCode.COMPLETED)
         assertThat(completedProcess?.blackboard?.last(AdventureResult::class.java)?.outcome)
             .isEqualTo("You chose: Castle")
-        val completedSnapshot = snapshotStore.findByProcessId(awaitableResponse.processId)
+        val completedSnapshot = snapshotStore.findLatestByProcessId(awaitableResponse.processId)
         assertThat(completedSnapshot?.status).isEqualTo(AgentProcessStatusCode.COMPLETED)
         assertThat(completedSnapshot?.version).isEqualTo(2)
         persistentMvcTestLogger.info(
@@ -459,7 +459,7 @@ private class JdbcAgentProcessSnapshotStoreForTest(
             update(snapshot, expectedVersion)
         }
         if (updated != 1) {
-            val found = findByProcessId(snapshot.processId)?.version
+            val found = findLatestByProcessId(snapshot.processId)?.version
             throw AgentProcessPersistenceException(
                 "Cannot save snapshot for process [${snapshot.processId}]: expected version " +
                 "[$expectedVersion] but found [$found]"
@@ -480,7 +480,7 @@ private class JdbcAgentProcessSnapshotStoreForTest(
         )
     }
 
-    override fun findByProcessId(processId: String): SerializedAgentProcessSnapshot? {
+    override fun findLatestByProcessId(processId: String): SerializedAgentProcessSnapshot? {
         val snapshot = jdbcTemplate.query(
             """
             select process_id, parent_id, agent_name, status, version, content_type, payload, created_at, updated_at

@@ -61,7 +61,7 @@ class AgentProcessPersistenceTest {
 
         repository.save(waitingProcess("p1"))
 
-        val snapshot = store.findByProcessId("p1")
+        val snapshot = store.findLatestByProcessId("p1")
         assertNotNull(snapshot)
         assertEquals(AgentProcessStatusCode.WAITING, snapshot?.status)
         assertEquals(1L, snapshot?.version)
@@ -107,7 +107,7 @@ class AgentProcessPersistenceTest {
         repository.save(process)
         repository.update(process)
 
-        assertEquals(2L, store.findByProcessId("p1")?.version, "update should advance the version")
+        assertEquals(2L, store.findLatestByProcessId("p1")?.version, "update should advance the version")
     }
 
     @Test
@@ -120,7 +120,7 @@ class AgentProcessPersistenceTest {
 
         repository.save(newProcess("p1"))
 
-        assertNull(store.findByProcessId("p1"), "a NOT_STARTED process is not a wait checkpoint")
+        assertNull(store.findLatestByProcessId("p1"), "a NOT_STARTED process is not a wait checkpoint")
     }
 
     @Test
@@ -143,7 +143,7 @@ class AgentProcessPersistenceTest {
 
         repository.delete(process)
 
-        assertNull(store.findByProcessId("p1"))
+        assertNull(store.findLatestByProcessId("p1"))
         assertNull(runtime.findById("p1"))
     }
 

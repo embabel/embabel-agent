@@ -127,7 +127,7 @@ internal class SimpleAgentProcessRestorerFactory : AgentProcessRestorerFactory {
 }
 
 internal class ConcurrentAgentProcessRestorerFactory(
-    // TODO: Production/autoconfiguration wiring should supply the same
+    // Current limitation: production wiring should supply the same
     // AgentProcessCallback providers used by newly created processes.
     private val callbacks: () -> List<AgentProcessCallback> = { emptyList() },
 ) : AgentProcessRestorerFactory {

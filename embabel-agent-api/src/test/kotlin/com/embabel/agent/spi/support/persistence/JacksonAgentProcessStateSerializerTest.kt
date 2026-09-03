@@ -87,6 +87,25 @@ class JacksonAgentProcessStateSerializerTest {
         }
     }
 
+    @Test
+    fun `corrupt payload throws AgentProcessPersistenceException`() {
+        val serialized = SerializedAgentProcessSnapshot(
+            processId = "p1",
+            parentId = null,
+            agentName = "test-agent",
+            status = AgentProcessStatusCode.WAITING,
+            version = 1,
+            contentType = MediaType.APPLICATION_JSON,
+            payload = "not valid json".toByteArray(),
+            createdAt = createdAt,
+            updatedAt = updatedAt,
+        )
+
+        assertThrows(AgentProcessPersistenceException::class.java) {
+            serializer.deserialize(serialized)
+        }
+    }
+
     @Nested
     inner class Performance {
 

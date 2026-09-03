@@ -27,6 +27,15 @@ import org.springframework.core.annotation.AnnotationAwareOrderComparator
  * Spring supplies custom serializers as an ordered list of beans. This resolver
  * applies that ordering, tries custom serializers first, and delegates to the
  * fallback serializer when no custom serializer supports the value.
+ *
+ * Serialization and deserialization use different dispatch paths: serialization
+ * matches on the live object via [BlackboardEntrySerializer.supportsSerialization],
+ * deserialization matches on the stored payload via
+ * [BlackboardEntrySerializer.supportsDeserialization]. A serializer must write a
+ * unique [com.embabel.agent.core.persistence.SerializedBlackboardValue.typeName]
+ * and match on it in [BlackboardEntrySerializer.supportsDeserialization]; otherwise
+ * the fallback serializer handles restore, which will likely fail or produce
+ * wrong results. Mismatches only surface at restore time, not at write time.
  */
 internal class BlackboardEntrySerializerResolver(
     serializers: List<BlackboardEntrySerializer>,

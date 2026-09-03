@@ -53,6 +53,12 @@ interface BlackboardEntrySerializer {
      *
      * Implementations usually inspect [SerializedBlackboardValue.typeName],
      * [SerializedBlackboardValue.contentType], or metadata written during serialization.
+     *
+     * **The default returns `false`.** A serializer that overrides only
+     * [supportsSerialization] and [serialize] will write values but never restore
+     * them — the fallback serializer handles deserialization instead, which will
+     * likely produce wrong results or fail. Override both [supportsDeserialization]
+     * and [deserialize] for a complete serialization round-trip.
      */
     fun supportsDeserialization(value: SerializedBlackboardValue): Boolean = false
 

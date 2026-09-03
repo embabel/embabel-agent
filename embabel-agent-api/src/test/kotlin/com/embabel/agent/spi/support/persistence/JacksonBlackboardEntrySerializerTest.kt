@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.support.persistence
 
+import com.embabel.agent.core.persistence.AgentProcessPersistenceException
 import com.embabel.agent.core.persistence.SerializedBlackboardValue
 import com.embabel.common.util.EmbabelObjectMapperHolder
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -48,7 +49,33 @@ class JacksonBlackboardEntrySerializerTest {
             payload = "<value />".toByteArray(),
         )
 
-        assertThrows(IllegalArgumentException::class.java) {
+        assertThrows(AgentProcessPersistenceException::class.java) {
+            serializer.deserialize(serialized)
+        }
+    }
+
+    @Test
+    fun `unknown class name throws AgentProcessPersistenceException`() {
+        val serialized = SerializedBlackboardValue(
+            typeName = "com.example.NonExistentClass",
+            contentType = MediaType.APPLICATION_JSON_VALUE,
+            payload = "{}".toByteArray(),
+        )
+
+        assertThrows(AgentProcessPersistenceException::class.java) {
+            serializer.deserialize(serialized)
+        }
+    }
+
+    @Test
+    fun `corrupt payload throws AgentProcessPersistenceException`() {
+        val serialized = SerializedBlackboardValue(
+            typeName = SampleValue::class.java.name,
+            contentType = MediaType.APPLICATION_JSON_VALUE,
+            payload = "not valid json".toByteArray(),
+        )
+
+        assertThrows(AgentProcessPersistenceException::class.java) {
             serializer.deserialize(serialized)
         }
     }
