@@ -67,12 +67,12 @@ class CacheBackedAgentProcessSnapshotStoreTest {
 
         store.save(original, expectedVersion = null)
 
-        assertEquals(original, store.findByProcessId("p1"))
+        assertEquals(original, store.findLatestByProcessId("p1"))
     }
 
     @Test
     fun `returns null for an unknown process`() {
-        assertNull(store().findByProcessId("missing"))
+        assertNull(store().findLatestByProcessId("missing"))
     }
 
     @Test
@@ -91,7 +91,7 @@ class CacheBackedAgentProcessSnapshotStoreTest {
         val original = snapshot(metadata = mapOf("processId" to "not-the-real-one"))
 
         store.save(original, expectedVersion = null)
-        val restored = store.findByProcessId("p1")!!
+        val restored = store.findLatestByProcessId("p1")!!
 
         assertEquals("p1", restored.processId)
         assertEquals(mapOf("processId" to "not-the-real-one"), restored.metadata)
@@ -107,7 +107,7 @@ class CacheBackedAgentProcessSnapshotStoreTest {
 
             store.save(snapshot(version = 2), expectedVersion = 1)
 
-            assertEquals(2L, store.findByProcessId("p1")?.version)
+            assertEquals(2L, store.findLatestByProcessId("p1")?.version)
         }
 
         @Test
@@ -123,7 +123,7 @@ class CacheBackedAgentProcessSnapshotStoreTest {
                 thrown.message!!.contains("p1"),
                 "message should name the process: ${thrown.message}",
             )
-            assertEquals(2L, store.findByProcessId("p1")?.version, "stored value must be untouched")
+            assertEquals(2L, store.findLatestByProcessId("p1")?.version, "stored value must be untouched")
         }
 
         @Test
@@ -166,7 +166,7 @@ class CacheBackedAgentProcessSnapshotStoreTest {
 
             store.delete("c1")
 
-            assertNull(store.findByProcessId("c1"))
+            assertNull(store.findLatestByProcessId("c1"))
             assertEquals(listOf("c2"), store.findByParentId("parent").map { it.processId })
         }
 
@@ -178,7 +178,7 @@ class CacheBackedAgentProcessSnapshotStoreTest {
             store.delete("p1")
             store.delete("p1")
 
-            assertNull(store.findByProcessId("p1"))
+            assertNull(store.findLatestByProcessId("p1"))
         }
     }
 

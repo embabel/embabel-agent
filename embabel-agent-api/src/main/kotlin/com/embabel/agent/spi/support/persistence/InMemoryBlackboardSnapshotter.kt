@@ -138,6 +138,10 @@ internal class InMemoryBlackboardSnapshotter(
         val snapshot: BlackboardEntrySnapshot,
     )
 
+    // Uses reference equality (===) for most types, structural equality (==) for
+    // java.time.* values. Two equal-but-distinct objects (e.g. separately constructed
+    // data class instances with identical fields) are treated as different blackboard
+    // values and serialized separately.
     private fun sameBlackboardValue(
         left: Any,
         right: Any,

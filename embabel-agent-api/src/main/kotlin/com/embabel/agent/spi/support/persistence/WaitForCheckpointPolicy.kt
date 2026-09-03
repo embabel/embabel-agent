@@ -26,6 +26,9 @@ import com.embabel.agent.spi.persistence.AgentProcessCheckpointPolicy
  * [issue #1965](https://github.com/embabel/embabel-agent/issues/1965): persist
  * when a process intentionally waits for external input, so another pod can
  * restore and resume it later.
+ *
+ * Kept as a named object rather than a lambda so it can be referenced by name
+ * in configuration and documentation.
  */
 object WaitForCheckpointPolicy : AgentProcessCheckpointPolicy {
 
@@ -39,6 +42,9 @@ object WaitForCheckpointPolicy : AgentProcessCheckpointPolicy {
  * Waiting snapshots allow another runtime to resume work after local process
  * loss. Finished snapshots then advance the durable state after the resumed
  * process completes, fails, or is externally terminated.
+ *
+ * Kept as a named object rather than a lambda so it can be referenced by name
+ * in configuration and documentation.
  */
 object LifecycleCheckpointPolicy : AgentProcessCheckpointPolicy {
 

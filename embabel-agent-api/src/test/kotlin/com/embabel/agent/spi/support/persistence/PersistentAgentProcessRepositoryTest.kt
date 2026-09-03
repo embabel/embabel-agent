@@ -18,12 +18,16 @@ package com.embabel.agent.spi.support.persistence
 import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.AgentProcessRepository
 import com.embabel.agent.core.ProcessOptions
+import com.embabel.agent.core.persistence.AgentProcessPersistenceException
 import com.embabel.agent.core.support.DslWaitingAgent
 import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.agent.core.support.InternalAgentStateApi
 import com.embabel.agent.core.support.SimpleAgentProcess
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.spi.persistence.AgentProcessCheckpointPolicy
+import com.embabel.agent.spi.persistence.SerializedAgentProcessSnapshot
+import com.embabel.agent.spi.persistence.StoredSnapshotMetadata
+import com.embabel.agent.spi.persistence.AgentProcessSnapshotStore
 import com.embabel.agent.spi.support.DefaultPlannerFactory
 import com.embabel.agent.spi.support.InMemoryAgentProcessRepository
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyPlatformServices
@@ -32,6 +36,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 
 @OptIn(InternalAgentStateApi::class)
 class PersistentAgentProcessRepositoryTest {
@@ -55,7 +60,7 @@ class PersistentAgentProcessRepositoryTest {
 
         repository.save(process)
 
-        val snapshot = snapshotStore.findByProcessId("p1")
+        val snapshot = snapshotStore.findLatestByProcessId("p1")
         assertNotNull(snapshot)
         assertEquals(1, snapshot?.version)
         assertEquals(AgentProcessStatusCode.WAITING, snapshot?.status)
@@ -72,7 +77,7 @@ class PersistentAgentProcessRepositoryTest {
 
         repository.save(process)
 
-        assertNull(snapshotStore.findByProcessId("p1"))
+        assertNull(snapshotStore.findLatestByProcessId("p1"))
     }
 
     @Test
@@ -87,7 +92,7 @@ class PersistentAgentProcessRepositoryTest {
 
         repository.save(process)
 
-        val snapshot = snapshotStore.findByProcessId("p1")
+        val snapshot = snapshotStore.findLatestByProcessId("p1")
         assertNotNull(snapshot)
         assertEquals(1, snapshot?.version)
         assertEquals(AgentProcessStatusCode.COMPLETED, snapshot?.status)
@@ -102,7 +107,26 @@ class PersistentAgentProcessRepositoryTest {
         repository.save(process)
         repository.update(process)
 
-        assertEquals(2, snapshotStore.findByProcessId("p1")?.version)
+        assertEquals(2, snapshotStore.findLatestByProcessId("p1")?.version)
+    }
+
+    @Test
+    fun `snapshot save failure on initial save does not register process in runtime repository`() {
+        val runtimeRepository = InMemoryAgentProcessRepository()
+        val repository = PersistentAgentProcessRepository(
+            runtimeRepository = runtimeRepository,
+            snapshotStore = FailingAgentProcessSnapshotStore(),
+            checkpointPolicy = LifecycleCheckpointPolicy,
+            snapshotFactory = snapshotFactory,
+            snapshotSerializer = snapshotSerializer,
+            snapshotRestorer = snapshotRestorer,
+            agents = { listOf(DslWaitingAgent) },
+            platformServices = { dummyPlatformServices() },
+        )
+
+        assertThrows<AgentProcessPersistenceException> { repository.save(waitingProcess("p1")) }
+
+        assertNull(runtimeRepository.findById("p1"), "process must not be registered when checkpoint fails")
     }
 
     @Test
@@ -143,6 +167,14 @@ class PersistentAgentProcessRepositoryTest {
             agents = { listOf(DslWaitingAgent) },
             platformServices = { dummyPlatformServices() },
         )
+
+    private class FailingAgentProcessSnapshotStore : AgentProcessSnapshotStore {
+        override fun save(snapshot: SerializedAgentProcessSnapshot, expectedVersion: Long?): StoredSnapshotMetadata =
+            throw AgentProcessPersistenceException("store unavailable")
+        override fun findLatestByProcessId(processId: String): SerializedAgentProcessSnapshot? = null
+        override fun findByParentId(parentId: String): List<SerializedAgentProcessSnapshot> = emptyList()
+        override fun delete(processId: String) {}
+    }
 
     private fun waitingProcess(id: String): SimpleAgentProcess =
         newProcess(id).also {

@@ -55,6 +55,12 @@ internal class JacksonAgentProcessStateSerializer(
                 "Unsupported agent process snapshot content type [${snapshot.contentType}]"
             )
         }
-        return objectMapper.readValue(snapshot.payload, AgentProcessSnapshot::class.java)
+        return try {
+            objectMapper.readValue(snapshot.payload, AgentProcessSnapshot::class.java)
+        } catch (e: Exception) {
+            throw AgentProcessPersistenceException(
+                "Cannot deserialize agent process snapshot [${snapshot.processId}]", e
+            )
+        }
     }
 }

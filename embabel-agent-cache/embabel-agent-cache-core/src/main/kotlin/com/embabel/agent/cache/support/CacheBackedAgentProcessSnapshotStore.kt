@@ -95,12 +95,12 @@ class CacheBackedAgentProcessSnapshotStore(
         )
     }
 
-    override fun findByProcessId(processId: String): SerializedAgentProcessSnapshot? =
+    override fun findLatestByProcessId(processId: String): SerializedAgentProcessSnapshot? =
         region.get(processId)?.toSnapshot()
 
     override fun findByParentId(parentId: String): List<SerializedAgentProcessSnapshot> =
         parentIndex.members(parentId)
-            .mapNotNull { findByProcessId(it) }
+            .mapNotNull { findLatestByProcessId(it) }
 
     override fun delete(processId: String) {
         // Read first so the parent index can be cleaned up. A missing entry is not

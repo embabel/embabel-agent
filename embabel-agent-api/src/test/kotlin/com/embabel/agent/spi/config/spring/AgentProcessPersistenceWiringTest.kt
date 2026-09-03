@@ -78,7 +78,7 @@ class AgentProcessPersistenceWiringTest {
 
         repository.save(waitingProcess("p1"))
 
-        val snapshot = store.findByProcessId("p1")
+        val snapshot = store.findLatestByProcessId("p1")
         assertNotNull(snapshot)
         assertEquals(AgentProcessStatusCode.WAITING, snapshot?.status)
     }
@@ -93,7 +93,7 @@ class AgentProcessPersistenceWiringTest {
 
         repository.save(waitingProcess("p1"))
 
-        assertNull(store.findByProcessId("p1"))
+        assertNull(store.findLatestByProcessId("p1"))
         assertNotNull(repository.findById("p1"), "the runtime repository must still work")
     }
 
@@ -110,7 +110,7 @@ class AgentProcessPersistenceWiringTest {
         // NOT_STARTED is neither WAITING nor finished, so the wait policy skips it.
         repository.save(newProcess("p1"))
 
-        assertNull(store.findByProcessId("p1"))
+        assertNull(store.findLatestByProcessId("p1"))
     }
 
     @Test
@@ -142,7 +142,7 @@ class AgentProcessPersistenceWiringTest {
 
         repository.save(waitingProcess("p1"))
 
-        assertNotNull(store.findByProcessId("p1"))
+        assertNotNull(store.findLatestByProcessId("p1"))
     }
 
     private fun repository(

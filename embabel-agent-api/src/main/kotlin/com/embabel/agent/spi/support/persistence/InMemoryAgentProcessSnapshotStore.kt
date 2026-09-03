@@ -62,7 +62,7 @@ class InMemoryAgentProcessSnapshotStore : AgentProcessSnapshotStore {
         )
     }
 
-    override fun findByProcessId(processId: String): SerializedAgentProcessSnapshot? =
+    override fun findLatestByProcessId(processId: String): SerializedAgentProcessSnapshot? =
         snapshots[processId]
 
     override fun findByParentId(parentId: String): List<SerializedAgentProcessSnapshot> =

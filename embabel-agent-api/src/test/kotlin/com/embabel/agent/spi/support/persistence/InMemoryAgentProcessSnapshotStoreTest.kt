@@ -41,7 +41,7 @@ class InMemoryAgentProcessSnapshotStoreTest {
         assertEquals(1, stored.version)
         assertEquals(now, stored.updatedAt)
 
-        val loaded = store.findByProcessId("p1")
+        val loaded = store.findLatestByProcessId("p1")
         assertSnapshotFields(snapshot, loaded)
         assertArrayEquals(snapshot.payload, loaded?.payload)
     }
@@ -65,7 +65,7 @@ class InMemoryAgentProcessSnapshotStoreTest {
         val stored = store.save(updated, expectedVersion = 1)
 
         assertEquals(2, stored.version)
-        val loaded = store.findByProcessId("p1")
+        val loaded = store.findLatestByProcessId("p1")
         assertSnapshotFields(updated, loaded)
         assertArrayEquals(updated.payload, loaded?.payload)
     }
@@ -88,7 +88,7 @@ class InMemoryAgentProcessSnapshotStoreTest {
 
         store.delete("p1")
 
-        assertNull(store.findByProcessId("p1"))
+        assertNull(store.findLatestByProcessId("p1"))
     }
 
     @Test
