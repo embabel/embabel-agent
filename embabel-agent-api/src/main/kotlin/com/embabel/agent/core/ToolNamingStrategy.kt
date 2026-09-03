@@ -21,9 +21,8 @@ import java.security.MessageDigest
  * Controls the names published for tools.
  *
  * [LEGACY_NAME_ONLY] preserves `search`.
- * [FULLY_QUALIFIED] publishes the owner and tool name, for example
- * `AgentA.run` and `search` become `AgentA_2e_run-search`. A tool name that the owner already
- * ends with is not repeated, so `AgentA.run` and `run` become `AgentA_2e_run`.
+ * [FULLY_QUALIFIED] qualifies the tool name with its owning agent, so `AgentA` and `search`
+ * become `AgentA-search`.
  */
 enum class ToolNamingStrategy {
     /** Preserve the existing tool name. */
@@ -36,9 +35,9 @@ enum class ToolNamingStrategy {
     /**
      * Return the published name for a tool with the given owner name.
      *
-     * Under [FULLY_QUALIFIED] the owner and the tool name are encoded separately and joined with `-`.
-     * The owner is dropped when it would repeat what the tool name already says, and the tool name is
-     * dropped when the owner already ends with it, so neither element appears twice.
+     * Under [FULLY_QUALIFIED] the owner and the tool name are encoded separately and joined with `-`,
+     * so a name is always the owner followed by the tool. An owner that is null or blank leaves the
+     * tool name unqualified.
      */
     fun nameFor(
         ownerName: String?,
@@ -46,13 +45,10 @@ enum class ToolNamingStrategy {
     ): String = when (this) {
         LEGACY_NAME_ONLY -> toolName
         FULLY_QUALIFIED -> {
-            val owner = ownerName?.takeIf { it.isNotBlank() }
-            val parts = when {
-                owner == null -> listOf(toolName)
-                toolName == owner || toolName.startsWith("$owner.") -> listOf(toolName)
-                owner.endsWith(".$toolName") -> listOf(owner)
-                else -> listOf(owner, toolName)
-            }
+            val parts = ownerName
+                ?.takeIf { it.isNotBlank() }
+                ?.let { listOf(it, toolName) }
+                ?: listOf(toolName)
             bound(parts.joinToString("-") { sanitize(it) }, parts.joinToString("\u0000"))
         }
     }
@@ -65,7 +61,7 @@ enum class ToolNamingStrategy {
     private fun bound(name: String, source: String): String {
         if (name.length <= MAX_NAME_LENGTH) return name
         val hash = MessageDigest.getInstance("SHA-256")
-            .digest(source.toByteArray())
+            .digest(source.toByteArray(Charsets.UTF_8))
             .take(HASH_BYTES)
             .joinToString("") { "%02x".format(it) }
         return "${name.take(MAX_NAME_LENGTH - hash.length - 1)}_$hash"

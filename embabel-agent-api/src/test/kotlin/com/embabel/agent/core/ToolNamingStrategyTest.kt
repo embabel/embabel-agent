@@ -28,16 +28,16 @@ class ToolNamingStrategyTest {
 
         @Test
         fun `keeps the existing tool name`() {
-            val name = ToolNamingStrategy.LEGACY_NAME_ONLY.nameFor("Agent.action", "lookup")
+            val name = ToolNamingStrategy.LEGACY_NAME_ONLY.nameFor("Agent", "lookup")
 
             assertEquals("lookup", name)
         }
 
         @Test
-        fun `keeps the existing generated tool name`() {
-            val name = ToolNamingStrategy.LEGACY_NAME_ONLY.nameFor("Agent", "done")
+        fun `keeps the existing tool name without an owner`() {
+            val name = ToolNamingStrategy.LEGACY_NAME_ONLY.nameFor(null, "lookup")
 
-            assertEquals("done", name)
+            assertEquals("lookup", name)
         }
     }
 
@@ -45,17 +45,23 @@ class ToolNamingStrategyTest {
     inner class FullyQualified {
 
         @Test
-        fun `uses the owner name to qualify the published name`() {
-            val name = ToolNamingStrategy.FULLY_QUALIFIED.nameFor("com.example.Agent.action", "lookup-tool")
+        fun `qualifies the tool name with its owner`() {
+            val name = ToolNamingStrategy.FULLY_QUALIFIED.nameFor("AgentA", "search")
 
-            assertEquals("com_2e_example_2e_Agent_2e_action-lookup_2d_tool", name)
+            assertEquals("AgentA-search", name)
         }
 
         @Test
-        fun `uses an owner name for generated tools`() {
-            val name = ToolNamingStrategy.FULLY_QUALIFIED.nameFor("Agent", "done")
+        fun `leaves the tool name unqualified without an owner`() {
+            assertEquals("search", ToolNamingStrategy.FULLY_QUALIFIED.nameFor(null, "search"))
+            assertEquals("search", ToolNamingStrategy.FULLY_QUALIFIED.nameFor("  ", "search"))
+        }
 
-            assertEquals("Agent-done", name)
+        @Test
+        fun `encodes characters that would otherwise break the join`() {
+            val name = ToolNamingStrategy.FULLY_QUALIFIED.nameFor("Agent", "lookup-tool")
+
+            assertEquals("Agent-lookup_2d_tool", name)
         }
 
         @Test
@@ -64,13 +70,6 @@ class ToolNamingStrategyTest {
             val dotted = ToolNamingStrategy.FULLY_QUALIFIED.nameFor("Agent", "lookup.1")
 
             assertNotEquals(hyphenated, dotted)
-        }
-
-        @Test
-        fun `does not repeat a tool name the owner already ends with`() {
-            val name = ToolNamingStrategy.FULLY_QUALIFIED.nameFor("Wizard.bakeBread", "bakeBread")
-
-            assertEquals("Wizard_2e_bakeBread", name)
         }
 
         @Test
@@ -83,7 +82,7 @@ class ToolNamingStrategyTest {
 
         @Test
         fun `bounds long names without collapsing distinct names`() {
-            val owner = "com.example.${"VeryLongOwner".repeat(5)}"
+            val owner = "VeryLongAgentName".repeat(4)
             val first = ToolNamingStrategy.FULLY_QUALIFIED.nameFor(owner, "first")
             val second = ToolNamingStrategy.FULLY_QUALIFIED.nameFor(owner, "second")
 

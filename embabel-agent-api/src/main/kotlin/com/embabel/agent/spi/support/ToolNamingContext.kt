@@ -68,7 +68,7 @@ internal class ToolNamingContext(
             llmOptions: LlmOptions,
             toolDecorator: ToolDecorator,
         ): (Tool) -> Tool {
-            val namingContext = forLlmCall(toolConsumer, agentProcess, action)
+            val namingContext = forLlmCall(toolConsumer, agentProcess)
             return { tool ->
                 toolDecorator.decorate(
                     tool = namingContext.name(tool),
@@ -82,25 +82,23 @@ internal class ToolNamingContext(
         fun resolvePublishedTools(
             toolConsumer: ToolConsumer,
             agentProcess: AgentProcess,
-            action: Action?,
-        ): List<Tool> = forLlmCall(toolConsumer, agentProcess, action).resolveTools(
+        ): List<Tool> = forLlmCall(toolConsumer, agentProcess).resolveTools(
             agentProcess.processContext.platformServices.agentPlatform.toolGroupResolver
         )
 
         fun forLlmCall(
             toolConsumer: ToolConsumer,
             agentProcess: AgentProcess,
-            action: Action?,
         ): ToolNamingContext {
+            // Platform services are widely mocked, and a mock without an answer for a strategy
+            // added after it was written must not fail the LLM call it is standing in for.
             val strategy = runCatching {
                 agentProcess.processContext.platformServices.toolNamingStrategy()
             }.getOrDefault(ToolNamingStrategy.LEGACY_NAME_ONLY)
-            val agentName = agentProcess.agent.name
-            val ownerName = action?.shortName()?.takeIf { it.isNotBlank() }?.let { "$agentName.$it" } ?: agentName
             return ToolNamingContext(
                 delegate = toolConsumer,
                 toolNamingStrategy = strategy,
-                ownerName = ownerName,
+                ownerName = agentProcess.agent.name,
             )
         }
     }

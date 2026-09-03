@@ -109,12 +109,11 @@ class AbstractLlmOperationsToolNamingTest {
             val context = ToolNamingContext.forLlmCall(
                 toolConsumer = LlmInteraction(id = InteractionId("test")),
                 agentProcess = fixture.agentProcess,
-                action = fixture.action,
             )
 
             val name = context.name(tool("search")).definition.name
 
-            assertEquals("Agent_2e_run-search", name)
+            assertEquals("Agent-search", name)
         }
 
         @Test
@@ -136,8 +135,8 @@ class AbstractLlmOperationsToolNamingTest {
 
             val decorated = decorate(tool("search"))
 
-            assertEquals("Agent_2e_run-search", decorated.definition.name)
-            assertEquals(listOf("Agent_2e_run-search"), seenByDecorator)
+            assertEquals("Agent-search", decorated.definition.name)
+            assertEquals(listOf("Agent-search"), seenByDecorator)
         }
     }
 
@@ -150,13 +149,12 @@ class AbstractLlmOperationsToolNamingTest {
             val context = ToolNamingContext.forLlmCall(
                 toolConsumer = LlmInteraction(id = InteractionId("test")),
                 agentProcess = fixture.agentProcess,
-                action = fixture.action,
             )
 
             val once = context.name(tool("search"))
             val twice = context.name(once)
 
-            assertEquals("Agent_2e_run-search", once.definition.name)
+            assertEquals("Agent-search", once.definition.name)
             assertEquals(once.definition.name, twice.definition.name)
         }
 
@@ -166,18 +164,17 @@ class AbstractLlmOperationsToolNamingTest {
             val context = ToolNamingContext.forLlmCall(
                 toolConsumer = LlmInteraction(id = InteractionId("test")),
                 agentProcess = fixture.agentProcess,
-                action = fixture.action,
             )
             val wrapped = context.name(tool("search")).withDescription("wrapped")
 
             val again = context.name(wrapped)
 
-            assertEquals("Agent_2e_run-search", again.definition.name)
+            assertEquals("Agent-search", again.definition.name)
         }
     }
 
     private fun assertNamed(operations: TestableAbstractLlmOperations) {
-        assertEquals(listOf("Agent_2e_run-search"), operations.transformedInteraction.tools.map { it.definition.name })
+        assertEquals(listOf("Agent-search"), operations.transformedInteraction.tools.map { it.definition.name })
     }
 
     private fun fixture(): Fixture {

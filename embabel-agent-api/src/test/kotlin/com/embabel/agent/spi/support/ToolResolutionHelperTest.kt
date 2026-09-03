@@ -108,11 +108,11 @@ class ToolResolutionHelperTest {
             interaction, mockAgentProcess, mockAction, mockToolDecorator
         )
 
-        assertEquals(listOf("Agent_2e_run-search"), result.map { it.definition.name })
+        assertEquals(listOf("Agent-search"), result.map { it.definition.name })
     }
 
     @Test
-    fun `qualifies with the agent name and the action short name`() {
+    fun `qualifies with the agent name regardless of the action`() {
         val tool = createMockTool("search")
         val interaction = LlmInteraction(
             id = InteractionId("test"),
@@ -127,7 +127,7 @@ class ToolResolutionHelperTest {
             interaction, mockAgentProcess, mockAction, mockToolDecorator
         )
 
-        assertEquals(listOf("Agent_2e_supervisor-search"), result.map { it.definition.name })
+        assertEquals(listOf("Agent-search"), result.map { it.definition.name })
     }
 
     @Test

@@ -527,7 +527,6 @@ abstract class AbstractLlmOperations(
         val allTools = ToolNamingContext.resolvePublishedTools(
             toolConsumer = interaction,
             agentProcess = agentProcess,
-            action = action,
         )
         val llmRequestEvent = LlmRequestEvent(
             agentProcess = agentProcess,

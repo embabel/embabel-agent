@@ -48,7 +48,6 @@ object ToolResolutionHelper {
         val resolvedTools = ToolNamingContext.resolvePublishedTools(
             toolConsumer = interaction,
             agentProcess = agentProcess,
-            action = action,
         )
         return resolvedTools.map { tool ->
             toolDecorator.decorate(tool, agentProcess, action, interaction.llm)

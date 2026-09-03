@@ -248,7 +248,7 @@ class SupervisorToolProgressionTest {
                 agentProcess: AgentProcess,
                 action: Action?,
             ): String {
-                published = ToolNamingContext.resolvePublishedTools(interaction, agentProcess, action)
+                published = ToolNamingContext.resolvePublishedTools(interaction, agentProcess)
                     .map { it.definition.name }
                 return scriptedLlm.generate(prompt, interaction, agentProcess, action)
             }
@@ -260,7 +260,7 @@ class SupervisorToolProgressionTest {
         supervisorAction.execute(ProcessContext(platformServices = platformServices, agentProcess = agentProcess))
 
         assertEquals(
-            listOf("SupervisorWith3Steps_2e_supervisor-bakeBread", "SupervisorWith3Steps_2e_supervisor-makeDough"),
+            listOf("SupervisorWith3Steps-bakeBread", "SupervisorWith3Steps-makeDough"),
             published,
         )
         val prompt = scriptedLlm.promptsReceived.first()

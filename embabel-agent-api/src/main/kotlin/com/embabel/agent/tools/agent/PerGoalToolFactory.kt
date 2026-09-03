@@ -155,10 +155,11 @@ class PerGoalToolFactory(
     ): List<GoalTool<*>> {
         val inputTypes = goal.export.startingInputTypes
         val qualifyInputType = toolNamingStrategy == ToolNamingStrategy.FULLY_QUALIFIED && inputTypes.size > 1
+        val discriminators = if (qualifyInputType) discriminatorNames(inputTypes) else emptyMap()
         return inputTypes.map { inputType ->
             GoalTool(
                 autonomy = autonomy,
-                name = publishedName(goal, ownerName, inputType.takeIf { qualifyInputType }),
+                name = publishedName(goal, ownerName, discriminators[inputType]),
                 description = goal.description,
                 goal = goal,
                 inputType = inputType,
@@ -171,7 +172,7 @@ class PerGoalToolFactory(
     private fun publishedName(
         goal: Goal,
         ownerName: String?,
-        discriminator: Class<*>?,
+        discriminator: String?,
     ): String {
         val exportName = goal.export.name
         return when {
@@ -180,8 +181,23 @@ class PerGoalToolFactory(
                 ToolNamingStrategy.LEGACY_NAME_ONLY -> goalToolNamingStrategy.nameForGoal(goal)
                 ToolNamingStrategy.FULLY_QUALIFIED -> toolNamingStrategy.nameFor(ownerName, goal.name)
             }
-            exportName != null -> toolNamingStrategy.nameFor(exportName, discriminator.name)
-            else -> toolNamingStrategy.nameFor(ownerName, "${goal.name}.${discriminator.name}")
+            exportName != null -> toolNamingStrategy.nameFor(exportName, discriminator)
+            else -> toolNamingStrategy.nameFor(ownerName, "${goal.name}.$discriminator")
+        }
+    }
+
+    /**
+     * Names that tell the starting input types of one goal apart. A simple name keeps the published
+     * name readable; types sharing a simple name fall back to the package qualified name.
+     */
+    private fun discriminatorNames(inputTypes: Set<Class<*>>): Map<Class<*>, String> {
+        val simpleNameCounts = inputTypes.groupingBy { it.simpleName }.eachCount()
+        return inputTypes.associateWith { type ->
+            if (simpleNameCounts[type.simpleName] == 1 && type.simpleName.isNotBlank()) {
+                type.simpleName
+            } else {
+                type.name
+            }
         }
     }
 

@@ -233,7 +233,7 @@ class PerGoalToolFactoryTest {
         val goalTools = multiInputGoalTools(ToolNamingStrategy.FULLY_QUALIFIED)
 
         assertEquals(
-            setOf("Wizard-done_2e_com_2e_embabel_2e_agent_2e_domain_2e_a5195b725e05", "Wizard-done_2e_com_2e_embabel_2e_agent_2e_api_2e_ds_f62afbf0b36f"),
+            setOf("Wizard-done_2e_UserInput", "Wizard-done_2e_MagicVictim"),
             goalTools.map { it.definition.name }.toSet(),
         )
     }
