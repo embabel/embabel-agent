@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.support.persistence
 
 import com.embabel.agent.core.AgentProcessStatusCode
+import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.AgentProcessRepository
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.persistence.AgentProcessPersistenceException
@@ -35,6 +36,7 @@ import com.embabel.common.util.EmbabelObjectMapperHolder
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
@@ -152,6 +154,42 @@ class PersistentAgentProcessRepositoryTest {
         assertEquals(process.history, restored?.history)
     }
 
+    @Test
+    fun `delete removes both the snapshot and the runtime entry`() {
+        val snapshotStore = InMemoryAgentProcessSnapshotStore()
+        val runtimeRepository = InMemoryAgentProcessRepository()
+        val repository = repository(runtimeRepository = runtimeRepository, snapshotStore = snapshotStore)
+        val process = waitingProcess("p1")
+        repository.save(process)
+
+        repository.delete(process)
+
+        assertNull(snapshotStore.findLatestByProcessId("p1"))
+        assertNull(runtimeRepository.findById("p1"))
+    }
+
+    @Test
+    fun `delete removes the snapshot before the runtime entry`() {
+        // Removing the runtime entry first leaves a durable snapshot behind when the
+        // snapshot delete then fails, and findById restores from it: a deleted process
+        // comes back to life. Snapshot-first mirrors doSave, which checkpoints before
+        // registering, so a failure can never leave durable state the runtime denies.
+        val snapshotStore = InMemoryAgentProcessSnapshotStore()
+        val repository = repository(
+            runtimeRepository = FailingDeleteAgentProcessRepository(),
+            snapshotStore = snapshotStore,
+        )
+        val process = waitingProcess("p1")
+        repository.save(process)
+
+        assertThrows(IllegalStateException::class.java) { repository.delete(process) }
+
+        assertNull(
+            snapshotStore.findLatestByProcessId("p1"),
+            "the snapshot must already be gone when the runtime delete fails",
+        )
+    }
+
     private fun repository(
         runtimeRepository: AgentProcessRepository = InMemoryAgentProcessRepository(),
         snapshotStore: InMemoryAgentProcessSnapshotStore = InMemoryAgentProcessSnapshotStore(),
@@ -167,6 +205,20 @@ class PersistentAgentProcessRepositoryTest {
             agents = { listOf(DslWaitingAgent) },
             platformServices = { dummyPlatformServices() },
         )
+
+    /**
+     * Runtime repository that fails only on delete, so the ordering of the two
+     * deletes is observable.
+     */
+    private class FailingDeleteAgentProcessRepository : AgentProcessRepository {
+        private val delegate = InMemoryAgentProcessRepository()
+        override fun findById(id: String): AgentProcess? = delegate.findById(id)
+        override fun findByParentId(parentId: String): List<AgentProcess> = delegate.findByParentId(parentId)
+        override fun save(agentProcess: AgentProcess): AgentProcess = delegate.save(agentProcess)
+        override fun update(agentProcess: AgentProcess) = delegate.update(agentProcess)
+        override fun delete(agentProcess: AgentProcess): Unit =
+            throw IllegalStateException("runtime repository unavailable")
+    }
 
     private class FailingAgentProcessSnapshotStore : AgentProcessSnapshotStore {
         override fun save(snapshot: SerializedAgentProcessSnapshot, expectedVersion: Long?): StoredSnapshotMetadata =

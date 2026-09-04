@@ -69,9 +69,15 @@ internal class PersistentAgentProcessRepository(
         runtimeRepository.update(agentProcess)
     }
 
+    /**
+     * Durable state is removed first, mirroring [doSave], which checkpoints before
+     * registering. Removing the runtime entry first would leave a snapshot behind
+     * whenever the snapshot delete failed, and [findById] would restore from it:
+     * a deleted process would come back to life.
+     */
     override fun delete(agentProcess: AgentProcess) {
-        runtimeRepository.delete(agentProcess)
         snapshotStore.delete(agentProcess.id)
+        runtimeRepository.delete(agentProcess)
     }
 
     private fun checkpointIfNeeded(agentProcess: AgentProcess) {
