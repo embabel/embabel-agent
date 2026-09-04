@@ -171,6 +171,49 @@ class CacheBackedAgentProcessSnapshotStoreTest {
         }
 
         @Test
+        fun `repeated checkpoints keep a single index entry`() {
+            val store = store("repeat")
+            store.save(snapshot(processId = "c1", parentId = "parent", version = 1), expectedVersion = null)
+            store.save(snapshot(processId = "c1", parentId = "parent", version = 2), expectedVersion = 1)
+            store.save(snapshot(processId = "c1", parentId = "parent", version = 3), expectedVersion = 2)
+
+            assertEquals(listOf("c1"), store.findByParentId("parent").map { it.processId })
+        }
+
+        @Test
+        fun `rejects a parent change for an existing process`() {
+            // AgentProcess.parentId is a val, so a change means caller error or a
+            // reused process id. Accepting it would strand the old index entry and
+            // findByParentId would report the child under both parents.
+            val store = store("reparent")
+            store.save(snapshot(processId = "c1", parentId = "old-parent", version = 1), expectedVersion = null)
+
+            val thrown = assertThrows(AgentProcessPersistenceException::class.java) {
+                store.save(snapshot(processId = "c1", parentId = "new-parent", version = 2), expectedVersion = 1)
+            }
+            assertTrue(
+                thrown.message!!.contains("c1"),
+                "message should name the process: ${thrown.message}",
+            )
+            assertEquals(
+                listOf("c1"),
+                store.findByParentId("old-parent").map { it.processId },
+                "the original index entry must be intact",
+            )
+            assertEquals(emptyList<String>(), store.findByParentId("new-parent").map { it.processId })
+        }
+
+        @Test
+        fun `rejects dropping a parent from an existing process`() {
+            val store = store("deparent")
+            store.save(snapshot(processId = "c1", parentId = "parent", version = 1), expectedVersion = null)
+
+            assertThrows(AgentProcessPersistenceException::class.java) {
+                store.save(snapshot(processId = "c1", parentId = null, version = 2), expectedVersion = 1)
+            }
+        }
+
+        @Test
         fun `delete is idempotent`() {
             val store = store("idempotent-delete")
             store.delete("never-existed")

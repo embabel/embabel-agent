@@ -75,6 +75,19 @@ class CacheBackedAgentProcessSnapshotStore(
         snapshot: SerializedAgentProcessSnapshot,
         expectedVersion: Long?,
     ): StoredSnapshotMetadata {
+        // AgentProcess.parentId is immutable, so a change here means caller error
+        // or a reused process id. Accepting it would leave the previous index entry
+        // in place and report the child under both parents. Costs one extra read;
+        // avoidable if AgentCacheRegion.replace ever returns the previous value.
+        val stored = region.get(snapshot.processId)
+        if (stored != null && stored.metadata[PARENT_ID] != snapshot.parentId) {
+            throw AgentProcessPersistenceException(
+                "Parent of process [${snapshot.processId}] changed from " +
+                        "[${stored.metadata[PARENT_ID]}] to [${snapshot.parentId}]. " +
+                        "Process parentage is immutable; this is a caller error or a reused process id."
+            )
+        }
+
         val applied = region.replace(
             key = snapshot.processId,
             expectedVersion = expectedVersion,
