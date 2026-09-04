@@ -17,7 +17,10 @@
     <properties>
         <argLine />
         <embabel-common.version>2.0.3-SNAPSHOT</embabel-common.version>
-        <netty.version>4.2.16.Final</netty.version>
+        <jackson2.version>2.21.5</jackson2.version>
+        <jsoup.version>1.23.1</jsoup.version>
+        <junrar.version>7.5.10</junrar.version>
+        <netty.version>4.2.17.Final</netty.version>
         <!-- Matches the openai-java-core that spring-ai-openai 2.0.1 depends on. Bump in
              step with spring-ai-openai; drop once embabel-build-dependencies catches up. -->
         <openai-java.version>4.49.0</openai-java.version>
@@ -122,6 +125,21 @@
                 <version>${netty.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>${jackson2.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.junrar</groupId>
+                <artifactId>junrar</artifactId>
+                <version>${junrar.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jsoup</groupId>
+                <artifactId>jsoup</artifactId>
+                <version>${jsoup.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
