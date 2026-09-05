@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.tool
 
+import com.fasterxml.jackson.annotation.JsonPropertyDescription
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
@@ -54,6 +55,15 @@ class TypeBasedInputSchemaTest {
     data class NestedObjectClass(
         val name: String,
         val nested: SimpleKotlinClass,
+    )
+
+    data class DescribedNestedObjectClass(
+        @get:JsonPropertyDescription("More details")
+        val searchTerm: String,
+    )
+
+    data class SearchFilterClass(
+        val filter: DescribedNestedObjectClass,
     )
 
     // Test classes for array items schema tests
@@ -294,6 +304,20 @@ class TypeBasedInputSchemaTest {
             val properties = parsed.get("properties")
 
             assertEquals("object", properties.get("nested").get("type").asString())
+        }
+
+        @Test
+        fun `toJsonSchema honors Jackson descriptions on nested properties`() {
+            val schema = TypeBasedInputSchema.of(SearchFilterClass::class.java)
+
+            val jsonSchema = schema.toJsonSchema()
+            val parsed = objectMapper.readTree(jsonSchema)
+            val searchTerm = parsed.get("properties")
+                .get("filter")
+                .get("properties")
+                .get("searchTerm")
+
+            assertEquals("More details", searchTerm.get("description").asString())
         }
     }
 
