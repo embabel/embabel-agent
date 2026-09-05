@@ -29,7 +29,11 @@ import com.embabel.agent.api.event.EmbeddingInvocationEvent;
 import com.embabel.agent.api.event.EmbeddingRequestEvent;
 import com.embabel.agent.api.event.EmbeddingResponseEvent;
 import com.embabel.agent.api.event.GoalAchievedEvent;
+import com.embabel.agent.api.event.LlmCallFailedEvent;
+import com.embabel.agent.api.event.LlmFailureEvent;
 import com.embabel.agent.api.event.LlmInvocationEvent;
+import com.embabel.agent.api.event.LlmRequestEvent;
+import com.embabel.agent.api.event.LlmRetryEvent;
 import com.embabel.agent.api.event.RankingChoiceCouldNotBeMadeEvent;
 import com.embabel.agent.api.event.RankingChoiceMadeEvent;
 import com.embabel.agent.api.event.ReplanRequestedEvent;
@@ -45,6 +49,7 @@ import com.embabel.agent.core.EarlyTermination;
 import com.embabel.agent.core.EarlyTerminationPolicy;
 import com.embabel.agent.core.EmbeddingInvocation;
 import com.embabel.agent.core.LlmInvocation;
+import com.embabel.agent.core.support.LlmInteraction;
 import com.embabel.agent.core.Usage;
 import com.embabel.agent.event.AgentProcessRagEvent;
 import com.embabel.agent.event.RagEvent;
@@ -159,6 +164,21 @@ class EmbabelSpanEventListenerTest {
                 new Usage(10, 20, null),
                 null, Instant.now(), Duration.ZERO);
         return new LlmInvocationEvent(process, invocation, "interaction-3");
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private <E extends LlmFailureEvent> E llmFailureEvent(Class<E> type, int attempts) {
+        LlmInteraction interaction = mock(LlmInteraction.class);
+        lenient().when(interaction.getId()).thenReturn("interaction-9");
+        LlmRequestEvent request = mock(LlmRequestEvent.class);
+        lenient().when(request.getLlmMetadata()).thenReturn(LlmMetadata.create("gpt-4o", "openai"));
+        lenient().when(request.getInteraction()).thenReturn(interaction);
+        E event = mock(type);
+        lenient().when(event.getRequest()).thenReturn(request);
+        lenient().when(event.getThrowable()).thenReturn(new IllegalStateException("model timed out"));
+        lenient().when(event.getAttempts()).thenReturn(attempts);
+        lenient().when(event.getMaxAttempts()).thenReturn(3);
+        return event;
     }
 
     private EmbeddingInvocationEvent embeddingEvent() {
@@ -301,6 +321,62 @@ class EmbabelSpanEventListenerTest {
 
             Map<String, String> kv = kvOf("embabel.llm.invocation");
             assertNotNull(kv.get("embabel.llm.cost"), "cost tag present when pricing yields a positive cost");
+        }
+    }
+
+    @Nested
+    @DisplayName("LLM failures")
+    class LlmFailures {
+
+        @Test
+        @DisplayName("a retried attempt becomes a span carrying its attempt number")
+        void retrySpan() {
+            listener().onProcessEvent(llmFailureEvent(LlmRetryEvent.class, 2));
+
+            Map<String, String> kv = kvOf("embabel.llm.retry");
+            assertEquals("llm_retry", kv.get("embabel.event.type"));
+            assertEquals("gpt-4o", kv.get("embabel.llm.model"));
+            assertEquals("2", kv.get("embabel.llm.attempt"));
+            assertEquals("3", kv.get("embabel.llm.max_attempts"));
+            assertEquals("IllegalStateException", kv.get("embabel.llm.error.type"));
+            assertEquals("model timed out", kv.get("embabel.llm.error.message"));
+            assertEquals("interaction-9", kv.get("embabel.interaction.id"));
+        }
+
+        @Test
+        @DisplayName("a call that gives up becomes an error span")
+        void failedSpan() {
+            listener().onProcessEvent(llmFailureEvent(LlmCallFailedEvent.class, 3));
+
+            Map<String, String> kv = kvOf("embabel.llm.error");
+            assertEquals("llm_error", kv.get("embabel.event.type"));
+            assertEquals("3", kv.get("embabel.llm.attempt"));
+            Observation.Context ctx = handler.stopped.stream()
+                    .filter(c -> "embabel.llm.error".equals(c.getName()))
+                    .findFirst().orElseThrow();
+            assertNotNull(ctx.getError(), "the span is marked in error");
+        }
+
+        @Test
+        @DisplayName("failure span is closed even when error() throws between start() and stop()")
+        void failureSpanClosedWhenErrorThrows() {
+            // A custom handler failing in onError() must not leave the span open: stop() must still run.
+            registry.observationConfig().observationHandler(new ThrowingOnErrorHandler());
+            EmbabelSpanEventListener listener = listener();
+
+            assertThrows(RuntimeException.class,
+                    () -> listener.onProcessEvent(llmFailureEvent(LlmCallFailedEvent.class, 3)));
+
+            assertTrue(handler.stopped.stream().anyMatch(c -> "embabel.llm.error".equals(c.getName())),
+                    "failure span must be stopped even when error() throws after start()");
+        }
+
+        @Test
+        @DisplayName("trace-llm-calls=false suppresses the failure span")
+        void failureFlagDisabled() {
+            properties.setTraceLlmCalls(false);
+            listener().onProcessEvent(llmFailureEvent(LlmRetryEvent.class, 1));
+            assertTrue(handler.stopped.stream().noneMatch(c -> "embabel.llm.retry".equals(c.getName())));
         }
     }
 

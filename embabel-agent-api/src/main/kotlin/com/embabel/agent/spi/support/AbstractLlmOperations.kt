@@ -18,6 +18,7 @@ package com.embabel.agent.spi.support
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolControlFlowSignal
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.internal.LlmOperations
@@ -46,6 +47,7 @@ import jakarta.validation.ConstraintViolation
 import jakarta.validation.Validator
 import java.lang.reflect.Field
 import java.time.Duration
+import java.time.Instant
 import java.util.Locale
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
@@ -138,6 +140,106 @@ abstract class AbstractLlmOperations(
         }
     }
 
+    /**
+     * The attempts made in one logical LLM call. Each runs under the data binding retry policy,
+     * which forgives transient failures such as malformed JSON, and the configured timeout.
+     * Publishes an [com.embabel.agent.api.event.LlmRetryEvent] as each retry begins.
+     *
+     * A retry is reported when it actually happens rather than when the attempt before it fails,
+     * so no event has to guess whether the policy will allow another attempt.
+     */
+    private inner class Attempts(
+        private val llmRequestEvent: LlmRequestEvent<*>,
+        private val interaction: LlmInteraction,
+    ) {
+        /** Round trips made to the model in this call, counted across every [attempt] block it runs. */
+        var made: Int = 0
+            private set
+
+        /**
+         * Round trips this call is allowed, counted the same way. Every [attempt] block runs its own
+         * retry sequence with its own budget, so the budget grows as blocks start. Counting both the
+         * same way keeps [made] and [maxAttempts] describing the same thing: the whole call.
+         */
+        var maxAttempts: Int = 0
+            private set
+
+        /** How long the last failed attempt took, excluding the backoff wait that follows it. */
+        private var lastFailure: Duration = Duration.ZERO
+
+        fun <O> attempt(operation: () -> O): O {
+            maxAttempts += dataBindingProperties.maxAttempts
+            return dataBindingProperties.retryTemplate(interaction.id.value)
+                .execute<O, Exception> { context ->
+                    // Null until an attempt has failed, so this fires only on a real retry
+                    context.lastThrowable?.let { lastThrowable ->
+                        llmRequestEvent.agentProcess.processContext.onProcessEvent(
+                            llmRequestEvent.retryEvent(
+                                throwable = lastThrowable,
+                                attempts = made,
+                                maxAttempts = maxAttempts,
+                                runningTime = lastFailure,
+                            )
+                        )
+                    }
+                    made++
+                    val attemptStarted = Instant.now()
+                    try {
+                        executeWithTimeout(
+                            interactionId = interaction.id.value,
+                            llmOptions = interaction.llm,
+                            attempt = made,
+                            operation = operation,
+                        )
+                    } catch (t: Throwable) {
+                        // Timed here, not at the next callback, which only runs after the backoff wait
+                        lastFailure = Duration.between(attemptStarted, Instant.now())
+                        throw t
+                    }
+                }
+        }
+    }
+
+    /**
+     * Run one logical LLM call, publishing an [com.embabel.agent.api.event.LlmCallFailedEvent] if it
+     * ends without a response. [call] makes each round trip through [Attempts.attempt], so a failure
+     * anywhere in the call - an exhausted retry, or a response that never passes validation - is
+     * reported once, counting every round trip the call made.
+     */
+    private fun <O> withFailureEvents(
+        llmRequestEvent: LlmRequestEvent<*>,
+        interaction: LlmInteraction,
+        call: Attempts.() -> O,
+    ): O {
+        val attempts = Attempts(llmRequestEvent, interaction)
+        return try {
+            attempts.call()
+        } catch (e: Exception) {
+            // Exception, not Throwable: an Error means the JVM is in trouble (out of memory, stack
+            // exhausted). Calling listeners then can turn a bad situation into a worse one, and the
+            // listener would have nothing useful to do with it anyway. Errors propagate untouched.
+            // Control flow signals such as ReplanRequestedException end the call without failing it
+            if (e !is ToolControlFlowSignal) {
+                llmRequestEvent.agentProcess.processContext.onProcessEvent(
+                    llmRequestEvent.failureEvent(
+                        throwable = e,
+                        attempts = attempts.made,
+                        maxAttempts = attempts.maxAttempts,
+                        runningTime = Duration.between(llmRequestEvent.timestamp, Instant.now()),
+                    )
+                )
+            }
+            throw e
+        }
+    }
+
+    /** A call that is a single round trip to the model. */
+    private fun <O> withRetry(
+        llmRequestEvent: LlmRequestEvent<*>,
+        interaction: LlmInteraction,
+        operation: () -> O,
+    ): O = withFailureEvents(llmRequestEvent, interaction) { attempt(operation) }
+
     final override fun <O> createObject(
         messages: List<Message>,
         interaction: LlmInteraction,
@@ -188,58 +290,48 @@ abstract class AbstractLlmOperations(
                     messages
                 }
 
-            // Wrap doTransform with retry for transient failures (e.g., malformed JSON)
-            // and timeout for operations that take too long
-            var candidate = dataBindingProperties.retryTemplate(interaction.id.value)
-                .execute<O, Exception> {
-                    executeWithTimeout(
-                        interactionId = interaction.id.value,
-                        llmOptions = interaction.llm,
-                    ) {
-                        doTransform(
-                            messages = initialMessages,
-                            interaction = interactionWithToolDecoration,
-                            outputClass = outputClass,
-                            llmRequestEvent = llmRequestEvent,
-                        )
-                    }
+            // Binding and validation are one LLM call: a response that never validates is a
+            // failure of that call, reported like an exhausted retry.
+            withFailureEvents(llmRequestEvent, interaction) {
+                var candidate = attempt {
+                    doTransform(
+                        messages = initialMessages,
+                        interaction = interactionWithToolDecoration,
+                        outputClass = outputClass,
+                        llmRequestEvent = llmRequestEvent,
+                    )
                 }
-            if (interaction.validation) {
-                var constraintViolations = validator.validate(candidate)
-                constraintViolations =
-                    filterConstraintViolations(constraintViolations, outputClass, interaction.fieldFilter)
-                if (constraintViolations.isNotEmpty()) {
-                    // If we had violations, try again, once, before throwing an exception
-                    candidate = dataBindingProperties.retryTemplate(interaction.id.value)
-                        .execute<O, Exception> {
-                            executeWithTimeout(
-                                interactionId = interaction.id.value,
-                                llmOptions = interaction.llm,
-                            ) {
-                                doTransform(
-                                    messages = messages + UserMessage(
-                                        validationPromptGenerator.generateViolationsReport(
-                                            constraintViolations
-                                        )
-                                    ),
-                                    interaction = interactionWithToolDecoration,
-                                    outputClass = outputClass,
-                                    llmRequestEvent = llmRequestEvent,
-                                )
-                            }
-                        }
-                    constraintViolations = validator.validate(candidate)
+                if (interaction.validation) {
+                    var constraintViolations = validator.validate(candidate)
                     constraintViolations =
                         filterConstraintViolations(constraintViolations, outputClass, interaction.fieldFilter)
                     if (constraintViolations.isNotEmpty()) {
-                        throw InvalidLlmReturnTypeException(
-                            returnedObject = candidate as Any,
-                            constraintViolations = constraintViolations,
-                        )
+                        // If we had violations, try again, once, before throwing an exception
+                        candidate = attempt {
+                            doTransform(
+                                messages = messages + UserMessage(
+                                    validationPromptGenerator.generateViolationsReport(
+                                        constraintViolations
+                                    )
+                                ),
+                                interaction = interactionWithToolDecoration,
+                                outputClass = outputClass,
+                                llmRequestEvent = llmRequestEvent,
+                            )
+                        }
+                        constraintViolations = validator.validate(candidate)
+                        constraintViolations =
+                            filterConstraintViolations(constraintViolations, outputClass, interaction.fieldFilter)
+                        if (constraintViolations.isNotEmpty()) {
+                            throw InvalidLlmReturnTypeException(
+                                returnedObject = candidate as Any,
+                                constraintViolations = constraintViolations,
+                            )
+                        }
                     }
                 }
+                candidate
             }
-            candidate
         }
         logger.debug("LLM createdObject response={}", createdObject)
         agentProcess.processContext.onProcessEvent(
@@ -297,20 +389,14 @@ abstract class AbstractLlmOperations(
         )
 
         val (response, ms) = time {
-            dataBindingProperties.retryTemplate(interaction.id.value)
-                .execute<Result<O>, Exception> {
-                    executeWithTimeout(
-                        interactionId = interaction.id.value,
-                        llmOptions = interaction.llm,
-                    ) {
-                        doTransformIfPossible(
-                            messages = messages,
-                            interaction = interactionWithToolDecoration,
-                            outputClass = outputClass,
-                            llmRequestEvent = llmRequestEvent,
-                        )
-                    }
-                }
+            withRetry(llmRequestEvent, interaction) {
+                doTransformIfPossible(
+                    messages = messages,
+                    interaction = interactionWithToolDecoration,
+                    outputClass = outputClass,
+                    llmRequestEvent = llmRequestEvent,
+                )
+            }
         }
         logger.debug("LLM createObjectIfPossible response={}", response)
         agentProcess.processContext.onProcessEvent(
@@ -357,20 +443,14 @@ abstract class AbstractLlmOperations(
         )
 
         val (thinkingResponse, ms) = time {
-            dataBindingProperties.retryTemplate(interaction.id.value)
-                .execute<ThinkingResponse<O>, Exception> {
-                    executeWithTimeout(
-                        interactionId = interaction.id.value,
-                        llmOptions = interaction.llm,
-                    ) {
-                        doTransformWithThinking(
-                            messages = messages,
-                            interaction = interactionWithToolDecoration,
-                            outputClass = outputClass,
-                            llmRequestEvent = llmRequestEvent,
-                        )
-                    }
-                }
+            withRetry(llmRequestEvent, interaction) {
+                doTransformWithThinking(
+                    messages = messages,
+                    interaction = interactionWithToolDecoration,
+                    outputClass = outputClass,
+                    llmRequestEvent = llmRequestEvent,
+                )
+            }
         }
         logger.debug("LLM thinking response={}", thinkingResponse)
         agentProcess.processContext.onProcessEvent(
@@ -417,20 +497,14 @@ abstract class AbstractLlmOperations(
         )
 
         val (response, ms) = time {
-            dataBindingProperties.retryTemplate(interaction.id.value)
-                .execute<Result<ThinkingResponse<O>>, Exception> {
-                    executeWithTimeout(
-                        interactionId = interaction.id.value,
-                        llmOptions = interaction.llm,
-                    ) {
-                        doTransformWithThinkingIfPossible(
-                            messages = messages,
-                            interaction = interactionWithToolDecoration,
-                            outputClass = outputClass,
-                            llmRequestEvent = llmRequestEvent,
-                        )
-                    }
-                }
+            withRetry(llmRequestEvent, interaction) {
+                doTransformWithThinkingIfPossible(
+                    messages = messages,
+                    interaction = interactionWithToolDecoration,
+                    outputClass = outputClass,
+                    llmRequestEvent = llmRequestEvent,
+                )
+            }
         }
         logger.debug("LLM createObjectIfPossibleWithThinking response={}", response)
         agentProcess.processContext.onProcessEvent(

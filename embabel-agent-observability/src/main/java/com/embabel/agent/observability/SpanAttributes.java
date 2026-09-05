@@ -85,9 +85,15 @@ public final class SpanAttributes {
     public static final String EMBABEL_LIFECYCLE = "embabel.lifecycle";
     public static final String EMBABEL_LIFECYCLE_STATE = "embabel.lifecycle.state";
     public static final String EMBABEL_LLM = "embabel.llm";
+    public static final String EMBABEL_LLM_ATTEMPT = "embabel.llm.attempt";
     public static final String EMBABEL_LLM_COST = "embabel.llm.cost";
+    public static final String EMBABEL_LLM_ERROR = "embabel.llm.error";
+    public static final String EMBABEL_LLM_ERROR_MESSAGE = "embabel.llm.error.message";
+    public static final String EMBABEL_LLM_ERROR_TYPE = "embabel.llm.error.type";
     public static final String EMBABEL_LLM_INVOCATION = "embabel.llm.invocation";
+    public static final String EMBABEL_LLM_MAX_ATTEMPTS = "embabel.llm.max_attempts";
     public static final String EMBABEL_LLM_MODEL = "embabel.llm.model";
+    public static final String EMBABEL_LLM_RETRY = "embabel.llm.retry";
     public static final String EMBABEL_PARENT_ID = "embabel.parent.id";
     public static final String EMBABEL_PLAN_ACTION_COUNT = "embabel.plan.action_count";
     public static final String EMBABEL_PLAN_GOAL = "embabel.plan.goal";
