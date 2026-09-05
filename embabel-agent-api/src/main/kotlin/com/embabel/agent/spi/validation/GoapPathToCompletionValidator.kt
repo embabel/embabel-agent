@@ -193,7 +193,13 @@ class GoapPathToCompletionValidator : PathToCompletionAgentValidator {
             val goalAction = agentScope.actions.find { it.name == goal.name }
 
             if (goalAction == null) {
-                logger.error("Goal action '${goal.name}' not found in agent actions. Skipping this goal.")
+                errors.add(
+                    error(
+                        ValidationErrorCodes.GOAL_ACTION_NOT_FOUND,
+                        "Goal action '${goal.name}' not found in agent actions.",
+                        agentScope
+                    )
+                )
                 continue
             }
 

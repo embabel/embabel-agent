@@ -19,12 +19,14 @@ import com.embabel.agent.api.annotation.support.AgentMetadataReader
 import com.embabel.agent.api.annotation.support.AgentWithAchievesGoalNoActionAnnotation
 import com.embabel.agent.api.annotation.support.AgentWithValidAchievesGoalMethod
 import com.embabel.agent.api.annotation.support.AgenticComponentWithNoActionNoConditionNoGoalAnnotation
+import com.embabel.common.core.validation.ValidationErrorCodes
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertNotNull
 import org.junit.jupiter.api.assertNull
 import org.junit.jupiter.api.extension.ExtendWith
 import org.springframework.boot.test.system.CapturedOutput
 import org.springframework.boot.test.system.OutputCaptureExtension
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -38,6 +40,11 @@ class AchievableGoalValidatorTest {
         val agentScope = reader.createAgentMetadata(AgentWithAchievesGoalNoActionAnnotation())
         assertNotNull(agentScope, "Validation error is unexpectedly not ignored.")
         assertTrue(output.out.contains(noActionErrorMessage), "Error message about missing @Action is absent.")
+        assertEquals(
+            1,
+            output.out.lines().count { it.contains(ValidationErrorCodes.MISSING_ACTION_ANNOTATION) },
+            "Validation error should be logged once by the validation manager."
+        )
     }
 
     @Test
