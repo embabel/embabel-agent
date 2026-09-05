@@ -78,8 +78,24 @@ data class Verbosity @JvmOverloads constructor(
 
 }
 
-enum class Delay {
-    NONE, MEDIUM, LONG
+private const val DELAY_UNSET_MS  = -1L
+private const val DELAY_NONE_MS   = 0L
+private const val DELAY_MEDIUM_MS = 400L
+private const val DELAY_LONG_MS   = 2000L
+
+enum class Delay(val millis: Long) {
+    /** Sentinel: inherit delay from the enclosing agent or process scope. */
+    UNSET(DELAY_UNSET_MS),
+    NONE(DELAY_NONE_MS),
+    MEDIUM(DELAY_MEDIUM_MS),
+    LONG(DELAY_LONG_MS);
+
+    companion object {
+        const val UNSET_MS  = DELAY_UNSET_MS
+        const val NONE_MS   = DELAY_NONE_MS
+        const val MEDIUM_MS = DELAY_MEDIUM_MS
+        const val LONG_MS   = DELAY_LONG_MS
+    }
 }
 
 /**
@@ -91,6 +107,9 @@ data class ProcessControl @JvmOverloads constructor(
     val operationDelay: Delay = Delay.NONE,
     val earlyTerminationPolicy: EarlyTerminationPolicy = EarlyTerminationPolicy.maxActions(100),
 ) {
+
+    val toolDelayPolicy: DelayPolicy get() = DelayPolicy.of(toolDelay)
+    val operationDelayPolicy: DelayPolicy get() = DelayPolicy.of(operationDelay)
 
     fun withToolDelay(toolDelay: Delay): ProcessControl =
         this.copy(toolDelay = toolDelay)

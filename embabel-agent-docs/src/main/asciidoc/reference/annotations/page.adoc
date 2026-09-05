@@ -14,6 +14,11 @@ It will also be registered with the agent framework, so it can be used in agent 
 You must provide the `description` parameter, which is a human-readable description of the agent.
 This is particularly important as it may be used by the LLM in agent selection.
 
+The optional `delay` parameter sets a default delay tier for all actions within this agent, using the `Delay` enum (`NONE`, `MEDIUM`, `LONG`).
+When omitted, the default is `Delay.UNSET`, which means actions inherit the process-level delay.
+`Delay.NONE` explicitly sets zero delay for all actions in the agent, overriding any process-level delay.
+Individual actions can override the agent-level delay with their own `delayMs` value.
+
 ==== The `@EmbabelComponent` annotation
 
 This annotation is used on a class to indicate that this class exposes actions, goals and conditions that may be used by agents, but is not an agent in itself.
@@ -43,8 +48,14 @@ When true, all objects on the blackboard are removed except the action's output.
 This is useful for resetting context in multi-step workflows.
 It can also make persistence of flows more efficient by dispensing with objects that are no longer needed.
 Defaults to false.
-- `cost`:Relative cost of the action from 0-1. Defaults to 0.0.
+- `cost`: Relative cost of the action from 0-1. Defaults to 0.0.
 - `value`: Relative value of performing the action from 0-1. Defaults to 0.0.
+- `delayMs`: Pause in milliseconds inserted after the planner selects this action but before the action body executes.
+Useful for rate-limited APIs where breathing room is needed between calls.
+Overrides any agent-level `delay` default set on `@Agent`.
+Use `Delay.NONE_MS` (0), `Delay.MEDIUM_MS`, or `Delay.LONG_MS` for named values, or supply an arbitrary millisecond value (e.g., `1500L`) for precise control.
+A value of `-1` (the default, `Delay.UNSET_MS`) means inherit from the agent or process level.
+A value of `0` (or `Delay.NONE_MS`) explicitly suppresses any agent- or process-level delay — it does not inherit.
 
 ===== Clearing the Blackboard
 

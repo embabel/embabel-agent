@@ -18,45 +18,62 @@ package com.embabel.agent.spi.support
 import com.embabel.agent.api.event.ActionExecutionStartEvent
 import com.embabel.agent.api.event.ToolCallRequestEvent
 import com.embabel.agent.core.Delay
+import com.embabel.agent.core.DelayPolicy
 import com.embabel.agent.spi.ActionExecutionSchedule
 import com.embabel.agent.spi.DelayedActionExecutionSchedule
 import com.embabel.agent.spi.OperationScheduler
 import com.embabel.agent.spi.ToolCallSchedule
-import java.time.Duration
+import org.slf4j.LoggerFactory
 
 /**
- * Operation scheduler driven from process options
+ * Operation scheduler driven from process options.
+ * Action-level [DelayPolicy] takes precedence over the process-level fallback.
  */
 class ProcessOptionsOperationScheduler(
+    @Deprecated("Unused: delay is read directly from DelayPolicy.duration")
     val operationDelays: Map<Delay, Long> = mapOf(
-        Delay.NONE to 0L,
-        Delay.MEDIUM to 400L,
-        Delay.LONG to 2000L,
+        Delay.NONE to Delay.NONE_MS,
+        Delay.MEDIUM to Delay.MEDIUM_MS,
+        Delay.LONG to Delay.LONG_MS,
     ),
+    @Deprecated("Unused: delay is read directly from DelayPolicy.duration")
     val toolDelays: Map<Delay, Long> = mapOf(
-        Delay.NONE to 0L,
-        Delay.MEDIUM to 400L,
-        Delay.LONG to 2000L,
+        Delay.NONE to Delay.NONE_MS,
+        Delay.MEDIUM to Delay.MEDIUM_MS,
+        Delay.LONG to Delay.LONG_MS,
     ),
 ) : OperationScheduler {
 
+    private val logger = LoggerFactory.getLogger(javaClass)
+
+    /**
+     * Resolves the delay for an action using a two-level priority chain:
+     * 1. Action QoS delay — resolved by [com.embabel.agent.api.annotation.support.DefaultActionQosProvider] from
+     *    [@Action][com.embabel.agent.api.annotation.Action] or [@Agent][com.embabel.agent.api.annotation.Agent]
+     *    annotations (action-level wins over agent-level).
+     * 2. Process-level fallback from [com.embabel.agent.core.ProcessControl.operationDelayPolicy].
+     *
+     * A [DelayPolicy.Inherit] QoS delay is treated as "not set" and falls through to the process fallback.
+     */
     override fun scheduleAction(actionExecutionStartEvent: ActionExecutionStartEvent): ActionExecutionSchedule {
-        return DelayedActionExecutionSchedule(
-            Duration.ofMillis(
-                operationDelays[actionExecutionStartEvent.agentProcess.processContext.processOptions.processControl.operationDelay]
-                    ?: 0L,
+        val processControl = actionExecutionStartEvent.agentProcess.processContext.processOptions.processControl
+        val actionQosDelay = actionExecutionStartEvent.action.qos.delayPolicy.takeIf { it != DelayPolicy.Inherit }
+        val delay = actionQosDelay ?: processControl.operationDelayPolicy
+        if (delay != DelayPolicy.Inherit) {
+            val source = if (actionQosDelay != null) "qos" else "process"
+            logger.debug(
+                "Scheduling {}ms delay for action {} (source: {})",
+                delay.millis,
+                actionExecutionStartEvent.action.name,
+                source,
             )
-        )
+        }
+        return DelayedActionExecutionSchedule(delay.duration)
     }
 
     override fun scheduleToolCall(functionCallRequestEvent: ToolCallRequestEvent): ToolCallSchedule {
         return ToolCallSchedule(
-            delay = Duration.ofMillis(
-                toolDelays[functionCallRequestEvent.agentProcess.processContext.processOptions.processControl.operationDelay]
-                    ?: 0L,
-            )
+            delay = functionCallRequestEvent.agentProcess.processContext.processOptions.processControl.toolDelayPolicy.duration,
         )
     }
-
-
 }
