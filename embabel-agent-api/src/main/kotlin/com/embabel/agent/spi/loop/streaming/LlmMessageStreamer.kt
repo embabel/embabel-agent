@@ -27,7 +27,7 @@ import reactor.core.publisher.Flux
 /**
  * Provider-neutral events emitted by one streaming LLM inference call.
  *
- * [Content] events are forwarded as soon as they arrive. [Complete] is emitted once,
+ * [Content] and [Thinking] events are forwarded as soon as they arrive. [Complete] is emitted once,
  * after provider-specific fragments (including partial tool calls) have been assembled.
  *
  * This SPI type is deliberately distinct from
@@ -37,6 +37,9 @@ import reactor.core.publisher.Flux
  */
 sealed interface LlmInferenceStreamEvent {
     data class Content(val text: String) : LlmInferenceStreamEvent
+
+    /** Provider-identified native reasoning content. */
+    data class Thinking(val text: String) : LlmInferenceStreamEvent
 
     data class Complete(
         val message: Message,
