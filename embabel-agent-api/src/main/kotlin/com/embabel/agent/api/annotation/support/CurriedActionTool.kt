@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory
  * @param objectMapper Object mapper for JSON parsing
  */
 internal class CurriedActionTool(
-    private val action: Action,
+    internal val action: Action,
     private val blackboard: Blackboard,
     private val objectMapper: ObjectMapper,
 ) : Tool {

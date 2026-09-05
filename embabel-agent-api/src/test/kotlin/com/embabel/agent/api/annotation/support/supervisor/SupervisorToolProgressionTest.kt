@@ -19,12 +19,23 @@ import com.embabel.agent.api.annotation.support.AgentMetadataReader
 import com.embabel.agent.api.annotation.support.CurriedActionTool
 import com.embabel.agent.api.annotation.support.SupervisorAction
 import com.embabel.agent.api.common.PlannerType
+import com.embabel.agent.api.common.PlatformServices
+import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.dsl.Frog
+import com.embabel.agent.core.Action
+import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.AgentProcessStatusCode
+import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.ProcessOptions
+import com.embabel.agent.core.ToolNamingStrategy
+import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.InMemoryBlackboard
+import com.embabel.agent.core.support.LlmInteraction
+import com.embabel.agent.spi.support.ToolNamingContext
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyAgentPlatform
+import com.embabel.agent.test.integration.IntegrationTestUtils.dummyAgentProcessRunning
+import com.embabel.agent.test.integration.IntegrationTestUtils.dummyPlatformServices
 import com.embabel.agent.test.integration.ScriptedLlmOperations
 import tools.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Assertions.*
@@ -206,6 +217,65 @@ class SupervisorToolProgressionTest {
             "Description should indicate inputs are available. Got: $afterDesc"
         )
     }
+
+    @Test
+    fun `prompt keeps a signature for every curried tool`() {
+        val metadata = AgentMetadataReader().createAgentMetadata(SupervisorWith3Steps()) as CoreAgent
+        val scriptedLlm = ScriptedLlmOperations().respond("Done")
+        val agentPlatform = dummyAgentPlatform(llmOperations = scriptedLlm)
+
+        agentPlatform.runAgentFrom(
+            metadata,
+            ProcessOptions(plannerType = PlannerType.SUPERVISOR),
+            mapOf("ingredient" to Ingredient("flour")),
+        )
+
+        val prompt = scriptedLlm.promptsReceived.first()
+        assertTrue(prompt.contains("- bakeBread(it: Dough) -> Bread"), prompt)
+        assertTrue(prompt.contains("- makeDough(it: Ingredient) -> Dough"), prompt)
+    }
+
+    @Test
+    fun `publishes fully qualified curried tool names under the configured strategy`() {
+        val metadata = AgentMetadataReader().createAgentMetadata(SupervisorWith3Steps()) as CoreAgent
+        val supervisorAction = metadata.actions.first() as SupervisorAction
+        val scriptedLlm = ScriptedLlmOperations().respond("Done")
+        var published: List<String> = emptyList()
+        val capturingLlm = object : LlmOperations by scriptedLlm {
+            override fun generate(
+                prompt: String,
+                interaction: LlmInteraction,
+                agentProcess: AgentProcess,
+                action: Action?,
+            ): String {
+                published = ToolNamingContext.resolvePublishedTools(interaction, agentProcess)
+                    .map { it.definition.name }
+                return scriptedLlm.generate(prompt, interaction, agentProcess, action)
+            }
+        }
+        val platformServices = fullyQualified(dummyPlatformServices(), capturingLlm)
+        val agentProcess = dummyAgentProcessRunning(metadata, platformServices)
+        agentProcess.blackboard["ingredient"] = Ingredient("flour")
+
+        supervisorAction.execute(ProcessContext(platformServices = platformServices, agentProcess = agentProcess))
+
+        assertEquals(
+            listOf("SupervisorWith3Steps-bakeBread", "SupervisorWith3Steps-makeDough"),
+            published,
+        )
+        val prompt = scriptedLlm.promptsReceived.first()
+        published.forEach { assertTrue(prompt.contains("- $it("), prompt) }
+    }
+
+    private fun fullyQualified(base: PlatformServices, llm: LlmOperations): PlatformServices =
+        object : PlatformServices by base {
+            override val llmOperations = llm
+
+            override fun toolNamingStrategy() = ToolNamingStrategy.FULLY_QUALIFIED
+
+            override fun withEventListener(agenticEventListener: AgenticEventListener) =
+                fullyQualified(base.withEventListener(agenticEventListener), llm)
+        }
 
     @Test
     fun `tools are sorted by readiness`() {

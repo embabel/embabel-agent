@@ -22,6 +22,7 @@ import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.Goal
+import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.common.core.types.NamedAndDescribed
 import org.slf4j.LoggerFactory
@@ -72,6 +73,7 @@ class PerGoalToolFactory(
     private val goalToolNamingStrategy: GoalToolNamingStrategy = ApplicationNameGoalToolNamingStrategy(
         applicationName
     ),
+    private val toolNamingStrategy: ToolNamingStrategy = ToolNamingStrategy.LEGACY_NAME_ONLY,
 ) {
 
     private val logger = LoggerFactory.getLogger(PerGoalToolFactory::class.java)
@@ -98,11 +100,11 @@ class PerGoalToolFactory(
         remoteOnly: Boolean,
         listeners: List<AgenticEventListener>,
     ): List<GoalTool<*>> {
-        val goalTools = autonomy.agentPlatform.goals
-            .filter { it.export.local }
-            .filter { !remoteOnly || it.export.remote }
-            .flatMap { goal ->
-                toolsForGoal(goal, listeners)
+        val goalTools = goalsToPublish()
+            .filter { it.goal.export.local }
+            .filter { !remoteOnly || it.goal.export.remote }
+            .flatMap { source ->
+                toolsForGoal(source.goal, listeners, source.ownerName)
             }
         if (goalTools.isEmpty()) {
             logger.info("No goals found in agent platform, no tools will be published")
@@ -138,12 +140,26 @@ class PerGoalToolFactory(
     fun toolsForGoal(
         goal: Goal,
         listeners: List<AgenticEventListener>,
+    ): List<GoalTool<*>> = toolsForGoal(
+        goal = goal,
+        listeners = listeners,
+        ownerName = autonomy.agentPlatform.agents()
+            .firstOrNull { agent -> agent.goals.any { it === goal } }
+            ?.name,
+    )
+
+    private fun toolsForGoal(
+        goal: Goal,
+        listeners: List<AgenticEventListener>,
+        ownerName: String?,
     ): List<GoalTool<*>> {
-        val goalName = goal.export.name ?: goalToolNamingStrategy.nameForGoal(goal)
-        return goal.export.startingInputTypes.map { inputType ->
+        val inputTypes = goal.export.startingInputTypes
+        val qualifyInputType = toolNamingStrategy == ToolNamingStrategy.FULLY_QUALIFIED && inputTypes.size > 1
+        val discriminators = if (qualifyInputType) discriminatorNames(inputTypes) else emptyMap()
+        return inputTypes.map { inputType ->
             GoalTool(
                 autonomy = autonomy,
-                name = goalName,
+                name = publishedName(goal, ownerName, discriminators[inputType]),
                 description = goal.description,
                 goal = goal,
                 inputType = inputType,
@@ -152,5 +168,50 @@ class PerGoalToolFactory(
             )
         }
     }
+
+    private fun publishedName(
+        goal: Goal,
+        ownerName: String?,
+        discriminator: String?,
+    ): String {
+        val exportName = goal.export.name
+        return when {
+            discriminator == null && exportName != null -> exportName
+            discriminator == null -> when (toolNamingStrategy) {
+                ToolNamingStrategy.LEGACY_NAME_ONLY -> goalToolNamingStrategy.nameForGoal(goal)
+                ToolNamingStrategy.FULLY_QUALIFIED -> toolNamingStrategy.nameFor(ownerName, goal.name)
+            }
+            exportName != null -> toolNamingStrategy.nameFor(exportName, discriminator)
+            else -> toolNamingStrategy.nameFor(ownerName, "${goal.name}.$discriminator")
+        }
+    }
+
+    /**
+     * Names that tell the starting input types of one goal apart. A simple name keeps the published
+     * name readable; types sharing a simple name fall back to the package qualified name.
+     */
+    private fun discriminatorNames(inputTypes: Set<Class<*>>): Map<Class<*>, String> {
+        val simpleNameCounts = inputTypes.groupingBy { it.simpleName }.eachCount()
+        return inputTypes.associateWith { type ->
+            if (simpleNameCounts[type.simpleName] == 1 && type.simpleName.isNotBlank()) {
+                type.simpleName
+            } else {
+                type.name
+            }
+        }
+    }
+
+    private fun goalsToPublish(): List<GoalSource> = if (toolNamingStrategy == ToolNamingStrategy.FULLY_QUALIFIED) {
+        autonomy.agentPlatform.agents().flatMap { agent ->
+            agent.goals.map { goal -> GoalSource(agent.name, goal) }
+        }
+    } else {
+        autonomy.agentPlatform.goals.map { goal -> GoalSource(null, goal) }
+    }
+
+    private data class GoalSource(
+        val ownerName: String?,
+        val goal: Goal,
+    )
 
 }

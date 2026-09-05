@@ -84,6 +84,12 @@ interface ToolConsumer : ToolSpecConsumer,
         fun resolveTools(
             toolConsumer: ToolConsumer,
             toolGroupResolver: ToolGroupResolver,
+        ): List<Tool> = resolveTools(toolConsumer, toolGroupResolver) { it }
+
+        internal fun resolveTools(
+            toolConsumer: ToolConsumer,
+            toolGroupResolver: ToolGroupResolver,
+            name: (Tool) -> Tool,
         ): List<Tool> {
             val resolvedTools = mutableListOf<Tool>()
             resolvedTools += toolConsumer.tools
@@ -127,15 +133,18 @@ interface ToolConsumer : ToolSpecConsumer,
                     resolvedTools += resolution.resolvedToolGroup.tools
                 }
             }
+            val publishedTools = resolvedTools.map(name)
+                .distinctBy { it.definition.name }
+                .sortedBy { it.definition.name }
             loggerFor<ToolConsumer>().debug(
                 "{} resolved {} tools from {} tools and {} tool groups: {}",
                 toolConsumer.name,
-                resolvedTools.size,
+                publishedTools.size,
                 toolConsumer.tools.size,
                 toolConsumer.toolGroups.size,
-                resolvedTools.map { it.definition.name },
+                publishedTools.map { it.definition.name },
             )
-            return resolvedTools.distinctBy { it.definition.name }.sortedBy { it.definition.name }
+            return publishedTools
         }
     }
 }

@@ -15,10 +15,13 @@
  */
 package com.embabel.agent.mcpserver.sync.support
 
+import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.dsl.agent
 import com.embabel.agent.api.dsl.aggregate
+import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.Export
+import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.test.domain.Frog
 import com.embabel.agent.test.domain.MagicVictim
@@ -84,6 +87,20 @@ class PerGoalMcpExportToolCallbackPublisherTest {
     }
 
     @Test
+    fun `toolCallbacks publishes goal tools under the platform naming strategy`() {
+        val publisher = PerGoalMcpExportToolCallbackPublisher(
+            autonomy = fullyQualifiedAutonomy(),
+            mcpSyncServer = mcpSyncServer,
+            applicationName = "testApp",
+        )
+
+        val toolNames = publisher.toolCallbacks.map { it.toolDefinition.name() }
+
+        assertTrue(toolNames.contains("ExportedWizard-done"), toolNames.toString())
+        assertTrue(toolNames.contains(CONFIRMATION_TOOL_NAME), toolNames.toString())
+    }
+
+    @Test
     fun `toolCallbacks count equals goal tools plus platform tools`() {
         val publisher = PerGoalMcpExportToolCallbackPublisher(
             autonomy = autonomy,
@@ -103,6 +120,18 @@ class PerGoalMcpExportToolCallbackPublisherTest {
             "Should have $goalCount goal tools + $platformCount platform tools = ${goalCount + platformCount} total, " +
                 "but got ${callbacks.size}: ${callbacks.map { it.toolDefinition.name() }}"
         )
+    }
+
+    private fun fullyQualifiedAutonomy(): Autonomy {
+        val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
+        agentPlatform.deploy(remoteExportedAgent())
+        val platformServices = object : PlatformServices by agentPlatform.platformServices {
+            override fun toolNamingStrategy() = ToolNamingStrategy.FULLY_QUALIFIED
+        }
+        val namedPlatform = object : AgentPlatform by agentPlatform {
+            override val platformServices = platformServices
+        }
+        return Autonomy(namedPlatform, RandomRanker(), forAutonomyTesting())
     }
 
     companion object {

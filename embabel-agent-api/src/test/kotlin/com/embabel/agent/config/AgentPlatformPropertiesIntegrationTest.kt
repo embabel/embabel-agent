@@ -16,6 +16,7 @@
 package com.embabel.agent.config
 
 import com.embabel.agent.api.common.autonomy.AutonomyProperties
+import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import com.embabel.agent.spi.support.DefaultProcessIdGeneratorProperties
 import org.assertj.core.api.Assertions.assertThat
@@ -162,6 +163,7 @@ import org.springframework.test.context.TestPropertySource
         // New AgentPlatformProperties (var properties) - these should always work
         "embabel.agent.platform.name=test-platform",
         "embabel.agent.platform.description=Test Platform Description",
+        "embabel.agent.platform.tools.naming-strategy=fully-qualified",
         "embabel.agent.platform.scanning.annotation=false",
         "embabel.agent.platform.scanning.bean=true",
         "embabel.agent.platform.ranking.max-attempts=15",
@@ -219,6 +221,7 @@ class AgentPlatformPropertiesIntegrationTest {
     fun `should bind core platform properties correctly`() {
         assertThat(properties.name).isEqualTo("test-platform")
         assertThat(properties.description).isEqualTo("Test Platform Description")
+        assertThat(properties.tools.namingStrategy).isEqualTo(ToolNamingStrategy.FULLY_QUALIFIED)
     }
 
     @Test
@@ -319,6 +322,8 @@ class AgentPlatformPropertiesIntegrationTest {
         assertThat(defaultProperties.models.anthropic.maxAttempts).isEqualTo(10)
         assertThat(defaultProperties.models.openai.maxAttempts).isEqualTo(10)
         assertThat(defaultProperties.test.mockMode).isTrue()
+        assertThat(defaultProperties.tools.namingStrategy)
+            .isEqualTo(ToolNamingStrategy.LEGACY_NAME_ONLY)
     }
 
     // ===================================================================================

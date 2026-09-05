@@ -524,8 +524,10 @@ abstract class AbstractLlmOperations(
         messages: List<Message>,
         outputClass: Class<O>,
     ): Pair<List<Tool>, LlmRequestEvent<O>> {
-        val toolGroupResolver = agentProcess.processContext.platformServices.agentPlatform.toolGroupResolver
-        val allTools = interaction.resolveTools(toolGroupResolver)
+        val allTools = ToolNamingContext.resolvePublishedTools(
+            toolConsumer = interaction,
+            agentProcess = agentProcess,
+        )
         val llmRequestEvent = LlmRequestEvent(
             agentProcess = agentProcess,
             action = action,
