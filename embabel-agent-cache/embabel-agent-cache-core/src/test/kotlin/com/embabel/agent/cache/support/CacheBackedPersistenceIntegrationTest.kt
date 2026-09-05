@@ -64,7 +64,7 @@ import org.springframework.cache.concurrent.ConcurrentMapCacheManager
  * region and store. Only [AgentPlatform] is mocked, because it is a collaborator
  * of restore rather than anything under test here.
  */
-class CacheBackedPersistenceIT {
+class CacheBackedPersistenceIntegrationTest {
 
     private val objectMapperHolder = EmbabelObjectMapperHolder.createDefault()
 
@@ -83,7 +83,7 @@ class CacheBackedPersistenceIT {
 
     @Test
     fun `checkpoints a waiting process into the cache region`() {
-        val repository = nodeRepository(store())
+        val repository = persistentRepository(store())
 
         repository.save(waitingProcess("p1"))
 
@@ -104,10 +104,10 @@ class CacheBackedPersistenceIT {
         // The Kubernetes case #1965 describes: the pod owning the process is
         // scaled away while a human is still deciding.
         val original = waitingProcess("p1")
-        nodeRepository(store()).save(original)
+        persistentRepository(store()).save(original)
 
         // A fresh repository: its runtime store is empty, as on a different pod.
-        val survivingNode = nodeRepository(store())
+        val survivingNode = persistentRepository(store())
         val restored = survivingNode.findById("p1")
 
         assertNotNull(restored)
@@ -120,19 +120,19 @@ class CacheBackedPersistenceIT {
     fun `a lost process is unrecoverable without the shared cache`() {
         // Control for the test above: proves restore came from the cache and not
         // from anything the repositories share in memory.
-        nodeRepository(store()).save(waitingProcess("p1"))
+        persistentRepository(store()).save(waitingProcess("p1"))
 
         val isolatedProvider = SpringCacheAgentCacheProvider(ConcurrentMapCacheManager())
         val isolatedStore = CacheBackedAgentProcessSnapshotStore(
             isolatedProvider.getRegion(CacheRegionConfig(CacheRegions.AGENT_PROCESS_SNAPSHOTS))
         )
 
-        assertNull(nodeRepository(isolatedStore).findById("p1"))
+        assertNull(persistentRepository(isolatedStore).findById("p1"))
     }
 
     @Test
     fun `nothing is cached when persistence is disabled`() {
-        val repository = nodeRepository(
+        val repository = persistentRepository(
             store(),
             persistenceProperties = AgentProcessPersistenceProperties(enabled = false),
         )
@@ -161,7 +161,7 @@ class CacheBackedPersistenceIT {
 
     @Test
     fun `deleting a process clears it from the cache`() {
-        val repository = nodeRepository(store())
+        val repository = persistentRepository(store())
         val process = waitingProcess("p1")
         repository.save(process)
 
@@ -173,7 +173,7 @@ class CacheBackedPersistenceIT {
     /**
      * Build the repository exactly as the platform does, over the given store.
      */
-    private fun nodeRepository(
+    private fun persistentRepository(
         snapshotStore: AgentProcessSnapshotStore,
         persistenceProperties: AgentProcessPersistenceProperties = AgentProcessPersistenceProperties(),
     ): AgentProcessRepository =
