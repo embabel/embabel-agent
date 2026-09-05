@@ -301,6 +301,40 @@ class LlmRequestEvent<O>(
         )
     }
 
+    /**
+     * A failed attempt that is about to be retried.
+     * @param attempts round trips made to the model so far, including the one that just failed
+     */
+    fun retryEvent(
+        throwable: Throwable,
+        attempts: Int,
+        maxAttempts: Int,
+        runningTime: Duration,
+    ): LlmRetryEvent = LlmRetryEvent(
+        request = this,
+        throwable = throwable,
+        attempts = attempts,
+        maxAttempts = maxAttempts,
+        runningTime = runningTime,
+    )
+
+    /**
+     * The call as a whole failed, whether or not it was retried.
+     * @param attempts round trips made to the model before giving up
+     */
+    fun failureEvent(
+        throwable: Throwable,
+        attempts: Int,
+        maxAttempts: Int,
+        runningTime: Duration,
+    ): LlmCallFailedEvent = LlmCallFailedEvent(
+        request = this,
+        throwable = throwable,
+        attempts = attempts,
+        maxAttempts = maxAttempts,
+        runningTime = runningTime,
+    )
+
     override fun toString(): String {
         return "LlmRequestEvent(outputClass=$outputClass, interaction=$interaction, messages=$messages)"
     }
@@ -323,6 +357,52 @@ class LlmResponseEvent<O> internal constructor(
         return "LlmResponseEvent(outputClass=$outputClass, request=$request, response=$response, runningTime=$runningTime)"
     }
 }
+
+/**
+ * An LLM call attempt failed.
+ *
+ * [attempts] and [maxAttempts] both count the whole call, not one retry sequence within it.
+ * A call that binds and then re-prompts to fix a validation error runs two retry sequences,
+ * so it makes up to twice the configured attempts and both numbers say so.
+ *
+ * @param attempts round trips made to the model so far, including the one that failed
+ * @param maxAttempts round trips the retry policy allows this call
+ */
+sealed class LlmFailureEvent(
+    val request: LlmRequestEvent<*>,
+    val throwable: Throwable,
+    val attempts: Int,
+    val maxAttempts: Int,
+    override val runningTime: Duration,
+) : AbstractAgentProcessEvent(request.agentProcess), Timed {
+
+    override fun toString(): String =
+        "${javaClass.simpleName}(interaction=${request.interaction.id.value}, attempts=$attempts of $maxAttempts, throwable=$throwable)"
+}
+
+/**
+ * An attempt failed and another is about to be made.
+ * [runningTime] is that of the failed attempt.
+ */
+class LlmRetryEvent internal constructor(
+    request: LlmRequestEvent<*>,
+    throwable: Throwable,
+    attempts: Int,
+    maxAttempts: Int,
+    runningTime: Duration,
+) : LlmFailureEvent(request, throwable, attempts, maxAttempts, runningTime)
+
+/**
+ * The LLM call failed: attempts were exhausted, or the failure was not worth retrying.
+ * No [LlmResponseEvent] will follow. [runningTime] covers every attempt, as in [LlmResponseEvent].
+ */
+class LlmCallFailedEvent internal constructor(
+    request: LlmRequestEvent<*>,
+    throwable: Throwable,
+    attempts: Int,
+    maxAttempts: Int,
+    runningTime: Duration,
+) : LlmFailureEvent(request, throwable, attempts, maxAttempts, runningTime)
 
 /**
  * An object was bound to the process.

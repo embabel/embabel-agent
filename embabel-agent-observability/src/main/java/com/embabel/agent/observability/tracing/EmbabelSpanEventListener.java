@@ -34,7 +34,9 @@ import com.embabel.agent.api.event.EmbeddingEventListener;
 import com.embabel.agent.api.event.EmbeddingInvocationEvent;
 import com.embabel.agent.api.event.EmbeddingResponseEvent;
 import com.embabel.agent.api.event.GoalAchievedEvent;
+import com.embabel.agent.api.event.LlmFailureEvent;
 import com.embabel.agent.api.event.LlmInvocationEvent;
+import com.embabel.agent.api.event.LlmRetryEvent;
 import com.embabel.agent.api.event.ProcessKilledEvent;
 import com.embabel.agent.api.event.RankingChoiceCouldNotBeMadeEvent;
 import com.embabel.agent.api.event.RankingChoiceMadeEvent;
@@ -98,6 +100,11 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
             case LlmInvocationEvent e -> {
                 if (properties.isTraceLlmCalls()) {
                     recordLlmInvocation(e);
+                }
+            }
+            case LlmFailureEvent e -> {
+                if (properties.isTraceLlmCalls()) {
+                    recordLlmFailure(e);
                 }
             }
             case EmbeddingInvocationEvent e -> {
@@ -201,6 +208,37 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
                 .highCardinalityKeyValue(SpanAttributes.EMBABEL_INTERACTION_ID, event.getInteractionId());
         addUsageAndCost(observation, invocation.getUsage(), invocation.cost());
         emit(observation);
+    }
+
+    /**
+     * A failed LLM attempt, as a point span. Retries produce sibling {@code embabel.llm} spans that
+     * look alike, so the attempt number lives here; and a timeout leaves its {@code embabel.llm} span
+     * behind on the worker thread, so for that case this is the only node marking the failure.
+     */
+    private void recordLlmFailure(LlmFailureEvent event) {
+        boolean retrying = event instanceof LlmRetryEvent;
+        String model = event.getRequest().getLlmMetadata().getName();
+        Throwable error = event.getThrowable();
+        Observation observation = point(
+                retrying ? SpanAttributes.EMBABEL_LLM_RETRY : SpanAttributes.EMBABEL_LLM_ERROR,
+                (retrying ? "llm.retry " : "llm.error ") + model)
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_EVENT_TYPE, retrying ? "llm_retry" : "llm_error")
+                .lowCardinalityKeyValue(SpanAttributes.EMBABEL_LLM_MODEL, model)
+                // High, as the tool error path already classifies its own error type
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_LLM_ERROR_TYPE, error.getClass().getSimpleName())
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_INTERACTION_ID,
+                        event.getRequest().getInteraction().getId())
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_LLM_ATTEMPT, String.valueOf(event.getAttempts()))
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_LLM_MAX_ATTEMPTS,
+                        String.valueOf(event.getMaxAttempts()))
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_LLM_ERROR_MESSAGE, truncate(error.getMessage()));
+        // Pair start()/stop() so a throw from error() (e.g. a custom handler) can't leave the span open.
+        observation.start();
+        try {
+            observation.error(error);
+        } finally {
+            observation.stop();
+        }
     }
 
     private void recordEmbeddingInvocation(EmbeddingInvocationEvent event) {

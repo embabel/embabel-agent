@@ -672,6 +672,45 @@ class EmbabelMetricsEventListenerTest {
     }
 
     // ================================================================================
+    // LLM FAILURE COUNTER TESTS
+    // ================================================================================
+
+    @Nested
+    @DisplayName("LLM Failure Counter Tests")
+    class LlmFailureCounterTests {
+
+        @Test
+        @DisplayName("Retried LLM attempt should increment counter with retry outcome")
+        void llmRetry_shouldIncrementCounterWithRetryOutcome() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "LlmAgent");
+
+            listener.onProcessEvent(createMockLlmFailureEvent(LlmRetryEvent.class, process, "gpt-4"));
+
+            Counter counter = registry.find("embabel.llm.errors.total")
+                    .tag("model", "gpt-4").tag("agent", "LlmAgent").tag("outcome", "retry").counter();
+            assertThat(counter).isNotNull();
+            assertThat(counter.count()).isEqualTo(1.0);
+        }
+
+        @Test
+        @DisplayName("Failed LLM call should increment counter with failed outcome")
+        void llmCallFailed_shouldIncrementCounterWithFailedOutcome() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "LlmAgent");
+
+            listener.onProcessEvent(createMockLlmFailureEvent(LlmCallFailedEvent.class, process, "gpt-4"));
+
+            Counter counter = registry.find("embabel.llm.errors.total")
+                    .tag("model", "gpt-4").tag("agent", "LlmAgent").tag("outcome", "failed").counter();
+            assertThat(counter).isNotNull();
+            assertThat(counter.count()).isEqualTo(1.0);
+        }
+    }
+
+    // ================================================================================
     // METRICS DISABLED TESTS
     // ================================================================================
 
@@ -760,6 +799,15 @@ class EmbabelMetricsEventListenerTest {
         var request = createMockLlmRequestEvent(process, modelName);
         lenient().when(event.getRequest()).thenReturn(request);
         lenient().when(event.getRunningTime()).thenReturn(runningTime);
+        lenient().when(event.getAgentProcess()).thenReturn(process);
+        return event;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static <E extends LlmFailureEvent> E createMockLlmFailureEvent(Class<E> type, AgentProcess process, String modelName) {
+        E event = mock(type);
+        LlmRequestEvent request = createMockLlmRequestEvent(process, modelName);
+        lenient().when(event.getRequest()).thenReturn(request);
         lenient().when(event.getAgentProcess()).thenReturn(process);
         return event;
     }

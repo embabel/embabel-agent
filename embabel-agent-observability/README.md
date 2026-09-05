@@ -204,6 +204,7 @@ Your agents are now fully traced. No code changes required.
 | **Sub-agent Hierarchy** | Proper parent-child span relationships for sub-agents |
 | **Action Tracing** | Each action execution as a child span with duration, status, and `input.value`/`output.value` |
 | **LLM Call Spans** | A span per LLM interaction (`embabel.llm`) with model, operation, agent and action; plus an `embabel.llm.invocation` span per model round-trip carrying token usage and cost |
+| **LLM Failure Spans** | An `embabel.llm.retry` point span per replayed attempt and an `embabel.llm.error` point span when the call gives up, both with model, error type/message and `embabel.llm.attempt` / `embabel.llm.max_attempts`. Those two count round trips over the whole call, so a call that re-prompts to fix a validation error can exceed the configured `max-attempts`. A timed-out call leaves its `embabel.llm` span on the worker thread, so these are the nodes that mark the failure |
 | **Embedding Spans** | An `embabel.embedding` span per embedding invocation with model and token usage/cost — for in-agent embeddings and for **standalone** calls made outside an agent process (RAG/pgvector), which appear as root spans |
 | **Tool Loop Tracing** | An `embabel.tool_loop` span wrapping the tool loop (with the prompt `input.value` and result `output.value`), plus an `embabel.tool_loop.completed` point span with iteration count and replan flag |
 | **Input / Output Capture** | Agent, action and tool-loop spans carry `input.value`/`output.value` (OpenInference keys, rendered in Langfuse's input/output panels), truncated to `max-attribute-length` |
@@ -271,7 +272,7 @@ Your agents are now fully traced. No code changes required.
 | `embabel.agent.platform.observability.trace-tool-calls` | `true` | Trace tool invocations (`embabel.tool` span) |
 | `embabel.agent.platform.observability.trace-tool-loop` | `true` | Trace tool loop execution (`embabel.tool_loop` scoped span + `embabel.tool_loop.completed` point span) |
 | `embabel.agent.platform.observability.trace-tool-loop-completed` | `true` | Emit the `embabel.tool_loop.completed` point span (loop outcome: iterations, replan flag, duration). Set `false` to keep the scoped `embabel.tool_loop` span but drop the extra completion node. No effect when `trace-tool-loop` is `false` |
-| `embabel.agent.platform.observability.trace-llm-calls` | `true` | Trace LLM calls: the `embabel.llm` scoped span **and** the `embabel.llm.invocation` point span (model, tokens, cost), plus the Spring AI ChatModel filter |
+| `embabel.agent.platform.observability.trace-llm-calls` | `true` | Trace LLM calls: the `embabel.llm` scoped span **and** the `embabel.llm.invocation` point span (model, tokens, cost) and the `embabel.llm.retry` / `embabel.llm.error` failure point spans, plus the Spring AI ChatModel filter |
 | `embabel.agent.platform.observability.trace-embedding` | `true` | Trace embedding invocations (`embabel.embedding` span: model, tokens, cost) |
 | `embabel.agent.platform.observability.trace-planning` | `true` | Trace plan formulation (`embabel.planning`) and replan requests (`embabel.replan`) |
 | `embabel.agent.platform.observability.trace-state-transitions` | `true` | Trace state transitions (`embabel.state_transition` span) |
@@ -619,6 +620,7 @@ When a `MeterRegistry` is available (e.g. via `micrometer-registry-prometheus`),
 | `embabel.agent.stuck.total` | Counter | `agent` | Agent stuck events (unable to plan) |
 | `embabel.llm.requests.total` | Counter | `agent`, `model` | Total LLM requests |
 | `embabel.llm.duration` | Timer | `model`, `agent` | LLM call duration |
+| `embabel.llm.errors.total` | Counter | `model`, `agent`, `outcome` (retry/failed) | Failed LLM attempts: `retry` for an attempt the retry policy replayed, `failed` for the one that ended the call |
 | `embabel.llm.tokens.total` | Counter | `agent`, `direction` (input/output) | LLM tokens consumed |
 | `embabel.llm.cost.total` | Counter | `agent` | Estimated LLM cost in USD |
 | `embabel.tool.calls.total` | Counter | `tool`, `agent` | Total tool calls |

@@ -50,6 +50,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>{@code embabel.agent.active_duration} (timer) — agent process active duration (sum of action running times, excludes idle/wait time), tagged by {@code agent} and {@code status}</li>
  *   <li>{@code embabel.llm.requests.total} (counter) — LLM requests, tagged by {@code agent} and {@code model}</li>
  *   <li>{@code embabel.llm.duration} (timer) — LLM call duration, tagged by {@code model} and {@code agent}</li>
+ *   <li>{@code embabel.llm.errors.total} (counter) — failed LLM attempts, tagged by {@code model}, {@code agent} and {@code outcome} (retry or failed)</li>
  *   <li>{@code embabel.tool.duration} (timer) — tool call duration, tagged by {@code tool} and {@code agent}</li>
  *   <li>{@code embabel.tool.calls.total} (counter) — tool calls, tagged by {@code tool} and {@code agent}</li>
  *   <li>{@code embabel.agent.stuck.total} (counter) — agent stuck events, tagged by {@code agent}</li>
@@ -131,6 +132,7 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
             }
             case LlmRequestEvent e -> recordLlmRequest(e);
             case LlmResponseEvent e -> recordLlmDuration(e);
+            case LlmFailureEvent e -> recordLlmFailure(e);
             // WAITING/PAUSED/STUCK are NON-terminal: the process can resume via run() on the same
             // instance without re-emitting AgentProcessCreationEvent (the normal human-in-the-loop
             // case). Keep its id in the active set; only terminal events above remove it.
@@ -264,6 +266,21 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
                 .tag("agent", event.getAgentProcess().getAgent().getName())
                 .register(registry)
                 .record(event.getRunningTime());
+    }
+
+    /**
+     * Counts every failed LLM attempt. The {@code outcome} tag separates the attempts the retry
+     * policy replayed from the one that ended the call, so a noisy model shows up as retries
+     * long before it shows up as an agent failure.
+     */
+    private void recordLlmFailure(LlmFailureEvent event) {
+        Counter.builder("embabel.llm.errors.total")
+                .description("Failed LLM attempts")
+                .tag("model", event.getRequest().getLlmMetadata().getName())
+                .tag("agent", event.getAgentProcess().getAgent().getName())
+                .tag("outcome", event instanceof LlmRetryEvent ? "retry" : "failed")
+                .register(registry)
+                .increment();
     }
 
     private void recordToolCall(ToolCallRequestEvent event) {
