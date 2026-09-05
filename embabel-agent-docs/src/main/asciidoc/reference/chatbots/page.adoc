@@ -263,8 +263,43 @@ val trackedAssets = conversation.assetTracker.assets
 Use conversation-level tracking when:
 
 - Assets are created by tools or external processes
-- Assets should persist across multiple messages
+- Assets should remain available across multiple messages in a live conversation
 - You want explicit control over what's tracked
+
+Tracking an asset does not by itself make its content durable.
+An asset whose content is held in a temporary file or sandbox must be materialized before that location is removed.
+
+===== Durable Asset Content
+
+`MaterializableAsset` identifies an asset whose content can be copied to durable storage.
+An `AssetStore` performs that copy and returns a `DurableAsset` containing portable metadata and an opaque storage URI:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+Tool durableTool = conversation.getAssetTracker()
+    .addDurablyReturnedAssets(generatingTool, assetStore);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val durableTool = conversation.assetTracker
+    .addDurablyReturnedAssets(generatingTool, assetStore)
+----
+====
+
+When the wrapped tool returns a `MaterializableAsset`, the store copies its content before the durable result is added to the tracker.
+The store must complete that copy before the original location expires.
+`storageUri` is interpreted only by the `AssetStore` that created it, allowing implementations to use a filesystem, object storage, or another blob store.
+Conversation persistence should store the `DurableAsset` metadata and use the configured store to resolve its content after reloading.
+
+NOTE: Embabel defines the storage contract but does not select a retention policy.
+Applications and `AssetStore` implementations remain responsible for deciding when durable content can be deleted.
 
 ===== Message-Level Assets
 
