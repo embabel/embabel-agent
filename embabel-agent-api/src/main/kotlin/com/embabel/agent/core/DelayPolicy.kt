@@ -37,7 +37,8 @@ sealed interface DelayPolicy {
     @get:JsonValue
     val millis: Long
 
-    val duration: Duration get() = Duration.ofMillis(millis)
+    // Inherit.millis is -1; treat it as 0ms so Thread.sleep does not throw
+    val duration: Duration get() = Duration.ofMillis(millis.coerceAtLeast(0))
 
     /**
      * Sentinel meaning "not set / inherit from the enclosing agent scope".

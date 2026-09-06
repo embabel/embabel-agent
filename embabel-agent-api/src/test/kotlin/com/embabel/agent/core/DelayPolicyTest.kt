@@ -33,6 +33,11 @@ class DelayPolicyTest {
             assertEquals(-1L, DelayPolicy.Inherit.millis)
         }
 
+        @Test
+        fun `Inherit policy duration is zero so Thread sleep does not throw`() {
+            assertEquals(Duration.ZERO, DelayPolicy.Inherit.duration)
+        }
+
     }
 
     @Nested
