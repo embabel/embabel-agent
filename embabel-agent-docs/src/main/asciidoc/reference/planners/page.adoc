@@ -477,7 +477,7 @@ The Hybrid planner combines Utility AI's value-based action picking with goal-sa
 
 GOAP minimises path cost to the goal; it skips opportunistic actions that aren't on the cheapest plan, so research never fires. Pure Utility AI is greedy single-step; when paired with a satisfiable terminal goal it gives up at step 1 if no single action reaches the goal. Pure Utility AI paired with `NIRVANA` iterates beautifully but never terminates — it keeps picking actions even after your real goal is satisfied, burning compute on the way to nowhere.
 
-Hybrid is the missing middle. It picks the highest-netValue achievable action each tick (so research happens) *and* checks "is the goal already satisfied?" **before** selecting an action (so termination is clean once a real goal is reached).
+Hybrid is the messy middle. It picks the highest-netValue achievable action each tick (so research happens) *and* checks "is the goal already satisfied?" **before** selecting an action (so termination is clean once a real goal is reached).
 
 ===== The Two-Goal Pattern
 

@@ -36,7 +36,7 @@ import com.embabel.plan.common.condition.WorldStateDeterminer
  * critical path. Pure [UtilityPlanner] picks by value but, on a
  * real (satisfiable) goal, gives up at step 1 if no single action
  * reaches the goal; on `NIRVANA` it iterates forever, even past
- * goal satisfaction. This planner is the missing middle.
+ * goal satisfaction. This planner is the messy middle.
  *
  * **How it works.** Register two goals on the agent:
  *  - The real terminal goal (e.g. `attention-candidate-produced`).
