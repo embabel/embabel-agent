@@ -28,7 +28,9 @@ content chunks. Integrations that participate in Embabel's streaming tool loop o
 `streamInference` to expose the assembled assistant message and tool calls.
 
 Content from every inference turn remains in the returned stream. This includes thinking content
-emitted before or between tool calls. Because the tool set is evaluated between turns,
+emitted before or between tool calls. When a turn that requests a tool ends without a newline,
+Embabel emits a newline before the next turn so that structured streaming does not combine content
+from separate inference turns into one JSONL or thinking line. Because the tool set is evaluated between turns,
 `ToolInjectionStrategy` implementations such as `UnfoldingToolInjectionStrategy` can replace a
 facade with its child tools before the next request.
 
@@ -36,6 +38,10 @@ Provider integrations override `LlmMessageStreamer.streamInference` by emitting 
 `LlmInferenceStreamEvent.Content` events followed by one `LlmInferenceStreamEvent.Complete` event containing
 the assembled assistant message. The completed message must include provider-assigned tool-call IDs,
 names, and complete arguments. Provider adapters must not execute those calls themselves.
+
+Providers that identify native reasoning separately emit `LlmInferenceStreamEvent.Thinking` events.
+Embabel retains that distinction across tool turns while preserving the original raw-text streaming
+contract for callers of `generateStream()`.
 
 ==== Example - Simple Thinking and Object Streaming with Callbacks
 [source,java]
