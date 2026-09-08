@@ -26,6 +26,7 @@ import com.embabel.agent.api.event.AgentProcessPausedEvent;
 import com.embabel.agent.api.event.AgentProcessPlanFormulatedEvent;
 import com.embabel.agent.api.event.AgentProcessReadyToPlanEvent;
 import com.embabel.agent.api.event.AgentProcessStuckEvent;
+import com.embabel.agent.api.event.AgentProcessTerminatedEvent;
 import com.embabel.agent.api.event.AgentProcessWaitingEvent;
 import com.embabel.agent.api.event.AgenticEventListener;
 import com.embabel.agent.api.event.DynamicAgentCreationEvent;
@@ -157,6 +158,10 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
                 recordLifecycle(e);
             }
             case AgentProcessFailedEvent e -> {
+                planIterations.remove(e.getAgentProcess().getId());
+                recordLifecycle(e);
+            }
+            case AgentProcessTerminatedEvent e -> {
                 planIterations.remove(e.getAgentProcess().getId());
                 recordLifecycle(e);
             }

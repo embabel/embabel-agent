@@ -18,21 +18,18 @@ package com.embabel.agent.core.support
 import com.embabel.agent.api.annotation.AchievesGoal
 import com.embabel.agent.api.annotation.Action
 import com.embabel.agent.api.annotation.support.AgentMetadataReader
-import com.embabel.agent.api.common.StuckHandler
 import com.embabel.agent.api.common.PlatformServices
-import com.embabel.agent.api.event.ActionExecutionStartEvent
-import com.embabel.agent.api.event.AgentProcessTerminatedEvent
-import com.embabel.agent.api.tool.TerminateAgentException
-import com.embabel.agent.spi.DelayedActionExecutionSchedule
-import com.embabel.agent.spi.OperationScheduler
-import java.time.Duration
+import com.embabel.agent.api.common.StuckHandler
 import com.embabel.agent.api.common.StuckHandlerResult
 import com.embabel.agent.api.common.StuckHandlingResultCode
 import com.embabel.agent.api.dsl.Frog
 import com.embabel.agent.api.dsl.agent
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
+import com.embabel.agent.api.event.ActionExecutionStartEvent
+import com.embabel.agent.api.event.AgentProcessTerminatedEvent
 import com.embabel.agent.api.event.ObjectAddedEvent
 import com.embabel.agent.api.event.ObjectBoundEvent
+import com.embabel.agent.api.tool.TerminateAgentException
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.AgentProcessStatusCode
@@ -42,6 +39,8 @@ import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.agent.core.hitl.confirm
 import com.embabel.agent.core.hitl.waitFor
 import com.embabel.agent.domain.io.UserInput
+import com.embabel.agent.spi.DelayedActionExecutionSchedule
+import com.embabel.agent.spi.OperationScheduler
 import com.embabel.agent.spi.support.DefaultPlannerFactory
 import com.embabel.agent.support.Dog
 import com.embabel.agent.support.SimpleTestAgent
@@ -53,6 +52,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import java.time.Duration
 
 @com.embabel.agent.api.annotation.Agent(
     description = "waiting agent",

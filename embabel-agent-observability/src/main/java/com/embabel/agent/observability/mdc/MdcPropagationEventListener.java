@@ -76,6 +76,7 @@ public class MdcPropagationEventListener implements AgenticEventListener {
             case ActionExecutionResultEvent e -> MDC.remove(MDC_ACTION_NAME);
             case AgentProcessCompletedEvent e -> clearAll();
             case AgentProcessFailedEvent e -> clearAll();
+            case AgentProcessTerminatedEvent e -> clearAll();
             case ProcessKilledEvent e -> clearAll();
             default -> { }
         }

@@ -122,8 +122,14 @@ abstract class AbstractAgentProcess(
             AgentProcessStatusCode.PAUSED -> {
                 // No guaranteed next tick - set status immediately
                 logger.info("Terminating process {} (was {}): {}", id, status, reason)
-                setStatus(AgentProcessStatusCode.TERMINATED)
-                platformServices.agentProcessRepository.update(this)
+                val transitioned = setStatus(AgentProcessStatusCode.TERMINATED)
+                if (!processOptions.ephemeral) {
+                    platformServices.agentProcessRepository.update(this)
+                }
+                if (transitioned) {
+                    platformServices.eventListener.onProcessEvent(AgentProcessTerminatedEvent(this))
+                }
+                Unit
             }
         }
     }
@@ -262,12 +268,8 @@ abstract class AbstractAgentProcess(
     override val toolsStats: ToolsStats
         get() = agenticEventListenerToolsStats
 
-    protected fun setStatus(status: AgentProcessStatusCode) {
-        val previousStatus = _status.getAndSet(status)
-        if (status == AgentProcessStatusCode.TERMINATED && previousStatus != status) {
-            platformServices.eventListener.onProcessEvent(AgentProcessTerminatedEvent(this))
-        }
-    }
+    protected fun setStatus(status: AgentProcessStatusCode): Boolean =
+        _status.getAndSet(status) != status
 
     override fun kill(): ProcessKilledEvent? {
         // Kill child processes first (recursive)
@@ -364,6 +366,10 @@ abstract class AbstractAgentProcess(
         while (status == AgentProcessStatusCode.RUNNING) {
             val earlyTermination = identifyEarlyTermination()
             if (earlyTermination != null) {
+                if (!processOptions.ephemeral) {
+                    platformServices.agentProcessRepository.update(this)
+                }
+                platformServices.eventListener.onProcessEvent(AgentProcessTerminatedEvent(this))
                 return this
             }
             tick()
@@ -513,9 +519,15 @@ abstract class AbstractAgentProcess(
         )
 
         // Let subclasses handle the planning and execution
+        val previousStatus = status
         return formulateAndExecutePlan(worldState)
             .apply {
                 platformServices.agentProcessRepository.update(this)
+                if (previousStatus != AgentProcessStatusCode.TERMINATED &&
+                    status == AgentProcessStatusCode.TERMINATED
+                ) {
+                    platformServices.eventListener.onProcessEvent(AgentProcessTerminatedEvent(this))
+                }
             }
     }
 

@@ -21,6 +21,7 @@ import com.embabel.agent.api.event.AgentProcessPausedEvent;
 import com.embabel.agent.api.event.AgentProcessPlanFormulatedEvent;
 import com.embabel.agent.api.event.AgentProcessReadyToPlanEvent;
 import com.embabel.agent.api.event.AgentProcessStuckEvent;
+import com.embabel.agent.api.event.AgentProcessTerminatedEvent;
 import com.embabel.agent.api.event.AgentProcessWaitingEvent;
 import com.embabel.agent.api.event.ProcessKilledEvent;
 import com.embabel.agent.api.event.DynamicAgentCreationEvent;
@@ -934,6 +935,16 @@ class EmbabelSpanEventListenerTest {
 
             Map<String, String> kv = kvOf("embabel.lifecycle");
             assertEquals("FAILED", kv.get("embabel.lifecycle.state"));
+        }
+
+        @Test
+        @DisplayName("terminated run becomes a lifecycle span carrying TERMINATED")
+        void terminatedLifecycleSpan() {
+            listener().onProcessEvent(
+                    new AgentProcessTerminatedEvent(processWithStatus("run-1", AgentProcessStatusCode.TERMINATED)));
+
+            Map<String, String> kv = kvOf("embabel.lifecycle");
+            assertEquals("TERMINATED", kv.get("embabel.lifecycle.state"));
         }
 
         @Test
