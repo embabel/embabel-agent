@@ -85,6 +85,10 @@ internal object VictoolsSchemaGenerator {
         }
 
         rootNode.set("properties", propertiesNode)
+        // The argument list is closed — see the note in SimpleInputSchema.buildSchemaMap, which
+        // builds the same envelope and must agree with this one. Only the envelope: the
+        // per-parameter schemas from generateSchemaForType describe values, not arguments.
+        rootNode.put("additionalProperties", false)
 
         if (requiredList.isNotEmpty()) {
             val requiredArray = objectMapper.createArrayNode()

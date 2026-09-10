@@ -253,7 +253,20 @@ class ToolTest {
 
             val json = schema.toJsonSchema()
 
-            assertEquals("""{"type":"object","properties":{}}""", json)
+            assertEquals("""{"type":"object","properties":{},"additionalProperties":false}""", json)
+        }
+
+        @Test
+        fun `the argument list is closed, so a wrong parameter name can be named as one`() {
+            val schema = Tool.InputSchema.of(
+                Tool.Parameter("cypher", Tool.ParameterType.STRING, "Read-only Cypher"),
+            )
+
+            val json = schema.toJsonSchema()
+
+            // Without this a caller passing `query` for `cypher` is told only "required property
+            // 'cypher' not found" — accurate, and silent about the mistake it actually made.
+            assertTrue(json.contains("\"additionalProperties\":false"), json)
         }
 
         @Test
