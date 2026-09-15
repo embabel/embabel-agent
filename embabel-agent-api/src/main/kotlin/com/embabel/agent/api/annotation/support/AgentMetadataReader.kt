@@ -148,7 +148,7 @@ class AgentMetadataReader(
         val targetType = agenticInfo.getTargetType()
 
         if (!agenticInfo.agentic()) {
-            logger.warn(
+            logger.debug(
                 "No @{} or @{} annotation found on {}",
                 EmbabelComponent::class.simpleName,
                 Agent::class.simpleName,
