@@ -70,6 +70,15 @@ class OpenAiCompatibleModelFactoryByokIT {
     }
 
     @Test
+    @EnabledIfEnvironmentVariable(named = "ORCAROUTER_API_KEY", matches = ".+")
+    fun `orcaRouter buildValidated succeeds with valid key`() {
+        val service = OpenAiCompatibleModelFactory.orcaRouter(System.getenv("ORCAROUTER_API_KEY"))
+            .buildValidated()
+        assertNotNull(service)
+        assertEquals("OrcaRouter", service.provider)
+    }
+
+    @Test
     @EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+")
     fun `openAiEmbedding buildValidated succeeds with valid key`() {
         val service = OpenAiCompatibleModelFactory

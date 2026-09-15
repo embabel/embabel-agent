@@ -158,6 +158,7 @@ class OpenAiCompatibleModelFactoryBuildValidatedTest {
             OpenAiCompatibleModelFactory.mistral("\t"),
             OpenAiCompatibleModelFactory.gemini(" "),
             OpenAiCompatibleModelFactory.atlasCloud("\n"),
+            OpenAiCompatibleModelFactory.orcaRouter(" \t "),
         ).forEach { spec ->
             val e = assertThrows<InvalidApiKeyException> { spec.buildValidated() }
             assertEquals(BLANK_API_KEY_MESSAGE, e.message)

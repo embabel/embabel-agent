@@ -506,6 +506,62 @@ dependencies {
 ----
 ====
 
+===== OrcaRouter
+
+Uses the OpenAI-compatible gateway endpoint for OrcaRouter models.
+
+* Required:
+- `ORCAROUTER_API_KEY`: API key for OrcaRouter services
+* Optional:
+- `ORCAROUTER_BASE_URL`: base URL for OrcaRouter API (default: `https://api.orcarouter.ai/v1`)
+
+Alternatively, configure via `application.yml`:
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        orcarouter:
+          api-key: ${ORCAROUTER_API_KEY:sk-orca-dev-key}
+          base-url: ${ORCAROUTER_BASE_URL:}
+----
+
+You also need to add the `embabel-agent-starter-orcarouter` starter.
+
+Add this to your build system as follows:
+[tabs]
+====
+Maven (pom.xml)::
++
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-orcarouter</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+----
+Gradle Kotlin DSL (build.gradle.kts)::
++
+[source,kotlin]
+----
+dependencies {
+    implementation("com.embabel.agent:embabel-agent-starter-orcarouter:${embabel-agent.version}")
+}
+----
+
+Gradle Groovy DSL (build.gradle)::
++
+[source,groovy]
+----
+dependencies {
+    implementation 'com.embabel.agent:embabel-agent-starter-orcarouter:${embabel-agent.version}'
+}
+----
+====
+
 ===== Google Gemini (OpenAI Compatible)
 
 Uses the OpenAI-compatible endpoint for Gemini models.

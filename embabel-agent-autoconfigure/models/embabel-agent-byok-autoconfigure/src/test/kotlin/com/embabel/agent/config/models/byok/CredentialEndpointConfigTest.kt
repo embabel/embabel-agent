@@ -22,6 +22,7 @@ import com.embabel.agent.api.models.DeepSeekModels
 import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.api.models.MistralAiModels
 import com.embabel.agent.api.models.OpenAiModels
+import com.embabel.agent.api.models.OrcaRouterModels
 import com.embabel.agent.autoconfigure.models.byok.AgentByokAutoConfiguration
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.spi.LlmService
@@ -163,6 +164,7 @@ class CredentialEndpointConfigTest {
             MistralAiModels.PROVIDER to MistralAiModels.MINISTRAL_8B,
             GoogleGenAiModels.PROVIDER to GoogleGenAiModels.GEMINI_2_5_FLASH,
             AtlasCloudModels.PROVIDER to AtlasCloudModels.QWEN3_5_FLASH,
+            OrcaRouterModels.PROVIDER to OrcaRouterModels.AUTO,
         )
         contextRunner.run { context ->
             val factories = factoriesIn(context)

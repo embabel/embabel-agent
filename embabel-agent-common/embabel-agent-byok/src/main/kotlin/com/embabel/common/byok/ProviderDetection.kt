@@ -32,6 +32,7 @@ import java.util.concurrent.Executors
  *     OpenAiCompatibleModelFactory.mistral(userKey),
  *     OpenAiCompatibleModelFactory.gemini(userKey),
  *     OpenAiCompatibleModelFactory.atlasCloud(userKey),
+ *     OpenAiCompatibleModelFactory.orcaRouter(userKey),
  * )
  * val detectedProvider = service.provider
  * ```
