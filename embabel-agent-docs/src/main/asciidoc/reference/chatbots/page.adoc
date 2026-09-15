@@ -263,8 +263,54 @@ val trackedAssets = conversation.assetTracker.assets
 Use conversation-level tracking when:
 
 - Assets are created by tools or external processes
-- Assets should persist across multiple messages
+- Assets should remain available across multiple messages in a live conversation
 - You want explicit control over what's tracked
+
+Tracking an asset does not by itself make its content durable.
+An asset whose content is held in a temporary file or sandbox must be materialized before that location is removed.
+
+===== Durable Asset Content
+
+`MaterializableAsset` identifies an asset whose content can be copied to durable storage.
+An `AssetStore` performs that copy, calculates the content size and SHA-256 hash, and returns a `DurableAsset` containing portable metadata and an opaque storage URI.
+The built-in `FileSystemAssetStore` provides durable local storage; applications can implement `AssetStore` for object storage, databases, or other backends:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+Tool durableTool = conversation.getAssetTracker()
+    .addDurablyReturnedAssets(
+        generatingTool,
+        new FileSystemAssetStore(Path.of("/var/lib/my-application/assets"))
+    );
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val durableTool = conversation.assetTracker
+    .addDurablyReturnedAssets(
+        generatingTool,
+        FileSystemAssetStore(Path.of("/var/lib/my-application/assets"))
+    )
+----
+====
+
+The three responsibilities are separate:
+
+- `AssetTracker` keeps assets available to a live conversation.
+- `AssetStore` owns the content after the process or temporary source that created it is gone.
+- Conversation persistence stores `DurableAsset` metadata with messages so those references survive a reload.
+
+When the wrapped tool returns a `MaterializableAsset`, the store completes the copy before the durable result is added to the tracker.
+`storageUri` is interpreted only by the `AssetStore` that created it, allowing implementations to use a filesystem, object storage, or another blob store.
+Conversation persistence should store the `DurableAsset` metadata and use the configured store to resolve its content after reloading.
+
+NOTE: Applications remain responsible for selecting the storage root or providing another `AssetStore`, and for deciding when durable content can be deleted.
 
 ===== Message-Level Assets
 
