@@ -19,6 +19,13 @@ import com.embabel.agent.api.annotation.AchievesGoal
 import com.embabel.agent.api.annotation.Action
 import com.embabel.agent.api.annotation.support.AgentMetadataReader
 import com.embabel.agent.api.common.StuckHandler
+import com.embabel.agent.api.common.PlatformServices
+import com.embabel.agent.api.event.ActionExecutionStartEvent
+import com.embabel.agent.api.event.AgentProcessTerminatedEvent
+import com.embabel.agent.api.tool.TerminateAgentException
+import com.embabel.agent.spi.DelayedActionExecutionSchedule
+import com.embabel.agent.spi.OperationScheduler
+import java.time.Duration
 import com.embabel.agent.api.common.StuckHandlerResult
 import com.embabel.agent.api.common.StuckHandlingResultCode
 import com.embabel.agent.api.dsl.Frog
@@ -496,6 +503,60 @@ class SimpleAgentProcessTest {
 
     @Nested
     inner class TerminateAgent {
+
+        @Test
+        fun `interrupted action delay remains TERMINATED and emits one termination event`() {
+            val listener = EventSavingAgenticEventListener()
+            val services = object : PlatformServices by dummyPlatformServices(eventListener = listener) {
+                override val operationScheduler = object : OperationScheduler by OperationScheduler.PRONTO {
+                    override fun scheduleAction(actionExecutionStartEvent: ActionExecutionStartEvent): DelayedActionExecutionSchedule {
+                        assertEquals(AgentProcessStatusCode.RUNNING, actionExecutionStartEvent.agentProcess.status)
+                        Thread.currentThread().interrupt()
+                        return DelayedActionExecutionSchedule(Duration.ofMillis(1))
+                    }
+                }
+            }
+            val process = SimpleAgentProcess(
+                id = "interrupted-delay",
+                agent = DslWaitingAgent,
+                processOptions = ProcessOptions(),
+                blackboard = InMemoryBlackboard().also { it += UserInput("Rod") },
+                platformServices = services,
+                plannerFactory = DefaultPlannerFactory,
+                parentId = null,
+            )
+            try {
+                assertEquals(AgentProcessStatusCode.TERMINATED, process.run().status)
+                assertTrue(Thread.currentThread().isInterrupted)
+                assertEquals(1, listener.processEvents.filterIsInstance<AgentProcessTerminatedEvent>().size)
+            } finally {
+                Thread.interrupted()
+            }
+        }
+
+        @Test
+        fun `action requested termination emits one termination event`() {
+            val listener = EventSavingAgenticEventListener()
+            val terminatingAgent = agent("terminating", description = "Terminates from an action") {
+                transformation<UserInput, Frog>(name = "stop") {
+                    throw TerminateAgentException("stop now")
+                }
+                goal(name = "done", description = "done", satisfiedBy = Frog::class)
+            }
+            val process = SimpleAgentProcess(
+                id = "action-termination",
+                agent = terminatingAgent,
+                processOptions = ProcessOptions(),
+                blackboard = InMemoryBlackboard().also { it += UserInput("Rod") },
+                platformServices = dummyPlatformServices(eventListener = listener),
+                plannerFactory = DefaultPlannerFactory,
+                parentId = null,
+            )
+
+            assertEquals(AgentProcessStatusCode.TERMINATED, process.run().status)
+            process.terminateAgent("repeat")
+            assertEquals(1, listener.processEvents.filterIsInstance<AgentProcessTerminatedEvent>().size)
+        }
 
         /**
          * Test subclass that exposes setStatus for testing different status scenarios.

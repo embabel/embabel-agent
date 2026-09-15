@@ -123,6 +123,7 @@ abstract class AbstractAgentProcess(
                 // No guaranteed next tick - set status immediately
                 logger.info("Terminating process {} (was {}): {}", id, status, reason)
                 setStatus(AgentProcessStatusCode.TERMINATED)
+                platformServices.agentProcessRepository.update(this)
             }
         }
     }
@@ -262,7 +263,10 @@ abstract class AbstractAgentProcess(
         get() = agenticEventListenerToolsStats
 
     protected fun setStatus(status: AgentProcessStatusCode) {
-        _status.set(status)
+        val previousStatus = _status.getAndSet(status)
+        if (status == AgentProcessStatusCode.TERMINATED && previousStatus != status) {
+            platformServices.eventListener.onProcessEvent(AgentProcessTerminatedEvent(this))
+        }
     }
 
     override fun kill(): ProcessKilledEvent? {
@@ -571,10 +575,9 @@ abstract class AbstractAgentProcess(
                     Thread.sleep(actionExecutionSchedule.delay.toMillis())
                 } catch (_: InterruptedException) {
                     Thread.currentThread().interrupt()
-                    _status.set(AgentProcessStatusCode.TERMINATED)
                     return ActionStatus(
                         runningTime = Duration.between(actionExecutionStartEvent.timestamp, Instant.now()),
-                        status = ActionStatusCode.FAILED,
+                        status = ActionStatusCode.AGENT_TERMINATED,
                     )
                 }
                 logger.debug("Process {} delayed action {}: done", id, action.name)

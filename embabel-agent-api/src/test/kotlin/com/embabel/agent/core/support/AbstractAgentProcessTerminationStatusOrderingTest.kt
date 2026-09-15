@@ -17,6 +17,7 @@ package com.embabel.agent.core.support
 
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.event.AgentProcessEvent
+import com.embabel.agent.api.event.AgentProcessTerminatedEvent
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.AgentProcessStatusCode
@@ -41,7 +42,11 @@ class AbstractAgentProcessTerminationStatusOrderingTest {
     /** Captures the process status as observed by a listener at event-delivery time. */
     private class StatusCapturingListener : AgenticEventListener {
         var statusAtDelivery: AgentProcessStatusCode? = null
+        val terminationStatuses = mutableListOf<AgentProcessStatusCode>()
         override fun onProcessEvent(event: AgentProcessEvent) {
+            if (event is AgentProcessTerminatedEvent) {
+                terminationStatuses += event.agentProcess.status
+            }
             if (event is EarlyTermination) {
                 statusAtDelivery = event.agentProcess.status
             }
@@ -75,6 +80,7 @@ class AbstractAgentProcessTerminationStatusOrderingTest {
         process.terminateAgent("stop now")
         process.runIdentifyEarlyTermination()
 
+        assertEquals(listOf(AgentProcessStatusCode.TERMINATED), listener.terminationStatuses)
         assertEquals(
             AgentProcessStatusCode.TERMINATED,
             listener.statusAtDelivery,
@@ -97,6 +103,7 @@ class AbstractAgentProcessTerminationStatusOrderingTest {
 
         process.runIdentifyEarlyTermination()
 
+        assertEquals(listOf(AgentProcessStatusCode.TERMINATED), listener.terminationStatuses)
         assertEquals(
             AgentProcessStatusCode.TERMINATED,
             listener.statusAtDelivery,
