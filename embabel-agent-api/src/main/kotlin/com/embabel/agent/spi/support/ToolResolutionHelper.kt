@@ -45,8 +45,10 @@ object ToolResolutionHelper {
         if (agentProcess == null) {
             return interaction.tools
         }
-        val toolGroupResolver = agentProcess.processContext.platformServices.agentPlatform.toolGroupResolver
-        val resolvedTools = interaction.resolveTools(toolGroupResolver)
+        val resolvedTools = ToolNamingContext.resolvePublishedTools(
+            toolConsumer = interaction,
+            agentProcess = agentProcess,
+        )
         return resolvedTools.map { tool ->
             toolDecorator.decorate(tool, agentProcess, action, interaction.llm)
         }

@@ -211,6 +211,40 @@ embabel:
         restricted-goals: true
 ----
 
+===== Tool Naming Configuration
+
+Controls how tools are named when they are exposed to LLMs or generated tool endpoints.
+The default preserves existing tool names for backwards compatibility.
+With `FULLY_QUALIFIED`, every published tool is qualified by its owning agent. For example,
+`LEGACY_NAME_ONLY` publishes `search` as `search`; `FULLY_QUALIFIED` publishes it under `AgentA` as `AgentA-search`.
+Thus, `AgentA` and `AgentB` publish distinct names. Explicit export names remain unchanged. A goal exported for
+several starting input types also carries the input type name, which falls back to the package qualified type when
+two of them share a simple name. Framework-owned HITL callback tools published alongside goal tools retain their
+reserved names; HITL tools reaching an LLM as ordinary interaction tools are qualified like any other.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.tools.naming-strategy`
+|`ToolNamingStrategy`
+|`LEGACY_NAME_ONLY`
+|`LEGACY_NAME_ONLY` preserves current names. `FULLY_QUALIFIED` qualifies names with the owning agent.
+
+|===
+
+.Example - opt in to fully qualified tool names
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      tools:
+        naming-strategy: fully-qualified
+----
+
+Non-alphanumeric characters in each part are encoded (`.` becomes `_2e_`); owner and tool are joined with `-`, which never appears inside an encoded part. Names longer than 64 characters use a stable hash suffix.
+
 ===== Ranking Configuration
 
 From `AgentPlatformProperties.RankingConfig` - configures ranking of agents and goals based on user input when the platform should choose the agent or goal.

@@ -25,6 +25,7 @@ import com.embabel.agent.api.event.observation.InternalObservabilityApi
 import com.embabel.agent.api.event.observation.NoOpAgentInstrumentation
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcessRepository
+import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.spi.OperationScheduler
 import com.embabel.agent.spi.config.spring.AgentPlatformProperties
@@ -114,6 +115,7 @@ class SpringContextPlatformServicesActionQosTest {
             assertThat(props.default.backoffMultiplier).isNull()
             assertThat(props.default.backoffMaxInterval).isNull()
             assertThat(props.default.idempotent).isNull()
+            assertThat(services.toolNamingStrategy()).isEqualTo(ToolNamingStrategy.LEGACY_NAME_ONLY)
         }
     }
 
@@ -141,6 +143,20 @@ class SpringContextPlatformServicesActionQosTest {
             assertThat(props.default.maxAttempts).isEqualTo(2)
             assertThat(props.default.backoffMillis).isEqualTo(500L)
             assertThat(props.default.idempotent).isTrue()
+        }
+
+        @Test
+        fun `returns configured tool naming strategy from context`() {
+            val platformProperties = AgentPlatformProperties().apply {
+                tools.namingStrategy = ToolNamingStrategy.FULLY_QUALIFIED
+            }
+            every {
+                mockApplicationContext.getBeansOfType(AgentPlatformProperties::class.java, any(), any())
+            } returns mapOf("agentPlatformProperties" to platformProperties)
+
+            val services = createServices(mockApplicationContext)
+
+            assertThat(services.toolNamingStrategy()).isEqualTo(ToolNamingStrategy.FULLY_QUALIFIED)
         }
 
         @Test

@@ -17,6 +17,7 @@ package com.embabel.agent.mcpserver.sync.support
 
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.api.event.AgentProcessEvent
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.event.ObjectAddedEvent
@@ -50,11 +51,16 @@ class PerGoalMcpExportToolCallbackPublisher(
     @Value("\${embabel.agent.application.name:agent-api}") applicationName: String,
 ) : McpExportToolCallbackPublisher {
 
-    private val perGoalToolFactory = PerGoalToolFactory(
-        autonomy = autonomy,
-        applicationName = applicationName,
-        textCommunicator = PromptedTextCommunicator,
-    )
+    private val perGoalToolFactory by lazy {
+        PerGoalToolFactory(
+            autonomy = autonomy,
+            applicationName = applicationName,
+            textCommunicator = PromptedTextCommunicator,
+            toolNamingStrategy = runCatching {
+                autonomy.agentPlatform.platformServices.toolNamingStrategy()
+            }.getOrDefault(ToolNamingStrategy.LEGACY_NAME_ONLY),
+        )
+    }
 
     override val toolCallbacks: List<ToolCallback>
         get() {
