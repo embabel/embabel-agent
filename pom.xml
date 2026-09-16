@@ -17,7 +17,7 @@
     <properties>
         <argLine />
         <embabel-common.version>2.0.3-SNAPSHOT</embabel-common.version>
-        <netty.version>4.2.16.Final</netty.version>
+        <netty.version>4.2.17.Final</netty.version>
         <!-- Matches the openai-java-core that spring-ai-openai 2.0.1 depends on. Bump in
              step with spring-ai-openai; drop once embabel-build-dependencies catches up. -->
         <openai-java.version>4.49.0</openai-java.version>
