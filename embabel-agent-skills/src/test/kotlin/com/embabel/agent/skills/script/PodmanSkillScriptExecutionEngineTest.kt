@@ -74,12 +74,11 @@ class PodmanSkillScriptExecutionEngineTest {
     }
 
     @Test
-    fun `forceRemoveCommand does not use --time flag`() {
+    fun `forceRemoveCommand kills then removes without --time flag`() {
         val cmd = TestablePodmanEngine().forceRemoveCommand("test-container")
         assertFalse(cmd.contains("--time"), "Podman 3.x does not support --time on podman rm")
-        assertTrue(cmd.contains("-f"))
-        assertTrue(cmd.contains("--ignore"))
-        assertTrue(cmd.contains("test-container"))
+        assertTrue(cmd.contains("sh"), "must use shell to chain kill+rm")
+        assertTrue(cmd.last() == "test-container", "container name must be the last argument")
     }
 
     @Test

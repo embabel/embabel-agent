@@ -93,8 +93,14 @@ open class PodmanSkillScriptExecutionEngine @JvmOverloads constructor(
     // when this flag is false, matching Docker's implicit behavior.
     override val useWorkdir = false
 
+    // podman rm -f sends SIGTERM then waits 10s before SIGKILL; we kill first to make
+    // cleanup immediate. The 2>/dev/null suppresses errors when the container isn't running.
     override fun forceRemoveCommand(containerInstanceName: String): List<String> =
-        listOf(containerCommand, "rm", "-f", "--ignore", containerInstanceName)
+        listOf(
+            "sh", "-c",
+            "podman kill --signal KILL \"\$1\" 2>/dev/null; podman rm -f --ignore \"\$1\"",
+            "--", containerInstanceName,
+        )
 
     override fun effectiveCpuLimit(): CpuLimit? {
         if (cpuLimit == null) return null
