@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.DisabledOnOs
 import org.junit.jupiter.api.condition.EnabledIf
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.junit.jupiter.api.condition.OS
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
@@ -63,6 +64,27 @@ class PodmanSkillScriptExecutionEngineTest {
             // so it works in more environments than Docker).
             return isPodmanAvailable()
         }
+    }
+
+    /** Exposes protected hooks for white-box unit testing. */
+    private class TestablePodmanEngine(cpuLimit: CpuLimit? = CpuLimit.cores(1)) :
+        PodmanSkillScriptExecutionEngine(cpuLimit = cpuLimit) {
+        public override fun forceRemoveCommand(name: String) = super.forceRemoveCommand(name)
+        public override fun effectiveCpuLimit() = super.effectiveCpuLimit()
+    }
+
+    @Test
+    fun `forceRemoveCommand does not use --time flag`() {
+        val cmd = TestablePodmanEngine().forceRemoveCommand("test-container")
+        assertFalse(cmd.contains("--time"), "Podman 3.x does not support --time on podman rm")
+        assertTrue(cmd.contains("-f"))
+        assertTrue(cmd.contains("--ignore"))
+        assertTrue(cmd.contains("test-container"))
+    }
+
+    @Test
+    fun `effectiveCpuLimit returns null when cpuLimit is null`() {
+        assertNull(TestablePodmanEngine(cpuLimit = null).effectiveCpuLimit())
     }
 
     @Test
@@ -232,6 +254,7 @@ class PodmanSkillScriptExecutionEngineTest {
 
     @Test
     @EnabledIf("isPodmanAvailable")
+    @EnabledIfEnvironmentVariable(named = "CI", matches = "true", disabledReason = "Requires full cgroup cpu delegation; runs on CI only")
     fun `execute times out long-running script`() {
         val engine = PodmanSkillScriptExecutionEngine(
             image = TEST_IMAGE,
@@ -436,6 +459,7 @@ cat "${'$'}INPUT_DIR/data.txt"
 
     @Test
     @EnabledIf("isPodmanAvailable")
+    @EnabledIfEnvironmentVariable(named = "CI", matches = "true", disabledReason = "Requires full cgroup cpu delegation; runs on CI only")
     fun `a text-transform skill must not deadlock and must process all of a large input`() {
         // Same scenario as the process engine: a streaming filter (tr) that reads stdin
         // and writes stdout. If the engine writes ALL of stdin before draining the

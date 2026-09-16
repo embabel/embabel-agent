@@ -95,6 +95,12 @@ abstract class AbstractContainerSkillScriptExecutionEngine(
     protected open fun forceRemoveCommand(containerInstanceName: String): List<String> =
         listOf(containerCommand, "rm", "-f", containerInstanceName)
 
+    /**
+     * Returns the CPU limit to enforce, or null to skip `--cpus`.
+     * Subclasses may override to probe host capability before applying the limit.
+     */
+    protected open fun effectiveCpuLimit(): CpuLimit? = cpuLimit
+
     // --- SkillScriptExecutionEngine ---
 
     override fun supportedLanguages(): Set<ScriptLanguage> = supportedLanguages
@@ -216,7 +222,7 @@ abstract class AbstractContainerSkillScriptExecutionEngine(
             add("--name"); add(containerInstanceName); add("-i")
 
             memoryLimit?.let { addAll(listOf("--memory", it.render())) }
-            cpuLimit?.let { addAll(listOf("--cpus", it.render())) }
+            effectiveCpuLimit()?.let { addAll(listOf("--cpus", it.render())) }
 
             if (!networkEnabled) {
                 addAll(listOf("--network", "none"))
