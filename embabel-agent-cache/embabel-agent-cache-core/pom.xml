@@ -48,6 +48,13 @@
             <artifactId>ehcache</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Servlet API for the MockMvc slice; previously arrived only through
+             embabel-agent-test-internal, which cannot be a dependency here. -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- Spring MVC test slice for WaitForPersistentRepositoryJCacheMvcIntegrationTest -->
         <dependency>
             <groupId>org.springframework</groupId>

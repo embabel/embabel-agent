@@ -32,8 +32,6 @@ import com.embabel.agent.spi.config.spring.AgentProcessPersistenceProperties
 import com.embabel.agent.spi.config.spring.ProcessRepositoryProperties
 import com.embabel.agent.spi.persistence.AgentProcessSnapshotStore
 import com.embabel.agent.spi.support.DefaultPlannerFactory
-import com.embabel.agent.test.domain.Frog
-import com.embabel.agent.test.domain.MagicVictim
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyPlatformServices
 import com.embabel.common.util.EmbabelObjectMapperHolder
 import io.mockk.every
