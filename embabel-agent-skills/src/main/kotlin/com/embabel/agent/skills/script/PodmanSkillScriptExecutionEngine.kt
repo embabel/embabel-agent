@@ -16,6 +16,8 @@
 package com.embabel.agent.skills.script
 
 import com.embabel.agent.tools.file.FileTools
+import org.slf4j.LoggerFactory
+import java.io.File
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -57,7 +59,7 @@ import kotlin.time.Duration.Companion.seconds
  *                  Input paths are resolved relative to the fileTools root with path traversal protection.
  *                  Defaults to current working directory.
  */
-class PodmanSkillScriptExecutionEngine @JvmOverloads constructor(
+open class PodmanSkillScriptExecutionEngine @JvmOverloads constructor(
     image: String = DEFAULT_IMAGE,
     timeout: Duration = 60.seconds,
     supportedLanguages: Set<ScriptLanguage> = ScriptLanguage.entries.toSet(),
@@ -91,10 +93,54 @@ class PodmanSkillScriptExecutionEngine @JvmOverloads constructor(
     // when this flag is false, matching Docker's implicit behavior.
     override val useWorkdir = false
 
+    // podman rm -f sends SIGTERM then waits 10s before SIGKILL; we kill first to make
+    // cleanup immediate. The 2>/dev/null suppresses errors when the container isn't running.
     override fun forceRemoveCommand(containerInstanceName: String): List<String> =
-        listOf(containerCommand, "rm", "-f", "--ignore", "--time", "0", containerInstanceName)
+        listOf(
+            "sh", "-c",
+            "podman kill --signal KILL \"\$1\" 2>/dev/null; podman rm -f --ignore \"\$1\"",
+            "--", containerInstanceName,
+        )
+
+    override fun effectiveCpuLimit(): CpuLimit? {
+        if (cpuLimit == null) return null
+        return if (cpuCgroupAvailable) cpuLimit else null
+    }
 
     companion object {
+        private val engineLogger = LoggerFactory.getLogger(PodmanSkillScriptExecutionEngine::class.java)
+
+        /**
+         * True when the cpu cgroup controller is delegated to the current user's slice.
+         * Rootless Podman requires this for --cpus to work; systems without delegation
+         * produce exit 126 ("OCI runtime error: the requested cgroup controller `cpu` is not available").
+         * Cached once per JVM — cgroup delegation doesn't change at runtime.
+         */
+        val cpuCgroupAvailable: Boolean by lazy {
+            try {
+                val uid = File("/proc/self/status").readLines()
+                    .firstOrNull { it.startsWith("Uid:") }
+                    ?.split("\t")?.getOrNull(1)?.trim()
+                    ?: return@lazy false
+                val controllers = File("/sys/fs/cgroup/user.slice/user-$uid.slice/cgroup.controllers")
+                    .takeIf { it.exists() }?.readText()
+                    ?: return@lazy false
+                val available = "cpu" in controllers
+                if (!available) {
+                    engineLogger.warn(
+                        "cpu cgroup controller not available in user slice (uid={}); --cpus will be skipped. " +
+                            "To enable CPU limits for rootless Podman, configure systemd cgroup delegation: " +
+                            "add 'cpu' to /etc/systemd/system/user@.service.d/delegate.conf",
+                        uid,
+                    )
+                }
+                available
+            } catch (e: Exception) {
+                engineLogger.debug("Could not probe cpu cgroup availability: {}", e.message)
+                false
+            }
+        }
+
         const val DEFAULT_IMAGE = AbstractContainerSkillScriptExecutionEngine.DEFAULT_IMAGE
 
         /**

@@ -322,17 +322,63 @@ class AbstractContainerSkillScriptExecutionEngineTest {
         assertTrue(runtime.toFile().setExecutable(true))
     }
 
-    private class TestContainerEngine(
+    @Test
+    fun `buildContainerCommand includes --cpus when effectiveCpuLimit returns a value`() {
+        val root = Files.createTempDirectory("container-command-test-cpu-")
+        val engine = TestContainerEngine(root.toString(), "/work", cpuLimit = CpuLimit.cores(2))
+        try {
+            val command = engine.buildContainerCommand(
+                command = listOf("bash", "/script/test.sh"),
+                scriptDir = root.resolve("script"),
+                inputDir = root.resolve("input"),
+                outputDir = root.resolve("output"),
+                launcherFailureFile = root.resolve("output/.embabel-launcher-failed-test"),
+                containerIdFile = root.resolve("container.cid"),
+                containerInstanceName = "test-container",
+            )
+            val cpusIdx = command.indexOf("--cpus")
+            assertTrue(cpusIdx >= 0, "--cpus must be present when effectiveCpuLimit() returns a value")
+            assertEquals("2", command[cpusIdx + 1])
+        } finally {
+            root.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `buildContainerCommand omits --cpus when effectiveCpuLimit returns null`() {
+        val root = Files.createTempDirectory("container-command-test-cpu-null-")
+        // cpuLimit set but overridden to return null via subclass
+        val engine = object : TestContainerEngine(root.toString(), "/work", cpuLimit = CpuLimit.cores(1)) {
+            override fun effectiveCpuLimit(): CpuLimit? = null
+        }
+        try {
+            val command = engine.buildContainerCommand(
+                command = listOf("bash", "/script/test.sh"),
+                scriptDir = root.resolve("script"),
+                inputDir = root.resolve("input"),
+                outputDir = root.resolve("output"),
+                launcherFailureFile = root.resolve("output/.embabel-launcher-failed-test"),
+                containerIdFile = root.resolve("container.cid"),
+                containerInstanceName = "test-container",
+            )
+            assertFalse(command.contains("--cpus"), "--cpus must be absent when effectiveCpuLimit() returns null")
+        } finally {
+            root.toFile().deleteRecursively()
+        }
+    }
+
+    private open class TestContainerEngine(
         root: String,
         workDir: String,
         override val containerCommand: String = "podman",
+        cpuLimit: CpuLimit? = null,
     ) : AbstractContainerSkillScriptExecutionEngine(
         image = "test-image",
         timeout = 1.seconds,
         supportedLanguages = ScriptLanguage.entries.toSet(),
         networkEnabled = false,
         memoryLimit = null,
-        cpuLimit = null,
+        cpuLimit = cpuLimit,
         environment = emptyMap(),
         workDir = workDir,
         user = null,
