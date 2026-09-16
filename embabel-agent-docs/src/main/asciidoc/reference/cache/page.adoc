@@ -87,6 +87,38 @@ query support may index. Parent-to-child lookup uses a secondary index, so the
 store fails at construction on a region that cannot index, rather than at the
 first `findByParentId`.
 
+==== Configuration
+
+Cache-backed persistence is configured automatically. Declaring an
+`AgentCacheProvider` bean is enough: a `CacheBackedAgentProcessSnapshotStore` is
+registered over the `agent-process-snapshots` region, and platform persistence
+picks it up as described in <<reference.persistence>>.
+
+An application that already has a Spring `CacheManager` can use it instead of
+writing a provider, but must opt in. Applications commonly have a `CacheManager`
+for unrelated caching, and treating it as durable agent state without being asked
+would be a trap:
+
+[source,properties]
+----
+embabel.agent.platform.cache.provider=spring-cache
+----
+
+The snapshot region requires `ATOMIC_COMPARE_AND_SET` by default, because
+concurrent checkpoints from several nodes are exactly the case durable processes
+exist for. The Spring cache adapter cannot provide it, so startup fails with a
+message naming the property below. Waive the requirement only when a single node
+ever writes each process:
+
+[source,properties]
+----
+embabel.agent.platform.cache.require-atomic-compare-and-set=false
+----
+
+An application-defined `AgentProcessSnapshotStore` or `AgentCacheProvider` always
+takes precedence over the automatic configuration, and setting
+`embabel.agent.platform.persistence.enabled=false` skips it entirely.
+
 ==== Writing A Provider
 
 Implement `AgentCacheProvider` and `AgentCacheRegion`, and `AgentCacheIndex` if

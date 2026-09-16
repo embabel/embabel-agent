@@ -1,1 +1,3 @@
 com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration
+com.embabel.agent.autoconfigure.platform.cache.AgentCacheProviderAutoConfiguration
+com.embabel.agent.autoconfigure.platform.cache.CacheSnapshotStoreAutoConfiguration

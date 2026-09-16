@@ -125,14 +125,11 @@ snapshot store is only consulted when the runtime repository misses.
 
 ### Cache integration
 
-- **Spring Boot autoconfiguration**: when an `AgentCacheProvider` bean is
-  present, automatically create a `CacheBackedAgentProcessSnapshotStore` using
-  `CacheRegions.AGENT_PROCESS_SNAPSHOTS` and register it as the
-  `AgentProcessSnapshotStore` bean. Users should need no manual wiring beyond
-  declaring their cache backend.
-- **Boot-context E2E test**: prove that a `CacheManager` or `AgentCacheProvider`
-  bean alone activates platform persistence — snapshot saved, pod-loss simulated,
-  process restored on a fresh repository.
+- **Full Spring Boot context E2E**: cache auto-configuration is covered by
+  `ApplicationContextRunner` tests in `embabel-agent-platform-autoconfigure`,
+  including a two-context pod-loss restore. A `@SpringBootTest` booting the whole
+  platform with a `CacheManager` would additionally cover bean discovery alongside
+  every other platform auto-configuration.
 - **Distributed CAS E2E with Testcontainers Redis**: `SpringCacheAgentCacheProvider`
   uses in-JVM locking only and cannot guarantee `ATOMIC_COMPARE_AND_SET` across
   pods. A Testcontainers-backed Redis test is needed to prove concurrent
@@ -140,10 +137,6 @@ snapshot store is only consulted when the runtime repository misses.
 - **Native Redis provider** (`embabel-agent-cache-redis`): implement
   `AgentCacheProvider` over Lettuce or Redisson with atomic `SET ... IF` for
   production-safe `ATOMIC_COMPARE_AND_SET`.
-- **Parent index cleanup in `CacheBackedAgentProcessSnapshotStore`**: `save()`
-  adds the new parent index entry but does not remove the old one if `parentId`
-  changes. Confirm `parentId` is immutable and assert it, or add cleanup on
-  update.
 - **Callback wiring for restored `ConcurrentAgentProcess`**: production
   autoconfiguration must supply the same `AgentProcessCallback` providers used
   by newly created processes.

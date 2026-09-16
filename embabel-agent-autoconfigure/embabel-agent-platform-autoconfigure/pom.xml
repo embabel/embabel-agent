@@ -26,6 +26,14 @@
             <artifactId>embabel-agent-api</artifactId>
         </dependency>
 
+        <!-- Optional: cache-backed agent process persistence activates only when
+             the application adds embabel-agent-cache-core. -->
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-cache-core</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <!-- Spring AI Auto Configurations required for all models -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
