@@ -91,34 +91,6 @@ class NativeStructuredOutputSupportTest {
         }
 
         @Test
-        fun `rejects arrays of objects for native structured output`() {
-            val nativeSupport = nativeSupport(true)
-            val request = nativeRequest(
-                """
-                    {
-                      "type": "object",
-                      "properties": {
-                        "items": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "name": { "type": "string" }
-                            },
-                            "required": ["name"]
-                          }
-                        }
-                      },
-                      "required": ["items"],
-                      "additionalProperties": false
-                    }
-                """.trimIndent()
-            )
-
-            assertThat(nativeSupport.shouldUseNativeStructuredOutput(request)).isFalse()
-        }
-
-        @Test
         fun `disables native structured output when request has no native metadata`() {
             val request = LlmMessageRequest(
                 messages = listOf(UserMessage("prompt")),
@@ -199,6 +171,42 @@ class NativeStructuredOutputSupportTest {
         }
 
         @Test
+        fun `ENABLED mode bypasses schema compatibility check`() {
+            val request = nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": { "type": "string" }
+                      },
+                      "additionalProperties": false
+                    }
+                """.trimIndent(),
+                mode = NativeStructuredOutputMode.ENABLED,
+            )
+
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(request)).isTrue()
+        }
+
+        @Test
+        fun `DEFAULT mode still rejects incompatible schemas`() {
+            val request = nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": { "type": "string" }
+                      },
+                      "additionalProperties": false
+                    }
+                """.trimIndent(),
+                mode = NativeStructuredOutputMode.DEFAULT,
+            )
+
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(request)).isFalse()
+        }
+
+        @Test
         fun `rejects object schemas with additionalProperties schema`() {
             val request = nativeRequest(
                 """
@@ -214,6 +222,245 @@ class NativeStructuredOutputSupportTest {
             )
 
             assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(request)).isFalse()
+        }
+    }
+
+    @Nested
+    inner class ArrayCompatibilityTests {
+
+        @Test
+        fun `accepts array of objects with valid item schema`() {
+            val request = nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": { "type": "string" }
+                            },
+                            "required": ["name"],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": ["items"],
+                      "additionalProperties": false
+                    }
+                """.trimIndent()
+            )
+
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(request)).isTrue()
+        }
+
+        @Test
+        fun `rejects array of objects when item schema has unsupported keyword`() {
+            val request = nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "${'$'}ref": "#/definitions/Item"
+                          }
+                        }
+                      },
+                      "required": ["items"],
+                      "additionalProperties": false
+                    }
+                """.trimIndent()
+            )
+
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(request)).isFalse()
+        }
+
+        @Test
+        fun `rejects nested arrays`() {
+            val request = nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "matrix": {
+                          "type": "array",
+                          "items": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                          }
+                        }
+                      },
+                      "required": ["matrix"],
+                      "additionalProperties": false
+                    }
+                """.trimIndent()
+            )
+
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(request)).isFalse()
+        }
+
+        @Test
+        fun `accepts array of primitive values`() {
+            val request = nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "names": {
+                          "type": "array",
+                          "items": { "type": "string" }
+                        }
+                      },
+                      "required": ["names"],
+                      "additionalProperties": false
+                    }
+                """.trimIndent()
+            )
+
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(request)).isTrue()
+        }
+    }
+
+    @Nested
+    inner class NullableUnionCompatibilityTests {
+
+        @Test
+        fun `accepts nullable string property`() {
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": { "type": ["string", "null"] }
+                      },
+                      "required": ["name"],
+                      "additionalProperties": false
+                    }
+                """.trimIndent()
+            ))).isTrue()
+        }
+
+        @Test
+        fun `accepts nullable integer property`() {
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "count": { "type": ["integer", "null"] }
+                      },
+                      "required": ["count"],
+                      "additionalProperties": false
+                    }
+                """.trimIndent()
+            ))).isTrue()
+        }
+
+        @Test
+        fun `accepts nullable number property`() {
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "score": { "type": ["number", "null"] }
+                      },
+                      "required": ["score"],
+                      "additionalProperties": false
+                    }
+                """.trimIndent()
+            ))).isTrue()
+        }
+
+        @Test
+        fun `accepts nullable boolean property`() {
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "active": { "type": ["boolean", "null"] }
+                      },
+                      "required": ["active"],
+                      "additionalProperties": false
+                    }
+                """.trimIndent()
+            ))).isTrue()
+        }
+
+        @Test
+        fun `accepts nullable object property with valid schema`() {
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "address": {
+                          "type": ["object", "null"],
+                          "properties": {
+                            "city": { "type": "string" }
+                          },
+                          "required": ["city"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["address"],
+                      "additionalProperties": false
+                    }
+                """.trimIndent()
+            ))).isTrue()
+        }
+
+        @Test
+        fun `rejects nullable array union`() {
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tags": { "type": ["array", "null"] }
+                      },
+                      "required": ["tags"],
+                      "additionalProperties": false
+                    }
+                """.trimIndent()
+            ))).isFalse()
+        }
+
+        @Test
+        fun `rejects multi-type union beyond two elements`() {
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "value": { "type": ["string", "integer", "null"] }
+                      },
+                      "required": ["value"],
+                      "additionalProperties": false
+                    }
+                """.trimIndent()
+            ))).isFalse()
+        }
+
+        @Test
+        fun `rejects union without null`() {
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "value": { "type": ["string", "integer"] }
+                      },
+                      "required": ["value"],
+                      "additionalProperties": false
+                    }
+                """.trimIndent()
+            ))).isFalse()
         }
     }
 

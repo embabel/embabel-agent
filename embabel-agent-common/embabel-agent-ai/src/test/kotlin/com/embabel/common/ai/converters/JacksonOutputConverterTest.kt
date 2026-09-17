@@ -89,6 +89,12 @@ class JacksonOutputConverterTest {
         val optional: String?,
     )
 
+    // nullable child produces a union type ["object","null"] in the schema
+    data class KotlinNullableChildParent(
+        val requiredName: String,
+        val optionalChild: KotlinRequiredChild?,
+    )
+
     @Nested
     inner class SchemaNormalizationTests {
 
@@ -130,6 +136,20 @@ class JacksonOutputConverterTest {
         }
 
         @Test
+        fun `normalizes required fields inside nullable object union type without crashing`() {
+            val converter = JacksonOutputConverter(KotlinNullableChildParent::class.java, objectMapper)
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+
+            // parent: requiredName is non-null → required; optionalChild is nullable → not required
+            assertThat(schema.requiredFieldNames()).containsExactlyInAnyOrder("requiredName")
+
+            // the nullable child property has a union type ["object","null"] in the schema;
+            // normalizeRequiredFields must recurse into it and still mark name (non-null) as required
+            val optionalChildSchema = schema.path("properties").path("optionalChild")
+            assertThat(optionalChildSchema.requiredFieldNames()).containsExactlyInAnyOrder("name")
+        }
+
+        @Test
         fun `marks Java primitives and annotations as required while leaving plain references optional`() {
             val javaType = Class.forName("com.embabel.common.ai.converters.JavaStructuredOutputFixtures\$Parent")
                 as Class<Any>
@@ -140,8 +160,14 @@ class JacksonOutputConverterTest {
                 "primitiveCount",
                 "explicitRequired",
                 "validatedRequired",
+                "optionalNickname",
             )
             assertThat(schema.path("properties").path("optionalText").requiredFieldNames()).isEmpty()
+            // Optional<String> with @JsonProperty(required=true) must produce ["string","null"] union type
+            val nicknameType = schema.path("properties").path("optionalNickname").path("type")
+            assertThat(nicknameType.isArray).isTrue()
+            val nicknameTypes = (0 until nicknameType.size()).map { nicknameType.get(it).asText() }
+            assertThat(nicknameTypes).contains("string", "null")
             assertThat(schema.path("properties").path("child").requiredFieldNamesOrRefResolved(schema))
                 .containsExactlyInAnyOrder("count")
         }
