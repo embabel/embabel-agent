@@ -153,7 +153,7 @@ class SpringAiLlmMessageSenderTest {
         }
 
         @Test
-        fun `disables native structured output when schema is incompatible`() {
+        fun `DEFAULT mode disables native structured output when schema is incompatible`() {
             val originalOptions = testChatOptions()
             val capturedPrompt = slot<Prompt>()
             val generation = Generation(SpringAiAssistantMessage("done"))
@@ -194,7 +194,7 @@ class SpringAiLlmMessageSenderTest {
                             name = "MonthItem",
                             schema = """{"type":"object","properties":{"name":{"type":"string"},"temperature":{"type":"integer"}},"additionalProperties":false}""",
                         ),
-                        nativeStructuredOutputMode = NativeStructuredOutputMode.ENABLED,
+                        nativeStructuredOutputMode = NativeStructuredOutputMode.DEFAULT,
                     ),
                 )
             )
