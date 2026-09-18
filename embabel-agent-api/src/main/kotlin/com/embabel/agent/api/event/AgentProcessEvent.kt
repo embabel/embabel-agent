@@ -207,7 +207,7 @@ class ToolCallResponseEvent internal constructor(
 
 /**
  * The agent process has finished.
- * It may have completed successfully or failed.
+ * It may have completed successfully, failed, or been terminated.
  * Check the status code to determine the outcome.
  */
 sealed class AgentProcessFinishedEvent(
@@ -224,6 +224,13 @@ class AgentProcessCompletedEvent(
 }
 
 class AgentProcessFailedEvent(
+    agentProcess: AgentProcess,
+) : AgentProcessFinishedEvent(agentProcess)
+
+/**
+ * Emitted when a process transitions to TERMINATED, for observability and cache invalidation.
+ */
+class AgentProcessTerminatedEvent(
     agentProcess: AgentProcess,
 ) : AgentProcessFinishedEvent(agentProcess)
 

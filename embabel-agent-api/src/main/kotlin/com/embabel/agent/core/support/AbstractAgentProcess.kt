@@ -122,7 +122,14 @@ abstract class AbstractAgentProcess(
             AgentProcessStatusCode.PAUSED -> {
                 // No guaranteed next tick - set status immediately
                 logger.info("Terminating process {} (was {}): {}", id, status, reason)
-                setStatus(AgentProcessStatusCode.TERMINATED)
+                val transitioned = setStatus(AgentProcessStatusCode.TERMINATED)
+                if (!processOptions.ephemeral) {
+                    platformServices.agentProcessRepository.update(this)
+                }
+                if (transitioned) {
+                    platformServices.eventListener.onProcessEvent(AgentProcessTerminatedEvent(this))
+                }
+                Unit
             }
         }
     }
@@ -261,9 +268,8 @@ abstract class AbstractAgentProcess(
     override val toolsStats: ToolsStats
         get() = agenticEventListenerToolsStats
 
-    protected fun setStatus(status: AgentProcessStatusCode) {
-        _status.set(status)
-    }
+    protected fun setStatus(status: AgentProcessStatusCode): Boolean =
+        _status.getAndSet(status) != status
 
     override fun kill(): ProcessKilledEvent? {
         // Kill child processes first (recursive)
@@ -360,6 +366,10 @@ abstract class AbstractAgentProcess(
         while (status == AgentProcessStatusCode.RUNNING) {
             val earlyTermination = identifyEarlyTermination()
             if (earlyTermination != null) {
+                if (!processOptions.ephemeral) {
+                    platformServices.agentProcessRepository.update(this)
+                }
+                platformServices.eventListener.onProcessEvent(AgentProcessTerminatedEvent(this))
                 return this
             }
             tick()
@@ -509,9 +519,15 @@ abstract class AbstractAgentProcess(
         )
 
         // Let subclasses handle the planning and execution
+        val previousStatus = status
         return formulateAndExecutePlan(worldState)
             .apply {
                 platformServices.agentProcessRepository.update(this)
+                if (previousStatus != AgentProcessStatusCode.TERMINATED &&
+                    status == AgentProcessStatusCode.TERMINATED
+                ) {
+                    platformServices.eventListener.onProcessEvent(AgentProcessTerminatedEvent(this))
+                }
             }
     }
 
@@ -571,10 +587,9 @@ abstract class AbstractAgentProcess(
                     Thread.sleep(actionExecutionSchedule.delay.toMillis())
                 } catch (_: InterruptedException) {
                     Thread.currentThread().interrupt()
-                    _status.set(AgentProcessStatusCode.TERMINATED)
                     return ActionStatus(
                         runningTime = Duration.between(actionExecutionStartEvent.timestamp, Instant.now()),
-                        status = ActionStatusCode.FAILED,
+                        status = ActionStatusCode.AGENT_TERMINATED,
                     )
                 }
                 logger.debug("Process {} delayed action {}: done", id, action.name)

@@ -100,6 +100,24 @@ class EmbabelMetricsEventListenerTest {
         }
 
         @Test
+        @DisplayName("Terminated should decrement active agents gauge and record duration once")
+        void terminated_shouldDecrementGaugeAndRecordDuration() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "TestAgent");
+            mockUsageAndCost(process, null, 0.0);
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new AgentProcessTerminatedEvent(process));
+
+            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(0.0);
+            Timer timer = registry.find("embabel.agent.duration")
+                    .tag("agent", "TestAgent").tag("status", "terminated").timer();
+            assertThat(timer).isNotNull();
+            assertThat(timer.count()).isEqualTo(1);
+        }
+
+        @Test
         @DisplayName("Killed should decrement active agents gauge")
         void killed_shouldDecrementGauge() {
             var registry = new SimpleMeterRegistry();
