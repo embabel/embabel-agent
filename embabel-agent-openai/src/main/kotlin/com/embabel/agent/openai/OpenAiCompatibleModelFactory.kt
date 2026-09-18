@@ -55,6 +55,7 @@ import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
 import java.time.Duration
 import java.time.LocalDate
+import java.util.Collections
 
 /**
  * Generic support for OpenAI compatible models.
@@ -389,8 +390,15 @@ open class OpenAiCompatibleModelFactory(
      */
     private fun buildCustomizedClientOptions(): ClientOptions? {
         // Collect customizers in @Order / Ordered precedence; empty list → no-op path.
-        val customizers = List.copyOf(httpClientCustomizers.orderedStream().toList())
+        val customizers = Collections.unmodifiableList(httpClientCustomizers.orderedStream().toList())
         if (customizers.isEmpty()) return null
+
+        logger.info(
+            "Applying {} OpenAiHttpClientBuilderCustomizer(s) to OkHttp client at {}",
+            customizers.size,
+            baseUrl ?: "default OpenAI location",
+        )
+        customizers.forEach { logger.debug("  customizer: {}", it::class.java.name) }
 
         // Build the Spring AI OkHttp wrapper and let each customizer configure it
         // (proxy, TLS, interceptors, Micrometer registry, etc.).
