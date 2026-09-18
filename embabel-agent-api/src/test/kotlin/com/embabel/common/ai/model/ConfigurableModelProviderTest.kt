@@ -198,6 +198,10 @@ class ConfigurableModelProviderTest {
             )
         ),
         properties = ConfigurableModelProviderProperties(
+            // Named, not inherited. These tests are about listing and role lookup and say nothing
+            // about what ships, so leaving the default implicit only tied them to a value they do
+            // not assert on - and broke all of them the day it moved.
+            defaultLlm = DEFAULT_MODEL,
             llms = mapOf(
                 BEST_ROLE to "gpt40",
                 CHEAPEST_ROLE to "gpt40"
@@ -325,6 +329,9 @@ class ConfigurableModelProviderTest {
                 CustomEmbeddingService("my-custom-embeddings", "CustomProvider"),
             ),
             properties = ConfigurableModelProviderProperties(
+                // As above: this one is about the EMBEDDING side, and the only LLM it registers is
+                // there to get the provider built at all.
+                defaultLlm = DEFAULT_MODEL,
                 embeddingServices = mapOf(
                     CHEAPEST_ROLE to "my-custom-embeddings"
                 ),
