@@ -18,6 +18,7 @@ package com.embabel.common.util
 import org.springframework.beans.factory.NoSuchBeanDefinitionException
 import org.springframework.beans.factory.ObjectProvider
 import java.util.Collections.emptyIterator
+import java.util.stream.Stream
 
 
 object ObjectProviders {
@@ -29,5 +30,6 @@ object ObjectProviders {
         override fun getIfAvailable(): Any? = null
         override fun getIfUnique(): Any? = null
         override fun iterator(): MutableIterator<Any> = emptyIterator()
+        override fun stream(): Stream<Any> = Stream.empty()
     }
 }

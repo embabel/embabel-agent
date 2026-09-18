@@ -35,8 +35,10 @@ import com.embabel.common.ai.model.LlmOptionsProperties
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
+import com.embabel.common.util.ObjectProviders
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.ai.openai.OpenAiChatOptions
+import org.springframework.ai.openai.http.okhttp.OpenAiHttpClientBuilderCustomizer
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
@@ -127,6 +129,7 @@ class OpenAiModelsConfig(
     private val modelLoader: LlmAutoConfigMetadataLoader<OpenAiModelDefinitions> = OpenAiModelLoader(),
     @Qualifier("aiModelWebClientBuilder")
     webClientBuilder: ObjectProvider<WebClient.Builder>,
+    httpClientCustomizers: ObjectProvider<OpenAiHttpClientBuilderCustomizer> = ObjectProviders.empty(),
     private val nativeStructuredOutputConfigurer: SpringAiNativeStructuredOutputConfigurer =
         OpenAiNativeStructuredOutputConfigurer,
 ) : OpenAiCompatibleModelFactory(
@@ -139,6 +142,7 @@ class OpenAiModelsConfig(
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
     restClientBuilder = restClientBuilder,
     webClientBuilder = webClientBuilder,
+    httpClientCustomizers = httpClientCustomizers,
 ) {
 
     /**
