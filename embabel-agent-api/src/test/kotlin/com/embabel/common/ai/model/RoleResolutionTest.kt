@@ -877,6 +877,42 @@ class RoleResolutionTest {
             )
             assertTrue(mp.getLlm(DefaultModelSelectionCriteria) is PlaceholderLlmService)
         }
+
+        @Test
+        fun `default-llm naming a nested role boots on a deployment with no placeholder`() {
+            // The nested shape is not only for deployments awaiting a key. One that holds its own
+            // key may use it to say what each role means per provider, against the day it serves
+            // users who bring theirs. Such a deployment has no placeholder to fall back to, so
+            // consulting only the flat map left it unable to name a role as its default at all:
+            // it failed to start, and was told the role it had just configured was not a role.
+            val mp = provider(
+                models = listOf(openAiModel),
+                properties = ConfigurableModelProviderProperties(
+                    roles = nestedRoles,
+                    defaultLlm = CHEAPEST_ROLE,
+                ),
+            )
+            assertSame(openAiModel, mp.getLlm(DefaultModelSelectionCriteria))
+        }
+
+        @Test
+        fun `a configured role nothing can satisfy is reported as a role, not as an unknown name`() {
+            // Still fatal - there is no placeholder - but the message has to name the actual
+            // problem. Telling someone their role is not a role sends them to fix the one thing
+            // that is already right.
+            val e = assertThrows<IllegalArgumentException> {
+                provider(
+                    models = listOf(defaultModel),
+                    properties = ConfigurableModelProviderProperties(
+                        llms = mapOf("workhorse" to "gpt-4.1-nano"),
+                        defaultLlm = "workhorse",
+                    ),
+                )
+            }
+            assertTrue(e.message!!.contains("workhorse"), e.message)
+            assertTrue(e.message!!.contains("role"), e.message)
+            assertFalse(e.message!!.contains("neither"), e.message)
+        }
     }
 
     /**

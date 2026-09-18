@@ -185,18 +185,17 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      * role resolution, and the answer to [DefaultModelSelectionCriteria] when the role chain
      * declines.
      *
-     * Resolved against the flat `llms` map when `default-llm` names a role, and not against the
-     * nested `roles` map: that shape is keyed by provider, and the provider is what this value is
-     * being computed to supply. A deployment using the nested shape has a placeholder to fall back
-     * to, because the nested shape exists for deployments whose key arrives at runtime.
+     * Resolved against whichever role map names a model this deployment has registered: the flat
+     * `llms` map first, since that is the single-provider shape and says what the default means
+     * without further qualification, then the nested `roles` map.
      */
     private val defaultLlm =
         if (llms.isNotEmpty())
             registeredDefaultLlm
                 ?: flatRoleDefaultLlm()
+                ?: nestedRoleDefaultLlm()
                 ?: placeholderLlm()
-                ?: throw IllegalArgumentException(
-                    "Default LLM '${properties.defaultLlm}' is neither a registered model nor a configured role. Set the 'embabel.models.default-llm' property to one of the available models: ${llms.map { it.name }}, or to one of the roles: ${(properties.llms.keys + properties.roles.keys).toList()}.")
+                ?: throw IllegalArgumentException(unresolvableDefaultLlmMessage())
         else
             throw IllegalArgumentException("No models detected. Ensure that at least one Embabel Agent Starter (e.g. embabel-agent-starter-openai) is on the classpath and models are loaded into it.")
 
@@ -206,6 +205,41 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      */
     private fun flatRoleDefaultLlm(): LlmService<*>? =
         properties.llms[properties.defaultLlm]?.let { model -> llms.firstOrNull { it.name == model } }
+
+    /**
+     * The registered service a nested `roles` entry for `default-llm` names, taking whichever
+     * provider column this deployment can actually serve.
+     *
+     * The provider cannot be used to pick the column, because the provider is what this value is
+     * being computed to supply. Taking whichever column a registered model answers for is the same
+     * question from the other end: a deployment can only serve the providers it has models for, and
+     * where it has several, any of them is a defensible startup default. Per-call resolution still
+     * picks the right column for whichever key is active.
+     *
+     * The nested shape is not only for deployments awaiting a key. One that holds its own key may
+     * use it to say what each role means per provider, against the day it serves users who bring
+     * theirs - and such a deployment has no placeholder to fall back to. Without this it could not
+     * name a role as its default at all: it failed to start, and was told the role it had just
+     * configured was not a role.
+     */
+    private fun nestedRoleDefaultLlm(): LlmService<*>? =
+        properties.roles[properties.defaultLlm]
+            ?.values
+            ?.mapNotNull { it.modelName }
+            ?.firstNotNullOfOrNull { model -> llms.firstOrNull { it.name == model } }
+
+    /**
+     * Why `default-llm` resolved to nothing, said in the terms the reader has to act on.
+     *
+     * A configured role that nothing satisfies is a different problem from a name that is not a
+     * role at all, and telling someone their role is not a role sends them to fix the one thing
+     * that is already right.
+     */
+    private fun unresolvableDefaultLlmMessage(): String =
+        if (properties.defaultLlmNamesRole())
+            "Default LLM '${properties.defaultLlm}' is a configured role, but nothing this deployment has registered satisfies it. Point the role at one of the available models: ${llms.map { it.name }}, or set 'embabel.models.default-llm' to one of them directly."
+        else
+            "Default LLM '${properties.defaultLlm}' is neither a registered model nor a configured role. Set the 'embabel.models.default-llm' property to one of the available models: ${llms.map { it.name }}, or to one of the roles: ${(properties.llms.keys + properties.roles.keys).toList()}."
 
     /**
      * Whether this deployment is waiting for a key rather than misconfigured.

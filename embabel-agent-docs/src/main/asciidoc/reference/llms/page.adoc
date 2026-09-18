@@ -702,8 +702,10 @@ registered service is still resolved once and never sent through the resolvers.
 
 A default that nothing can satisfy does not throw the way an unsatisfied role does. It falls back to
 whatever `default-llm` resolved to at startup - the placeholder, in a deployment awaiting a key -
-so the caller sees the same actionable "no LLM configured" error. A name that is neither a role nor
-a registered model, with no placeholder to fall back to, is still fatal at startup.
+so the caller sees the same actionable "no LLM configured" error. Startup is stricter: with no
+placeholder to fall back to, a `default-llm` that names nothing this deployment has registered -
+whether a typo or a role whose every model is missing - is still fatal, and the message says which
+of the two it is.
 
 ===== Resolving roles in code
 
