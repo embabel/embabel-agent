@@ -27,12 +27,24 @@ const val NATIVE_STRUCTURED_OUTPUT_EXTENSION = "native.structuredOutput"
  *
  * This is intentionally small and additive: it lets callers override the runtime
  * decision without changing the public [LlmOptions] data shape.
- *
- * DEFAULT means "let Embabel decide from capability, schema compatibility, and API policy."
  */
 enum class NativeStructuredOutputMode {
+    /**
+     * Check schema compatibility before using the native path.
+     * If the schema is not conservatively compatible, fall back to prompt-based extraction
+     * and log a WARN. Use [DISABLED] to opt out of native output entirely (also suppresses the warning).
+     */
     DEFAULT,
+
+    /**
+     * Always use the native structured-output path when the provider supports it,
+     * bypassing the schema compatibility check. The schema must still be valid for the provider.
+     */
     ENABLED,
+
+    /**
+     * Always use prompt-based extraction; never use the native path.
+     */
     DISABLED;
 
     /**
