@@ -20,6 +20,7 @@ import com.embabel.common.ai.model.AiModel
 import com.embabel.common.ai.model.ByRoleModelSelectionCriteria
 import com.embabel.common.ai.model.ConfigurableModelProvider
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
+import com.embabel.common.ai.model.CredentialLlmServiceFactory
 import com.embabel.common.ai.model.DefaultModelSelectionCriteria
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelSelectionContext
@@ -88,6 +89,38 @@ class PureByokWithRolesTest {
 
         assertThat(modelProvider.getLlm(DefaultModelSelectionCriteria).name)
             .isEqualTo(SetupRequiredLlm.NAME)
+    }
+
+    @Test
+    fun `the first key on a fresh installation satisfies the default without a restart`() {
+        /*
+         * The whole point of #2031. A pure BYOK installation registers nothing but the placeholder,
+         * so a `default-llm` naming a model can only ever be the placeholder until the process
+         * restarts. Naming a role instead sends the default through the resolver chain per call,
+         * where the key the user pasted a second ago satisfies it like any other role.
+         */
+        val userService = SpringAiLlmService(
+            name = "$OTHER_PROVIDER-large", provider = OTHER_PROVIDER, chatModel = SetupRequiredChatModel(),
+        )
+        val modelProvider = ConfigurableModelProvider(
+            llms = listOf(SetupRequiredLlm.llmService()),
+            embeddingServices = emptyList(),
+            properties = ConfigurableModelProviderProperties(
+                defaultLlm = CHEAPEST_ROLE,
+                roles = mapOf(CHEAPEST_ROLE to mapOf(OTHER_PROVIDER to LlmOptions.withModel("$OTHER_PROVIDER-large"))),
+            ),
+            credentialLlmServiceFactories = listOf(CredentialLlmServiceFactory { _, _ -> userService }),
+        )
+
+        // Before the key: the placeholder, exactly as a pure BYOK deployment has always behaved.
+        assertThat(modelProvider.getLlm(DefaultModelSelectionCriteria).name).isEqualTo(SetupRequiredLlm.NAME)
+
+        val withKey = ModelSelectionContextHolder.with(
+            ModelSelectionContext(credential = ProviderCredential(OTHER_PROVIDER, TEST_API_KEY)),
+        ) {
+            modelProvider.getLlm(DefaultModelSelectionCriteria)
+        }
+        assertThat(withKey).isSameAs(userService)
     }
 
     @Test
