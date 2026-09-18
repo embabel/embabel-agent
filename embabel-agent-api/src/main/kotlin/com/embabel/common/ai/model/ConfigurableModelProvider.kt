@@ -46,10 +46,10 @@ data class ConfigurableModelProviderProperties(
      * A model name is resolved once, against the services registered at startup. A role is resolved
      * per call, through the same [RoleResolver] chain as any other role - which is what lets a
      * deployment whose key arrives at runtime have a working default without a restart. A model name
-     * that nothing registers falls back to the role chain too, so `default-llm: gpt-4.1-mini` keeps
+     * that nothing registers falls back to the role chain too, so `default-llm: gpt-5.6-luna` keeps
      * working whichever way it is meant.
      */
-    var defaultLlm: String = "gpt-4.1-mini",
+    var defaultLlm: String = "gpt-5.6-luna",
     /**
      *  Default embedding model name. Must be an embedding model name. Need not be set, in which case it defaults to null.
      */
@@ -273,14 +273,18 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 // deployment this is meant to serve.
                 if (properties.defaultLlmNamesRole()) {
                     logger.info(
-                        "Default LLM '{}' is a role, and will be resolved per call. " +
-                            "Until a key is supplied it falls back to the '{}' placeholder",
+                        """
+                        Default LLM '{}' is a role, and will be resolved per call.
+                        Until a key is supplied it falls back to the '{}' placeholder
+                        """.trimIndent(),
                         properties.defaultLlm, it.name,
                     )
                 } else {
                     logger.warn(
-                        "Default LLM '{}' is not registered; falling back to the '{}' placeholder. " +
-                            "Calls will fail with an actionable 'no LLM configured' error until a key is supplied. Available: {}",
+                        """
+                        Default LLM '{}' is not registered; falling back to the '{}' placeholder.
+                        Calls will fail with an actionable 'no LLM configured' error until a key is supplied. Available: {}
+                        """.trimIndent(),
                         properties.defaultLlm, it.name, llms.map { it.name },
                     )
                 }
@@ -615,8 +619,16 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      */
     private fun defaultLlmService(): LlmService<*> {
         registeredDefaultLlm?.let { return it }
-        return attemptRole(properties.defaultLlm, ModelSelectionContextHolder.get()).resolved?.llmService
-            ?: defaultLlm
+        val resolved = attemptRole(properties.defaultLlm, ModelSelectionContextHolder.get()).resolved?.llmService
+        if (resolved == null) {
+            // Debug, not warn: under BYOK this is the ordinary state of every call made before a
+            // key arrives, and the eventual failure already names it.
+            logger.debug(
+                "Nothing resolved default LLM '{}' for this call; falling back to '{}'",
+                properties.defaultLlm, defaultLlm.name,
+            )
+        }
+        return resolved ?: defaultLlm
     }
 
     /**
