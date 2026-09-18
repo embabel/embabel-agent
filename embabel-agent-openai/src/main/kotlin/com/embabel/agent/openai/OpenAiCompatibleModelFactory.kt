@@ -389,7 +389,7 @@ open class OpenAiCompatibleModelFactory(
      */
     private fun buildCustomizedClientOptions(): ClientOptions? {
         // Collect customizers in @Order / Ordered precedence; empty list → no-op path.
-        val customizers = httpClientCustomizers.orderedStream().toList()
+        val customizers = List.copyOf(httpClientCustomizers.orderedStream().toList())
         if (customizers.isEmpty()) return null
 
         // Build the Spring AI OkHttp wrapper and let each customizer configure it
