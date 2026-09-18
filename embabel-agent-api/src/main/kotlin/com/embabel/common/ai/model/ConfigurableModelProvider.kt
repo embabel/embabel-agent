@@ -40,9 +40,16 @@ data class ConfigurableModelProviderProperties(
      */
     var embeddingServices: Map<String, String> = emptyMap(),
     /**
-     * Default LLM name. Must be an LLM name. It's good practice to override this in configuration.
+     * The deployment default: either an LLM name, or a role from [llms] or [roles]. It's good
+     * practice to override this in configuration.
+     *
+     * A model name is resolved once, against the services registered at startup. A role is resolved
+     * per call, through the same [RoleResolver] chain as any other role - which is what lets a
+     * deployment whose key arrives at runtime have a working default without a restart. A model name
+     * that nothing registers falls back to the role chain too, so `default-llm: gpt-5.6-luna` keeps
+     * working whichever way it is meant.
      */
-    var defaultLlm: String = "gpt-4.1-mini",
+    var defaultLlm: String = "gpt-5.6-luna",
     /**
      *  Default embedding model name. Must be an embedding model name. Need not be set, in which case it defaults to null.
      */
@@ -105,8 +112,21 @@ data class ConfigurableModelProviderProperties(
      * which it can serve.
      */
     fun allWellKnownLlmNames(): Set<String> {
-        return llms.values.toSet() + roles.values.flatMap { it.values }.mapNotNull { it.modelName } + defaultLlm
+        return llms.values.toSet() + roles.values.flatMap { it.values }.mapNotNull { it.modelName } +
+            // A role names no model of its own; the models it can resolve to are already in here
+            // via the two maps above, and adding the role would offer callers a model name that
+            // does not exist.
+            if (defaultLlmNamesRole()) emptySet() else setOf(defaultLlm)
     }
+
+    /**
+     * Whether [defaultLlm] names a role from [llms] or [roles] rather than a model.
+     *
+     * Configuration alone decides this: a name that appears as a role key is a role. It cannot
+     * collide with a model name, because a role and the model it names are the two sides of one
+     * entry and nothing would map a role to itself.
+     */
+    fun defaultLlmNamesRole(): Boolean = llms.containsKey(defaultLlm) || roles.containsKey(defaultLlm)
 
     /**
      * The embedding counterpart of [allWellKnownLlmNames]. Shorter because embedding roles have no
@@ -150,14 +170,76 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 size > properties.credentialServiceCacheSize
         }.let { Collections.synchronizedMap(it) }
 
+    /**
+     * The registered service `default-llm` names directly, or null when it names a role - or a
+     * model nothing has registered.
+     *
+     * Null is what sends the default through the role chain on every call, so it is also the thing
+     * that keeps a *registered* default off that path: a name that resolves here is resolved once,
+     * at startup, exactly as before.
+     */
+    private val registeredDefaultLlm: LlmService<*>? = llms.firstOrNull { it.name == properties.defaultLlm }
+
+    /**
+     * What the default resolves to when nothing better is available - the deployment's provider for
+     * role resolution, and the answer to [DefaultModelSelectionCriteria] when the role chain
+     * declines.
+     *
+     * Resolved against whichever role map names a model this deployment has registered: the flat
+     * `llms` map first, since that is the single-provider shape and says what the default means
+     * without further qualification, then the nested `roles` map.
+     */
     private val defaultLlm =
         if (llms.isNotEmpty())
-            llms.firstOrNull { it.name == properties.defaultLlm }
+            registeredDefaultLlm
+                ?: flatRoleDefaultLlm()
+                ?: nestedRoleDefaultLlm()
                 ?: placeholderLlm()
-                ?: throw IllegalArgumentException(
-                    "Default LLM '${properties.defaultLlm}' not found. Set the 'embabel.models.default-llm' property to one of the available models: ${llms.map { it.name }}.")
+                ?: throw IllegalArgumentException(unresolvableDefaultLlmMessage())
         else
             throw IllegalArgumentException("No models detected. Ensure that at least one Embabel Agent Starter (e.g. embabel-agent-starter-openai) is on the classpath and models are loaded into it.")
+
+    /**
+     * The registered service that `default-llm` names via the flat role map, if it names a role
+     * that one of them satisfies.
+     */
+    private fun flatRoleDefaultLlm(): LlmService<*>? =
+        properties.llms[properties.defaultLlm]?.let { model -> llms.firstOrNull { it.name == model } }
+
+    /**
+     * The registered service a nested `roles` entry for `default-llm` names, taking whichever
+     * provider column this deployment can actually serve.
+     *
+     * The provider cannot be used to pick the column, because the provider is what this value is
+     * being computed to supply. Taking whichever column a registered model answers for is the same
+     * question from the other end: a deployment can only serve the providers it has models for, and
+     * where it has several, any of them is a defensible startup default. Per-call resolution still
+     * picks the right column for whichever key is active.
+     *
+     * The nested shape is not only for deployments awaiting a key. One that holds its own key may
+     * use it to say what each role means per provider, against the day it serves users who bring
+     * theirs - and such a deployment has no placeholder to fall back to. Without this it could not
+     * name a role as its default at all: it failed to start, and was told the role it had just
+     * configured was not a role.
+     */
+    private fun nestedRoleDefaultLlm(): LlmService<*>? =
+        properties.roles[properties.defaultLlm]
+            ?.values
+            ?.mapNotNull { it.modelName }
+            ?.firstNotNullOfOrNull { model -> llms.firstOrNull { it.name == model } }
+
+    /**
+     * Why `default-llm` resolved to nothing, said in the terms the reader has to act on.
+     *
+     * A configured role that nothing satisfies is a different problem from a name that is not a
+     * role at all, and telling someone their role is not a role sends them to fix the one thing
+     * that is already right.
+     */
+    private fun unresolvableDefaultLlmMessage(): String =
+        if (properties.defaultLlmNamesRole())
+            "Default LLM '${properties.defaultLlm}' is a configured role, but nothing this deployment has registered satisfies it. Point the role at one of the available models: ${llms.map { it.name }}, or set 'embabel.models.default-llm' to one of them directly."
+        else
+            "Default LLM '${properties.defaultLlm}' is neither a registered model nor a configured role. Set the 'embabel.models.default-llm' property to one of the available models: ${llms.map { it.name }}, or to one of the roles: ${(properties.llms.keys + properties.roles.keys).toList()}."
 
     /**
      * Whether this deployment is waiting for a key rather than misconfigured.
@@ -184,11 +266,28 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             ?.also {
                 // Named, because degrading a real model to the placeholder would otherwise hide the
                 // case where the key IS set and the model simply failed to register.
-                logger.warn(
-                    "Default LLM '{}' is not registered; falling back to the '{}' placeholder. " +
-                        "Calls will fail with an actionable 'no LLM configured' error until a key is supplied. Available: {}",
-                    properties.defaultLlm, it.name, llms.map { it.name },
-                )
+                //
+                // A role is reported differently: it has not failed to resolve, it simply resolves
+                // per call, and the placeholder is only what it falls back to on a call nothing can
+                // satisfy. Warning about it at startup would fire on every boot of exactly the
+                // deployment this is meant to serve.
+                if (properties.defaultLlmNamesRole()) {
+                    logger.info(
+                        """
+                        Default LLM '{}' is a role, and will be resolved per call.
+                        Until a key is supplied it falls back to the '{}' placeholder
+                        """.trimIndent(),
+                        properties.defaultLlm, it.name,
+                    )
+                } else {
+                    logger.warn(
+                        """
+                        Default LLM '{}' is not registered; falling back to the '{}' placeholder.
+                        Calls will fail with an actionable 'no LLM configured' error until a key is supplied. Available: {}
+                        """.trimIndent(),
+                        properties.defaultLlm, it.name, llms.map { it.name },
+                    )
+                }
             }
 
     // Compute this lazily as embedding services may not be available
@@ -435,20 +534,12 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      * keyed for one provider still starts and still serves every role that does work.
      */
     private fun resolveRole(role: String, context: ModelSelectionContext): ResolvedRole {
-        val resolution = roleResolvers.firstNotNullOfOrNull { it.resolve(role, context) }
-        val resolved = when (resolution) {
-            is RoleResolution.Service -> ResolvedRole(resolution.llmService, LlmOptions.withDefaults())
-
-            is RoleResolution.Options -> byName(resolution.llmOptions)
-                ?.let { ResolvedRole(it, resolution.llmOptions) }
-
-            is RoleResolution.Credential -> fromCredential(role, resolution.credential)
-
-            null -> null
-        }
+        val attempt = attemptRole(role, context)
+        val resolved = attempt.resolved
         if (resolved != null) {
             return resolved
         }
+        val resolution = attempt.resolution
         if (setupRequired) {
             // No key has arrived yet, so no role can name a registered model and this is not a
             // misconfiguration. Hand back the placeholder rather than throwing: the caller then
@@ -477,6 +568,76 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         )
         throw NoSuitableModelException(ByRoleModelSelectionCriteria(role), llms.map { it.name })
     }
+
+    /**
+     * Ask each resolver in turn what the role means, and materialize whatever answers - or nothing,
+     * if no resolver answered or the answer named a model this deployment cannot serve.
+     *
+     * Split out of [resolveRole] because the deployment default resolves through the same chain but
+     * must not inherit its ending: an unsatisfiable role throws, where an unsatisfiable default
+     * falls back to what `default-llm` resolved to at startup.
+     *
+     * Carries the raw [RoleResolution] back alongside the result so a caller can report what was
+     * wanted, which is otherwise lost the moment materialization fails.
+     */
+    private fun attemptRole(role: String, context: ModelSelectionContext): RoleAttempt {
+        val resolution = roleResolvers.firstNotNullOfOrNull { it.resolve(role, context) }
+        val resolved = when (resolution) {
+            is RoleResolution.Service -> ResolvedRole(resolution.llmService, LlmOptions.withDefaults())
+
+            is RoleResolution.Options -> byName(resolution.llmOptions)
+                ?.let { ResolvedRole(it, resolution.llmOptions) }
+
+            is RoleResolution.Credential -> fromCredential(role, resolution.credential)
+
+            null -> null
+        }
+        return RoleAttempt(resolution, resolved)
+    }
+
+    /**
+     * What `default-llm` means for this call.
+     *
+     * A name that matched a registered service at startup is that service, resolved once and never
+     * sent through the resolvers - so the ordinary deployment pays nothing for this and cannot have
+     * its default overridden per call.
+     *
+     * Anything else goes through the role chain, on every call. That is the point: under BYOK the
+     * first key arrives after startup, so a default fixed at construction can only be the
+     * placeholder, permanently, until the process restarts. Resolving per call means the same key
+     * that satisfies every other role satisfies the default too.
+     *
+     * A name that is neither a role nor a registered model reaches the chain as well, rather than
+     * being refused for not looking like a role. Resolvers answer per call and per user; whether a
+     * name is "a role" is not something this class can decide on their behalf.
+     *
+     * Falls back to [defaultLlm] - the placeholder, in the deployment this exists for - when nothing
+     * answers, rather than throwing as an unsatisfied role does. A caller asking for the default
+     * asked for whatever this deployment has, and the placeholder's "no LLM configured" is the
+     * accurate answer; a [NoSuitableModelException] naming the default as an unsatisfiable role
+     * would not be.
+     */
+    private fun defaultLlmService(): LlmService<*> {
+        registeredDefaultLlm?.let { return it }
+        val resolved = attemptRole(properties.defaultLlm, ModelSelectionContextHolder.get()).resolved?.llmService
+        if (resolved == null) {
+            // Debug, not warn: under BYOK this is the ordinary state of every call made before a
+            // key arrives, and the eventual failure already names it.
+            logger.debug(
+                "Nothing resolved default LLM '{}' for this call; falling back to '{}'",
+                properties.defaultLlm, defaultLlm.name,
+            )
+        }
+        return resolved ?: defaultLlm
+    }
+
+    /**
+     * A resolution attempt: what the resolvers said, and what it materialized into, if anything.
+     */
+    private data class RoleAttempt(
+        val resolution: RoleResolution?,
+        val resolved: ResolvedRole?,
+    )
 
     /**
      * The model name [role] carried, taken from whatever answered for it.
@@ -601,7 +762,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             }
 
             is DefaultModelSelectionCriteria -> {
-                defaultLlm
+                defaultLlmService()
             }
 
             is PreResolvedModelSelectionCriteria<*> -> {

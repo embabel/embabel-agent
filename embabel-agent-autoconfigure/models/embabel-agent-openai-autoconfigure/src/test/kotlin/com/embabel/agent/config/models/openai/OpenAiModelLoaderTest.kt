@@ -22,6 +22,7 @@ import org.springframework.core.io.ByteArrayResource
 import org.springframework.core.io.DefaultResourceLoader
 import org.springframework.core.io.ResourceLoader
 import java.time.LocalDate
+import java.util.Properties
 
 class OpenAiModelLoaderTest {
 
@@ -886,6 +887,28 @@ class OpenAiModelLoaderTest {
         return OpenAiModelLoader(resourceLoader, IN_MEMORY_CONFIG_PATH)
     }
 
+    /**
+     * The framework's shipped `default-llm` against the catalogue that has to serve it.
+     *
+     * Nothing else ties the two together: the default lives in `embabel-agent-api`, the models
+     * that satisfy it live here, and a model retired from this file leaves the default naming
+     * something no deployment can register.
+     */
+    @Nested
+    inner class ShippedDefaultLlm {
+
+        @Test
+        fun `the shipped default names a model this catalogue registers`() {
+            assertTrue(shippedCatalogue.models.isNotEmpty(), "Guard against asserting over an empty catalogue")
+
+            val modelIds = shippedCatalogue.models.map { it.modelId }
+            assertTrue(
+                shippedDefaultLlm in modelIds,
+                "Shipped default-llm '$shippedDefaultLlm' is not in the OpenAI catalogue: $modelIds",
+            )
+        }
+    }
+
     companion object {
         private const val IN_MEMORY_CONFIG_PATH = "memory:test-openai.yml"
 
@@ -904,6 +927,21 @@ class OpenAiModelLoaderTest {
          */
         private val shippedCatalogue: OpenAiModelDefinitions by lazy {
             OpenAiModelLoader().loadAutoConfigMetadata()
+        }
+
+        /**
+         * `embabel.models.default-llm` as the framework actually ships it, read from the
+         * properties file rather than from [ConfigurableModelProviderProperties], whose Kotlin
+         * default is the value that file is expected to carry - asserting against it would
+         * compare the constant with itself.
+         */
+        private val shippedDefaultLlm: String by lazy {
+            val properties = Properties()
+            OpenAiModelLoaderTest::class.java.getResourceAsStream("/agent-application.properties")
+                .use { requireNotNull(it) { "agent-application.properties not on the classpath" }.let(properties::load) }
+            requireNotNull(properties.getProperty("embabel.models.default-llm")) {
+                "agent-application.properties no longer sets embabel.models.default-llm"
+            }
         }
     }
 }

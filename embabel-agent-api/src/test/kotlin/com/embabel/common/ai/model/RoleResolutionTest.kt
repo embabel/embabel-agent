@@ -25,6 +25,7 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -767,6 +768,150 @@ class RoleResolutionTest {
             val rendered = ProviderCredential("anthropic", "sk-very-secret").toString()
             assertTrue(rendered.contains("anthropic"))
             assertTrue(!rendered.contains("sk-very-secret"))
+        }
+    }
+
+    /**
+     * `default-llm` naming a role rather than a model.
+     *
+     * The deployment default was the last thing that could only name a model registered at startup,
+     * which is precisely what a BYOK installation has none of before its first key. See #2031.
+     */
+    @Nested
+    inner class DefaultLlmAsRole {
+
+        @Test
+        fun `default-llm naming a role resolves through the flat map`() {
+            val mp = provider(
+                models = listOf(openAiModel),
+                properties = ConfigurableModelProviderProperties(
+                    llms = mapOf("workhorse" to "gpt-4.1-nano"),
+                    defaultLlm = "workhorse",
+                ),
+            )
+            assertSame(openAiModel, mp.getLlm(DefaultModelSelectionCriteria))
+        }
+
+        @Test
+        fun `default-llm naming a role resolves against the key active for this call`() {
+            // The case the issue is about: nothing but the placeholder is registered, and the first
+            // key arrives after startup. The default has to resolve from it without a restart.
+            var built: String? = null
+            val mp = provider(
+                models = listOf(placeholderModel),
+                properties = ConfigurableModelProviderProperties(
+                    roles = nestedRoles,
+                    defaultLlm = CHEAPEST_ROLE,
+                ),
+                factories = listOf(
+                    CredentialLlmServiceFactory { _, model ->
+                        built = model
+                        anthropicModel
+                    },
+                ),
+            )
+            val resolved = ModelSelectionContextHolder.with(
+                ModelSelectionContext(credential = ProviderCredential("anthropic", "sk-test")),
+            ) {
+                mp.getLlm(DefaultModelSelectionCriteria)
+            }
+            assertEquals("claude-haiku-4-5", built)
+            assertSame(anthropicModel, resolved)
+        }
+
+        @Test
+        fun `an application resolver can answer for the default`() {
+            val mp = provider(
+                models = listOf(placeholderModel),
+                properties = ConfigurableModelProviderProperties(defaultLlm = "workhorse"),
+                roleResolvers = listOf(RoleResolver { role, _ ->
+                    RoleResolution.Service(anthropicModel).takeIf { role == "workhorse" }
+                }),
+            )
+            assertSame(anthropicModel, mp.getLlm(DefaultModelSelectionCriteria))
+        }
+
+        @Test
+        fun `a registered model name is never sent through the resolvers`() {
+            var asked = false
+            val mp = provider(
+                properties = ConfigurableModelProviderProperties(
+                    roles = nestedRoles,
+                    defaultLlm = "gpt-4.1-mini",
+                ),
+                roleResolvers = listOf(RoleResolver { _, _ -> asked = true; null }),
+            )
+            assertSame(defaultModel, mp.getLlm(DefaultModelSelectionCriteria))
+            assertFalse(asked)
+        }
+
+        @Test
+        fun `a role name is not reported as a model this deployment knows about`() {
+            val properties = ConfigurableModelProviderProperties(
+                llms = mapOf("workhorse" to "gpt-4.1-nano"),
+                defaultLlm = "workhorse",
+            )
+            assertEquals(setOf("gpt-4.1-nano"), properties.allWellKnownLlmNames())
+        }
+
+        @Test
+        fun `default-llm naming neither a model nor a role still fails without a placeholder`() {
+            // The typo, which must stay fatal: no placeholder means this deployment is not waiting.
+            val e = assertThrows<IllegalArgumentException> {
+                provider(
+                    models = listOf(openAiModel),
+                    properties = ConfigurableModelProviderProperties(defaultLlm = "gpt-4.1-minii"),
+                )
+            }
+            assertTrue(e.message!!.contains("gpt-4.1-minii"))
+        }
+
+        @Test
+        fun `default-llm naming a role nothing can satisfy still falls back to the placeholder`() {
+            val mp = provider(
+                models = listOf(placeholderModel),
+                properties = ConfigurableModelProviderProperties(
+                    roles = nestedRoles,
+                    defaultLlm = CHEAPEST_ROLE,
+                ),
+            )
+            assertTrue(mp.getLlm(DefaultModelSelectionCriteria) is PlaceholderLlmService)
+        }
+
+        @Test
+        fun `default-llm naming a nested role boots on a deployment with no placeholder`() {
+            // The nested shape is not only for deployments awaiting a key. One that holds its own
+            // key may use it to say what each role means per provider, against the day it serves
+            // users who bring theirs. Such a deployment has no placeholder to fall back to, so
+            // consulting only the flat map left it unable to name a role as its default at all:
+            // it failed to start, and was told the role it had just configured was not a role.
+            val mp = provider(
+                models = listOf(openAiModel),
+                properties = ConfigurableModelProviderProperties(
+                    roles = nestedRoles,
+                    defaultLlm = CHEAPEST_ROLE,
+                ),
+            )
+            assertSame(openAiModel, mp.getLlm(DefaultModelSelectionCriteria))
+        }
+
+        @Test
+        fun `a configured role nothing can satisfy is reported as a role, not as an unknown name`() {
+            // Still fatal - there is no placeholder - but the message has to name the actual
+            // problem. Telling someone their role is not a role sends them to fix the one thing
+            // that is already right.
+            val e = assertThrows<IllegalArgumentException> {
+                provider(
+                    models = listOf(defaultModel),
+                    properties = ConfigurableModelProviderProperties(
+                        llms = mapOf("workhorse" to "gpt-4.1-nano"),
+                        defaultLlm = "workhorse",
+                    ),
+                )
+            }
+            assertTrue(e.message!!.contains("workhorse"), e.message)
+            assertTrue(e.message!!.contains("role"), e.message)
+            assertFalse(e.message!!.contains("neither"), e.message)
         }
     }
 

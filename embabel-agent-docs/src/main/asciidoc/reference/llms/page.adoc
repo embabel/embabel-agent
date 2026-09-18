@@ -672,6 +672,41 @@ is expected and only worth reporting.
 Whichever way startup goes, asking for a role that cannot be satisfied still throws at the point of
 use, and the message names the role, the active provider, and the models that were available.
 
+===== The deployment default as a role
+
+`default-llm` may name a role rather than a model:
+
+[source,yaml]
+----
+embabel:
+  models:
+    default-llm: cheapest       # <1>
+    roles:
+      cheapest:
+        openai:
+          model: gpt-4.1-nano
+        anthropic:
+          model: claude-haiku-4-5
+----
+<1> A role from `roles` or from the flat `llms` map, not a model name
+
+A model name is resolved once, against the services registered at startup. A role is resolved per
+call, through the same resolver chain as any other role - so the default follows whichever provider
+key is active, and a deployment whose first key arrives after startup gets a working default without
+a restart. That is the case this exists for: under BYOK nothing is registered before the first key,
+so a default fixed at construction can only be the placeholder until the process restarts.
+
+A model name that nothing registers falls back to the role chain as well, so `default-llm` keeps
+working whichever way it was meant. Nothing existing changes: a name that does resolve against a
+registered service is still resolved once and never sent through the resolvers.
+
+A default that nothing can satisfy does not throw the way an unsatisfied role does. It falls back to
+whatever `default-llm` resolved to at startup - the placeholder, in a deployment awaiting a key -
+so the caller sees the same actionable "no LLM configured" error. Startup is stricter: with no
+placeholder to fall back to, a `default-llm` that names nothing this deployment has registered -
+whether a typo or a role whose every model is missing - is still fatal, and the message says which
+of the two it is.
+
 ===== Resolving roles in code
 
 To decide what a role means per user rather than per deployment, register a `RoleResolver` bean.

@@ -55,8 +55,8 @@ From `ConfigurableModelProviderProperties` - configuration for default LLMs and 
 
 |`embabel.models.default-llm`
 |String
-|`gpt-4.1-mini`
-|Default LLM name. It's good practice to override this in configuration.
+|`gpt-5.6-luna`
+|The deployment default: either an LLM name, or a role from `embabel.models.llms` or `embabel.models.roles`. A role is resolved per call, so a deployment whose key arrives at runtime has a working default without a restart. It's good practice to override this in configuration.
 
 |`embabel.models.default-embedding-model`
 |String
