@@ -55,7 +55,6 @@ import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
 import java.time.Duration
 import java.time.LocalDate
-import java.util.Collections
 
 /**
  * Generic support for OpenAI compatible models.
@@ -390,7 +389,8 @@ open class OpenAiCompatibleModelFactory(
      */
     private fun buildCustomizedClientOptions(): ClientOptions? {
         // Collect customizers in @Order / Ordered precedence; empty list → no-op path.
-        val customizers = Collections.unmodifiableList(httpClientCustomizers.orderedStream().toList())
+        val customizers = httpClientCustomizers.orderedStream()
+            .collect(java.util.stream.Collectors.toUnmodifiableList())
         if (customizers.isEmpty()) return null
 
         logger.info(
