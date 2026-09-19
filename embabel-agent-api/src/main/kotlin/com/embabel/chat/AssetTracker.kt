@@ -60,6 +60,19 @@ interface AssetTracker : AssetView {
     }
 
     /**
+     * Wrap a tool so any returned [MaterializableAsset] instances are copied to
+     * [assetStore] and the resulting [DurableAsset] instances are tracked.
+     */
+    fun addDurablyReturnedAssets(tool: Tool, assetStore: AssetStore): Tool {
+        return AssetAddingTool(
+            delegate = tool,
+            assetTracker = this,
+            converter = assetStore::store,
+            clazz = MaterializableAsset::class.java,
+        )
+    }
+
+    /**
      * Make these tools track any assets produced.
      */
     fun addAnyReturnedAssets(tools: List<Tool>): List<Tool> {
@@ -74,6 +87,13 @@ interface AssetTracker : AssetView {
      */
     fun addAnyReturnedAssets(tools: List<Tool>, filter: Predicate<Asset>): List<Tool> {
         return tools.map { addReturnedAssets(it, filter) }
+    }
+
+    /**
+     * Make these tools materialize and track any returned [MaterializableAsset] instances.
+     */
+    fun addAnyDurablyReturnedAssets(tools: List<Tool>, assetStore: AssetStore): List<Tool> {
+        return tools.map { addDurablyReturnedAssets(it, assetStore) }
     }
 
     companion object {
