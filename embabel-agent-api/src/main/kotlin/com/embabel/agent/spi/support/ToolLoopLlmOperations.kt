@@ -268,15 +268,7 @@ open class ToolLoopLlmOperations(
             if (text.isNotBlank()) converter.convert(text)!! else MaybeReturn.noOutput()
         }
 
-        // Create a decorator for dynamically injected tools (e.g., from UnfoldingTool)
-        val injectedToolDecorator: ((Tool) -> Tool) = { tool: Tool ->
-            toolDecorator.decorate(
-                tool = tool,
-                agentProcess = llmRequestEvent.agentProcess,
-                action = llmRequestEvent.action,
-                llmOptions = interaction.llm,
-            )
-        }
+        val injectedToolDecorator = createInjectedToolDecorator(llmRequestEvent, interaction)
 
         val injectionStrategy = if (interaction.additionalInjectionStrategies.isNotEmpty()) {
             ChainedToolInjectionStrategy(
@@ -866,14 +858,13 @@ open class ToolLoopLlmOperations(
         llmRequestEvent: LlmRequestEvent<*>?,
         interaction: LlmInteraction,
     ): ((Tool) -> Tool)? = llmRequestEvent?.let { event ->
-        { tool: Tool ->
-            toolDecorator.decorate(
-                tool = tool,
-                agentProcess = event.agentProcess,
-                action = event.action,
-                llmOptions = interaction.llm,
-            )
-        }
+        ToolNamingContext.qualifyingToolDecorator(
+            toolConsumer = interaction,
+            agentProcess = event.agentProcess,
+            action = event.action,
+            llmOptions = interaction.llm,
+            toolDecorator = toolDecorator,
+        )
     }
 
     /**

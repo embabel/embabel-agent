@@ -323,9 +323,11 @@ class SupervisorAction(
     ): String {
         val objectMapper = processContext.platformServices.objectMapper
 
-        // Build action signatures with type schemas
-        val actionSignatures = toolActions.joinToString("\n") { action ->
-            "- " + TypeSchemaExtractor.buildActionSignature(action)
+        val namingStrategy = processContext.platformServices.toolNamingStrategy()
+        val actionSignatures = tools.filterIsInstance<CurriedActionTool>().joinToString("\n") { tool ->
+            val signature = TypeSchemaExtractor.buildActionSignature(tool.action)
+            val owner = processContext.agentProcess.agent.name
+            "- ${namingStrategy.nameFor(owner, tool.definition.name)}${signature.removePrefix(tool.action.shortName())}"
         }
 
         // Build artifacts summary showing typed values on blackboard

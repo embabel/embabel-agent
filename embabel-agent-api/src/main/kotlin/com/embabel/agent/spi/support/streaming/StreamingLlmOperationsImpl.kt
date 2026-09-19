@@ -30,6 +30,7 @@ import com.embabel.agent.spi.loop.ChainedToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.core.internal.streaming.StreamingLlmOperations
 import com.embabel.agent.spi.support.PROMPT_ELEMENT_SEPARATOR
+import com.embabel.agent.spi.support.ToolNamingContext
 import com.embabel.agent.spi.support.ToolResolutionHelper
 import com.embabel.agent.spi.support.buildConsolidatedPromptMessages
 import com.embabel.agent.spi.support.buildPromptContributionsString
@@ -309,14 +310,13 @@ internal class StreamingLlmOperationsImpl(
             ?: ToolCallContext.EMPTY
         val toolCallContext = processToolCallContext.merge(interaction.toolCallContext)
         val injectedToolDecorator: ((Tool) -> Tool)? = agentProcess?.let { process ->
-            { tool ->
-                toolDecorator.decorate(
-                    tool = tool,
-                    agentProcess = process,
-                    action = action,
-                    llmOptions = interaction.llm,
-                )
-            }
+            ToolNamingContext.qualifyingToolDecorator(
+                toolConsumer = interaction,
+                agentProcess = process,
+                action = action,
+                llmOptions = interaction.llm,
+                toolDecorator = toolDecorator,
+            )
         }
 
         return DefaultStreamingToolLoop(

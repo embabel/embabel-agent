@@ -165,7 +165,25 @@ class CurriedActionToolTest {
         )
     }
 
-    // Test data classes
+    private fun action(name: String) = object : AbstractAction(
+        name = name,
+        description = name,
+        pre = emptyList(),
+        post = emptyList(),
+        cost = { 0.0 },
+        value = { 0.0 },
+        inputs = emptySet(),
+        outputs = emptySet(),
+        toolGroups = emptySet(),
+        canRerun = false,
+        qos = ActionQos(),
+    ) {
+        override fun execute(processContext: ProcessContext) =
+            ActionStatus(Duration.ZERO, ActionStatusCode.SUCCEEDED)
+
+        override fun referencedInputProperties(variable: String) = emptySet<String>()
+    }
+
     data class Cook(val name: String)
     data class Order(val dish: String)
     data class Meal(val dish: String, val cookedBy: String)

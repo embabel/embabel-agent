@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.support
 
+import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
@@ -39,7 +40,14 @@ class DefaultToolDecorator(
         action: Action?,
         llmOptions: LlmOptions,
     ): Tool {
-        val toolGroup = toolGroupResolver?.findToolGroupForTool(toolName = tool.definition.name)
+        val toolGroup = toolGroupResolver?.let { resolver ->
+            val names = tool.names()
+            val current = resolver.findToolGroupForTool(names.first())
+            if (current.resolvedToolGroup != null) current else names.asSequence()
+                .drop(1)
+                .map(resolver::findToolGroupForTool)
+                .firstOrNull { it.resolvedToolGroup != null } ?: current
+        }
         return AgentProcessBindingTool(
             delegate = ExceptionSuppressingTool(
                 delegate = OutputTransformingTool(
@@ -61,3 +69,9 @@ class DefaultToolDecorator(
         )
     }
 }
+
+private fun Tool.names(): List<String> =
+    generateSequence(this) { (it as? DelegatingTool)?.delegate }
+        .map { it.definition.name }
+        .distinct()
+        .toList()
