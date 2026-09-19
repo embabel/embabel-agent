@@ -24,6 +24,8 @@ import com.github.victools.jsonschema.generator.OptionPreset
 import com.github.victools.jsonschema.generator.SchemaGenerator
 import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import com.github.victools.jsonschema.generator.SchemaVersion
+import com.github.victools.jsonschema.module.jackson.JacksonModule
+import com.github.victools.jsonschema.module.jackson.JacksonOption
 import org.jetbrains.annotations.ApiStatus
 import java.lang.reflect.Method
 import java.lang.reflect.Type
@@ -41,6 +43,12 @@ internal object VictoolsSchemaGenerator {
         val configBuilder = SchemaGeneratorConfigBuilder(
             SchemaVersion.DRAFT_2020_12,
             OptionPreset.PLAIN_JSON
+        ).with(
+            JacksonModule(
+                JacksonOption.SKIP_SUBTYPE_LOOKUP,
+                JacksonOption.RESPECT_JSONPROPERTY_REQUIRED,
+                JacksonOption.RESPECT_JSONPROPERTY_ORDER,
+            )
         )
         // Don't include $schema and $id in generated schemas
         configBuilder.without(Option.SCHEMA_VERSION_INDICATOR)
