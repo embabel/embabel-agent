@@ -1,0 +1,11 @@
+{
+  "name": "embabel-docs-llms-builder",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build:llms": "node llms-txt-extension.js"
+  },
+  "dependencies": {
+    "@asciidoctor/core": "~3.0.4"
+  }
+}

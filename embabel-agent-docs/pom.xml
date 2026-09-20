@@ -27,6 +27,8 @@
         <jruby.version>9.2.17.0</jruby.version>
         <maven.resources.plugin.version>3.3.1</maven.resources.plugin.version>
         <agent-api.version>${project.parent.version}</agent-api.version>
+        <node.version>v20.11.1</node.version>
+        <frontend.maven.plugin.version>1.15.0</frontend.maven.plugin.version>
     </properties>
 
     <build>
@@ -100,6 +102,53 @@
                                     </includes>
                                 </resource>
                             </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Plugin to run Node.js and Asciidoctor.js script -->
+            <plugin>
+                <groupId>com.github.eirslett</groupId>
+                <artifactId>frontend-maven-plugin</artifactId>
+                <version>${frontend.maven.plugin.version}</version>
+                <configuration>
+                    <!-- Installs node/ and node_modules/ inside target/ -->
+                    <installDirectory>${project.build.directory}/node_installer</installDirectory>
+                    <workingDirectory>${project.basedir}</workingDirectory>
+                </configuration>
+                <executions>
+                    <!-- 1. Download local Node.js & npm (no global installs required) -->
+                    <execution>
+                        <id>install-node-and-npm</id>
+                        <goals>
+                            <goal>install-node-and-npm</goal>
+                        </goals>
+                        <phase>prepare-package</phase>
+                        <configuration>
+                            <nodeVersion>${node.version}</nodeVersion>
+                        </configuration>
+                    </execution>
+                    <!-- 2. Install @asciidoctor/core -->
+                    <execution>
+                        <id>npm-install</id>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <phase>prepare-package</phase>
+                        <configuration>
+                            <arguments>install</arguments>
+                        </configuration>
+                    </execution>
+
+                    <!-- 3. Execute Asciidoctor.js via npm run -->
+                    <execution>
+                        <id>generate-llmstxt</id>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <phase>prepare-package</phase>
+                        <configuration>
+                            <arguments>run build:llms -- --doc-version=${project.parent.version}</arguments>
                         </configuration>
                     </execution>
                 </executions>
