@@ -37,6 +37,7 @@ public class A2AClientAutoConfiguration {
      */
     @Bean
     @ConditionalOnClass(RestClient.class)
+    @ConditionalOnMissingBean(A2AHttpClientFactory.class)
     public A2AHttpClientFactory springRestClientA2AHttpClientFactory() {
         return () -> new SpringRestClientA2AHttpClient(RestClient.create());
     }
