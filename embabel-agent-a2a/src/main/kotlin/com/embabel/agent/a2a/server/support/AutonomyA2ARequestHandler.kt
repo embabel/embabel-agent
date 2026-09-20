@@ -15,6 +15,13 @@
  */
 package com.embabel.agent.a2a.server.support
 
+import com.embabel.agent.a2a.A2A_CONTEXT_ID_BAGGAGE_KEY
+import com.embabel.agent.a2a.A2A_MESSAGE_SEND
+import com.embabel.agent.a2a.A2A_MESSAGE_STREAM
+import com.embabel.agent.a2a.A2A_METHOD_KEY
+import com.embabel.agent.a2a.A2A_METHOD_SEND_VALUE
+import com.embabel.agent.a2a.A2A_METHOD_STREAM_VALUE
+import com.embabel.agent.a2a.A2A_TASK_ID_KEY
 import com.embabel.agent.a2a.server.A2ARequestEvent
 import com.embabel.agent.a2a.server.A2ARequestHandler
 import com.embabel.agent.a2a.server.A2AResponseEvent
@@ -23,6 +30,11 @@ import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.ProcessOptions
 import io.a2a.spec.*
+import io.micrometer.observation.Observation
+import io.micrometer.observation.ObservationRegistry
+import io.opentelemetry.api.baggage.Baggage
+import io.opentelemetry.api.baggage.BaggageEntryMetadata
+import io.opentelemetry.context.Context
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
@@ -39,6 +51,7 @@ class AutonomyA2ARequestHandler(
     private val autonomy: Autonomy,
     private val agenticEventListener: AgenticEventListener,
     private val streamingHandler: A2AStreamingHandler,
+    private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
 ) : A2ARequestHandler {
 
     private val logger = LoggerFactory.getLogger(A2ARequestHandler::class.java)
@@ -107,9 +120,19 @@ class AutonomyA2ARequestHandler(
         request: SendMessageRequest,
         params: MessageSendParams,
     ): JSONRPCResponse<*> {
+        val taskId = ensureTaskId(params.message.taskId)
+        val contextId = ensureContextId(params.message.contextId)
         // TODO handle other message parts and handle errors
         val intent = params.message.parts.filterIsInstance<TextPart>().single().text
         logger.info("Handling message send request with intent: '{}'", intent)
+
+        val observation = Observation.createNotStarted(A2A_MESSAGE_SEND, observationRegistry)
+            .lowCardinalityKeyValue(A2A_METHOD_KEY, A2A_METHOD_SEND_VALUE)
+            .highCardinalityKeyValue(A2A_TASK_ID_KEY, taskId)
+            .highCardinalityKeyValue(A2A_CONTEXT_ID_BAGGAGE_KEY, contextId)
+            .start()
+        val observationScope = observation.openScope()
+        val baggageScope = injectContextIdBaggage(contextId)
         try {
             val result = autonomy.chooseAndRunAgent(
                 intent = intent,
@@ -120,15 +143,11 @@ class AutonomyA2ARequestHandler(
             val statusMessage = extractContentForDisplay(result)
 
             val task = Task.Builder()
-                .id(ensureTaskId(params.message.taskId))
-                .contextId(ensureContextId(params.message.contextId))
+                .id(taskId)
+                .contextId(contextId)
                 .status(createCompletedTaskStatus(params, statusMessage))
                 .history(listOfNotNull(params.message))
-                .artifacts(
-                    listOf(
-                        createResultArtifact(result, params.configuration?.acceptedOutputModes)
-                    )
-                )
+                .artifacts(listOf(createResultArtifact(result, params.configuration?.acceptedOutputModes)))
                 .build()
 
             val jSONRPCResponse = request.successResponseWith(result = task)
@@ -136,15 +155,16 @@ class AutonomyA2ARequestHandler(
             return jSONRPCResponse
         } catch (e: Exception) {
             logger.error("Error handling message send request", e)
+            observation.error(e)
             // TODO other kinds of errors
             return JSONRPCErrorResponse(
-                ensureTaskId(params.message.taskId),
-                TaskNotFoundError(
-                    null,
-                    "Internal error: ${e.message}",
-                    e.stackTraceToString()
-                )
+                taskId,
+                TaskNotFoundError(null, "Internal error: ${e.message}", e.stackTraceToString())
             )
+        } finally {
+            baggageScope?.close()
+            observationScope.close()
+            observation.stop()
         }
     }
 
@@ -156,7 +176,14 @@ class AutonomyA2ARequestHandler(
 
         val emitter = streamingHandler.createStream(streamId, taskId, contextId)
 
+        val observation = Observation.createNotStarted(A2A_MESSAGE_STREAM, observationRegistry)
+            .lowCardinalityKeyValue(A2A_METHOD_KEY, A2A_METHOD_STREAM_VALUE)
+            .highCardinalityKeyValue(A2A_TASK_ID_KEY, taskId)
+            .highCardinalityKeyValue(A2A_CONTEXT_ID_BAGGAGE_KEY, contextId)
+            .start()
+
         Thread.startVirtualThread {
+            val baggageScope = injectContextIdBaggage(contextId)
             try {
                 // Send initial status event
                 streamingHandler.sendStreamEvent(
@@ -208,6 +235,7 @@ class AutonomyA2ARequestHandler(
                 )
             } catch (e: Exception) {
                 logger.error("Streaming error", e)
+                observation.error(e)
                 try {
                     streamingHandler.sendStreamEvent(
                         streamId,
@@ -222,6 +250,8 @@ class AutonomyA2ARequestHandler(
                     logger.error("Error sending error event", sendError)
                 }
             } finally {
+                baggageScope?.close()
+                observation.stop()
                 streamingHandler.closeStream(streamId)
             }
         }
@@ -313,12 +343,31 @@ class AutonomyA2ARequestHandler(
         OffsetDateTime.now()
     )
 
+    private fun injectContextIdBaggage(contextId: String): AutoCloseable? {
+        if (!OTEL_AVAILABLE) return null
+        return Baggage.current().toBuilder()
+            .put(BAGGAGE_KEY, contextId, BaggageEntryMetadata.empty())
+            .build()
+            .storeInContext(Context.current())
+            .makeCurrent()
+    }
+
     private fun ensureContextId(providedContextId: String?): String {
         return providedContextId ?: ("ctx_" + UUID.randomUUID().toString())
     }
 
     private fun ensureTaskId(providedTaskId: String?): String {
         return providedTaskId ?: UUID.randomUUID().toString()
+    }
+
+    companion object {
+        private const val BAGGAGE_KEY = "a2a.context_id"
+        private val OTEL_AVAILABLE = try {
+            Class.forName("io.opentelemetry.api.baggage.Baggage")
+            true
+        } catch (_: ClassNotFoundException) {
+            false
+        }
     }
 
     /**
