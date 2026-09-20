@@ -29,8 +29,10 @@ import io.micrometer.observation.tck.TestObservationRegistryAssert
 import io.mockk.every
 import io.mockk.justRun
 import io.mockk.mockk
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.util.UUID
 
 /**
@@ -93,6 +95,33 @@ class AutonomyA2ARequestHandlerObservationTest {
 
         TestObservationRegistryAssert.assertThat(registry)
             .hasObservationWithNameEqualTo(A2A_MESSAGE_SEND)
+    }
+
+    @Test
+    fun `handleJsonRpc records observation error and returns error response when autonomy throws`() {
+        every { autonomy.chooseAndRunAgent(any(), any()) } throws RuntimeException("agent failure")
+
+        val response = handler.handleJsonRpc(buildSendMessageRequest("task-1", "ctx-1"))
+
+        assertInstanceOf(JSONRPCErrorResponse::class.java, response)
+        TestObservationRegistryAssert.assertThat(registry)
+            .hasObservationWithNameEqualTo(A2A_MESSAGE_SEND)
+    }
+
+    @Test
+    fun `handleJsonRpcStream delegates to streamingHandler and returns SseEmitter`() {
+        every { streamingHandler.createStream(any(), any(), any()) } returns SseEmitter()
+
+        var builder = Message.Builder()
+            .messageId(UUID.randomUUID().toString())
+            .role(Message.Role.USER)
+            .parts(listOf(TextPart("stream intent")))
+        val params = MessageSendParams.Builder().message(builder.build()).build()
+        val request = SendStreamingMessageRequest(UUID.randomUUID().toString(), params)
+
+        val emitter = handler.handleJsonRpcStream(request)
+
+        assertInstanceOf(SseEmitter::class.java, emitter)
     }
 
     private fun buildSendMessageRequest(taskId: String?, contextId: String?): SendMessageRequest {
