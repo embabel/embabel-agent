@@ -675,7 +675,7 @@ To enable persistent storage, add the `embabel-chat-store` dependency:
 [source,xml]
 ----
 <dependency>
-    <groupId>com.embabel.chat</groupId>
+    <groupId>com.embabel.agent</groupId>
     <artifactId>embabel-chat-store</artifactId>
 </dependency>
 ----

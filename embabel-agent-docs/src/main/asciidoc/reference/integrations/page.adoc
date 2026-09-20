@@ -820,6 +820,23 @@ embabel:
 [[reference.integrations__a2a]]
 ==== A2A
 
+Embabel Agent can act as an A2A server and client, exposing deployed agents as A2A endpoints
+and allowing agents to delegate to remote A2A agents.
+
+===== Configuration
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      a2a:
+        server:
+          preferred-transport: JSONRPC  # Transport advertised in agent cards (default: JSONRPC)
+        client:
+          timeout-seconds: 30           # Timeout waiting for a response from a remote A2A agent
+----
+
 [[reference.integrations__observability]]
 ==== Observability
 
