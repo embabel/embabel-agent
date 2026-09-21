@@ -27,6 +27,7 @@ import com.embabel.common.ai.model.PricingModel
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 
 /**
  * The embedding placeholder exists so a BYOK application that uses RAG or memory starts with no
@@ -267,6 +268,28 @@ class SetupRequiredEmbeddingTest {
 
         assertThat(wrapped.awaitingProviderKey).isFalse()
         assertThat(wrapped.dimensions).isEqualTo(1536)
+    }
+
+    /**
+     * The message must not pin the blame on a missing key, because the placeholder cannot know
+     * that is the reason. A deployment holding a working key and no chosen embedding model
+     * reaches this same line, and was previously told to go and find a key
+     * (embabel-worlds/appliance#95).
+     */
+    @Test
+    fun `the message names both causes and asserts neither`() {
+        val thrown = assertThrows<NoEmbeddingServiceConfiguredException> {
+            SetupRequiredEmbedding.embeddingService().embed("anything")
+        }
+        val message = thrown.message ?: ""
+
+        assertThat(message).contains("no embedding model has been chosen")
+        assertThat(message).contains("embabel.models.default-embedding-model")
+        assertThat(message).contains("holds no provider API key")
+        // The two are offered as alternatives. Anything that reads as a diagnosis of one of them
+        // sends the reader to debug a subsystem that may be working perfectly.
+        assertThat(message).contains("Either")
+        assertThat(message).doesNotContain("This deployment holds no provider API key,")
     }
 
     /** Stands in for any decorator — event tracking, metering, a hot-swappable model holder. */
