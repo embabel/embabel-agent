@@ -128,6 +128,8 @@ jobs:
               sudo tar -xzf ~/docs-bundle.tar.gz &&
               sudo cp -r generated-docs/* /var/www/html/embabel-agent/guide/\$VERSION/ &&
               sudo cp -r dokka-aggregate/* /var/www/html/embabel-agent/api-docs/\$VERSION/ &&
+              sudo cp generated-docs/llms.txt /var/www/html/llms.txt &&
+              sudo chmod 644 /var/www/html/llms.txt &&
               rm -f ~/docs-bundle.tar.gz &&
               sudo rm -rf /tmp/generated-docs /tmp/dokka-aggregate &&
               echo 'Deployment completed on VM at \$(date)'
