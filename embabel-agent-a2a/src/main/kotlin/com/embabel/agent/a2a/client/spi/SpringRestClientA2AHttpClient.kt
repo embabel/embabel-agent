@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.a2a.client.spi.springai
+package com.embabel.agent.a2a.client.spi
 
 import io.a2a.client.http.A2AHttpClient
 import io.a2a.client.http.A2AHttpResponse

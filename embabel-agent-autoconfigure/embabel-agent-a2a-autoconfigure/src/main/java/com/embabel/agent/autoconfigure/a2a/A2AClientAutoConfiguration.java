@@ -19,7 +19,7 @@ import com.embabel.agent.a2a.config.A2AConfigurationProperties;
 import com.embabel.agent.a2a.client.A2AHttpClientFactory;
 import com.embabel.agent.a2a.client.EmbabelA2AClient;
 import com.embabel.agent.a2a.client.api.A2AClient;
-import com.embabel.agent.a2a.client.spi.springai.SpringRestClientA2AHttpClient;
+import com.embabel.agent.a2a.client.spi.SpringRestClientA2AHttpClient;
 import com.embabel.common.util.EmbabelObjectMapperHolder;
 import io.a2a.client.http.JdkA2AHttpClient;
 import org.springframework.boot.autoconfigure.AutoConfiguration;

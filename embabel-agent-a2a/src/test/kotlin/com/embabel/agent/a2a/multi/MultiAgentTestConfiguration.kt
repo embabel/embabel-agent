@@ -18,7 +18,7 @@ package com.embabel.agent.a2a.multi
 import com.embabel.agent.a2a.client.A2AHttpClientFactory
 import com.embabel.agent.a2a.client.EmbabelA2AClient
 import com.embabel.agent.a2a.client.api.A2AClient
-import com.embabel.agent.a2a.client.spi.springai.SpringRestClientA2AHttpClient
+import com.embabel.agent.a2a.client.spi.SpringRestClientA2AHttpClient
 import com.embabel.agent.a2a.server.AgentCardHandler
 import com.embabel.agent.a2a.server.support.AutonomyA2ARequestHandler
 import com.embabel.agent.a2a.server.support.EmbabelServerGoalsAgentCardHandler

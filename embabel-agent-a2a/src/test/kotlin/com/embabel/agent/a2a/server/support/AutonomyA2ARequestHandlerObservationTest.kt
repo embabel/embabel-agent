@@ -15,11 +15,14 @@
  */
 package com.embabel.agent.a2a.server.support
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger as LogbackLogger
 import com.embabel.agent.a2a.A2A_CONTEXT_ID_BAGGAGE_KEY
 import com.embabel.agent.a2a.A2A_MESSAGE_SEND
 import com.embabel.agent.a2a.A2A_METHOD_KEY
 import com.embabel.agent.a2a.A2A_METHOD_SEND_VALUE
 import com.embabel.agent.a2a.A2A_TASK_ID_KEY
+import com.embabel.agent.a2a.server.A2ARequestHandler
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.AgentPlatform
@@ -32,6 +35,7 @@ import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.util.UUID
 
@@ -71,6 +75,8 @@ class AutonomyA2ARequestHandlerObservationTest {
         every { autonomy.agentPlatform } returns mockk<AgentPlatform>(relaxed = true)
         every { autonomy.chooseAndRunAgent(any(), any()) } returns mockk(relaxed = true)
         justRun { agenticEventListener.onPlatformEvent(any()) }
+        justRun { streamingHandler.sendStreamEvent(any(), any(), any()) }
+        justRun { streamingHandler.closeStream(any()) }
         registry = TestObservationRegistry.create()
         handler = AutonomyA2ARequestHandler(autonomy, agenticEventListener, streamingHandler, registry)
     }
@@ -101,7 +107,15 @@ class AutonomyA2ARequestHandlerObservationTest {
     fun `handleJsonRpc records observation error and returns error response when autonomy throws`() {
         every { autonomy.chooseAndRunAgent(any(), any()) } throws RuntimeException("agent failure")
 
-        val response = handler.handleJsonRpc(buildSendMessageRequest("task-1", "ctx-1"))
+        val handlerLogger = LoggerFactory.getLogger(A2ARequestHandler::class.java) as LogbackLogger
+        val originalLevel = handlerLogger.level
+        handlerLogger.level = Level.OFF
+
+        val response = try {
+            handler.handleJsonRpc(buildSendMessageRequest("task-1", "ctx-1"))
+        } finally {
+            handlerLogger.level = originalLevel
+        }
 
         assertInstanceOf(JSONRPCErrorResponse::class.java, response)
         TestObservationRegistryAssert.assertThat(registry)
