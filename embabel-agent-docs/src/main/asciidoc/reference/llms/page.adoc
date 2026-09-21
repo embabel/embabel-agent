@@ -1107,6 +1107,62 @@ embabel:
 <1> Sets the default embedding service
 <2> Maps the `cheapest` role to your custom embedding service
 
+[[reference.llms.embedding-roles]]
+===== Embedding roles under bring-your-own-key
+
+`default-embedding-model` may name a **role** rather than a model.
+A model name is resolved once, against the services registered at startup; a role is resolved on every call, through the same resolver chain roles use for chat.
+
+That difference matters only for a deployment whose provider key arrives after boot.
+Such a deployment registers no embedding service at startup, so a default fixed at construction can only be the placeholder — permanently, until the process restarts.
+Naming a role instead means the key that satisfies every other role satisfies the embedding default too, with no restart.
+
+[source,yaml]
+----
+embabel:
+  models:
+    default-embedding-model: documents   # <1>
+    embedding-services:
+      documents: text-embedding-3-small  # <2>
+----
+<1> A role, because `documents` is a key in `embedding-services`. Resolved per call.
+<2> What the role means for a single-provider deployment.
+
+Where the provider is not known until a key arrives, `embedding-roles` gives a role a model per provider — the embedding counterpart of `embabel.models.roles`:
+
+[source,yaml]
+----
+embabel:
+  models:
+    default-embedding-model: documents
+    embedding-roles:
+      documents:
+        openai: text-embedding-3-small
+        mistral: mistral-embed
+----
+
+It is flatter than `roles`, which maps to a whole `LlmOptions`.
+An embedding model takes text and returns a vector: there is no temperature to set, and the one parameter that does vary — the width — is the model's to state and the index's to follow.
+
+Entries naming a model this deployment has not registered are reported at startup and tolerated, because that is what the shape is for: the model is built from a key supplied at runtime.
+
+To resolve an embedding role for a user's own key, register an `EmbeddingRoleResolver` returning `EmbeddingRoleResolution.Credential`, and the platform builds the service through a `CredentialEmbeddingServiceFactory` and caches it per provider, key and model.
+`embabel-agent-starter-byok` ships one covering every OpenAI-compatible provider, so this usually needs no application code.
+
+[NOTE]
+====
+Embedding roles resolve through their own chain, separate from `RoleResolver`.
+A chat role and an embedding role may share a name, and a resolver that answers for one must not be asked about the other.
+An application that resolves both from one source implements both interfaces on one class.
+====
+
+[NOTE]
+====
+Asking for an embedding role that nothing satisfies throws, whether or not the deployment is awaiting a key — unlike a chat role, which falls back to the placeholder.
+A vector index is created at a model's width, so nothing can stand in for one.
+The *default* keeps its placeholder: a caller asking for whatever the deployment has is entitled to a service that says it has nothing.
+====
+
 
 [[reference.llms.anthropic-caching]]
 ==== Advanced Caching with Anthropic
