@@ -1146,6 +1146,10 @@ An embedding model takes text and returns a vector: there is no temperature to s
 
 Entries naming a model this deployment has not registered are reported at startup and tolerated, because that is what the shape is for: the model is built from a key supplied at runtime.
 
+Which column is read comes from the active key.
+Where there is no active key, it comes from the registered embedding services — but only where they agree on one provider.
+A deployment with two registered providers and no key reads `embedding-services` instead of picking a column, because the alternative would be a choice made by bean registration order.
+
 To resolve an embedding role for a user's own key, register an `EmbeddingRoleResolver` returning `EmbeddingRoleResolution.Credential`, and the platform builds the service through a `CredentialEmbeddingServiceFactory` and caches it per provider, key and model.
 `embabel-agent-starter-byok` ships one covering every OpenAI-compatible provider, so this usually needs no application code.
 

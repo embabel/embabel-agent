@@ -18,9 +18,9 @@ package com.embabel.agent.config.models.byok
 import com.embabel.agent.anthropic.AnthropicModelFactory
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
+import com.embabel.common.ai.model.CredentialEmbeddingServiceFactory
 import com.embabel.common.ai.model.CredentialEndpoint
 import com.embabel.common.ai.model.CredentialEndpointResolver
-import com.embabel.common.ai.model.CredentialEmbeddingServiceFactory
 import com.embabel.common.ai.model.CredentialLlmServiceFactory
 import com.embabel.common.ai.model.ProviderCredential
 import com.embabel.common.util.loggerFor

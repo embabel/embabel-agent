@@ -376,6 +376,52 @@ class EmbeddingRoleResolutionTest {
             )
         }
 
+        /**
+         * The default is resolved on every call that does not name a role, so a standing condition
+         * would otherwise be stated once per embedded chunk - which is how the one line an operator
+         * has to read gets filtered out.
+         */
+        @Test
+        fun `a standing fallback is reported once, not once per call`() {
+            val events = captureWarnings {
+                val mp = provider(
+                    ConfigurableModelProviderProperties(defaultLlm = "gpt-4.1-mini", defaultEmbeddingModel = null),
+                    listOf(small, placeholder),
+                )
+                repeat(5) { mp.getEmbeddingService(DefaultModelSelectionCriteria) }
+            }
+            assertEquals(
+                1,
+                events.count { it.formattedMessage.contains("No embedding model is configured") },
+                events.joinToString { it.formattedMessage },
+            )
+        }
+
+        @Test
+        fun `a fallback for a different reason is reported again`() {
+            val properties = ConfigurableModelProviderProperties(
+                defaultLlm = "gpt-4.1-mini",
+                defaultEmbeddingModel = null,
+            )
+            val events = captureWarnings {
+                val mp = provider(properties, listOf(small, placeholder))
+                mp.getEmbeddingService(DefaultModelSelectionCriteria)
+                mp.getEmbeddingService(DefaultModelSelectionCriteria)
+                properties.defaultEmbeddingModel = "text-embedding-9-imaginary"
+                mp.getEmbeddingService(DefaultModelSelectionCriteria)
+            }
+            assertEquals(
+                1,
+                events.count { it.formattedMessage.contains("No embedding model is configured") },
+                events.joinToString { it.formattedMessage },
+            )
+            assertEquals(
+                1,
+                events.count { it.formattedMessage.contains("is not registered; falling back") },
+                "suppression must be per reason, not per process",
+            )
+        }
+
         @Test
         fun `a genuinely unregistered model name still warns that it is not registered`() {
             val events = captureWarnings {
@@ -424,6 +470,41 @@ class EmbeddingRoleResolutionTest {
                 embeddingRoles = mapOf("documents" to mapOf("openai" to "text-embedding-3-small")),
             ).allWellKnownEmbeddingServiceNames()
             assertEquals(setOf("text-embedding-3-small"), names)
+        }
+
+        /**
+         * With no active key the provider has to be inferred from what is registered, and
+         * [ConfigurableModelProvider] answers only where that is unambiguous. `mistral` is listed
+         * FIRST here deliberately: a first-one-wins tie-break would read the mistral column and
+         * return `mistral-embed`, and would return something else again on a deployment that
+         * registered its modules in another order.
+         */
+        @Test
+        fun `two registered providers and no key takes the flat map, not an arbitrary column`() {
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = "gpt-4.1-mini",
+                    embeddingServices = mapOf("documents" to "text-embedding-3-small"),
+                    embeddingRoles = mapOf(
+                        "documents" to mapOf("openai" to "text-embedding-3-small", "mistral" to "mistral-embed"),
+                    ),
+                ),
+                listOf(mistral, small),
+            )
+            assertSame(small, mp.getEmbeddingService(ByRoleModelSelectionCriteria("documents")))
+        }
+
+        @Test
+        fun `one registered provider and no key still reads that provider's column`() {
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = "gpt-4.1-mini",
+                    embeddingServices = mapOf("documents" to "text-embedding-3-small"),
+                    embeddingRoles = mapOf("documents" to mapOf("mistral" to "mistral-embed")),
+                ),
+                listOf(mistral, placeholder),
+            )
+            assertSame(mistral, mp.getEmbeddingService(ByRoleModelSelectionCriteria("documents")))
         }
 
         @Test

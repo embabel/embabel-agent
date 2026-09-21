@@ -24,6 +24,7 @@ import org.springframework.validation.annotation.Validated
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.Collections
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Configuration properties for the model provider
@@ -153,8 +154,9 @@ data class ConfigurableModelProviderProperties(
     fun defaultLlmNamesRole(): Boolean = llms.containsKey(defaultLlm) || roles.containsKey(defaultLlm)
 
     /**
-     * The embedding counterpart of [allWellKnownLlmNames]. Shorter because embedding roles have no
-     * nested per-provider shape: a role maps to one name, and there is `default-embedding-model`.
+     * The embedding counterpart of [allWellKnownLlmNames], case for case: the flat map, the
+     * per-provider map, and `default-embedding-model` unless it names a role. Shorter only because
+     * an [embeddingRoles] entry is a model NAME where a [roles] entry is a whole [LlmOptions].
      */
     fun allWellKnownEmbeddingServiceNames(): Set<String> {
         return embeddingServices.values.toSet() + embeddingRoles.values.flatMap { it.values } +
@@ -393,8 +395,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     private fun resolveDefaultEmbeddingService(warnOnFallback: Boolean): EmbeddingService? {
         registeredDefaultEmbeddingService?.let { return it }
         if (properties.defaultEmbeddingModelNamesRole()) {
-            val role = properties.defaultEmbeddingModel
-            if (role != null) {
+            properties.defaultEmbeddingModel?.let { role ->
                 attemptEmbeddingRole(role, ModelSelectionContextHolder.get())?.let { return it }
             }
         }
@@ -409,10 +410,20 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      * asking it back would recurse. A deployment whose default is a role and whose key has not
      * arrived has no provider to offer here, which is correct - there is nothing to select within
      * until a key says otherwise.
+     *
+     * Where there is no registered default to read a provider off, this answers only when the
+     * registered services agree on ONE provider. Two of them and it declines, rather than picking
+     * the first: the order of [embeddingServices] is bean registration order, so a first-one-wins
+     * tie-break would decide which column of `embedding-roles` a keyless call reads, and decide it
+     * differently on a deployment that added a module. Declining sends the role to the flat
+     * `embedding-services` map, which is the shape a deployment with no active key has an answer in.
      */
     private fun defaultEmbeddingProviderName(): String? =
         registeredDefaultEmbeddingService?.provider
-            ?: embeddingServices.firstOrNull { !it.awaitingProviderKey }?.provider
+            ?: embeddingServices.filterNot { it.awaitingProviderKey }
+                .map { it.provider }
+                .distinct()
+                .singleOrNull()
 
     /**
      * Ask each embedding resolver in turn what the role means, and materialize the answer.
@@ -466,6 +477,14 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      * counterpart: building can reach the provider to observe the model's width, and holding the
      * map's lock across that would block every unrelated lookup for every other user. A race costs
      * one redundant build and never a wrong service.
+     *
+     * The lookup ends at the flat map, which [ConfigurableEmbeddingRoleResolver.resolve] refuses
+     * to read under a user key - not a contradiction, because the two are spending different
+     * money. There, reading it would serve a service the DEPLOYMENT is keyed for and billed for.
+     * Here, only the model NAME is taken and the service is built on the user's own key, so the
+     * user pays for the model their role names. Reachable only from an application resolver
+     * returning [EmbeddingRoleResolution.Credential], since the configured one gets this far only
+     * when the nested map already answered.
      */
     private fun embeddingFromCredential(role: String, credential: ProviderCredential): EmbeddingService? {
         val model = configurableEmbeddingRoleResolver.configuredModelFor(role, credential.provider)
@@ -510,18 +529,56 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             ?.also { if (warn) reportEmbeddingFallback(it) }
 
     /**
+     * Why the default fell back to the placeholder. Three situations reach that line and only one
+     * of them is about a key.
+     */
+    private enum class EmbeddingFallbackReason {
+        /** `default-embedding-model` is unset or empty: a choice not yet made. */
+        UNSET,
+
+        /** It names a role, which nothing has satisfied yet. The expected state before a key. */
+        ROLE,
+
+        /** It names a model, and nothing registered one under that name. A typo, or a missing module. */
+        UNREGISTERED,
+    }
+
+    /**
+     * The last fallback situation reported, so a standing condition is stated once rather than per call.
+     *
+     * The default is resolved on EVERY call that does not name a role, and until a key arrives it
+     * falls back every time. Reporting each one turns the single line an operator has to read into
+     * a line per embedded chunk, which is how a real warning gets filtered out. Keyed by the reason
+     * AND the configured name, so a genuine change - configuration re-bound, a key arriving and
+     * later going away - is reported again rather than swallowed. Read-modify-write in one step, so
+     * concurrent first calls produce one line rather than one each.
+     */
+    private val lastReportedEmbeddingFallback = AtomicReference<String?>(null)
+
+    /**
      * Say WHY the default fell back to the placeholder, in the terms the reader has to act on.
      *
-     * Three different situations reach this line and only one of them is about a key. Collapsing
-     * them - which is what a single "no provider key" message did - sends somebody whose key is
-     * present and working to go and look for a key, and the subsystem they then debug is the one
-     * that is already right. Observed on an appliance that had registered four chat models from a
-     * live key and reported `This deployment holds no provider API key` on every embedding call.
+     * Collapsing the three reasons - which is what a single "no provider key" message did - sends
+     * somebody whose key is present and working to go and look for a key, and the subsystem they
+     * then debug is the one that is already right. Observed on an appliance that had registered
+     * four chat models from a live key and reported `This deployment holds no provider API key` on
+     * every embedding call.
+     *
+     * Said once per situation, for the reason [lastReportedEmbeddingFallback] gives.
      */
     private fun reportEmbeddingFallback(placeholder: EmbeddingService) {
         val configured = properties.defaultEmbeddingModel
-        when {
-            configured.isNullOrBlank() -> logger.warn(
+        val reason = when {
+            configured.isNullOrBlank() -> EmbeddingFallbackReason.UNSET
+            properties.defaultEmbeddingModelNamesRole() -> EmbeddingFallbackReason.ROLE
+            else -> EmbeddingFallbackReason.UNREGISTERED
+        }
+        val situation = "$reason:$configured"
+        if (lastReportedEmbeddingFallback.getAndSet(situation) == situation) {
+            return
+        }
+        when (reason) {
+            EmbeddingFallbackReason.UNSET -> logger.warn(
                 """
                 No embedding model is configured: 'embabel.models.default-embedding-model' is unset or empty, so the '{}' placeholder stands in.
                 This is a CHOICE not yet made, not a missing key - set it to one of the registered services, or to a role. Available: {}
@@ -529,7 +586,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 placeholder.name, embeddingServices.map { it.name },
             )
 
-            properties.defaultEmbeddingModelNamesRole() -> logger.info(
+            EmbeddingFallbackReason.ROLE -> logger.info(
                 """
                 Default embedding service '{}' is a role, and will be resolved per call.
                 Until a key is supplied it falls back to the '{}' placeholder
@@ -537,7 +594,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 configured, placeholder.name,
             )
 
-            else -> logger.warn(
+            EmbeddingFallbackReason.UNREGISTERED -> logger.warn(
                 """
                 Default embedding service '{}' is not registered; falling back to the '{}' placeholder.
                 Embedding will fail with an actionable 'no embedding service configured' error until a key is supplied. Available: {}
