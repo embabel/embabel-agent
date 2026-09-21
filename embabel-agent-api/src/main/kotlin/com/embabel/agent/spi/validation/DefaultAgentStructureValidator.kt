@@ -71,7 +71,7 @@ class DefaultAgentStructureValidator(
                         component = clazz.name
                     )
                 )
-                loggerFor<DefaultAgentStructureValidator>().warn(error.toString())
+                loggerFor<DefaultAgentStructureValidator>().debug(error.toString())
             }
         }
     }

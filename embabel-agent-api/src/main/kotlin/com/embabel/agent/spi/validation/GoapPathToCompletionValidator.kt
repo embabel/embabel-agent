@@ -15,7 +15,9 @@
  */
 package com.embabel.agent.spi.validation
 
+import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentScope
+import com.embabel.agent.core.support.Rerun
 import com.embabel.agent.core.support.Rerun.HAS_RUN_CONDITION_PREFIX
 import com.embabel.common.core.validation.ValidationError
 import com.embabel.common.core.validation.ValidationErrorCodes
@@ -64,22 +66,27 @@ class GoapPathToCompletionValidator : PathToCompletionAgentValidator {
         val actionDependencies = mutableMapOf<String, Set<String>>()
         val actionOutputs = mutableMapOf<String, Set<String>>()
 
-        // For each action, need to track:
-        // 1. What data it needs as input (preconditions)
-        // 2. What data it produces as output (effects)
-        // So need to exclude hasRun_ conditions as they are runtime state indicators, not data dependencies.
-        agentScope.actions.forEach { action ->
-            val nonHasRunPreconditions =
-                action.preconditions.filterKeys { !it.startsWith(HAS_RUN_CONDITION_PREFIX) }.keys
-            val nonHasRunEffects = action.effects.filterKeys { !it.startsWith(HAS_RUN_CONDITION_PREFIX) }.keys
+        val isOwnHasRunCondition = { action: Action, condition: String ->
+            condition == Rerun.hasRunCondition(action)
+        }
 
-            actionDependencies[action.name] = nonHasRunPreconditions
-            actionOutputs[action.name] = nonHasRunEffects
+        // For each action, track:
+        // 1. What data and prerequisite steps it needs as input (preconditions)
+        // 2. What data and completed steps it produces as output (effects)
+        // Self-rerun prevention hasRun_ conditions are excluded
+        // as they are internal rerun indicators, not dependencies on other actions.
+        agentScope.actions.forEach { action ->
+            val effectivePreconditions =
+                action.preconditions.filterKeys { !isOwnHasRunCondition(action, it) }.keys
+            val effectiveEffects = action.effects.keys
+
+            actionDependencies[action.name] = effectivePreconditions
+            actionOutputs[action.name] = effectiveEffects
         }
 
         // Find actions that can be considered first steps (executable without other actions)
         // These actions either:
-        // 1. Have no preconditions (other than hasRun_ conditions), or
+        // 1. Have no preconditions (other than self hasRun_ conditions), or
         // 2. Have preconditions that are set to FALSE (meaning they don't need to be true), or
         // 3. Have preconditions not produced by any other action (external input)
         val firstActions = agentScope.actions.filter { action ->
@@ -118,36 +125,17 @@ class GoapPathToCompletionValidator : PathToCompletionAgentValidator {
         val allConditions = mutableSetOf<String>()
 
         agentScope.actions.forEach { action ->
-            allConditions.addAll(action.preconditions.keys.filter { !it.startsWith(HAS_RUN_CONDITION_PREFIX) })
-            allConditions.addAll(action.effects.keys.filter { !it.startsWith(HAS_RUN_CONDITION_PREFIX) })
+            allConditions.addAll(action.preconditions.keys.filter { !isOwnHasRunCondition(action, it) })
+            allConditions.addAll(action.effects.keys)
         }
 
         agentScope.goals.forEach { goal ->
-            allConditions.addAll(goal.preconditions.keys.filter { !it.startsWith(HAS_RUN_CONDITION_PREFIX) })
+            allConditions.addAll(goal.preconditions.keys)
         }
 
         // Initialize all conditions to FALSE by default
         allConditions.forEach { condition ->
             initialWorldState[condition] = ConditionDetermination.FALSE
-        }
-
-        // For first actions that have no preconditions (can run immediately),
-        // we assume their effects are immediately available
-        firstActions.forEach { action ->
-            // For actions with no TRUE preconditions (can run immediately),
-            // make their effects available in the initial state
-            val hasTruePreconditions = action.preconditions.any { (key, value) ->
-                !key.startsWith(HAS_RUN_CONDITION_PREFIX) && value == ConditionDetermination.TRUE
-            }
-
-            if (!hasTruePreconditions) {
-                action.effects.forEach { (key, value) ->
-                    if (!key.startsWith(HAS_RUN_CONDITION_PREFIX) && value == ConditionDetermination.TRUE) {
-                        logger.debug("✅ Setting initialWorldState[$key] = TRUE from effect of ${action.name} (no preconditions)")
-                        initialWorldState[key] = ConditionDetermination.TRUE
-                    }
-                }
-            }
         }
 
         // Set to TRUE any condition that is an external input (appears as a precondition but not as an effect)
@@ -173,12 +161,12 @@ class GoapPathToCompletionValidator : PathToCompletionAgentValidator {
         // Create planner with the determined world state
         val planner = AStarGoapPlanner(WorldStateDeterminer.fromMap(initialWorldState))
 
-        // Convert agent actions to GOAP actions, removing hasRun_ conditions
+        // Convert agent actions to GOAP actions, removing only self-rerun hasRun_ conditions
         val goapActions = agentScope.actions.map { action ->
             ConditionAction(
                 name = action.name,
-                preconditions = action.preconditions.filterKeys { !it.startsWith(HAS_RUN_CONDITION_PREFIX) },
-                effects = action.effects.filterKeys { !it.startsWith(HAS_RUN_CONDITION_PREFIX) },
+                preconditions = action.preconditions.filterKeys { !isOwnHasRunCondition(action, it) },
+                effects = action.effects,
                 cost = action.cost,
                 value = action.value
             )
@@ -192,16 +180,33 @@ class GoapPathToCompletionValidator : PathToCompletionAgentValidator {
             // Find the action that is annotated with @AchievesGoal and matches this goal
             val goalAction = agentScope.actions.find { it.name == goal.name }
 
-            if (goalAction == null) {
-                logger.error("Goal action '${goal.name}' not found in agent actions. Skipping this goal.")
-                continue
+            val goalPreconditions = if (goalAction != null) {
+                // For goal actions, we achieve the action's effects.
+                // The goal is to reach a state where the action has run and produced its outputs
+                val goalOutputEffects = goalAction.effects
+                    .filterKeys { !it.startsWith(HAS_RUN_CONDITION_PREFIX) }
+                    .filterValues { it == ConditionDetermination.TRUE }
+                if (goalOutputEffects.isNotEmpty()) {
+                    goalOutputEffects
+                } else {
+                    goalAction.effects.filterValues { it == ConditionDetermination.TRUE }
+                }
+            } else {
+                // For condition/output-based goals or goal getters, the goal specifies its own
+                // required preconditions/outputs directly
+                goal.preconditions
             }
 
-            // For goal actions, we achieve the action's effects.
-            // The goal is to reach a state where the action has run and produced its outputs
-            val goalPreconditions = goalAction.effects
-                .filterKeys { !it.startsWith(HAS_RUN_CONDITION_PREFIX) }
-                .filterValues { it == ConditionDetermination.TRUE }
+            if (goalAction == null && goalPreconditions.isEmpty()) {
+                errors.add(
+                    error(
+                        ValidationErrorCodes.GOAL_ACTION_NOT_FOUND,
+                        "Goal action '${goal.name}' not found in agent actions.",
+                        agentScope
+                    )
+                )
+                continue
+            }
 
             val conditionGoal = ConditionGoal(
                 name = goal.name,
