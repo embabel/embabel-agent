@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build:llms": "node llms-txt-extension.js"
+    "build:llms": "node llms-txt-extension.js && node verify-generated-llms-txt.js"
   },
   "dependencies": {
     "@asciidoctor/core": "~3.0.4"

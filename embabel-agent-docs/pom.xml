@@ -120,6 +120,7 @@
                                     <includes>
                                         <include>package.json</include>
                                         <include>llms-txt-extension.js</include>
+                                        <include>verify-generated-llms-txt.js</include>
                                     </includes>
                                 </resource>
                             </resources>
