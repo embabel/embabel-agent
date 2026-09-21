@@ -65,10 +65,28 @@ object SetupRequiredEmbedding {
      * Message carried by [NoEmbeddingServiceConfiguredException]. Deliberately provider-neutral:
      * an application knows which providers it accepts and how a user supplies a key, so it should
      * catch the exception and say so in its own words rather than surface this verbatim.
+     *
+     * IT NAMES BOTH CAUSES BECAUSE IT CANNOT TELL THEM APART. This placeholder stands in whenever
+     * the default embedding service resolves to nothing, and that happens for two unrelated
+     * reasons: no key has arrived, or no embedding model was ever CHOSEN. The placeholder is a
+     * bean; it sees neither the credential store nor the configuration that failed to resolve, so
+     * asserting either would be a guess.
+     *
+     * It used to assert the first. On a deployment that had registered four chat models from a
+     * live key and simply had no `default-embedding-model` set, every embedding call reported
+     * that the deployment held no provider API key — and the operator went and debugged the key,
+     * which was the one part already working (embabel-worlds/appliance#95). A message that names
+     * one cause is worse than one that names two, because it is believed.
+     *
+     * The resolver says which it is, at startup, where it CAN tell — see the three-way split in
+     * `ConfigurableModelProvider.reportEmbeddingFallback`. This is the line a user meets later, at
+     * the point something tries to embed, and it has to stand on its own.
      */
     val MESSAGE: String = """
-        No embedding service is configured. This deployment holds no provider API key,
-        so a key must be supplied at runtime before anything can be embedded or retrieved.
+        No embedding service is configured, so nothing can be embedded or retrieved.
+        Either no embedding model has been chosen - set embabel.models.default-embedding-model
+        to a registered service, or to a role - or this deployment holds no provider API key and
+        one must be supplied at runtime.
         See the Bring Your Own Key section of the Embabel reference documentation.
     """.trimIndent()
 
