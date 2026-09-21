@@ -27,6 +27,9 @@ import com.embabel.common.ai.model.PricingModel
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
+import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
 
 /**
  * The embedding placeholder exists so a BYOK application that uses RAG or memory starts with no
@@ -74,6 +77,65 @@ class SetupRequiredEmbeddingTest {
             .hasMessageContaining("No embedding service is configured")
         assertThatThrownBy { service.embed(listOf("anything")) }
             .isInstanceOf(NoEmbeddingServiceConfiguredException::class.java)
+    }
+
+    /**
+     * The defect this half exists for, observed on an appliance: four chat models registered from
+     * a live key, embedding services registered too, and every embedding call reporting that the
+     * deployment held no provider API key. A session was spent debugging the key.
+     *
+     * See embabel-worlds/appliance#95.
+     */
+    @Test
+    fun `with services registered, the error says a choice was never made, not that a key is missing`() {
+        val service = SetupRequiredEmbedding.embeddingService {
+            listOf("text-embedding-3-small", "text-embedding-3-large")
+        }
+
+        assertThatThrownBy { service.embed("anything") }
+            .isInstanceOf(NoEmbeddingServiceConfiguredException::class.java)
+            .hasMessageContaining("HOLDS a provider key")
+            .hasMessageContaining("choice not yet made")
+            .hasMessageContaining("text-embedding-3-small")
+            .hasMessageNotContaining("holds no provider API key")
+    }
+
+    @Test
+    fun `with nothing registered, the error still says the deployment holds no key`() {
+        // The pure BYOK case, which is what the placeholder was built for and must not regress.
+        val service = SetupRequiredEmbedding.embeddingService { emptyList() }
+
+        assertThatThrownBy { service.embed("anything") }
+            .isInstanceOf(NoEmbeddingServiceConfiguredException::class.java)
+            .hasMessageContaining("holds no provider API key")
+    }
+
+    @Test
+    fun `the registered services are read when the call fails, not when the placeholder is built`() {
+        /*
+         * Load-bearing: this bean is constructed before the provider autoconfigurations register
+         * their models, so a list captured at construction is always empty and the message is
+         * always the wrong one.
+         */
+        var registered = emptyList<String>()
+        val service = SetupRequiredEmbedding.embeddingService { registered }
+
+        assertThatThrownBy { service.embed("anything") }
+            .hasMessageContaining("holds no provider API key")
+
+        registered = listOf("text-embedding-3-small")
+
+        assertThatThrownBy { service.embed("anything") }
+            .hasMessageContaining("choice not yet made")
+    }
+
+    @Test
+    fun `dimensions reports the same reason as embedding does`() {
+        val service = SetupRequiredEmbedding.embeddingService { listOf("text-embedding-3-small") }
+
+        assertThatThrownBy { service.dimensions }
+            .isInstanceOf(NoEmbeddingServiceConfiguredException::class.java)
+            .hasMessageContaining("choice not yet made")
     }
 
     @Test
@@ -270,6 +332,47 @@ class SetupRequiredEmbeddingTest {
     }
 
     /** Stands in for any decorator — event tracking, metering, a hot-swappable model holder. */
+    /**
+     * The bean, not the object: everything above builds the placeholder by hand, so all of it
+     * would still pass if [SetupRequiredEmbeddingConfig] passed no service list at all - which is
+     * the whole of the wiring and the only part that can silently regress.
+     */
+    @Test
+    fun `the registered bean reads the context's real embedding services`() {
+        ApplicationContextRunner()
+            .withUserConfiguration(SetupRequiredEmbeddingConfig::class.java, ARealEmbeddingService::class.java)
+            .run { context ->
+                val placeholder = context.getBean(SetupRequiredEmbedding.NAME, EmbeddingService::class.java)
+
+                assertThatThrownBy { placeholder.embed("anything") }
+                    .hasMessageContaining("acme-embed")
+                    .hasMessageNotContaining("holds no provider API key")
+            }
+    }
+
+    @Test
+    fun `the registered bean does not count itself as a real service`() {
+        // It is an EmbeddingService in the same stream it reads, so a missing awaitingProviderKey
+        // filter would have it report itself as the model somebody should choose.
+        ApplicationContextRunner()
+            .withUserConfiguration(SetupRequiredEmbeddingConfig::class.java)
+            .run { context ->
+                val placeholder = context.getBean(SetupRequiredEmbedding.NAME, EmbeddingService::class.java)
+
+                assertThatThrownBy { placeholder.embed("anything") }
+                    .hasMessageContaining("holds no provider API key")
+                    .hasMessageNotContaining(SetupRequiredEmbedding.NAME)
+            }
+    }
+
+    /** A deployment whose key produced a real embedding service, as the appliance's had. */
+    @Configuration(proxyBeanMethods = false)
+    class ARealEmbeddingService {
+
+        @Bean
+        fun acmeEmbed(): EmbeddingService = FakeEmbeddingService("acme-embed", dimensions = 1536)
+    }
+
     private class Wrapper(delegate: EmbeddingService) : EmbeddingService by delegate
 
     private class FakeEmbeddingService(

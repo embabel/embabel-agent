@@ -40,7 +40,9 @@ import com.embabel.common.util.EmbabelObjectMapperHolder
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.model.ConfigurableModelProvider
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
+import com.embabel.common.ai.model.CredentialEmbeddingServiceFactory
 import com.embabel.common.ai.model.CredentialLlmServiceFactory
+import com.embabel.common.ai.model.EmbeddingRoleResolver
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.RoleResolver
@@ -246,6 +248,13 @@ class AgentPlatformConfiguration(
                 .orderedStream().toList(),
             credentialLlmServiceFactories = applicationContext
                 .getBeanProvider(CredentialLlmServiceFactory::class.java)
+                .orderedStream().toList(),
+            // A separate chain from roleResolvers: an embedding role and a chat role may share a
+            // name, and a resolver that answers for one must not be asked about the other.
+            embeddingRoleResolvers = applicationContext.getBeanProvider(EmbeddingRoleResolver::class.java)
+                .orderedStream().toList(),
+            credentialEmbeddingServiceFactories = applicationContext
+                .getBeanProvider(CredentialEmbeddingServiceFactory::class.java)
                 .orderedStream().toList(),
         )
     }

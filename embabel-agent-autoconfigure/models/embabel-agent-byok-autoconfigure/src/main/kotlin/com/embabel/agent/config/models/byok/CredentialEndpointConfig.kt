@@ -18,6 +18,7 @@ package com.embabel.agent.config.models.byok
 import com.embabel.agent.anthropic.AnthropicModelFactory
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
+import com.embabel.common.ai.model.CredentialEmbeddingServiceFactory
 import com.embabel.common.ai.model.CredentialEndpoint
 import com.embabel.common.ai.model.CredentialEndpointResolver
 import com.embabel.common.ai.model.CredentialLlmServiceFactory
@@ -121,6 +122,44 @@ class CredentialEndpointConfig {
                         pricingModel = it.pricingModel,
                         provider = it.provider,
                         knowledgeCutoffDate = it.knowledgeCutoffDate,
+                    )
+            }
+        }
+    }
+
+    /**
+     * Embedding services from a per-user key, over the OpenAI protocol.
+     *
+     * One factory rather than one per protocol, because embedding has one protocol worth speaking:
+     * Anthropic has no embedding API at all, so there is deliberately no Anthropic counterpart -
+     * an Anthropic-keyed deployment declines rather than being handed somebody else's model.
+     *
+     * UNLIKE THE LLM FACTORIES ABOVE, THIS VALIDATES. They build without probing, because a chat
+     * model that turns out to be wrong fails the call that used it and nothing else. An embedding
+     * service states a WIDTH, and that width becomes the shape of a vector index - so one built on
+     * an unverified assumption is an index that accepts writes no later model agrees with, and the
+     * damage is silent and durable. [OpenAiCompatibleModelFactory.buildValidatedEmbeddingService]
+     * observes the dimension the provider actually returns. The cost is one probe per
+     * (provider, key, model), since the platform caches what this returns.
+     */
+    @Bean("openAiCompatibleCredentialEmbeddingServiceFactory")
+    @ConditionalOnClass(OpenAiCompatibleModelFactory::class)
+    @ConditionalOnMissingBean(name = ["openAiCompatibleCredentialEmbeddingServiceFactory"])
+    fun openAiCompatibleCredentialEmbeddingServiceFactory(
+        resolvers: ObjectProvider<CredentialEndpointResolver>,
+    ): CredentialEmbeddingServiceFactory {
+        logger.info(
+            "Per-user keys can build an embedding service over the OpenAI protocol, for any provider {} knows or a CredentialEndpointResolver routes there",
+            OpenAiCompatibleModelFactory::class.java.simpleName,
+        )
+        return CredentialEmbeddingServiceFactory { credential, model ->
+            val endpoint = resolvedByApplication(resolvers, credential, model) ?: openAiCompatibleEndpointFor(credential)
+            (endpoint as? CredentialEndpoint.OpenAiCompatible)?.let {
+                OpenAiCompatibleModelFactory(baseUrl = it.baseUrl, apiKey = credential.apiKey)
+                    .buildValidatedEmbeddingService(
+                        model = model,
+                        provider = it.provider,
+                        pricingModel = it.pricingModel,
                     )
             }
         }
