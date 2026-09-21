@@ -73,10 +73,47 @@ object SetupRequiredEmbedding {
     """.trimIndent()
 
     /**
+     * The message for a deployment that reached the placeholder WITH real embedding services
+     * registered, which means a key is present and no model was chosen.
+     *
+     * [MESSAGE] would be a false statement here, and an expensive one: it sends somebody whose key
+     * is working to go and debug the key, and the subsystem they then look at is the one that is
+     * already right. An appliance cost a session that way - four chat models registered from a live
+     * key, every embedding call reporting that the deployment held none.
+     *
+     * Naming the registered services is the load-bearing part: they are the values
+     * `embabel.models.default-embedding-model` will accept, so the message carries its own fix.
+     *
+     * Assembled from whole paragraphs rather than by interpolating one raw string into another,
+     * for the reason [SetupRequiredLlm.messageFor] gives at length: `trimIndent` computes the
+     * common indent across the finished string, so an already-trimmed fragment drags it to zero
+     * and leaves every surrounding line with its source indentation baked in.
+     */
+    fun messageForUnchosenDefault(availableServices: List<String>): String {
+        val opening = """
+            No embedding service is configured, but this deployment HOLDS a provider key and has
+            registered embedding services - none was chosen, so the '$NAME' placeholder stands in.
+            This is a choice not yet made, not a missing key.
+        """.trimIndent()
+        val fix = """
+            Set embabel.models.default-embedding-model to one of: ${availableServices.joinToString()}
+            - or to a role, which is resolved per call and so survives a key arriving later.
+        """.trimIndent()
+        return listOf(opening, fix).joinToString(separator = "\n")
+    }
+
+    /**
      * Builds the placeholder service. Registered as a bean by [SetupRequiredEmbeddingConfig]; call
      * this directly only when constructing a model provider outside a Spring context.
+     *
+     * @param availableRealServices names of the registered embedding services that are not
+     * placeholders, read when a call fails rather than now - at construction there are none, since
+     * provider autoconfigurations register their models after this bean is built. An empty list
+     * means the deployment really does hold no key, which is the default and the pure-BYOK case.
      */
-    fun embeddingService(): EmbeddingService = SetupRequiredEmbeddingService()
+    @JvmOverloads
+    fun embeddingService(availableRealServices: () -> List<String> = { emptyList() }): EmbeddingService =
+        SetupRequiredEmbeddingService(availableRealServices)
 }
 
 /**
@@ -86,7 +123,9 @@ object SetupRequiredEmbedding {
  * Every member fails, [dimensions] included — see [PlaceholderEmbeddingService] for why a
  * placeholder that answered with a number would be worse than one that fails.
  */
-internal class SetupRequiredEmbeddingService : EmbeddingService, PlaceholderEmbeddingService {
+internal class SetupRequiredEmbeddingService(
+    private val availableRealServices: () -> List<String> = { emptyList() },
+) : EmbeddingService, PlaceholderEmbeddingService {
 
     override val name: String = SetupRequiredEmbedding.NAME
 
@@ -94,11 +133,22 @@ internal class SetupRequiredEmbeddingService : EmbeddingService, PlaceholderEmbe
 
     override val pricingModel: PricingModel? = null
 
-    override fun embed(text: String): FloatArray =
-        throw NoEmbeddingServiceConfiguredException(SetupRequiredEmbedding.MESSAGE)
+    /**
+     * Why this deployment has no embedding service, decided when the call fails rather than when
+     * this was built - at construction the answer is always "no models registered", because
+     * provider autoconfigurations register theirs later.
+     */
+    private fun failure(): NoEmbeddingServiceConfiguredException {
+        val available = availableRealServices()
+        return NoEmbeddingServiceConfiguredException(
+            if (available.isEmpty()) SetupRequiredEmbedding.MESSAGE
+            else SetupRequiredEmbedding.messageForUnchosenDefault(available),
+        )
+    }
 
-    override fun embed(texts: List<String>): List<FloatArray> =
-        throw NoEmbeddingServiceConfiguredException(SetupRequiredEmbedding.MESSAGE)
+    override fun embed(text: String): FloatArray = throw failure()
+
+    override fun embed(texts: List<String>): List<FloatArray> = throw failure()
 
     /**
      * Fails rather than answering.
@@ -109,7 +159,7 @@ internal class SetupRequiredEmbeddingService : EmbeddingService, PlaceholderEmbe
      * skip; this exists so that one which forgets fails loudly instead of building the wrong index.
      */
     override val dimensions: Int
-        get() = throw NoEmbeddingServiceConfiguredException(SetupRequiredEmbedding.MESSAGE)
+        get() = throw failure()
 
     /**
      * The question consumers actually ask. It rides through `by` delegation, so a wrapper around

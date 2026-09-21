@@ -17,6 +17,7 @@ package com.embabel.agent.config.models.byok
 
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.util.loggerFor
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
@@ -37,8 +38,15 @@ import org.springframework.context.annotation.Configuration
 @Configuration(proxyBeanMethods = false)
 class SetupRequiredEmbeddingConfig {
 
+    /**
+     * @param embeddingServices every embedding service the context holds, as a handle rather than a
+     * list. Resolved only when a call reaches the placeholder and fails, which is the only moment
+     * the answer is meaningful: at construction the provider autoconfigurations have not registered
+     * their models yet, and this bean would see nothing but itself. Taking the handle also avoids
+     * a cycle, since this bean is one of the beans that stream would contain.
+     */
     @Bean(SetupRequiredEmbedding.NAME)
-    fun setupRequiredEmbeddingService(): EmbeddingService {
+    fun setupRequiredEmbeddingService(embeddingServices: ObjectProvider<EmbeddingService>): EmbeddingService {
         loggerFor<SetupRequiredEmbeddingConfig>().info(
             """
             Registered placeholder embedding service '{}'. Set embabel.models.default-embedding-model={}
@@ -48,6 +56,13 @@ class SetupRequiredEmbeddingConfig {
             SetupRequiredEmbedding.NAME,
             SetupRequiredEmbedding.NAME,
         )
-        return SetupRequiredEmbedding.embeddingService()
+        return SetupRequiredEmbedding.embeddingService {
+            // Placeholders excluded by the property rather than by a type test, because it survives
+            // wrapping - the same reason consumers are told to ask it rather than test the marker.
+            embeddingServices.orderedStream()
+                .filter { !it.awaitingProviderKey }
+                .map { it.name }
+                .toList()
+        }
     }
 }
