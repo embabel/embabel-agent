@@ -42,10 +42,34 @@ import org.springframework.ai.chat.model.ChatModel
  */
 class EmbeddingRoleResolutionTest {
 
+    private companion object {
+
+        /**
+         * Catalogue ids, named rather than repeated: a model being retired should be one edit here
+         * rather than a hunt through every assertion. The embedding names match
+         * `OpenAiCompatibleModelFactoryByokEmbeddingTest`, which tests the other end of the same path.
+         */
+        const val SMALL_MODEL = "text-embedding-3-small"
+        const val MISTRAL_MODEL = "mistral-embed"
+        const val DEFAULT_LLM = "gpt-4.1-mini"
+
+        /** A model name no catalogue holds, for the cases about a name that resolves to nothing. */
+        const val IMAGINARY_MODEL = "text-embedding-9-imaginary"
+
+        /** The role under test throughout. */
+        const val DOCUMENTS_ROLE = "documents"
+
+        /** What the placeholder registers under, which a default may name deliberately. */
+        const val PLACEHOLDER_NAME = "setup-required-embedding"
+
+        const val OPENAI = "openai"
+        const val MISTRAL = "mistral"
+    }
+
     private fun llm(name: String, provider: String): LlmService<*> =
         SpringAiLlmService(name, provider, mockk<ChatModel>(), DefaultOptionsConverter)
 
-    private val defaultLlm = llm("gpt-4.1-mini", "openai")
+    private val defaultLlm = llm(DEFAULT_LLM, OPENAI)
 
     /** A registered embedding service that can actually embed. */
     private class FakeEmbeddingService(
@@ -65,7 +89,7 @@ class EmbeddingRoleResolutionTest {
      * fails loudly rather than embedding zeroes.
      */
     private class FakePlaceholder : EmbeddingService, PlaceholderEmbeddingService {
-        override val name = "setup-required-embedding"
+        override val name = PLACEHOLDER_NAME
         override val provider = "none"
         override val pricingModel: PricingModel? = null
         override val awaitingProviderKey = true
@@ -75,8 +99,8 @@ class EmbeddingRoleResolutionTest {
         override fun infoString(verbose: Boolean?, indent: Int) = name
     }
 
-    private val small = FakeEmbeddingService("text-embedding-3-small", "openai")
-    private val mistral = FakeEmbeddingService("mistral-embed", "mistral", dimensions = 1024)
+    private val small = FakeEmbeddingService(SMALL_MODEL, OPENAI)
+    private val mistral = FakeEmbeddingService(MISTRAL_MODEL, MISTRAL, dimensions = 1024)
     private val placeholder = FakePlaceholder()
 
     private fun provider(
@@ -99,9 +123,9 @@ class EmbeddingRoleResolutionTest {
         fun `a default naming a flat role resolves to the model that role names`() {
             val mp = provider(
                 ConfigurableModelProviderProperties(
-                    defaultLlm = "gpt-4.1-mini",
-                    embeddingServices = mapOf("documents" to "text-embedding-3-small"),
-                    defaultEmbeddingModel = "documents",
+                    defaultLlm = DEFAULT_LLM,
+                    embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
+                    defaultEmbeddingModel = DOCUMENTS_ROLE,
                 ),
                 listOf(small, placeholder),
             )
@@ -111,8 +135,8 @@ class EmbeddingRoleResolutionTest {
         @Test
         fun `a default naming a model is still resolved once, against registered services`() {
             val properties = ConfigurableModelProviderProperties(
-                defaultLlm = "gpt-4.1-mini",
-                defaultEmbeddingModel = "text-embedding-3-small",
+                defaultLlm = DEFAULT_LLM,
+                defaultEmbeddingModel = SMALL_MODEL,
             )
             assertFalse(properties.defaultEmbeddingModelNamesRole())
             assertSame(small, provider(properties, listOf(small)).getEmbeddingService(DefaultModelSelectionCriteria))
@@ -121,12 +145,12 @@ class EmbeddingRoleResolutionTest {
         @Test
         fun `a default naming a nested role picks the column for the active key`() {
             val properties = ConfigurableModelProviderProperties(
-                defaultLlm = "gpt-4.1-mini",
-                defaultEmbeddingModel = "documents",
+                defaultLlm = DEFAULT_LLM,
+                defaultEmbeddingModel = DOCUMENTS_ROLE,
                 embeddingRoles = mapOf(
-                    "documents" to mapOf(
-                        "openai" to "text-embedding-3-small",
-                        "mistral" to "mistral-embed",
+                    DOCUMENTS_ROLE to mapOf(
+                        OPENAI to SMALL_MODEL,
+                        MISTRAL to MISTRAL_MODEL,
                     ),
                 ),
             )
@@ -140,10 +164,10 @@ class EmbeddingRoleResolutionTest {
                 ),
             )
             val resolved = ModelSelectionContextHolder.with(
-                ModelSelectionContext(credential = ProviderCredential("mistral", "sk-test")),
+                ModelSelectionContext(credential = ProviderCredential(MISTRAL, "sk-test")),
             ) { mp.getEmbeddingService(DefaultModelSelectionCriteria) }
-            assertEquals("mistral-embed", resolved.name)
-            assertEquals("mistral", resolved.provider)
+            assertEquals(MISTRAL_MODEL, resolved.name)
+            assertEquals(MISTRAL, resolved.provider)
         }
     }
 
@@ -159,14 +183,14 @@ class EmbeddingRoleResolutionTest {
             var storedKey: String? = null
             val mp = provider(
                 ConfigurableModelProviderProperties(
-                    defaultLlm = "gpt-4.1-mini",
-                    defaultEmbeddingModel = "documents",
-                    embeddingServices = mapOf("documents" to "text-embedding-3-small"),
+                    defaultLlm = DEFAULT_LLM,
+                    defaultEmbeddingModel = DOCUMENTS_ROLE,
+                    embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
                 ),
                 listOf(placeholder),
                 embeddingRoleResolvers = listOf(
                     EmbeddingRoleResolver { _, _ ->
-                        storedKey?.let { EmbeddingRoleResolution.Service(FakeEmbeddingService("stored", "openai")) }
+                        storedKey?.let { EmbeddingRoleResolution.Service(FakeEmbeddingService("stored", OPENAI)) }
                     },
                 ),
             )
@@ -188,8 +212,8 @@ class EmbeddingRoleResolutionTest {
             var builds = 0
             val mp = provider(
                 ConfigurableModelProviderProperties(
-                    defaultLlm = "gpt-4.1-mini",
-                    embeddingRoles = mapOf("documents" to mapOf("openai" to "text-embedding-3-small")),
+                    defaultLlm = DEFAULT_LLM,
+                    embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(OPENAI to SMALL_MODEL)),
                 ),
                 listOf(placeholder),
                 credentialEmbeddingServiceFactories = listOf(
@@ -199,9 +223,9 @@ class EmbeddingRoleResolutionTest {
                     },
                 ),
             )
-            val criteria = ByRoleModelSelectionCriteria("documents")
+            val criteria = ByRoleModelSelectionCriteria(DOCUMENTS_ROLE)
             ModelSelectionContextHolder.with(
-                ModelSelectionContext(credential = ProviderCredential("openai", "sk-same")),
+                ModelSelectionContext(credential = ProviderCredential(OPENAI, "sk-same")),
             ) {
                 mp.getEmbeddingService(criteria)
                 mp.getEmbeddingService(criteria)
@@ -209,7 +233,7 @@ class EmbeddingRoleResolutionTest {
             assertEquals(1, builds, "the second call must reuse the cached service")
 
             ModelSelectionContextHolder.with(
-                ModelSelectionContext(credential = ProviderCredential("openai", "sk-rotated")),
+                ModelSelectionContext(credential = ProviderCredential(OPENAI, "sk-rotated")),
             ) { mp.getEmbeddingService(criteria) }
             assertEquals(2, builds, "a rotated key must not reuse the service built for the old one")
         }
@@ -222,29 +246,29 @@ class EmbeddingRoleResolutionTest {
         fun `a role resolves through the chain rather than the registered map alone`() {
             val mp = provider(
                 ConfigurableModelProviderProperties(
-                    defaultLlm = "gpt-4.1-mini",
-                    embeddingServices = mapOf("documents" to "text-embedding-3-small"),
+                    defaultLlm = DEFAULT_LLM,
+                    embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
                 ),
                 listOf(small, mistral),
             )
-            assertSame(small, mp.getEmbeddingService(ByRoleModelSelectionCriteria("documents")))
+            assertSame(small, mp.getEmbeddingService(ByRoleModelSelectionCriteria(DOCUMENTS_ROLE)))
         }
 
         @Test
         fun `an application resolver beats configuration`() {
             val mp = provider(
                 ConfigurableModelProviderProperties(
-                    defaultLlm = "gpt-4.1-mini",
-                    embeddingServices = mapOf("documents" to "text-embedding-3-small"),
+                    defaultLlm = DEFAULT_LLM,
+                    embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
                 ),
                 listOf(small, mistral),
                 embeddingRoleResolvers = listOf(
                     EmbeddingRoleResolver { role, _ ->
-                        if (role == "documents") EmbeddingRoleResolution.Model("mistral-embed") else null
+                        if (role == DOCUMENTS_ROLE) EmbeddingRoleResolution.Model(MISTRAL_MODEL) else null
                     },
                 ),
             )
-            assertSame(mistral, mp.getEmbeddingService(ByRoleModelSelectionCriteria("documents")))
+            assertSame(mistral, mp.getEmbeddingService(ByRoleModelSelectionCriteria(DOCUMENTS_ROLE)))
         }
 
         /**
@@ -256,21 +280,21 @@ class EmbeddingRoleResolutionTest {
         fun `an unsatisfiable role throws even while awaiting a key`() {
             val mp = provider(
                 ConfigurableModelProviderProperties(
-                    defaultLlm = "gpt-4.1-mini",
-                    defaultEmbeddingModel = "setup-required-embedding",
-                    embeddingServices = mapOf("documents" to "text-embedding-3-small"),
+                    defaultLlm = DEFAULT_LLM,
+                    defaultEmbeddingModel = PLACEHOLDER_NAME,
+                    embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
                 ),
                 listOf(placeholder),
             )
             assertThrows<NoSuitableModelException> {
-                mp.getEmbeddingService(ByRoleModelSelectionCriteria("documents"))
+                mp.getEmbeddingService(ByRoleModelSelectionCriteria(DOCUMENTS_ROLE))
             }
         }
 
         @Test
         fun `an unsatisfiable role throws where the deployment holds a key`() {
             val mp = provider(
-                ConfigurableModelProviderProperties(defaultLlm = "gpt-4.1-mini"),
+                ConfigurableModelProviderProperties(defaultLlm = DEFAULT_LLM),
                 listOf(small),
             )
             assertThrows<NoSuitableModelException> {
@@ -289,8 +313,8 @@ class EmbeddingRoleResolutionTest {
                 llms = listOf(defaultLlm),
                 embeddingServices = listOf(small),
                 properties = ConfigurableModelProviderProperties(
-                    defaultLlm = "gpt-4.1-mini",
-                    embeddingServices = mapOf("shared-name" to "text-embedding-3-small"),
+                    defaultLlm = DEFAULT_LLM,
+                    embeddingServices = mapOf("shared-name" to SMALL_MODEL),
                 ),
                 roleResolvers = listOf(
                     RoleResolver { _, _ ->
@@ -328,7 +352,7 @@ class EmbeddingRoleResolutionTest {
         fun `an unset default says the choice was never made, not that a key is missing`() {
             val events = captureWarnings {
                 provider(
-                    ConfigurableModelProviderProperties(defaultLlm = "gpt-4.1-mini", defaultEmbeddingModel = null),
+                    ConfigurableModelProviderProperties(defaultLlm = DEFAULT_LLM, defaultEmbeddingModel = null),
                     listOf(small, placeholder),
                 ).getEmbeddingService(DefaultModelSelectionCriteria)
             }
@@ -342,7 +366,7 @@ class EmbeddingRoleResolutionTest {
         fun `an empty default is treated the same as an unset one`() {
             val events = captureWarnings {
                 provider(
-                    ConfigurableModelProviderProperties(defaultLlm = "gpt-4.1-mini", defaultEmbeddingModel = ""),
+                    ConfigurableModelProviderProperties(defaultLlm = DEFAULT_LLM, defaultEmbeddingModel = ""),
                     listOf(small, placeholder),
                 ).getEmbeddingService(DefaultModelSelectionCriteria)
             }
@@ -357,9 +381,9 @@ class EmbeddingRoleResolutionTest {
             val events = captureWarnings {
                 provider(
                     ConfigurableModelProviderProperties(
-                        defaultLlm = "gpt-4.1-mini",
-                        defaultEmbeddingModel = "documents",
-                        embeddingServices = mapOf("documents" to "text-embedding-3-small"),
+                        defaultLlm = DEFAULT_LLM,
+                        defaultEmbeddingModel = DOCUMENTS_ROLE,
+                        embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
                     ),
                     listOf(placeholder),
                 ).getEmbeddingService(DefaultModelSelectionCriteria)
@@ -385,7 +409,7 @@ class EmbeddingRoleResolutionTest {
         fun `a standing fallback is reported once, not once per call`() {
             val events = captureWarnings {
                 val mp = provider(
-                    ConfigurableModelProviderProperties(defaultLlm = "gpt-4.1-mini", defaultEmbeddingModel = null),
+                    ConfigurableModelProviderProperties(defaultLlm = DEFAULT_LLM, defaultEmbeddingModel = null),
                     listOf(small, placeholder),
                 )
                 repeat(5) { mp.getEmbeddingService(DefaultModelSelectionCriteria) }
@@ -400,14 +424,14 @@ class EmbeddingRoleResolutionTest {
         @Test
         fun `a fallback for a different reason is reported again`() {
             val properties = ConfigurableModelProviderProperties(
-                defaultLlm = "gpt-4.1-mini",
+                defaultLlm = DEFAULT_LLM,
                 defaultEmbeddingModel = null,
             )
             val events = captureWarnings {
                 val mp = provider(properties, listOf(small, placeholder))
                 mp.getEmbeddingService(DefaultModelSelectionCriteria)
                 mp.getEmbeddingService(DefaultModelSelectionCriteria)
-                properties.defaultEmbeddingModel = "text-embedding-9-imaginary"
+                properties.defaultEmbeddingModel = IMAGINARY_MODEL
                 mp.getEmbeddingService(DefaultModelSelectionCriteria)
             }
             assertEquals(
@@ -427,8 +451,8 @@ class EmbeddingRoleResolutionTest {
             val events = captureWarnings {
                 provider(
                     ConfigurableModelProviderProperties(
-                        defaultLlm = "gpt-4.1-mini",
-                        defaultEmbeddingModel = "text-embedding-9-imaginary",
+                        defaultLlm = DEFAULT_LLM,
+                        defaultEmbeddingModel = IMAGINARY_MODEL,
                     ),
                     listOf(small, placeholder),
                 ).getEmbeddingService(DefaultModelSelectionCriteria)
@@ -446,19 +470,19 @@ class EmbeddingRoleResolutionTest {
         @Test
         fun `a role is only a role when configuration says so`() {
             assertFalse(
-                ConfigurableModelProviderProperties(defaultEmbeddingModel = "text-embedding-3-small")
+                ConfigurableModelProviderProperties(defaultEmbeddingModel = SMALL_MODEL)
                     .defaultEmbeddingModelNamesRole(),
             )
             assertTrue(
                 ConfigurableModelProviderProperties(
-                    defaultEmbeddingModel = "documents",
-                    embeddingServices = mapOf("documents" to "text-embedding-3-small"),
+                    defaultEmbeddingModel = DOCUMENTS_ROLE,
+                    embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
                 ).defaultEmbeddingModelNamesRole(),
             )
             assertTrue(
                 ConfigurableModelProviderProperties(
-                    defaultEmbeddingModel = "documents",
-                    embeddingRoles = mapOf("documents" to mapOf("openai" to "text-embedding-3-small")),
+                    defaultEmbeddingModel = DOCUMENTS_ROLE,
+                    embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(OPENAI to SMALL_MODEL)),
                 ).defaultEmbeddingModelNamesRole(),
             )
         }
@@ -466,10 +490,10 @@ class EmbeddingRoleResolutionTest {
         @Test
         fun `a role name is not offered as a model name`() {
             val names = ConfigurableModelProviderProperties(
-                defaultEmbeddingModel = "documents",
-                embeddingRoles = mapOf("documents" to mapOf("openai" to "text-embedding-3-small")),
+                defaultEmbeddingModel = DOCUMENTS_ROLE,
+                embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(OPENAI to SMALL_MODEL)),
             ).allWellKnownEmbeddingServiceNames()
-            assertEquals(setOf("text-embedding-3-small"), names)
+            assertEquals(setOf(SMALL_MODEL), names)
         }
 
         /**
@@ -483,41 +507,41 @@ class EmbeddingRoleResolutionTest {
         fun `two registered providers and no key takes the flat map, not an arbitrary column`() {
             val mp = provider(
                 ConfigurableModelProviderProperties(
-                    defaultLlm = "gpt-4.1-mini",
-                    embeddingServices = mapOf("documents" to "text-embedding-3-small"),
+                    defaultLlm = DEFAULT_LLM,
+                    embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
                     embeddingRoles = mapOf(
-                        "documents" to mapOf("openai" to "text-embedding-3-small", "mistral" to "mistral-embed"),
+                        DOCUMENTS_ROLE to mapOf(OPENAI to SMALL_MODEL, MISTRAL to MISTRAL_MODEL),
                     ),
                 ),
                 listOf(mistral, small),
             )
-            assertSame(small, mp.getEmbeddingService(ByRoleModelSelectionCriteria("documents")))
+            assertSame(small, mp.getEmbeddingService(ByRoleModelSelectionCriteria(DOCUMENTS_ROLE)))
         }
 
         @Test
         fun `one registered provider and no key still reads that provider's column`() {
             val mp = provider(
                 ConfigurableModelProviderProperties(
-                    defaultLlm = "gpt-4.1-mini",
-                    embeddingServices = mapOf("documents" to "text-embedding-3-small"),
-                    embeddingRoles = mapOf("documents" to mapOf("mistral" to "mistral-embed")),
+                    defaultLlm = DEFAULT_LLM,
+                    embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
+                    embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(MISTRAL to MISTRAL_MODEL)),
                 ),
                 listOf(mistral, placeholder),
             )
-            assertSame(mistral, mp.getEmbeddingService(ByRoleModelSelectionCriteria("documents")))
+            assertSame(mistral, mp.getEmbeddingService(ByRoleModelSelectionCriteria(DOCUMENTS_ROLE)))
         }
 
         @Test
         fun `the nested map wins over the flat one for the active provider`() {
             val resolver = ConfigurableEmbeddingRoleResolver(
                 ConfigurableModelProviderProperties(
-                    embeddingServices = mapOf("documents" to "text-embedding-3-small"),
-                    embeddingRoles = mapOf("documents" to mapOf("mistral" to "mistral-embed")),
+                    embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
+                    embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(MISTRAL to MISTRAL_MODEL)),
                 ),
-            ) { "openai" }
-            assertEquals("mistral-embed", resolver.configuredModelFor("documents", "mistral"))
-            assertEquals("text-embedding-3-small", resolver.configuredModelFor("documents", "openai"))
-            assertNull(resolver.configuredModelFor("no-such-role", "openai"))
+            ) { OPENAI }
+            assertEquals(MISTRAL_MODEL, resolver.configuredModelFor(DOCUMENTS_ROLE, MISTRAL))
+            assertEquals(SMALL_MODEL, resolver.configuredModelFor(DOCUMENTS_ROLE, OPENAI))
+            assertNull(resolver.configuredModelFor("no-such-role", OPENAI))
         }
     }
 }

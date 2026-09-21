@@ -618,8 +618,10 @@ class ConfigurableModelProvider @JvmOverloads constructor(
 
     init {
         require(properties.credentialServiceCacheSize >= 1) {
-            "embabel.models.credential-service-cache-size must be at least 1, was ${properties.credentialServiceCacheSize}. " +
-                "Zero or negative evicts every entry on insert, so nothing is ever cached and every call rebuilds a service."
+            """
+            embabel.models.credential-service-cache-size must be at least 1, was ${properties.credentialServiceCacheSize}.
+            Zero or negative evicts every entry on insert, so nothing is ever cached and every call rebuilds a service.
+            """.trimIndent()
         }
         properties.llms.forEach { (role, model) ->
             if (llms.none { it.name == model }) {
@@ -630,8 +632,10 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 // is expected there and only worth reporting.
                 if (setupRequired) {
                     logger.warn(
-                        "LLM '{}' for role '{}' is not registered. This deployment is awaiting a key, so that is expected; " +
-                            "the role will report 'no LLM configured' until one is supplied. Available: {}",
+                        """
+                        LLM '{}' for role '{}' is not registered. This deployment is awaiting a key, so that is expected;
+                        the role will report 'no LLM configured' until one is supplied. Available: {}
+                        """.trimIndent(),
                         model, role, llms.map { it.name },
                     )
                 } else {

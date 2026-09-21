@@ -96,6 +96,13 @@ fun interface EmbeddingRoleResolver {
  * covering every OpenAI-compatible provider. An application needs one of its own only for a
  * provider that embeds over some other protocol.
  *
+ * ON SCOPE, since the LLM counterpart has to answer this differently. That one is the second of
+ * two tiers and the one to reach for last, because it names [com.embabel.agent.spi.LlmService] -
+ * a package application code is asked not to depend on. This one names [EmbeddingService], which
+ * lives here in `com.embabel.common.ai.model` alongside the rest of the model API, so there is no
+ * SPI type to avoid and no lower tier to prefer: an application with a provider of its own
+ * implements this directly.
+ *
  * Return null for a provider this factory does not handle, rather than building something: the
  * platform tries each factory in turn, and a factory that answered for everything would hand back
  * a client pointed at the wrong endpoint for someone else's key.
