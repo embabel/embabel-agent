@@ -395,6 +395,31 @@ class DefaultValidationPromptGeneratorTest {
     interface CreateGroup
     interface UpdateGroup
 
+    /**
+     * Used by EdgeCases below, and declared out here rather than inside the test function that
+     * uses it.
+     *
+     * A local class takes its enclosing FUNCTION's name. That function's name is backticked, so
+     * Kotlin emitted a class file called
+     * `...$should handle validation groups (basic test)$GroupedValidationClass` - a class name
+     * containing spaces and parentheses. Spring's component scan reads every class under
+     * target/test-classes, and on JDK 25 ASM rejects that descriptor: the scan aborts, and every
+     * @SpringBootTest context in this module then fails to load, reporting neither this file nor
+     * the real cause. CI pins JDK 21, where it does not arise, so the module was unbuildable only
+     * for whoever had a newer JDK as their local default.
+     *
+     * Not inside EdgeCases either: a @Nested class is `inner` in Kotlin, and an inner class
+     * cannot hold a nested one.
+     */
+    data class GroupedValidationClass(
+        @field:Null(groups = [CreateGroup::class], message = "ID must be null for creation")
+        @field:NotNull(groups = [UpdateGroup::class], message = "ID is required for update")
+        val id: Long?,
+
+        @field:NotBlank(message = "Name is always required")
+        val name: String
+    )
+
     @Nested
     inner class EdgeCases {
 
@@ -431,15 +456,6 @@ class DefaultValidationPromptGeneratorTest {
 
         @Test
         fun `should handle validation groups (basic test)`() {
-            data class GroupedValidationClass(
-                @field:Null(groups = [CreateGroup::class], message = "ID must be null for creation")
-                @field:NotNull(groups = [UpdateGroup::class], message = "ID is required for update")
-                val id: Long?,
-
-                @field:NotBlank(message = "Name is always required")
-                val name: String
-            )
-
             val result = generator.generateRequirementsPrompt(validator, GroupedValidationClass::class.java)
 
             // Default validation should show constraints that apply to Default group
