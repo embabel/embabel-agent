@@ -31,9 +31,14 @@ import com.embabel.common.byok.validatedEmbeddingService
 import com.embabel.common.util.ObjectProviders
 import com.openai.client.OpenAIClient
 import com.openai.client.OpenAIClientAsync
+import com.openai.client.OpenAIClientAsyncImpl
+import com.openai.client.OpenAIClientImpl
 import com.openai.client.okhttp.OpenAIOkHttpClient
 import com.openai.client.okhttp.OpenAIOkHttpClientAsync
+import com.openai.core.ClientOptions
 import io.micrometer.observation.ObservationRegistry
+import org.springframework.ai.openai.http.okhttp.OpenAiHttpClientBuilderCustomizer
+import org.springframework.ai.openai.http.okhttp.SpringAiOpenAiHttpClient
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.model.ChatModel
@@ -72,6 +77,9 @@ import java.time.LocalDate
  * @param observationRegistry Micrometer registry for Spring AI's chat model instrumentation.
  * @param restClientBuilder Unused since Spring AI 2.0; retained for source compatibility.
  * @param webClientBuilder Unused since Spring AI 2.0; retained for source compatibility.
+ * @param httpClientCustomizers Zero-or-more [OpenAiHttpClientBuilderCustomizer] beans to apply
+ *   to the OkHttp client (proxy, TLS, interceptors, Micrometer, etc.). When none are present the
+ *   factory uses a plain [OpenAIOkHttpClient] builder, preserving existing behaviour.
  */
 open class OpenAiCompatibleModelFactory(
     val baseUrl: String?,
@@ -84,6 +92,7 @@ open class OpenAiCompatibleModelFactory(
     restClientBuilder: ObjectProvider<RestClient.Builder> = ObjectProviders.empty(),
     @Suppress("UNUSED_PARAMETER")
     webClientBuilder: ObjectProvider<WebClient.Builder> = ObjectProviders.empty(),
+    private val httpClientCustomizers: ObjectProvider<OpenAiHttpClientBuilderCustomizer> = ObjectProviders.empty(),
 ) {
 
     companion object {
@@ -349,13 +358,65 @@ open class OpenAiCompatibleModelFactory(
      * we build **both** clients from our resolved credentials and wire both into the
      * chat model.
      */
-    protected val openAiClient: OpenAIClient = createOpenAiClient()
-    protected val openAiClientAsync: OpenAIClientAsync = createOpenAiClientAsync()
+    protected val openAiClient: OpenAIClient = buildSyncClient()
+    protected val openAiClientAsync: OpenAIClientAsync = buildAsyncClient()
 
     private fun resolvedApiKey(): String =
         // SDK rejects null/blank API keys at build time even for no-auth local servers,
         // so substitute a placeholder when apiKey is null.
         apiKey ?: "no-auth"
+
+    // When customizers are present: use SpringAiOpenAiHttpClient so the customizers can be applied.
+    // When none are registered: fall back to the plain OpenAIOkHttpClient path (existing behaviour).
+    private fun buildSyncClient(): OpenAIClient =
+        buildCustomizedClientOptions()?.let { OpenAIClientImpl(it) } ?: createOpenAiClient()
+
+    private fun buildAsyncClient(): OpenAIClientAsync =
+        buildCustomizedClientOptions()?.let { OpenAIClientAsyncImpl(it) } ?: createOpenAiClientAsync()
+
+    /**
+     * Builds [ClientOptions] backed by a [SpringAiOpenAiHttpClient] with all registered
+     * [OpenAiHttpClientBuilderCustomizer] beans applied — enabling proxy, TLS, interceptors,
+     * and Micrometer hooks that the plain [OpenAIOkHttpClient] builder cannot receive.
+     *
+     * Returns `null` when no customizers are registered, signalling [buildSyncClient] and
+     * [buildAsyncClient] to fall back to [createOpenAiClient] / [createOpenAiClientAsync]
+     * and preserve existing behaviour.
+     *
+     * Called once per client ([buildSyncClient] and [buildAsyncClient] call it independently),
+     * so sync and async clients receive separate [SpringAiOpenAiHttpClient] instances and
+     * remain independently tunable.
+     */
+    private fun buildCustomizedClientOptions(): ClientOptions? {
+        // Collect customizers in @Order / Ordered precedence; empty list → no-op path.
+        val customizers = httpClientCustomizers.orderedStream()
+            .collect(java.util.stream.Collectors.toUnmodifiableList())
+        if (customizers.isEmpty()) return null
+
+        logger.info(
+            "Applying {} OpenAiHttpClientBuilderCustomizer(s) to OkHttp client at {}",
+            customizers.size,
+            baseUrl ?: "default OpenAI location",
+        )
+        customizers.forEach { logger.debug("  customizer: {}", it::class.java.name) }
+
+        // Build the Spring AI OkHttp wrapper and let each customizer configure it
+        // (proxy, TLS, interceptors, Micrometer registry, etc.).
+        val springAiHttpClient = SpringAiOpenAiHttpClient.builder()
+            .timeout(Duration.ofMillis(READ_TIMEOUT_MS))
+            .observationRegistry(observationRegistry)
+            .apply { customizers.forEach { it.customize(this) } }
+            .build()
+
+        // Wire the customized HTTP client into the SDK's ClientOptions so that
+        // OpenAIClientImpl / OpenAIClientAsyncImpl use it instead of building their own.
+        val builder = ClientOptions.builder()
+            .httpClient(springAiHttpClient)
+            .apiKey(resolvedApiKey())
+        if (baseUrl != null) builder.baseUrl(baseUrl)
+        httpHeaders.forEach { (name, value) -> builder.putHeader(name, value) }
+        return builder.build()
+    }
 
     private fun createOpenAiClient(): OpenAIClient {
         val builder = OpenAIOkHttpClient.builder()
