@@ -26,6 +26,36 @@
         <dependencies>
             <dependency>
                 <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-decision</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-decision-typesafe</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-decision-llm</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-decision-autoconfigure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-starter-decision</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-api</artifactId>
                 <version>${project.version}</version>
             </dependency>

@@ -21,6 +21,7 @@
     
     <modules>
         <module>embabel-agent-starter</module>
+        <module>embabel-agent-starter-decision</module>
         <module>embabel-agent-starter-platform</module>
         <module>embabel-agent-starter-shell</module>
         <module>embabel-agent-starter-observability</module>
