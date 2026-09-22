@@ -22,14 +22,15 @@ import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
-import com.embabel.common.ai.model.LocalModel
-import com.embabel.common.ai.model.LocalModelBeans
-import com.embabel.common.ai.model.LocalModelCatalog
-import com.embabel.common.ai.model.LocalModelDiscoveryProperties
-import com.embabel.common.ai.model.LocalModelEmbeddingRoleResolver
-import com.embabel.common.ai.model.LocalModelKind
-import com.embabel.common.ai.model.LocalModelRoleResolver
-import com.embabel.common.ai.model.LocalModelSource
+import com.embabel.common.ai.model.local.DiscoveryFailureReporter
+import com.embabel.common.ai.model.local.LocalModel
+import com.embabel.common.ai.model.local.LocalModelBeans
+import com.embabel.common.ai.model.local.LocalModelCatalog
+import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
+import com.embabel.common.ai.model.local.LocalModelEmbeddingRoleResolver
+import com.embabel.common.ai.model.local.LocalModelKind
+import com.embabel.common.ai.model.local.LocalModelRoleResolver
+import com.embabel.common.ai.model.local.LocalModelSource
 import com.embabel.common.ai.model.PricingModel
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
@@ -130,6 +131,8 @@ class LmStudioModelsConfig(
 ) {
 
     private val log = LoggerFactory.getLogger(LmStudioModelsConfig::class.java)
+
+    private val discoveryFailures = DiscoveryFailureReporter(log)
 
     companion object {
         /**
@@ -243,7 +246,7 @@ class LmStudioModelsConfig(
                 "$apiUrl/v1/models"
             }
 
-            log.info("Attempting to fetch models from: {}", url)
+            log.debug("Attempting to fetch models from: {}", url)
 
             val responseBody = restClient.get()
                 .uri(url)
@@ -261,9 +264,10 @@ class LmStudioModelsConfig(
             val objectMapper = ObjectMapper()
             val response = objectMapper.readValue(responseBody, ModelResponse::class.java)
 
+            discoveryFailures.succeeded(lmStudioProperties.baseUrl)
             response.models?: emptyList()
         } catch (e: Exception) {
-            log.warn("Failed to load models from {}: {}", lmStudioProperties.baseUrl, e.message)
+            discoveryFailures.failed(lmStudioProperties.baseUrl, e)
             emptyList()
         }
     }

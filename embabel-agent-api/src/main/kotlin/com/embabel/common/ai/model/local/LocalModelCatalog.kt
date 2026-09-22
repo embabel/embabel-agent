@@ -13,9 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.common.ai.model
+package com.embabel.common.ai.model.local
 
 import com.embabel.agent.spi.LlmService
+import com.embabel.common.ai.model.ConfigurableModelProvider
+import com.embabel.common.ai.model.ConfigurableModelProviderProperties
+import com.embabel.common.ai.model.EmbeddingRoleResolver
+import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.ModelMetadata
+import com.embabel.common.ai.model.RoleResolver
 import com.embabel.common.util.loggerFor
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
@@ -144,11 +150,25 @@ class LocalModelCatalog(
      * unrelated lookups. A race costs one redundant build and never a wrong service.
      */
     fun llmService(model: String): LlmService<*>? =
-        llmServices[model] ?: source.llmService(model)?.also { llmServices[model] = it }
+        llmServices[model] ?: source.llmService(model)?.also {
+            llmServices[model] = it
+            logBuilt("chat", model)
+        }
 
     /** An embedding service for [model], built once and then reused, on the same terms. */
     fun embeddingService(model: String): EmbeddingService? =
-        embeddingServices[model] ?: source.embeddingService(model)?.also { embeddingServices[model] = it }
+        embeddingServices[model] ?: source.embeddingService(model)?.also {
+            embeddingServices[model] = it
+            logBuilt("embedding", model)
+        }
+
+    /**
+     * Once per model: the moment a runner's model first became usable in this process, which is
+     * what an operator who has just pulled one is looking for in the log.
+     */
+    private fun logBuilt(kind: String, model: String) {
+        logger.info("Built {} service for {} model '{}'", kind, source.provider, model)
+    }
 
     private fun current(): Snapshot =
         snapshot.get()
@@ -178,4 +198,40 @@ class LocalModelCatalog(
     }
 
     private fun elapsedSince(nanos: Long): Long = ticker() - nanos
+}
+
+/**
+ * Declares that a named provider's models may appear AFTER startup.
+ *
+ * Implemented alongside [RoleResolver] or [EmbeddingRoleResolver], or by a [LocalModelCatalog],
+ * whichever object knows. It says nothing about how a role resolves; it answers a different
+ * question, which only startup validation asks: is a role naming an unregistered model under this
+ * provider a typo, or a model that has not arrived yet?
+ *
+ * Without it the answer is "typo", and it is fatal - correctly, for a deployment that holds its
+ * models, because letting it start moves the failure to whichever unrelated call first asks for that
+ * role. A provider whose models are pulled on the host is the exception: `roles.cheapest.docker`
+ * naming a model nobody has pulled yet is the ordinary state of an appliance before setup, and
+ * refusing to start is refusing to reach the point where the operator could pull it.
+ *
+ * This is why [ConfigurableModelProviderProperties.embeddingRoles] is not checked at all - every
+ * entry there may be for a provider this process cannot serve - and it extends the same tolerance to
+ * the ONE case the chat check still treats as fatal: an entry under the same provider the default
+ * LLM comes from.
+ *
+ * Only the PROVIDER-QUALIFIED maps are covered. The flat `llms` and `embedding-services` maps name
+ * no provider, so nothing there can be attributed to a runner rather than to a typo - which is the
+ * reason a model that may arrive late belongs in a provider column.
+ */
+interface LateArrivingModels {
+
+    /**
+     * Provider whose models may appear after startup, matching [ModelMetadata.provider]. Compared
+     * case-insensitively, as provider names are everywhere else.
+     *
+     * Null excuses nothing, for an implementation that can be configured OUT of late arrival -
+     * [LocalModelCatalog] with discovery disabled is the shipped case. Nullable rather than a second
+     * boolean, so there is one thing to read and no way to say "excused, provider unknown".
+     */
+    val lateArrivingProvider: String?
 }

@@ -32,6 +32,14 @@ import org.springframework.ai.chat.model.ChatModel
 import org.springframework.core.Ordered
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicLong
+import com.embabel.common.ai.model.local.LocalModel
+import com.embabel.common.ai.model.local.LocalModelBeans
+import com.embabel.common.ai.model.local.LocalModelCatalog
+import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
+import com.embabel.common.ai.model.local.LocalModelEmbeddingRoleResolver
+import com.embabel.common.ai.model.local.LocalModelKind
+import com.embabel.common.ai.model.local.LocalModelRoleResolver
+import com.embabel.common.ai.model.local.LocalModelSource
 
 /**
  * A locally served model that appears AFTER startup being usable without a restart.

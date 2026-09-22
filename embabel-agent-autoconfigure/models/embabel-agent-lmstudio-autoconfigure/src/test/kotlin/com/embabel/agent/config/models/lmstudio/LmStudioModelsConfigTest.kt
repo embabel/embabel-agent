@@ -17,8 +17,8 @@ package com.embabel.agent.config.models.lmstudio
 
 import com.embabel.agent.api.models.LmStudioModels
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
-import com.embabel.common.ai.model.LocalModelDiscoveryProperties
-import com.embabel.common.ai.model.LocalModelKind
+import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
+import com.embabel.common.ai.model.local.LocalModelKind
 import io.micrometer.observation.ObservationRegistry
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull

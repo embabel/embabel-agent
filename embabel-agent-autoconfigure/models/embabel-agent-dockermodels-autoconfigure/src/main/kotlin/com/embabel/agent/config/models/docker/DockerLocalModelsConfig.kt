@@ -23,6 +23,15 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.*
+import com.embabel.common.ai.model.local.DiscoveryFailureReporter
+import com.embabel.common.ai.model.local.LocalModel
+import com.embabel.common.ai.model.local.LocalModelBeans
+import com.embabel.common.ai.model.local.LocalModelCatalog
+import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
+import com.embabel.common.ai.model.local.LocalModelEmbeddingRoleResolver
+import com.embabel.common.ai.model.local.LocalModelKind
+import com.embabel.common.ai.model.local.LocalModelRoleResolver
+import com.embabel.common.ai.model.local.LocalModelSource
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.openai.client.OpenAIClient
 import com.openai.client.okhttp.OpenAIOkHttpClient
@@ -117,6 +126,8 @@ class DockerLocalModelsConfig(
 ) {
     private val logger = LoggerFactory.getLogger(DockerLocalModelsConfig::class.java)
 
+    private val discoveryFailures = DiscoveryFailureReporter(logger)
+
     private companion object {
         /** Connect and read budget for a model listing against a runner on this machine. */
         private val DISCOVERY_TIMEOUT = Duration.ofSeconds(2)
@@ -171,13 +182,14 @@ class DockerLocalModelsConfig(
                 .retrieve()
                 .body<ModelResponse>()
 
+            discoveryFailures.succeeded(dockerConnectionProperties.baseUrl)
             response?.data?.map { modelDetails ->
                 Model(
                     id = modelDetails.id,
                 )
             } ?: emptyList()
         } catch (e: Exception) {
-            logger.warn("Failed to load models from {}: {}", dockerConnectionProperties.baseUrl, e.message)
+            discoveryFailures.failed(dockerConnectionProperties.baseUrl, e)
             emptyList()
         }
 

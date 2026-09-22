@@ -18,7 +18,7 @@ package com.embabel.agent.config.models.ollama
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
 import com.embabel.common.ai.model.LlmOptions
-import com.embabel.common.ai.model.LocalModelDiscoveryProperties
+import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
 import io.micrometer.observation.ObservationRegistry
 import io.mockk.*
 import org.junit.jupiter.api.AfterEach

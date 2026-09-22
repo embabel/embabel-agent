@@ -13,8 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.common.ai.model
+package com.embabel.common.ai.model.local
 
+import com.embabel.common.ai.model.ConfigurableEmbeddingRoleResolver
+import com.embabel.common.ai.model.ConfigurableModelProviderProperties
+import com.embabel.common.ai.model.ConfigurableRoleResolver
+import com.embabel.common.ai.model.EmbeddingRoleResolution
+import com.embabel.common.ai.model.EmbeddingRoleResolver
+import com.embabel.common.ai.model.ModelSelectionContext
+import com.embabel.common.ai.model.RoleResolution
+import com.embabel.common.ai.model.RoleResolver
 import com.embabel.common.util.loggerFor
 import org.springframework.core.Ordered
 
@@ -149,4 +157,34 @@ class LocalModelEmbeddingRoleResolver(
 private fun servesThisCaller(context: ModelSelectionContext, provider: String): Boolean {
     val credentialProvider = context.credential?.provider ?: return true
     return credentialProvider.equals(provider, ignoreCase = true)
+}
+
+/**
+ * The three objects a local runner's autoconfiguration publishes, built over ONE catalog.
+ *
+ * A runner module has nothing to decide here - it supplies a [LocalModelSource] and the rest is the
+ * same every time - so the wiring lives once rather than three times. That the two resolvers share
+ * a catalog was previously a comment in each module saying they did; here it is the construction.
+ *
+ * Each module still declares its own `@Bean` methods returning these fields, because bean names
+ * must differ across modules and a `@Configuration(proxyBeanMethods = false)` class calling its own
+ * bean method twice would build two catalogs.
+ *
+ * @param source the runner to ask
+ * @param properties where roles are read from
+ * @param discovery how stale a listing may be, and whether to ask at all
+ */
+class LocalModelBeans(
+    source: LocalModelSource,
+    properties: ConfigurableModelProviderProperties,
+    discovery: LocalModelDiscoveryProperties,
+) {
+
+    /** Published so the platform can LIST what the runner is serving, not only resolve roles. */
+    val catalog: LocalModelCatalog = LocalModelCatalog(source, discovery)
+
+    val roleResolver: LocalModelRoleResolver = LocalModelRoleResolver(catalog, properties)
+
+    val embeddingRoleResolver: LocalModelEmbeddingRoleResolver =
+        LocalModelEmbeddingRoleResolver(catalog, properties)
 }

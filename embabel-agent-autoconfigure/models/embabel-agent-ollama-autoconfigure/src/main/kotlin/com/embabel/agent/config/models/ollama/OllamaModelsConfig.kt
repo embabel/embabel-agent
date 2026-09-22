@@ -21,6 +21,15 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.*
+import com.embabel.common.ai.model.local.DiscoveryFailureReporter
+import com.embabel.common.ai.model.local.LocalModel
+import com.embabel.common.ai.model.local.LocalModelBeans
+import com.embabel.common.ai.model.local.LocalModelCatalog
+import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
+import com.embabel.common.ai.model.local.LocalModelEmbeddingRoleResolver
+import com.embabel.common.ai.model.local.LocalModelKind
+import com.embabel.common.ai.model.local.LocalModelRoleResolver
+import com.embabel.common.ai.model.local.LocalModelSource
 import com.embabel.common.util.ObjectProviders
 import com.fasterxml.jackson.annotation.JsonProperty
 import io.micrometer.observation.ObservationRegistry
@@ -66,6 +75,8 @@ class OllamaModelsConfig(
     private val restClientBuilder: ObjectProvider<RestClient.Builder> = ObjectProviders.empty(),
 ) {
     private val logger = LoggerFactory.getLogger(OllamaModelsConfig::class.java)
+
+    private val discoveryFailures = DiscoveryFailureReporter(logger)
 
     private companion object {
         /** Connect and read budget for a model listing against an Ollama server. */
@@ -123,6 +134,7 @@ class OllamaModelsConfig(
                 .retrieve()
                 .body<ModelResponse>()
 
+            discoveryFailures.succeeded(baseUrl)
             response?.models?.mapNotNull { modelDetails ->
                 // Additional validation to ensure model names are valid
                 if (modelDetails.name.isNotBlank()) {
@@ -134,7 +146,7 @@ class OllamaModelsConfig(
                 } else null
             } ?: emptyList()
         } catch (e: Exception) {
-            logger.warn("Failed to load models from {}: {}", baseUrl, e.message)
+            discoveryFailures.failed(baseUrl, e)
             emptyList()
         }
 
@@ -171,6 +183,14 @@ class OllamaModelsConfig(
         return this.providerInitialization
     }
 
+    /**
+     * A chat service LISTED under the node-prefixed name and ASKING the server for [modelName].
+     *
+     * The two differ only for a node: `gpu-qwen3:latest` is how the platform tells two nodes' copies
+     * apart, and `qwen3:latest` is the only name the node answers to. The request name is pinned in
+     * [OllamaOptionsConverter] as well as on the model, because [SpringAiLlmService] stamps its own
+     * name onto every request's options.
+     */
     private fun ollamaLlmOf(modelName: String, baseUrl: String, nodeName: String? = null): LlmService<*> {
         val uniqueModelName = createUniqueModelName(modelName, nodeName)
         val springChatModel = OllamaChatModel.builder()
@@ -186,7 +206,7 @@ class OllamaModelsConfig(
             )
             .options(
                 OllamaChatOptions.builder()
-                    .model(uniqueModelName)
+                    .model(modelName)
                     .build()
             )
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
@@ -202,7 +222,7 @@ class OllamaModelsConfig(
             chatModel = springChatModel,
             provider = OllamaModels.PROVIDER,
             pricingModel = PricingModel.ALL_YOU_CAN_EAT,
-            optionsConverter = OllamaOptionsConverter(),
+            optionsConverter = OllamaOptionsConverter(servedModelName = modelName),
             thinkingSupported = true,
         )
     }
@@ -231,7 +251,7 @@ class OllamaModelsConfig(
             )
             .options(
                 OllamaEmbeddingOptions.builder()
-                    .model(uniqueModelName)
+                    .model(modelName)
                     .build()
             )
             .build()
@@ -446,8 +466,15 @@ class OllamaModelsConfig(
         localModelBeans.embeddingRoleResolver
 }
 
+/**
+ * @param servedModelName the name the Ollama server knows the model by, when it differs from the
+ * service's own name - a node-scoped service is named `<node>-<model>`, and sending that to the node
+ * asks for a model it does not have. Null sends the service name, which is right for the default
+ * instance.
+ */
 class OllamaOptionsConverter(
     private val thinkLevelsSupported: Boolean = false,
+    private val servedModelName: String? = null,
 ) : OptionsConverter {
 
     private companion object {
@@ -457,7 +484,7 @@ class OllamaOptionsConverter(
 
     override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
         val builder = OllamaChatOptions.builder()
-            .model(model)
+            .model(servedModelName ?: model)
             .temperature(options.temperature)
             .topP(options.topP)
             .presencePenalty(options.presencePenalty)

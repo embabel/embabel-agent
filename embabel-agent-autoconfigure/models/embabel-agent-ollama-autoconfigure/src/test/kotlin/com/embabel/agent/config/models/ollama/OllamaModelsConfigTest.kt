@@ -16,21 +16,27 @@
 package com.embabel.agent.config.models.ollama
 
 import com.embabel.agent.api.models.OllamaModels
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
-import com.embabel.common.ai.model.LocalModelDiscoveryProperties
-import com.embabel.common.ai.model.LocalModelKind
+import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
+import com.embabel.common.ai.model.local.LocalModelKind
+import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.SpringAiEmbeddingService
 import io.micrometer.observation.ObservationRegistry
 import io.mockk.*
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.ai.ollama.OllamaEmbeddingModel
+import org.springframework.ai.ollama.api.OllamaEmbeddingOptions
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.MediaType
 import org.springframework.web.client.RestClient
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
@@ -475,20 +481,60 @@ class OllamaModelsConfigTest {
 
         /**
          * A node-scoped model is ASKED for under its prefixed name and SERVED under its own, so the
-         * lookup has to carry the raw name back - getting this wrong builds a service for a model
-         * the node has never heard of.
+         * request has to carry the raw name - getting this wrong sends the node a model name it has
+         * never heard of.
          */
         @Test
-        fun `a node-scoped model is built against its own endpoint under its raw name`() {
-            val nodes = OllamaNodeProperties().apply {
-                nodes = listOf(OllamaNodeConfig().apply { name = "gpu"; baseUrl = "http://gpu:11434" })
-            }
-            val catalog = createConfig("", nodes).ollamaLocalModelCatalog()
+        fun `a node-scoped chat model is listed under its prefixed name and requested under its raw one`() {
+            val catalog = createConfig("", gpuNode()).ollamaLocalModelCatalog()
 
-            val llm = catalog.llmNamed("gpu-qwen3:latest")
+            val llm = assertIs<SpringAiLlmService>(catalog.llmNamed("gpu-qwen3:latest"))
 
-            assertNotNull(llm)
+            assertEquals("gpu-qwen3:latest", llm.name)
+            assertEquals("qwen3:latest", llm.convertOptions(LlmOptions()).model)
             verify { mockRequestHeadersUriSpec.uri("http://gpu:11434/api/tags") }
+        }
+
+        @Test
+        fun `a node-scoped embedding model is listed under its prefixed name and requested under its raw one`() {
+            val catalog = createConfig("", gpuNode()).ollamaLocalModelCatalog()
+
+            val embedding = assertIs<SpringAiEmbeddingService>(catalog.embeddingNamed("gpu-embeddinggemma:latest"))
+
+            assertEquals("gpu-embeddinggemma:latest", embedding.name)
+            assertEquals("embeddinggemma:latest", requestedEmbeddingModel(embedding))
+        }
+
+        /**
+         * Several models on the default instance and on two nodes at once: every one of them must
+         * resolve under the name it is listed by, and ask its server for the name that server knows.
+         */
+        @Test
+        fun `every model on every endpoint resolves and requests its raw name`() {
+            val nodes = OllamaNodeProperties().apply {
+                nodes = listOf(
+                    OllamaNodeConfig().apply { name = "gpu"; baseUrl = "http://gpu:11434" },
+                    OllamaNodeConfig().apply { name = "cpu"; baseUrl = "http://cpu:11434" },
+                )
+            }
+            val catalog = createConfig("http://localhost:11434", nodes).ollamaLocalModelCatalog()
+            val chatModels = listOf("deepseek-r1:latest", "qwen3:latest", "gemma3:latest")
+
+            assertEquals(
+                chatModels.flatMap { listOf(it, "gpu-$it", "cpu-$it") }.toSet(),
+                catalog.servedNames(LocalModelKind.CHAT),
+            )
+            listOf(null, "gpu", "cpu").forEach { node ->
+                chatModels.forEach { raw ->
+                    val listed = node?.let { "$it-$raw" } ?: raw
+                    val llm = assertIs<SpringAiLlmService>(catalog.llmNamed(listed), listed)
+                    assertEquals(listed, llm.name)
+                    assertEquals(raw, llm.convertOptions(LlmOptions()).model, "request name for $listed")
+                }
+                val listedEmbedding = node?.let { "$it-embeddinggemma:latest" } ?: "embeddinggemma:latest"
+                val embedding = assertIs<SpringAiEmbeddingService>(catalog.embeddingNamed(listedEmbedding))
+                assertEquals("embeddinggemma:latest", requestedEmbeddingModel(embedding), "request name for $listedEmbedding")
+            }
         }
 
         @Test
@@ -543,6 +589,16 @@ class OllamaModelsConfigTest {
     }
 
     // Helper methods
+    private fun gpuNode() = OllamaNodeProperties().apply {
+        nodes = listOf(OllamaNodeConfig().apply { name = "gpu"; baseUrl = "http://gpu:11434" })
+    }
+
+    /** Spring AI does not expose an embedding model's default options, and they are what is sent. */
+    private fun requestedEmbeddingModel(service: SpringAiEmbeddingService): String? {
+        val field = OllamaEmbeddingModel::class.java.getDeclaredField("options").apply { isAccessible = true }
+        return (field.get(service.model) as OllamaEmbeddingOptions).model
+    }
+
     private fun createConfig(
         baseUrl: String,
         nodeProperties: OllamaNodeProperties?,

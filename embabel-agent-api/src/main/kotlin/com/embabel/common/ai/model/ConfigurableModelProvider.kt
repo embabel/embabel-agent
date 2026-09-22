@@ -25,6 +25,11 @@ import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicReference
+import com.embabel.common.ai.model.local.LateArrivingModels
+import com.embabel.common.ai.model.local.LocalModelCatalog
+import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
+import com.embabel.common.ai.model.local.LocalModelKind
+import com.embabel.common.ai.model.local.LocalModelRoleResolver
 
 /**
  * Configuration properties for the model provider
@@ -867,9 +872,11 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      */
     private fun localModelMetadata(): List<ModelMetadata> =
         localModelCatalogs.flatMap { catalog ->
+            // Chat models the runner serves, minus those registered at startup (already listed).
             catalog.servedNames(LocalModelKind.CHAT)
                 .filter { name -> llms.none { it.name == name } }
                 .map { LlmMetadata(it, provider = catalog.provider) } +
+                // The same for embedding models, checked against the registered embedding services.
                 catalog.servedNames(LocalModelKind.EMBEDDING)
                     .filter { name -> embeddingServices.none { it.name == name } }
                     .map { EmbeddingServiceMetadata(it, provider = catalog.provider) }

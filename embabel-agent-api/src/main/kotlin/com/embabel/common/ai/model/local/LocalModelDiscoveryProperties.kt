@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.common.ai.model
+package com.embabel.common.ai.model.local
 
-import com.embabel.common.ai.model.LocalModelDiscoveryProperties.Companion.PREFIX
-import org.springframework.boot.context.properties.ConfigurationProperties
+import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties.Companion.PREFIX
 import java.time.Duration
+import org.springframework.boot.context.properties.ConfigurationProperties
 
 /**
  * How often a local runner is re-asked what it serves.
