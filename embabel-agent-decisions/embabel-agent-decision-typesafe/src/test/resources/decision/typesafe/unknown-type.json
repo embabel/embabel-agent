@@ -1,0 +1,1 @@
+{"model":"resolved-test-v1","answers":{"q_yes":{"type":"future","noul":0.75},"q_choice":{"type":"choice","choice":"s_a","confidence":0.5,"probabilities":{"s_a":0.5,"s_b":0.5}}},"usage":{"input_tokens":7,"output_tokens":3}}
