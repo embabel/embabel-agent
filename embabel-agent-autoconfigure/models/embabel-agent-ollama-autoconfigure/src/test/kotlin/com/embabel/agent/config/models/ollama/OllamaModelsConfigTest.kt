@@ -15,12 +15,15 @@
  */
 package com.embabel.agent.config.models.ollama
 
+import com.embabel.agent.api.models.OllamaModels
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
 import com.embabel.common.ai.model.LocalModelDiscoveryProperties
+import com.embabel.common.ai.model.LocalModelKind
 import io.micrometer.observation.ObservationRegistry
 import io.mockk.*
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -28,6 +31,10 @@ import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.MediaType
 import org.springframework.web.client.RestClient
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 /**
  * Unit tests for multi-ollama instance registration algorithm and logic.
@@ -409,15 +416,145 @@ class OllamaModelsConfigTest {
         verify { mockRequestHeadersUriSpec.uri("http://legacy:11434/api/tags") }
     }
 
+    /**
+     * The per-call surface: what the server is serving NOW, rather than what it was serving while
+     * the platform was being built. Driven through the published catalog, because that is what the
+     * platform holds - the source itself is an implementation detail of this configuration.
+     */
+    @Nested
+    inner class AskedPerCall {
+
+        @Test
+        fun `the catalog reports what the default endpoint is serving, split by kind`() {
+            val catalog = createConfig("http://localhost:11434", null).ollamaLocalModelCatalog()
+
+            assertEquals(
+                setOf("deepseek-r1:latest", "qwen3:latest", "gemma3:latest"),
+                catalog.servedNames(LocalModelKind.CHAT),
+            )
+            assertEquals(
+                setOf("embeddinggemma:latest"),
+                catalog.servedNames(LocalModelKind.EMBEDDING),
+                "configuration decides the kind, since /api/tags does not say",
+            )
+        }
+
+        @Test
+        fun `a node's models are reported under the prefixed name registration would give them`() {
+            val nodes = OllamaNodeProperties().apply {
+                nodes = listOf(OllamaNodeConfig().apply { name = "gpu"; baseUrl = "http://gpu:11434" })
+            }
+            val catalog = createConfig("", nodes).ollamaLocalModelCatalog()
+
+            assertTrue(
+                catalog.servedNames(LocalModelKind.CHAT).contains("gpu-qwen3:latest"),
+                "a node-scoped model is asked for under the prefixed name, so it must be listed under it",
+            )
+        }
+
+        @Test
+        fun `a served chat model resolves to a service by name`() {
+            val catalog = createConfig("http://localhost:11434", null).ollamaLocalModelCatalog()
+
+            val llm = catalog.llmNamed("qwen3:latest")
+
+            assertNotNull(llm)
+            assertEquals("qwen3:latest", llm.name)
+            assertEquals(OllamaModels.PROVIDER, llm.provider)
+        }
+
+        @Test
+        fun `a served embedding model resolves to a service by name`() {
+            val catalog = createConfig("http://localhost:11434", null).ollamaLocalModelCatalog()
+
+            val embedding = catalog.embeddingNamed("embeddinggemma:latest")
+
+            assertNotNull(embedding)
+            assertEquals("embeddinggemma:latest", embedding.name)
+        }
+
+        /**
+         * A node-scoped model is ASKED for under its prefixed name and SERVED under its own, so the
+         * lookup has to carry the raw name back - getting this wrong builds a service for a model
+         * the node has never heard of.
+         */
+        @Test
+        fun `a node-scoped model is built against its own endpoint under its raw name`() {
+            val nodes = OllamaNodeProperties().apply {
+                nodes = listOf(OllamaNodeConfig().apply { name = "gpu"; baseUrl = "http://gpu:11434" })
+            }
+            val catalog = createConfig("", nodes).ollamaLocalModelCatalog()
+
+            val llm = catalog.llmNamed("gpu-qwen3:latest")
+
+            assertNotNull(llm)
+            verify { mockRequestHeadersUriSpec.uri("http://gpu:11434/api/tags") }
+        }
+
+        @Test
+        fun `a model the server is not serving resolves to nothing`() {
+            val catalog = createConfig("http://localhost:11434", null).ollamaLocalModelCatalog()
+
+            assertNull(catalog.llmNamed("never-pulled:latest"))
+            assertNull(catalog.embeddingNamed("never-pulled:latest"))
+        }
+
+        /**
+         * Chat and embedding roles resolve from ONE catalog, so a runner asked for both is asked
+         * once. Published as beans, so the platform can find them at all.
+         */
+        @Test
+        fun `the three beans are one catalog, so the server is asked once for chat and embeddings`() {
+            val config = createConfig("http://localhost:11434", null)
+
+            // Same instance every time: with proxyBeanMethods = false a bean METHOD building its
+            // own catalog would hand the two resolvers separate caches and double the HTTP.
+            assertSame(config.ollamaLocalModelCatalog(), config.ollamaLocalModelCatalog())
+            assertSame(config.ollamaLocalModelRoleResolver(), config.ollamaLocalModelRoleResolver())
+            assertSame(
+                config.ollamaLocalModelEmbeddingRoleResolver(),
+                config.ollamaLocalModelEmbeddingRoleResolver(),
+            )
+
+            config.ollamaLocalModelCatalog().servedNames(LocalModelKind.CHAT)
+            config.ollamaLocalModelCatalog().servedNames(LocalModelKind.EMBEDDING)
+
+            verify(exactly = 1) { mockRequestHeadersUriSpec.uri("http://localhost:11434/api/tags") }
+        }
+
+        /**
+         * The catalog is what declares late arrival, not the resolvers - they exist whether or not
+         * discovery is on, so asking them would excuse a provider configured never to be asked.
+         */
+        @Test
+        fun `the catalog declares late arrival only while discovery is enabled`() {
+            assertEquals(
+                OllamaModels.PROVIDER,
+                createConfig("http://localhost:11434", null).ollamaLocalModelCatalog().lateArrivingProvider,
+            )
+            assertNull(
+                createConfig(
+                    "http://localhost:11434",
+                    null,
+                    LocalModelDiscoveryProperties(enabled = false),
+                ).ollamaLocalModelCatalog().lateArrivingProvider,
+            )
+        }
+    }
+
     // Helper methods
-    private fun createConfig(baseUrl: String, nodeProperties: OllamaNodeProperties?) =
+    private fun createConfig(
+        baseUrl: String,
+        nodeProperties: OllamaNodeProperties?,
+        discovery: LocalModelDiscoveryProperties = LocalModelDiscoveryProperties(),
+    ) =
         OllamaModelsConfig(
             baseUrl = baseUrl,
             nodeProperties = nodeProperties,
             configurableBeanFactory = mockBeanFactory,
             properties = mockProperties,
             observationRegistry = mockObservationRegistry,
-            localModelDiscoveryProperties = LocalModelDiscoveryProperties(),
+            localModelDiscoveryProperties = discovery,
             restClientBuilder = mockRestClientBuilderProvider,
         )
 }

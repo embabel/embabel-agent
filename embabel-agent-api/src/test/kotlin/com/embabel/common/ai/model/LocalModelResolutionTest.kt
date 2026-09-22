@@ -21,6 +21,7 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -28,6 +29,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.ai.chat.model.ChatModel
+import org.springframework.core.Ordered
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicLong
 
@@ -64,6 +66,11 @@ class LocalModelResolutionTest {
         override val provider: String = DOCKER,
         var serving: Set<LocalModel> = emptySet(),
         var reachable: Boolean = true,
+        /**
+         * A runner that LISTS a model but cannot build a service for it - a real one does this when
+         * it can tell a chat model from an embedding model and the caller asked for the wrong half.
+         */
+        var buildsNothing: Boolean = false,
     ) : LocalModelSource {
 
         var listings = 0
@@ -79,13 +86,15 @@ class LocalModelResolutionTest {
             return if (reachable) serving else emptySet()
         }
 
-        override fun llmService(model: String): LlmService<*> {
+        override fun llmService(model: String): LlmService<*>? {
             llmBuilds++
+            if (buildsNothing) return null
             return SpringAiLlmService(model, provider, mockk<ChatModel>(), DefaultOptionsConverter)
         }
 
-        override fun embeddingService(model: String): EmbeddingService {
+        override fun embeddingService(model: String): EmbeddingService? {
             embeddingBuilds++
+            if (buildsNothing) return null
             return FakeEmbeddingService(model, provider)
         }
     }
@@ -440,6 +449,53 @@ class LocalModelResolutionTest {
             assertEquals(listOf(DEFAULT_LLM), provider(runner).listModelNames(LlmService::class.java))
         }
 
+        /**
+         * The other two by-name criteria. A caller picking from a listing may pass several names,
+         * and a late model has to answer to those the same way it answers to one - otherwise the
+         * listing offers a name that only ONE of three selection paths honours.
+         */
+        @Test
+        fun `a late model answers a fallback list, in order`() {
+            val mp = provider(FakeRunner(serving = chat(PULLED_LLM)))
+
+            assertEquals(
+                PULLED_LLM,
+                mp.getLlm(FallbackByNameModelSelectionCriteria(listOf("never-pulled", PULLED_LLM))).name,
+                "the first name misses, so the second must be tried",
+            )
+        }
+
+        @Test
+        fun `a late model can be drawn from a random-by-name set`() {
+            val mp = provider(FakeRunner(serving = chat(PULLED_LLM)))
+
+            assertEquals(
+                PULLED_LLM,
+                mp.getLlm(RandomByNameModelSelectionCriteria(listOf(PULLED_LLM))).name,
+            )
+        }
+
+        /**
+         * What a failure says is available must be the same set the listing reports, or an operator
+         * is told a model is unavailable in the same breath as being offered it.
+         */
+        @Test
+        fun `a failure names the late model among what is available`() {
+            val mp = provider(FakeRunner(serving = chat(PULLED_LLM)))
+
+            for (criteria in listOf(
+                ByNameModelSelectionCriteria("never-pulled"),
+                FallbackByNameModelSelectionCriteria(listOf("never-pulled")),
+                RandomByNameModelSelectionCriteria(listOf("never-pulled")),
+            )) {
+                val thrown = assertThrows<NoSuitableModelException> { mp.getLlm(criteria) }
+                assertTrue(
+                    thrown.message!!.contains(PULLED_LLM),
+                    "$criteria must offer the same names the listing does, but said: ${thrown.message}",
+                )
+            }
+        }
+
         @Test
         fun `disabling local discovery leaves the listing as it was`() {
             discovery.enabled = false
@@ -504,6 +560,131 @@ class LocalModelResolutionTest {
             mp.getLlm(DefaultModelSelectionCriteria)
 
             assertEquals(0, runner.listings, "a role is the chain's business, not a model name to look up")
+        }
+    }
+
+    /**
+     * The seams the resolvers present to the rest of the platform: where they sort, and what they do
+     * when the runner contradicts itself by listing a model it cannot build.
+     */
+    @Nested
+    inner class HowTheResolversBehaveInTheChain {
+
+        private fun properties() = ConfigurableModelProviderProperties(
+            defaultLlm = DEFAULT_LLM,
+            roles = mapOf(CHEAPEST_ROLE to mapOf(DOCKER to LlmOptions.withModel(PULLED_LLM))),
+            embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(DOCKER to PULLED_EMBEDDING)),
+        )
+
+        /**
+         * Last, so an application that has decided what a role means keeps deciding it. A resolver
+         * sorting anywhere earlier would take roles away from the application that configured them.
+         */
+        @Test
+        fun `both resolvers sort last, behind any application resolver`() {
+            val properties = properties()
+            val runnerCatalog = catalog(FakeRunner())
+
+            assertEquals(
+                Ordered.LOWEST_PRECEDENCE,
+                LocalModelRoleResolver(runnerCatalog, properties).order,
+            )
+            assertEquals(
+                Ordered.LOWEST_PRECEDENCE,
+                LocalModelEmbeddingRoleResolver(runnerCatalog, properties).order,
+            )
+        }
+
+        /**
+         * A chat role under a user key for ANOTHER provider: the user asked for their provider and
+         * expects to be billed for it, so answering off this machine would answer with the wrong
+         * model. Asserted for the chat side as well as the embedding side, since the rule is shared
+         * and a shared rule is exactly the kind that gets broken for one caller only.
+         */
+        @Test
+        fun `a chat role under a user key for another provider is declined`() {
+            val properties = properties()
+            val runner = FakeRunner(serving = chat(PULLED_LLM))
+            val resolver = LocalModelRoleResolver(catalog(runner), properties)
+
+            val underUserKey = ModelSelectionContext(credential = ProviderCredential(OPENAI, "sk-user"))
+
+            assertNull(resolver.resolve(CHEAPEST_ROLE, underUserKey))
+            assertEquals(0, runner.listings, "a key for another provider must not even reach the runner")
+        }
+
+        /**
+         * A runner that lists a model and then cannot build a service for it has contradicted
+         * itself. Declining passes the role to the rest of the chain; returning a half-built
+         * resolution would fail later, somewhere that cannot say which runner caused it.
+         */
+        @Test
+        fun `a model listed but not buildable declines rather than resolving`() {
+            val properties = properties()
+            val runner = FakeRunner(serving = chat(PULLED_LLM), buildsNothing = true)
+
+            val resolved = LocalModelRoleResolver(catalog(runner), properties)
+                .resolve(CHEAPEST_ROLE, ModelSelectionContext.EMPTY)
+
+            assertNull(resolved)
+            assertEquals(1, runner.llmBuilds, "it must have tried, or the decline means nothing")
+        }
+
+        @Test
+        fun `an embedding model listed but not buildable declines rather than resolving`() {
+            val properties = properties()
+            val runner = FakeRunner(serving = embedding(PULLED_EMBEDDING), buildsNothing = true)
+
+            val resolved = LocalModelEmbeddingRoleResolver(catalog(runner), properties)
+                .resolve(DOCUMENTS_ROLE, ModelSelectionContext.EMPTY)
+
+            assertNull(resolved)
+            assertEquals(1, runner.embeddingBuilds, "it must have tried, or the decline means nothing")
+        }
+
+        /**
+         * What a runner module publishes. The three are built over ONE catalog, so a runner asked
+         * for a chat role and an embedding role in the same interval is asked once.
+         */
+        @Test
+        fun `the published beans share a single catalog`() {
+            val runner = FakeRunner(serving = chat(PULLED_LLM) + embedding(PULLED_EMBEDDING))
+            val beans = LocalModelBeans(runner, properties(), discovery)
+
+            assertNotNull(beans.roleResolver.resolve(CHEAPEST_ROLE, ModelSelectionContext.EMPTY))
+            assertNotNull(beans.embeddingRoleResolver.resolve(DOCUMENTS_ROLE, ModelSelectionContext.EMPTY))
+
+            assertEquals(1, runner.listings, "two resolvers over two catalogs would be two listings")
+            assertEquals(DOCKER, beans.catalog.provider)
+        }
+    }
+
+    /**
+     * What a model a runner lists is FOR, when the runner does not say. Docker and Ollama both read
+     * this, and both promise it matches their own startup registration - one function, so the
+     * promise cannot rot in one of the two copies.
+     */
+    @Nested
+    inner class DecidingWhatALocalModelIsFor {
+
+        @Test
+        fun `a model some embedding role names is an embedding model`() {
+            val properties = ConfigurableModelProviderProperties(
+                defaultLlm = DEFAULT_LLM,
+                embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(DOCKER to PULLED_EMBEDDING)),
+            )
+
+            assertEquals(
+                LocalModelKind.EMBEDDING,
+                LocalModelKind.fromConfiguration(PULLED_EMBEDDING, properties),
+            )
+        }
+
+        @Test
+        fun `anything configuration does not name as an embedding model is a chat model`() {
+            val properties = ConfigurableModelProviderProperties(defaultLlm = DEFAULT_LLM)
+
+            assertEquals(LocalModelKind.CHAT, LocalModelKind.fromConfiguration(PULLED_LLM, properties))
         }
     }
 
