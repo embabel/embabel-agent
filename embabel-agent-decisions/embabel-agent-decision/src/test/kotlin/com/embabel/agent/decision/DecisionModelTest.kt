@@ -19,6 +19,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import java.time.Duration
+import java.util.concurrent.atomic.AtomicLong
 
 class DecisionModelTest {
     @Test
@@ -40,9 +41,9 @@ class DecisionModelTest {
         val result = model.ask(request.build()) as DecisionOutcome.Success
         val answer = result.answer(choice) as KeyOutcome.Success
 
-        assertThat(answer.value).isEqualTo("same")
-        assertThat(answer.maximizers).containsExactly("same", "near")
-        assertThat(answer.firstMaximizer).isEqualTo("same")
+        assertThat(answer.value).isEqualTo("IDENTICAL")
+        assertThat(answer.maximizers).containsExactly("IDENTICAL", "SIMILAR")
+        assertThat(answer.firstMaximizer).isEqualTo("IDENTICAL")
         assertThat(result.provenance.correlationId).isEqualTo("revision:42")
         assertThat(result.provenance.questionFingerprint).isNotBlank()
         assertThat(result.record!!.fields.values.joinToString()).doesNotContain("secret-label")
@@ -97,6 +98,66 @@ class DecisionModelTest {
     }
 
     @Test
+    fun `redacts nested secrets and publishes immutable provider input`() {
+        var nested: Map<String, Any?>? = null
+        var mutationRejected = false
+        var nestedMutationRejected = false
+        var questionMutationRejected = false
+        val builder = DecisionRequest.builder().state(mapOf("outer" to mapOf("nestedToken" to "secret", "safe" to "value", "list" to listOf("immutable"))))
+        builder.yesNo("safe", "safe?")
+        val outcome = DecisionModel(DecisionProvider { prepared ->
+            @Suppress("UNCHECKED_CAST")
+            nested = prepared.state["outer"] as Map<String, Any?>
+            mutationRejected = try {
+                (prepared.state as MutableMap<String, Any?>)["changed"] = "no"
+                false
+            } catch (_: UnsupportedOperationException) {
+                true
+            }
+            nestedMutationRejected = try {
+                ((prepared.state["outer"] as Map<*, *>)["list"] as MutableList<Any?>).add("no")
+                false
+            } catch (_: UnsupportedOperationException) {
+                true
+            }
+            questionMutationRejected = try {
+                (prepared.questions as MutableList<PreparedQuestion>).clear()
+                false
+            } catch (_: UnsupportedOperationException) {
+                true
+            }
+            RawDecisionOutcome.success(listOf(RawAnswer.yesNo("safe", 1.0, "true")), DecisionProvenance.builder("test", EvidenceKind.DISTRIBUTION).build())
+        }).ask(builder.build())
+
+        assertThat(outcome).isInstanceOf(DecisionOutcome.Success::class.java)
+        assertThat(nested).containsEntry("safe", "value").doesNotContainKey("nestedToken")
+        assertThat(mutationRejected).isTrue
+        assertThat(nestedMutationRejected).isTrue
+        assertThat(questionMutationRejected).isTrue
+    }
+
+    @Test
+    fun `bounds a noncooperative provider at the request deadline`() {
+        val builder = DecisionRequest.builder().timeout(Duration.ofMillis(20))
+        builder.yesNo("safe", "safe?")
+        val started = System.nanoTime()
+        val outcome = DecisionModel(DecisionProvider {
+            try {
+                Thread.sleep(500)
+            } catch (_: InterruptedException) {
+                // Deliberately ignore interruption: the facade still returns on its deadline.
+                Thread.sleep(500)
+            }
+            RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE)
+        }).ask(builder.build())
+        val elapsed = Duration.ofNanos(System.nanoTime() - started)
+
+        assertThat(outcome).isInstanceOf(DecisionOutcome.Failure::class.java)
+        assertThat((outcome as DecisionOutcome.Failure).failure).isEqualTo(CallFailure.DeadlineExceeded)
+        assertThat(elapsed).isLessThan(Duration.ofMillis(250))
+    }
+
+    @Test
     fun `no and stub factories use the same facade`() {
         val disabled = NoDecisionModel.create().ask(yesNoRequest()) as DecisionOutcome.Failure
         assertThat(disabled.safeCode).isEqualTo(DecisionSafeCode.DISABLED)
@@ -104,6 +165,81 @@ class DecisionModelTest {
             DecisionProvenance.builder("stub", EvidenceKind.DISTRIBUTION).build())
         val scripted = StubDecisionModel.create(listOf(StubStep.immediate(raw))).ask(yesNoRequest()) as DecisionOutcome.Success
         assertThat(scripted).isNotNull
+    }
+
+    @Test
+    fun `uses one injected monotonic deadline and discards a late success`() {
+        val clock = AtomicLong(1_000)
+        val builder = DecisionRequest.builder()
+        builder.yesNo("safe", "safe?")
+        val model = decisionModelForTesting(DecisionProvider {
+            clock.set(1_000 + Duration.ofSeconds(5).toNanos())
+            RawDecisionOutcome.success(listOf(RawAnswer.yesNo("safe", 1.0, "true")), DecisionProvenance.builder("test", EvidenceKind.DISTRIBUTION).build())
+        }, Duration.ofSeconds(5), DecisionRecordPolicy.metadata(), clock::get)
+
+        val result = model.ask(builder.build())
+
+        assertThat(result).isInstanceOf(DecisionOutcome.Failure::class.java)
+        assertThat((result as DecisionOutcome.Failure).failure).isEqualTo(CallFailure.DeadlineExceeded)
+    }
+
+    @Test
+    fun `rejects foreign keys and validates all raw failure kinds`() {
+        val first = DecisionRequest.builder().also { it.yesNo("safe", "safe?") }
+        val second = DecisionRequest.builder().also { it.yesNo("safe", "safe?") }
+        val firstKey = first.yesNo("other", "other?")
+        val foreign = second.yesNo("other", "other?")
+        val raw = RawDecisionOutcome.success(listOf(RawAnswer.yesNo("safe", 1.0, "true"), RawAnswer.yesNo("other", 1.0, "true")), DecisionProvenance.builder("test", EvidenceKind.DISTRIBUTION).build())
+        val success = DecisionModel(DecisionProvider { raw }).ask(first.build()) as DecisionOutcome.Success
+
+        assertThatThrownBy { success.answer(foreign) }.isInstanceOf(IllegalArgumentException::class.java)
+        assertThat(success.answer(firstKey)).isInstanceOf(KeyOutcome.Success::class.java)
+        CallFailure.entries.forEach { failure ->
+            val outcome = DecisionModel(DecisionProvider { RawDecisionOutcome.failure(failure, DecisionSafeCode.UNAVAILABLE) }).ask(yesNoRequest()) as DecisionOutcome.Failure
+            assertThat(outcome.failure).isEqualTo(failure)
+        }
+        KeyFailure.entries.forEach { failure ->
+            val request = DecisionRequest.builder()
+            val key = request.yesNo("safe", "safe?")
+            val outcome = DecisionModel(DecisionProvider {
+                RawDecisionOutcome.success(listOf(RawAnswer.failure("safe", failure, DecisionSafeCode.INVALID)), DecisionProvenance.builder("test", EvidenceKind.DISTRIBUTION).build())
+            }).ask(request.build()) as DecisionOutcome.Success
+            assertThat(outcome.answer(key)).isInstanceOf(KeyOutcome.Failure::class.java)
+        }
+    }
+
+    @Test
+    fun `rejects invalid numeric distributions and nonmaximizing selections`() {
+        listOf(
+            listOf(RawProbability.of("a", Double.NaN), RawProbability.of("b", 0.0)),
+            listOf(RawProbability.of("a", -0.1), RawProbability.of("b", 1.1)),
+            listOf(RawProbability.of("a", .3), RawProbability.of("b", .3)),
+        ).forEach { probabilities ->
+            val request = DecisionRequest.builder(); val key = request.choice("choice", "choice?", listOf(DecisionOption.of("a", "A", "a"), DecisionOption.of("b", "B", "b")))
+            val outcome = DecisionModel(DecisionProvider {
+                RawDecisionOutcome.success(listOf(RawAnswer.distribution("choice", DecisionKind.CHOICE, probabilities, "a")), DecisionProvenance.builder("test", EvidenceKind.DISTRIBUTION).build())
+            }).ask(request.build()) as DecisionOutcome.Success
+            assertThat(outcome.answer(key)).isInstanceOf(KeyOutcome.Failure::class.java)
+        }
+        val request = DecisionRequest.builder(); val key = request.choice("choice", "choice?", listOf(DecisionOption.of("a", "A", "a"), DecisionOption.of("b", "B", "b")))
+        val outcome = DecisionModel(DecisionProvider {
+            RawDecisionOutcome.success(listOf(RawAnswer.distribution("choice", DecisionKind.CHOICE, listOf(RawProbability.of("a", .8), RawProbability.of("b", .2)), "b")), DecisionProvenance.builder("test", EvidenceKind.DISTRIBUTION).build())
+        }).ask(request.build()) as DecisionOutcome.Success
+        assertThat(outcome.answer(key)).isInstanceOf(KeyOutcome.Failure::class.java)
+    }
+
+    @Test
+    fun `bounds every record projection including full allowlisted records`() {
+        val builder = DecisionRequest.builder().recordPolicy(DecisionRecordPolicy.full(1, setOf("answerIds")))
+        builder.correlationId("x".repeat(256))
+        builder.yesNo("safe", "safe?")
+        val outcome = DecisionModel(DecisionProvider {
+            RawDecisionOutcome.success(listOf(RawAnswer.yesNo("safe", .5, "false")), DecisionProvenance.builder("provider", EvidenceKind.DISTRIBUTION).build())
+        }).ask(builder.build()) as DecisionOutcome.Success
+
+        val record = requireNotNull(outcome.record)
+        assertThat(record.fields).isEmpty()
+        assertThatThrownBy { (record.fields as MutableMap<String, String>)["x"] = "y" }.isInstanceOf(UnsupportedOperationException::class.java)
     }
 
     private fun yesNoRequest(): DecisionRequest {

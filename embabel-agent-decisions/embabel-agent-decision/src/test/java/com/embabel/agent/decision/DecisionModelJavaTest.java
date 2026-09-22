@@ -17,8 +17,15 @@ package com.embabel.agent.decision;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Modifier;
 import java.util.List;
+import java.util.Arrays;
+import javax.tools.JavaCompiler;
+import javax.tools.ToolProvider;
 import org.junit.jupiter.api.Test;
 
 class DecisionModelJavaTest {
@@ -39,8 +46,64 @@ class DecisionModelJavaTest {
         DecisionOutcome.Success outcome = assertInstanceOf(DecisionOutcome.Success.class, model.ask(request.build()));
         KeyOutcome.Success<?> answer = assertInstanceOf(KeyOutcome.Success.class, outcome.answer(relation));
 
-        assertEquals("same", answer.getValue());
-        assertEquals("same", answer.getFirstMaximizer());
+        assertEquals("IDENTICAL", answer.getValue());
+        assertEquals("IDENTICAL", answer.getFirstMaximizer());
         assertEquals("java-test", outcome.getProvenance().getProvider());
+    }
+
+    @Test
+    void exposesOnlyTheSanctionedFacadeConstructorAndCompilesTypedJavaUsage() {
+        assertTrue(Modifier.isFinal(DecisionModel.class.getModifiers()));
+        assertEquals(1, DecisionModel.class.getConstructors().length);
+        assertEquals(1, DecisionModel.class.getConstructors()[0].getParameterCount());
+        assertTrue(DecisionRequest.class.isInterface());
+        assertTrue(DecisionOutcome.Success.class.isInterface());
+        assertTrue(KeyOutcome.Success.class.isInterface());
+        assertTrue(Arrays.stream(DecisionModel.class.getMethods())
+            .noneMatch(method -> method.getName().contains("$")));
+
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        assertNotNull(compiler);
+        String classpath = System.getProperty("java.class.path");
+        String positive = """
+            import com.embabel.agent.decision.*;
+            import java.util.List;
+            class PositiveConsumer {
+                String use() {
+                    DecisionRequest.Builder request = DecisionRequest.builder();
+                    ChoiceKey<String> key = request.choice("q", "Question?", List.of(DecisionOption.of("yes", "YES", "yes")));
+                    DecisionModel model = new DecisionModel(prepared -> RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.DISABLED));
+                    DecisionOutcome result = model.ask(request.build());
+                    if (result instanceof DecisionOutcome.Success success) {
+                        KeyOutcome<String> answer = success.answer(key);
+                    }
+                    return "ok";
+                }
+            }
+            """;
+        String bypass = """
+            import com.embabel.agent.decision.*;
+            import java.time.Duration;
+            class FacadeBypass {
+                DecisionModel bypass(DecisionProvider provider) {
+                    return new DecisionModel(provider, Duration.ofMillis(1), DecisionRecordPolicy.metadata(), () -> 0L);
+                }
+            }
+            """;
+
+        assertEquals(0, compile(compiler, classpath, "PositiveConsumer", positive));
+        assertTrue(compile(compiler, classpath, "FacadeBypass", bypass) != 0);
+    }
+
+    private static int compile(JavaCompiler compiler, String classpath, String className, String source) {
+        try {
+            java.nio.file.Path directory = java.nio.file.Files.createTempDirectory("decision-java-compiler");
+            java.nio.file.Path file = directory.resolve(className + ".java");
+            java.nio.file.Files.writeString(file, source);
+            ByteArrayOutputStream errors = new ByteArrayOutputStream();
+            return compiler.run(null, null, errors, "-Xlint:unchecked", "-Werror", "-classpath", classpath, file.toString());
+        } catch (java.io.IOException error) {
+            throw new AssertionError(error);
+        }
     }
 }
