@@ -43,6 +43,7 @@ import com.embabel.common.ai.model.ConfigurableModelProviderProperties
 import com.embabel.common.ai.model.CredentialEmbeddingServiceFactory
 import com.embabel.common.ai.model.CredentialLlmServiceFactory
 import com.embabel.common.ai.model.EmbeddingRoleResolver
+import com.embabel.common.ai.model.LocalModelCatalog
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.RoleResolver
@@ -255,6 +256,10 @@ class AgentPlatformConfiguration(
                 .orderedStream().toList(),
             credentialEmbeddingServiceFactories = applicationContext
                 .getBeanProvider(CredentialEmbeddingServiceFactory::class.java)
+                .orderedStream().toList(),
+            // What local runners are serving NOW, so a model pulled after startup is listed and
+            // usable by name rather than only reachable through a role.
+            localModelCatalogs = applicationContext.getBeanProvider(LocalModelCatalog::class.java)
                 .orderedStream().toList(),
         )
     }

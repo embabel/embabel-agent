@@ -49,9 +49,14 @@ sealed interface RoleResolution {
 
     /**
      * An already-built service, for callers that construct their own.
+     *
+     * [llmOptions] travels with it and is merged the way [Options] is, so a resolver that built its
+     * own service does not have to give up the tuning configured beside the model name. Defaulted,
+     * because a resolver handing back a service it configured itself has nothing to add.
      */
     data class Service(
         val llmService: LlmService<*>,
+        val llmOptions: LlmOptions = LlmOptions.withDefaults(),
     ) : RoleResolution
 }
 

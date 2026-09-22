@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.config.models.lmstudio
 
+import com.embabel.common.ai.model.ConfigurableModelProviderProperties
+import com.embabel.common.ai.model.LocalModelDiscoveryProperties
 import io.micrometer.observation.ObservationRegistry
 import kotlin.test.assertEquals
 import io.mockk.*
@@ -105,6 +107,8 @@ class LmStudioModelsConfigTest {
         val config = LmStudioModelsConfig(
             lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
+            modelProviderProperties = ConfigurableModelProviderProperties(),
+            localModelDiscoveryProperties = LocalModelDiscoveryProperties(),
             observationRegistry = mockObservationRegistry,
             restClientBuilder = mockRestClientBuilderProvider,
             webClientBuilder = mockWebClientBuilderProvider
@@ -129,6 +133,8 @@ class LmStudioModelsConfigTest {
         val config = LmStudioModelsConfig(
             lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
+            modelProviderProperties = ConfigurableModelProviderProperties(),
+            localModelDiscoveryProperties = LocalModelDiscoveryProperties(),
             observationRegistry = mockObservationRegistry,
             restClientBuilder = mockRestClientBuilderProvider,
             webClientBuilder = mockWebClientBuilderProvider
@@ -149,6 +155,8 @@ class LmStudioModelsConfigTest {
         val config = LmStudioModelsConfig(
             lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
+            modelProviderProperties = ConfigurableModelProviderProperties(),
+            localModelDiscoveryProperties = LocalModelDiscoveryProperties(),
             observationRegistry = mockObservationRegistry,
             restClientBuilder = mockRestClientBuilderProvider,
             webClientBuilder = mockWebClientBuilderProvider
@@ -177,6 +185,8 @@ class LmStudioModelsConfigTest {
         val config = LmStudioModelsConfig(
             lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
+            modelProviderProperties = ConfigurableModelProviderProperties(),
+            localModelDiscoveryProperties = LocalModelDiscoveryProperties(),
             observationRegistry = mockObservationRegistry,
             restClientBuilder = mockRestClientBuilderProvider,
             webClientBuilder = mockWebClientBuilderProvider

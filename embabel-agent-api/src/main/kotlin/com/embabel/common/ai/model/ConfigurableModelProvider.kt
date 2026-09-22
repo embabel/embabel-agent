@@ -206,6 +206,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     private val credentialLlmServiceFactories: List<CredentialLlmServiceFactory> = emptyList(),
     embeddingRoleResolvers: List<EmbeddingRoleResolver> = emptyList(),
     private val credentialEmbeddingServiceFactories: List<CredentialEmbeddingServiceFactory> = emptyList(),
+    private val localModelCatalogs: List<LocalModelCatalog> = emptyList(),
 ) : ModelProvider {
 
     private val logger = loggerFor<ConfigurableModelProvider>()
@@ -241,6 +242,19 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      */
     private val embeddingRoleResolvers: List<EmbeddingRoleResolver> =
         embeddingRoleResolvers + configurableEmbeddingRoleResolver
+
+    /**
+     * Providers whose models may appear after startup, declared by the resolvers that cover them.
+     *
+     * Read by [checkNestedRoles] and nothing else. It is not part of resolution: what a role means
+     * is the chain's business, and this only decides whether an unregistered name is a typo worth
+     * refusing to start over. See [LateArrivingModels].
+     */
+    private val lateArrivingProviders: Set<String> =
+        (this.roleResolvers + this.embeddingRoleResolvers)
+            .filterIsInstance<LateArrivingModels>()
+            .map { it.lateArrivingProvider.lowercase() }
+            .toSet()
 
     /**
      * The embedding counterpart of [credentialLlmServices], bounded the same way and for the same
@@ -410,6 +424,14 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             properties.defaultEmbeddingModel?.let { role ->
                 attemptEmbeddingRole(role, ModelSelectionContextHolder.get())?.let { return it }
             }
+        } else {
+            // A default naming a MODEL, resolved once at startup against registered services and
+            // so null here when the model had not been pulled yet. Asking the runners is what lets
+            // `default-embedding-model: <a local model>` start working on the pull rather than on
+            // the next restart - the same per-call treatment a role already gets.
+            properties.defaultEmbeddingModel?.let { model ->
+                locallyServedEmbedding(model)?.let { return it }
+            }
         }
         return placeholderEmbeddingService(warn = warnOnFallback)
     }
@@ -546,6 +568,26 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      * until a real model is registered - the property, not a type test, because it survives
      * wrapping.
      */
+    /**
+     * A chat service for a model a local runner is serving under this exact name, or null.
+     *
+     * The by-NAME counterpart of what [LocalModelRoleResolver] does for a role, and the reason
+     * [listModelNames] can name a model that arrived after startup without lying: everything the
+     * platform lists is something a caller can then ask for. Catalogs are tried in bean order, and
+     * the first that is serving the name answers - two runners serving the same model name serve
+     * the same model, so there is nothing to choose between them.
+     */
+    private fun locallyServedLlm(name: String): LlmService<*>? =
+        localModelCatalogs.firstNotNullOfOrNull { it.llmNamed(name) }
+
+    /** The embedding counterpart of [locallyServedLlm]. */
+    private fun locallyServedEmbedding(name: String): EmbeddingService? =
+        localModelCatalogs.firstNotNullOfOrNull { it.embeddingNamed(name) }
+
+    /** Names a local runner is serving of this kind, for the listings. */
+    private fun locallyServedNames(kind: LocalModelKind): List<String> =
+        localModelCatalogs.flatMap { it.servedNames(kind) }.distinct()
+
     private fun placeholderEmbeddingService(warn: Boolean): EmbeddingService? =
         embeddingServices.firstOrNull { it.awaitingProviderKey }
             ?.also { if (warn) reportEmbeddingFallback(it) }
@@ -725,6 +767,11 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      * brings a key for that provider, and its model is not expected to be registered here, so
      * warning about it would train people to ignore the warning.
      *
+     * A provider that has declared [LateArrivingModels] is excused for the same reason one step
+     * later: its models are pulled on the host, so a role naming one nobody has pulled yet is the
+     * ordinary state of an appliance before setup, and refusing to start is refusing to reach the
+     * point where the operator could pull it.
+     *
      * Without this, a typo under `roles` is silent until something asks for the role: the entry
      * is found, its model is not registered, and resolution throws rather than falling back to
      * the flat map - which is the one case where the nested shape can take a role AWAY.
@@ -736,6 +783,18 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 .filterKeys { it.equals(deploymentProvider, ignoreCase = true) }
                 .forEach { (provider, options) ->
                     val model = options.modelName
+                    if (provider.lowercase() in lateArrivingProviders) {
+                        // Reported, never silent: the entry has been EXCUSED from a check that would
+                        // otherwise have stopped the deployment, and an operator reading a boot log
+                        // to work out why a role does nothing needs to see that.
+                        if (model == null || llms.none { it.name == model }) {
+                            logger.info(
+                                "Role '{}' names model '{}' under provider '{}', whose models may arrive after startup; it will resolve once that model is served",
+                                role, model ?: "<unspecified>", provider,
+                            )
+                        }
+                        return@forEach
+                    }
                     if (model == null) {
                         reportUnsatisfiableRole(
                             "Role '$role' under provider '$provider' names no model, so anything asking for that role will fail",
@@ -792,6 +851,24 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 provider = it.provider,
                 pricingModel = it.pricingModel,
             )
+        } + localModelMetadata()
+
+    /**
+     * Metadata for models a local runner is serving that nothing registered at startup.
+     *
+     * Name and provider only. The rest of a model's metadata is read off a BUILT service, and
+     * building one per entry just to list it would turn a listing into a round of work against the
+     * runner - so what is not known is left null rather than guessed. Anything already registered
+     * is skipped, so a model that was there at boot is described once, by its own service.
+     */
+    private fun localModelMetadata(): List<ModelMetadata> =
+        localModelCatalogs.flatMap { catalog ->
+            catalog.servedNames(LocalModelKind.CHAT)
+                .filter { name -> llms.none { it.name == name } }
+                .map { LlmMetadata(it, provider = catalog.provider) } +
+                catalog.servedNames(LocalModelKind.EMBEDDING)
+                    .filter { name -> embeddingServices.none { it.name == name } }
+                    .map { EmbeddingServiceMetadata(it, provider = catalog.provider) }
         }
 
 
@@ -896,7 +973,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     private fun attemptRole(role: String, context: ModelSelectionContext): RoleAttempt {
         val resolution = roleResolvers.firstNotNullOfOrNull { it.resolve(role, context) }
         val resolved = when (resolution) {
-            is RoleResolution.Service -> ResolvedRole(resolution.llmService, LlmOptions.withDefaults())
+            is RoleResolution.Service -> ResolvedRole(resolution.llmService, resolution.llmOptions)
 
             is RoleResolution.Options -> byName(resolution.llmOptions)
                 ?.let { ResolvedRole(it, resolution.llmOptions) }
@@ -933,6 +1010,9 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     private fun defaultLlmService(): LlmService<*> {
         registeredDefaultLlm?.let { return it }
         val resolved = attemptRole(properties.defaultLlm, ModelSelectionContextHolder.get()).resolved?.llmService
+        // A default naming a model a runner has since started serving, for the same reason the
+        // embedding default asks: the name was unresolvable at startup and is not any more.
+        ?: locallyServedLlm(properties.defaultLlm)
         if (resolved == null) {
             // Debug, not warn: under BYOK this is the ordinary state of every call made before a
             // key arrives, and the eventual failure already names it.
@@ -1020,6 +1100,24 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     private fun byName(llmOptions: LlmOptions): LlmService<*>? =
         llmOptions.modelName?.let { name -> llms.firstOrNull { it.name == name } }
 
+    /**
+     * The chat service this deployment can serve under [name], registered or locally served.
+     *
+     * Registered first, always: a model captured at startup is the one the deployment was built
+     * with, and a runner that happens to serve a model of the same name must not displace it.
+     */
+    private fun llmNamed(name: String): LlmService<*>? =
+        llms.firstOrNull { it.name == name } ?: locallyServedLlm(name)
+
+    /**
+     * Every chat model name a caller could ask for, for the "available" list in a failure.
+     *
+     * The same set [listModelNames] reports, so being told what is available and then asking for
+     * one of them cannot disagree.
+     */
+    private fun listableLlmNames(): List<String> =
+        (llms.map { it.name } + locallyServedNames(LocalModelKind.CHAT)).distinct()
+
     override fun listRoles(modelClass: Class<*>): List<String> {
         return when {
             LlmService::class.java.isAssignableFrom(modelClass) ->
@@ -1029,10 +1127,21 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         }
     }
 
+    /**
+     * Every model of this class the deployment can serve RIGHT NOW - registered at startup, or
+     * being served by a local runner since.
+     *
+     * A late model is listed as well as usable, because a listing is what an operator picks from:
+     * one that showed only what was captured at boot would leave a freshly pulled model invisible
+     * to the very UI meant to select it, and "pull it and it is there" is the whole point. Every
+     * name here answers to [getLlm] / [getEmbeddingService] by name.
+     */
     override fun listModelNames(modelClass: Class<*>): List<String> {
         return when {
-            LlmService::class.java.isAssignableFrom(modelClass) -> llms.map { it.name }
-            EmbeddingService::class.java.isAssignableFrom(modelClass) -> embeddingServices.map { it.name }
+            LlmService::class.java.isAssignableFrom(modelClass) -> listableLlmNames()
+            EmbeddingService::class.java.isAssignableFrom(modelClass) ->
+                (embeddingServices.map { it.name } + locallyServedNames(LocalModelKind.EMBEDDING)).distinct()
+
             else -> throw IllegalArgumentException("Unsupported model class: $modelClass")
         }
     }
@@ -1044,13 +1153,13 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             }
 
             is ByNameModelSelectionCriteria -> {
-                llms.firstOrNull { it.name == criteria.name } ?: throw NoSuitableModelException(criteria, llms.map { it.name })
+                llmNamed(criteria.name) ?: throw NoSuitableModelException(criteria, listableLlmNames())
             }
 
             is RandomByNameModelSelectionCriteria -> {
-                val models = llms.filter { criteria.names.contains(it.name) }
+                val models = criteria.names.mapNotNull { llmNamed(it) }
                 if (models.isEmpty()) {
-                    throw NoSuitableModelException(criteria, llms.map { it.name })
+                    throw NoSuitableModelException(criteria, listableLlmNames())
                 }
                 models.random()
             }
@@ -1058,7 +1167,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             is FallbackByNameModelSelectionCriteria -> {
                 var llm: LlmService<*>? = null
                 for (requestedName in criteria.names) {
-                    llm = llms.firstOrNull { requestedName == it.name }
+                    llm = llmNamed(requestedName)
                     if (llm != null) {
                         break
                     } else {
@@ -1066,7 +1175,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                     }
                 }
                 llm
-                    ?: throw NoSuitableModelException(criteria, llms.map { it.name })
+                    ?: throw NoSuitableModelException(criteria, listableLlmNames())
             }
 
             is AutoModelSelectionCriteria -> {
@@ -1182,6 +1291,10 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     private fun attemptEmbeddingName(name: String, context: ModelSelectionContext): EmbeddingService? =
         embeddingServices.firstOrNull { it.name == name && !it.awaitingProviderKey }
             ?: name.takeIf { properties.namesEmbeddingRole(it) }?.let { attemptEmbeddingRole(it, context) }
+            // Ahead of the credential path: a model this machine is already serving costs nothing
+            // and needs no key, so building the same model against a provider would be the more
+            // expensive answer to a question already answered.
+            ?: locallyServedEmbedding(name)
             ?: embeddingFromDeploymentCredential(name, context)
 
     /**

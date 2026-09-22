@@ -41,8 +41,10 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.MediaType
+import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.body
+import java.time.Duration
 
 
 @ConfigurationProperties(prefix = PREFIX)
@@ -101,7 +103,8 @@ class DockerConnectionProperties {
 @EnableConfigurationProperties(
     DockerRetryProperties::class,
     DockerConnectionProperties::class,
-    ConfigurableModelProviderProperties::class
+    ConfigurableModelProviderProperties::class,
+    LocalModelDiscoveryProperties::class,
 )
 class DockerLocalModelsConfig(
     @Suppress("UNUSED_PARAMETER")
@@ -110,8 +113,14 @@ class DockerLocalModelsConfig(
     private val configurableBeanFactory: ConfigurableBeanFactory,
     private val properties: ConfigurableModelProviderProperties,
     private val observationRegistry: ObjectProvider<ObservationRegistry>,
+    private val localModelDiscoveryProperties: LocalModelDiscoveryProperties,
 ) {
     private val logger = LoggerFactory.getLogger(DockerLocalModelsConfig::class.java)
+
+    private companion object {
+        /** Connect and read budget for a model listing against a runner on this machine. */
+        private val DISCOVERY_TIMEOUT = Duration.ofSeconds(2)
+    }
 
     private data class ModelResponse(
         val `object`: String,
@@ -140,10 +149,23 @@ class DockerLocalModelsConfig(
             .build()
     }
 
+    /**
+     * Bounded, because this is no longer only a startup call: [DockerModelSource] makes it on the
+     * path of an embedding, and an unreachable runner that accepts a connection and never answers
+     * would otherwise hang that call rather than decline it.
+     */
+    private val discoveryClient: RestClient by lazy {
+        RestClient.builder()
+            .requestFactory(SimpleClientHttpRequestFactory().apply {
+                setConnectTimeout(DISCOVERY_TIMEOUT)
+                setReadTimeout(DISCOVERY_TIMEOUT)
+            })
+            .build()
+    }
+
     private fun loadModels(): List<Model> =
         try {
-            val restClient = RestClient.create()
-            val response = restClient.get()
+            val response = discoveryClient.get()
                 .uri("${dockerConnectionProperties.baseUrl}/v1/models")
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
@@ -202,32 +224,44 @@ class DockerLocalModelsConfig(
     /**
      * Docker models are open AI compatible
      */
-    private fun dockerModelOf(model: Model): AiModel<*> {
-        return if (properties.allWellKnownEmbeddingServiceNames().contains(model.id)) {
-            dockerEmbeddingServiceOf(model)
-        } else {
-            return dockerLlmOf(model)
+    private fun dockerModelOf(model: Model): AiModel<*> =
+        when (kindOf(model.id)) {
+            LocalModelKind.EMBEDDING -> dockerEmbeddingServiceOf(model.id)
+            LocalModelKind.CHAT -> dockerLlmOf(model.id)
         }
-    }
 
-    private fun dockerEmbeddingServiceOf(model: Model): SpringAiEmbeddingService {
+    /**
+     * What a Docker model is for.
+     *
+     * Docker's model listing does not say, so configuration does: a model some role names as an
+     * embedding model is one. Shared by startup registration and [DockerModelSource] so a model
+     * cannot land in one category at boot and the other when pulled later.
+     */
+    private fun kindOf(modelId: String): LocalModelKind =
+        if (properties.allWellKnownEmbeddingServiceNames().contains(modelId)) {
+            LocalModelKind.EMBEDDING
+        } else {
+            LocalModelKind.CHAT
+        }
+
+    private fun dockerEmbeddingServiceOf(modelId: String): SpringAiEmbeddingService {
         val springEmbeddingModel = OpenAiEmbeddingModel.builder()
             .openAiClient(openAiClient)
             .metadataMode(MetadataMode.EMBED)
             .options(OpenAiEmbeddingOptions.builder()
-                .model(model.id)
+                .model(modelId)
                 .build())
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
             .build()
 
         return SpringAiEmbeddingService(
-            name = model.id,
+            name = modelId,
             model = springEmbeddingModel,
             provider = PROVIDER,
         )
     }
 
-    private fun dockerLlmOf(model: Model): SpringAiLlmService {
+    private fun dockerLlmOf(modelId: String): SpringAiLlmService {
         val chatModel = OpenAiChatModel.builder()
             .openAiClient(openAiClient)
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
@@ -238,12 +272,12 @@ class DockerLocalModelsConfig(
             )
             .options(
                 OpenAiChatOptions.builder()
-                    .model(model.id)
+                    .model(modelId)
                     .build()
             )
             .build()
         return SpringAiLlmService(
-            name = model.id,
+            name = modelId,
             chatModel = chatModel,
             provider = PROVIDER,
             optionsConverter = OpenAiChatOptionsConverter,
@@ -252,4 +286,48 @@ class DockerLocalModelsConfig(
         )
     }
 
+    /**
+     * The runner, asked per call rather than once at startup.
+     *
+     * [dockerLocalModelsInitializer] still registers what was there at boot, so a model named as
+     * `default-embedding-model` or injected as a bean keeps working exactly as it did. This covers
+     * what arrives AFTER: `docker model pull` followed by a request is enough, with no restart and
+     * no distinction from a model that was already there.
+     */
+    private inner class DockerModelSource : LocalModelSource {
+
+        override val provider: String = PROVIDER
+
+        override fun servedModels(): Set<LocalModel> =
+            loadModels().map { LocalModel(name = it.id, kind = kindOf(it.id)) }.toSet()
+
+        override fun llmService(model: String) = dockerLlmOf(model)
+
+        override fun embeddingService(model: String) = dockerEmbeddingServiceOf(model)
+    }
+
+    /**
+     * Held here rather than exposed as a bean, so the two resolvers demonstrably share ONE cache.
+     * With `proxyBeanMethods = false` a bean method called twice would build two, and injecting one
+     * bean into two others of the same type across three runner modules would rest on parameter-name
+     * matching.
+     */
+    private val localModelCatalog: LocalModelCatalog by lazy {
+        LocalModelCatalog(DockerModelSource(), localModelDiscoveryProperties)
+    }
+
+    /**
+     * Published so the platform can LIST what the runner is serving, not only resolve roles against
+     * it. Returns the field, so this and the resolvers are demonstrably one cache.
+     */
+    @Bean
+    fun dockerLocalModelCatalog(): LocalModelCatalog = localModelCatalog
+
+    @Bean
+    fun dockerLocalModelRoleResolver(): LocalModelRoleResolver =
+        LocalModelRoleResolver(localModelCatalog, properties)
+
+    @Bean
+    fun dockerLocalModelEmbeddingRoleResolver(): LocalModelEmbeddingRoleResolver =
+        LocalModelEmbeddingRoleResolver(localModelCatalog, properties)
 }
