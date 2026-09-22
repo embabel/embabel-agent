@@ -51,8 +51,12 @@ class EmbeddingRoleResolutionTest {
          * `OpenAiCompatibleModelFactoryByokEmbeddingTest`, which tests the other end of the same path.
          */
         const val SMALL_MODEL = "text-embedding-3-small"
+        const val LARGE_MODEL = "text-embedding-3-large"
         const val MISTRAL_MODEL = "mistral-embed"
         const val DEFAULT_LLM = "gpt-4.1-mini"
+
+        /** The large model's width, which is the whole reason substituting one model for another is not free. */
+        const val LARGE_DIMENSIONS = 3072
 
         /** A model name no catalogue holds, for the cases about a name that resolves to nothing. */
         const val IMAGINARY_MODEL = "text-embedding-9-imaginary"
@@ -115,6 +119,29 @@ class EmbeddingRoleResolutionTest {
         properties = properties,
         embeddingRoleResolvers = embeddingRoleResolvers,
         credentialEmbeddingServiceFactories = credentialEmbeddingServiceFactories,
+    )
+
+    /**
+     * A deployment whose key arrives after boot: nothing registered but the placeholder, and a
+     * stored credential the default role names. Any model can be built from it, on demand.
+     */
+    private fun keyedProvider() = provider(
+        ConfigurableModelProviderProperties(
+            defaultLlm = DEFAULT_LLM,
+            defaultEmbeddingModel = DOCUMENTS_ROLE,
+            embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(OPENAI to SMALL_MODEL)),
+        ),
+        listOf(placeholder),
+        embeddingRoleResolvers = listOf(
+            EmbeddingRoleResolver { _, _ ->
+                EmbeddingRoleResolution.Credential(ProviderCredential(OPENAI, "sk-stored"))
+            },
+        ),
+        credentialEmbeddingServiceFactories = listOf(
+            CredentialEmbeddingServiceFactory { credential, model ->
+                FakeEmbeddingService(model, credential.provider, dimensions = LARGE_DIMENSIONS)
+            },
+        ),
     )
 
     @Nested
@@ -343,12 +370,12 @@ class EmbeddingRoleResolutionTest {
         fun `by name returns the named model`() {
             val mp = provider(
                 ConfigurableModelProviderProperties(
-                    defaultLlm = "gpt-4.1-mini",
-                    defaultEmbeddingModel = "text-embedding-3-small",
+                    defaultLlm = DEFAULT_LLM,
+                    defaultEmbeddingModel = SMALL_MODEL,
                 ),
                 listOf(small, mistral),
             )
-            assertSame(mistral, mp.getEmbeddingService(ByNameModelSelectionCriteria("mistral-embed")))
+            assertSame(mistral, mp.getEmbeddingService(ByNameModelSelectionCriteria(MISTRAL_MODEL)))
         }
 
         @Test
@@ -356,45 +383,187 @@ class EmbeddingRoleResolutionTest {
         fun `an unknown name throws`() {
             val mp = provider(
                 ConfigurableModelProviderProperties(
-                    defaultLlm = "gpt-4.1-mini",
-                    defaultEmbeddingModel = "text-embedding-3-small",
+                    defaultLlm = DEFAULT_LLM,
+                    defaultEmbeddingModel = SMALL_MODEL,
                 ),
                 listOf(small),
             )
             // The bug: this used to return `small`, so the caller re-embedded everything into the
             // model it already had and was told it had changed.
             assertThrows<NoSuitableModelException> {
-                mp.getEmbeddingService(ByNameModelSelectionCriteria("text-embedding-3-large"))
+                mp.getEmbeddingService(ByNameModelSelectionCriteria(LARGE_MODEL))
             }
+        }
+
+        @Test
+        @DisplayName("a placeholder never answers a name, even when its name is the one asked for")
+        fun `by name does not return the placeholder`() {
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = DEFAULT_LLM,
+                    defaultEmbeddingModel = PLACEHOLDER_NAME,
+                ),
+                listOf(placeholder),
+            )
+            // A role may name the placeholder deliberately; a NAME is a width, and it has none.
+            assertThrows<NoSuitableModelException> {
+                mp.getEmbeddingService(ByNameModelSelectionCriteria(PLACEHOLDER_NAME))
+            }
+        }
+
+        @Test
+        @DisplayName("a configured ROLE may be asked for by name, since default-embedding-model takes one")
+        fun `by name accepts a role`() {
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = "gpt-4.1-mini",
+                    defaultEmbeddingModel = "hosted",
+                    embeddingServices = mapOf("hosted" to "text-embedding-3-small"),
+                ),
+                listOf(small, mistral),
+            )
+            // Without this, a deployment whose default IS `hosted` could not ask for `hosted` —
+            // the one value its own configuration names would be the one value the API rejected.
+            assertSame(small, mp.getEmbeddingService(ByNameModelSelectionCriteria("hosted")))
         }
 
         @Test
         @DisplayName("an unregistered name is built from the key the default role uses")
         fun `by name builds from the deployment credential`() {
-            val mp = provider(
-                ConfigurableModelProviderProperties(
-                    defaultLlm = "gpt-4.1-mini",
-                    defaultEmbeddingModel = "documents",
-                    embeddingRoles = mapOf("documents" to mapOf("openai" to "text-embedding-3-small")),
-                ),
-                listOf(placeholder),
-                embeddingRoleResolvers = listOf(
-                    EmbeddingRoleResolver { _, _ ->
-                        EmbeddingRoleResolution.Credential(ProviderCredential("openai", "sk-stored"))
-                    },
-                ),
-                credentialEmbeddingServiceFactories = listOf(
-                    CredentialEmbeddingServiceFactory { credential, model ->
-                        FakeEmbeddingService(model, credential.provider, dimensions = 3072)
-                    },
-                ),
-            )
-
             // The appliance case: nothing is registered at boot, and the key is the only way to
             // reach a model the deployment did not build with.
-            val resolved = mp.getEmbeddingService(ByNameModelSelectionCriteria("text-embedding-3-large"))
-            assertEquals("text-embedding-3-large", resolved.name)
-            assertEquals(3072, resolved.dimensions)
+            val resolved = keyedProvider().getEmbeddingService(ByNameModelSelectionCriteria(LARGE_MODEL))
+            assertEquals(LARGE_MODEL, resolved.name)
+            assertEquals(LARGE_DIMENSIONS, resolved.dimensions)
+        }
+
+        @Test
+        @DisplayName("a service built from the credential is cached, not rebuilt per call")
+        fun `by name caches the built service`() {
+            val mp = keyedProvider()
+            val first = mp.getEmbeddingService(ByNameModelSelectionCriteria(LARGE_MODEL))
+            val second = mp.getEmbeddingService(ByNameModelSelectionCriteria(LARGE_MODEL))
+            // Building can reach the provider to observe the model's width; re-embedding a corpus
+            // must not pay for that per call.
+            assertSame(first, second)
+        }
+    }
+
+    /**
+     * The criteria the old `else` swallowed alongside by-name, each of which has a meaning the
+     * deployment default does not satisfy.
+     */
+    @Nested
+    inner class TheOtherCriteriaTheElseSwallowed {
+
+        @Test
+        @DisplayName("first-of picks the first name that resolves, not the default")
+        fun `fallback by name picks the first servable name`() {
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = DEFAULT_LLM,
+                    defaultEmbeddingModel = SMALL_MODEL,
+                ),
+                listOf(small, mistral),
+            )
+            assertSame(
+                mistral,
+                mp.getEmbeddingService(FallbackByNameModelSelectionCriteria(listOf(IMAGINARY_MODEL, MISTRAL_MODEL))),
+            )
+        }
+
+        @Test
+        @DisplayName("first-of throws when no name resolves")
+        fun `fallback by name throws when nothing resolves`() {
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = DEFAULT_LLM,
+                    defaultEmbeddingModel = SMALL_MODEL,
+                ),
+                listOf(small),
+            )
+            assertThrows<NoSuitableModelException> {
+                mp.getEmbeddingService(FallbackByNameModelSelectionCriteria(listOf(IMAGINARY_MODEL, LARGE_MODEL)))
+            }
+        }
+
+        @Test
+        @DisplayName("random-of only ever returns a model it was given")
+        fun `random by name stays within the named set`() {
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = DEFAULT_LLM,
+                    // The default is deliberately NOT in the named set: returning it is the bug.
+                    defaultEmbeddingModel = SMALL_MODEL,
+                ),
+                listOf(small, mistral),
+            )
+            repeat(20) {
+                assertSame(
+                    mistral,
+                    mp.getEmbeddingService(RandomByNameModelSelectionCriteria(listOf(IMAGINARY_MODEL, MISTRAL_MODEL))),
+                )
+            }
+        }
+
+        @Test
+        @DisplayName("random-of throws when no name resolves")
+        fun `random by name throws when nothing resolves`() {
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = DEFAULT_LLM,
+                    defaultEmbeddingModel = SMALL_MODEL,
+                ),
+                listOf(small),
+            )
+            assertThrows<NoSuitableModelException> {
+                mp.getEmbeddingService(RandomByNameModelSelectionCriteria(listOf(IMAGINARY_MODEL, LARGE_MODEL)))
+            }
+        }
+
+        @Test
+        @DisplayName("a pre-resolved service is handed back, not replaced by the deployment default")
+        fun `pre-resolved returns the caller's own service`() {
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = DEFAULT_LLM,
+                    defaultEmbeddingModel = SMALL_MODEL,
+                ),
+                listOf(small),
+            )
+            // Under BYOK this was built on the USER's key. Returning `small` embeds on the
+            // deployment's key, bills the deployment, and reports success.
+            val usersOwn = FakeEmbeddingService(LARGE_MODEL, OPENAI, dimensions = LARGE_DIMENSIONS)
+            assertSame(usersOwn, mp.getEmbeddingService(PreResolvedModelSelectionCriteria(usersOwn)))
+        }
+
+        @Test
+        @DisplayName("a pre-resolved non-embedding throws by name rather than ClassCastException")
+        fun `pre-resolved rejects the wrong type`() {
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = DEFAULT_LLM,
+                    defaultEmbeddingModel = SMALL_MODEL,
+                ),
+                listOf(small),
+            )
+            assertThrows<NoSuitableModelException> {
+                mp.getEmbeddingService(PreResolvedModelSelectionCriteria(defaultLlm))
+            }
+        }
+
+        @Test
+        @DisplayName("AUTO and DEFAULT still mean the deployment default")
+        fun `auto and default resolve to the default`() {
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = DEFAULT_LLM,
+                    defaultEmbeddingModel = SMALL_MODEL,
+                ),
+                listOf(small, mistral),
+            )
+            assertSame(small, mp.getEmbeddingService(AutoModelSelectionCriteria))
+            assertSame(small, mp.getEmbeddingService(DefaultModelSelectionCriteria))
         }
     }
 
