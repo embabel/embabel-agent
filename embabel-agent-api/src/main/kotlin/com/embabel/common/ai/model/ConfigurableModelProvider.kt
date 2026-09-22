@@ -1071,11 +1071,62 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                     ?: embeddingRoleFallback(criteria)
             }
 
-            // TODO should handle other criteria
+            /*
+             * A NAME IS NOT THE DEFAULT, and falling through to it was the whole bug. Asking for
+             * `text-embedding-3-large` returned whatever the deployment's default happened to be,
+             * with nothing to say the request had been ignored — so an application offering
+             * "change the embedding model" reported success, re-embedded its entire corpus, and
+             * left the model exactly as it was. Observed on an appliance: previousModel and
+             * newModel came back identical for a change between two different models.
+             */
+            is ByNameModelSelectionCriteria -> embeddingServiceNamed(criteria)
+
+            // Still the default for AUTO and DEFAULT, which is what those mean.
             else -> {
                 defaultEmbeddingService()
             }
         }
+
+    /**
+     * The embedding service a caller named, or a failure saying so.
+     *
+     * Registered first, which is the whole answer for a deployment whose models come from its own
+     * key at build time. A deployment whose key arrives later has none registered, so the name is
+     * built from that key the same way a role is - the model is known here, only the credential is
+     * missing, and the default role is where this deployment says which credential that is.
+     *
+     * Throws rather than falling back. There is no honest substitute for a named embedding model:
+     * a vector index is created at ONE model's width, so quietly serving another is how a corpus
+     * ends up holding two models' vectors with nothing reporting it.
+     */
+    private fun embeddingServiceNamed(criteria: ByNameModelSelectionCriteria): EmbeddingService =
+        embeddingServices.firstOrNull { it.name == criteria.name && !it.awaitingProviderKey }
+            ?: embeddingFromDeploymentCredential(criteria.name)
+            ?: throw NoSuitableModelException.forModels(criteria, embeddingServices)
+
+    /**
+     * Build [model] from whatever provider key this deployment would use for its default embedding
+     * role, or null when it has no such key.
+     *
+     * Asking the default role is how a credential is found without one being passed: the resolvers
+     * answer per role, and the default role is the deployment's own statement of which key its
+     * embeddings are made with. A deployment whose default is a plain model name has nothing to
+     * ask, and correctly gets null.
+     */
+    private fun embeddingFromDeploymentCredential(model: String): EmbeddingService? {
+        if (!properties.defaultEmbeddingModelNamesRole()) return null
+        val role = properties.defaultEmbeddingModel ?: return null
+        val credential = embeddingRoleResolvers
+            .firstNotNullOfOrNull { it.resolve(role, ModelSelectionContextHolder.get()) }
+            .let { it as? EmbeddingRoleResolution.Credential }
+            ?.credential
+            ?: return null
+        val key = CredentialModelKey.of(credential, model)
+        return credentialEmbeddingServices[key]
+            ?: credentialEmbeddingServiceFactories
+                .firstNotNullOfOrNull { it.createEmbeddingService(credential, model) }
+                ?.also { credentialEmbeddingServices[key] = it }
+    }
 
     /**
      * A role, materialized: the service to call, and the options configured alongside it.

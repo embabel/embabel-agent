@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -325,6 +326,75 @@ class EmbeddingRoleResolutionTest {
             )
             assertSame(small, mp.getEmbeddingService(ByRoleModelSelectionCriteria("shared-name")))
             assertFalse(chatResolverAsked, "an embedding role must not reach the chat chain")
+        }
+    }
+
+    /**
+     * A caller that NAMES an embedding model must get that model or an error.
+     *
+     * Falling through to the default was silent: an application offering "change the embedding
+     * model" reported success, re-embedded its whole corpus, and left the model as it was.
+     */
+    @Nested
+    inner class AskingForOneByName {
+
+        @Test
+        @DisplayName("a registered model is returned, not the default")
+        fun `by name returns the named model`() {
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = "gpt-4.1-mini",
+                    defaultEmbeddingModel = "text-embedding-3-small",
+                ),
+                listOf(small, mistral),
+            )
+            assertSame(mistral, mp.getEmbeddingService(ByNameModelSelectionCriteria("mistral-embed")))
+        }
+
+        @Test
+        @DisplayName("a name nothing can serve throws, rather than quietly yielding the default")
+        fun `an unknown name throws`() {
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = "gpt-4.1-mini",
+                    defaultEmbeddingModel = "text-embedding-3-small",
+                ),
+                listOf(small),
+            )
+            // The bug: this used to return `small`, so the caller re-embedded everything into the
+            // model it already had and was told it had changed.
+            assertThrows<NoSuitableModelException> {
+                mp.getEmbeddingService(ByNameModelSelectionCriteria("text-embedding-3-large"))
+            }
+        }
+
+        @Test
+        @DisplayName("an unregistered name is built from the key the default role uses")
+        fun `by name builds from the deployment credential`() {
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = "gpt-4.1-mini",
+                    defaultEmbeddingModel = "documents",
+                    embeddingRoles = mapOf("documents" to mapOf("openai" to "text-embedding-3-small")),
+                ),
+                listOf(placeholder),
+                embeddingRoleResolvers = listOf(
+                    EmbeddingRoleResolver { _, _ ->
+                        EmbeddingRoleResolution.Credential(ProviderCredential("openai", "sk-stored"))
+                    },
+                ),
+                credentialEmbeddingServiceFactories = listOf(
+                    CredentialEmbeddingServiceFactory { credential, model ->
+                        FakeEmbeddingService(model, credential.provider, dimensions = 3072)
+                    },
+                ),
+            )
+
+            // The appliance case: nothing is registered at boot, and the key is the only way to
+            // reach a model the deployment did not build with.
+            val resolved = mp.getEmbeddingService(ByNameModelSelectionCriteria("text-embedding-3-large"))
+            assertEquals("text-embedding-3-large", resolved.name)
+            assertEquals(3072, resolved.dimensions)
         }
     }
 
