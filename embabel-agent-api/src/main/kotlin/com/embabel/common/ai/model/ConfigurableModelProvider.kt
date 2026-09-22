@@ -180,7 +180,19 @@ data class ConfigurableModelProviderProperties(
      * entry and nothing would map a role to itself.
      */
     fun defaultEmbeddingModelNamesRole(): Boolean =
-        defaultEmbeddingModel?.let { embeddingServices.containsKey(it) || embeddingRoles.containsKey(it) } == true
+        defaultEmbeddingModel?.let { namesEmbeddingRole(it) } == true
+
+    /**
+     * Whether CONFIGURATION declares [name] as an embedding role.
+     *
+     * Deliberately configuration only, and not "some resolver would answer for it". An application
+     * resolver may answer any role it likes, including every one, so asking the chain would let a
+     * catch-all resolver claim a name that was meant to be a model - and a caller naming a model
+     * would silently get whatever that resolver felt a role of that name should be. Declared here
+     * or it is not a role.
+     */
+    fun namesEmbeddingRole(name: String): Boolean =
+        embeddingServices.containsKey(name) || embeddingRoles.containsKey(name)
 }
 
 /**
@@ -473,11 +485,6 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      * Build - or reuse - an embedding service for the model this role names under the user's own
      * provider.
      *
-     * Read then put rather than computeIfAbsent, for the reason spelled out in the LLM
-     * counterpart: building can reach the provider to observe the model's width, and holding the
-     * map's lock across that would block every unrelated lookup for every other user. A race costs
-     * one redundant build and never a wrong service.
-     *
      * The lookup ends at the flat map, which [ConfigurableEmbeddingRoleResolver.resolve] refuses
      * to read under a user key - not a contradiction, because the two are spending different
      * money. There, reading it would serve a service the DEPLOYMENT is keyed for and billed for.
@@ -495,11 +502,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             )
             return null
         }
-        val key = CredentialModelKey.of(credential, model)
-        val service = credentialEmbeddingServices[key]
-            ?: credentialEmbeddingServiceFactories
-                .firstNotNullOfOrNull { it.createEmbeddingService(credential, model) }
-                ?.also { credentialEmbeddingServices[key] = it }
+        val service = credentialEmbeddingService(credential, model)
         if (service == null) {
             logger.warn(
                 "Nothing built an embedding service for provider '{}', needed for role '{}'. Register a CredentialEmbeddingServiceFactory for it, and check that the module speaking its wire protocol is on the classpath",
@@ -507,6 +510,25 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             )
         }
         return service
+    }
+
+    /**
+     * The cached service for this (provider, key, model), or one freshly built and cached.
+     *
+     * Read then put rather than computeIfAbsent, for the reason spelled out in the LLM
+     * counterpart: building can reach the provider to observe the model's width, and holding the
+     * map's lock across that would block every unrelated lookup for every other user. A race costs
+     * one redundant build and never a wrong service.
+     *
+     * Shared by the two ways a credential reaches a model - a role that named it, and a caller
+     * that named it - so the cache is one cache and the locking argument is made once.
+     */
+    private fun credentialEmbeddingService(credential: ProviderCredential, model: String): EmbeddingService? {
+        val key = CredentialModelKey.of(credential, model)
+        return credentialEmbeddingServices[key]
+            ?: credentialEmbeddingServiceFactories
+                .firstNotNullOfOrNull { it.createEmbeddingService(credential, model) }
+                ?.also { credentialEmbeddingServices[key] = it }
     }
 
     /**
@@ -1062,20 +1084,161 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             }
         }
 
-    override fun getEmbeddingService(criteria: ModelSelectionCriteria): EmbeddingService =
-        when (criteria) {
-            is ByRoleModelSelectionCriteria -> {
-                // Per call, through the resolver chain - so a key stored after boot satisfies this
-                // role on the next request rather than the next restart.
-                attemptEmbeddingRole(criteria.role, ModelSelectionContextHolder.get())
-                    ?: embeddingRoleFallback(criteria)
-            }
+    /**
+     * EXHAUSTIVE over [ModelSelectionCriteria], deliberately and with no `else`, exactly as
+     * [getLlm] has always been.
+     *
+     * The `else` that used to sit here is how a named model became the deployment's default for
+     * sixteen months: it is a compile-time permission slip never to think about embeddings again.
+     * `getLlm` breaks when a criteria type is added; this method absorbed it, which is why
+     * [PreResolvedModelSelectionCriteria] - added later - fell straight into the hole. Adding a
+     * criteria type must now break BOTH, and that is the point.
+     *
+     * One context read for the whole call. The resolvers answer per role and per name, and every
+     * arm asking the holder separately is the asymmetry that makes propagation bugs hard to see.
+     */
+    override fun getEmbeddingService(criteria: ModelSelectionCriteria): EmbeddingService {
+        val context = ModelSelectionContextHolder.get()
+        return when (criteria) {
+            // Per call, through the resolver chain - so a key stored after boot satisfies this
+            // role on the next request rather than the next restart.
+            is ByRoleModelSelectionCriteria ->
+                attemptEmbeddingRole(criteria.role, context) ?: embeddingRoleFallback(criteria)
 
-            // TODO should handle other criteria
-            else -> {
-                defaultEmbeddingService()
-            }
+            /*
+             * A NAME IS NOT THE DEFAULT, and falling through to it was the whole bug. Asking for
+             * a large model returned whatever the deployment's default happened to be, with
+             * nothing to say the request had been ignored - so an application offering "change
+             * the embedding model" reported success, re-embedded its entire corpus, and left the
+             * model exactly as it was. Observed on an appliance: previousModel and newModel came
+             * back identical for a change between two different models.
+             */
+            is ByNameModelSelectionCriteria ->
+                attemptEmbeddingName(criteria.name, context) ?: embeddingNameFallback(criteria)
+
+            // Uniform over the names this deployment can actually serve, which is what
+            // getLlm's filter-then-random does one step earlier.
+            is RandomByNameModelSelectionCriteria ->
+                criteria.names.shuffled()
+                    .firstNotNullOfOrNull { attemptEmbeddingName(it, context) }
+                    ?: embeddingNameFallback(criteria)
+
+            // First name that resolves, each miss logged - the same shape, and the same INFO
+            // level, as the LLM counterpart. A miss here is expected traffic, not a fault.
+            is FallbackByNameModelSelectionCriteria ->
+                criteria.names
+                    .firstNotNullOfOrNull { name ->
+                        attemptEmbeddingName(name, context).also {
+                            if (it == null) logger.info("Requested embedding model '{}' not available", name)
+                        }
+                    }
+                    ?: embeddingNameFallback(criteria)
+
+            /*
+             * The caller already holds the service, so there is nothing to resolve - and nothing
+             * this class may substitute. Under BYOK the resolved service was built on the USER's
+             * key: handing back the deployment default, which is what the `else` did, embeds on
+             * the deployment's key and bills the deployment, while reporting success.
+             *
+             * Checked rather than unchecked, unlike [getLlm]. Criteria are Jackson-deserializable
+             * and generic, so a wrong payload is reachable, and NoSuitableModelException names the
+             * criteria where a ClassCastException names two erased types.
+             */
+            is PreResolvedModelSelectionCriteria<*> ->
+                criteria.resolved as? EmbeddingService ?: embeddingNameFallback(criteria)
+
+            /*
+             * The default, which is what both mean.
+             *
+             * DELIBERATELY UNLIKE [getLlm], where AUTO is an error because the infrastructure
+             * above resolves it first. Nothing analyses a prompt to pick a vector width, so for
+             * embeddings AUTO has only ever meant "whatever this deployment has" - and that is a
+             * service the caller can ask, via EmbeddingService.awaitingProviderKey, whether it is
+             * real yet.
+             */
+            is AutoModelSelectionCriteria, is DefaultModelSelectionCriteria -> defaultEmbeddingService()
         }
+    }
+
+    /**
+     * The embedding service a caller named, or null when this deployment cannot serve that name.
+     *
+     * Registered first, which is the whole answer for a deployment whose models come from its own
+     * key at build time. A deployment whose key arrives later has none registered, so the name is
+     * built from that key the same way a role is - the model is known here, only the credential is
+     * missing, and the default role is where this deployment says which credential that is.
+     *
+     * A configured ROLE answers here too, because `default-embedding-model` takes one: an
+     * application that reads the deployment's own default and asks for it back is asking by name
+     * for a role, and the one value the configuration names would otherwise be the one value the
+     * API rejected. Registered models win, and only a role
+     * [ConfigurableModelProviderProperties.namesEmbeddingRole] declares is tried, so nothing a
+     * caller meant as a model can be captured by a resolver.
+     *
+     * A placeholder never answers a NAME directly. A role may point at one deliberately - see
+     * [attemptEmbeddingRole], where the caller asked for a role and a placeholder is a legitimate
+     * "not yet" - but a caller naming a model is naming a width, and the placeholder has none.
+     */
+    private fun attemptEmbeddingName(name: String, context: ModelSelectionContext): EmbeddingService? =
+        embeddingServices.firstOrNull { it.name == name && !it.awaitingProviderKey }
+            ?: name.takeIf { properties.namesEmbeddingRole(it) }?.let { attemptEmbeddingRole(it, context) }
+            ?: embeddingFromDeploymentCredential(name, context)
+
+    /**
+     * What a NAMED embedding model does when nothing can serve it: it throws, having said so.
+     *
+     * There is no honest substitute for a named embedding model. A vector index is created at ONE
+     * model's width, so quietly serving another is how a corpus ends up holding two models'
+     * vectors with nothing reporting it - and re-embedding is both the most expensive operation a
+     * caller has and the only irreversible one. The same reasoning as [embeddingRoleFallback],
+     * one criteria family over.
+     */
+    private fun embeddingNameFallback(criteria: ModelSelectionCriteria): Nothing {
+        logger.warn(
+            "No embedding service for {}. Registered: {}. Either register the model, or configure embabel.models.embedding-roles so the default embedding role names the credential it can be built from",
+            criteria, embeddingServices.map { it.name },
+        )
+        throw NoSuitableModelException.forModels(criteria, embeddingServices)
+    }
+
+    /**
+     * Build [model] from whatever provider key this deployment would use for its default embedding
+     * role, or null when it has no such key.
+     *
+     * Asking the default role is how a credential is found without one being passed: the resolvers
+     * answer per role, and the default role is the deployment's own statement of which key its
+     * embeddings are made with. A deployment whose default is a plain model name has nothing to
+     * ask, and correctly gets null.
+     */
+    private fun embeddingFromDeploymentCredential(model: String, context: ModelSelectionContext): EmbeddingService? {
+        if (!properties.defaultEmbeddingModelNamesRole()) {
+            logger.debug(
+                "Embedding model '{}' is not registered, and the default embedding model names no role, so there is no credential to build it from",
+                model,
+            )
+            return null
+        }
+        val role = properties.defaultEmbeddingModel ?: return null
+        val credential = (embeddingRoleResolvers.firstNotNullOfOrNull { it.resolve(role, context) }
+                as? EmbeddingRoleResolution.Credential)
+            ?.credential
+        if (credential == null) {
+            logger.debug(
+                "Embedding model '{}' is not registered, and the default embedding role '{}' resolved to no credential",
+                model, role,
+            )
+            return null
+        }
+        return credentialEmbeddingService(credential, model)
+            .also {
+                if (it == null) {
+                    logger.warn(
+                        "Nothing built an embedding service for provider '{}', needed for the named model '{}'. Register a CredentialEmbeddingServiceFactory for it, and check that the module speaking its wire protocol is on the classpath",
+                        credential.provider, model,
+                    )
+                }
+            }
+    }
 
     /**
      * A role, materialized: the service to call, and the options configured alongside it.
