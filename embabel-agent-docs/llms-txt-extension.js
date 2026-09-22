@@ -38,7 +38,7 @@ asciidoctor.Extensions.register(function () {
 
       // Append Examples Section
       llmsContent += `\n## Examples\n\n`;
-      llmsContent += `- [Embabel Agent Examples Repository](https://github.com/embabel/embabel-agent-examples): Collection of sample projects and integration demonstrations for Embabel Agent.\n`;
+      llmsContent += `- [Embabel Agent Examples Repository](https://github.com/embabel/embabel-agent-examples/blob/main/README.md): Collection of sample projects and integration demonstrations for Embabel Agent.\n`;
 
       // Append Cookbook Section
       llmsContent += `\n## Cookbook\n\n`;
