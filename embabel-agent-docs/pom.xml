@@ -170,7 +170,10 @@
                         </goals>
                         <phase>prepare-package</phase>
                         <configuration>
-                            <arguments>run build:llms -- --doc-version=${project.parent.version}</arguments>
+                            <arguments>run build:llms</arguments>
+                            <environmentVariables>
+                                <DOC_VERSION>${project.parent.version}</DOC_VERSION>
+                            </environmentVariables>
                         </configuration>
                     </execution>
                 </executions>

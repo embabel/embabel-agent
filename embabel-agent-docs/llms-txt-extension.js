@@ -1,9 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 const asciidoctor = require('@asciidoctor/core')();
-// Parse --doc-version from CLI arguments
-const versionArg = process.argv.find(arg => arg.startsWith('--doc-version='));
-const docVersion = versionArg ? versionArg.split('=')[1] : 'latest';
+const docVersion = process.env.DOC_VERSION;
+
+if (!docVersion) {
+  throw new Error('[ERROR] DOC_VERSION environment variable is not defined.');
+}
 // Register the AST Extension
 asciidoctor.Extensions.register(function () {
   this.treeProcessor(function () {
