@@ -42,12 +42,23 @@ class LocalModelCatalog(
     private val source: LocalModelSource,
     private val discovery: LocalModelDiscoveryProperties,
     private val ticker: () -> Long = System::nanoTime,
-) {
+) : LateArrivingModels {
 
     private val logger = loggerFor<LocalModelCatalog>()
 
     /** Provider name of the runner behind this catalog. */
     val provider: String get() = source.provider
+
+    /**
+     * Declared HERE rather than on the resolvers, because this is the object that knows whether a
+     * model can arrive late at all.
+     *
+     * With discovery off nothing will ever ask the runner, so a role naming an unregistered model
+     * under this provider is a typo again and must be fatal again - which is what "off restores the
+     * startup-only behaviour" has to mean if it is to mean anything. A resolver cannot make that
+     * distinction: it exists either way. See [LateArrivingModels].
+     */
+    override val lateArrivingProvider: String? get() = source.provider.takeIf { discovery.enabled }
 
     /**
      * Services built for models this catalog reported, held for the life of the process.

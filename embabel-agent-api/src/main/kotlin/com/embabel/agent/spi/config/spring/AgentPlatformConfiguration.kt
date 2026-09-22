@@ -43,8 +43,8 @@ import com.embabel.common.ai.model.ConfigurableModelProviderProperties
 import com.embabel.common.ai.model.CredentialEmbeddingServiceFactory
 import com.embabel.common.ai.model.CredentialLlmServiceFactory
 import com.embabel.common.ai.model.EmbeddingRoleResolver
-import com.embabel.common.ai.model.LocalModelCatalog
 import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.LocalModelCatalog
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.RoleResolver
 import com.embabel.common.core.MobyNameGenerator

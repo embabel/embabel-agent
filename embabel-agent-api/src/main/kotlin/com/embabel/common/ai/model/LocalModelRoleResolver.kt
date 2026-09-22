@@ -52,15 +52,9 @@ import org.springframework.core.Ordered
 class LocalModelRoleResolver(
     private val catalog: LocalModelCatalog,
     properties: ConfigurableModelProviderProperties,
-) : RoleResolver, LateArrivingModels, Ordered {
+) : RoleResolver, Ordered {
 
     private val logger = loggerFor<LocalModelRoleResolver>()
-
-    /**
-     * The runner's models are pulled on the host, so a role naming one nobody has pulled yet must
-     * not stop the deployment before the operator can pull it. See [LateArrivingModels].
-     */
-    override val lateArrivingProvider: String get() = catalog.provider
 
     /**
      * Only the READ side of this is used - [ConfigurableRoleResolver.configuredOptionsFor] takes
@@ -116,12 +110,9 @@ class LocalModelRoleResolver(
 class LocalModelEmbeddingRoleResolver(
     private val catalog: LocalModelCatalog,
     properties: ConfigurableModelProviderProperties,
-) : EmbeddingRoleResolver, LateArrivingModels, Ordered {
+) : EmbeddingRoleResolver, Ordered {
 
     private val logger = loggerFor<LocalModelEmbeddingRoleResolver>()
-
-    /** Declared for the reason [LocalModelRoleResolver.lateArrivingProvider] gives. */
-    override val lateArrivingProvider: String get() = catalog.provider
 
     private val configured = ConfigurableEmbeddingRoleResolver(properties) { null }
 

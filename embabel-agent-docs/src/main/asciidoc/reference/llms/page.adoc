@@ -1200,7 +1200,7 @@ embabel:
 
 The flat maps are validated at startup and a name nothing has registered is fatal there — correctly, since in a deployment that holds its models a missing name is a typo.
 A provider column is not, because its entries name models this process may have no way to serve yet: `embedding-roles` is never checked, and a `roles` entry under a runner's column is reported and tolerated rather than fatal, so an appliance whose default LLM is local still starts before anything has been pulled.
-A runner declares that by implementing `LateArrivingModels` alongside its resolver; without it, the same entry under the deployment's own provider is still a typo and still fatal.
+A runner declares that through `LateArrivingModels`, implemented by its `LocalModelCatalog`; without it — or with discovery disabled, since then nothing will ever ask the runner — the same entry under the deployment's own provider is still a typo and still fatal.
 
 The runner is asked at most once per refresh interval, so this is not an HTTP round trip per embedding:
 
@@ -1225,13 +1225,19 @@ A locally served model is also **listed and usable by name**, not only reachable
 `listModelNames` and `listModels` report what the runners are serving now alongside what was registered at startup, so a model pulled a moment ago appears in the UI meant to select it; asking for one of those names — `getLlm`, `getEmbeddingService`, `default-llm`, `default-embedding-model` — resolves it.
 A model registered at startup wins over a runner serving the same name, and appears once.
 
+A by-name lookup has a name to miss on, so it re-asks the runner and finds a just-pulled model within `miss-refresh-interval`; a listing has nothing to miss on and is served from the snapshot, so it can trail a by-name lookup by up to `refresh-interval`.
+Closing that gap would mean an HTTP round trip per listing, which is the cost the snapshot exists to avoid.
+
+`default-llm` and `default-embedding-model` are asked of the runners only when they name a *model*.
+When either names a role it resolves through the chain, which already contains the local resolvers — so asking again by that name could only miss, and a miss is a request.
+
 Which of the two lists a model appears in comes from the runner: LM Studio reports a type per model, while Docker and Ollama read the same configuration their startup registration reads, so a model cannot change category by virtue of having arrived late.
 That classification decides what a caller naming a model gets back — a chat model will not answer an embedding request by name — but it does not gate role resolution, where the role that asked is the better signal.
 
 Late models are described by name and provider only.
 The rest of a model's metadata is read off a built service, and building one per entry would turn a listing into a round of work against the runner.
 
-To do the same for a runner the framework does not ship, implement `LocalModelSource` — what it is serving, with what each model is for, and how to build a service for one — and register a `LocalModelCatalog` bean over it, plus a `LocalModelRoleResolver` and `LocalModelEmbeddingRoleResolver` sharing that same catalog.
+To do the same for a runner the framework does not ship, implement `LocalModelSource` — what it is serving, with what each model is for, and how to build a service for one — and publish the three beans `LocalModelBeans` builds over it: the catalog, and the two resolvers sharing it.
 
 
 [[reference.llms.anthropic-caching]]

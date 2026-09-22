@@ -249,11 +249,15 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      * Read by [checkNestedRoles] and nothing else. It is not part of resolution: what a role means
      * is the chain's business, and this only decides whether an unregistered name is a typo worth
      * refusing to start over. See [LateArrivingModels].
+     *
+     * Catalogs are read as well as resolvers, because a shipped runner's catalog is what knows
+     * whether discovery is on - resolvers for it exist either way, so asking them would excuse a
+     * provider that has been configured never to be asked.
      */
     private val lateArrivingProviders: Set<String> =
-        (this.roleResolvers + this.embeddingRoleResolvers)
+        (this.roleResolvers + this.embeddingRoleResolvers + localModelCatalogs)
             .filterIsInstance<LateArrivingModels>()
-            .map { it.lateArrivingProvider.lowercase() }
+            .mapNotNull { it.lateArrivingProvider?.lowercase() }
             .toSet()
 
     /**
@@ -1010,9 +1014,13 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     private fun defaultLlmService(): LlmService<*> {
         registeredDefaultLlm?.let { return it }
         val resolved = attemptRole(properties.defaultLlm, ModelSelectionContextHolder.get()).resolved?.llmService
-        // A default naming a model a runner has since started serving, for the same reason the
-        // embedding default asks: the name was unresolvable at startup and is not any more.
-        ?: locallyServedLlm(properties.defaultLlm)
+        // A default naming a MODEL a runner has since started serving, for the same reason the
+        // embedding default asks: the name was unresolvable at startup and is not any more. Guarded
+        // on the name not being a ROLE, as the embedding default is: a role resolves through the
+        // chain, which already includes the local resolvers, so asking the runners for a model
+        // called `cheapest` can only miss - and a miss is an HTTP request, on the path of every
+        // call a BYOK deployment makes before a key arrives.
+            ?: properties.defaultLlm.takeUnless { properties.defaultLlmNamesRole() }?.let { locallyServedLlm(it) }
         if (resolved == null) {
             // Debug, not warn: under BYOK this is the ordinary state of every call made before a
             // key arrives, and the eventual failure already names it.
@@ -1128,13 +1136,19 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     }
 
     /**
-     * Every model of this class the deployment can serve RIGHT NOW - registered at startup, or
-     * being served by a local runner since.
+     * Every model of this class the deployment can serve - registered at startup, or being served
+     * by a local runner since.
      *
      * A late model is listed as well as usable, because a listing is what an operator picks from:
      * one that showed only what was captured at boot would leave a freshly pulled model invisible
      * to the very UI meant to select it, and "pull it and it is there" is the whole point. Every
      * name here answers to [getLlm] / [getEmbeddingService] by name.
+     *
+     * The local part is as fresh as the catalogs are, so a model pulled seconds ago can be usable
+     * BY NAME before it is listed: a by-name lookup has a name to miss on and re-asks the runner,
+     * while a listing has nothing to miss on and is served from the snapshot. The gap is at most
+     * [LocalModelDiscoveryProperties.refreshInterval], and closing it would mean an HTTP round trip
+     * per listing - the cost the snapshot exists to avoid.
      */
     override fun listModelNames(modelClass: Class<*>): List<String> {
         return when {

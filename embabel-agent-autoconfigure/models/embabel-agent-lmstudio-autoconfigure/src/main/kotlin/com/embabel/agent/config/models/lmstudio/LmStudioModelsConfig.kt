@@ -23,10 +23,11 @@ import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
 import com.embabel.common.ai.model.LocalModel
+import com.embabel.common.ai.model.LocalModelBeans
 import com.embabel.common.ai.model.LocalModelCatalog
-import com.embabel.common.ai.model.LocalModelKind
 import com.embabel.common.ai.model.LocalModelDiscoveryProperties
 import com.embabel.common.ai.model.LocalModelEmbeddingRoleResolver
+import com.embabel.common.ai.model.LocalModelKind
 import com.embabel.common.ai.model.LocalModelRoleResolver
 import com.embabel.common.ai.model.LocalModelSource
 import com.embabel.common.ai.model.PricingModel
@@ -318,27 +319,23 @@ class LmStudioModelsConfig(
     }
 
     /**
-     * Held here rather than exposed as a bean, so the two resolvers demonstrably share ONE cache.
-     * With `proxyBeanMethods = false` a bean method called twice would build two, and injecting one
-     * bean into two others of the same type across three runner modules would rest on parameter-name
-     * matching.
+     * The catalog and the two resolvers, built once over one [LocalModelSource].
+     *
+     * Lazy, so a configuration that is loaded but never asked for a model never constructs one, and
+     * a field rather than a bean method because with `proxyBeanMethods = false` a bean method called
+     * three times would build three catalogs and the resolvers would stop sharing a cache.
      */
-    private val localModelCatalog: LocalModelCatalog by lazy {
-        LocalModelCatalog(LmStudioModelSource(), localModelDiscoveryProperties)
+    private val localModelBeans: LocalModelBeans by lazy {
+        LocalModelBeans(LmStudioModelSource(), modelProviderProperties, localModelDiscoveryProperties)
     }
 
-    /**
-     * Published so the platform can LIST what the server is serving, not only resolve roles against
-     * it. Returns the field, so this and the resolvers are demonstrably one cache.
-     */
     @Bean
-    fun lmStudioLocalModelCatalog(): LocalModelCatalog = localModelCatalog
+    fun lmStudioLocalModelCatalog(): LocalModelCatalog = localModelBeans.catalog
 
     @Bean
-    fun lmStudioLocalModelRoleResolver(): LocalModelRoleResolver =
-        LocalModelRoleResolver(localModelCatalog, modelProviderProperties)
+    fun lmStudioLocalModelRoleResolver(): LocalModelRoleResolver = localModelBeans.roleResolver
 
     @Bean
     fun lmStudioLocalModelEmbeddingRoleResolver(): LocalModelEmbeddingRoleResolver =
-        LocalModelEmbeddingRoleResolver(localModelCatalog, modelProviderProperties)
+        localModelBeans.embeddingRoleResolver
 }

@@ -343,18 +343,14 @@ class OllamaModelsConfig(
     }
 
     /**
-     * What an Ollama model is for.
+     * What a Ollama model is for.
      *
-     * Ollama's `/api/tags` does not say, so configuration does - the same rule
-     * [registerModelsFromUrl] applies, so a model cannot land in one category at boot and the other
-     * when pulled later.
+     * Ollama's listing does not say, so configuration does - through the shared rule, which is also
+     * what startup registration here applies. One function, so a model cannot land in one category
+     * at boot and the other when pulled later.
      */
     private fun kindOf(modelName: String): LocalModelKind =
-        if (properties.allWellKnownEmbeddingServiceNames().contains(modelName)) {
-            LocalModelKind.EMBEDDING
-        } else {
-            LocalModelKind.CHAT
-        }
+        LocalModelKind.fromConfiguration(modelName, properties)
 
     /**
      * An Ollama server this deployment is configured to use: the default instance, or a named node.
@@ -429,29 +425,25 @@ class OllamaModelsConfig(
     }
 
     /**
-     * Held here rather than exposed as a bean, so the two resolvers demonstrably share ONE cache.
-     * With `proxyBeanMethods = false` a bean method called twice would build two, and injecting one
-     * bean into two others of the same type across three runner modules would rest on parameter-name
-     * matching.
+     * The catalog and the two resolvers, built once over one [LocalModelSource].
+     *
+     * Lazy, so a configuration that is loaded but never asked for a model never constructs one, and
+     * a field rather than a bean method because with `proxyBeanMethods = false` a bean method called
+     * three times would build three catalogs and the resolvers would stop sharing a cache.
      */
-    private val localModelCatalog: LocalModelCatalog by lazy {
-        LocalModelCatalog(OllamaModelSource(), localModelDiscoveryProperties)
+    private val localModelBeans: LocalModelBeans by lazy {
+        LocalModelBeans(OllamaModelSource(), properties, localModelDiscoveryProperties)
     }
 
-    /**
-     * Published so the platform can LIST what the runner is serving, not only resolve roles against
-     * it. Returns the field, so this and the resolvers are demonstrably one cache.
-     */
     @Bean
-    fun ollamaLocalModelCatalog(): LocalModelCatalog = localModelCatalog
+    fun ollamaLocalModelCatalog(): LocalModelCatalog = localModelBeans.catalog
 
     @Bean
-    fun ollamaLocalModelRoleResolver(): LocalModelRoleResolver =
-        LocalModelRoleResolver(localModelCatalog, properties)
+    fun ollamaLocalModelRoleResolver(): LocalModelRoleResolver = localModelBeans.roleResolver
 
     @Bean
     fun ollamaLocalModelEmbeddingRoleResolver(): LocalModelEmbeddingRoleResolver =
-        LocalModelEmbeddingRoleResolver(localModelCatalog, properties)
+        localModelBeans.embeddingRoleResolver
 }
 
 class OllamaOptionsConverter(

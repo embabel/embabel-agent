@@ -27,6 +27,32 @@ package com.embabel.common.ai.model
 enum class LocalModelKind {
     CHAT,
     EMBEDDING,
+    ;
+
+    companion object {
+
+        /**
+         * What a model is for when the runner itself does not say.
+         *
+         * Docker's `/v1/models` and Ollama's `/api/tags` list names and nothing else, so
+         * configuration decides: a model some `embedding-services` entry or embedding role names is
+         * an embedding model, and anything else is a chat model.
+         *
+         * ONE function rather than one per runner, because both runners' startup registration
+         * applies this same rule and the guarantee that matters - a model cannot land in one
+         * category at boot and the other when pulled later - is only as good as the two copies
+         * staying identical. LM Studio does not call this; it reports a type per model.
+         */
+        fun fromConfiguration(
+            modelName: String,
+            properties: ConfigurableModelProviderProperties,
+        ): LocalModelKind =
+            if (properties.allWellKnownEmbeddingServiceNames().contains(modelName)) {
+                EMBEDDING
+            } else {
+                CHAT
+            }
+    }
 }
 
 /**

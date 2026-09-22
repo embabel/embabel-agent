@@ -16,11 +16,12 @@
 package com.embabel.common.ai.model
 
 /**
- * A resolver declaring that a named provider's models may appear AFTER startup.
+ * Declares that a named provider's models may appear AFTER startup.
  *
- * Implemented alongside [RoleResolver] or [EmbeddingRoleResolver]. It says nothing about how a role
- * resolves; it answers a different question, which only startup validation asks: is a role naming an
- * unregistered model under this provider a typo, or a model that has not arrived yet?
+ * Implemented alongside [RoleResolver] or [EmbeddingRoleResolver], or by a [LocalModelCatalog],
+ * whichever object knows. It says nothing about how a role resolves; it answers a different
+ * question, which only startup validation asks: is a role naming an unregistered model under this
+ * provider a typo, or a model that has not arrived yet?
  *
  * Without it the answer is "typo", and it is fatal - correctly, for a deployment that holds its
  * models, because letting it start moves the failure to whichever unrelated call first asks for that
@@ -42,6 +43,10 @@ interface LateArrivingModels {
     /**
      * Provider whose models may appear after startup, matching [ModelMetadata.provider]. Compared
      * case-insensitively, as provider names are everywhere else.
+     *
+     * Null excuses nothing, for an implementation that can be configured OUT of late arrival -
+     * [LocalModelCatalog] with discovery disabled is the shipped case. Nullable rather than a second
+     * boolean, so there is one thing to read and no way to say "excused, provider unknown".
      */
-    val lateArrivingProvider: String
+    val lateArrivingProvider: String?
 }

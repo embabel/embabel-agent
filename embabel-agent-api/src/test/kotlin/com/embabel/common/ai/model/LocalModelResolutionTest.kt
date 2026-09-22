@@ -479,6 +479,32 @@ class LocalModelResolutionTest {
 
             assertEquals(PULLED_EMBEDDING, mp.getEmbeddingService(DefaultModelSelectionCriteria).name)
         }
+
+        /**
+         * A `default-llm` naming a ROLE is resolved by the chain, which already contains the local
+         * resolvers - so asking the runners for a model of that name on top can only ever miss, and
+         * a miss is an HTTP request. Under BYOK the default resolves to nothing on every call made
+         * before a key arrives, so an unguarded probe would be a listing per second, forever,
+         * against a runner that could never answer.
+         */
+        @Test
+        fun `a default naming a role does not ask the runner for a model of that name`() {
+            val runner = FakeRunner()
+            val properties = ConfigurableModelProviderProperties(
+                defaultLlm = CHEAPEST_ROLE,
+                llms = mapOf(CHEAPEST_ROLE to DEFAULT_LLM),
+            )
+            val mp = ConfigurableModelProvider(
+                llms = listOf(defaultLlm),
+                embeddingServices = listOf(placeholder),
+                properties = properties,
+                localModelCatalogs = listOf(catalog(runner)),
+            )
+
+            mp.getLlm(DefaultModelSelectionCriteria)
+
+            assertEquals(0, runner.listings, "a role is the chain's business, not a model name to look up")
+        }
     }
 
     @Nested
@@ -500,13 +526,38 @@ class LocalModelResolutionTest {
         @Test
         fun `a role naming an unpulled local model does not stop the deployment`() {
             val properties = properties()
+            val runnerCatalog = catalog(FakeRunner())
             val mp = ConfigurableModelProvider(
                 llms = listOf(bootLlm),
                 embeddingServices = listOf(placeholder),
                 properties = properties,
-                roleResolvers = listOf(LocalModelRoleResolver(catalog(FakeRunner()), properties)),
+                roleResolvers = listOf(LocalModelRoleResolver(runnerCatalog, properties)),
+                localModelCatalogs = listOf(runnerCatalog),
             )
             assertEquals("ai/qwen3-boot", mp.getLlm(DefaultModelSelectionCriteria).name)
+        }
+
+        /**
+         * The excusal follows DISCOVERY, not the presence of a resolver bean. With discovery off
+         * nothing will ever ask the runner, so the same entry can only ever be a typo and tolerating
+         * it would leave the role permanently dead with no boot failure naming it - which is the
+         * opposite of what "off restores the startup-only behaviour" promises.
+         */
+        @Test
+        fun `the role is fatal again when local discovery is disabled`() {
+            val properties = properties()
+            val disabled = LocalModelDiscoveryProperties(enabled = false)
+            val runnerCatalog = LocalModelCatalog(FakeRunner(), disabled, ticker)
+
+            assertThrows<IllegalStateException> {
+                ConfigurableModelProvider(
+                    llms = listOf(bootLlm),
+                    embeddingServices = listOf(placeholder),
+                    properties = properties,
+                    roleResolvers = listOf(LocalModelRoleResolver(runnerCatalog, properties)),
+                    localModelCatalogs = listOf(runnerCatalog),
+                )
+            }
         }
 
         /**
