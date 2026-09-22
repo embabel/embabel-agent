@@ -456,6 +456,7 @@
                 <artifactId>opentelemetry-semconv</artifactId>
                 <version>1.29.0-alpha</version>
             </dependency>
+
         </dependencies>
     </dependencyManagement>
 
