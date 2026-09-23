@@ -187,9 +187,10 @@ class JevDeadlineTest {
     fun `cancels an in flight send and restores interruption`() {
         val gate = CountDownLatch(1)
         CaptureServer.custom { gate.await() }.use { server ->
+            val prepared = prepared()
             Thread.currentThread().interrupt()
             try {
-                val raw = transport(server).invoke(prepared())
+                val raw = transport(server).invoke(prepared)
                 assertThat(raw.callFailure).isEqualTo(CallFailure.Cancelled)
                 assertThat(Thread.currentThread().isInterrupted).isTrue()
             } finally {

@@ -100,7 +100,7 @@ class TypeSafeDecisionModelTest {
         CaptureServer.replying(resource("success.json")).use { server ->
             val full = request(DecisionRecordPolicy.full(256, setOf("answerIds")))
             val result = TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri)).ask(full.request) as DecisionOutcome.Success
-            assertThat(result.record!!.fields["answerIds"]).contains("q_yes", "q_choice", "q_rating")
+            assertThat(result.record!!.fields["answerIds"]).isEqualTo("true,s_a,high")
             assertThat(result.record!!.fields.values.joinToString()).doesNotContain("do-not-send", "synthetic-bearer")
         }
     }
