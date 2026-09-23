@@ -21,6 +21,15 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.*
+import com.embabel.common.ai.model.local.DiscoveryFailureReporter
+import com.embabel.common.ai.model.local.LocalModel
+import com.embabel.common.ai.model.local.LocalModelBeans
+import com.embabel.common.ai.model.local.LocalModelCatalog
+import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
+import com.embabel.common.ai.model.local.LocalModelEmbeddingRoleResolver
+import com.embabel.common.ai.model.local.LocalModelKind
+import com.embabel.common.ai.model.local.LocalModelRoleResolver
+import com.embabel.common.ai.model.local.LocalModelSource
 import com.embabel.common.util.ObjectProviders
 import com.fasterxml.jackson.annotation.JsonProperty
 import io.micrometer.observation.ObservationRegistry
@@ -41,9 +50,11 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.MediaType
+import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.body
 import org.springframework.web.reactive.function.client.WebClient
+import java.time.Duration
 
 /**
  * Load Ollama local models, both LLMs and embedding models.
@@ -51,7 +62,7 @@ import org.springframework.web.reactive.function.client.WebClient
  * from Ollama unless the "ollama" profile is set.
  */
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(OllamaNodeProperties::class)
+@EnableConfigurationProperties(OllamaNodeProperties::class, LocalModelDiscoveryProperties::class)
 class OllamaModelsConfig(
     @param:Value("\${embabel.agent.platform.models.ollama.base-url:\${spring.ai.ollama.base-url:}}")  // fallback to spring ai
     private val baseUrl: String,
@@ -59,10 +70,18 @@ class OllamaModelsConfig(
     private val configurableBeanFactory: ConfigurableBeanFactory,
     private val properties: ConfigurableModelProviderProperties,
     private val observationRegistry: ObjectProvider<ObservationRegistry>,
+    private val localModelDiscoveryProperties: LocalModelDiscoveryProperties,
     @Qualifier("aiModelRestClientBuilder")
     private val restClientBuilder: ObjectProvider<RestClient.Builder> = ObjectProviders.empty(),
 ) {
     private val logger = LoggerFactory.getLogger(OllamaModelsConfig::class.java)
+
+    private val discoveryFailures = DiscoveryFailureReporter(logger)
+
+    private companion object {
+        /** Connect and read budget for a model listing against an Ollama server. */
+        private val DISCOVERY_TIMEOUT = Duration.ofSeconds(2)
+    }
 
     private data class ModelResponse(
         @param:JsonProperty("models") val models: List<ModelDetails>,
@@ -92,15 +111,30 @@ class OllamaModelsConfig(
         restClientBuilder.getIfAvailable { RestClient.builder() }
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
 
+    /**
+     * Bounded, and a clone rather than the shared builder: discovery is no longer only a startup
+     * call - [OllamaModelSource] makes it on the path of an embedding - and a server that accepts a
+     * connection and never answers would hang that call rather than decline it. The chat and
+     * embedding clients keep the injected builder's own settings.
+     */
+    private val discoveryClient: RestClient by lazy {
+        restClientBuilder().clone()
+            .requestFactory(SimpleClientHttpRequestFactory().apply {
+                setConnectTimeout(DISCOVERY_TIMEOUT)
+                setReadTimeout(DISCOVERY_TIMEOUT)
+            })
+            .build()
+    }
+
     private fun loadModelsFromUrl(baseUrl: String): List<Model> =
         try {
-            val restClient = restClientBuilder().build()
-            val response = restClient.get()
+            val response = discoveryClient.get()
                 .uri("$baseUrl/api/tags")
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
                 .body<ModelResponse>()
 
+            discoveryFailures.succeeded(baseUrl)
             response?.models?.mapNotNull { modelDetails ->
                 // Additional validation to ensure model names are valid
                 if (modelDetails.name.isNotBlank()) {
@@ -112,7 +146,7 @@ class OllamaModelsConfig(
                 } else null
             } ?: emptyList()
         } catch (e: Exception) {
-            logger.warn("Failed to load models from {}: {}", baseUrl, e.message)
+            discoveryFailures.failed(baseUrl, e)
             emptyList()
         }
 
@@ -149,6 +183,14 @@ class OllamaModelsConfig(
         return this.providerInitialization
     }
 
+    /**
+     * A chat service LISTED under the node-prefixed name and ASKING the server for [modelName].
+     *
+     * The two differ only for a node: `gpu-qwen3:latest` is how the platform tells two nodes' copies
+     * apart, and `qwen3:latest` is the only name the node answers to. The request name is pinned in
+     * [OllamaOptionsConverter] as well as on the model, because [SpringAiLlmService] stamps its own
+     * name onto every request's options.
+     */
     private fun ollamaLlmOf(modelName: String, baseUrl: String, nodeName: String? = null): LlmService<*> {
         val uniqueModelName = createUniqueModelName(modelName, nodeName)
         val springChatModel = OllamaChatModel.builder()
@@ -164,7 +206,7 @@ class OllamaModelsConfig(
             )
             .options(
                 OllamaChatOptions.builder()
-                    .model(uniqueModelName)
+                    .model(modelName)
                     .build()
             )
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
@@ -180,7 +222,7 @@ class OllamaModelsConfig(
             chatModel = springChatModel,
             provider = OllamaModels.PROVIDER,
             pricingModel = PricingModel.ALL_YOU_CAN_EAT,
-            optionsConverter = OllamaOptionsConverter(),
+            optionsConverter = OllamaOptionsConverter(servedModelName = modelName),
             thinkingSupported = true,
         )
     }
@@ -209,7 +251,7 @@ class OllamaModelsConfig(
             )
             .options(
                 OllamaEmbeddingOptions.builder()
-                    .model(uniqueModelName)
+                    .model(modelName)
                     .build()
             )
             .build()
@@ -319,10 +361,120 @@ class OllamaModelsConfig(
             listOf("ollamaModel-${nodeName}-${normalizedName}")
         }
     }
+
+    /**
+     * What a Ollama model is for.
+     *
+     * Ollama's listing does not say, so configuration does - through the shared rule, which is also
+     * what startup registration here applies. One function, so a model cannot land in one category
+     * at boot and the other when pulled later.
+     */
+    private fun kindOf(modelName: String): LocalModelKind =
+        LocalModelKind.fromConfiguration(modelName, properties)
+
+    /**
+     * An Ollama server this deployment is configured to use: the default instance, or a named node.
+     */
+    private data class OllamaEndpoint(
+        val nodeName: String?,
+        val baseUrl: String,
+    )
+
+    /** A model an endpoint is serving, under the raw name Ollama itself knows it by. */
+    private data class ServedOllamaModel(
+        val modelName: String,
+        val endpoint: OllamaEndpoint,
+    )
+
+    /**
+     * Every endpoint that may serve a model, in the same order registration considers them.
+     */
+    private fun ollamaEndpoints(): List<OllamaEndpoint> = buildList {
+        if (baseUrl.isNotBlank()) {
+            add(OllamaEndpoint(nodeName = null, baseUrl = baseUrl))
+        }
+        nodeProperties?.nodes?.forEach { add(OllamaEndpoint(nodeName = it.name, baseUrl = it.baseUrl)) }
+    }
+
+    /**
+     * Which endpoint is serving [uniqueModelName], and what Ollama calls the model there.
+     *
+     * Asks the endpoints again rather than remembering the listing, which costs one request per
+     * endpoint the first time a model is built and keeps this free of state that could go stale.
+     * The raw name is carried back because a node-scoped model is asked for under a prefixed name
+     * and served under its own.
+     */
+    private fun servedOllamaModel(uniqueModelName: String): ServedOllamaModel? =
+        ollamaEndpoints().firstNotNullOfOrNull { endpoint ->
+            loadModelsFromUrl(endpoint.baseUrl)
+                .firstOrNull { createUniqueModelName(it.model, endpoint.nodeName) == uniqueModelName }
+                ?.let { ServedOllamaModel(modelName = it.model, endpoint = endpoint) }
+        }
+
+    /**
+     * The Ollama server(s), asked per call rather than once at startup.
+     *
+     * [ollamaModelsInitializer] still registers what was pulled at boot; this covers `ollama pull`
+     * afterwards, which otherwise needed a restart before anything could use the model.
+     */
+    private inner class OllamaModelSource : LocalModelSource {
+
+        override val provider: String = OllamaModels.PROVIDER
+
+        override fun servedModels(): Set<LocalModel> =
+            ollamaEndpoints()
+                .flatMap { endpoint ->
+                    loadModelsFromUrl(endpoint.baseUrl).map {
+                        LocalModel(
+                            name = createUniqueModelName(it.model, endpoint.nodeName),
+                            kind = kindOf(it.model),
+                        )
+                    }
+                }
+                .toSet()
+
+        override fun llmService(model: String): LlmService<*>? =
+            servedOllamaModel(model)?.let {
+                ollamaLlmOf(it.modelName, it.endpoint.baseUrl, it.endpoint.nodeName)
+            }
+
+        override fun embeddingService(model: String): EmbeddingService? =
+            servedOllamaModel(model)?.let {
+                ollamaEmbeddingServiceOf(it.modelName, it.endpoint.baseUrl, it.endpoint.nodeName)
+            }
+    }
+
+    /**
+     * The catalog and the two resolvers, built once over one [LocalModelSource].
+     *
+     * Lazy, so a configuration that is loaded but never asked for a model never constructs one, and
+     * a field rather than a bean method because with `proxyBeanMethods = false` a bean method called
+     * three times would build three catalogs and the resolvers would stop sharing a cache.
+     */
+    private val localModelBeans: LocalModelBeans by lazy {
+        LocalModelBeans(OllamaModelSource(), properties, localModelDiscoveryProperties)
+    }
+
+    @Bean
+    fun ollamaLocalModelCatalog(): LocalModelCatalog = localModelBeans.catalog
+
+    @Bean
+    fun ollamaLocalModelRoleResolver(): LocalModelRoleResolver = localModelBeans.roleResolver
+
+    @Bean
+    fun ollamaLocalModelEmbeddingRoleResolver(): LocalModelEmbeddingRoleResolver =
+        localModelBeans.embeddingRoleResolver
 }
 
+/**
+ * @param servedModelName the name the Ollama server knows the model by, when it differs from the
+ * service's own name - a node-scoped service is named `<node>-<model>`, and sending that to the node
+ * asks for a model it does not have. Null sends the service name, which is right for the default
+ * instance.
+ */
 class OllamaOptionsConverter(
     private val thinkLevelsSupported: Boolean = false,
+    private val servedModelName: String? = null,
 ) : OptionsConverter {
 
     private companion object {
@@ -332,7 +484,7 @@ class OllamaOptionsConverter(
 
     override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
         val builder = OllamaChatOptions.builder()
-            .model(model)
+            .model(servedModelName ?: model)
             .temperature(options.temperature)
             .topP(options.topP)
             .presencePenalty(options.presencePenalty)

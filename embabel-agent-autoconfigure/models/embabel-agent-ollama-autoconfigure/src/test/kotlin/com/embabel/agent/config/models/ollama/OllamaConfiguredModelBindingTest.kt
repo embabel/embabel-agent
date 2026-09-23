@@ -18,6 +18,7 @@ package com.embabel.agent.config.models.ollama
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
 import io.micrometer.observation.ObservationRegistry
 import io.mockk.*
 import org.junit.jupiter.api.AfterEach
@@ -90,6 +91,10 @@ class OllamaConfiguredModelBindingTest {
 
         every { mockRestClientBuilder.observationRegistry(any()) } returns mockRestClientBuilder
         every { mockRestClientBuilder.clone() } returns mockClonedBuilder
+        // The bounded discovery client is built off the clone, so it must chain back to the same
+        // stubbed RestClient - otherwise model discovery silently finds nothing.
+        every { mockClonedBuilder.requestFactory(any()) } returns mockClonedBuilder
+        every { mockClonedBuilder.build() } returns mockRestClient
         every { mockRestClientBuilder.build() } returns mockRestClient
         every { mockRestClientBuilderProvider.getIfAvailable(any<java.util.function.Supplier<RestClient.Builder>>()) } returns mockRestClientBuilder
 
@@ -134,6 +139,7 @@ class OllamaConfiguredModelBindingTest {
             configurableBeanFactory = mockBeanFactory,
             properties = mockProperties,
             observationRegistry = mockObservationRegistry,
+            localModelDiscoveryProperties = LocalModelDiscoveryProperties(),
             restClientBuilder = mockRestClientBuilderProvider,
         )
 }

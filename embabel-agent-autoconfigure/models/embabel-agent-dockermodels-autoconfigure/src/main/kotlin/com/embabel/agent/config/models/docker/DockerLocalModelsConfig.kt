@@ -23,6 +23,15 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.*
+import com.embabel.common.ai.model.local.DiscoveryFailureReporter
+import com.embabel.common.ai.model.local.LocalModel
+import com.embabel.common.ai.model.local.LocalModelBeans
+import com.embabel.common.ai.model.local.LocalModelCatalog
+import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
+import com.embabel.common.ai.model.local.LocalModelEmbeddingRoleResolver
+import com.embabel.common.ai.model.local.LocalModelKind
+import com.embabel.common.ai.model.local.LocalModelRoleResolver
+import com.embabel.common.ai.model.local.LocalModelSource
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.openai.client.OpenAIClient
 import com.openai.client.okhttp.OpenAIOkHttpClient
@@ -41,8 +50,10 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.MediaType
+import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.body
+import java.time.Duration
 
 
 @ConfigurationProperties(prefix = PREFIX)
@@ -101,7 +112,8 @@ class DockerConnectionProperties {
 @EnableConfigurationProperties(
     DockerRetryProperties::class,
     DockerConnectionProperties::class,
-    ConfigurableModelProviderProperties::class
+    ConfigurableModelProviderProperties::class,
+    LocalModelDiscoveryProperties::class,
 )
 class DockerLocalModelsConfig(
     @Suppress("UNUSED_PARAMETER")
@@ -110,8 +122,16 @@ class DockerLocalModelsConfig(
     private val configurableBeanFactory: ConfigurableBeanFactory,
     private val properties: ConfigurableModelProviderProperties,
     private val observationRegistry: ObjectProvider<ObservationRegistry>,
+    private val localModelDiscoveryProperties: LocalModelDiscoveryProperties,
 ) {
     private val logger = LoggerFactory.getLogger(DockerLocalModelsConfig::class.java)
+
+    private val discoveryFailures = DiscoveryFailureReporter(logger)
+
+    private companion object {
+        /** Connect and read budget for a model listing against a runner on this machine. */
+        private val DISCOVERY_TIMEOUT = Duration.ofSeconds(2)
+    }
 
     private data class ModelResponse(
         val `object`: String,
@@ -140,22 +160,36 @@ class DockerLocalModelsConfig(
             .build()
     }
 
+    /**
+     * Bounded, because this is no longer only a startup call: [DockerModelSource] makes it on the
+     * path of an embedding, and an unreachable runner that accepts a connection and never answers
+     * would otherwise hang that call rather than decline it.
+     */
+    private val discoveryClient: RestClient by lazy {
+        RestClient.builder()
+            .requestFactory(SimpleClientHttpRequestFactory().apply {
+                setConnectTimeout(DISCOVERY_TIMEOUT)
+                setReadTimeout(DISCOVERY_TIMEOUT)
+            })
+            .build()
+    }
+
     private fun loadModels(): List<Model> =
         try {
-            val restClient = RestClient.create()
-            val response = restClient.get()
+            val response = discoveryClient.get()
                 .uri("${dockerConnectionProperties.baseUrl}/v1/models")
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
                 .body<ModelResponse>()
 
+            discoveryFailures.succeeded(dockerConnectionProperties.baseUrl)
             response?.data?.map { modelDetails ->
                 Model(
                     id = modelDetails.id,
                 )
             } ?: emptyList()
         } catch (e: Exception) {
-            logger.warn("Failed to load models from {}: {}", dockerConnectionProperties.baseUrl, e.message)
+            discoveryFailures.failed(dockerConnectionProperties.baseUrl, e)
             emptyList()
         }
 
@@ -202,32 +236,40 @@ class DockerLocalModelsConfig(
     /**
      * Docker models are open AI compatible
      */
-    private fun dockerModelOf(model: Model): AiModel<*> {
-        return if (properties.allWellKnownEmbeddingServiceNames().contains(model.id)) {
-            dockerEmbeddingServiceOf(model)
-        } else {
-            return dockerLlmOf(model)
+    private fun dockerModelOf(model: Model): AiModel<*> =
+        when (kindOf(model.id)) {
+            LocalModelKind.EMBEDDING -> dockerEmbeddingServiceOf(model.id)
+            LocalModelKind.CHAT -> dockerLlmOf(model.id)
         }
-    }
 
-    private fun dockerEmbeddingServiceOf(model: Model): SpringAiEmbeddingService {
+    /**
+     * What a Docker model is for.
+     *
+     * Docker's listing does not say, so configuration does - through the shared rule, which is also
+     * what startup registration here applies. One function, so a model cannot land in one category
+     * at boot and the other when pulled later.
+     */
+    private fun kindOf(modelName: String): LocalModelKind =
+        LocalModelKind.fromConfiguration(modelName, properties)
+
+    private fun dockerEmbeddingServiceOf(modelId: String): SpringAiEmbeddingService {
         val springEmbeddingModel = OpenAiEmbeddingModel.builder()
             .openAiClient(openAiClient)
             .metadataMode(MetadataMode.EMBED)
             .options(OpenAiEmbeddingOptions.builder()
-                .model(model.id)
+                .model(modelId)
                 .build())
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
             .build()
 
         return SpringAiEmbeddingService(
-            name = model.id,
+            name = modelId,
             model = springEmbeddingModel,
             provider = PROVIDER,
         )
     }
 
-    private fun dockerLlmOf(model: Model): SpringAiLlmService {
+    private fun dockerLlmOf(modelId: String): SpringAiLlmService {
         val chatModel = OpenAiChatModel.builder()
             .openAiClient(openAiClient)
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
@@ -238,12 +280,12 @@ class DockerLocalModelsConfig(
             )
             .options(
                 OpenAiChatOptions.builder()
-                    .model(model.id)
+                    .model(modelId)
                     .build()
             )
             .build()
         return SpringAiLlmService(
-            name = model.id,
+            name = modelId,
             chatModel = chatModel,
             provider = PROVIDER,
             optionsConverter = OpenAiChatOptionsConverter,
@@ -252,4 +294,44 @@ class DockerLocalModelsConfig(
         )
     }
 
+    /**
+     * The runner, asked per call rather than once at startup.
+     *
+     * [dockerLocalModelsInitializer] still registers what was there at boot, so a model named as
+     * `default-embedding-model` or injected as a bean keeps working exactly as it did. This covers
+     * what arrives AFTER: `docker model pull` followed by a request is enough, with no restart and
+     * no distinction from a model that was already there.
+     */
+    private inner class DockerModelSource : LocalModelSource {
+
+        override val provider: String = PROVIDER
+
+        override fun servedModels(): Set<LocalModel> =
+            loadModels().map { LocalModel(name = it.id, kind = kindOf(it.id)) }.toSet()
+
+        override fun llmService(model: String) = dockerLlmOf(model)
+
+        override fun embeddingService(model: String) = dockerEmbeddingServiceOf(model)
+    }
+
+    /**
+     * The catalog and the two resolvers, built once over one [LocalModelSource].
+     *
+     * Lazy, so a configuration that is loaded but never asked for a model never constructs one, and
+     * a field rather than a bean method because with `proxyBeanMethods = false` a bean method called
+     * three times would build three catalogs and the resolvers would stop sharing a cache.
+     */
+    private val localModelBeans: LocalModelBeans by lazy {
+        LocalModelBeans(DockerModelSource(), properties, localModelDiscoveryProperties)
+    }
+
+    @Bean
+    fun dockerLocalModelCatalog(): LocalModelCatalog = localModelBeans.catalog
+
+    @Bean
+    fun dockerLocalModelRoleResolver(): LocalModelRoleResolver = localModelBeans.roleResolver
+
+    @Bean
+    fun dockerLocalModelEmbeddingRoleResolver(): LocalModelEmbeddingRoleResolver =
+        localModelBeans.embeddingRoleResolver
 }
