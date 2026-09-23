@@ -20,11 +20,12 @@ import com.embabel.agent.decision.DecisionSafeCode
 import com.embabel.agent.decision.PreparedDecisionRequest
 import com.embabel.agent.decision.RawDecisionOutcome
 import java.io.ByteArrayOutputStream
-import java.net.http.HttpTimeoutException
 import java.net.URI
 import java.net.http.HttpClient
+import java.net.http.HttpConnectTimeoutException
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.net.http.HttpTimeoutException
 import java.nio.ByteBuffer
 import java.time.Duration
 import java.util.Collections
@@ -65,7 +66,7 @@ internal class JevTransport(
                 try { sleeper(delay) } catch (_: InterruptedException) { Thread.currentThread().interrupt(); return cancelled() }
                 if (remaining(request) == null || Thread.currentThread().isInterrupted) return if (Thread.currentThread().isInterrupted) cancelled() else deadline()
             }
-            val response = execute(payload, key, remaining(request) ?: return deadline())
+            val response = execute(payload, key, request, remaining(request) ?: return deadline())
             when (response) {
                 is Attempt.Failure -> return response.outcome
                 is Attempt.Response -> {
@@ -81,10 +82,10 @@ internal class JevTransport(
         return unavailable()
     }
 
-    private fun execute(payload: ByteArray, key: String, remaining: Duration): Attempt {
-        attemptObserver(remaining)
+    private fun execute(payload: ByteArray, key: String, prepared: PreparedDecisionRequest, attemptBudget: Duration): Attempt {
+        attemptObserver(attemptBudget)
         val request = HttpRequest.newBuilder(baseUri.resolve("/v1/systemone"))
-            .timeout(remaining)
+            .timeout(attemptBudget)
             .header("Authorization", "Bearer $key")
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
@@ -94,7 +95,7 @@ internal class JevTransport(
             client.sendAsync(request, HttpResponse.BodyHandler { BoundedBodySubscriber(MAX_BODY_BYTES) })
         } catch (_: Exception) { return Attempt.Failure(unavailable()) }
         return try {
-            val response = future.get(remaining.toNanos(), TimeUnit.NANOSECONDS)
+            val response = future.get(attemptBudget.toNanos(), TimeUnit.NANOSECONDS)
             Attempt.Response(response.statusCode(), response.body())
         } catch (_: TimeoutException) {
             future.cancel(true); Attempt.Failure(deadline())
@@ -104,6 +105,8 @@ internal class JevTransport(
             future.cancel(true)
             when {
                 error.hasCause(BodyTooLargeException::class.java) -> Attempt.Failure(rejected())
+                error.hasCause(HttpConnectTimeoutException::class.java) ->
+                    Attempt.Failure(if (remaining(prepared) == null) deadline() else unavailable())
                 error.hasCause(HttpTimeoutException::class.java) -> Attempt.Failure(deadline())
                 else -> Attempt.Failure(unavailable())
             }
