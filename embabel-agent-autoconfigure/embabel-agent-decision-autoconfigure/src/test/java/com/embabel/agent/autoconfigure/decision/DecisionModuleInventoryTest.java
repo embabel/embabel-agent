@@ -39,7 +39,9 @@ class DecisionModuleInventoryTest {
             "embabel-agent-decision", "embabel-agent-decision-typesafe", "embabel-agent-decision-llm",
             "embabel-agent-decision-autoconfigure", "embabel-agent-starter-decision");
     private static final Map<String, Set<Coordinate>> DIRECT_DEPENDENCIES = Map.of(
-            "embabel-agent-decision", Set.of(new Coordinate("org.jetbrains.kotlin", "kotlin-stdlib")),
+            "embabel-agent-decision", Set.of(
+                    new Coordinate("org.jetbrains.kotlin", "kotlin-stdlib"),
+                    new Coordinate("org.slf4j", "slf4j-api")),
             "embabel-agent-decision-typesafe", Set.of(
                     new Coordinate("com.embabel.agent", "embabel-agent-decision"),
                     new Coordinate("com.embabel.agent", "embabel-agent-ai")),

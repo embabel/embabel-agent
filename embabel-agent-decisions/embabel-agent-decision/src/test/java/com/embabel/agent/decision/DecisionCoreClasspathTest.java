@@ -33,7 +33,9 @@ class DecisionCoreClasspathTest {
             artifacts = files.map(path -> path.getFileName().toString()).sorted().toList();
         }
         assertThat(artifacts).isNotEmpty()
+                .anyMatch(name -> name.startsWith("slf4j-api-"))
                 .noneMatch(name -> name.startsWith("embabel-agent-ai-"))
-                .noneMatch(name -> name.startsWith("spring-") || name.startsWith("spring-ai-"));
+                .noneMatch(name -> name.startsWith("spring-") || name.startsWith("spring-ai-"))
+                .noneMatch(name -> name.startsWith("logback-") || name.startsWith("slf4j-simple-"));
     }
 }

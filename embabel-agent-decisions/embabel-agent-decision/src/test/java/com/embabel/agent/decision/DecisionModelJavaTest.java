@@ -22,6 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Modifier;
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.List;
 import java.util.Arrays;
 import javax.tools.JavaCompiler;
@@ -62,6 +64,60 @@ class DecisionModelJavaTest {
         try (DecisionModelInitialization initialization = new DecisionModelInitialization(List.of(model))) {
             assertEquals(List.of(model), initialization.getCreatedModels());
         }
+    }
+
+    @Test
+    void javaConsumerCanInstallAndImplementInstrumentation() {
+        var completions = new AtomicInteger();
+        var closes = new AtomicInteger();
+        DecisionInstrumentation instrumentation = context -> new DecisionObservation() {
+            @Override
+            public <T> Callable<T> wrap(Callable<T> work) {
+                return work;
+            }
+
+            @Override
+            public void event(DecisionTelemetryEvent event) {
+            }
+
+            @Override
+            public void complete(DecisionCompletion completion) {
+                assertEquals(DecisionProviderFamily.CUSTOM, completion.getProviderFamily());
+                assertEquals(DecisionCompletionStatus.FAILURE, completion.getStatus());
+                completions.incrementAndGet();
+            }
+
+            @Override
+            public void close() {
+                closes.incrementAndGet();
+            }
+        };
+        var model = new DecisionModel(prepared ->
+                RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.DISABLED));
+
+        assertTrue(model.installDefaultInstrumentation(instrumentation));
+        assertTrue(!model.installDefaultInstrumentation(DecisionInstrumentation.noop()));
+        assertTrue(!model.withInstrumentation(DecisionInstrumentation.noop())
+                .installDefaultInstrumentation(instrumentation));
+        var request = DecisionRequest.builder();
+        request.yesNo("java", "java?");
+        assertInstanceOf(DecisionOutcome.Failure.class, model.ask(request.build()));
+        assertEquals(1, completions.get());
+        assertEquals(1, closes.get());
+    }
+
+    @Test
+    void javaNullObservationFallsBackToNoop() {
+        DecisionInstrumentation instrumentation = context -> null;
+        var model = new DecisionModel(prepared ->
+                RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.DISABLED))
+                .withInstrumentation(instrumentation);
+        var request = DecisionRequest.builder();
+        request.yesNo("java-null", "java null observer?");
+
+        var outcome = assertInstanceOf(DecisionOutcome.Failure.class, model.ask(request.build()));
+
+        assertEquals(CallFailure.Disabled, outcome.getFailure());
     }
 
     @Test

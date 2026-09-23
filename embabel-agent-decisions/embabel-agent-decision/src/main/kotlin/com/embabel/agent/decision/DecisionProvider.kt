@@ -46,6 +46,10 @@ interface PreparedDecisionRequest {
 
     /** Returns time left on the same monotonic clock as [deadlineNanos], clamped to zero. */
     fun remainingNanos(): Long
+
+    /** Emits a bounded operational event through the facade's optional instrumentation. */
+    @ApiStatus.Experimental
+    fun event(event: DecisionTelemetryEvent) = Unit
 }
 
 /**
@@ -280,11 +284,12 @@ class RawDecisionOutcome private constructor(
  * all schema, probability, selection, provenance, and record validation. Providers return raw
  * evidence only; they do not construct trusted outcomes or choose application actions.
  *
- * A provider should honor interruption, preserve the interrupted flag when it handles
- * [InterruptedException], and stop transport, retry, and parsing work when
- * [PreparedDecisionRequest.remainingNanos] reaches zero. Cancellation is best effort, so providers
- * must not publish side effects after the deadline. An uncaught exception maps to call-level
- * `Unavailable`; caller interruption maps to `Cancelled`; an overrun maps to `DeadlineExceeded`.
+ * A provider should honor interruption and propagate [InterruptedException] to the facade rather
+ * than changing an unrelated caller's interrupt flag. It must stop transport, retry, and parsing
+ * work when [PreparedDecisionRequest.remainingNanos] reaches zero. Cancellation is best effort, so
+ * providers must not publish side effects after the deadline. An uncaught exception maps to
+ * call-level `Unavailable`; caller interruption maps to `Cancelled`; an overrun maps to
+ * `DeadlineExceeded`.
  * Implementations must not return `null` or retain the prepared request after this method returns.
  * Close a model that is no longer used to interrupt its workers and release its execution capacity.
  */

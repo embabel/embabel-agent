@@ -45,6 +45,10 @@ final class DecisionExecutionSupport implements AutoCloseable {
         return executor.submit(work);
     }
 
+    boolean isClosed() {
+        return executor.isShutdown();
+    }
+
     @Override
     public void close() {
         executor.shutdownNow();

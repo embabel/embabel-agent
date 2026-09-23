@@ -16,6 +16,7 @@
 package com.embabel.agent.decision
 
 import org.jetbrains.annotations.ApiStatus
+import org.slf4j.LoggerFactory
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.Duration
@@ -23,8 +24,11 @@ import java.util.Collections
 import java.util.UUID
 import java.util.concurrent.Callable
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 private class YesNoToken(override val id: String, val binding: String, val question: String) : YesNoKey
 private class ChoiceToken<T>(override val id: String, val binding: String, val question: String, val options: List<DecisionOption<T>>) : ChoiceKey<T>
@@ -51,10 +55,25 @@ interface DecisionRequest {
 private class RequestToken(val data: RequestData) : DecisionRequest
 private data class PreparedSupportData(override val id: String, override val label: String) : PreparedSupport
 private data class PreparedQuestionData(override val id: String, override val kind: DecisionKind, override val question: String, override val support: List<PreparedSupport>) : PreparedQuestion
-private data class PreparedData(override val state: Map<String, Any?>, override val questions: List<PreparedQuestion>, override val deadlineNanos: Long, override val recordPolicy: DecisionRecordPolicy, override val correlationId: String?, override val requestId: String, override val questionFingerprint: String, private val clock: () -> Long) : PreparedDecisionRequest { override fun remainingNanos(): Long = (deadlineNanos - clock()).coerceAtLeast(0) }
+private data class PreparedData(override val state: Map<String, Any?>, override val questions: List<PreparedQuestion>, override val deadlineNanos: Long, override val recordPolicy: DecisionRecordPolicy, override val correlationId: String?, override val requestId: String, override val questionFingerprint: String, private val clock: () -> Long, private val eventSink: (DecisionTelemetryEvent) -> Unit) : PreparedDecisionRequest {
+    override fun remainingNanos(): Long = (deadlineNanos - clock()).coerceAtLeast(0)
+    override fun event(event: DecisionTelemetryEvent) = eventSink(event)
+}
 private data class SafeRecord(override val mode: RecordMode, override val fields: Map<String, String>) : DecisionRecord
 private const val DEFAULT_NAME = "decision"
 private const val DEFAULT_PROVIDER = "custom"
+private val decisionLogger = LoggerFactory.getLogger(DecisionModel::class.java)
+
+private sealed interface InstrumentationSelection {
+    val instrumentation: DecisionInstrumentation
+
+    data object Unset : InstrumentationSelection {
+        override val instrumentation = DecisionInstrumentation.noop()
+    }
+
+    class Default(override val instrumentation: DecisionInstrumentation) : InstrumentationSelection
+    class Explicit(override val instrumentation: DecisionInstrumentation) : InstrumentationSelection
+}
 /**
  * Final decision facade with execution capacity isolated to this model instance.
  *
@@ -69,6 +88,7 @@ class DecisionModel private constructor(
     private var defaultTimeout: Duration,
     private var defaultPolicy: DecisionRecordPolicy,
     private var clock: () -> Long,
+    initialInstrumentation: InstrumentationSelection,
 ) : AutoCloseable {
     constructor(decisionProvider: DecisionProvider) : this(
         decisionProvider = decisionProvider,
@@ -77,34 +97,188 @@ class DecisionModel private constructor(
         defaultTimeout = Duration.ofSeconds(30),
         defaultPolicy = DecisionRecordPolicy.metadata(),
         clock = System::nanoTime,
+        initialInstrumentation = InstrumentationSelection.Unset,
     )
 
     private val execution = DecisionExecutionSupport()
+    private val instrumentation = AtomicReference(initialInstrumentation)
 
     fun withDefaults(defaultTimeout: Duration, defaultRecordPolicy: DecisionRecordPolicy): DecisionModel {
         validDuration(defaultTimeout)
-        return DecisionModel(decisionProvider, name, provider, defaultTimeout, defaultRecordPolicy, clock)
+        return DecisionModel(decisionProvider, name, provider, defaultTimeout, defaultRecordPolicy, clock, instrumentation.get())
     }
 
     fun named(name: String, provider: String): DecisionModel {
         require(name.isNotBlank()) { "name must not be blank" }
         require(provider.isNotBlank()) { "provider must not be blank" }
-        return DecisionModel(decisionProvider, name, provider, defaultTimeout, defaultPolicy, clock)
+        return DecisionModel(decisionProvider, name, provider, defaultTimeout, defaultPolicy, clock, instrumentation.get())
     }
 
+    @ApiStatus.Experimental
+    fun withInstrumentation(instrumentation: DecisionInstrumentation): DecisionModel =
+        DecisionModel(
+            decisionProvider,
+            name,
+            provider,
+            defaultTimeout,
+            defaultPolicy,
+            clock,
+            InstrumentationSelection.Explicit(instrumentation),
+        )
+
+    /** Installs one startup default without replacing this facade or its execution capacity. */
+    @ApiStatus.Experimental
+    fun installDefaultInstrumentation(instrumentation: DecisionInstrumentation): Boolean =
+        this.instrumentation.compareAndSet(
+            InstrumentationSelection.Unset,
+            InstrumentationSelection.Default(instrumentation),
+        )
+
     fun ask(request: DecisionRequest): DecisionOutcome {
-        val prepared = try { prepare(request, defaultTimeout, defaultPolicy, clock(), clock) } catch (_: RuntimeException) { return failed(CallFailure.RejectedRequest, null) }
-        val raw = try { invokeWithinDeadline(prepared) } catch (_: InterruptedException) { Thread.currentThread().interrupt(); return failed(CallFailure.Cancelled, prepared) } ?: return failed(CallFailure.DeadlineExceeded, prepared)
-        if (remaining(prepared) == 0L) return failed(CallFailure.DeadlineExceeded, prepared)
-        raw.callFailure?.let { return failed(it, prepared) }; val input = raw.answers ?: return failed(CallFailure.RejectedRequest, prepared); val source = raw.provenance ?: return failed(CallFailure.RejectedRequest, prepared)
-        if (input.map { it.keyId }.distinct().size != input.size || input.any { answer -> prepared.questions.none { it.id == answer.keyId } }) return failed(CallFailure.RejectedRequest, prepared)
-        val data = requestData(request); val answers = data.questions.associate { question -> question.key to validate(question, input.firstOrNull { it.keyId == question.id }) }; val provenance = completed(source, prepared)
-        return DecisionOutcome.Success(provenance, safeRecord(prepared.recordPolicy, provenance, answers, prepared.questions.size), Collections.unmodifiableMap(answers))
+        val startedAt = clock()
+        val family = providerFamily(provider)
+        val questionCount = (request as? RequestToken)?.data?.questions?.size ?: 0
+        val selectedInstrumentation = instrumentation.get().instrumentation
+        val observation = startObservation(
+            selectedInstrumentation,
+            DecisionObservationContext.create(family, questionCount),
+        )
+        decisionLogger.debug(
+            "Decision started providerFamily={} questionCount={}",
+            family,
+            questionCount,
+        )
+        var result: DecisionCallResult? = null
+        var fatalError: Error? = null
+        try {
+            result = executeDecision(request, startedAt, observation)
+            return result.outcome
+        } catch (error: Error) {
+            fatalError = error
+            throw error
+        } finally {
+            val completion = completion(family, result, fatalError, elapsedNanos(startedAt, clock()))
+            completeObservation(observation, completion)
+            closeObservation(observation)
+            logCompletion(completion)
+        }
     }
-    private fun invokeWithinDeadline(prepared: PreparedDecisionRequest): RawDecisionOutcome? {
-        if (decisionProvider is CallerBoundDecisionProvider) return try { decisionProvider.invoke(prepared) } catch (_: RuntimeException) { RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE) }
-        val future = try { execution.submit(Callable { decisionProvider.invoke(prepared) }) } catch (_: RejectedExecutionException) { return RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE) }
-        return try { future.get(remaining(prepared), TimeUnit.NANOSECONDS) } catch (_: TimeoutException) { future.cancel(true); null } catch (_: InterruptedException) { future.cancel(true); throw InterruptedException() } catch (_: java.util.concurrent.ExecutionException) { RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE) }
+
+    private fun executeDecision(
+        request: DecisionRequest,
+        startedAt: Long,
+        observation: GuardedDecisionObservation,
+    ): DecisionCallResult {
+        val prepared = try {
+            prepare(request, defaultTimeout, defaultPolicy, startedAt, clock, observation::providerEventSafely)
+        } catch (_: RuntimeException) {
+            observation.facadeEventSafely(DecisionTelemetryEvent.REJECTION)
+            return failedResult(CallFailure.RejectedRequest, null)
+        }
+        val raw = try {
+            invokeWithinDeadline(prepared, observation)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            observation.facadeEventSafely(DecisionTelemetryEvent.CANCELLATION)
+            return failedResult(CallFailure.Cancelled, prepared)
+        } ?: run {
+            observation.facadeEventSafely(DecisionTelemetryEvent.TIMEOUT)
+            return failedResult(CallFailure.DeadlineExceeded, prepared)
+        }
+        if (remaining(prepared) == 0L) {
+            observation.facadeEventSafely(DecisionTelemetryEvent.TIMEOUT)
+            return failedResult(CallFailure.DeadlineExceeded, prepared)
+        }
+        raw.callFailure?.let {
+            return failedResult(it, prepared)
+        }
+        val input = raw.answers ?: run {
+            observation.facadeEventSafely(DecisionTelemetryEvent.REJECTION)
+            return failedResult(CallFailure.RejectedRequest, prepared)
+        }
+        val source = raw.provenance ?: run {
+            observation.facadeEventSafely(DecisionTelemetryEvent.REJECTION)
+            return failedResult(CallFailure.RejectedRequest, prepared)
+        }
+        if (input.map { it.keyId }.distinct().size != input.size || input.any { answer -> prepared.questions.none { it.id == answer.keyId } }) {
+            observation.facadeEventSafely(DecisionTelemetryEvent.REJECTION)
+            return failedResult(CallFailure.RejectedRequest, prepared)
+        }
+        val data = requestData(request)
+        val answers = data.questions.associate { question ->
+            question.key to validate(question, input.firstOrNull { it.keyId == question.id })
+        }
+        val provenance = completed(source, prepared)
+        val successCount = answers.values.count { it is KeyOutcome.Success<*> }
+        val failureCount = answers.size - successCount
+        return DecisionCallResult(
+            DecisionOutcome.Success(
+                provenance,
+                safeRecord(prepared.recordPolicy, provenance, answers, prepared.questions.size),
+                Collections.unmodifiableMap(answers),
+            ),
+            successCount,
+            failureCount,
+        )
+    }
+
+    private fun invokeWithinDeadline(
+        prepared: PreparedDecisionRequest,
+        observation: GuardedDecisionObservation,
+    ): RawDecisionOutcome? {
+        val providerWork = Callable {
+            try {
+                decisionProvider.invoke(prepared)
+            } finally {
+                observation.sealProviderEvents()
+            }
+        }
+        val work = observation.wrapSafely(providerWork)
+        try {
+            if (decisionProvider is CallerBoundDecisionProvider) {
+                return try {
+                    work.call()
+                } catch (error: InterruptedException) {
+                    throw error
+                } catch (_: Exception) {
+                    RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE)
+                }
+            }
+            val future = try {
+                execution.submit(work)
+            } catch (_: RejectedExecutionException) {
+                observation.sealProviderEvents()
+                val event = if (execution.isClosed) {
+                    DecisionTelemetryEvent.MODEL_CLOSED
+                } else {
+                    DecisionTelemetryEvent.CAPACITY_REJECTED
+                }
+                observation.facadeEventSafely(event)
+                return RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE)
+            }
+            return try {
+                future.get(remaining(prepared), TimeUnit.NANOSECONDS)
+            } catch (_: TimeoutException) {
+                observation.sealProviderEvents()
+                future.cancel(true)
+                null
+            } catch (error: InterruptedException) {
+                observation.sealProviderEvents()
+                future.cancel(true)
+                throw error
+            } catch (error: ExecutionException) {
+                when (val cause = error.cause) {
+                    is InterruptedException -> {
+                        observation.facadeEventSafely(DecisionTelemetryEvent.CANCELLATION)
+                        RawDecisionOutcome.failure(CallFailure.Cancelled, DecisionSafeCode.CANCELLED)
+                    }
+                    is Error -> throw cause
+                    else -> RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE)
+                }
+            }
+        } finally {
+            observation.sealProviderEvents()
+        }
     }
     private fun validate(question: QuestionData<*>, raw: RawAnswer?): KeyOutcome<*> {
         if (raw == null) return KeyOutcome.Failure<Any?>(KeyFailure.Missing, DecisionSafeCode.MISSING); raw.keyFailure?.let { return KeyOutcome.Failure<Any?>(it, code(it)) }; if (raw.kind != question.kind) return KeyOutcome.Failure<Any?>(KeyFailure.Invalid, DecisionSafeCode.INVALID)
@@ -117,8 +291,10 @@ class DecisionModel private constructor(
     }
     private fun yesNo(raw: RawAnswer): KeyOutcome<Boolean> { val p = raw.pTrue ?: return KeyOutcome.Failure(KeyFailure.Invalid, DecisionSafeCode.INVALID); if (!p.isFinite() || p !in 0.0..1.0) return KeyOutcome.Failure(KeyFailure.Invalid, DecisionSafeCode.INVALID); val values = linkedMapOf(false to 1.0 - p, true to p); val maxima = values.filterValues { it == values.values.max() }.keys.toList(); if (raw.selectedId != null && raw.selectedId !in maxima.map { it.toString() }) return KeyOutcome.Failure(KeyFailure.Invalid, DecisionSafeCode.INVALID); val selected = raw.selectedId?.toBooleanStrictOrNull() ?: maxima.first(); return KeyOutcome.Success(selected, Collections.unmodifiableMap(values), immutableList(maxima), maxima.first(), null, raw.selectedId ?: maxima.first().toString()) }
     private fun failed(failure: CallFailure, request: PreparedDecisionRequest?): DecisionOutcome { val canonical = code(failure); val provenance = facadeProvenance(request); return DecisionOutcome.Failure(failure, canonical, provenance, request?.let { safeRecord(it.recordPolicy, provenance, emptyMap(), it.questions.size, canonical) }) }
+    private fun failedResult(failure: CallFailure, request: PreparedDecisionRequest?) =
+        DecisionCallResult(failed(failure, request), 0, 0)
     private fun requestData(request: DecisionRequest) = (request as? RequestToken)?.data ?: throw IllegalArgumentException("unknown decision request")
-    private fun prepare(request: DecisionRequest, timeoutDefault: Duration, policyDefault: DecisionRecordPolicy, start: Long, clock: () -> Long): PreparedDecisionRequest { val data = requestData(request); val timeout = data.timeout ?: timeoutDefault; validDuration(timeout); val nanos = try { timeout.toNanos() } catch (_: ArithmeticException) { throw IllegalArgumentException("timeout too large") }; val deadline = start + nanos; val questions = data.questions.map { question -> val support = if (question.kind == DecisionKind.YES_NO) listOf(PreparedSupportData("false", "false"), PreparedSupportData("true", "true")) else question.options.map { PreparedSupportData(it.id, it.label) }; PreparedQuestionData(question.id, question.kind, question.text, immutableList(support)) }; val immutableQuestions = immutableList<PreparedQuestion>(questions); DecisionRequestLimits.validatePreparedBytes(data.state, immutableQuestions); return PreparedData(data.state, immutableQuestions, deadline, data.policy ?: policyDefault, data.correlationId, UUID.randomUUID().toString(), fingerprint(questions), clock) }
+    private fun prepare(request: DecisionRequest, timeoutDefault: Duration, policyDefault: DecisionRecordPolicy, start: Long, clock: () -> Long, eventSink: (DecisionTelemetryEvent) -> Unit): PreparedDecisionRequest { val data = requestData(request); val timeout = data.timeout ?: timeoutDefault; validDuration(timeout); val nanos = try { timeout.toNanos() } catch (_: ArithmeticException) { throw IllegalArgumentException("timeout too large") }; val deadline = start + nanos; val questions = data.questions.map { question -> val support = if (question.kind == DecisionKind.YES_NO) listOf(PreparedSupportData("false", "false"), PreparedSupportData("true", "true")) else question.options.map { PreparedSupportData(it.id, it.label) }; PreparedQuestionData(question.id, question.kind, question.text, immutableList(support)) }; val immutableQuestions = immutableList<PreparedQuestion>(questions); DecisionRequestLimits.validatePreparedBytes(data.state, immutableQuestions); return PreparedData(data.state, immutableQuestions, deadline, data.policy ?: policyDefault, data.correlationId, UUID.randomUUID().toString(), fingerprint(questions), clock, eventSink) }
     private fun remaining(request: PreparedDecisionRequest): Long = request.remainingNanos()
     private fun safeRecord(policy: DecisionRecordPolicy, provenance: DecisionProvenance, answers: Map<DecisionKey<*>, KeyOutcome<*>>, questionCount: Int, callSafeCode: DecisionSafeCode? = null): DecisionRecord? {
         if (policy.mode == RecordMode.NONE) return null
@@ -159,8 +335,194 @@ class DecisionModel private constructor(
     private fun code(failure: CallFailure) = when (failure) { CallFailure.Disabled -> DecisionSafeCode.DISABLED; CallFailure.Unavailable -> DecisionSafeCode.UNAVAILABLE; CallFailure.RejectedRequest -> DecisionSafeCode.REJECTED_REQUEST; CallFailure.DeadlineExceeded -> DecisionSafeCode.DEADLINE_EXCEEDED; CallFailure.Cancelled -> DecisionSafeCode.CANCELLED; CallFailure.Unsupported -> DecisionSafeCode.UNSUPPORTED }
     private fun code(failure: KeyFailure) = when (failure) { KeyFailure.Missing -> DecisionSafeCode.MISSING; KeyFailure.Invalid -> DecisionSafeCode.INVALID; KeyFailure.Unsupported -> DecisionSafeCode.UNSUPPORTED }
     private fun fingerprint(questions: List<PreparedQuestionData>): String = MessageDigest.getInstance("SHA-256").digest(questions.joinToString("") { question -> listOf(question.kind.name, question.id, *question.support.map { it.id }.toTypedArray()).joinToString("") { value -> "${value.toByteArray(StandardCharsets.UTF_8).size}:$value|" } }.toByteArray(StandardCharsets.UTF_8)).joinToString("") { "%02x".format(it) }
-    override fun close() = execution.close()
+    override fun close() {
+        execution.close()
+        decisionLogger.debug("Decision execution closed")
+    }
 
+}
+
+private data class DecisionCallResult(
+    val outcome: DecisionOutcome,
+    val keySuccessCount: Int,
+    val keyFailureCount: Int,
+)
+
+private enum class InstrumentationHook { START, WRAP, WRAPPED_WORK, EVENT, COMPLETE, CLOSE }
+
+private fun startObservation(
+    instrumentation: DecisionInstrumentation,
+    context: DecisionObservationContext,
+): GuardedDecisionObservation {
+    val observation = try {
+        requireNotNull(instrumentation.start(context))
+    } catch (_: RuntimeException) {
+        logInstrumentationFailure(InstrumentationHook.START)
+        DecisionInstrumentation.noop().start(context)
+    }
+    return GuardedDecisionObservation(observation)
+}
+
+private class GuardedDecisionObservation(
+    private val delegate: DecisionObservation,
+) : DecisionObservation {
+    private val terminal = AtomicBoolean()
+    private val providerEventsOpen = AtomicBoolean(true)
+
+    override fun <T> wrap(work: Callable<T>): Callable<T> = delegate.wrap(work)
+
+    override fun event(event: DecisionTelemetryEvent) {
+        facadeEventSafely(event)
+    }
+
+    override fun complete(completion: DecisionCompletion) {
+        terminal.set(true)
+        delegate.complete(completion)
+    }
+
+    override fun close() {
+        terminal.set(true)
+        delegate.close()
+    }
+
+    fun sealProviderEvents() {
+        providerEventsOpen.set(false)
+    }
+
+    fun providerEventSafely(event: DecisionTelemetryEvent) {
+        if (providerEventsOpen.get()) deliverSafely(event)
+    }
+
+    fun facadeEventSafely(event: DecisionTelemetryEvent) {
+        if (!terminal.get()) deliverSafely(event)
+    }
+
+    private fun deliverSafely(event: DecisionTelemetryEvent) {
+        try {
+            decisionLogger.debug("Decision event={}", event)
+            delegate.event(event)
+        } catch (_: RuntimeException) {
+            logInstrumentationFailure(InstrumentationHook.EVENT)
+        }
+    }
+}
+
+private fun <T> DecisionObservation.wrapSafely(work: Callable<T>): Callable<T> {
+    val once = OnceCallable(work)
+    val wrapped = try {
+        requireNotNull(wrap(once))
+    } catch (_: RuntimeException) {
+        logInstrumentationFailure(InstrumentationHook.WRAP)
+        once
+    }
+    return Callable {
+        var wrapperFailure: Exception? = null
+        try {
+            wrapped.call()
+        } catch (error: Exception) {
+            wrapperFailure = error
+        }
+        val workFailure = once.failure()
+        if (!once.wasInvoked() || wrapperFailure != null && wrapperFailure !== workFailure ||
+            wrapperFailure == null && workFailure != null
+        ) {
+            logInstrumentationFailure(InstrumentationHook.WRAPPED_WORK)
+        }
+        once.call()
+    }
+}
+
+private class OnceCallable<T>(private val work: Callable<T>) : Callable<T> {
+    private var result: Result<T>? = null
+
+    @Synchronized
+    override fun call(): T {
+        result?.let { return it.getOrThrow() }
+        return try {
+            work.call().also { result = Result.success(it) }
+        } catch (error: Throwable) {
+            result = Result.failure(error)
+            throw error
+        }
+    }
+
+    @Synchronized
+    fun wasInvoked(): Boolean = result != null
+
+    @Synchronized
+    fun failure(): Throwable? = result?.exceptionOrNull()
+}
+
+private fun completeObservation(observation: DecisionObservation, completion: DecisionCompletion) {
+    try {
+        observation.complete(completion)
+    } catch (_: RuntimeException) {
+        logInstrumentationFailure(InstrumentationHook.COMPLETE)
+    }
+}
+
+private fun closeObservation(observation: DecisionObservation) {
+    try {
+        observation.close()
+    } catch (_: RuntimeException) {
+        logInstrumentationFailure(InstrumentationHook.CLOSE)
+    }
+}
+
+private fun logInstrumentationFailure(hook: InstrumentationHook) {
+    decisionLogger.warn("Decision instrumentation hook failed hook={}", hook)
+}
+
+private fun providerFamily(provider: String): DecisionProviderFamily = when (provider) {
+    "typesafe" -> DecisionProviderFamily.TYPESAFE
+    "prompted" -> DecisionProviderFamily.PROMPTED
+    "none" -> DecisionProviderFamily.NONE
+    "stub" -> DecisionProviderFamily.STUB
+    else -> DecisionProviderFamily.CUSTOM
+}
+
+private fun completion(
+    family: DecisionProviderFamily,
+    result: DecisionCallResult?,
+    fatalError: Error?,
+    elapsedNanos: Long,
+): DecisionCompletion {
+    val outcome = result?.outcome
+    val status = when {
+        fatalError != null -> DecisionCompletionStatus.FAILURE
+        outcome is DecisionOutcome.Success -> DecisionCompletionStatus.SUCCESS
+        else -> DecisionCompletionStatus.FAILURE
+    }
+    return DecisionCompletion.create(
+        family,
+        status,
+        (outcome as? DecisionOutcome.Failure)?.safeCode,
+        result?.keySuccessCount ?: 0,
+        result?.keyFailureCount ?: 0,
+        elapsedNanos,
+    )
+}
+
+private fun elapsedNanos(startedAt: Long, completedAt: Long): Long = (completedAt - startedAt).coerceAtLeast(0)
+
+private fun logCompletion(completion: DecisionCompletion) {
+    val message = "Decision completed providerFamily={} status={} safeCode={} keySuccessCount={} keyFailureCount={} elapsedNanos={}"
+    val arguments = arrayOf<Any?>(
+        completion.providerFamily,
+        completion.status,
+        completion.safeCode,
+        completion.keySuccessCount,
+        completion.keyFailureCount,
+        completion.elapsedNanos,
+    )
+    if (completion.status == DecisionCompletionStatus.SUCCESS ||
+        completion.safeCode == DecisionSafeCode.DISABLED ||
+        completion.safeCode == DecisionSafeCode.UNSUPPORTED
+    ) {
+        decisionLogger.debug(message, *arguments)
+    } else {
+        decisionLogger.warn(message, *arguments)
+    }
 }
 
 private data class RequestData(val binding: String, val state: Map<String, Any?>, val questions: List<QuestionData<*>>, val timeout: Duration?, val policy: DecisionRecordPolicy?, val correlationId: String?)
