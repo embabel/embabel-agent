@@ -38,11 +38,7 @@ class DecisionDocumentationTest {
             "Custom implementations are extension adapters",
             "A nonempty `models` map replaces implicit Jev completely",
             "embabel.models.default-decision-model",
-            "ModelSelectionCriteria.byName",
-            "ModelSelectionCriteria.byRole",
-            "ModelSelectionCriteria.firstOf",
-            "ModelSelectionCriteria.randomOf",
-            "ModelSelectionCriteria.preResolved",
+            "compiled and executed by the TypeSafe example tests",
             "`StubDecisionModel` is test-only",
         )
         assertThat(page).contains("tag=custom-provider", "tag=kotlin-consumer", "tag=java-consumer", "tag=dice-consumer")
@@ -62,18 +58,21 @@ class DecisionDocumentationTest {
         val moduleDiagram = read("embabel-agent-docs/src/main/asciidoc/reference/diagrams/decision-modules.dot")
         assertThat(moduleDiagram).contains(
             "starter -> auto", "starter -> platform", "embabel-agent-starter-platform",
-            "api -> core", "ModelProvider + selection", "named DecisionModel beans",
+            "api -> core", "api -> ai", "ModelProvider", "ModelSelectionCriteria", "named DecisionModel beans",
         )
+        assertThat(moduleDiagram).doesNotContain("auto -> api")
         val flowDiagram = read("embabel-agent-docs/src/main/asciidoc/reference/diagrams/decision-flow.dot")
         assertThat(flowDiagram).contains(
             "ModelSelectionCriteria", "ModelProvider", "default / name / role", "per-call provenance",
-            "host-owned action or proposition revision",
+            "host-owned action or proposition revision", "direct construction", "typed evidence + provenance",
         )
         assertThat(page).contains(
             "requested model `jev-latest`", "registry name `jev`", "provider `typesafe`",
             "EMBABEL_AGENT_DECISION_MODELS_PROPOSITIONREVISION_PROVIDER",
             "hyphens in registry names cannot be represented faithfully",
             "registry metadata", "per-call provenance", "Dice retains action ownership",
+            "required for every explicit declaration", "required for every explicit `typesafe` declaration",
+            "custom `DecisionModel` bean",
         )
         assertThat(page).doesNotContain(
             "Automatic `Ai` or `ModelProvider` selection is deferred",
@@ -98,9 +97,17 @@ class DecisionDocumentationTest {
             "embabel-agent-decision-llm/src/main/kotlin", "embabel-agent-decision-autoconfigure/src/main/java",
             "embabel-agent-decision-typesafe/src/test/kotlin", "embabel-agent-decision-typesafe/src/test/java")
         assertThat(read("embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/kotlin/com/embabel/agent/decision/example/JevDecisionExample.kt"))
-            .contains("tag::kotlin-consumer[]", "end::kotlin-consumer[]", "getDecisionModel", "PlatformDefault", "byName")
+            .contains(
+                "tag::kotlin-consumer[]", "end::kotlin-consumer[]",
+                "tag::kotlin-selection[]", "end::kotlin-selection[]",
+                "PlatformDefault", "Auto", "byName", "byRole", "firstOf", "randomOf", "preResolved",
+            )
         assertThat(read("embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/JevDecisionExample.java"))
-            .contains("tag::java-consumer[]", "end::java-consumer[]", "getDecisionModel", "byRole")
+            .contains(
+                "tag::java-consumer[]", "end::java-consumer[]",
+                "tag::java-selection[]", "end::java-selection[]",
+                "PlatformDefault", "Auto", "byName", "byRole", "firstOf", "randomOf", "preResolved",
+            )
         assertThat(read("embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/DicePropositionRevisionExample.java"))
             .contains("tag::dice-consumer[]", "end::dice-consumer[]", "ModelProvider", "ModelSelectionCriteria")
         assertThat(read("embabel-agent-decisions/embabel-agent-decision/src/test/kotlin/example/decision/provider/CustomDecisionProviderExample.kt"))
@@ -147,7 +154,9 @@ class DecisionDocumentationTest {
         val start = lines.indexOfFirst { it.contains("tag::$tag[]") }
         val end = lines.indexOfFirst { it.contains("end::$tag[]") }
         require(start >= 0 && end > start) { "missing or invalid $tag source markers in $path" }
-        return lines.subList(start + 1, end).joinToString("\n")
+        return lines.subList(start + 1, end)
+            .filterNot { it.contains("tag::") || it.contains("end::") }
+            .joinToString("\n")
     }
 
     private fun normalizeRenderedHtml(html: String): String = normalize(

@@ -38,16 +38,18 @@ include::../diagrams/decision-flow.dot[]
 
 ==== Model discovery and selection
 
-`DecisionModel` uses the ordinary `ModelProvider` contract. A workflow can use the platform default, select a registry name or role, try names in order, choose randomly from available names, or pass a model it has already resolved:
+`DecisionModel` uses the ordinary `ModelProvider` contract from `embabel-agent-api`. `ModelSelectionCriteria` comes from `embabel-agent-ai`, so decision selection uses the same criteria types as the other model services. A workflow can use the platform default or automatic choice, select a registry name or role, try names in order, choose randomly from available names, or pass a model it has already resolved. These Java and Kotlin examples are compiled and executed by the TypeSafe example tests:
 
+.Kotlin
 [source,kotlin]
 ----
-val defaultModel = models.getDecisionModel(ModelSelectionCriteria.PlatformDefault)
-val named = models.getDecisionModel(ModelSelectionCriteria.byName("proposition-revision"))
-val forRole = models.getDecisionModel(ModelSelectionCriteria.byRole("revision"))
-val fallback = models.getDecisionModel(ModelSelectionCriteria.firstOf("specialist", "jev"))
-val sampled = models.getDecisionModel(ModelSelectionCriteria.randomOf("jev", "prompted-review"))
-val supplied = models.getDecisionModel(ModelSelectionCriteria.preResolved(named))
+include::../../../../../../embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/kotlin/com/embabel/agent/decision/example/JevDecisionExample.kt[tag=kotlin-selection]
+----
+
+.Java
+[source,java]
+----
+include::../../../../../../embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/JevDecisionExample.java[tag=java-selection]
 ----
 
 `Auto` and `PlatformDefault` both resolve the configured default decision model. A deployment with one decision model can use it as the implicit default. A deployment with several decision models must set `embabel.models.default-decision-model`; startup fails rather than picking one by accident. Roles use `embabel.models.decisions.<role>=<registry-name>`.
@@ -106,7 +108,9 @@ The supplier resolves the credential only when a request is made. Do not put a k
 
 Autoconfiguration is inert unless `embabel.agent.decision.enabled=true`. Enabling it with no declarations, or with an empty `models` map, synthesizes registry name `jev`, provider `typesafe`, and requested model `jev-latest`. That is the platform's sole implicit decision default.
 
-A nonempty `models` map replaces implicit Jev completely. Every map key becomes both the Spring bean name and the decision registry name. Several declarations therefore create several ordinary model services. When more than one decision model is available, set `embabel.models.default-decision-model` explicitly. Custom `DecisionModel` beans join the same registry and selection rules.
+A nonempty `models` map replaces implicit Jev completely. Every map key becomes both the Spring bean name and the decision registry name. Every explicit declaration must set `provider`; every explicit `typesafe` declaration must also set `typesafe.model`. The `typesafe` and `jev-latest` values are synthesized only for the whole absent or empty map, never as defaults inside an explicit entry.
+
+Several declarations therefore create several ordinary model services. When more than one decision model is available, set `embabel.models.default-decision-model` explicitly. Custom `DecisionModel` beans join the same registry and selection rules. Enabling decisions with an absent or empty map while also supplying a custom `DecisionModel` bean produces both the implicit `jev` model and the custom model, so it also requires an explicit default. Supply a nonempty declaration map when the custom bean should replace implicit Jev.
 
 [source,yaml]
 ----
@@ -147,8 +151,8 @@ The TypeSafe credential comes from `TYPESAFE_API_KEY`; it is not a configuration
 |`embabel.agent.decision.full-record-max-bytes` |`65536` |Full-record byte ceiling
 |`embabel.agent.decision.record-allowlist` |empty |Explicit full-record fields
 |`embabel.agent.decision.mapper-bean-name` |unset |Exact `EmbabelObjectMapperHolder` bean
-|`embabel.agent.decision.models.jev.provider` |implicit `typesafe` |Provider for named model `jev`: `typesafe`, `prompted`, or `none`
-|`embabel.agent.decision.models.jev.typesafe.model` |implicit `jev-latest` |Requested backend model; the response supplies resolved identity
+|`embabel.agent.decision.models.jev.provider` |required for every explicit declaration |Provider for named model `jev`: `typesafe`, `prompted`, or `none`; only an absent or empty map synthesizes `typesafe`
+|`embabel.agent.decision.models.jev.typesafe.model` |required for every explicit `typesafe` declaration |Requested backend model; only an absent or empty map synthesizes `jev-latest`, and the response supplies resolved identity
 |`embabel.agent.decision.models.jev.typesafe.base-url` |`https://api.typesafe.ai` |TypeSafe origin; canonical service or literal loopback only
 |`embabel.agent.decision.models.jev.typesafe.connect-timeout` |`10s` |Positive HTTP connect timeout
 |`embabel.agent.decision.models.prompted-review.prompted.llm-bean-name` |required for prompted |Exact `LlmService` bean

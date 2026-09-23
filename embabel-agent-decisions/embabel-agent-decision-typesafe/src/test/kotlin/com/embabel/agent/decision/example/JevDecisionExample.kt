@@ -41,11 +41,28 @@ data class KotlinDecisionEvidence(
 fun runKotlinDecision(model: DecisionModel): KotlinDecisionEvidence =
     runKotlinDecision(model, Duration.ofSeconds(20))
 
+// tag::kotlin-selection[]
 fun runKotlinDecision(models: ModelProvider): KotlinDecisionEvidence =
     runKotlinDecision(models.getDecisionModel(ModelSelectionCriteria.PlatformDefault))
 
+fun runAutoKotlinDecision(models: ModelProvider): KotlinDecisionEvidence =
+    runKotlinDecision(models.getDecisionModel(ModelSelectionCriteria.Auto))
+
 fun runNamedKotlinDecision(models: ModelProvider, name: String): KotlinDecisionEvidence =
     runKotlinDecision(models.getDecisionModel(ModelSelectionCriteria.byName(name)))
+
+fun runRoleKotlinDecision(models: ModelProvider, role: String): KotlinDecisionEvidence =
+    runKotlinDecision(models.getDecisionModel(ModelSelectionCriteria.byRole(role)))
+
+fun runFirstAvailableKotlinDecision(models: ModelProvider, vararg names: String): KotlinDecisionEvidence =
+    runKotlinDecision(models.getDecisionModel(ModelSelectionCriteria.firstOf(*names)))
+
+fun runRandomKotlinDecision(models: ModelProvider, vararg names: String): KotlinDecisionEvidence =
+    runKotlinDecision(models.getDecisionModel(ModelSelectionCriteria.randomOf(*names)))
+
+fun runPreResolvedKotlinDecision(models: ModelProvider, model: DecisionModel): KotlinDecisionEvidence =
+    runKotlinDecision(models.getDecisionModel(ModelSelectionCriteria.preResolved(model)))
+// end::kotlin-selection[]
 
 internal fun runKotlinDecision(model: DecisionModel, timeout: Duration): KotlinDecisionEvidence {
     val builder = DecisionRequest.builder()

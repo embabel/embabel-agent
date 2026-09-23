@@ -17,11 +17,18 @@ package com.embabel.agent.decision.example
 
 import com.embabel.agent.decision.*
 import com.embabel.agent.decision.typesafe.TypeSafeDecisionModel
+import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.common.ai.model.ConfigurableModelProvider
+import com.embabel.common.ai.model.ConfigurableModelProviderProperties
+import com.embabel.common.ai.model.DefaultOptionsConverter
+import io.mockk.mockk
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.Test
+import org.springframework.ai.chat.model.ChatModel
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintStream
@@ -37,6 +44,39 @@ import java.util.function.Supplier
 import javax.tools.ToolProvider
 
 class JevDecisionExampleTest {
+    @Test
+    fun `Java and Kotlin examples execute every decision selection family`() {
+        val revision = repeatableDecisionModel("revision")
+        val policy = repeatableDecisionModel("policy")
+        val models = configurableProvider(revision, policy)
+        try {
+            val kotlinEvidence = listOf(
+                runKotlinDecision(models),
+                runAutoKotlinDecision(models),
+                runNamedKotlinDecision(models, "revision"),
+                runRoleKotlinDecision(models, "review"),
+                runFirstAvailableKotlinDecision(models, "missing", "revision"),
+                runRandomKotlinDecision(models, "missing", "revision"),
+                runPreResolvedKotlinDecision(models, revision),
+            )
+            assertThat(kotlinEvidence.map { it.route }).containsOnly(KotlinRoute.REVIEW)
+
+            val javaEvidence = listOf(
+                JevDecisionExample.runDefault(models),
+                JevDecisionExample.runAuto(models),
+                JevDecisionExample.runNamed(models, "revision"),
+                JevDecisionExample.runForRole(models, "review"),
+                JevDecisionExample.runFirstAvailable(models, "missing", "revision"),
+                JevDecisionExample.runRandom(models, "missing", "revision"),
+                JevDecisionExample.runPreResolved(models, revision),
+            )
+            assertThat(javaEvidence.map { it.route() }).containsOnly(JevDecisionExample.Route.REVIEW)
+        } finally {
+            revision.close()
+            policy.close()
+        }
+    }
+
     @Test
     fun `both language consumers return typed values distributions and provenance through TypeSafe`() {
         ScriptedExampleServer.replying(exampleResponse()).use { server ->
@@ -379,6 +419,24 @@ class JevDecisionExampleTest {
             ),
         )
 
+        val revisionModel = repeatableDecisionModel("revision")
+        val policyModel = repeatableDecisionModel("policy")
+        try {
+            val providerResult = DicePropositionRevisionExample.revise(
+                configurableProvider(revisionModel, policyModel),
+                com.embabel.common.ai.model.ModelSelectionCriteria.byRole("review"),
+                policy,
+                "revision-provider",
+                existing,
+                candidate,
+            )
+            assertThat(providerResult.disposition()).isEqualTo(DicePropositionRevisionExample.RevisionDisposition.MERGE)
+            assertThat(providerResult.event().correlationId()).isEqualTo("revision-provider")
+        } finally {
+            revisionModel.close()
+            policyModel.close()
+        }
+
         ScriptedExampleServer.replying(relationResponse()).use { server ->
             val result = DicePropositionRevisionExample.revise(model(server), policy, "revision-43", existing, candidate)
             val event = result.event()
@@ -414,7 +472,7 @@ class JevDecisionExampleTest {
     }
 
     @Test
-    fun `owned Java consumers compile and run on only the public runtime closure`() {
+    fun `owned Java consumers compile with the provider API while the adapter runtime remains API free`() {
         val compiler = ToolProvider.getSystemJavaCompiler()
         val output = Files.createTempDirectory("decision-consumer-java")
         val root = repositoryRoot()
@@ -484,7 +542,7 @@ class JevDecisionExampleTest {
                     Class.forName(name);
                     throw new AssertionError(name + " leaked onto the minimal consumer classpath");
                 } catch (ClassNotFoundException expected) {
-                    // This consumer intentionally depends on the public decision artifacts only.
+                    // The compiled examples use the agent API, but they do not need Spring decision wiring.
                 }
             }
 
@@ -502,6 +560,44 @@ class JevDecisionExampleTest {
     private fun model(server: ScriptedExampleServer) = TypeSafeDecisionModel.create(
         Supplier { "synthetic-bearer" }, "requested-example", URI.create(server.baseUri),
     )
+
+    private fun configurableProvider(vararg decisionModels: DecisionModel): ConfigurableModelProvider {
+        val llm: LlmService<*> = SpringAiLlmService(
+            "unused-example-llm", "test", mockk<ChatModel>(), DefaultOptionsConverter,
+        )
+        return ConfigurableModelProvider(
+            llms = listOf(llm),
+            embeddingServices = emptyList(),
+            properties = ConfigurableModelProviderProperties(
+                defaultLlm = llm.name,
+                decisions = mapOf("review" to "revision"),
+                defaultDecisionModel = "policy",
+            ),
+            decisionModels = decisionModels.toList(),
+        )
+    }
+
+    private fun repeatableDecisionModel(name: String): DecisionModel = DecisionModel(DecisionProvider { request ->
+        val answers = request.questions.map { question ->
+            if (question.kind == DecisionKind.YES_NO) {
+                RawAnswer.yesNo(question.id, 0.8, "true")
+            } else {
+                val selected = listOf("review", "high", "similar")
+                    .firstOrNull { candidate -> question.support.any { it.id == candidate } }
+                    ?: question.support.first().id
+                RawAnswer.distribution(
+                    question.id,
+                    question.kind,
+                    question.support.map { RawProbability.of(it.id, if (it.id == selected) 1.0 else 0.0) },
+                    selected,
+                )
+            }
+        }
+        RawDecisionOutcome.success(
+            answers,
+            DecisionProvenance.builder("example", EvidenceKind.DISTRIBUTION).resolvedModel(name).build(),
+        )
+    }).named(name, "example")
 
     private fun assertBothConsumersFail(
         reply: ScriptedExampleServer.Reply,

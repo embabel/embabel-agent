@@ -46,9 +46,35 @@ public final class JevDecisionExample {
         return run(model, Duration.ofSeconds(20));
     }
 
+    // tag::java-selection[]
+    public static Evidence runDefault(ModelProvider models) {
+        return run(models.getDecisionModel(ModelSelectionCriteria.getPlatformDefault()));
+    }
+
+    public static Evidence runAuto(ModelProvider models) {
+        return run(models.getDecisionModel(ModelSelectionCriteria.getAuto()));
+    }
+
+    public static Evidence runNamed(ModelProvider models, String name) {
+        return run(models.getDecisionModel(ModelSelectionCriteria.byName(name)));
+    }
+
     public static Evidence runForRole(ModelProvider models, String role) {
         return run(models.getDecisionModel(ModelSelectionCriteria.byRole(role)));
     }
+
+    public static Evidence runFirstAvailable(ModelProvider models, String... names) {
+        return run(models.getDecisionModel(ModelSelectionCriteria.firstOf(names)));
+    }
+
+    public static Evidence runRandom(ModelProvider models, String... names) {
+        return run(models.getDecisionModel(ModelSelectionCriteria.randomOf(names)));
+    }
+
+    public static Evidence runPreResolved(ModelProvider models, DecisionModel model) {
+        return run(models.getDecisionModel(ModelSelectionCriteria.preResolved(model)));
+    }
+    // end::java-selection[]
 
     static Evidence run(DecisionModel model, Duration timeout) {
         DecisionRequest.Builder builder = DecisionRequest.builder()

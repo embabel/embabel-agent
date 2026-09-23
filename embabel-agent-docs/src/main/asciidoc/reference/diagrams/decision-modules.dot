@@ -1,8 +1,8 @@
 digraph DecisionModules {
   rankdir=LR;
   node [shape=box, style="rounded"];
-  ai [label="embabel-agent-ai"];
-  api [label="embabel-agent-api\nModelProvider + selection"];
+  ai [label="embabel-agent-ai\nModelSelectionCriteria"];
+  api [label="embabel-agent-api\nModelProvider"];
   core [label="embabel-agent-decision\ncontracts + final facade"];
   jev [label="embabel-agent-decision-typesafe\nJev adapter"];
   llm [label="embabel-agent-decision-llm\nprompted adapter"];
@@ -11,12 +11,13 @@ digraph DecisionModules {
   platform [label="embabel-agent-starter-platform\nagent platform starter"];
   core -> ai;
   api -> core;
+  api -> ai;
   jev -> core;
+  jev -> ai;
   llm -> core;
   llm -> api;
   auto -> jev;
   auto -> llm;
-  auto -> api;
   starter -> auto;
   starter -> platform;
 }

@@ -12,10 +12,12 @@ digraph DecisionFlow {
   validate [label="Validate + project safe record\nper-call provenance"];
   policy [label="host-owned action or proposition revision"];
   host -> criteria -> registry -> facade -> prepare -> spi;
+  host -> facade [label="direct construction"];
   spi -> jev;
   spi -> prompted;
   jev -> validate;
   prompted -> validate;
-  validate -> facade -> host [label=" typed evidence + provenance"];
+  validate -> facade;
+  facade -> host [label="typed evidence + provenance"];
   host -> policy [label=" evidence + provenance"];
 }

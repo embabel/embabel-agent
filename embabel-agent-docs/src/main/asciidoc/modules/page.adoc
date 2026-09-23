@@ -121,7 +121,7 @@ The following are modules intended for direct use (versus supporting infrastruct
 | `embabel-agent-decision-typesafe`
 | This repo
 | Jev distribution-backed decisions
-| Depends on `embabel-agent-decision`
+| Depends directly on `embabel-agent-decision` and `embabel-agent-ai`
 | Experimental
 
 | `embabel-agent-decision-llm`
