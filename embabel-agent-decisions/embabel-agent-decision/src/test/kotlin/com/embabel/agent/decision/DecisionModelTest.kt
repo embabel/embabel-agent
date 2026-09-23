@@ -26,6 +26,51 @@ import java.util.concurrent.atomic.AtomicReference
 
 class DecisionModelTest {
     @Test
+    fun `named and defaulted copies preserve immutable registry identity independently`() {
+        val original = DecisionModel(DecisionProvider {
+            RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.DISABLED)
+        })
+        val named = original.named("revision", "custom")
+        val defaulted = named.withDefaults(Duration.ofMillis(200), DecisionRecordPolicy.none())
+
+        assertThat(original.name).isEqualTo("decision")
+        assertThat(original.provider).isEqualTo("custom")
+        assertThat(named.name).isEqualTo("revision")
+        assertThat(named.provider).isEqualTo("custom")
+        assertThat(defaulted.name).isEqualTo("revision")
+        assertThat(defaulted.provider).isEqualTo("custom")
+    }
+
+    @Test
+    fun `built in factories assign useful registry identities`() {
+        assertThat(NoDecisionModel.create().name).isEqualTo("none")
+        assertThat(NoDecisionModel.create().provider).isEqualTo("none")
+
+        val raw = RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.DISABLED)
+        assertThat(StubDecisionModel.create(listOf(StubStep.immediate(raw))).name).isEqualTo("stub")
+        assertThat(StubDecisionModel.create(listOf(StubStep.immediate(raw))).provider).isEqualTo("stub")
+    }
+
+    @Test
+    fun `initialization receipt closes only its created models once`() {
+        val invocations = AtomicLong()
+        val created = DecisionModel(DecisionProvider {
+            invocations.incrementAndGet()
+            RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.DISABLED)
+        }).named("created", "custom")
+        val unrelated = NoDecisionModel.create().named("unrelated", "custom")
+        val initialization = DecisionModelInitialization(listOf(created))
+
+        assertThat(initialization.createdModels).containsExactly(created)
+        initialization.close()
+        initialization.close()
+
+        assertThat(created.ask(yesNoRequest())).isInstanceOf(DecisionOutcome.Failure::class.java)
+        assertThat(invocations.get()).isZero()
+        assertThat(unrelated.ask(yesNoRequest())).isInstanceOf(DecisionOutcome.Failure::class.java)
+    }
+
+    @Test
     fun `validates distributions and preserves ties in declaration order`() {
         val request = DecisionRequest.builder()
         val choice = request.choice("relation", "How do these relate?", listOf(

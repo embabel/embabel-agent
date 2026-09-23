@@ -15,6 +15,7 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.agent.decision.DecisionModel
 import com.embabel.agent.spi.LlmService
 import com.embabel.common.core.types.HasInfoString
 
@@ -28,6 +29,10 @@ interface ModelProvider : HasInfoString {
 
     @Throws(NoSuitableModelException::class)
     fun getEmbeddingService(criteria: ModelSelectionCriteria): EmbeddingService
+
+    @Throws(NoSuitableModelException::class)
+    fun getDecisionModel(criteria: ModelSelectionCriteria): DecisionModel =
+        throw NoSuitableModelException(criteria, emptyList())
 
     /**
      * Resolve any role in these options to a concrete model, applying whatever hyperparameters are

@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit
 
 private class FixedDecisionProvider(private val outcome: RawDecisionOutcome) : CallerBoundDecisionProvider { override fun invoke(request: PreparedDecisionRequest): RawDecisionOutcome = outcome }
 
-@ApiStatus.Experimental object NoDecisionModel { @JvmStatic fun create() = DecisionModel(FixedDecisionProvider(RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.DISABLED))) }
+@ApiStatus.Experimental object NoDecisionModel { @JvmStatic fun create() = DecisionModel(FixedDecisionProvider(RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.DISABLED))).named("none", "none") }
 @ApiStatus.Experimental interface StubStep { companion object { @JvmStatic fun immediate(raw: RawDecisionOutcome): StubStep = StubStepData(Duration.ZERO, raw); @JvmStatic fun after(delay: Duration, raw: RawDecisionOutcome): StubStep { require(!delay.isNegative); return StubStepData(delay, raw) } } }
 private data class StubStepData(val delay: Duration, val raw: RawDecisionOutcome) : StubStep
 private class StubDecisionProvider(private val scripted: List<StubStepData>) : CallerBoundDecisionProvider {
@@ -36,4 +36,4 @@ private class StubDecisionProvider(private val scripted: List<StubStepData>) : C
         return step.raw
     }
 }
-@ApiStatus.Experimental object StubDecisionModel { @JvmStatic fun create(steps: List<StubStep>): DecisionModel { require(steps.isNotEmpty()); val scripted = steps.map { step -> step as? StubStepData ?: throw IllegalArgumentException("foreign stub step") }; return DecisionModel(StubDecisionProvider(scripted)) } }
+@ApiStatus.Experimental object StubDecisionModel { @JvmStatic fun create(steps: List<StubStep>): DecisionModel { require(steps.isNotEmpty()); val scripted = steps.map { step -> step as? StubStepData ?: throw IllegalArgumentException("foreign stub step") }; return DecisionModel(StubDecisionProvider(scripted)).named("stub", "stub") } }

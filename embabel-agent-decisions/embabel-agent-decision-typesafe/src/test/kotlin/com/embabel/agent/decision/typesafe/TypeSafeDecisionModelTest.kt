@@ -31,6 +31,14 @@ import javax.tools.ToolProvider
 
 class TypeSafeDecisionModelTest {
     @Test
+    fun `factory assigns requested model and typesafe provider registry identity`() {
+        val model = TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "jev-latest")
+
+        assertThat(model.name).isEqualTo("jev-latest")
+        assertThat(model.provider).isEqualTo("typesafe")
+    }
+
+    @Test
     fun `maps the caller safe typed request and resolved provenance through the final facade`() {
         CaptureServer.replying(resource("success.json")).use { server ->
             val built = request()

@@ -49,6 +49,22 @@ class DecisionModelJavaTest {
     }
 
     @Test
+    void javaConsumerCanNameAndInspectARegistryFacade() {
+        DecisionModel model = NoDecisionModel.create().named("disabled", "none");
+
+        assertEquals("disabled", model.getName());
+        assertEquals("none", model.getProvider());
+        assertEquals("none", NoDecisionModel.create().getName());
+        assertEquals("stub", StubDecisionModel.create(List.of(
+            StubStep.immediate(RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.DISABLED))
+        )).getName());
+
+        try (DecisionModelInitialization initialization = new DecisionModelInitialization(List.of(model))) {
+            assertEquals(List.of(model), initialization.getCreatedModels());
+        }
+    }
+
+    @Test
     void exposesOnlyTheSanctionedFacadeConstructorAndCompilesTypedJavaUsage() {
         assertTrue(Modifier.isFinal(DecisionModel.class.getModifiers()));
         assertEquals(1, DecisionModel.class.getConstructors().length);
@@ -58,7 +74,9 @@ class DecisionModelJavaTest {
         assertTrue(Modifier.isFinal(KeyOutcome.Success.class.getModifiers()));
         assertTrue(Arrays.stream(DecisionModel.class.getMethods())
             .noneMatch(method -> method.getName().contains("$")));
-        assertEquals(0, DecisionContractsKt.class.getDeclaredMethods().length);
+        assertEquals(0, Arrays.stream(DecisionContractsKt.class.getDeclaredMethods())
+            .filter(method -> Modifier.isPublic(method.getModifiers()))
+            .count());
 
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         assertNotNull(compiler);
@@ -71,6 +89,8 @@ class DecisionModelJavaTest {
                     DecisionRequest.Builder request = DecisionRequest.builder();
                     ChoiceKey<String> key = request.choice("q", "Question?", List.of(DecisionOption.of("yes", "YES", "yes")));
                     DecisionModel model = new DecisionModel(prepared -> RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.DISABLED));
+                    DecisionModel named = model.named("java", "custom");
+                    String registryIdentity = named.getName() + ":" + named.getProvider();
                     DecisionOutcome result = model.ask(request.build());
                     if (result instanceof DecisionOutcome.Success success) {
                         String value = success.value(key);

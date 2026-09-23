@@ -65,6 +65,7 @@ class PromptedDecisionModel private constructor() {
             options: LlmOptions,
             mapperHolder: EmbabelObjectMapperHolder = EmbabelObjectMapperHolder.createDefault(),
         ): DecisionModel = DecisionModel(PromptedProvider(service, options.copy(), mapperHolder))
+            .named(service.name, "prompted")
 
         private const val PROMPTED_VERSION = "prompted-v1"
         private const val SYSTEM_INSTRUCTIONS = """

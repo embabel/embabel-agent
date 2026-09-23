@@ -56,7 +56,10 @@ class PromptedDecisionModelJavaTest {
     @Test
     void bothFactoryOverloadsExecuteTypedJavaDecisionsEndToEnd() {
         JavaService service = new JavaService();
-        assertTypedResult(PromptedDecisionModel.create(service, new LlmOptions()));
+        DecisionModel defaultFactory = PromptedDecisionModel.create(service, new LlmOptions());
+        assertThat(defaultFactory.getName()).isEqualTo("java-model");
+        assertThat(defaultFactory.getProvider()).isEqualTo("prompted");
+        assertTypedResult(defaultFactory);
         assertTypedResult(PromptedDecisionModel.create(
                 service,
                 new LlmOptions(),

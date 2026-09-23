@@ -45,7 +45,7 @@ object TypeSafeDecisionModel {
             .build()
         val codec = JevWireCodec(mapperHolder, model)
         val transport = JevTransport(apiKey, model, baseUri, client, codec)
-        return DecisionModel(DecisionProvider(transport::invoke))
+        return DecisionModel(DecisionProvider(transport::invoke)).named(model, "typesafe")
     }
 
     /**

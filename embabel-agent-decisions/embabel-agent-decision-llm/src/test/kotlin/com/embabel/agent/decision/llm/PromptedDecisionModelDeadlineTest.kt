@@ -138,7 +138,7 @@ class PromptedDecisionModelDeadlineTest {
     }
 
     private fun providerFrom(model: DecisionModel): DecisionProvider {
-        val field = DecisionModel::class.java.getDeclaredField("provider")
+        val field = DecisionModel::class.java.getDeclaredField("decisionProvider")
         assertThat(field.trySetAccessible()).isTrue()
         return field.get(model) as DecisionProvider
     }

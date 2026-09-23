@@ -15,6 +15,11 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.agent.decision.CallFailure
+import com.embabel.agent.decision.DecisionModel
+import com.embabel.agent.decision.DecisionProvider
+import com.embabel.agent.decision.DecisionSafeCode
+import com.embabel.agent.decision.RawDecisionOutcome
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.PlaceholderEmbeddingService
 import com.embabel.agent.spi.PlaceholderLlmService
@@ -23,6 +28,7 @@ import com.embabel.common.ai.model.ModelProvider.Companion.BEST_ROLE
 import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.mockk
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -87,6 +93,11 @@ class ConfigurableModelProviderTest {
         properties: ConfigurableModelProviderProperties,
         embeddingServices: List<EmbeddingService> = emptyList(),
     ) = ConfigurableModelProvider(llms, embeddingServices, properties)
+
+    private fun decision(name: String, provider: String): DecisionModel =
+        DecisionModel(DecisionProvider {
+            RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.DISABLED)
+        }).named(name, provider)
 
     @Nested
     inner class SetupRequiredMode {
@@ -275,6 +286,77 @@ class ConfigurableModelProviderTest {
             assertEquals(embeddingPricing, embedding.pricingModel)
         }
 
+    }
+
+    @Nested
+    inner class Decisions {
+
+        private val revision = decision("revision", "typesafe")
+        private val policy = decision("policy", "prompted")
+        private val provider = ConfigurableModelProvider(
+            llms = listOf(SpringAiLlmService(DEFAULT_MODEL, "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter)),
+            embeddingServices = emptyList(),
+            properties = ConfigurableModelProviderProperties(
+                defaultLlm = DEFAULT_MODEL,
+                decisions = mapOf("review" to "revision"),
+                defaultDecisionModel = "policy",
+            ),
+            decisionModels = listOf(revision, policy),
+        )
+
+        @Test
+        fun `resolves every decision criteria family without named fallback`() {
+            assertSame(revision, provider.getDecisionModel(ByNameModelSelectionCriteria("revision")))
+            assertSame(revision, provider.getDecisionModel(ByRoleModelSelectionCriteria("review")))
+            assertSame(policy, provider.getDecisionModel(DefaultModelSelectionCriteria))
+            assertSame(policy, provider.getDecisionModel(AutoModelSelectionCriteria))
+            assertSame(policy, provider.getDecisionModel(FallbackByNameModelSelectionCriteria(listOf("missing", "policy"))))
+            assertSame(revision, provider.getDecisionModel(RandomByNameModelSelectionCriteria(listOf("missing", "revision"))))
+            assertSame(revision, provider.getDecisionModel(PreResolvedModelSelectionCriteria(revision)))
+
+            assertThrows<NoSuitableModelException> {
+                provider.getDecisionModel(ByNameModelSelectionCriteria("missing"))
+            }
+            assertThrows<NoSuitableModelException> {
+                provider.getDecisionModel(PreResolvedModelSelectionCriteria("wrong-type"))
+            }
+        }
+
+        @Test
+        fun `lists decision names roles metadata and platform info`() {
+            assertThat(provider.listModelNames(DecisionModel::class.java)).containsExactly("revision", "policy")
+            assertThat(provider.listRoles(DecisionModel::class.java)).containsExactly("review")
+            assertThat(provider.listModels().filterIsInstance<DecisionModelMetadata>())
+                .containsExactly(
+                    DecisionModelMetadata("revision", "typesafe"),
+                    DecisionModelMetadata("policy", "prompted"),
+                )
+            assertThat(provider.infoString(true)).contains(
+                "Default decision model: policy",
+                "Available decision models:",
+                "name: revision, provider: typesafe - Roles: review",
+            )
+        }
+
+        @Test
+        fun `one decision model is an implicit default but multiple require an explicit default`() {
+            val single = ConfigurableModelProvider(
+                llms = listOf(SpringAiLlmService(DEFAULT_MODEL, "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter)),
+                embeddingServices = emptyList(),
+                properties = ConfigurableModelProviderProperties(defaultLlm = DEFAULT_MODEL),
+                decisionModels = listOf(revision),
+            )
+            assertSame(revision, single.getDecisionModel(DefaultModelSelectionCriteria))
+
+            assertThrows<IllegalArgumentException> {
+                ConfigurableModelProvider(
+                    llms = listOf(SpringAiLlmService(DEFAULT_MODEL, "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter)),
+                    embeddingServices = emptyList(),
+                    properties = ConfigurableModelProviderProperties(defaultLlm = DEFAULT_MODEL),
+                    decisionModels = listOf(revision, policy),
+                )
+            }
+        }
     }
 
     @Nested

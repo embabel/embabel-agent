@@ -60,15 +60,36 @@ private data class SafeRecord(override val mode: RecordMode, override val fields
  * provider calls and rejects later external-provider work; interruption remains best effort.
  */
 @ApiStatus.Experimental
-class DecisionModel(private val provider: DecisionProvider) : AutoCloseable {
+class DecisionModel private constructor(
+    private val decisionProvider: DecisionProvider,
+    val name: String,
+    val provider: String,
+    private var defaultTimeout: Duration,
+    private var defaultPolicy: DecisionRecordPolicy,
+    private var clock: () -> Long,
+) : AutoCloseable {
+    constructor(decisionProvider: DecisionProvider) : this(
+        decisionProvider = decisionProvider,
+        name = DEFAULT_NAME,
+        provider = DEFAULT_PROVIDER,
+        defaultTimeout = Duration.ofSeconds(30),
+        defaultPolicy = DecisionRecordPolicy.metadata(),
+        clock = System::nanoTime,
+    )
+
     private val execution = DecisionExecutionSupport()
-    private var defaultTimeout = Duration.ofSeconds(30)
-    private var defaultPolicy = DecisionRecordPolicy.metadata()
-    private var clock: () -> Long = System::nanoTime
+
     fun withDefaults(defaultTimeout: Duration, defaultRecordPolicy: DecisionRecordPolicy): DecisionModel {
         validDuration(defaultTimeout)
-        return DecisionModel(provider).also { it.defaultTimeout = defaultTimeout; it.defaultPolicy = defaultRecordPolicy; it.clock = clock }
+        return DecisionModel(decisionProvider, name, provider, defaultTimeout, defaultRecordPolicy, clock)
     }
+
+    fun named(name: String, provider: String): DecisionModel {
+        require(name.isNotBlank()) { "name must not be blank" }
+        require(provider.isNotBlank()) { "provider must not be blank" }
+        return DecisionModel(decisionProvider, name, provider, defaultTimeout, defaultPolicy, clock)
+    }
+
     fun ask(request: DecisionRequest): DecisionOutcome {
         val prepared = try { prepare(request, defaultTimeout, defaultPolicy, clock(), clock) } catch (_: RuntimeException) { return failed(CallFailure.RejectedRequest, null) }
         val raw = try { invokeWithinDeadline(prepared) } catch (_: InterruptedException) { Thread.currentThread().interrupt(); return failed(CallFailure.Cancelled, prepared) } ?: return failed(CallFailure.DeadlineExceeded, prepared)
@@ -79,8 +100,8 @@ class DecisionModel(private val provider: DecisionProvider) : AutoCloseable {
         return DecisionOutcome.Success(provenance, safeRecord(prepared.recordPolicy, provenance, answers, prepared.questions.size), Collections.unmodifiableMap(answers))
     }
     private fun invokeWithinDeadline(prepared: PreparedDecisionRequest): RawDecisionOutcome? {
-        if (provider is CallerBoundDecisionProvider) return try { provider.invoke(prepared) } catch (_: RuntimeException) { RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE) }
-        val future = try { execution.submit(Callable { provider.invoke(prepared) }) } catch (_: RejectedExecutionException) { return RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE) }
+        if (decisionProvider is CallerBoundDecisionProvider) return try { decisionProvider.invoke(prepared) } catch (_: RuntimeException) { RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE) }
+        val future = try { execution.submit(Callable { decisionProvider.invoke(prepared) }) } catch (_: RejectedExecutionException) { return RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE) }
         return try { future.get(remaining(prepared), TimeUnit.NANOSECONDS) } catch (_: TimeoutException) { future.cancel(true); null } catch (_: InterruptedException) { future.cancel(true); throw InterruptedException() } catch (_: java.util.concurrent.ExecutionException) { RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE) }
     }
     private fun validate(question: QuestionData<*>, raw: RawAnswer?): KeyOutcome<*> {
@@ -137,6 +158,11 @@ class DecisionModel(private val provider: DecisionProvider) : AutoCloseable {
     private fun code(failure: KeyFailure) = when (failure) { KeyFailure.Missing -> DecisionSafeCode.MISSING; KeyFailure.Invalid -> DecisionSafeCode.INVALID; KeyFailure.Unsupported -> DecisionSafeCode.UNSUPPORTED }
     private fun fingerprint(questions: List<PreparedQuestionData>): String = MessageDigest.getInstance("SHA-256").digest(questions.joinToString("") { question -> listOf(question.kind.name, question.id, *question.support.map { it.id }.toTypedArray()).joinToString("") { value -> "${value.toByteArray(StandardCharsets.UTF_8).size}:$value|" } }.toByteArray(StandardCharsets.UTF_8)).joinToString("") { "%02x".format(it) }
     override fun close() = execution.close()
+
+    private companion object {
+        const val DEFAULT_NAME = "decision"
+        const val DEFAULT_PROVIDER = "custom"
+    }
 }
 
 private data class RequestData(val binding: String, val state: Map<String, Any?>, val questions: List<QuestionData<*>>, val timeout: Duration?, val policy: DecisionRecordPolicy?, val correlationId: String?)
