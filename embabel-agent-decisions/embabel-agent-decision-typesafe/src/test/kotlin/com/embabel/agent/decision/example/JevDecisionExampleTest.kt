@@ -20,6 +20,7 @@ import com.embabel.agent.decision.typesafe.TypeSafeDecisionModel
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
@@ -64,6 +65,69 @@ class JevDecisionExampleTest {
                 assertThat(it.authorization).isEqualTo("Bearer synthetic-bearer")
                 assertThat(it.body).contains("\"type\":\"noul\"", "\"type\":\"choice\"", "\"type\":\"score\"")
                 assertThat(it.body).doesNotContain("synthetic-bearer")
+            }
+        }
+    }
+
+    @Test
+    fun `both language consumers surface sanitized call failures from the real adapter`() {
+        listOf(
+            ScriptedExampleServer.Reply(200, "{") to "Decision failed safely: REJECTED_REQUEST",
+            ScriptedExampleServer.Reply(401, "TOP_LEVEL_SECRET_BODY") to "Decision failed safely: UNAVAILABLE",
+        ).forEach { (reply, expectedMessage) ->
+            assertBothConsumersFail(reply, expectedMessage)
+        }
+    }
+
+    @Test
+    fun `both language consumers surface every sanitized key failure branch from the real adapter`() {
+        val validRoute =
+            "\"route\":{\"type\":\"choice\",\"choice\":\"review\",\"confidence\":0.6,\"probabilities\":{\"accept\":0.2,\"review\":0.6,\"reject\":0.2}}"
+        val validUrgency =
+            "\"urgency\":{\"type\":\"score\",\"score\":1.6,\"confidence\":0.7,\"legend\":{\"0\":\"low\",\"1\":\"medium\",\"2\":\"high\"},\"probabilities\":{\"0\":0.1,\"1\":0.2,\"2\":0.7}}"
+        val validEligible = "\"eligible\":{\"type\":\"noul\",\"noul\":0.8}"
+        val invalidRoute =
+            "\"route\":{\"type\":\"choice\",\"choice\":\"review\",\"confidence\":0.3,\"probabilities\":{\"accept\":0.7,\"review\":0.3,\"reject\":0.0}}"
+        val unsupportedUrgency = "\"urgency\":{\"type\":\"future-score\",\"value\":2}"
+        listOf(
+            envelope("$validRoute,$validUrgency") to "Eligibility evidence failed safely: MISSING",
+            envelope("$validEligible,$invalidRoute,$validUrgency") to "Route evidence failed safely: INVALID",
+            envelope("$validEligible,$validRoute,$unsupportedUrgency") to "Urgency evidence failed safely: UNSUPPORTED",
+        ).forEach { (response, expectedMessage) ->
+            assertBothConsumersFail(ScriptedExampleServer.Reply(200, response), expectedMessage)
+        }
+    }
+
+    @Test
+    fun `both language consumers reject late success at their public boundary`() {
+        assertBothConsumersFail(
+            ScriptedExampleServer.Reply(200, exampleResponse(), Duration.ofMillis(200)),
+            "Decision failed safely: DEADLINE_EXCEEDED",
+            Duration.ofMillis(40),
+        )
+    }
+
+    @Test
+    fun `both language consumers surface cancellation and restore the interrupt flag`() {
+        ScriptedExampleServer.replying(exampleResponse()).use { server ->
+            Thread.currentThread().interrupt()
+            try {
+                val kotlinFailure = catchThrowable { runKotlinDecision(model(server)) }
+                assertThat(kotlinFailure).isInstanceOf(IllegalStateException::class.java)
+                    .hasMessage("Decision failed safely: CANCELLED")
+                assertThat(Thread.currentThread().isInterrupted).isTrue()
+            } finally {
+                Thread.interrupted()
+            }
+
+            Thread.currentThread().interrupt()
+            try {
+                val javaFailure = catchThrowable { JevDecisionExample.run(model(server)) }
+                assertThat(javaFailure).isInstanceOf(IllegalStateException::class.java)
+                    .hasMessage("Decision failed safely: CANCELLED")
+                assertThat(Thread.currentThread().isInterrupted).isTrue()
+            } finally {
+                Thread.interrupted()
             }
         }
     }
@@ -340,6 +404,38 @@ class JevDecisionExampleTest {
     private fun model(server: ScriptedExampleServer) = TypeSafeDecisionModel.create(
         Supplier { "synthetic-bearer" }, "requested-example", URI.create(server.baseUri),
     )
+
+    private fun assertBothConsumersFail(
+        reply: ScriptedExampleServer.Reply,
+        expectedMessage: String,
+        timeout: Duration = Duration.ofSeconds(20),
+    ) {
+        val originalOut = System.out
+        val originalErr = System.err
+        val output = ByteArrayOutputStream()
+        try {
+            System.setOut(PrintStream(output))
+            System.setErr(PrintStream(output))
+            ScriptedExampleServer.sequence(reply).use { server ->
+                val kotlinFailure = catchThrowable { runKotlinDecision(model(server), timeout) }
+                assertThat(kotlinFailure).isInstanceOf(IllegalStateException::class.java)
+                    .hasMessage(expectedMessage)
+                    .hasMessageNotContaining(reply.body)
+                    .hasMessageNotContaining("synthetic-bearer")
+
+                val javaFailure = catchThrowable { JevDecisionExample.run(model(server), timeout) }
+                assertThat(javaFailure).isInstanceOf(IllegalStateException::class.java)
+                    .hasMessage(expectedMessage)
+                    .hasMessageNotContaining(reply.body)
+                    .hasMessageNotContaining("synthetic-bearer")
+                assertThat(server.requestCount).isEqualTo(2)
+            }
+        } finally {
+            System.setOut(originalOut)
+            System.setErr(originalErr)
+        }
+        assertThat(output.toString()).doesNotContain(reply.body, "synthetic-bearer")
+    }
 
     private fun request(
         timeout: Duration = Duration.ofSeconds(2),

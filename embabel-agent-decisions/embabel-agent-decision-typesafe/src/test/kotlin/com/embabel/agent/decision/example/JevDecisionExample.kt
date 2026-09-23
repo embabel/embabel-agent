@@ -36,10 +36,13 @@ data class KotlinDecisionEvidence(
     val provenance: com.embabel.agent.decision.DecisionProvenance,
 )
 
-fun runKotlinDecision(model: DecisionModel): KotlinDecisionEvidence {
+fun runKotlinDecision(model: DecisionModel): KotlinDecisionEvidence =
+    runKotlinDecision(model, Duration.ofSeconds(20))
+
+internal fun runKotlinDecision(model: DecisionModel, timeout: Duration): KotlinDecisionEvidence {
     val builder = DecisionRequest.builder()
         .state(mapOf("subject" to "synthetic public example"))
-        .timeout(Duration.ofSeconds(20))
+        .timeout(timeout)
     val eligible = builder.yesNo("eligible", "Is this item eligible?")
     val route = builder.choice(
         "route", "Which route should the host consider?", KotlinRoute.entries.map {

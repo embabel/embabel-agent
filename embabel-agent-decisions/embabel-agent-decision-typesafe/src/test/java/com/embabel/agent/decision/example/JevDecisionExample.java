@@ -41,9 +41,13 @@ public final class JevDecisionExample {
                            Map<Route, Double> routeDistribution, DecisionProvenance provenance) {}
 
     public static Evidence run(DecisionModel model) {
+        return run(model, Duration.ofSeconds(20));
+    }
+
+    static Evidence run(DecisionModel model, Duration timeout) {
         DecisionRequest.Builder builder = DecisionRequest.builder()
                 .state(Map.of("subject", "synthetic public example"))
-                .timeout(Duration.ofSeconds(20));
+                .timeout(timeout);
         YesNoKey eligible = builder.yesNo("eligible", "Is this item eligible?");
         ChoiceKey<Route> route = builder.choice("route", "Which route should the host consider?", List.of(
                 DecisionOption.of("accept", Route.ACCEPT, "accept"),
