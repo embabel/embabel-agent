@@ -69,6 +69,18 @@ class PromptedDecisionModelJavaTest {
     }
 
     @Test
+    void factoryRejectsANullOrBlankRegistryName() {
+        assertThat(org.assertj.core.api.Assertions.catchThrowable(() ->
+            PromptedDecisionModel.create(new JavaService(" "), new LlmOptions())
+        )).isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("service.name must not be blank");
+        assertThat(org.assertj.core.api.Assertions.catchThrowable(() ->
+            PromptedDecisionModel.create(new JavaService(null), new LlmOptions())
+        )).isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("service.name must not be null");
+    }
+
+    @Test
     void javacAcceptsThePublicTypedConsumerWithoutUncheckedWarnings() throws Exception {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         assertThat(compiler).isNotNull();
@@ -120,6 +132,15 @@ class PromptedDecisionModelJavaTest {
 
     private static final class JavaService implements LlmService<JavaService> {
         private int calls;
+        private final String name;
+
+        private JavaService() {
+            this("java-model");
+        }
+
+        private JavaService(String name) {
+            this.name = name;
+        }
 
         @Override
         public LlmMessageSender createMessageSender(LlmOptions options) {
@@ -142,7 +163,7 @@ class PromptedDecisionModelJavaTest {
 
         @Override
         public String getName() {
-            return "java-model";
+            return name;
         }
 
         @Override

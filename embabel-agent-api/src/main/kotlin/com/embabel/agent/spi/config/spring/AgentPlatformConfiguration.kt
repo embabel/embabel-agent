@@ -264,7 +264,8 @@ class AgentPlatformConfiguration(
             // usable by name rather than only reachable through a role.
             localModelCatalogs = applicationContext.getBeanProvider(LocalModelCatalog::class.java)
                 .orderedStream().toList(),
-            decisionModels = applicationContext.getBeansOfType(DecisionModel::class.java).values.toList(),
+            decisionModels = applicationContext.getBeanNamesForType(DecisionModel::class.java)
+                .map { name -> applicationContext.getBean(name, DecisionModel::class.java) },
         )
     }
 

@@ -53,6 +53,8 @@ private data class PreparedSupportData(override val id: String, override val lab
 private data class PreparedQuestionData(override val id: String, override val kind: DecisionKind, override val question: String, override val support: List<PreparedSupport>) : PreparedQuestion
 private data class PreparedData(override val state: Map<String, Any?>, override val questions: List<PreparedQuestion>, override val deadlineNanos: Long, override val recordPolicy: DecisionRecordPolicy, override val correlationId: String?, override val requestId: String, override val questionFingerprint: String, private val clock: () -> Long) : PreparedDecisionRequest { override fun remainingNanos(): Long = (deadlineNanos - clock()).coerceAtLeast(0) }
 private data class SafeRecord(override val mode: RecordMode, override val fields: Map<String, String>) : DecisionRecord
+private const val DEFAULT_NAME = "decision"
+private const val DEFAULT_PROVIDER = "custom"
 /**
  * Final decision facade with execution capacity isolated to this model instance.
  *
@@ -159,10 +161,6 @@ class DecisionModel private constructor(
     private fun fingerprint(questions: List<PreparedQuestionData>): String = MessageDigest.getInstance("SHA-256").digest(questions.joinToString("") { question -> listOf(question.kind.name, question.id, *question.support.map { it.id }.toTypedArray()).joinToString("") { value -> "${value.toByteArray(StandardCharsets.UTF_8).size}:$value|" } }.toByteArray(StandardCharsets.UTF_8)).joinToString("") { "%02x".format(it) }
     override fun close() = execution.close()
 
-    private companion object {
-        const val DEFAULT_NAME = "decision"
-        const val DEFAULT_PROVIDER = "custom"
-    }
 }
 
 private data class RequestData(val binding: String, val state: Map<String, Any?>, val questions: List<QuestionData<*>>, val timeout: Duration?, val policy: DecisionRecordPolicy?, val correlationId: String?)

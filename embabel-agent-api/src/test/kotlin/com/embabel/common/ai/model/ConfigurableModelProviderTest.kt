@@ -29,6 +29,7 @@ import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.mockk
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -323,6 +324,31 @@ class ConfigurableModelProviderTest {
         }
 
         @Test
+        fun `unsatisfied decision role random fallback default and auto selections fail`() {
+            assertThrows<NoSuitableModelException> {
+                provider.getDecisionModel(ByRoleModelSelectionCriteria("missing"))
+            }
+            assertThrows<NoSuitableModelException> {
+                provider.getDecisionModel(RandomByNameModelSelectionCriteria(listOf("missing", "also-missing")))
+            }
+            assertThrows<NoSuitableModelException> {
+                provider.getDecisionModel(FallbackByNameModelSelectionCriteria(listOf("missing", "also-missing")))
+            }
+
+            val none = ConfigurableModelProvider(
+                llms = listOf(SpringAiLlmService(DEFAULT_MODEL, "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter)),
+                embeddingServices = emptyList(),
+                properties = ConfigurableModelProviderProperties(defaultLlm = DEFAULT_MODEL),
+            )
+            assertThrows<NoSuitableModelException> {
+                none.getDecisionModel(DefaultModelSelectionCriteria)
+            }
+            assertThrows<NoSuitableModelException> {
+                none.getDecisionModel(AutoModelSelectionCriteria)
+            }
+        }
+
+        @Test
         fun `lists decision names roles metadata and platform info`() {
             assertThat(provider.listModelNames(DecisionModel::class.java)).containsExactly("revision", "policy")
             assertThat(provider.listRoles(DecisionModel::class.java)).containsExactly("review")
@@ -356,6 +382,35 @@ class ConfigurableModelProviderTest {
                     decisionModels = listOf(revision, policy),
                 )
             }
+        }
+
+        @Test
+        fun `duplicate names and roles targeting unregistered decision models fail at startup`() {
+            assertThatThrownBy {
+                ConfigurableModelProvider(
+                    llms = listOf(SpringAiLlmService(DEFAULT_MODEL, "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter)),
+                    embeddingServices = emptyList(),
+                    properties = ConfigurableModelProviderProperties(
+                        defaultLlm = DEFAULT_MODEL,
+                        defaultDecisionModel = "revision",
+                    ),
+                    decisionModels = listOf(revision, revision.named("revision", "duplicate")),
+                )
+            }.isInstanceOf(IllegalArgumentException::class.java)
+                .hasMessageContaining("Decision model names must be unique")
+
+            assertThatThrownBy {
+                ConfigurableModelProvider(
+                    llms = listOf(SpringAiLlmService(DEFAULT_MODEL, "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter)),
+                    embeddingServices = emptyList(),
+                    properties = ConfigurableModelProviderProperties(
+                        defaultLlm = DEFAULT_MODEL,
+                        decisions = mapOf("review" to "unregistered"),
+                    ),
+                    decisionModels = listOf(revision),
+                )
+            }.isInstanceOf(IllegalArgumentException::class.java)
+                .hasMessageContaining("Decision model 'unregistered' for role review is not available")
         }
     }
 

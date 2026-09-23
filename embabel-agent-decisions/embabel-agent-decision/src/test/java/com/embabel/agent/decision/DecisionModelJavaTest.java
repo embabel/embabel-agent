@@ -74,6 +74,7 @@ class DecisionModelJavaTest {
         assertTrue(Modifier.isFinal(KeyOutcome.Success.class.getModifiers()));
         assertTrue(Arrays.stream(DecisionModel.class.getMethods())
             .noneMatch(method -> method.getName().contains("$")));
+        assertEquals(0, DecisionModel.class.getFields().length);
         assertEquals(0, Arrays.stream(DecisionContractsKt.class.getDeclaredMethods())
             .filter(method -> Modifier.isPublic(method.getModifiers()))
             .count());

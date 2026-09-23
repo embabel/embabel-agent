@@ -15,12 +15,15 @@
  */
 package com.embabel.common.ai.model
 
+import org.jetbrains.annotations.ApiStatus
+
 /**
  * Registry metadata for a decision model.
  *
  * Kept detached from the decision facade so model listings never expose requests, providers,
  * execution state, or decision results.
  */
+@ApiStatus.Experimental
 data class DecisionModelMetadata(
     override val name: String,
     override val provider: String,

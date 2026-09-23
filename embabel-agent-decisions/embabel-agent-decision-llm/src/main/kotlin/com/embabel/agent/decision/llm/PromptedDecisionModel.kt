@@ -58,14 +58,23 @@ import java.time.Instant
 @ApiStatus.Experimental
 class PromptedDecisionModel private constructor() {
     companion object {
+        /**
+         * Creates a decision model registered under [LlmService.name].
+         *
+         * @throws IllegalArgumentException if the service name is null or blank
+         */
         @JvmStatic
         @JvmOverloads
         fun create(
             service: LlmService<*>,
             options: LlmOptions,
             mapperHolder: EmbabelObjectMapperHolder = EmbabelObjectMapperHolder.createDefault(),
-        ): DecisionModel = DecisionModel(PromptedProvider(service, options.copy(), mapperHolder))
-            .named(service.name, "prompted")
+        ): DecisionModel {
+            val serviceName = requireNotNull(service.name) { "service.name must not be null" }
+            require(serviceName.isNotBlank()) { "service.name must not be blank" }
+            return DecisionModel(PromptedProvider(service, options.copy(), mapperHolder))
+                .named(serviceName, "prompted")
+        }
 
         private const val PROMPTED_VERSION = "prompted-v1"
         private const val SYSTEM_INSTRUCTIONS = """

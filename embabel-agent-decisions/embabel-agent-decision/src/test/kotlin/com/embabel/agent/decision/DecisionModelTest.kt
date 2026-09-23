@@ -54,20 +54,31 @@ class DecisionModelTest {
     @Test
     fun `initialization receipt closes only its created models once`() {
         val invocations = AtomicLong()
+        val unrelatedInvocations = AtomicLong()
         val created = DecisionModel(DecisionProvider {
             invocations.incrementAndGet()
             RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.DISABLED)
         }).named("created", "custom")
-        val unrelated = NoDecisionModel.create().named("unrelated", "custom")
+        val unrelated = DecisionModel(DecisionProvider {
+            unrelatedInvocations.incrementAndGet()
+            RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.DISABLED)
+        }).named("unrelated", "custom")
         val initialization = DecisionModelInitialization(listOf(created))
 
-        assertThat(initialization.createdModels).containsExactly(created)
-        initialization.close()
-        initialization.close()
+        try {
+            assertThat(unrelated.ask(yesNoRequest())).isInstanceOf(DecisionOutcome.Failure::class.java)
+            assertThat(unrelatedInvocations.get()).isEqualTo(1)
+            assertThat(initialization.createdModels).containsExactly(created)
+            initialization.close()
+            initialization.close()
 
-        assertThat(created.ask(yesNoRequest())).isInstanceOf(DecisionOutcome.Failure::class.java)
-        assertThat(invocations.get()).isZero()
-        assertThat(unrelated.ask(yesNoRequest())).isInstanceOf(DecisionOutcome.Failure::class.java)
+            assertThat(created.ask(yesNoRequest())).isInstanceOf(DecisionOutcome.Failure::class.java)
+            assertThat(invocations.get()).isZero()
+            assertThat(unrelated.ask(yesNoRequest())).isInstanceOf(DecisionOutcome.Failure::class.java)
+            assertThat(unrelatedInvocations.get()).isEqualTo(2)
+        } finally {
+            unrelated.close()
+        }
     }
 
     @Test

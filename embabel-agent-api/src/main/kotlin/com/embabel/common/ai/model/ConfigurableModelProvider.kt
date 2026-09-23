@@ -20,6 +20,7 @@ import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.PlaceholderLlmService
 import com.embabel.common.util.indent
 import com.embabel.common.util.loggerFor
+import org.jetbrains.annotations.ApiStatus
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.validation.annotation.Validated
 import java.nio.charset.StandardCharsets
@@ -133,11 +134,13 @@ data class ConfigurableModelProviderProperties @JvmOverloads constructor(
     /**
      * Map of role to registered decision model name.
      */
+    @get:ApiStatus.Experimental
     var decisions: Map<String, String> = emptyMap(),
     /**
      * Registered decision model used for automatic and default selection.
      * A single registered decision model is also an implicit default.
      */
+    @get:ApiStatus.Experimental
     var defaultDecisionModel: String? = null,
 ) {
 
@@ -1264,6 +1267,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             }
         }
 
+    @ApiStatus.Experimental
     override fun getDecisionModel(criteria: ModelSelectionCriteria): DecisionModel =
         when (criteria) {
             is ByRoleModelSelectionCriteria ->
