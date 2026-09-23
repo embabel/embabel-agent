@@ -1,0 +1,1 @@
+{"answers":[{"keyId":"yes","kind":"YES_NO","pTrue":0.5},{"keyId":"choice","kind":"CHOICE","probabilities":[{"supportId":"a","probability":0.5},{"supportId":"b","probability":0.5}]},{"keyId":"rating","kind":"RATING","probabilities":[{"supportId":"low","probability":0.5},{"supportId":"high","probability":0.5}]}]}
