@@ -15,14 +15,18 @@
  */
 package com.embabel.agent.autoconfigure.decision;
 
-import org.junit.jupiter.api.Test;
 import com.embabel.common.util.EmbabelObjectMapperHolder;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 
 import java.io.IOException;
-import java.beans.Introspector;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -56,12 +60,19 @@ class DecisionConfigurationMetadataTest {
     }
 
     @Test
-    void nestedModelBlocksExposeJavaBeanPropertiesForMapValueBinding() throws Exception {
-        var names = Arrays.stream(Introspector.getBeanInfo(DecisionProperties.Model.class)
-                        .getPropertyDescriptors())
-                .map(descriptor -> descriptor.getName())
-                .toList();
-        assertThat(names).contains("provider", "typesafe", "prompted");
+    void nestedModelRecordsBindFromMapValuesWithProviderDefaults() {
+        var binder = new Binder(new MapConfigurationPropertySource(Map.of(
+                "models.review.provider", "typesafe",
+                "models.review.typesafe.model", "jev-latest",
+                "models.prompted.provider", "prompted",
+                "models.prompted.prompted.llm-bean-name", "reviewLlm")));
+        var models = binder.bind("models", Bindable.mapOf(String.class, DecisionProperties.Model.class)).get();
+        assertThat(models.get("review").provider()).isEqualTo("typesafe");
+        assertThat(models.get("review").typesafe().model()).isEqualTo("jev-latest");
+        assertThat(models.get("review").typesafe().baseUrl()).isEqualTo(URI.create("https://api.typesafe.ai"));
+        assertThat(models.get("review").typesafe().connectTimeout()).isEqualTo(Duration.ofSeconds(10));
+        assertThat(models.get("prompted").prompted().llmBeanName()).isEqualTo("reviewLlm");
+        assertThat(models.get("prompted").prompted().optionsBeanName()).isNull();
     }
 
     @Test

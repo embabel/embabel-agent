@@ -15,6 +15,10 @@
  */
 package com.embabel.agent.autoconfigure.decision;
 
+import java.net.URI;
+import java.time.Duration;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -34,9 +38,11 @@ class DecisionConfigurationPrivacyTest {
 
     @Test
     void propertyObjectsAndValidationFailuresDoNotRenderSecrets(CapturedOutput output) {
-        assertThat(new DecisionProperties().toString()).doesNotContain("apiKey", "model", "bean");
-        assertThat(new DecisionProperties.Model().toString()).isEqualTo("DecisionProperties.Model[redacted]");
-        assertThat(new DecisionProperties.Typesafe().toString()).isEqualTo("DecisionProperties.Typesafe[redacted]");
+        assertThat(new DecisionProperties(false, Duration.ofSeconds(30), "metadata", 65536,
+                Set.of(), null, Map.of()).toString()).doesNotContain("apiKey", "model", "bean");
+        assertThat(new DecisionProperties.Model(SENTINEL, null, null).toString()).isEqualTo("DecisionProperties.Model[redacted]");
+        assertThat(new DecisionProperties.Typesafe(SENTINEL, URI.create("https://api.typesafe.ai"),
+                Duration.ofSeconds(10)).toString()).isEqualTo("DecisionProperties.Typesafe[redacted]");
         assertThat(DecisionProperties.Typesafe.class.getDeclaredFields())
                 .extracting(java.lang.reflect.Field::getName)
                 .doesNotContain("apiKey");

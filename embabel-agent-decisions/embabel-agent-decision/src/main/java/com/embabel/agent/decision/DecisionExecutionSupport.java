@@ -51,11 +51,9 @@ final class DecisionExecutionSupport implements AutoCloseable {
     }
 
     private static ThreadFactory daemonThreads(long poolId) {
-        AtomicLong threadIds = new AtomicLong();
-        return runnable -> {
-            Thread thread = new Thread(runnable, "embabel-decision-" + poolId + "-" + threadIds.incrementAndGet());
-            thread.setDaemon(true);
-            return thread;
-        };
+        return Thread.ofPlatform()
+                .daemon(true)
+                .name("embabel-decision-" + poolId + "-", 1)
+                .factory();
     }
 }

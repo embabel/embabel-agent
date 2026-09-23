@@ -54,10 +54,14 @@ import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.env.SystemEnvironmentPropertySource;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -183,9 +187,9 @@ class AgentDecisionAutoConfigurationTest {
                     assertThat(jev.getName()).isEqualTo("jev");
                     assertThat(jev.getProvider()).isEqualTo("typesafe");
                     DecisionProperties.Model configured = context.getBean(DecisionProperties.class)
-                            .getModels().get("jev");
-                    assertThat(configured.getProvider()).isEqualTo("typesafe");
-                    assertThat(configured.typesafe().getModel()).isEqualTo("jev-latest");
+                            .models().get("jev");
+                    assertThat(configured.provider()).isEqualTo("typesafe");
+                    assertThat(configured.typesafe().model()).isEqualTo("jev-latest");
                     assertThat(context.getBean(DecisionModelInitialization.class).getCreatedModels())
                             .containsExactly(jev);
                     assertThat(context.getBean(ModelProvider.class)
@@ -233,7 +237,7 @@ class AgentDecisionAutoConfigurationTest {
                                         "embabel.agent.decision.models.rules.typesafe.connectTimeout", "11s"))))
                 .withPropertyValues("embabel.agent.decision.enabled=true")
                 .run(context -> assertThat(context.getBean(DecisionProperties.class)
-                                .getModels().get("rules").getTypesafe().getConnectTimeout())
+                                .models().get("rules").typesafe().connectTimeout())
                         .hasSeconds(11));
     }
 
@@ -335,9 +339,11 @@ class AgentDecisionAutoConfigurationTest {
         FailingBeanFactory beanFactory = new FailingBeanFactory();
         beanFactory.registerSingleton("dynamicLlm", promptedService);
 
-        DecisionProperties properties = new DecisionProperties();
-        properties.addModel("first", promptedModel("dynamicLlm"));
-        properties.addModel("second", promptedModel("dynamicLlm"));
+        var configured = new LinkedHashMap<String, DecisionProperties.Model>();
+        configured.put("first", promptedModel("dynamicLlm"));
+        configured.put("second", promptedModel("dynamicLlm"));
+        var properties = new DecisionProperties(true, Duration.ofSeconds(30), "metadata", 65536,
+                Set.of(), null, configured);
 
         assertThatThrownBy(() -> new AgentDecisionAutoConfiguration().decisionModelInitialization(
                         properties, new StandardEnvironment(), beanFactory, List.of()))
@@ -449,16 +455,12 @@ class AgentDecisionAutoConfigurationTest {
                         "embabel.agent.decision.models.disabled.provider=none")
                 .run(context -> {
                     DecisionProperties properties = context.getBean(DecisionProperties.class);
-                    assertThat(properties.getDefaultTimeout()).hasSeconds(17);
-                    assertThat(properties.getModels()).containsOnlyKeys("rules", "disabled");
-                    assertThat(properties.getModels().get("rules").getProvider()).isEqualTo("typesafe");
-                    assertThat(properties.getModels().get("rules").getTypesafe().getModel()).isEqualTo("jev-latest");
-                    assertThat(properties.getModels().get("disabled").getProvider()).isEqualTo("none");
-                    assertThatThrownBy(() -> properties.getModels().clear())
-                            .isInstanceOf(UnsupportedOperationException.class);
-                    assertThatThrownBy(() -> properties.getModels().get("rules").setProvider("none"))
-                            .isInstanceOf(UnsupportedOperationException.class);
-                    assertThatThrownBy(() -> properties.getModels().get("rules").getTypesafe().setModel("changed"))
+                    assertThat(properties.defaultTimeout()).hasSeconds(17);
+                    assertThat(properties.models()).containsOnlyKeys("rules", "disabled");
+                    assertThat(properties.models().get("rules").provider()).isEqualTo("typesafe");
+                    assertThat(properties.models().get("rules").typesafe().model()).isEqualTo("jev-latest");
+                    assertThat(properties.models().get("disabled").provider()).isEqualTo("none");
+                    assertThatThrownBy(() -> properties.models().clear())
                             .isInstanceOf(UnsupportedOperationException.class);
                 });
     }
@@ -528,6 +530,23 @@ class AgentDecisionAutoConfigurationTest {
                                 + "'embabel.models.default-decision-model' to one of: [first, second]"));
     }
 
+    @Test
+    void configurationOwnsImmutableSnapshotsOfCallerCollections() {
+        var allowlist = new LinkedHashSet<>(Set.of("answerIds"));
+        var models = new LinkedHashMap<String, DecisionProperties.Model>();
+        models.put("review", promptedModel("reviewLlm"));
+        var properties = new DecisionProperties(true, Duration.ofSeconds(30), "metadata", 65536,
+                allowlist, null, models);
+        allowlist.clear();
+        models.clear();
+        assertThat(properties.recordAllowlist()).containsExactly("answerIds");
+        assertThat(properties.models()).containsOnlyKeys("review");
+        assertThatThrownBy(() -> properties.recordAllowlist().clear())
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> properties.models().clear())
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
     private ApplicationContextRunner integratedRunner(LlmService<?> service) {
         return runner.withUserConfiguration(DynamicLlmConfiguration.class, SharedModelProviderConfiguration.class)
                 .withBean("dynamicSource", LlmService.class, () -> service)
@@ -541,12 +560,8 @@ class AgentDecisionAutoConfigurationTest {
     }
 
     private static DecisionProperties.Model promptedModel(String serviceName) {
-        DecisionProperties.Prompted prompted = new DecisionProperties.Prompted();
-        prompted.setLlmBeanName(serviceName);
-        DecisionProperties.Model model = new DecisionProperties.Model();
-        model.setProvider("prompted");
-        model.setPrompted(prompted);
-        return model;
+        return new DecisionProperties.Model("prompted", null,
+                new DecisionProperties.Prompted(serviceName, null));
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

@@ -90,37 +90,34 @@ public final class JevDecisionExample {
                 DecisionOption.of("medium", Urgency.MEDIUM, "medium"),
                 DecisionOption.of("high", Urgency.HIGH, "high")));
 
-        DecisionOutcome outcome = model.ask(builder.build());
-        if (outcome instanceof DecisionOutcome.Failure failure) {
-            throw new IllegalStateException("Decision failed safely: " + failure.getSafeCode());
-        }
-        DecisionOutcome.Success success = (DecisionOutcome.Success) outcome;
-        KeyOutcome<Boolean> eligibleAnswer = success.answer(eligible);
-        KeyOutcome<Route> routeAnswer = success.answer(route);
-        KeyOutcome<Urgency> urgencyAnswer = success.answer(urgency);
-        if (eligibleAnswer instanceof KeyOutcome.Failure<Boolean> failure) {
-            throw new IllegalStateException("Eligibility evidence failed safely: " + failure.getSafeCode());
-        }
-        if (routeAnswer instanceof KeyOutcome.Failure<Route> failure) {
-            throw new IllegalStateException("Route evidence failed safely: " + failure.getSafeCode());
-        }
-        if (urgencyAnswer instanceof KeyOutcome.Failure<Urgency> failure) {
-            throw new IllegalStateException("Urgency evidence failed safely: " + failure.getSafeCode());
-        }
-        KeyOutcome.Success<Boolean> yes = (KeyOutcome.Success<Boolean>) eligibleAnswer;
-        KeyOutcome.Success<Route> selectedRoute = (KeyOutcome.Success<Route>) routeAnswer;
-        KeyOutcome.Success<Urgency> selectedUrgency = (KeyOutcome.Success<Urgency>) urgencyAnswer;
+        DecisionOutcome.Success success = switch (model.ask(builder.build())) {
+            case DecisionOutcome.Success completed -> completed;
+            case DecisionOutcome.Failure failure ->
+                    throw new IllegalStateException("Decision failed safely: " + failure.getSafeCode());
+        };
+        var yes = requireEvidence(success.answer(eligible), "Eligibility");
+        var selectedRoute = requireEvidence(success.answer(route), "Route");
+        var selectedUrgency = requireEvidence(success.answer(urgency), "Urgency");
         return new Evidence(yes.getValue(), selectedRoute.getValue(), selectedUrgency.getValue(),
                 selectedRoute.getDistribution(), success.getProvenance());
     }
     public static void main(String[] args) {
         String key = requiredEnvironment("TYPESAFE_API_KEY");
         String requestedModel = requiredEnvironment("TYPESAFE_MODEL");
-        DecisionModel model = TypeSafeDecisionModel.create(() -> key, requestedModel)
-                .withDefaults(Duration.ofSeconds(20), DecisionRecordPolicy.metadata());
-        Evidence evidence = run(model);
-        System.out.println("Decision completed with " + evidence.provenance().getEvidenceKind()
-                + " evidence from " + evidence.provenance().getResolvedModel());
+        try (var provider = TypeSafeDecisionModel.create(() -> key, requestedModel);
+             var model = provider.withDefaults(Duration.ofSeconds(20), DecisionRecordPolicy.metadata())) {
+            Evidence evidence = run(model);
+            System.out.println("Decision completed with " + evidence.provenance().getEvidenceKind()
+                    + " evidence from " + evidence.provenance().getResolvedModel());
+        }
+    }
+
+    private static <T> KeyOutcome.Success<T> requireEvidence(KeyOutcome<T> outcome, String label) {
+        return switch (outcome) {
+            case KeyOutcome.Success<T> success -> success;
+            case KeyOutcome.Failure<T> failure ->
+                    throw new IllegalStateException(label + " evidence failed safely: " + failure.getSafeCode());
+        };
     }
 
     private static String requiredEnvironment(String name) {

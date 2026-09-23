@@ -28,6 +28,7 @@ import com.embabel.common.ai.model.ModelSelectionCriteria;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /** Shows the boundary Dice needs without coupling the framework to Dice. */
@@ -74,16 +75,16 @@ public final class DicePropositionRevisionExample {
                         option(PropositionRelation.IDENTICAL), option(PropositionRelation.SIMILAR),
                         option(PropositionRelation.UNRELATED), option(PropositionRelation.CONTRADICTORY),
                         option(PropositionRelation.GENERALIZES)));
-        DecisionOutcome outcome = model.ask(builder.build());
-        if (outcome instanceof DecisionOutcome.Failure failure) {
-            throw new IllegalStateException("Relation decision failed safely: " + failure.getSafeCode());
-        }
-        DecisionOutcome.Success success = (DecisionOutcome.Success) outcome;
-        KeyOutcome<PropositionRelation> answer = success.answer(relation);
-        if (answer instanceof KeyOutcome.Failure<PropositionRelation> failure) {
-            throw new IllegalStateException("Relation evidence failed safely: " + failure.getSafeCode());
-        }
-        KeyOutcome.Success<PropositionRelation> evidence = (KeyOutcome.Success<PropositionRelation>) answer;
+        DecisionOutcome.Success success = switch (model.ask(builder.build())) {
+            case DecisionOutcome.Success completed -> completed;
+            case DecisionOutcome.Failure failure ->
+                    throw new IllegalStateException("Relation decision failed safely: " + failure.getSafeCode());
+        };
+        KeyOutcome.Success<PropositionRelation> evidence = switch (success.answer(relation)) {
+            case KeyOutcome.Success<PropositionRelation> answer -> answer;
+            case KeyOutcome.Failure<PropositionRelation> failure ->
+                    throw new IllegalStateException("Relation evidence failed safely: " + failure.getSafeCode());
+        };
         RevisionDisposition disposition = policy.dispositionFor(evidence.getValue());
         // The event is evidence for Dice to persist. It does not mutate either proposition.
         RevisionEvent event = new RevisionEvent(
@@ -100,7 +101,8 @@ public final class DicePropositionRevisionExample {
     }
 
     private static DecisionOption<PropositionRelation> option(PropositionRelation relation) {
-        return DecisionOption.of(relation.name().toLowerCase(), relation, relation.name().toLowerCase());
+        String id = relation.name().toLowerCase(Locale.ROOT);
+        return DecisionOption.of(id, relation, id);
     }
 }
 // end::dice-consumer[]

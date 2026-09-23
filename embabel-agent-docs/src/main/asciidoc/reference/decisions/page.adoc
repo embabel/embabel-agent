@@ -71,7 +71,7 @@ Raw results have a deliberately narrow contract:
 * Choice and rating distributions contain every declared support id exactly once, contain no extra ids, use finite values in `0.0..1.0`, and sum to one within `1e-9`. A selected id is optional and must identify a maximizer. The facade resolves an omitted selection in declared order and preserves every maximizer.
 * Call failures map canonically to `DISABLED`, `UNAVAILABLE`, `REJECTED_REQUEST`, `DEADLINE_EXCEEDED`, `CANCELLED`, or `UNSUPPORTED`. Key failures map to `MISSING`, `INVALID`, or `UNSUPPORTED`. The facade derives these safe codes from the failure enum and does not trust a provider-supplied code.
 
-The facade owns final validation, request identifiers, question fingerprints, record projection, and typed application values. `DecisionOutcome` and `KeyOutcome` are sealed families with public `Success` and `Failure` variants, so Kotlin consumers can handle them exhaustively. A decision record is nullable only when record mode is `NONE`. An expected score is nullable for yes/no and choice outcomes and present for rating success.
+The facade owns final validation, request identifiers, question fingerprints, record projection, and typed application values. `DecisionOutcome` and `KeyOutcome` are sealed families with public `Success` and `Failure` variants, so Java 21 and Kotlin consumers can handle them exhaustively. Their package-private constructors keep validated results inside the facade; public record constructors would let callers bypass that boundary. A decision record is nullable only when record mode is `NONE`. An expected score is nullable for yes/no and choice outcomes and present for rating success.
 
 This compiled example implements an external provider using only the public SPI:
 
@@ -139,6 +139,8 @@ embabel:
     decisions:
       revision: prompted-review
 ----
+
+`DecisionProperties` and its nested provider settings are immutable Java records. Spring binds provider settings through their constructors, and the configuration bean owns snapshots of its collections. Programmatic binding keeps startup diagnostics limited to property names; configured values stay out of exception messages.
 
 The TypeSafe credential comes from `TYPESAFE_API_KEY`; it is not a configuration property and must not be logged. `mapper-bean-name`, prompted `llm-bean-name`, and prompted `options-bean-name` select exact existing beans.
 
