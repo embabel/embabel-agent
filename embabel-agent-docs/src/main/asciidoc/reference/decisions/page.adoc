@@ -1,7 +1,7 @@
 [[reference.decisions]]
 === Typed Decisions
 
-Decisions are the experimental third Embabel model type, alongside language models and embedding services. They give application code typed evidence and provenance while leaving every action, mutation, and persistence decision with the host. The prototype is tagged experimental so we can get the API into real consumers quickly. It is still built and tested as a maintained model service, with the same discovery and selection surface as other agent models.
+Decisions are the experimental third Embabel model type, alongside language models and embedding services. They give application code typed evidence and provenance while leaving every action, mutation, and persistence decision with the host. The prototype is tagged experimental so we can get the API into real consumers quickly. It is still built and tested as a maintained model service. Workflows can select by platform default, automatic selection, registry name, role, ordered fallback, random choice, or a pre-resolved model.
 
 For explicit use, depend on `com.embabel.agent:embabel-agent-decision` and one provider leaf, normally `com.embabel.agent:embabel-agent-decision-typesafe`. Spring Boot applications can opt into `com.embabel.agent:embabel-agent-starter-decision`. The `embabel-agent-decisions` aggregate is Maven packaging only.
 
@@ -20,7 +20,7 @@ Four built-in products ship in this release and create the same final facade:
 
 These are four implementation families, not four singleton instances. An application can configure several named TypeSafe, prompted, or no-op instances. `StubDecisionModel` stays an explicit test fixture. Custom implementations are extension adapters and do not add another built-in product.
 
-Five runtime JARs separate the stable dependency directions: core contracts and facade, TypeSafe/Jev, prompted LLM, Spring autoconfiguration, and the thin starter. `embabel-agent-api` supplies `ModelProvider` and the common selection criteria without pulling Spring into the core decision JAR.
+Five runtime JARs separate the stable dependency directions: core contracts and facade, TypeSafe/Jev, prompted LLM, Spring autoconfiguration, and the thin starter. `embabel-agent-api` exposes `ModelProvider`; `embabel-agent-ai` defines the common selection criteria. This keeps Spring out of the core decision JAR.
 
 [graphviz, decision-modules.dot, png]
 ....

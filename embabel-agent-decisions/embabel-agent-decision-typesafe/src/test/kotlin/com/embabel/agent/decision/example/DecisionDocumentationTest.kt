@@ -60,7 +60,7 @@ class DecisionDocumentationTest {
             "starter -> auto", "starter -> platform", "embabel-agent-starter-platform",
             "api -> core", "api -> ai", "ModelProvider", "ModelSelectionCriteria", "named DecisionModel beans",
         )
-        assertThat(moduleDiagram).doesNotContain("auto -> api")
+        assertThat(moduleDiagram).doesNotContain("auto -> api", "core -> ai")
         val flowDiagram = read("embabel-agent-docs/src/main/asciidoc/reference/diagrams/decision-flow.dot")
         assertThat(flowDiagram).contains(
             "ModelSelectionCriteria", "ModelProvider", "default / name / role", "per-call provenance",
@@ -73,6 +73,7 @@ class DecisionDocumentationTest {
             "registry metadata", "per-call provenance", "Dice retains action ownership",
             "required for every explicit declaration", "required for every explicit `typesafe` declaration",
             "custom `DecisionModel` bean",
+            "platform default, automatic selection, registry name, role, ordered fallback, random choice, or a pre-resolved model",
         )
         assertThat(page).doesNotContain(
             "Automatic `Ai` or `ModelProvider` selection is deferred",
@@ -127,7 +128,9 @@ class DecisionDocumentationTest {
         listOf(
             "embabel-agent-decisions/embabel-agent-decision/src/test/kotlin/example/decision/provider/CustomDecisionProviderExample.kt" to "custom-provider",
             "embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/kotlin/com/embabel/agent/decision/example/JevDecisionExample.kt" to "kotlin-consumer",
+            "embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/kotlin/com/embabel/agent/decision/example/JevDecisionExample.kt" to "kotlin-selection",
             "embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/JevDecisionExample.java" to "java-consumer",
+            "embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/JevDecisionExample.java" to "java-selection",
             "embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/DicePropositionRevisionExample.java" to "dice-consumer",
         ).forEach { (source, tag) ->
             assertThat(renderedText.contains(normalize(taggedSource(source, tag))))

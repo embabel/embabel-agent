@@ -60,6 +60,9 @@ class JevDecisionExampleTest {
                 runPreResolvedKotlinDecision(models, revision),
             )
             assertThat(kotlinEvidence.map { it.route }).containsOnly(KotlinRoute.REVIEW)
+            assertThat(kotlinEvidence.map { it.provenance.resolvedModel }).containsExactly(
+                "policy", "policy", "revision", "revision", "revision", "revision", "revision",
+            )
 
             val javaEvidence = listOf(
                 JevDecisionExample.runDefault(models),
@@ -71,6 +74,9 @@ class JevDecisionExampleTest {
                 JevDecisionExample.runPreResolved(models, revision),
             )
             assertThat(javaEvidence.map { it.route() }).containsOnly(JevDecisionExample.Route.REVIEW)
+            assertThat(javaEvidence.map { it.provenance().resolvedModel }).containsExactly(
+                "policy", "policy", "revision", "revision", "revision", "revision", "revision",
+            )
         } finally {
             revision.close()
             policy.close()

@@ -9,7 +9,6 @@ digraph DecisionModules {
   auto [label="embabel-agent-decision-autoconfigure\nnamed DecisionModel beans"];
   starter [label="embabel-agent-starter-decision\nthin dependency starter"];
   platform [label="embabel-agent-starter-platform\nagent platform starter"];
-  core -> ai;
   api -> core;
   api -> ai;
   jev -> core;
