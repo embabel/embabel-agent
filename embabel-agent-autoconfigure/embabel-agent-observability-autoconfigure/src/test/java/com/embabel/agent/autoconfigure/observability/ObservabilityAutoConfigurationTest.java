@@ -22,6 +22,8 @@ import com.embabel.agent.observability.tracing.EmbabelSpanEventListener;
 import com.embabel.agent.observability.mdc.MdcPropagationEventListener;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationHandler;
 import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -32,6 +34,7 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -155,6 +158,19 @@ class ObservabilityAutoConfigurationTest {
                 });
     }
 
+    @Test
+    void tierFilterAppliesTheDecisionTraceFlagAndTracingMasterIndependently() {
+        var properties = new ObservabilityProperties();
+        assertThat(decisionObservationStarts(properties)).isEqualTo(1);
+
+        properties.setTraceDecisions(false);
+        assertThat(decisionObservationStarts(properties)).isZero();
+
+        properties.setTraceDecisions(true);
+        properties.setTracingEnabled(false);
+        assertThat(decisionObservationStarts(properties)).isZero();
+    }
+
     // --- Point-event span listener ---
 
     @Test
@@ -257,12 +273,16 @@ class ObservabilityAutoConfigurationTest {
                 .withUserConfiguration(ObservationRegistryConfig.class)
                 .withPropertyValues(
                         "embabel.agent.platform.observability.service-name=my-app",
-                        "embabel.agent.platform.observability.max-attribute-length=2000"
+                        "embabel.agent.platform.observability.max-attribute-length=2000",
+                        "embabel.agent.platform.observability.trace-decisions=false",
+                        "embabel.agent.platform.observability.metrics-decisions=false"
                 )
                 .run(context -> {
                     ObservabilityProperties props = context.getBean(ObservabilityProperties.class);
                     assertThat(props.getServiceName()).isEqualTo("my-app");
                     assertThat(props.getMaxAttributeLength()).isEqualTo(2000);
+                    assertThat(props.isTraceDecisions()).isFalse();
+                    assertThat(props.isMetricsDecisions()).isFalse();
                 });
     }
 
@@ -358,6 +378,25 @@ class ObservabilityAutoConfigurationTest {
         catch (ClassNotFoundException ex) {
             return false;
         }
+    }
+
+    private static int decisionObservationStarts(ObservabilityProperties properties) {
+        var starts = new AtomicInteger();
+        var registry = ObservationRegistry.create();
+        registry.observationConfig().observationHandler(new ObservationHandler<Observation.Context>() {
+            @Override
+            public boolean supportsContext(Observation.Context context) {
+                return true;
+            }
+
+            @Override
+            public void onStart(Observation.Context context) {
+                starts.incrementAndGet();
+            }
+        });
+        new ObservabilityAutoConfiguration().embabelTierFilterCustomizer(properties).customize(registry);
+        Observation.start("embabel.decision", registry).stop();
+        return starts.get();
     }
 
     // --- Metrics listener ---

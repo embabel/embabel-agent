@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.observability;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.ArrayList;
@@ -53,6 +54,12 @@ public class ObservabilityProperties {
 
     /** Master switch for Micrometer business metrics (counters, gauges). Independent of {@link #tracingEnabled}. */
     private boolean metricsEnabled = true;
+
+    /** Trace typed decision-model calls. */
+    private boolean traceDecisions = true;
+
+    /** Record typed decision-model metrics. */
+    private boolean metricsDecisions = true;
 
     /** Service name for traces. */
     private String serviceName = "embabel-agent";
@@ -509,6 +516,26 @@ public class ObservabilityProperties {
      */
     public void setMetricsEnabled(boolean metricsEnabled) {
         this.metricsEnabled = metricsEnabled;
+    }
+
+    @ApiStatus.Experimental
+    public boolean isTraceDecisions() {
+        return traceDecisions;
+    }
+
+    @ApiStatus.Experimental
+    public void setTraceDecisions(boolean traceDecisions) {
+        this.traceDecisions = traceDecisions;
+    }
+
+    @ApiStatus.Experimental
+    public boolean isMetricsDecisions() {
+        return metricsDecisions;
+    }
+
+    @ApiStatus.Experimental
+    public void setMetricsDecisions(boolean metricsDecisions) {
+        this.metricsDecisions = metricsDecisions;
     }
 
     /**

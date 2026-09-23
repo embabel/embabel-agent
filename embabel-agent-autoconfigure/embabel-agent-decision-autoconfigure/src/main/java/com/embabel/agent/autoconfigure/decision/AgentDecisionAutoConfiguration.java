@@ -16,6 +16,7 @@
 package com.embabel.agent.autoconfigure.decision;
 
 import com.embabel.agent.decision.DecisionModel;
+import com.embabel.agent.decision.DecisionInstrumentation;
 import com.embabel.agent.decision.DecisionModelInitialization;
 import com.embabel.agent.decision.DecisionRecordPolicy;
 import com.embabel.agent.decision.NoDecisionModel;
@@ -27,6 +28,7 @@ import com.embabel.common.ai.model.LlmOptions;
 import com.embabel.common.util.EmbabelObjectMapperHolder;
 import org.jetbrains.annotations.ApiStatus;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.support.DefaultSingletonBeanRegistry;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -60,7 +62,7 @@ import java.util.function.Supplier;
 @ConditionalOnClass(DecisionModel.class)
 @ConditionalOnProperty(prefix = AgentDecisionAutoConfiguration.PREFIX, name = "enabled", havingValue = "true")
 public class AgentDecisionAutoConfiguration {
-    static final String PREFIX = "embabel.agent.decision";
+    static final String PREFIX = "embabel.agent.platform.decision";
     private static final String MODELS_PREFIX = PREFIX + ".models.";
     private static final Set<String> GLOBAL_KEYS = Set.of(
             PREFIX + ".enabled",
@@ -108,6 +110,7 @@ public class AgentDecisionAutoConfiguration {
             DecisionProperties properties,
             Environment environment,
             ConfigurableListableBeanFactory beanFactory,
+            ObjectProvider<DecisionInstrumentation> instrumentationProvider,
             // Intentional ordering dependency: dynamic LLM beans must exist before prompted lookup.
             List<ProviderInitialization> providerInitializations) {
         Map<String, DecisionProperties.Model> configured = properties.models();
@@ -118,7 +121,9 @@ public class AgentDecisionAutoConfiguration {
             for (var entry : configured.entrySet()) {
                 String name = entry.getKey();
                 DecisionProperties.Model selected = entry.getValue();
-                created.put(name, configuredModel(name, selected, properties, environment, beanFactory));
+                created.put(name, configuredModel(
+                        name, selected, properties, environment, beanFactory,
+                        instrumentationProvider.getIfUnique(DecisionInstrumentation::noop)));
             }
             List<String> registered = new ArrayList<>();
             try {
@@ -142,14 +147,17 @@ public class AgentDecisionAutoConfiguration {
             DecisionProperties.Model selected,
             DecisionProperties common,
             Environment environment,
-            ConfigurableListableBeanFactory beanFactory) {
+            ConfigurableListableBeanFactory beanFactory,
+            DecisionInstrumentation instrumentation) {
         try (DecisionModel model = switch (selected.provider()) {
             case "none" -> NoDecisionModel.create();
             case "typesafe" -> typesafe(selected, common, environment, beanFactory);
             case "prompted" -> prompted(name, selected, common, beanFactory);
             default -> throw invalid(modelKey(name, "provider"));
         }; DecisionModel defaulted = model.withDefaults(common.defaultTimeout(), recordPolicy(common))) {
-            return defaulted.named(name, selected.provider());
+            DecisionModel named = defaulted.named(name, selected.provider());
+            named.installDefaultInstrumentation(instrumentation);
+            return named;
         }
     }
 

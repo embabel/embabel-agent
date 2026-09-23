@@ -32,6 +32,10 @@ import static org.mockito.Mockito.when;
 class DecisionStarterClasspathTest {
     @Test
     void starterIsInertByDefaultAndDiscoversOptInNamedModels() {
+        assertThat(Thread.currentThread().getContextClassLoader()
+                        .getResource("com/embabel/agent/observability/decision/DecisionMicrometerInstrumentation.class"))
+                .as("the decision starter must not pull in the optional observability adapter")
+                .isNull();
         ApplicationContextRunner runner = new ApplicationContextRunner()
                 .withUserConfiguration(TestApplication.class)
                 // Keep the platform entry point active while satisfying its unrelated model inventory.
@@ -39,8 +43,8 @@ class DecisionStarterClasspathTest {
                 .withPropertyValues("embabel.models.default-llm=starter-test");
         runner.run(context -> assertThat(context).doesNotHaveBean(DecisionModel.class));
         runner.withPropertyValues(
-                        "embabel.agent.decision.enabled=true",
-                        "embabel.agent.decision.models.disabled.provider=none")
+                        "embabel.agent.platform.decision.enabled=true",
+                        "embabel.agent.platform.decision.models.disabled.provider=none")
                 .run(context -> {
                     assertThat(context).hasSingleBean(DecisionModel.class).hasBean("disabled");
                     DecisionRequest.Builder request = DecisionRequest.builder();

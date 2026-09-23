@@ -43,16 +43,16 @@ class DecisionConfigurationMetadataTest {
                 "enabled", "default-timeout", "record-mode", "full-record-max-bytes",
                 "record-allowlist", "mapper-bean-name", "models"
         }) {
-            assertThat(names).contains("embabel.agent.decision." + suffix);
+            assertThat(names).contains("embabel.agent.platform.decision." + suffix);
         }
         assertThat(names).noneMatch(name -> name.contains("*"));
         var hintNames = new ArrayList<String>();
         root.get("hints").forEach(hint -> hintNames.add(hint.get("name").asText()));
         assertThat(hintNames).noneMatch(name -> name.contains("*"));
         assertThat(names).doesNotContain(
-                "embabel.agent.decision.provider",
-                "embabel.agent.decision.typesafe.model",
-                "embabel.agent.decision.prompted.llm-bean-name");
+                "embabel.agent.platform.decision.provider",
+                "embabel.agent.platform.decision.typesafe.model",
+                "embabel.agent.platform.decision.prompted.llm-bean-name");
         assertThat(metadata)
                 .contains("30s", "65536", "proposition-revision", "Spring bean and registry name",
                         "backend requested model")

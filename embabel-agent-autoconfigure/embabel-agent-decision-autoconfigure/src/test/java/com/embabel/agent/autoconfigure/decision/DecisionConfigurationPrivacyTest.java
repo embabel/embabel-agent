@@ -53,16 +53,16 @@ class DecisionConfigurationPrivacyTest {
                 .withInitializer(context -> capturedReport.set(
                         ConditionEvaluationReport.get(context.getBeanFactory())))
                 .withPropertyValues(
-                        "embabel.agent.decision.enabled=true",
-                        "embabel.agent.decision.models.private.provider=typesafe",
-                        "embabel.agent.decision.models.private.typesafe.model=" + SENTINEL,
-                        "embabel.agent.decision.models.private.typesafe.base-url=https://user:" + SENTINEL + "@example.org")
+                        "embabel.agent.platform.decision.enabled=true",
+                        "embabel.agent.platform.decision.models.private.provider=typesafe",
+                        "embabel.agent.platform.decision.models.private.typesafe.model=" + SENTINEL,
+                        "embabel.agent.platform.decision.models.private.typesafe.base-url=https://user:" + SENTINEL + "@example.org")
                 .run(context -> {
                     Throwable failure = context.getStartupFailure();
                     assertThat(failure).hasRootCauseMessage(
-                            "Invalid configuration: embabel.agent.decision.models.private.typesafe.base-url");
+                            "Invalid configuration: embabel.agent.platform.decision.models.private.typesafe.base-url");
                     assertThat(stack(failure))
-                            .contains("Invalid configuration: embabel.agent.decision.models.private.typesafe.base-url")
+                            .contains("Invalid configuration: embabel.agent.platform.decision.models.private.typesafe.base-url")
                             .doesNotContain(SENTINEL);
 
                     String renderedReport = capturedReport.get().getConditionAndOutcomesBySource().entrySet().stream()
@@ -72,7 +72,7 @@ class DecisionConfigurationPrivacyTest {
                             .contains(AgentDecisionAutoConfiguration.class.getName())
                             .doesNotContain(SENTINEL);
                     assertThat(output.getAll())
-                            .contains("Invalid configuration: embabel.agent.decision.models.private.typesafe.base-url")
+                            .contains("Invalid configuration: embabel.agent.platform.decision.models.private.typesafe.base-url")
                             .doesNotContain(SENTINEL);
                 });
     }
