@@ -41,9 +41,12 @@ import com.embabel.common.util.EmbabelObjectMapperHolder
 import org.jetbrains.annotations.ApiStatus
 import tools.jackson.core.JacksonException
 import tools.jackson.core.StreamReadFeature
+import tools.jackson.core.json.JsonFactory
 import tools.jackson.databind.JsonNode
-import tools.jackson.databind.json.JsonMapper
+import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.node.ObjectNode
+import java.math.BigDecimal
+import java.math.BigInteger
 import java.time.Duration
 import java.time.Instant
 
@@ -73,7 +76,8 @@ class PromptedDecisionModel private constructor() {
         private val options: LlmOptions,
         mapperHolder: EmbabelObjectMapperHolder,
     ) : DecisionProvider {
-        private val mapper = (mapperHolder.get() as JsonMapper).rebuild()
+        private val mapper = mapperHolder.get()
+        private val strictJsonFactory = JsonFactory.builder()
             .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
             .disable(StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION)
             .build()
@@ -101,6 +105,8 @@ class PromptedDecisionModel private constructor() {
                 }
                 if (!hasRemaining(request)) return deadlineFailure()
                 parse(response.textContent, request, response.usage?.promptTokens, response.usage?.completionTokens)
+            } catch (_: UnsafePreparedStateException) {
+                rejected()
             } catch (_: InterruptedException) {
                 Thread.currentThread().interrupt()
                 RawDecisionOutcome.failure(CallFailure.Cancelled, DecisionSafeCode.CANCELLED)
@@ -143,13 +149,15 @@ class PromptedDecisionModel private constructor() {
         private fun jsonValue(value: Any?): String = when (value) {
             null -> "null"
             is String -> jsonString(value)
-            is Boolean, is Byte, is Short, is Int, is Long, is Float, is Double -> value.toString()
+            is Boolean, is Byte, is Short, is Int, is Long, is BigInteger, is BigDecimal -> value.toString()
+            is Float -> if (value.isFinite()) value.toString() else throw UnsafePreparedStateException()
+            is Double -> if (value.isFinite()) value.toString() else throw UnsafePreparedStateException()
             is Map<*, *> -> value.entries.joinToString(prefix = "{", postfix = "}") { (key, item) ->
                 jsonString(key as String) + ':' + jsonValue(item)
             }
             is Iterable<*> -> value.joinToString(prefix = "[", postfix = "]") { jsonValue(it) }
             is Array<*> -> value.joinToString(prefix = "[", postfix = "]") { jsonValue(it) }
-            else -> throw IllegalArgumentException("prepared facts must be projected values")
+            else -> throw UnsafePreparedStateException()
         }
 
         private fun jsonString(value: String): String = buildString(value.length + 2) {
@@ -177,7 +185,7 @@ class PromptedDecisionModel private constructor() {
             outputTokens: Int?,
         ): RawDecisionOutcome {
             val root = try {
-                mapper.createParser(text).use { parser ->
+                strictJsonFactory.createParser(text).use { parser ->
                     val parsed = mapper.readTree(parser)
                     if (parser.nextToken() != null) return rejected()
                     parsed
@@ -258,7 +266,9 @@ class PromptedDecisionModel private constructor() {
          * The converter provides the schema lifecycle and fallback format. The wire protocol's
          * discriminated entry shape is narrower than a nullable DTO can express on its own.
          */
-        private class StrictDecisionResponseConverter(mapper: JsonMapper) :
+        private class UnsafePreparedStateException : RuntimeException()
+
+        private class StrictDecisionResponseConverter(mapper: ObjectMapper) :
             JacksonOutputConverter<ResponseEnvelope>(ResponseEnvelope::class.java, mapper) {
             override fun postProcessSchema(jsonNode: JsonNode) {
                 val root = jsonNode as ObjectNode

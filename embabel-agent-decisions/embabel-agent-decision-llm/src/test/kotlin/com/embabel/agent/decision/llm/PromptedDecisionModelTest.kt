@@ -15,170 +15,231 @@
  */
 package com.embabel.agent.decision.llm
 
-import com.embabel.agent.core.Usage
-import com.embabel.agent.decision.ChoiceKey
-import com.embabel.agent.decision.DecisionOption
+import com.embabel.agent.decision.CallFailure
 import com.embabel.agent.decision.DecisionOutcome
 import com.embabel.agent.decision.KeyFailure
-import com.embabel.agent.decision.DecisionRequest
 import com.embabel.agent.decision.KeyOutcome
-import com.embabel.agent.decision.RatingKey
-import com.embabel.agent.decision.YesNoKey
-import com.embabel.agent.spi.LlmService
-import com.embabel.agent.spi.loop.LlmMessageRequest
-import com.embabel.agent.spi.loop.LlmMessageResponse
-import com.embabel.agent.spi.loop.LlmMessageSender
-import com.embabel.agent.spi.loop.RequestAwareLlmMessageSender
-import com.embabel.chat.AssistantMessage
-import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions
-import com.embabel.common.ai.model.PricingModel
-import com.embabel.common.ai.prompt.PromptContributor
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.ValueSource
+import org.junit.jupiter.params.provider.Arguments
+import org.junit.jupiter.params.provider.EnumSource
 import org.junit.jupiter.params.provider.MethodSource
-import java.time.LocalDate
-import java.util.stream.Stream
+import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.json.JsonMapper
+import java.time.Duration
+import java.util.stream.Stream
 
 class PromptedDecisionModelTest {
     @ParameterizedTest
-    @MethodSource("senders")
-    fun `both sender paths return verbalized typed evidence`(requestAware: Boolean) {
-        val sender = RecordingSender(completeResponse())
-        val service = RecordingService(if (requestAware) sender.requestAware() else sender)
-        val result = PromptedDecisionModel.create(service, LlmOptions()).ask(request()) as DecisionOutcome.Success
+    @EnumSource(SenderPath::class)
+    fun `both sender paths return complete verbalized typed evidence from the fixture`(path: SenderPath) {
+        val sender = RecordingDecisionSender.replying(promptedFixture("complete.json"))
+        val service = TestDecisionService(sender.forPath(path))
+        val fixture = decisionFixture(correlationId = "dice-revision-42")
+
+        val result = PromptedDecisionModel.create(service, LlmOptions()).ask(fixture.request) as DecisionOutcome.Success
 
         assertThat(result.provenance.evidenceKind.name).isEqualTo("VERBALIZED")
         assertThat(result.provenance.requestedModel).isEqualTo("test-model")
         assertThat(result.provenance.resolvedModel).isNull()
-        assertThat((result.answer(yes) as KeyOutcome.Success).value).isTrue()
-        assertThat((result.answer(choice) as KeyOutcome.Success).value).isEqualTo("b")
-        assertThat((result.answer(rating) as KeyOutcome.Success).value).isEqualTo("high")
+        assertThat(result.provenance.correlationId).isEqualTo("dice-revision-42")
+        assertThat(result.provenance.adapterVersion).isEqualTo("prompted-v1")
+        assertThat(result.provenance.promptVersion).isEqualTo("prompted-v1")
+        assertThat(result.provenance.questionFingerprint).isNotBlank()
+        assertThat((result.answer(fixture.yes) as KeyOutcome.Success).value).isTrue()
+        assertThat((result.answer(fixture.choice) as KeyOutcome.Success).value).isEqualTo("b")
+        assertThat((result.answer(fixture.rating) as KeyOutcome.Success).value).isEqualTo("high")
+        assertThat(sender.calls).isEqualTo(1)
         assertThat(sender.tools).isEmpty()
         assertThat(sender.messages.joinToString("\n") { it.content }).contains("BEGIN_DECISION_DATA")
-        if (requestAware) {
-            assertThat(sender.nativeRequest?.structuredOutputRequest?.name).isEqualTo("decision_response")
-            assertThat(sender.nativeRequest?.structuredOutputRequest?.strict).isTrue()
-            val schema = JsonMapper.builder().build().readTree(sender.nativeRequest!!.structuredOutputRequest.schema)
-            assertThat(schema.get("additionalProperties").booleanValue()).isFalse()
-            assertThat(schema.get("required")).extracting<String> { it.textValue() }.containsExactly("answers")
-            val alternatives = schema.get("properties").get("answers").get("items").get("oneOf")
-            assertThat(alternatives).hasSize(4)
-            assertThat(alternatives).allSatisfy { entry ->
-                assertThat(entry.get("additionalProperties").booleanValue()).isFalse()
-                assertThat(entry.get("required")).isNotEmpty()
+        assertSchemaAndDispatch(path, sender)
+    }
+
+    @ParameterizedTest
+    @EnumSource(SenderPath::class)
+    fun `ties fixture retains declaration order`(path: SenderPath) {
+        val sender = RecordingDecisionSender.replying(promptedFixture("ties.json"))
+        val fixture = decisionFixture()
+
+        val result = PromptedDecisionModel.create(TestDecisionService(sender.forPath(path)), LlmOptions())
+            .ask(fixture.request) as DecisionOutcome.Success
+
+        assertThat((result.answer(fixture.yes) as KeyOutcome.Success).maximizers).containsExactly(false, true)
+        assertThat((result.answer(fixture.choice) as KeyOutcome.Success).maximizers).containsExactly("a", "b")
+        assertThat((result.answer(fixture.choice) as KeyOutcome.Success).firstMaximizer).isEqualTo("a")
+        assertThat((result.answer(fixture.rating) as KeyOutcome.Success).maximizers).containsExactly("low", "high")
+    }
+
+    @ParameterizedTest
+    @EnumSource(SenderPath::class)
+    fun `invalid evidence fixture preserves recognizable key and missing siblings`(path: SenderPath) {
+        val sender = RecordingDecisionSender.replying(promptedFixture("invalid-evidence.json"))
+        val fixture = decisionFixture()
+
+        val result = PromptedDecisionModel.create(TestDecisionService(sender.forPath(path)), LlmOptions())
+            .ask(fixture.request) as DecisionOutcome.Success
+
+        assertThat((result.answer(fixture.yes) as KeyOutcome.Failure).failure).isEqualTo(KeyFailure.Invalid)
+        assertThat((result.answer(fixture.choice) as KeyOutcome.Failure).failure).isEqualTo(KeyFailure.Missing)
+        assertThat((result.answer(fixture.rating) as KeyOutcome.Failure).failure).isEqualTo(KeyFailure.Missing)
+    }
+
+    @ParameterizedTest
+    @EnumSource(SenderPath::class)
+    fun `malformed fixture rejects the whole call`(path: SenderPath) {
+        val sender = RecordingDecisionSender.replying(promptedFixture("malformed.json"))
+        val result = PromptedDecisionModel.create(TestDecisionService(sender.forPath(path)), LlmOptions())
+            .ask(decisionFixture().request) as DecisionOutcome.Failure
+
+        assertThat(result.failure).isEqualTo(CallFailure.RejectedRequest)
+    }
+
+    @ParameterizedTest(name = "{0} {1}")
+    @MethodSource("wireCases")
+    fun `strict parser and common facade classify adversarial evidence`(
+        path: SenderPath,
+        case: WireCase,
+    ) {
+        val sender = RecordingDecisionSender.replying(case.json)
+        val fixture = decisionFixture()
+        val outcome = PromptedDecisionModel.create(TestDecisionService(sender.forPath(path)), LlmOptions())
+            .ask(fixture.request)
+
+        when (case.expected) {
+            Expected.CALL_REJECTED -> {
+                assertThat(outcome).isInstanceOf(DecisionOutcome.Failure::class.java)
+                assertThat((outcome as DecisionOutcome.Failure).failure).isEqualTo(CallFailure.RejectedRequest)
             }
-        } else {
-            assertThat(sender.messages.first().content).contains("JSON format")
+            Expected.CHOICE_INVALID -> assertKeyFailure(outcome, fixture, KeyFailure.Invalid)
+            Expected.CHOICE_MISSING -> assertKeyFailure(outcome, fixture, KeyFailure.Missing)
+            Expected.CHOICE_UNSUPPORTED -> assertKeyFailure(outcome, fixture, KeyFailure.Unsupported)
+            Expected.CHOICE_SUCCESS -> {
+                val answer = (outcome as DecisionOutcome.Success).answer(fixture.choice) as KeyOutcome.Success
+                assertThat(answer.value).isEqualTo("b")
+            }
+            Expected.YES_INVALID -> {
+                val answer = (outcome as DecisionOutcome.Success).answer(fixture.yes) as KeyOutcome.Failure
+                assertThat(answer.failure).isEqualTo(KeyFailure.Invalid)
+            }
         }
     }
 
     @ParameterizedTest
-    @MethodSource("senders")
-    fun `ties retain declaration order`(requestAware: Boolean) {
-        val sender = RecordingSender(tieResponse())
-        val service = RecordingService(if (requestAware) sender.requestAware() else sender)
-        val result = PromptedDecisionModel.create(service, LlmOptions()).ask(request()) as DecisionOutcome.Success
+    @MethodSource("nonFiniteFacts")
+    fun `non-finite state is rejected before either sender path is called`(path: SenderPath, value: Number) {
+        val sender = RecordingDecisionSender.replying(promptedFixture("complete.json"))
+        val fixture = decisionFixture(state = mapOf("measurement" to value))
 
-        assertThat((result.answer(choice) as KeyOutcome.Success).maximizers).containsExactly("a", "b")
-        assertThat((result.answer(choice) as KeyOutcome.Success).firstMaximizer).isEqualTo("a")
-        assertThat((result.answer(rating) as KeyOutcome.Success).maximizers).containsExactly("low", "high")
+        val outcome = PromptedDecisionModel.create(TestDecisionService(sender.forPath(path)), LlmOptions())
+            .ask(fixture.request) as DecisionOutcome.Failure
+
+        assertThat(outcome.failure).isEqualTo(CallFailure.RejectedRequest)
+        assertThat(sender.calls).isZero()
     }
 
-    @org.junit.jupiter.api.Test
-    fun `recognizable invalid evidence preserves valid siblings and missing entries`() {
-        val sender = RecordingSender("""{"answers":[{"keyId":"yes","kind":"YES_NO","pTrue":"0.75"},{"keyId":"choice","kind":"CHOICE","probabilities":[{"supportId":"a","probability":0.4},{"supportId":"b","probability":0.6}]}]}""")
-        val result = PromptedDecisionModel.create(RecordingService(sender), LlmOptions()).ask(request()) as DecisionOutcome.Success
+    @Test
+    fun `plain ObjectMapper holder is accepted without narrowing to JsonMapper`() {
+        val sender = RecordingDecisionSender.replying(promptedFixture("complete.json"))
+        val fixture = decisionFixture()
 
-        assertThat((result.answer(yes) as KeyOutcome.Failure).failure).isEqualTo(KeyFailure.Invalid)
-        assertThat((result.answer(choice) as KeyOutcome.Success).value).isEqualTo("b")
-        assertThat((result.answer(rating) as KeyOutcome.Failure).failure).isEqualTo(KeyFailure.Missing)
+        val outcome = PromptedDecisionModel.create(
+            TestDecisionService(sender.forPath(SenderPath.LEGACY)),
+            LlmOptions(),
+            EmbabelObjectMapperHolder(ObjectMapper()),
+        ).ask(fixture.request)
+
+        assertThat(outcome).isInstanceOf(DecisionOutcome.Success::class.java)
     }
 
-    @org.junit.jupiter.api.Test
-    fun `unknown or duplicate answer ids reject the whole call`() {
-        val sender = RecordingSender("""{"answers":[{"keyId":"yes","kind":"YES_NO","pTrue":0.5},{"keyId":"yes","kind":"YES_NO","pTrue":0.5}]}""")
-        val result = PromptedDecisionModel.create(RecordingService(sender), LlmOptions()).ask(request()) as DecisionOutcome.Failure
+    @Test
+    fun `factory snapshots mutable caller options and applies remaining budget to a fresh copy`() {
+        val sender = RecordingDecisionSender.replying(promptedFixture("complete.json"))
+        val service = TestDecisionService(sender.forPath(SenderPath.LEGACY))
+        val callerOptions = LlmOptions(model = "original", temperature = 0.25, timeout = Duration.ofMinutes(1))
+        val model = PromptedDecisionModel.create(service, callerOptions)
+        callerOptions.model = "mutated"
+        callerOptions.temperature = 0.9
 
-        assertThat(result.safeCode.name).isEqualTo("REJECTED_REQUEST")
+        val outcome = model.ask(decisionFixture().request)
+
+        assertThat(outcome).isInstanceOf(DecisionOutcome.Success::class.java)
+        assertThat(service.callOptions?.model).isEqualTo("original")
+        assertThat(service.callOptions?.temperature).isEqualTo(0.25)
+        assertThat(service.callOptions?.timeout).isLessThan(Duration.ofMinutes(1))
+        assertThat(callerOptions.timeout).isEqualTo(Duration.ofMinutes(1))
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = [
-        """{"keyId":"choice","kind":"CHOICE","probabilities":[{"supportId":"a","probability":1.0}]}""",
-        """{"keyId":"choice","kind":"CHOICE","probabilities":[{"supportId":"a","probability":0.5},{"supportId":"b","probability":0.5}],"selectedSupportId":"a","extra":true}""",
-        """{"keyId":"choice","kind":"CHOICE","probabilities":[{"supportId":"a","probability":0.2},{"supportId":"b","probability":0.8}],"selectedSupportId":"a"}""",
-        """{"keyId":"choice","kind":"RATING","probabilities":[{"supportId":"a","probability":0.5},{"supportId":"b","probability":0.5}]}""",
-    ])
-    fun `recognizable malformed distributions become invalid key evidence`(entry: String) {
-        val sender = RecordingSender("""{"answers":[$entry]}""")
-        val result = PromptedDecisionModel.create(RecordingService(sender), LlmOptions()).ask(request()) as DecisionOutcome.Success
-
-        assertThat(result.answer(choice)).isInstanceOf(KeyOutcome.Failure::class.java)
-        assertThat((result.answer(choice) as KeyOutcome.Failure).failure).isEqualTo(KeyFailure.Invalid)
-    }
-
-    private fun request(): DecisionRequest {
-        val builder = DecisionRequest.builder()
-        yes = builder.yesNo("yes", "Should this proposition be revised?")
-        choice = builder.choice("choice", "Which candidate is best?", listOf(
-            DecisionOption.of("a", "a", "Candidate A"),
-            DecisionOption.of("b", "b", "Candidate B"),
-        ))
-        rating = builder.rating("rating", "How strong is the support?", listOf(
-            DecisionOption.of("low", "low", "Low"),
-            DecisionOption.of("medium", "medium", "Medium"),
-            DecisionOption.of("high", "high", "High"),
-        ))
-        return builder.build()
-    }
-
-    private class RecordingService(private val sender: LlmMessageSender) : LlmService<RecordingService> {
-        override val name = "test-model"
-        override val provider = "test-provider"
-        override val knowledgeCutoffDate: LocalDate? = null
-        override val pricingModel: PricingModel? = null
-        override val promptContributors: List<PromptContributor> = emptyList()
-        override fun createMessageSender(options: LlmOptions): LlmMessageSender = sender
-        override fun createMessageStreamer(options: LlmOptions) = error("streaming is not used")
-        override fun supportsStreaming() = false
-        override fun withKnowledgeCutoffDate(date: LocalDate) = this
-        override fun withPromptContributor(promptContributor: PromptContributor) = this
-    }
-
-    private class RecordingSender(private val text: String) : LlmMessageSender {
-        var messages: List<Message> = emptyList()
-        var tools = emptyList<com.embabel.agent.api.tool.Tool>()
-        var nativeRequest: com.embabel.agent.spi.loop.NativeStructuredOutputRequest? = null
-
-        fun requestAware(): RequestAwareLlmMessageSender = object : RequestAwareLlmMessageSender {
-            override fun call(request: LlmMessageRequest): LlmMessageResponse {
-                messages = request.messages
-                tools = request.tools
-                nativeRequest = request.nativeStructuredOutputRequest
-                return response()
-            }
-            override fun call(messages: List<Message>, tools: List<com.embabel.agent.api.tool.Tool>): LlmMessageResponse = response()
+    private fun assertSchemaAndDispatch(path: SenderPath, sender: RecordingDecisionSender) {
+        if (path == SenderPath.LEGACY) {
+            assertThat(sender.nativeRequest).isNull()
+            assertThat(sender.messages.first().content).contains("JSON format", "additionalProperties")
+            return
         }
-
-        override fun call(messages: List<Message>, tools: List<com.embabel.agent.api.tool.Tool>): LlmMessageResponse {
-            this.messages = messages
-            this.tools = tools
-            return response()
+        val structured = requireNotNull(sender.nativeRequest).structuredOutputRequest
+        assertThat(structured.name).isEqualTo("decision_response")
+        assertThat(structured.strict).isTrue()
+        val schema = JsonMapper.builder().build().readTree(structured.schema)
+        assertThat(schema.get("additionalProperties").booleanValue()).isFalse()
+        assertThat(schema.get("required")).extracting<String> { it.asString() }.containsExactly("answers")
+        val alternatives = schema.get("properties").get("answers").get("items").get("oneOf")
+        assertThat(alternatives).hasSize(4)
+        assertThat(alternatives).allSatisfy { entry ->
+            assertThat(entry.get("additionalProperties").booleanValue()).isFalse()
+            assertThat(entry.get("required")).isNotEmpty()
         }
+    }
 
-        private fun response() = LlmMessageResponse(AssistantMessage(text), text, Usage(1, 1, null))
+    private fun assertKeyFailure(outcome: DecisionOutcome, fixture: DecisionFixture, failure: KeyFailure) {
+        assertThat(outcome).isInstanceOf(DecisionOutcome.Success::class.java)
+        val answer = (outcome as DecisionOutcome.Success).answer(fixture.choice) as KeyOutcome.Failure
+        assertThat(answer.failure).isEqualTo(failure)
+        assertThat((outcome.answer(fixture.yes) as KeyOutcome.Failure).failure).isEqualTo(KeyFailure.Missing)
+    }
+
+    enum class Expected { CALL_REJECTED, CHOICE_INVALID, CHOICE_MISSING, CHOICE_UNSUPPORTED, CHOICE_SUCCESS, YES_INVALID }
+    data class WireCase(val name: String, val json: String, val expected: Expected) {
+        override fun toString() = name
     }
 
     companion object {
-        private lateinit var yes: YesNoKey
-        private lateinit var choice: ChoiceKey<String>
-        private lateinit var rating: RatingKey<String>
+        @JvmStatic
+        fun wireCases(): Stream<Arguments> {
+            val cases = listOf(
+                WireCase("absent answer", """{"answers":[]}""", Expected.CHOICE_MISSING),
+                WireCase("explicit unsupported", """{"answers":[{"keyId":"choice","kind":"UNSUPPORTED"}]}""", Expected.CHOICE_UNSUPPORTED),
+                WireCase("duplicate answer", """{"answers":[{"keyId":"choice","kind":"UNSUPPORTED"},{"keyId":"choice","kind":"UNSUPPORTED"}]}""", Expected.CALL_REJECTED),
+                WireCase("unknown answer", """{"answers":[{"keyId":"unknown","kind":"UNSUPPORTED"}]}""", Expected.CALL_REJECTED),
+                WireCase("duplicate support", distribution("""{"supportId":"a","probability":0.5},{"supportId":"a","probability":0.5}"""), Expected.CHOICE_INVALID),
+                WireCase("incomplete support", distribution("""{"supportId":"a","probability":1.0}"""), Expected.CHOICE_INVALID),
+                WireCase("extra support", distribution("""{"supportId":"a","probability":0.3},{"supportId":"b","probability":0.3},{"supportId":"c","probability":0.4}"""), Expected.CHOICE_INVALID),
+                WireCase("numeric string", distribution("""{"supportId":"a","probability":"0.4"},{"supportId":"b","probability":0.6}"""), Expected.CHOICE_INVALID),
+                WireCase("NaN token", """{"answers":[{"keyId":"yes","kind":"YES_NO","pTrue":NaN}]}""", Expected.CALL_REJECTED),
+                WireCase("Infinity token", """{"answers":[{"keyId":"yes","kind":"YES_NO","pTrue":Infinity}]}""", Expected.CALL_REJECTED),
+                WireCase("overflow", """{"answers":[{"keyId":"yes","kind":"YES_NO","pTrue":1e999}]}""", Expected.YES_INVALID),
+                WireCase("negative", distribution("""{"supportId":"a","probability":-0.1},{"supportId":"b","probability":1.1}"""), Expected.CHOICE_INVALID),
+                WireCase("greater than one", distribution("""{"supportId":"a","probability":1.1},{"supportId":"b","probability":-0.1}"""), Expected.CHOICE_INVALID),
+                WireCase("mass outside tolerance", distribution("""{"supportId":"a","probability":0.5},{"supportId":"b","probability":0.500000002}"""), Expected.CHOICE_INVALID),
+                WireCase("mass inside tolerance", distribution("""{"supportId":"a","probability":0.5},{"supportId":"b","probability":0.5000000005}"""), Expected.CHOICE_SUCCESS),
+                WireCase("nonmaximizing selection", distribution("""{"supportId":"a","probability":0.2},{"supportId":"b","probability":0.8}""", ",\"selectedSupportId\":\"a\""), Expected.CHOICE_INVALID),
+                WireCase("wrong kind", """{"answers":[{"keyId":"choice","kind":"RATING","probabilities":[{"supportId":"a","probability":0.5},{"supportId":"b","probability":0.5}]}]}""", Expected.CHOICE_INVALID),
+                WireCase("null evidence", """{"answers":[{"keyId":"yes","kind":"YES_NO","pTrue":null}]}""", Expected.YES_INVALID),
+                WireCase("duplicate member", """{"answers":[{"keyId":"yes","keyId":"yes","kind":"YES_NO","pTrue":0.5}]}""", Expected.CALL_REJECTED),
+                WireCase("trailing document", """{"answers":[]} {"answers":[]}""", Expected.CALL_REJECTED),
+                WireCase("invalid envelope", """{"answers":[],"provider":"model-authored"}""", Expected.CALL_REJECTED),
+            )
+            return SenderPath.entries.flatMap { path -> cases.map { Arguments.of(path, it) } }.stream()
+        }
 
-        @JvmStatic fun senders(): Stream<Boolean> = Stream.of(false, true)
-        private fun completeResponse() = """{"answers":[{"keyId":"yes","kind":"YES_NO","pTrue":0.75},{"keyId":"choice","kind":"CHOICE","probabilities":[{"supportId":"a","probability":0.4},{"supportId":"b","probability":0.6}],"selectedSupportId":"b"},{"keyId":"rating","kind":"RATING","probabilities":[{"supportId":"low","probability":0.2},{"supportId":"medium","probability":0.3},{"supportId":"high","probability":0.5}],"selectedSupportId":"high"}]}"""
-        private fun tieResponse() = """{"answers":[{"keyId":"yes","kind":"YES_NO","pTrue":0.5},{"keyId":"choice","kind":"CHOICE","probabilities":[{"supportId":"a","probability":0.5},{"supportId":"b","probability":0.5}]},{"keyId":"rating","kind":"RATING","probabilities":[{"supportId":"low","probability":0.5},{"supportId":"medium","probability":0.0},{"supportId":"high","probability":0.5}]}]}"""
+        @JvmStatic
+        fun nonFiniteFacts(): Stream<Arguments> = SenderPath.entries.flatMap { path ->
+            listOf(Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, Float.NaN, Float.POSITIVE_INFINITY)
+                .map { Arguments.of(path, it) }
+        }.stream()
+
+        private fun distribution(probabilities: String, suffix: String = "") =
+            """{"answers":[{"keyId":"choice","kind":"CHOICE","probabilities":[$probabilities]$suffix}]}"""
     }
 }
