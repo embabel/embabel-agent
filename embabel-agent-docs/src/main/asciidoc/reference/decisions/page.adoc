@@ -54,7 +54,7 @@ include::../../../../../../embabel-agent-decisions/embabel-agent-decision-typesa
 
 `Auto` and `PlatformDefault` both resolve the configured default decision model. A deployment with one decision model can use it as the implicit default. A deployment with several decision models must set `embabel.models.default-decision-model`; startup fails rather than picking one by accident. Roles use `embabel.models.decisions.<role>=<registry-name>`.
 
-`listModelNames(DecisionModel.class)`, `listRoles(DecisionModel.class)`, `listModels()`, and `infoString()` expose the same operational discovery surface as the other model types. The resulting `DecisionModelMetadata` is registry metadata: it identifies the configured name and provider. Each successful call carries separate per-call provenance with the requested and resolved backend identities, adapter version, request id, timestamp, usage when supplied, and evidence kind. Registry metadata must never be substituted for per-call provenance.
+`listModelNames(DecisionModel.class)`, `listRoles(DecisionModel.class)`, `listModels()`, and `infoString()` expose the same operational discovery surface as the other model types. The resulting `DecisionModelMetadata` is registry metadata: it identifies the configured name and provider. Each successful call carries separate per-call provenance. It records the requested and resolved backend identities, adapter version, request id, timestamp, usage, and evidence kind when the provider supplies them or the facade can safely complete them. Registry metadata must never be substituted for per-call provenance.
 
 ==== Provider SPI
 
