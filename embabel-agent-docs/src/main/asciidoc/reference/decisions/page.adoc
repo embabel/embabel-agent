@@ -27,7 +27,7 @@ include::../diagrams/decision-modules.dot[]
 
 ==== Invocation boundary
 
-Every adapter enters the same facade. The facade validates the question schema, redacts state, captures one absolute deadline, validates raw evidence, and projects a policy-safe record. Providers cannot construct validated answers. A provider never chooses an application action.
+Every adapter enters the same facade. The facade validates the question schema, copies and structurally bounds the caller-selected state, captures one absolute deadline, validates raw evidence, and projects a policy-safe record. Providers cannot construct validated answers. A provider never chooses an application action.
 
 [graphviz, decision-flow.dot, png]
 ....
@@ -36,9 +36,11 @@ include::../diagrams/decision-flow.dot[]
 
 ==== Provider SPI
 
-`DecisionProvider` is the public extension point for another decision engine. Custom implementations are extension adapters; they do not become additional built-in decision products. A provider receives one immutable, redacted `PreparedDecisionRequest` and returns raw evidence. It can be called concurrently, so its shared state must be thread-safe. It must not retain the request, state, questions, or support values after `invoke` returns.
+`DecisionProvider` is the public extension point for another decision engine. Custom implementations are extension adapters; they do not become additional built-in decision products. A provider receives one immutable, structurally bounded `PreparedDecisionRequest` and returns raw evidence. It can be called concurrently, so its shared state must be thread-safe. It must not retain the request, state, questions, or support values after `invoke` returns.
 
-The deadline is one absolute value from a monotonic process clock. It is not wall-clock time and must not be persisted or compared outside that request. Providers should use `remainingNanos()`, stop before it reaches zero, and honor thread interruption. The facade interrupts on cancellation or timeout and discards late results. An exception becomes `Unavailable`; caller interruption becomes `Cancelled`; an overrun becomes `DeadlineExceeded`.
+`DecisionRequest.state` is an explicit caller-safe projection. It is copied and structurally bounded, then transported exactly as supplied. No key-name redaction is performed. Never place credentials or data outside the selected provider's disclosure policy in it.
+
+The deadline is one absolute value from a monotonic process clock. It is not wall-clock time and must not be persisted or compared outside that request. Providers should use `remainingNanos()`, stop before it reaches zero, and honor thread interruption. The facade interrupts on cancellation or timeout and discards late results. An exception becomes `Unavailable`; caller interruption becomes `Cancelled`; an overrun becomes `DeadlineExceeded`. Each model owns a bounded worker pool and implements `AutoCloseable`; applications that construct a model explicitly must close it. Spring closes its managed model bean.
 
 Raw results have a deliberately narrow contract:
 
@@ -95,7 +97,7 @@ Autoconfiguration is inert unless `embabel.agent.decision.enabled=true`. A user-
 |`embabel.agent.decision.record-allowlist` |empty |Explicit full-record fields
 |`embabel.agent.decision.mapper-bean-name` |unset |Exact `EmbabelObjectMapperHolder` bean
 |`embabel.agent.decision.typesafe.model` |required for TypeSafe |Requested model; resolved identity comes from Jev
-|`embabel.agent.decision.typesafe.base-url` |`https://api.typesafe.ai` |TypeSafe origin
+|`embabel.agent.decision.typesafe.base-url` |`https://api.typesafe.ai` |TypeSafe origin; Spring accepts the canonical service or literal loopback only
 |`embabel.agent.decision.typesafe.connect-timeout` |`10s` |Positive HTTP connect timeout
 |`embabel.agent.decision.typesafe.api-key` |unset |Credential; `TYPESAFE_API_KEY` is the fallback
 |`embabel.agent.decision.prompted.llm-bean-name` |required for prompted |Exact `LlmService` bean
@@ -110,7 +112,7 @@ Yes/no yields a Boolean distribution. Choice and rating preserve declared suppor
 
 One monotonic deadline covers preparation, queueing, transport, and the single Jev retry allowed for an initial `429` or `529`. Late success is discarded. Caller interruption is restored.
 
-Metadata records contain opaque identifiers, counts, schema versions, and safe codes. Facts, labels, application values, numeric evidence, free text, exception text, and credentials are excluded by default. Full records remain bounded and require an explicit allowlist. Redaction happens before transport. Provenance records only fields the provider actually supplied and the facade safely completed.
+Metadata records contain opaque identifiers, counts, schema versions, and safe codes. Facts, labels, application values, numeric evidence, free text, exception text, and credentials are excluded by default. Full records remain bounded and require an explicit allowlist. The caller projects state before transport; the framework preserves that projection exactly after applying structural and size limits. Provenance records only fields the provider actually supplied and the facade safely completed.
 
 ==== Dice-shaped proposition revision
 

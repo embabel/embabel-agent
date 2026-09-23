@@ -269,13 +269,13 @@ class JevDecisionExampleTest {
     }
 
     @Test
-    fun `outgoing state records and process output exclude secrets without invoking described actions`() {
+    fun `caller safe state projection and records exclude secrets without invoking described actions`() {
         val describedActionInvocations = AtomicInteger()
+        // Application state is not passed wholesale. The caller selects only facts approved for this provider.
         val builder = DecisionRequest.builder().state(
             mapOf(
                 "subject" to "synthetic",
-                "api_key" to "STATE_SECRET",
-                "nested" to mapOf("password" to "NESTED_SECRET", "safe" to "visible"),
+                "nested" to mapOf("safe" to "visible"),
                 "tool" to mapOf("name" to "never-call", "invocations" to describedActionInvocations.get()),
             ),
         ).recordPolicy(DecisionRecordPolicy.full(512, setOf("answerIds")))
@@ -286,7 +286,7 @@ class JevDecisionExampleTest {
             val success = model(server).ask(builder.build()) as DecisionOutcome.Success
             assertThat((success.answer(eligible) as KeyOutcome.Success).value).isTrue()
             assertThat(describedActionInvocations).hasValue(0)
-            assertThat(server.requests.single().body).contains("visible", "never-call")
+            assertThat(server.requests.single().body).contains("synthetic", "visible", "never-call")
             assertThat(server.requests.single().body).doesNotContain(
                 "STATE_SECRET", "NESTED_SECRET", "api_key", "password", "synthetic-bearer",
             )

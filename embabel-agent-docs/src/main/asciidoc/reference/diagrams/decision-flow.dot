@@ -3,7 +3,7 @@ digraph DecisionFlow {
   node [shape=box, style="rounded"];
   host [label="Explicit or Spring-configured host"];
   facade [label="final DecisionModel facade"];
-  prepare [label="Prepare + redact + absolute deadline"];
+  prepare [label="Copy bounded projection + absolute deadline"];
   spi [label="Prepared DecisionProvider SPI"];
   jev [label="Jev"];
   prompted [label="Prompted LLM"];
