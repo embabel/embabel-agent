@@ -19,7 +19,10 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import java.time.Duration
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 
 class DecisionModelTest {
     @Test
@@ -172,7 +175,7 @@ class DecisionModelTest {
         val clock = AtomicLong(1_000)
         val builder = DecisionRequest.builder()
         builder.yesNo("safe", "safe?")
-        val model = decisionModelForTesting(DecisionProvider {
+        val model = modelWithClock(DecisionProvider {
             clock.set(1_000 + Duration.ofSeconds(5).toNanos())
             RawDecisionOutcome.success(listOf(RawAnswer.yesNo("safe", 1.0, "true")), DecisionProvenance.builder("test", EvidenceKind.DISTRIBUTION).build())
         }, Duration.ofSeconds(5), DecisionRecordPolicy.metadata(), clock::get)
@@ -197,6 +200,7 @@ class DecisionModelTest {
         CallFailure.entries.forEach { failure ->
             val outcome = DecisionModel(DecisionProvider { RawDecisionOutcome.failure(failure, DecisionSafeCode.UNAVAILABLE) }).ask(yesNoRequest()) as DecisionOutcome.Failure
             assertThat(outcome.failure).isEqualTo(failure)
+            assertThat(outcome.safeCode).isEqualTo(canonical(failure))
         }
         KeyFailure.entries.forEach { failure ->
             val request = DecisionRequest.builder()
@@ -204,7 +208,9 @@ class DecisionModelTest {
             val outcome = DecisionModel(DecisionProvider {
                 RawDecisionOutcome.success(listOf(RawAnswer.failure("safe", failure, DecisionSafeCode.INVALID)), DecisionProvenance.builder("test", EvidenceKind.DISTRIBUTION).build())
             }).ask(request.build()) as DecisionOutcome.Success
-            assertThat(outcome.answer(key)).isInstanceOf(KeyOutcome.Failure::class.java)
+            val answer = outcome.answer(key)
+            assertThat(answer).isInstanceOf(KeyOutcome.Failure::class.java)
+            assertThat((answer as KeyOutcome.Failure).safeCode).isEqualTo(canonical(failure))
         }
     }
 
@@ -230,7 +236,7 @@ class DecisionModelTest {
 
     @Test
     fun `bounds every record projection including full allowlisted records`() {
-        val builder = DecisionRequest.builder().recordPolicy(DecisionRecordPolicy.full(1, setOf("answerIds")))
+        val builder = DecisionRequest.builder().recordPolicy(DecisionRecordPolicy.full(4096, setOf("answerIds")))
         builder.correlationId("x".repeat(256))
         builder.yesNo("safe", "safe?")
         val outcome = DecisionModel(DecisionProvider {
@@ -238,13 +244,74 @@ class DecisionModelTest {
         }).ask(builder.build()) as DecisionOutcome.Success
 
         val record = requireNotNull(outcome.record)
-        assertThat(record.fields).isEmpty()
+        assertThat(record.fields).containsEntry("schemaVersion", "1").containsEntry("answerIds", "false")
         assertThatThrownBy { (record.fields as MutableMap<String, String>)["x"] = "y" }.isInstanceOf(UnsupportedOperationException::class.java)
+    }
+
+    @Test
+    fun `rejects mutable number state before provider invocation`() {
+        val invoked = AtomicLong()
+        assertThatThrownBy {
+            DecisionRequest.builder().state(mapOf("counter" to java.util.concurrent.atomic.AtomicInteger(7)))
+        }.isInstanceOf(IllegalArgumentException::class.java)
+        val request = DecisionRequest.builder().also { it.yesNo("safe", "safe?") }.build()
+        DecisionModel(DecisionProvider { invoked.incrementAndGet(); RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.DISABLED) }).ask(request)
+        assertThat(invoked.get()).isEqualTo(1)
+    }
+
+    @Test
+    fun `bounds noncooperative work across many models and cancels interruption`() {
+        val started = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val provider = DecisionProvider {
+            started.countDown()
+            while (release.count > 0) try { release.await() } catch (_: InterruptedException) { }
+            RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE)
+        }
+        val request = DecisionRequest.builder().also { it.timeout(Duration.ofMillis(5)); it.yesNo("safe", "safe?") }.build()
+        try {
+            (1..24).forEach { DecisionModel(provider).ask(request) }
+            assertThat(Thread.getAllStackTraces().keys.count { it.name == "embabel-decision" && it.isAlive }).isLessThanOrEqualTo(4)
+            release.countDown()
+            Thread.sleep(20)
+
+            val result = AtomicReference<DecisionOutcome>()
+            val interruptStarted = CountDownLatch(1)
+            val interruptRelease = CountDownLatch(1)
+            val caller = Thread { result.set(DecisionModel(DecisionProvider {
+                interruptStarted.countDown()
+                while (interruptRelease.count > 0) try { interruptRelease.await() } catch (_: InterruptedException) { }
+                RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE)
+            }).ask(request)) }
+            caller.start()
+            assertThat(interruptStarted.await(1, TimeUnit.SECONDS)).isTrue
+            caller.interrupt()
+            caller.join(500)
+            assertThat(result.get()).isInstanceOf(DecisionOutcome.Failure::class.java)
+            assertThat((result.get() as DecisionOutcome.Failure).failure).isEqualTo(CallFailure.Cancelled)
+            interruptRelease.countDown()
+        } finally {
+            release.countDown()
+        }
     }
 
     private fun yesNoRequest(): DecisionRequest {
         val builder = DecisionRequest.builder()
         builder.yesNo("yes", "yes?")
         return builder.build()
+    }
+
+    private fun modelWithClock(provider: DecisionProvider, timeout: Duration, policy: DecisionRecordPolicy, clock: () -> Long): DecisionModel {
+        val model = DecisionModel(provider).withDefaults(timeout, policy)
+        DecisionModel::class.java.getDeclaredField("clock").apply { isAccessible = true }.set(model, clock)
+        return model
+    }
+
+    private fun canonical(failure: CallFailure) = when (failure) {
+        CallFailure.Disabled -> DecisionSafeCode.DISABLED; CallFailure.Unavailable -> DecisionSafeCode.UNAVAILABLE; CallFailure.RejectedRequest -> DecisionSafeCode.REJECTED_REQUEST; CallFailure.DeadlineExceeded -> DecisionSafeCode.DEADLINE_EXCEEDED; CallFailure.Cancelled -> DecisionSafeCode.CANCELLED; CallFailure.Unsupported -> DecisionSafeCode.UNSUPPORTED
+    }
+
+    private fun canonical(failure: KeyFailure) = when (failure) {
+        KeyFailure.Missing -> DecisionSafeCode.MISSING; KeyFailure.Invalid -> DecisionSafeCode.INVALID; KeyFailure.Unsupported -> DecisionSafeCode.UNSUPPORTED
     }
 }

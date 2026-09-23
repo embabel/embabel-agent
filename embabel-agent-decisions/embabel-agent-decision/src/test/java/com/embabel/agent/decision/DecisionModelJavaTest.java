@@ -44,10 +44,7 @@ class DecisionModelJavaTest {
         ), DecisionProvenance.builder("java-test", EvidenceKind.DISTRIBUTION).build()));
 
         DecisionOutcome.Success outcome = assertInstanceOf(DecisionOutcome.Success.class, model.ask(request.build()));
-        KeyOutcome.Success<?> answer = assertInstanceOf(KeyOutcome.Success.class, outcome.answer(relation));
-
-        assertEquals("IDENTICAL", answer.getValue());
-        assertEquals("IDENTICAL", answer.getFirstMaximizer());
+        assertEquals("IDENTICAL", outcome.value(relation));
         assertEquals("java-test", outcome.getProvenance().getProvider());
     }
 
@@ -57,10 +54,11 @@ class DecisionModelJavaTest {
         assertEquals(1, DecisionModel.class.getConstructors().length);
         assertEquals(1, DecisionModel.class.getConstructors()[0].getParameterCount());
         assertTrue(DecisionRequest.class.isInterface());
-        assertTrue(DecisionOutcome.Success.class.isInterface());
-        assertTrue(KeyOutcome.Success.class.isInterface());
+        assertTrue(Modifier.isFinal(DecisionOutcome.Success.class.getModifiers()));
+        assertTrue(Modifier.isFinal(KeyOutcome.Success.class.getModifiers()));
         assertTrue(Arrays.stream(DecisionModel.class.getMethods())
             .noneMatch(method -> method.getName().contains("$")));
+        assertEquals(0, DecisionContractsKt.class.getDeclaredMethods().length);
 
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         assertNotNull(compiler);
@@ -75,9 +73,10 @@ class DecisionModelJavaTest {
                     DecisionModel model = new DecisionModel(prepared -> RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.DISABLED));
                     DecisionOutcome result = model.ask(request.build());
                     if (result instanceof DecisionOutcome.Success success) {
-                        KeyOutcome<String> answer = success.answer(key);
+                        String value = success.value(key);
+                        return value;
                     }
-                    return "ok";
+                    return "failed";
                 }
             }
             """;
@@ -90,9 +89,16 @@ class DecisionModelJavaTest {
                 }
             }
             """;
+        String forge = """
+            import com.embabel.agent.decision.*;
+            class ForgeDecisionSuccess extends DecisionOutcome {
+                ForgeDecisionSuccess() { }
+            }
+            """;
 
         assertEquals(0, compile(compiler, classpath, "PositiveConsumer", positive));
         assertTrue(compile(compiler, classpath, "FacadeBypass", bypass) != 0);
+        assertTrue(compile(compiler, classpath, "ForgeDecisionSuccess", forge) != 0);
     }
 
     private static int compile(JavaCompiler compiler, String classpath, String className, String source) {
