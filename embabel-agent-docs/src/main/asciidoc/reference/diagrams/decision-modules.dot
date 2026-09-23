@@ -1,0 +1,18 @@
+digraph DecisionModules {
+  rankdir=LR;
+  node [shape=box, style="rounded"];
+  ai [label="embabel-agent-ai"];
+  api [label="embabel-agent-api"];
+  core [label="embabel-agent-decision\ncontracts + final facade"];
+  jev [label="embabel-agent-decision-typesafe\nJev adapter"];
+  llm [label="embabel-agent-decision-llm\nprompted adapter"];
+  auto [label="embabel-agent-decision-autoconfigure\nopt-in Spring wiring"];
+  starter [label="embabel-agent-starter-decision\nthin dependency starter"];
+  core -> ai;
+  jev -> core;
+  llm -> core;
+  llm -> api;
+  auto -> jev;
+  auto -> llm;
+  starter -> auto;
+}

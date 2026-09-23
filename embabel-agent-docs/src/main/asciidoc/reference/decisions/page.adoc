@@ -1,0 +1,121 @@
+[[reference.decisions]]
+=== Typed Decisions
+
+Typed decisions are experimental in this release. They give application code typed evidence and provenance while leaving every action, mutation, and persistence decision with the host. A `DecisionModel` is not an LLM, Spring AI `ChatModel`, agent role, or action executor. Automatic `Ai` or `ModelProvider` selection is deferred.
+
+For explicit use, depend on `com.embabel.agent:embabel-agent-decision` and one provider leaf, normally `com.embabel.agent:embabel-agent-decision-typesafe`. Spring Boot applications can opt into `com.embabel.agent:embabel-agent-starter-decision`. The `embabel-agent-decisions` aggregate is Maven packaging only.
+
+==== Configurations and modules
+
+Exactly four configurations create the same final facade:
+
+[cols="1,2,1"]
+|===
+|Configuration |Evidence source |Construction
+|`TypeSafeDecisionModel` |Jev distributions |Explicit or Spring `typesafe`
+|`PromptedDecisionModel` |An `LlmService` verbalized distribution |Explicit or Spring `prompted`
+|`NoDecisionModel` |Disabled result |Explicit or Spring `none`
+|`StubDecisionModel` |Caller-scripted deterministic outcomes |Explicit tests only; never property-selected
+|===
+
+Five runtime JARs separate the stable dependency directions: core contracts and facade, TypeSafe/Jev, prompted LLM, Spring autoconfiguration, and the thin starter.
+
+[graphviz, decision-modules.dot, png]
+....
+include::../diagrams/decision-modules.dot[]
+....
+
+==== Invocation boundary
+
+Every adapter enters the same facade. The facade validates the question schema, redacts state, captures one absolute deadline, validates raw evidence, and projects a policy-safe record. Providers cannot construct validated answers. A provider never chooses an application action.
+
+[graphviz, decision-flow.dot, png]
+....
+include::../diagrams/decision-flow.dot[]
+....
+
+==== Explicit Jev consumers
+
+The Kotlin and Java examples below are compiled tests. Both handle call failure separately from per-key failure and return evidence to host code.
+
+[source,kotlin]
+----
+include::../../../../../../embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/kotlin/com/embabel/agent/decision/example/JevDecisionExample.kt[tag=kotlin-consumer]
+----
+
+[source,java]
+----
+include::../../../../../../embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/JevDecisionExample.java[tag=java-consumer]
+----
+
+The public adapter can be built directly:
+
+[source,kotlin]
+----
+val model = TypeSafeDecisionModel.create({ System.getenv("TYPESAFE_API_KEY") }, requestedModel)
+----
+
+The supplier resolves the credential only when a request is made. Do not put a key in source or logs.
+
+==== Spring Boot configuration
+
+Autoconfiguration is inert unless `embabel.agent.decision.enabled=true`. A user-provided `DecisionModel` wins before decision properties are validated. The created beans are named `decisionProperties` and `decisionModel`; `mapper-bean-name`, `prompted.llm-bean-name`, and `prompted.options-bean-name` select exact existing beans.
+
+[cols="2,1,2"]
+|===
+|Property |Default |Meaning
+|`embabel.agent.decision.enabled` |`false` |Opt into autoconfiguration
+|`embabel.agent.decision.provider` |required |`typesafe`, `prompted`, or `none`
+|`embabel.agent.decision.default-timeout` |`30s` |Positive facade default
+|`embabel.agent.decision.record-mode` |`metadata` |`none`, `metadata`, or bounded `full`
+|`embabel.agent.decision.full-record-max-bytes` |`65536` |Full-record byte ceiling
+|`embabel.agent.decision.record-allowlist` |empty |Explicit full-record fields
+|`embabel.agent.decision.mapper-bean-name` |unset |Exact `EmbabelObjectMapperHolder` bean
+|`embabel.agent.decision.typesafe.model` |required for TypeSafe |Requested model; resolved identity comes from Jev
+|`embabel.agent.decision.typesafe.base-url` |`https://api.typesafe.ai` |TypeSafe origin
+|`embabel.agent.decision.typesafe.connect-timeout` |`10s` |Positive HTTP connect timeout
+|`embabel.agent.decision.typesafe.api-key` |unset |Credential; `TYPESAFE_API_KEY` is the fallback
+|`embabel.agent.decision.prompted.llm-bean-name` |required for prompted |Exact `LlmService` bean
+|`embabel.agent.decision.prompted.options-bean-name` |unset |Exact `LlmOptions` bean; defaults when absent
+|===
+
+`none` returns disabled outcomes. Stub is deliberately absent from property selection.
+
+==== Evidence, failure, and privacy
+
+Yes/no yields a Boolean distribution. Choice and rating preserve declared support and every maximizer; rating also reports an expected ordinal score. Unknown or duplicate answer ids reject the call. Missing, invalid, and unsupported keys remain per-key failures so valid siblings survive. Call failures distinguish disabled, unavailable, rejected request, deadline, cancellation, and unsupported providers.
+
+One monotonic deadline covers preparation, queueing, transport, and the single Jev retry allowed for an initial `429` or `529`. Late success is discarded. Caller interruption is restored.
+
+Metadata records contain opaque identifiers, counts, schema versions, and safe codes. Facts, labels, application values, numeric evidence, free text, exception text, and credentials are excluded by default. Full records remain bounded and require an explicit allowlist. Redaction happens before transport. Provenance records only fields the provider actually supplied and the facade safely completed.
+
+==== Dice-shaped proposition revision
+
+Dice is an external consumer, not a framework special case. The compiled example asks for one of five consumer-local proposition relations and creates a consumer-owned audit projection:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/DicePropositionRevisionExample.java[tag=dice-consumer]
+----
+
+The decision supplies relation evidence and decision provenance. Dice still owns candidate retrieval, confidence, proposition status, revision disposition, persistence, trust, and source provenance. The opaque correlation id links the decision to a bounded revision operation without sending a domain object or arbitrary metadata.
+
+==== Running the examples
+
+Each main intentionally calls the network. It refuses to call when `TYPESAFE_API_KEY` or `TYPESAFE_MODEL` is blank.
+
+[source,bash]
+----
+mvn -B -pl embabel-agent-decisions/embabel-agent-decision-typesafe -am test-compile
+mvn -B -f embabel-agent-decisions/embabel-agent-decision-typesafe/pom.xml dependency:build-classpath -Dmdep.includeScope=test -Dmdep.outputFile=target/example-classpath.txt
+cd embabel-agent-decisions/embabel-agent-decision-typesafe
+java -cp "target/test-classes:target/classes:$(cat target/example-classpath.txt)" com.embabel.agent.decision.example.JevDecisionExampleKt
+java -cp "target/test-classes:target/classes:$(cat target/example-classpath.txt)" com.embabel.agent.decision.example.JevDecisionExample
+----
+
+Windows uses `;` as the classpath separator; this release has not claimed a local Windows run. The live JUnit smoke is also guarded by the `integration-tests` profile, `-Ddecision.live=true`, a nonblank key and model, and `CI` absent or false.
+
+[[reference.decisions.promotion]]
+==== Promotion checkpoint
+
+James owns promotion immediately after the first experimental release. The checkpoint requires passing contract and validation suites, Java interoperability, fixture compatibility, privacy and failure/deadline tests, reviewed public API and docs, both executable consumers, a successful opt-in live Jev run with its actual resolved model, full repository and documentation gates, and recorded Opus implementation review and Jev prose review. Every new public API and SPI remains `@ApiStatus.Experimental` in the first release. Remove that marker in the next release once these checks pass; promotion does not wait for other engines, action calibration, or another release train.

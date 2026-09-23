@@ -1,0 +1,19 @@
+digraph DecisionFlow {
+  rankdir=LR;
+  node [shape=box, style="rounded"];
+  host [label="Explicit or Spring-configured host"];
+  facade [label="final DecisionModel facade"];
+  prepare [label="Prepare + redact + absolute deadline"];
+  spi [label="Prepared DecisionProvider SPI"];
+  jev [label="Jev"];
+  prompted [label="Prompted LLM"];
+  validate [label="Validate + project safe record"];
+  policy [label="Host-owned action or revision policy"];
+  host -> facade -> prepare -> spi;
+  spi -> jev;
+  spi -> prompted;
+  jev -> validate;
+  prompted -> validate;
+  validate -> facade -> host;
+  host -> policy [label=" evidence + provenance"];
+}
