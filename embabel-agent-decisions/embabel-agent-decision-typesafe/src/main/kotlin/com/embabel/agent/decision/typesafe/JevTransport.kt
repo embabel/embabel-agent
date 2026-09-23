@@ -62,8 +62,8 @@ internal class JevTransport(
             return unavailable()
         }
         if (!key.isHeaderSafeCredential()) return unavailable()
-        val payload = try { codec.encode(request, model) } catch (_: Exception) { return rejected() }
-        if (payload.size > MAX_OUTBOUND_BYTES) return rejected()
+        val payload = try { codec.encode(request, model) } catch (_: Exception) { return rejectBeforeSend(request) }
+        if (payload.size > MAX_OUTBOUND_BYTES) return rejectBeforeSend(request)
         var firstStatus: Int? = null
         for (attempt in 0..1) {
             if (remaining(request) == null) return deadline()
@@ -74,11 +74,7 @@ internal class JevTransport(
                 if (beforeDelay < delay) return deadline()
                 if (Thread.currentThread().isInterrupted) throw InterruptedException()
                 request.event(DecisionTelemetryEvent.RETRY)
-                try {
-                    sleeper(delay)
-                } catch (error: InterruptedException) {
-                    throw error
-                }
+                sleeper(delay)
                 if (Thread.currentThread().isInterrupted) throw InterruptedException()
                 if (remaining(request) == null) return deadline()
             }
@@ -199,6 +195,10 @@ internal class JevTransport(
 
     private fun unavailable() = RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE)
     private fun rejected() = RawDecisionOutcome.failure(CallFailure.RejectedRequest, DecisionSafeCode.REJECTED_REQUEST)
+    private fun rejectBeforeSend(request: PreparedDecisionRequest): RawDecisionOutcome {
+        request.event(DecisionTelemetryEvent.REJECTION)
+        return rejected()
+    }
     private fun deadline() = RawDecisionOutcome.failure(CallFailure.DeadlineExceeded, DecisionSafeCode.DEADLINE_EXCEEDED)
 
     private fun Throwable.hasCause(type: Class<out Throwable>): Boolean {

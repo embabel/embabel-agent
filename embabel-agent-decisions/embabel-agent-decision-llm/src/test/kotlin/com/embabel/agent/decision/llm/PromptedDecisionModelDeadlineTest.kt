@@ -35,6 +35,7 @@ import java.io.IOException
 import java.net.SocketTimeoutException
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -126,14 +127,19 @@ class PromptedDecisionModelDeadlineTest {
         val sender = RecordingDecisionSender.replying(promptedFixture("complete.json"))
         val provider = providerFrom(PromptedDecisionModel.create(TestDecisionService(sender.forPath(SenderPath.NATIVE)), LlmOptions()))
         val normal = MutablePreparedRequest(AtomicLong(Duration.ofSeconds(2).toNanos()))
+        val events = ConcurrentLinkedQueue<DecisionTelemetryEvent>()
         val oversized = object : PreparedDecisionRequest by normal {
             override val state = mapOf("callerProjection" to "x".repeat(1_048_577))
+            override fun event(event: DecisionTelemetryEvent) {
+                events += event
+            }
         }
 
         val raw = provider.invoke(oversized)
 
         assertThat(raw.callFailure).isEqualTo(CallFailure.RejectedRequest)
         assertThat(sender.calls).isZero()
+        assertThat(events).containsExactly(DecisionTelemetryEvent.REJECTION)
     }
 
     @Test

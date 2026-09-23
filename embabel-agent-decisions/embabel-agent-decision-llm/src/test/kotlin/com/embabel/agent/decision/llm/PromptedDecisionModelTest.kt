@@ -171,12 +171,15 @@ class PromptedDecisionModelTest {
     fun `non-finite state is rejected before either sender path is called`(path: SenderPath, value: Number) {
         val sender = RecordingDecisionSender.replying(promptedFixture("complete.json"))
         val fixture = decisionFixture(state = mapOf("measurement" to value))
+        val instrumentation = RecordingDecisionInstrumentation()
 
         val outcome = PromptedDecisionModel.create(TestDecisionService(sender.forPath(path)), LlmOptions())
+            .withInstrumentation(instrumentation)
             .ask(fixture.request) as DecisionOutcome.Failure
 
         assertThat(outcome.failure).isEqualTo(CallFailure.RejectedRequest)
         assertThat(sender.calls).isZero()
+        assertThat(instrumentation.events).containsExactly(DecisionTelemetryEvent.REJECTION)
     }
 
     @Test

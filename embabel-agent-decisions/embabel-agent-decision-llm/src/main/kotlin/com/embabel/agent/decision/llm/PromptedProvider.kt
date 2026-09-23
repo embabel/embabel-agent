@@ -54,9 +54,9 @@ internal class PromptedProvider(
         val messages = try {
             codec.messages(request)
         } catch (_: UnsafePreparedStateException) {
-            return rejected()
+            return rejectBeforeSend(request)
         }
-        if (codec.outboundBytes(schema, messages) > MAX_OUTBOUND_BYTES) return rejected()
+        if (codec.outboundBytes(schema, messages) > MAX_OUTBOUND_BYTES) return rejectBeforeSend(request)
         if (!hasRemaining(request)) return deadlineFailure()
 
         val sender = try {
@@ -137,6 +137,11 @@ internal class PromptedProvider(
 
     private fun rejected() =
         RawDecisionOutcome.failure(CallFailure.RejectedRequest, DecisionSafeCode.REJECTED_REQUEST)
+
+    private fun rejectBeforeSend(request: PreparedDecisionRequest): RawDecisionOutcome {
+        request.event(DecisionTelemetryEvent.REJECTION)
+        return rejected()
+    }
 
     private fun deadlineFailure() =
         RawDecisionOutcome.failure(CallFailure.DeadlineExceeded, DecisionSafeCode.DEADLINE_EXCEEDED)

@@ -369,17 +369,26 @@ class JevDeadlineTest {
     }
 
     @Test
-    fun `rejects an oversized encoded request before transport dispatch`() {
-        CaptureServer.replying(success()).use { server ->
-            val normal = prepared()
-            val oversized = object : PreparedDecisionRequest by normal {
-                override val state = mapOf("callerProjection" to "x".repeat(1_048_577))
+    fun `pre-send encoding and size rejections emit once without transport dispatch`() {
+        listOf(
+            mapOf("unsafe" to Double.NaN),
+            mapOf("callerProjection" to "x".repeat(1_048_577)),
+        ).forEach { state ->
+            CaptureServer.replying(success()).use { server ->
+                val events = ConcurrentLinkedQueue<DecisionTelemetryEvent>()
+                val rejected = object : PreparedDecisionRequest by prepared() {
+                    override val state = state
+                    override fun event(event: DecisionTelemetryEvent) {
+                        events += event
+                    }
+                }
+
+                val raw = transport(server).invoke(rejected)
+
+                assertThat(raw.callFailure).isEqualTo(CallFailure.RejectedRequest)
+                assertThat(server.requestCount).isZero()
+                assertThat(events).containsExactly(DecisionTelemetryEvent.REJECTION)
             }
-
-            val raw = transport(server).invoke(oversized)
-
-            assertThat(raw.callFailure).isEqualTo(CallFailure.RejectedRequest)
-            assertThat(server.requestCount).isZero()
         }
     }
 
