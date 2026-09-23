@@ -130,8 +130,24 @@ class AgentDecisionAutoConfigurationTest {
                 Arguments.of("typesafe.connect-timeout=0s", "typesafe.connect-timeout"),
                 Arguments.of("typesafe.connect-timeout=bad", "typesafe.connect-timeout"),
                 Arguments.of("typesafe.base-url=http://localhost:1234", "typesafe.base-url"),
+                Arguments.of("typesafe.base-url=http://localhost.example:1234", "typesafe.base-url"),
+                Arguments.of("typesafe.base-url=http://127.0.0.1.example:1234", "typesafe.base-url"),
+                Arguments.of("typesafe.base-url=http://[::2]:1234", "typesafe.base-url"),
+                Arguments.of("typesafe.base-url=http://[::1]:1234/v1", "typesafe.base-url"),
+                Arguments.of("typesafe.base-url=http://[[::1]]:1234", "typesafe.base-url"),
+                Arguments.of("typesafe.base-url=http://[::1", "typesafe.base-url"),
                 Arguments.of("typesafe.base-url=https://example.org/v1", "typesafe.base-url"),
                 Arguments.of("typesafe.base-url=https://user:secret@example.org", "typesafe.base-url"));
+    }
+
+    @Test
+    void acceptsTheTypeSafeFactoryIpv6LoopbackSpelling() {
+        runner.withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.provider=typesafe",
+                        "embabel.agent.decision.typesafe.model=synthetic",
+                        "embabel.agent.decision.typesafe.base-url=http://[::1]:1234")
+                .run(context -> assertThat(context).hasSingleBean(DecisionModel.class));
     }
 
     @Test

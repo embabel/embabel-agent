@@ -211,7 +211,9 @@ public class AgentDecisionAutoConfiguration {
         if (!(uri.getPath().isEmpty() || uri.getPath().equals("/"))) return false;
         if (uri.getScheme().equalsIgnoreCase("https")) return true;
         return uri.getScheme().equalsIgnoreCase("http")
-                && (uri.getHost().equals("127.0.0.1") || uri.getHost().equals("::1"));
+                && (uri.getHost().equals("127.0.0.1")
+                || uri.getHost().equals("::1")
+                || uri.getHost().equals("[::1]"));
     }
 
     private static Set<String> allowlist(String raw) {

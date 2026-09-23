@@ -15,29 +15,54 @@
  */
 package com.embabel.agent.autoconfigure.decision;
 
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.autoconfigure.condition.ConditionEvaluationReport;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@ExtendWith(OutputCaptureExtension.class)
 class DecisionConfigurationPrivacyTest {
+    private static final String SENTINEL = "CONFIG_SECRET_SENTINEL";
+
     @Test
-    void propertyObjectsAndValidationFailuresDoNotRenderSecrets() {
+    void propertyObjectsAndValidationFailuresDoNotRenderSecrets(CapturedOutput output) {
         assertThat(new DecisionProperties().toString()).doesNotContain("apiKey", "model", "bean");
         assertThat(new DecisionProperties.Typesafe().toString()).isEqualTo("DecisionProperties.Typesafe[redacted]");
 
+        AtomicReference<ConditionEvaluationReport> capturedReport = new AtomicReference<>();
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(AgentDecisionAutoConfiguration.class))
+                .withInitializer(context -> capturedReport.set(
+                        ConditionEvaluationReport.get(context.getBeanFactory())))
                 .withPropertyValues(
                         "embabel.agent.decision.enabled=true",
                         "embabel.agent.decision.provider=typesafe",
-                        "embabel.agent.decision.typesafe.model=CONFIG_SECRET_SENTINEL",
-                        "embabel.agent.decision.typesafe.base-url=https://user:CONFIG_SECRET_SENTINEL@example.org")
+                        "embabel.agent.decision.typesafe.model=" + SENTINEL,
+                        "embabel.agent.decision.typesafe.base-url=https://user:" + SENTINEL + "@example.org")
                 .run(context -> {
                     Throwable failure = context.getStartupFailure();
                     assertThat(failure).hasRootCauseMessage("Invalid configuration: embabel.agent.decision.typesafe.base-url");
-                    assertThat(stack(failure)).doesNotContain("CONFIG_SECRET_SENTINEL");
+                    assertThat(stack(failure))
+                            .contains("Invalid configuration: embabel.agent.decision.typesafe.base-url")
+                            .doesNotContain(SENTINEL);
+
+                    String renderedReport = capturedReport.get().getConditionAndOutcomesBySource().entrySet().stream()
+                            .map(entry -> entry.getKey() + "=" + entry.getValue())
+                            .collect(Collectors.joining("\n"));
+                    assertThat(renderedReport)
+                            .contains(AgentDecisionAutoConfiguration.class.getName())
+                            .doesNotContain(SENTINEL);
+                    assertThat(output.getAll())
+                            .contains("Invalid configuration: embabel.agent.decision.typesafe.base-url")
+                            .doesNotContain(SENTINEL);
                 });
     }
 
