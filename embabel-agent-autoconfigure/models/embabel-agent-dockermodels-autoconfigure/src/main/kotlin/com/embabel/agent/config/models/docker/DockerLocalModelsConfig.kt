@@ -153,7 +153,7 @@ class DockerLocalModelsConfig(
      */
     private val openAiClient: OpenAIClient by lazy {
         OpenAIOkHttpClient.builder()
-            .baseUrl(dockerConnectionProperties.baseUrl)
+            .baseUrl(dockerApiBaseUrl(dockerConnectionProperties.baseUrl))
             // The openai-java SDK rejects null/blank API keys even when the
             // backing server doesn't require auth. Placeholder is fine.
             .apiKey("no-auth")
