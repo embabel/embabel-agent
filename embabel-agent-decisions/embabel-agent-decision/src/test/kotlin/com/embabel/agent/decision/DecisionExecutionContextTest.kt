@@ -245,6 +245,30 @@ class DecisionExecutionContextTest {
     }
 
     @Test
+    fun `fatal carrier after provider interruption restores only the executing thread`() {
+        val workerFatal = AssertionError("sentinel-worker-carrier")
+        val worker = DecisionModel(interruptingProvider())
+        assertThat(worker.installExecutionContext(fatalAfterWork(workerFatal))).isTrue()
+
+        assertThatThrownBy { worker.ask(yesNoRequest()) }.isSameAs(workerFatal)
+        assertThat(workerFatal.suppressed).hasSize(1)
+        assertThat(workerFatal.suppressed.single()).isInstanceOf(InterruptedException::class.java)
+        assertThat(Thread.currentThread().isInterrupted).isFalse()
+
+        val callerFatal = AssertionError("sentinel-caller-carrier")
+        val callerBound = DecisionModel(object : CallerBoundDecisionProvider {
+            override fun invoke(request: PreparedDecisionRequest): RawDecisionOutcome = interruptingProvider().invoke(request)
+        })
+        assertThat(callerBound.installExecutionContext(fatalAfterWork(callerFatal))).isTrue()
+
+        val caller = askCatchingFatalOnFreshThread(callerBound)
+        assertThat(caller.first).isSameAs(callerFatal)
+        assertThat(callerFatal.suppressed).hasSize(1)
+        assertThat(callerFatal.suppressed.single()).isInstanceOf(InterruptedException::class.java)
+        assertThat(caller.second).isTrue()
+    }
+
+    @Test
     fun `eager carrier cannot enter instrumentation before establishment`() {
         val providerInvocations = AtomicInteger()
         val instrumentationInvocations = AtomicInteger()
@@ -331,6 +355,30 @@ class DecisionExecutionContextTest {
                 throw fatal
             }
         }
+    }
+
+    private fun interruptingProvider() = DecisionProvider {
+        Thread.currentThread().interrupt()
+        check(Thread.interrupted())
+        throw InterruptedException("sentinel-provider")
+    }
+
+    private fun askCatchingFatalOnFreshThread(model: DecisionModel): Pair<Throwable?, Boolean> {
+        val failure = AtomicReference<Throwable?>()
+        val interrupted = AtomicBoolean()
+        val caller = Thread {
+            try {
+                model.ask(yesNoRequest())
+            } catch (thrown: Throwable) {
+                failure.set(thrown)
+            } finally {
+                interrupted.set(Thread.currentThread().isInterrupted)
+            }
+        }
+        caller.start()
+        caller.join(1_000)
+        assertThat(caller.isAlive).isFalse()
+        return failure.get() to interrupted.get()
     }
 
     private fun askOnFreshThread(model: DecisionModel): Pair<DecisionOutcome, Boolean> {

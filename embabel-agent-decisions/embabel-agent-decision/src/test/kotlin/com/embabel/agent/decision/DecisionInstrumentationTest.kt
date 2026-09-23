@@ -384,6 +384,28 @@ class DecisionInstrumentationTest {
     }
 
     @Test
+    fun `fatal instrumentation after provider interruption restores only the executing thread`() {
+        val workerFatal = AssertionError("sentinel-worker-instrumentation")
+        val worker = DecisionModel(interruptingProvider()).withInstrumentation(fatalAfterWorkInstrumentation(workerFatal))
+
+        assertThatThrownBy { worker.ask(yesNoRequest()) }.isSameAs(workerFatal)
+        assertThat(workerFatal.suppressed).hasSize(1)
+        assertThat(workerFatal.suppressed.single()).isInstanceOf(InterruptedException::class.java)
+        assertThat(Thread.currentThread().isInterrupted).isFalse()
+
+        val callerFatal = AssertionError("sentinel-caller-instrumentation")
+        val callerBound = DecisionModel(object : CallerBoundDecisionProvider {
+            override fun invoke(request: PreparedDecisionRequest): RawDecisionOutcome = interruptingProvider().invoke(request)
+        }).withInstrumentation(fatalAfterWorkInstrumentation(callerFatal))
+
+        val caller = askCatchingFatalOnFreshThread(callerBound)
+        assertThat(caller.first).isSameAs(callerFatal)
+        assertThat(callerFatal.suppressed).hasSize(1)
+        assertThat(callerFatal.suppressed.single()).isInstanceOf(InterruptedException::class.java)
+        assertThat(caller.second).isTrue()
+    }
+
+    @Test
     fun `fatal provider errors propagate after completion and close`() {
         val instrumentation = RecordingInstrumentation()
         val fatal = AssertionError("sentinel-fatal")
@@ -734,6 +756,46 @@ class DecisionInstrumentationTest {
             override fun complete(completion: DecisionCompletion) = Unit
             override fun close() = Unit
         }
+    }
+
+    private fun fatalAfterWorkInstrumentation(fatal: Error) = DecisionInstrumentation {
+        object : DecisionObservation {
+            override fun <T> wrap(work: Callable<T>): Callable<T> = Callable {
+                try {
+                    work.call()
+                } finally {
+                    throw fatal
+                }
+            }
+
+            override fun event(event: DecisionTelemetryEvent) = Unit
+            override fun complete(completion: DecisionCompletion) = Unit
+            override fun close() = Unit
+        }
+    }
+
+    private fun interruptingProvider() = DecisionProvider {
+        Thread.currentThread().interrupt()
+        check(Thread.interrupted())
+        throw InterruptedException("sentinel-provider")
+    }
+
+    private fun askCatchingFatalOnFreshThread(model: DecisionModel): Pair<Throwable?, Boolean> {
+        val failure = AtomicReference<Throwable?>()
+        val interrupted = AtomicBoolean()
+        val caller = Thread {
+            try {
+                model.ask(yesNoRequest())
+            } catch (thrown: Throwable) {
+                failure.set(thrown)
+            } finally {
+                interrupted.set(Thread.currentThread().isInterrupted)
+            }
+        }
+        caller.start()
+        caller.join(1_000)
+        assertThat(caller.isAlive).isFalse()
+        return failure.get() to interrupted.get()
     }
 
     private fun askOnFreshThread(model: DecisionModel): Pair<DecisionOutcome, Boolean> {

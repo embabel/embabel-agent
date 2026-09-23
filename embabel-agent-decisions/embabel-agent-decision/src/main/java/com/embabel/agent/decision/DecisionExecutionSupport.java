@@ -28,6 +28,8 @@ final class DecisionExecutionSupport implements AutoCloseable {
     static final int MAX_WORKERS = 4;
     private static final AtomicLong POOL_IDS = new AtomicLong();
 
+    // Core cannot depend on agent-api Asyncer without a dependency cycle; this zero-queue pool
+    // provides bounded admission and a cancellable Future for deadline and close interruption.
     private final ThreadPoolExecutor executor = new ThreadPoolExecutor(
         0,
         MAX_WORKERS,

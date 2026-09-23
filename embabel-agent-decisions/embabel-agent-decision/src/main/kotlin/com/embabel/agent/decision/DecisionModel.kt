@@ -492,6 +492,8 @@ private fun <T> DecisionExecutionContext.wrapSafely(work: InstrumentedDecisionWo
             throw workFailure
         }
         if (contextFailure is Error) {
+            // The fatal wrapper wins, but consumed interruption still belongs to this thread.
+            if (workFailure is InterruptedException) Thread.currentThread().interrupt()
             workFailure?.let(contextFailure::addSuppressed)
             logExecutionContextFailure(ExecutionContextPhase.CALL)
             throw contextFailure
@@ -602,7 +604,7 @@ private fun logInstrumentationFailure(hook: InstrumentationHook) {
 }
 
 private fun logExecutionContextFailure(phase: ExecutionContextPhase) {
-    decisionLogger.warn("Decision execution context failed phase={}", phase)
+    decisionLogger.warn("Decision execution wrapper failed phase={}", phase)
 }
 
 private fun providerFamily(provider: String): DecisionProviderFamily = when (provider) {
