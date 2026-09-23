@@ -21,6 +21,7 @@ import com.embabel.agent.decision.DecisionModel
 import com.embabel.agent.decision.DecisionOutcome
 import com.embabel.agent.decision.DecisionProvider
 import com.embabel.agent.decision.DecisionRecordPolicy
+import com.embabel.agent.decision.DecisionTelemetryEvent
 import com.embabel.agent.decision.PreparedDecisionRequest
 import com.embabel.agent.decision.PreparedQuestion
 import com.embabel.agent.decision.PreparedSupport
@@ -28,7 +29,10 @@ import com.embabel.agent.spi.loop.LlmMessageResponse
 import com.embabel.chat.AssistantMessage
 import com.embabel.common.ai.model.LlmOptions
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
+import java.io.IOException
+import java.net.SocketTimeoutException
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -38,6 +42,68 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 class PromptedDecisionModelDeadlineTest {
+    @Test
+    fun `provider propagates wrapped interruption without converting it to unavailability`() {
+        val wrapped = RuntimeException(IOException("request interrupted", InterruptedException()))
+        val sender = RecordingDecisionSender.throwing(wrapped)
+        val provider = providerFrom(
+            PromptedDecisionModel.create(TestDecisionService(sender.forPath(SenderPath.LEGACY)), LlmOptions()),
+        )
+
+        assertThatThrownBy { provider.invoke(MutablePreparedRequest(AtomicLong(Duration.ofSeconds(2).toNanos()))) }
+            .isInstanceOf(InterruptedException::class.java)
+        assertThat(Thread.currentThread().isInterrupted).isFalse()
+    }
+
+    @Test
+    fun `wrapped cancellation emits an attempt and facade cancellation without transport failure`() {
+        val instrumentation = RecordingDecisionInstrumentation()
+        val wrapped = RuntimeException(IOException("request interrupted", InterruptedException()))
+        val sender = RecordingDecisionSender.throwing(wrapped)
+        val outcome = PromptedDecisionModel.create(
+            TestDecisionService(sender.forPath(SenderPath.LEGACY)),
+            LlmOptions(),
+        ).withInstrumentation(instrumentation).ask(decisionFixture().request)
+
+        assertThat(outcome).isInstanceOf(DecisionOutcome.Failure::class.java)
+        assertThat((outcome as DecisionOutcome.Failure).failure).isEqualTo(CallFailure.Cancelled)
+        assertThat(instrumentation.events).containsExactly(
+            DecisionTelemetryEvent.PROVIDER_ATTEMPT,
+            DecisionTelemetryEvent.CANCELLATION,
+        )
+        assertThat(Thread.currentThread().isInterrupted).isFalse()
+    }
+
+    @Test
+    fun `provider propagates an existing worker interruption without clearing or restoring it`() {
+        val sender = RecordingDecisionSender.throwing(IllegalStateException("synthetic failure"))
+        val provider = providerFrom(
+            PromptedDecisionModel.create(TestDecisionService(sender.forPath(SenderPath.NATIVE)), LlmOptions()),
+        )
+
+        Thread.currentThread().interrupt()
+        try {
+            assertThatThrownBy { provider.invoke(MutablePreparedRequest(AtomicLong(Duration.ofSeconds(2).toNanos()))) }
+                .isInstanceOf(InterruptedException::class.java)
+            assertThat(Thread.currentThread().isInterrupted).isTrue()
+        } finally {
+            Thread.interrupted()
+        }
+    }
+
+    @Test
+    fun `socket timeout remains transport unavailability rather than cancellation`() {
+        val sender = RecordingDecisionSender.throwing(RuntimeException(SocketTimeoutException("synthetic timeout")))
+        val provider = providerFrom(
+            PromptedDecisionModel.create(TestDecisionService(sender.forPath(SenderPath.LEGACY)), LlmOptions()),
+        )
+
+        val raw = provider.invoke(MutablePreparedRequest(AtomicLong(Duration.ofSeconds(2).toNanos())))
+
+        assertThat(raw.callFailure).isEqualTo(CallFailure.Unavailable)
+        assertThat(Thread.currentThread().isInterrupted).isFalse()
+    }
+
     @Test
     fun `provider consumes one deterministic remaining budget and discards late response`() {
         val remaining = AtomicLong(Duration.ofSeconds(2).toNanos())

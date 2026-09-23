@@ -66,7 +66,11 @@ class PromptedDecisionModelArchitectureTest {
 
     @Test
     fun `compiled adapter has no parser conversion logging projection tools or orchestration calls`() {
-        val classes = nestedClasses(PromptedDecisionModel::class.java)
+        val classes = listOf(
+            PromptedDecisionModel::class.java,
+            Class.forName("com.embabel.agent.decision.llm.PromptedProvider"),
+            Class.forName("com.embabel.agent.decision.llm.PromptedWireCodec"),
+        ).flatMap(::nestedClasses)
         val forbiddenClassTokens = listOf(
             "com/embabel/agent/core/Ai",
             "AgentProcess",
@@ -95,6 +99,8 @@ class PromptedDecisionModelArchitectureTest {
                 "Tool.call:",
             )
         }
+        assertThat(PromptedDecisionModel::class.java.declaredClasses.map { it.simpleName })
+            .containsExactly("Companion")
     }
 
     private fun nestedClasses(root: Class<*>): List<Class<*>> =

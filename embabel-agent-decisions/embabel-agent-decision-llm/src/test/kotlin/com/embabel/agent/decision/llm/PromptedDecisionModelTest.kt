@@ -17,11 +17,13 @@ package com.embabel.agent.decision.llm
 
 import com.embabel.agent.decision.CallFailure
 import com.embabel.agent.decision.DecisionOutcome
+import com.embabel.agent.decision.DecisionTelemetryEvent
 import com.embabel.agent.decision.KeyFailure
 import com.embabel.agent.decision.KeyOutcome
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.EmbabelObjectMapperHolder
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
@@ -97,6 +99,43 @@ class PromptedDecisionModelTest {
         assertThat(result.failure).isEqualTo(CallFailure.RejectedRequest)
     }
 
+    @ParameterizedTest
+    @EnumSource(SenderPath::class)
+    fun `both sender paths emit one bounded event sequence per sender call`(path: SenderPath) {
+        val success = RecordingDecisionInstrumentation()
+        val successfulSender = RecordingDecisionSender.replying(promptedFixture("complete.json"))
+        PromptedDecisionModel.create(TestDecisionService(successfulSender.forPath(path)), LlmOptions())
+            .withInstrumentation(success)
+            .ask(decisionFixture().request)
+        assertThat(successfulSender.calls).isEqualTo(1)
+        assertThat(success.events).containsExactly(
+            DecisionTelemetryEvent.PROVIDER_ATTEMPT,
+            DecisionTelemetryEvent.TRANSPORT_SUCCESS,
+        )
+
+        val rejected = RecordingDecisionInstrumentation()
+        PromptedDecisionModel.create(
+            TestDecisionService(RecordingDecisionSender.replying("{").forPath(path)),
+            LlmOptions(),
+        ).withInstrumentation(rejected).ask(decisionFixture().request)
+        assertThat(rejected.events).containsExactly(
+            DecisionTelemetryEvent.PROVIDER_ATTEMPT,
+            DecisionTelemetryEvent.TRANSPORT_SUCCESS,
+            DecisionTelemetryEvent.REJECTION,
+        )
+
+        val unavailable = RecordingDecisionInstrumentation()
+        PromptedDecisionModel.create(
+            TestDecisionService(RecordingDecisionSender.throwing(IllegalStateException("SECRET_DO_NOT_LOG")).forPath(path)),
+            LlmOptions(),
+        ).withInstrumentation(unavailable).ask(decisionFixture().request)
+        assertThat(unavailable.events).containsExactly(
+            DecisionTelemetryEvent.PROVIDER_ATTEMPT,
+            DecisionTelemetryEvent.TRANSPORT_UNAVAILABLE,
+        )
+        assertThat(unavailable.events.joinToString()).doesNotContain("SECRET_DO_NOT_LOG")
+    }
+
     @ParameterizedTest(name = "{0} {1}")
     @MethodSource("wireCases")
     fun `strict parser and common facade classify adversarial evidence`(
@@ -152,6 +191,49 @@ class PromptedDecisionModelTest {
         ).ask(fixture.request)
 
         assertThat(outcome).isInstanceOf(DecisionOutcome.Success::class.java)
+    }
+
+    @Test
+    fun `factory validates service provenance before creating a sender`() {
+        val sender = RecordingDecisionSender.replying(promptedFixture("complete.json"))
+        val validBoundary = "p".repeat(256)
+
+        assertThat(
+            PromptedDecisionModel.create(
+                TestDecisionService(sender.forPath(SenderPath.LEGACY), provider = validBoundary),
+                LlmOptions(),
+            ),
+        ).isNotNull()
+        listOf(
+            TestDecisionService(sender.forPath(SenderPath.LEGACY), provider = ""),
+            TestDecisionService(sender.forPath(SenderPath.LEGACY), provider = "unsafe\nprovider"),
+            TestDecisionService(sender.forPath(SenderPath.LEGACY), provider = "p".repeat(257)),
+            TestDecisionService(sender.forPath(SenderPath.LEGACY), name = "unsafe\rmodel"),
+            TestDecisionService(sender.forPath(SenderPath.LEGACY), name = "m".repeat(257)),
+        ).forEach { service ->
+            assertThatThrownBy { PromptedDecisionModel.create(service, LlmOptions()) }
+                .isInstanceOf(IllegalArgumentException::class.java)
+        }
+        assertThat(sender.calls).isZero()
+    }
+
+    @Test
+    fun `caller mapper features cannot loosen wire parsing or mutate shared serialization`() {
+        val shared = JsonMapper.builder()
+            .enable(tools.jackson.core.json.JsonReadFeature.ALLOW_TRAILING_COMMA)
+            .enable(tools.jackson.core.json.JsonReadFeature.ALLOW_NON_NUMERIC_NUMBERS)
+            .build()
+        val holder = EmbabelObjectMapperHolder(shared)
+        val malformed = RecordingDecisionSender.replying("""{"answers":[],}""")
+
+        val result = PromptedDecisionModel.create(
+            TestDecisionService(malformed.forPath(SenderPath.LEGACY)),
+            LlmOptions(),
+            holder,
+        ).ask(decisionFixture().request) as DecisionOutcome.Failure
+
+        assertThat(result.failure).isEqualTo(CallFailure.RejectedRequest)
+        assertThat(shared.writeValueAsString("a_b")).isEqualTo("\"a_b\"")
     }
 
     @Test

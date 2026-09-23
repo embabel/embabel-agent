@@ -17,10 +17,13 @@ package com.embabel.agent.decision.typesafe
 
 import com.embabel.agent.decision.CallFailure
 import com.embabel.agent.decision.DecisionSafeCode
+import com.embabel.agent.decision.DecisionTelemetryEvent
 import com.embabel.agent.decision.PreparedDecisionRequest
 import com.embabel.agent.decision.RawDecisionOutcome
 import java.io.ByteArrayOutputStream
+import java.io.InterruptedIOException
 import java.net.URI
+import java.net.SocketTimeoutException
 import java.net.http.HttpClient
 import java.net.http.HttpConnectTimeoutException
 import java.net.http.HttpRequest
@@ -50,9 +53,15 @@ internal class JevTransport(
     private val attemptObserver: (Duration) -> Unit = {},
 ) {
     fun invoke(request: PreparedDecisionRequest): RawDecisionOutcome {
+        if (Thread.currentThread().isInterrupted) throw InterruptedException()
         if (remaining(request) == null) return deadline()
-        val key = try { apiKey.get() } catch (_: Exception) { return unavailable() }
-        if (key.isNullOrBlank() || key.contains('\r') || key.contains('\n')) return unavailable()
+        val key = try {
+            apiKey.get()
+        } catch (error: Exception) {
+            if (error.isCancellation()) throw InterruptedException()
+            return unavailable()
+        }
+        if (!key.isHeaderSafeCredential()) return unavailable()
         val payload = try { codec.encode(request, model) } catch (_: Exception) { return rejected() }
         if (payload.size > MAX_OUTBOUND_BYTES) return rejected()
         var firstStatus: Int? = null
@@ -63,55 +72,123 @@ internal class JevTransport(
                 val delay = Duration.ofMillis(100)
                 val beforeDelay = remaining(request) ?: return deadline()
                 if (beforeDelay < delay) return deadline()
-                try { sleeper(delay) } catch (_: InterruptedException) { Thread.currentThread().interrupt(); return cancelled() }
-                if (remaining(request) == null || Thread.currentThread().isInterrupted) return if (Thread.currentThread().isInterrupted) cancelled() else deadline()
+                if (Thread.currentThread().isInterrupted) throw InterruptedException()
+                request.event(DecisionTelemetryEvent.RETRY)
+                try {
+                    sleeper(delay)
+                } catch (error: InterruptedException) {
+                    throw error
+                }
+                if (Thread.currentThread().isInterrupted) throw InterruptedException()
+                if (remaining(request) == null) return deadline()
             }
             val response = execute(payload, key, request, remaining(request) ?: return deadline())
             when (response) {
                 is Attempt.Failure -> return response.outcome
                 is Attempt.Response -> {
-                    if (attempt == 0 && response.status in setOf(429, 529)) { firstStatus = response.status; continue }
-                    if (response.status == 422) return rejected()
-                    if (response.status != 200) return unavailable()
-                    val decoded = codec.decode(response.body, request)
-                    if (remaining(request) == null) return deadline()
-                    return decoded
+                    when (val disposition = classifyResponse(response, request)) {
+                        is ResponseDisposition.RateLimited -> if (attempt == 0) {
+                            firstStatus = disposition.status
+                            continue
+                        } else {
+                            return unavailable()
+                        }
+                        is ResponseDisposition.Complete -> return disposition.outcome
+                    }
                 }
             }
         }
         return unavailable()
     }
 
+    private fun classifyResponse(
+        response: Attempt.Response,
+        prepared: PreparedDecisionRequest,
+    ): ResponseDisposition = when {
+        response.status in setOf(429, 529) -> {
+            prepared.event(DecisionTelemetryEvent.TRANSPORT_RATE_LIMITED)
+            ResponseDisposition.RateLimited(response.status)
+        }
+        response.status == 422 -> {
+            prepared.event(DecisionTelemetryEvent.TRANSPORT_REJECTED)
+            ResponseDisposition.Complete(rejected())
+        }
+        response.status != 200 -> {
+            prepared.event(DecisionTelemetryEvent.TRANSPORT_UNAVAILABLE)
+            ResponseDisposition.Complete(unavailable())
+        }
+        else -> {
+            prepared.event(DecisionTelemetryEvent.TRANSPORT_SUCCESS)
+            val decoded = codec.decode(response.body, prepared)
+            // Parsing can consume the remaining budget, so late evidence is never accepted.
+            if (remaining(prepared) == null) {
+                ResponseDisposition.Complete(deadline())
+            } else {
+                if (decoded.callFailure == CallFailure.RejectedRequest) prepared.event(DecisionTelemetryEvent.REJECTION)
+                ResponseDisposition.Complete(decoded)
+            }
+        }
+    }
+
     private fun execute(payload: ByteArray, key: String, prepared: PreparedDecisionRequest, attemptBudget: Duration): Attempt {
         attemptObserver(attemptBudget)
-        val request = HttpRequest.newBuilder(baseUri.resolve("/v1/systemone"))
-            .timeout(attemptBudget)
-            .header("Authorization", "Bearer $key")
-            .header("Content-Type", "application/json")
-            .header("Accept", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofByteArray(payload))
-            .build()
+        val request = try {
+            HttpRequest.newBuilder(baseUri.resolve("/v1/systemone"))
+                .timeout(attemptBudget)
+                .header("Authorization", "Bearer $key")
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofByteArray(payload))
+                .build()
+        } catch (_: IllegalArgumentException) {
+            return Attempt.Failure(unavailable())
+        }
         val future = try {
+            prepared.event(DecisionTelemetryEvent.PROVIDER_ATTEMPT)
             client.sendAsync(request, HttpResponse.BodyHandler { BoundedBodySubscriber(MAX_BODY_BYTES) })
-        } catch (_: Exception) { return Attempt.Failure(unavailable()) }
+        } catch (error: Exception) {
+            if (error.isCancellation()) throw InterruptedException()
+            prepared.event(DecisionTelemetryEvent.TRANSPORT_UNAVAILABLE)
+            return Attempt.Failure(unavailable())
+        }
         return try {
             val response = future.get(attemptBudget.toNanos(), TimeUnit.NANOSECONDS)
             Attempt.Response(response.statusCode(), response.body())
         } catch (_: TimeoutException) {
             future.cancel(true); Attempt.Failure(deadline())
-        } catch (_: InterruptedException) {
-            future.cancel(true); Thread.currentThread().interrupt(); Attempt.Failure(cancelled())
+        } catch (error: InterruptedException) {
+            future.cancel(true)
+            // The facade owns caller interrupt restoration and cancellation telemetry.
+            throw error
         } catch (error: ExecutionException) {
             future.cancel(true)
             when {
-                error.hasCause(BodyTooLargeException::class.java) -> Attempt.Failure(rejected())
-                error.hasCause(HttpConnectTimeoutException::class.java) ->
-                    Attempt.Failure(if (remaining(prepared) == null) deadline() else unavailable())
+                error.hasCause(BodyTooLargeException::class.java) -> {
+                    prepared.event(DecisionTelemetryEvent.TRANSPORT_REJECTED)
+                    Attempt.Failure(rejected())
+                }
+                error.isCancellation() -> {
+                    // Wrapped worker interruption must reach the facade as cancellation.
+                    throw InterruptedException()
+                }
+                error.hasCause(HttpConnectTimeoutException::class.java) -> {
+                    if (remaining(prepared) == null) {
+                        Attempt.Failure(deadline())
+                    } else {
+                        prepared.event(DecisionTelemetryEvent.TRANSPORT_UNAVAILABLE)
+                        Attempt.Failure(unavailable())
+                    }
+                }
                 error.hasCause(HttpTimeoutException::class.java) -> Attempt.Failure(deadline())
-                else -> Attempt.Failure(unavailable())
+                else -> {
+                    prepared.event(DecisionTelemetryEvent.TRANSPORT_UNAVAILABLE)
+                    Attempt.Failure(unavailable())
+                }
             }
         } catch (_: Exception) {
-            future.cancel(true); Attempt.Failure(unavailable())
+            future.cancel(true)
+            prepared.event(DecisionTelemetryEvent.TRANSPORT_UNAVAILABLE)
+            Attempt.Failure(unavailable())
         }
     }
 
@@ -123,7 +200,6 @@ internal class JevTransport(
     private fun unavailable() = RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE)
     private fun rejected() = RawDecisionOutcome.failure(CallFailure.RejectedRequest, DecisionSafeCode.REJECTED_REQUEST)
     private fun deadline() = RawDecisionOutcome.failure(CallFailure.DeadlineExceeded, DecisionSafeCode.DEADLINE_EXCEEDED)
-    private fun cancelled() = RawDecisionOutcome.failure(CallFailure.Cancelled, DecisionSafeCode.CANCELLED)
 
     private fun Throwable.hasCause(type: Class<out Throwable>): Boolean {
         var current: Throwable? = this
@@ -135,9 +211,28 @@ internal class JevTransport(
         return false
     }
 
+    private fun Throwable.isCancellation(): Boolean {
+        if (Thread.currentThread().isInterrupted) return true
+        var current: Throwable? = this
+        val seen = Collections.newSetFromMap(IdentityHashMap<Throwable, Boolean>())
+        while (current != null && seen.add(current)) {
+            if (current is InterruptedException || current is java.nio.channels.ClosedByInterruptException) return true
+            if (current is InterruptedIOException && current !is SocketTimeoutException) return true
+            current = current.cause
+        }
+        return false
+    }
+
+    private fun String?.isHeaderSafeCredential(): Boolean = !isNullOrBlank() && all { it.code in 0x21..0x7e }
+
     private sealed interface Attempt {
         class Response(val status: Int, val body: ByteArray) : Attempt
         class Failure(val outcome: RawDecisionOutcome) : Attempt
+    }
+
+    private sealed interface ResponseDisposition {
+        class RateLimited(val status: Int) : ResponseDisposition
+        class Complete(val outcome: RawDecisionOutcome) : ResponseDisposition
     }
 
     private class BodyTooLargeException : RuntimeException()

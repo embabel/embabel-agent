@@ -152,6 +152,16 @@ class TypeSafeDecisionModelTest {
         }
     }
 
+    @Test
+    fun `factory validates model provenance at the boundary`() {
+        assertThat(TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "m".repeat(256))).isNotNull()
+        listOf("unsafe\nmodel", "unsafe\rmodel", "m".repeat(257)).forEach { model ->
+            assertThatThrownBy { TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, model) }
+                .isInstanceOf(IllegalArgumentException::class.java)
+                .hasMessage("model must be safe provenance text")
+        }
+    }
+
     private fun request(policy: DecisionRecordPolicy? = null): BuiltRequest {
         val builder = DecisionRequest.builder().state(mapOf("token" to "do-not-send", "text" to "synthetic"))
         policy?.let(builder::recordPolicy)

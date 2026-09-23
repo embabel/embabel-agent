@@ -23,6 +23,9 @@ import com.embabel.agent.decision.KeyFailure
 import com.embabel.agent.decision.KeyOutcome
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import tools.jackson.core.json.JsonReadFeature
+import tools.jackson.core.json.JsonWriteFeature
+import tools.jackson.databind.json.JsonMapper
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.net.URI
@@ -207,6 +210,46 @@ class JevWireCodecTest {
             assertThat((result.answer(built.choice) as KeyOutcome.Failure).failure).isEqualTo(KeyFailure.Missing)
             assertThat((result.answer(built.rating) as KeyOutcome.Failure).failure).isEqualTo(KeyFailure.Missing)
         }
+    }
+
+    @Test
+    fun `caller mapper features cannot change request bytes or loosen response parsing`() {
+        val shared = JsonMapper.builder()
+            .enable(JsonReadFeature.ALLOW_TRAILING_COMMA)
+            .enable(JsonReadFeature.ALLOW_NON_NUMERIC_NUMBERS)
+            .enable(JsonWriteFeature.WRITE_NUMBERS_AS_STRINGS)
+            .enable(tools.jackson.databind.SerializationFeature.INDENT_OUTPUT)
+            .build()
+        val holder = com.embabel.common.util.EmbabelObjectMapperHolder(shared)
+        val expected = """{"state":{"value":7},"model":"requested-test","questions":{"q_yes":{"type":"noul","instructions":"is this synthetic?","criteria":{"true":"true","false":"false"}},"q_choice":{"type":"choice","instructions":"pick one","criteria":{"s_a":"A","s_b":"B"}},"q_rating":{"type":"score","instructions":"rate it","criteria":["low","high"]}}}"""
+
+        CaptureServer.replying(success()).use { server ->
+            val outcome = TypeSafeDecisionModel.create(
+                Supplier { "synthetic-bearer" },
+                "requested-test",
+                URI.create(server.baseUri),
+                java.time.Duration.ofSeconds(10),
+                holder,
+            ).ask(request(mapOf("value" to 7)).request)
+            assertThat(outcome).isInstanceOf(DecisionOutcome.Success::class.java)
+            assertThat(server.requests.single().body).isEqualTo(expected)
+        }
+        listOf(
+            """{"model":"resolved","answers":{},"usage":{"input_tokens":0,"output_tokens":0,},}""",
+            """{"model":"resolved","answers":{"q_yes":{"type":"noul","noul":NaN}},"usage":{"input_tokens":0,"output_tokens":0}}""",
+        ).forEach { body ->
+            CaptureServer.replying(body).use { server ->
+                val outcome = TypeSafeDecisionModel.create(
+                    Supplier { "synthetic-bearer" },
+                    "requested-test",
+                    URI.create(server.baseUri),
+                    java.time.Duration.ofSeconds(10),
+                    holder,
+                ).ask(request().request) as DecisionOutcome.Failure
+                assertThat(outcome.failure).isEqualTo(CallFailure.RejectedRequest)
+            }
+        }
+        assertThat(shared.writeValueAsString("a_b")).isEqualTo("\"a_b\"")
     }
 
     private fun model(server: CaptureServer) = TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri))

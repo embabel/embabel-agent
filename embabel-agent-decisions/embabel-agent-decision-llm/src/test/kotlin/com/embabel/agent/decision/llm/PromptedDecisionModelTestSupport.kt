@@ -17,8 +17,13 @@ package com.embabel.agent.decision.llm
 
 import com.embabel.agent.decision.ChoiceKey
 import com.embabel.agent.decision.DecisionOption
+import com.embabel.agent.decision.DecisionCompletion
+import com.embabel.agent.decision.DecisionInstrumentation
+import com.embabel.agent.decision.DecisionObservation
+import com.embabel.agent.decision.DecisionObservationContext
 import com.embabel.agent.decision.DecisionRecordPolicy
 import com.embabel.agent.decision.DecisionRequest
+import com.embabel.agent.decision.DecisionTelemetryEvent
 import com.embabel.agent.decision.RatingKey
 import com.embabel.agent.decision.YesNoKey
 import com.embabel.agent.spi.LlmService
@@ -33,8 +38,23 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.ai.prompt.PromptContributor
 import java.time.LocalDate
+import java.util.concurrent.Callable
+import java.util.concurrent.ConcurrentLinkedQueue
 
 enum class SenderPath { LEGACY, NATIVE }
+
+internal class RecordingDecisionInstrumentation : DecisionInstrumentation {
+    val events = ConcurrentLinkedQueue<DecisionTelemetryEvent>()
+
+    override fun start(context: DecisionObservationContext): DecisionObservation = object : DecisionObservation {
+        override fun <T> wrap(work: Callable<T>): Callable<T> = work
+        override fun event(event: DecisionTelemetryEvent) {
+            events += event
+        }
+        override fun complete(completion: DecisionCompletion) = Unit
+        override fun close() = Unit
+    }
+}
 
 internal class RecordingDecisionSender(
     private val invocation: () -> LlmMessageResponse,

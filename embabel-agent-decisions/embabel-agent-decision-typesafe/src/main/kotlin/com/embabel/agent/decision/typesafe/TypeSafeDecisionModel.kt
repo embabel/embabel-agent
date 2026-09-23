@@ -21,12 +21,19 @@ import com.embabel.common.util.EmbabelObjectMapperHolder
 import org.jetbrains.annotations.ApiStatus
 import java.net.URI
 import java.net.http.HttpClient
+import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.util.function.Supplier
 
 /** Creates the experimental TypeSafe System One backed decision model. */
 @ApiStatus.Experimental
 object TypeSafeDecisionModel {
+    /**
+     * Creates a System One model with an isolated strict protocol codec.
+     *
+     * [mapperHolder] is retained for factory compatibility. Protocol parsing and generation do not
+     * read or mutate its mapper because application features and serializers cannot alter the wire contract.
+     */
     @JvmStatic
     @JvmOverloads
     fun create(
@@ -36,7 +43,7 @@ object TypeSafeDecisionModel {
         connectTimeout: Duration = Duration.ofSeconds(10),
         mapperHolder: EmbabelObjectMapperHolder = EmbabelObjectMapperHolder.createDefault(),
     ): DecisionModel {
-        require(model.isNotBlank()) { "model must not be blank" }
+        require(isSafeProvenanceText(model)) { "model must be safe provenance text" }
         require(!connectTimeout.isZero && !connectTimeout.isNegative) { "connect timeout must be positive" }
         require(supportsBaseUri(baseUri)) { "base URI must be an HTTPS origin" }
         val client = HttpClient.newBuilder()
@@ -64,4 +71,8 @@ object TypeSafeDecisionModel {
             else -> false
         }
     }
+
+    private fun isSafeProvenanceText(value: String): Boolean = value.isNotBlank() &&
+        value.toByteArray(StandardCharsets.UTF_8).size <= 256 &&
+        value.none { it == '\n' || it == '\r' }
 }

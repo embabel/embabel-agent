@@ -17,10 +17,15 @@ package com.embabel.agent.decision.typesafe
 
 import com.embabel.agent.decision.CallFailure
 import com.embabel.agent.decision.DecisionModel
+import com.embabel.agent.decision.DecisionCompletion
+import com.embabel.agent.decision.DecisionInstrumentation
+import com.embabel.agent.decision.DecisionObservation
+import com.embabel.agent.decision.DecisionObservationContext
 import com.embabel.agent.decision.DecisionOutcome
 import com.embabel.agent.decision.DecisionProvider
 import com.embabel.agent.decision.DecisionRequest
 import com.embabel.agent.decision.DecisionSafeCode
+import com.embabel.agent.decision.DecisionTelemetryEvent
 import com.embabel.agent.decision.PreparedDecisionRequest
 import com.embabel.agent.decision.RawDecisionOutcome
 import com.embabel.common.util.EmbabelObjectMapperHolder
@@ -29,8 +34,11 @@ import com.sun.net.httpserver.HttpServer
 import io.mockk.every
 import io.mockk.mockk
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import java.io.IOException
+import java.io.InterruptedIOException
+import java.io.UncheckedIOException
 import java.net.InetSocketAddress
 import java.net.URI
 import java.net.http.HttpClient
@@ -39,9 +47,12 @@ import java.net.http.HttpResponse
 import java.net.http.HttpTimeoutException
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Callable
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Supplier
 
@@ -143,6 +154,103 @@ class JevDeadlineTest {
     }
 
     @Test
+    fun `emits one attempt per native send with bounded retry and transport classes`() {
+        CaptureServer.sequence(CaptureServer.Reply(429, "{}"), CaptureServer.Reply(200, success())).use { server ->
+            val instrumentation = RecordingInstrumentation()
+            val outcome = TypeSafeDecisionModel.create(
+                Supplier { "synthetic-bearer" },
+                "requested-test",
+                URI.create(server.baseUri),
+            ).withInstrumentation(instrumentation).ask(request())
+
+            assertThat(outcome).isInstanceOf(DecisionOutcome.Success::class.java)
+            assertThat(server.requestCount).isEqualTo(2)
+            assertThat(instrumentation.events).containsExactly(
+                DecisionTelemetryEvent.PROVIDER_ATTEMPT,
+                DecisionTelemetryEvent.TRANSPORT_RATE_LIMITED,
+                DecisionTelemetryEvent.RETRY,
+                DecisionTelemetryEvent.PROVIDER_ATTEMPT,
+                DecisionTelemetryEvent.TRANSPORT_SUCCESS,
+            )
+        }
+    }
+
+    @Test
+    fun `does not emit or dispatch a retry after cancellation is observed`() {
+        CaptureServer.sequence(CaptureServer.Reply(429, "{}"), CaptureServer.Reply(200, success())).use { server ->
+            val observed = ConcurrentLinkedQueue<DecisionTelemetryEvent>()
+            val base = prepared()
+            val recording = object : PreparedDecisionRequest by base {
+                override fun event(event: DecisionTelemetryEvent) {
+                    observed += event
+                }
+            }
+            val transport = transport(server, sleeper = { error("retry sleep must not run") }) {
+                if (server.requestCount == 0) {
+                    Duration.ofSeconds(1).toNanos()
+                } else {
+                    Thread.currentThread().interrupt()
+                    Duration.ofSeconds(1).toNanos()
+                }
+            }
+
+            try {
+                assertThatThrownBy { transport.invoke(recording) }
+                    .isInstanceOf(InterruptedException::class.java)
+                assertThat(server.requestCount).isEqualTo(1)
+                assertThat(observed).containsExactly(
+                    DecisionTelemetryEvent.PROVIDER_ATTEMPT,
+                    DecisionTelemetryEvent.TRANSPORT_RATE_LIMITED,
+                )
+            } finally {
+                Thread.interrupted()
+            }
+        }
+    }
+
+    @Test
+    fun `emits safe rejection and unavailability events without response or exception data`() {
+        listOf(
+            CaptureServer.Reply(422, "SECRET_REJECTED") to DecisionTelemetryEvent.TRANSPORT_REJECTED,
+            CaptureServer.Reply(503, "SECRET_UNAVAILABLE") to DecisionTelemetryEvent.TRANSPORT_UNAVAILABLE,
+        ).forEach { (reply, expected) ->
+            CaptureServer.sequence(reply).use { server ->
+                val instrumentation = RecordingInstrumentation()
+                TypeSafeDecisionModel.create(
+                    Supplier { "synthetic-bearer" },
+                    "requested-test",
+                    URI.create(server.baseUri),
+                ).withInstrumentation(instrumentation).ask(request())
+
+                assertThat(instrumentation.events).containsExactly(
+                    DecisionTelemetryEvent.PROVIDER_ATTEMPT,
+                    expected,
+                )
+                assertThat(instrumentation.events.joinToString()).doesNotContain("SECRET")
+            }
+        }
+    }
+
+    @Test
+    fun `marks a malformed successful response as transport success followed by facade rejection`() {
+        CaptureServer.replying("{SECRET_MALFORMED").use { server ->
+            val instrumentation = RecordingInstrumentation()
+            TypeSafeDecisionModel.create(
+                Supplier { "synthetic-bearer" },
+                "requested-test",
+                URI.create(server.baseUri),
+            ).withInstrumentation(instrumentation).ask(request())
+
+            assertThat(instrumentation.events).containsExactly(
+                DecisionTelemetryEvent.PROVIDER_ATTEMPT,
+                DecisionTelemetryEvent.TRANSPORT_SUCCESS,
+                DecisionTelemetryEvent.REJECTION,
+            )
+            assertThat(instrumentation.events.joinToString()).doesNotContain("SECRET_MALFORMED")
+        }
+    }
+
+    @Test
     fun `retries 529 once and never makes a third request`() {
         CaptureServer.sequence(CaptureServer.Reply(529, "{}"), CaptureServer.Reply(429, "{}"), CaptureServer.Reply(200, success())).use { server ->
             val result = TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri)).ask(request()) as DecisionOutcome.Failure
@@ -218,6 +326,49 @@ class JevDeadlineTest {
     }
 
     @Test
+    fun `rejects every non visible ASCII credential before request construction`() {
+        listOf("sk-\u0001SECRET", "sk-\u007fSECRET", "sk-secret value").forEach { credential ->
+            CaptureServer.replying(success()).use { server ->
+                val raw = JevTransport(
+                    Supplier { credential },
+                    "requested-test",
+                    URI.create(server.baseUri),
+                    HttpClient.newHttpClient(),
+                    JevWireCodec(EmbabelObjectMapperHolder.createDefault(), "requested-test"),
+                ).invoke(prepared())
+
+                assertThat(raw.callFailure).isEqualTo(CallFailure.Unavailable)
+                assertThat(server.requestCount).isZero()
+                assertThat(raw.toString()).doesNotContain("SECRET")
+            }
+        }
+    }
+
+    @Test
+    fun `classifies wrapped credential interruption without mistaking socket timeout for cancellation`() {
+        assertThatThrownBy {
+            JevTransport(
+                Supplier { throw UncheckedIOException(InterruptedIOException("synthetic interruption")) },
+                "requested-test",
+                URI.create("https://jev.invalid"),
+                HttpClient.newHttpClient(),
+                JevWireCodec(EmbabelObjectMapperHolder.createDefault(), "requested-test"),
+            ).invoke(prepared())
+        }.isInstanceOf(InterruptedException::class.java)
+        assertThat(Thread.currentThread().isInterrupted).isFalse()
+
+        val timeout = JevTransport(
+            Supplier { throw UncheckedIOException(java.net.SocketTimeoutException("synthetic timeout")) },
+            "requested-test",
+            URI.create("https://jev.invalid"),
+            HttpClient.newHttpClient(),
+            JevWireCodec(EmbabelObjectMapperHolder.createDefault(), "requested-test"),
+        ).invoke(prepared())
+        assertThat(timeout.callFailure).isEqualTo(CallFailure.Unavailable)
+        assertThat(Thread.currentThread().isInterrupted).isFalse()
+    }
+
+    @Test
     fun `rejects an oversized encoded request before transport dispatch`() {
         CaptureServer.replying(success()).use { server ->
             val normal = prepared()
@@ -283,25 +434,56 @@ class JevDeadlineTest {
             assertThat(observed).containsExactly(Duration.ofSeconds(1), Duration.ofMillis(200))
         }
         CaptureServer.sequence(CaptureServer.Reply(429, "{}")).use { server ->
-            val raw = transport(server, sleeper = { throw InterruptedException() }).invoke(prepared())
-            assertThat(raw.callFailure).isEqualTo(CallFailure.Cancelled)
-            assertThat(Thread.interrupted()).isTrue()
+            assertThatThrownBy { transport(server, sleeper = { throw InterruptedException() }).invoke(prepared()) }
+                .isInstanceOf(InterruptedException::class.java)
+            assertThat(Thread.currentThread().isInterrupted).isFalse()
         }
     }
 
     @Test
-    fun `cancels an in flight send and restores interruption`() {
+    fun `cancels an in flight send and propagates worker interruption`() {
         val gate = CountDownLatch(1)
         CaptureServer.custom { gate.await() }.use { server ->
             val prepared = prepared()
             Thread.currentThread().interrupt()
             try {
-                val raw = transport(server).invoke(prepared)
-                assertThat(raw.callFailure).isEqualTo(CallFailure.Cancelled)
+                assertThatThrownBy { transport(server).invoke(prepared) }
+                    .isInstanceOf(InterruptedException::class.java)
                 assertThat(Thread.currentThread().isInterrupted).isTrue()
             } finally {
                 Thread.interrupted()
             }
+        }
+    }
+
+    @Test
+    fun `closing an in flight model emits facade cancellation exactly once`() {
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        CaptureServer.custom { exchange ->
+            entered.countDown()
+            release.await()
+            exchange.sendResponseHeaders(200, 0)
+        }.use { server ->
+            val instrumentation = RecordingInstrumentation()
+            val model = TypeSafeDecisionModel.create(
+                Supplier { "synthetic-bearer" },
+                "requested-test",
+                URI.create(server.baseUri),
+            ).withInstrumentation(instrumentation)
+            val caller = CompletableFuture.supplyAsync { model.ask(request()) }
+
+            assertThat(entered.await(2, TimeUnit.SECONDS)).isTrue()
+            model.close()
+            val outcome = caller.get(2, TimeUnit.SECONDS) as DecisionOutcome.Failure
+
+            assertThat(outcome.failure).isEqualTo(CallFailure.Cancelled)
+            assertThat(instrumentation.events).containsExactly(
+                DecisionTelemetryEvent.PROVIDER_ATTEMPT,
+                DecisionTelemetryEvent.CANCELLATION,
+            )
+            assertThat(instrumentation.events.count { it == DecisionTelemetryEvent.CANCELLATION }).isEqualTo(1)
+            release.countDown()
         }
     }
 
@@ -341,6 +523,19 @@ class JevDeadlineTest {
     )
 
     private fun success() = """{"model":"resolved-test-v1","answers":{"q_yes":{"type":"noul","noul":0.75}},"usage":{"input_tokens":1,"output_tokens":1}}"""
+
+    private class RecordingInstrumentation : DecisionInstrumentation {
+        val events = ConcurrentLinkedQueue<DecisionTelemetryEvent>()
+
+        override fun start(context: DecisionObservationContext): DecisionObservation = object : DecisionObservation {
+            override fun <T> wrap(work: Callable<T>): Callable<T> = work
+            override fun event(event: DecisionTelemetryEvent) {
+                events += event
+            }
+            override fun complete(completion: DecisionCompletion) = Unit
+            override fun close() = Unit
+        }
+    }
 }
 
 internal class CaptureServer private constructor(private val script: List<Reply>) : AutoCloseable {

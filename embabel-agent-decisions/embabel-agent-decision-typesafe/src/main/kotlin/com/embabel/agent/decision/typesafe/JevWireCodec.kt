@@ -29,6 +29,7 @@ import com.embabel.agent.decision.RawProbability
 import com.embabel.common.util.EmbabelObjectMapperHolder
 import tools.jackson.core.JsonParser
 import tools.jackson.core.JsonToken
+import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.node.ObjectNode
 import java.math.BigDecimal
 import java.math.BigInteger
@@ -36,11 +37,13 @@ import java.nio.charset.StandardCharsets
 
 /** Strict System One codec. The private value tree preserves duplicate JSON property names. */
 internal class JevWireCodec(
-    private val mapperHolder: EmbabelObjectMapperHolder,
+    @Suppress("UNUSED_PARAMETER") mapperHolder: EmbabelObjectMapperHolder,
     private val requestedModel: String,
 ) {
+    // Wire behavior must not inherit permissive parser features, serializers, or write flags from the application mapper.
+    private val mapper: ObjectMapper = EmbabelObjectMapperHolder.createDefault().get()
+
     fun encode(request: PreparedDecisionRequest, model: String): ByteArray {
-        val mapper = mapperHolder.get()
         val root = mapper.createObjectNode()
         root.set("state", stateNode(request.state))
         root.put("model", model)
@@ -163,29 +166,29 @@ internal class JevWireCodec(
     private fun safeProvenanceText(value: String) = value.isNotBlank() &&
         value.toByteArray(StandardCharsets.UTF_8).size <= 256 && value.none { it == '\n' || it == '\r' }
 
-    private fun stateNode(state: Map<String, Any?>): ObjectNode = mapperHolder.get().createObjectNode().also { target ->
+    private fun stateNode(state: Map<String, Any?>): ObjectNode = mapper.createObjectNode().also { target ->
         state.forEach { (key, value) -> target.set(key, valueNode(value)) }
     }
 
     private fun valueNode(value: Any?): tools.jackson.databind.JsonNode = when (value) {
-        null -> mapperHolder.get().nullNode()
-        is String -> mapperHolder.get().getNodeFactory().textNode(value)
-        is Boolean -> mapperHolder.get().getNodeFactory().booleanNode(value)
-        is Byte -> mapperHolder.get().getNodeFactory().numberNode(value)
-        is Short -> mapperHolder.get().getNodeFactory().numberNode(value)
-        is Int -> mapperHolder.get().getNodeFactory().numberNode(value)
-        is Long -> mapperHolder.get().getNodeFactory().numberNode(value)
-        is BigInteger -> mapperHolder.get().getNodeFactory().numberNode(value)
-        is BigDecimal -> mapperHolder.get().getNodeFactory().numberNode(value)
-        is Double -> mapperHolder.get().getNodeFactory().numberNode(value.also { require(it.isFinite()) { "state numbers must be finite" } })
-        is Float -> mapperHolder.get().getNodeFactory().numberNode(value.also { require(it.isFinite()) { "state numbers must be finite" } })
+        null -> mapper.nullNode()
+        is String -> mapper.nodeFactory.stringNode(value)
+        is Boolean -> mapper.nodeFactory.booleanNode(value)
+        is Byte -> mapper.nodeFactory.numberNode(value)
+        is Short -> mapper.nodeFactory.numberNode(value)
+        is Int -> mapper.nodeFactory.numberNode(value)
+        is Long -> mapper.nodeFactory.numberNode(value)
+        is BigInteger -> mapper.nodeFactory.numberNode(value)
+        is BigDecimal -> mapper.nodeFactory.numberNode(value)
+        is Double -> mapper.nodeFactory.numberNode(value.also { require(it.isFinite()) { "state numbers must be finite" } })
+        is Float -> mapper.nodeFactory.numberNode(value.also { require(it.isFinite()) { "state numbers must be finite" } })
         is Number -> error("prepared state contains an unsupported number type")
         is Map<*, *> -> stateNode(value.entries.associate { (key, nested) -> key as String to nested })
-        is Iterable<*> -> mapperHolder.get().createArrayNode().also { array -> value.forEach { array.add(valueNode(it)) } }
+        is Iterable<*> -> mapper.createArrayNode().also { array -> value.forEach { array.add(valueNode(it)) } }
         else -> error("prepared state must already be JSON-compatible")
     }
 
-    private fun parse(bytes: ByteArray): JsonValue = mapperHolder.get().createParser(bytes).use { parser ->
+    private fun parse(bytes: ByteArray): JsonValue = mapper.createParser(bytes).use { parser ->
         parser.nextToken() ?: throw IllegalArgumentException()
         val result = parseValue(parser)
         if (parser.nextToken() != null) throw IllegalArgumentException()
@@ -204,7 +207,7 @@ internal class JevWireCodec(
         JsonToken.START_ARRAY -> JsonValue.Arr(buildList {
             while (parser.nextToken() != JsonToken.END_ARRAY) add(parseValue(parser))
         })
-        JsonToken.VALUE_STRING -> JsonValue.Str(parser.text)
+        JsonToken.VALUE_STRING -> JsonValue.Str(parser.string)
         JsonToken.VALUE_NUMBER_FLOAT, JsonToken.VALUE_NUMBER_INT -> JsonValue.Num(parser.doubleValue)
         JsonToken.VALUE_TRUE -> JsonValue.Bool(true)
         JsonToken.VALUE_FALSE -> JsonValue.Bool(false)
