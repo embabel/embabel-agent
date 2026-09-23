@@ -20,26 +20,36 @@ import com.embabel.common.util.EmbabelObjectMapperHolder;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class DecisionConfigurationMetadataTest {
     @Test
-    void metadataPublishesEveryPublicPropertyWithoutASecretValue() throws IOException {
+    void metadataPublishesTheNamedMapContractWithoutLegacyOrSecretKeys() throws IOException {
         var stream = getClass().getClassLoader().getResourceAsStream("META-INF/spring-configuration-metadata.json");
         assertThat(stream).isNotNull();
         String metadata = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         var root = EmbabelObjectMapperHolder.createDefault().get().readTree(metadata);
-        assertThat(root.get("properties")).hasSize(13);
+        var names = new ArrayList<String>();
+        root.get("properties").forEach(property -> names.add(property.get("name").asText()));
         for (String suffix : new String[]{
-                "enabled", "provider", "default-timeout", "record-mode", "full-record-max-bytes",
-                "record-allowlist", "mapper-bean-name", "typesafe.model", "typesafe.base-url",
-                "typesafe.connect-timeout", "typesafe.api-key", "prompted.llm-bean-name",
-                "prompted.options-bean-name"
+                "enabled", "default-timeout", "record-mode", "full-record-max-bytes",
+                "record-allowlist", "mapper-bean-name", "models",
+                "models.*.provider", "models.*.typesafe.model", "models.*.typesafe.base-url",
+                "models.*.typesafe.connect-timeout", "models.*.prompted.llm-bean-name",
+                "models.*.prompted.options-bean-name"
         }) {
-            assertThat(metadata).contains("embabel.agent.decision." + suffix);
+            assertThat(names).contains("embabel.agent.decision." + suffix);
         }
-        assertThat(metadata).contains("30s", "10s", "65536").doesNotContain("TYPESAFE_API_KEY=");
+        assertThat(names).doesNotContain(
+                "embabel.agent.decision.provider",
+                "embabel.agent.decision.typesafe.model",
+                "embabel.agent.decision.prompted.llm-bean-name");
+        assertThat(metadata)
+                .contains("30s", "10s", "65536", "proposition-revision", "Spring bean and registry name",
+                        "backend requested model")
+                .doesNotContain("TYPESAFE_API_KEY=", "\"value\" : \"stub\"");
     }
 
     @Test

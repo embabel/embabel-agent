@@ -1,21 +1,21 @@
 {
   "properties": [
-    { "name": "embabel.agent.decision.enabled", "type": "java.lang.Boolean", "defaultValue": false, "description": "Enable the experimental typed decision model." },
-    { "name": "embabel.agent.decision.provider", "type": "java.lang.String", "description": "Decision provider: typesafe, prompted, or none." },
-    { "name": "embabel.agent.decision.default-timeout", "type": "java.time.Duration", "defaultValue": "30s", "description": "Default decision request timeout." },
-    { "name": "embabel.agent.decision.record-mode", "type": "java.lang.String", "defaultValue": "metadata", "description": "Decision record mode: none, metadata, or full." },
+    { "name": "embabel.agent.decision.enabled", "type": "java.lang.Boolean", "defaultValue": false, "description": "Enable experimental typed decision models. With no declarations, registers the implicit jev model." },
+    { "name": "embabel.agent.decision.default-timeout", "type": "java.time.Duration", "defaultValue": "30s", "description": "Default timeout shared by every configured decision model." },
+    { "name": "embabel.agent.decision.record-mode", "type": "java.lang.String", "defaultValue": "metadata", "description": "Record mode shared by every configured decision model: none, metadata, or full." },
     { "name": "embabel.agent.decision.full-record-max-bytes", "type": "java.lang.Integer", "defaultValue": 65536, "description": "Maximum bytes retained by full records." },
     { "name": "embabel.agent.decision.record-allowlist", "type": "java.util.Set<java.lang.String>", "description": "Explicit fields allowed in full records." },
-    { "name": "embabel.agent.decision.mapper-bean-name", "type": "java.lang.String", "description": "Exact EmbabelObjectMapperHolder bean name." },
-    { "name": "embabel.agent.decision.typesafe.model", "type": "java.lang.String", "description": "Requested TypeSafe model." },
-    { "name": "embabel.agent.decision.typesafe.base-url", "type": "java.net.URI", "defaultValue": "https://api.typesafe.ai", "description": "TypeSafe API origin." },
-    { "name": "embabel.agent.decision.typesafe.connect-timeout", "type": "java.time.Duration", "defaultValue": "10s", "description": "TypeSafe connection timeout." },
-    { "name": "embabel.agent.decision.typesafe.api-key", "type": "java.lang.String", "description": "TypeSafe API credential. Prefer TYPESAFE_API_KEY." },
-    { "name": "embabel.agent.decision.prompted.llm-bean-name", "type": "java.lang.String", "description": "Exact LlmService bean name." },
-    { "name": "embabel.agent.decision.prompted.options-bean-name", "type": "java.lang.String", "description": "Exact LlmOptions bean name." }
+    { "name": "embabel.agent.decision.mapper-bean-name", "type": "java.lang.String", "description": "Exact EmbabelObjectMapperHolder bean name shared by configured models." },
+    { "name": "embabel.agent.decision.models", "type": "java.util.Map<java.lang.String,com.embabel.agent.autoconfigure.decision.DecisionProperties$Model>", "description": "Named model declarations. Each map key, for example proposition-revision, is both the Spring bean and registry name. A nonempty map replaces the implicit jev declaration." },
+    { "name": "embabel.agent.decision.models.*.provider", "type": "java.lang.String", "description": "Decision provider for this registry name: typesafe, prompted, or none." },
+    { "name": "embabel.agent.decision.models.*.typesafe.model", "type": "java.lang.String", "description": "TypeSafe backend requested model, distinct from the enclosing registry name. The implicit jev declaration requests jev-latest." },
+    { "name": "embabel.agent.decision.models.*.typesafe.base-url", "type": "java.net.URI", "defaultValue": "https://api.typesafe.ai", "description": "TypeSafe API origin." },
+    { "name": "embabel.agent.decision.models.*.typesafe.connect-timeout", "type": "java.time.Duration", "defaultValue": "10s", "description": "TypeSafe connection timeout." },
+    { "name": "embabel.agent.decision.models.*.prompted.llm-bean-name", "type": "java.lang.String", "description": "Exact LlmService bean name used by this registry facade." },
+    { "name": "embabel.agent.decision.models.*.prompted.options-bean-name", "type": "java.lang.String", "description": "Optional exact LlmOptions bean name used by this registry facade." }
   ],
   "hints": [
-    { "name": "embabel.agent.decision.provider", "values": [{"value":"typesafe"},{"value":"prompted"},{"value":"none"}] },
+    { "name": "embabel.agent.decision.models.*.provider", "values": [{"value":"typesafe"},{"value":"prompted"},{"value":"none"}] },
     { "name": "embabel.agent.decision.record-mode", "values": [{"value":"none"},{"value":"metadata"},{"value":"full"}] }
   ]
 }

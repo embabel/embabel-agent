@@ -16,6 +16,8 @@
 package com.embabel.agent.autoconfigure.decision;
 
 import com.embabel.agent.decision.DecisionModel;
+import com.embabel.agent.decision.DecisionModelInitialization;
+import com.embabel.common.ai.autoconfig.ProviderInitialization;
 import kotlin.Metadata;
 import kotlin.jvm.JvmClassMappingKt;
 import kotlin.reflect.KVisibility;
@@ -27,6 +29,8 @@ import org.springframework.asm.Opcodes;
 import org.springframework.ai.chat.model.ChatModel;
 
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -67,8 +71,22 @@ class DecisionConfigurationArchitectureTest {
                         .filter(method -> method.getName().equals("create")))
                 .isNotEmpty()
                 .allSatisfy(method -> assertThat(method.getReturnType()).isEqualTo(DecisionModel.class)));
+        Method initializer = java.util.Arrays.stream(AgentDecisionAutoConfiguration.class.getDeclaredMethods())
+                .filter(method -> method.getReturnType().equals(DecisionModelInitialization.class))
+                .findFirst()
+                .orElseThrow();
+        assertThat(java.util.Arrays.stream(initializer.getGenericParameterTypes())
+                .filter(ParameterizedType.class::isInstance)
+                .map(ParameterizedType.class::cast)
+                .flatMap(type -> java.util.Arrays.stream(type.getActualTypeArguments())))
+                .contains(ProviderInitialization.class);
         assertThat(java.util.Arrays.toString(AgentDecisionAutoConfiguration.class.getDeclaredMethods()))
-                .doesNotContain("ProviderInitialization", "ModelProvider", "ChatModel", "LlmService");
+                .doesNotContain("ModelProvider", "ChatModel");
+
+        String receiptSurface = java.util.Arrays.toString(DecisionModelInitialization.class.getDeclaredFields())
+                + java.util.Arrays.toString(DecisionModelInitialization.class.getDeclaredConstructors())
+                + java.util.Arrays.toString(DecisionModelInitialization.class.getDeclaredMethods());
+        assertThat(receiptSurface).doesNotContain("com.embabel.common.ai", "org.springframework");
     }
 
     @Test

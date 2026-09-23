@@ -17,35 +17,44 @@ package com.embabel.agent.autoconfigure.decision;
 
 import com.embabel.agent.decision.CallFailure;
 import com.embabel.agent.decision.DecisionModel;
+import com.embabel.agent.decision.DecisionModelInitialization;
 import com.embabel.agent.decision.DecisionOutcome;
 import com.embabel.agent.decision.DecisionRequest;
-import com.embabel.agent.decision.DecisionRecordPolicy;
 import com.embabel.agent.decision.NoDecisionModel;
-import com.embabel.agent.decision.typesafe.TypeSafeDecisionModel;
 import com.embabel.agent.spi.LlmService;
+import com.embabel.agent.spi.config.spring.AgentPlatformConfiguration;
 import com.embabel.agent.spi.loop.LlmMessageResponse;
 import com.embabel.agent.spi.loop.LlmMessageSender;
 import com.embabel.chat.Message;
+import com.embabel.common.ai.autoconfig.ProviderInitialization;
+import com.embabel.common.ai.model.AutoModelSelectionCriteria;
+import com.embabel.common.ai.model.ByNameModelSelectionCriteria;
+import com.embabel.common.ai.model.ByRoleModelSelectionCriteria;
+import com.embabel.common.ai.model.ConfigurableModelProviderProperties;
+import com.embabel.common.ai.model.DecisionModelMetadata;
+import com.embabel.common.ai.model.DefaultModelSelectionCriteria;
+import com.embabel.common.ai.model.FallbackByNameModelSelectionCriteria;
 import com.embabel.common.ai.model.LlmOptions;
-import com.embabel.common.util.EmbabelObjectMapperHolder;
-import com.sun.net.httpserver.HttpServer;
+import com.embabel.common.ai.model.ModelProvider;
+import com.embabel.common.ai.model.ModelSelectionCriteria;
+import com.embabel.common.ai.model.RandomByNameModelSelectionCriteria;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Bean;
 
-import java.net.InetSocketAddress;
-import java.net.URI;
-import java.time.Duration;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
@@ -59,359 +68,313 @@ class AgentDecisionAutoConfigurationTest {
 
     @Test
     void classpathIsInertUntilExplicitlyEnabled() {
-        runner.run(context -> assertThat(context).doesNotHaveBean(DecisionModel.class));
-        runner.withPropertyValues("embabel.agent.decision.enabled=false", "embabel.agent.decision.provider=stub")
-                .run(context -> assertThat(context).doesNotHaveBean(DecisionModel.class));
+        runner.run(context -> assertThat(context)
+                .doesNotHaveBean(DecisionModel.class)
+                .doesNotHaveBean(DecisionModelInitialization.class));
+        runner.withPropertyValues(
+                        "embabel.agent.decision.enabled=false",
+                        "embabel.agent.decision.models.disabled.provider=stub")
+                .run(context -> assertThat(context)
+                        .doesNotHaveBean(DecisionModel.class)
+                        .doesNotHaveBean(DecisionModelInitialization.class));
     }
 
     @Test
-    void noneCreatesOneFinalFacadeAndReturnsDisabled() {
-        runner.withPropertyValues("embabel.agent.decision.enabled=true", "embabel.agent.decision.provider=none")
+    void registersTwoNamedModelsAfterProviderInitializationAndIntegratesCustomBeans() {
+        LlmService<?> promptedService = service(
+                "backend-name",
+                "{\"answers\":[{\"keyId\":\"q\",\"kind\":\"YES_NO\",\"pTrue\":0.75}]}");
+        DecisionModel custom = NoDecisionModel.create().named("custom", "user");
+
+        integratedRunner(promptedService)
+                .withBean("custom", DecisionModel.class, () -> custom)
+                .withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.models.proposition-revision.provider=none",
+                        "embabel.agent.decision.models.prompted-review.provider=prompted",
+                        "embabel.agent.decision.models.prompted-review.prompted.llm-bean-name=dynamicLlm",
+                        "embabel.agent.decision.models.prompted-review.prompted.options-bean-name=decisionOptions",
+                        "embabel.models.default-llm=backend-name",
+                        "embabel.models.decisions.revision=proposition-revision",
+                        "embabel.models.default-decision-model=prompted-review")
                 .run(context -> {
-                    assertThat(context).hasSingleBean(DecisionModel.class).hasBean("decisionModel");
-                    DecisionRequest.Builder builder = DecisionRequest.builder();
-                    builder.yesNo("q", "Proceed?");
-                    DecisionOutcome.Failure outcome = (DecisionOutcome.Failure) context.getBean(DecisionModel.class)
-                            .ask(builder.build());
-                    assertThat(outcome.getFailure()).isEqualTo(CallFailure.Disabled);
+                    assertThat(context).hasBean("proposition-revision").hasBean("prompted-review").hasBean("custom");
+                    assertThat(context).doesNotHaveBean("jev");
+                    assertThat(context.getBeansOfType(DecisionModel.class)).hasSize(3);
+                    assertThat(context.getBean("proposition-revision", DecisionModel.class).getName())
+                            .isEqualTo("proposition-revision");
+                    assertThat(context.getBean("proposition-revision", DecisionModel.class).getProvider())
+                            .isEqualTo("none");
+                    assertThat(context.getBean("prompted-review", DecisionModel.class).getName())
+                            .isEqualTo("prompted-review");
+                    assertThat(context.getBean("prompted-review", DecisionModel.class).getProvider())
+                            .isEqualTo("prompted");
+
+                    ModelProvider models = context.getBean(ModelProvider.class);
+                    assertThat(models.getDecisionModel(new ByRoleModelSelectionCriteria("revision")).getName())
+                            .isEqualTo("proposition-revision");
+                    assertThat(models.getDecisionModel(new ByNameModelSelectionCriteria("custom"))).isSameAs(custom);
+                    assertThat(models.getDecisionModel(new FallbackByNameModelSelectionCriteria(
+                            List.of("missing", "prompted-review"))).getName()).isEqualTo("prompted-review");
+                    assertThat(models.getDecisionModel(DefaultModelSelectionCriteria.INSTANCE).getName())
+                            .isEqualTo("prompted-review");
+                    assertThat(models.getDecisionModel(AutoModelSelectionCriteria.INSTANCE).getName())
+                            .isEqualTo("prompted-review");
+                    assertThat(models.getDecisionModel(new RandomByNameModelSelectionCriteria(List.of("custom"))))
+                            .isSameAs(custom);
+                    assertThat(models.getDecisionModel(ModelSelectionCriteria.preResolved(custom))).isSameAs(custom);
+                    assertThat(models.listModels().stream()
+                            .filter(DecisionModelMetadata.class::isInstance)
+                            .map(model -> model.getName() + ":" + model.getProvider()))
+                            .containsExactlyInAnyOrder(
+                                    "proposition-revision:none", "prompted-review:prompted", "custom:user");
+
+                    DecisionModelInitialization receipt = context.getBean(DecisionModelInitialization.class);
+                    assertThat(receipt.getCreatedModels())
+                            .extracting(DecisionModel::getName)
+                            .containsExactly("prompted-review", "proposition-revision");
+                });
+        verify(promptedService, never()).createMessageSender(any(LlmOptions.class));
+    }
+
+    @Test
+    void initializationReceiptClosesOnlyConfiguredFacadesOnce() {
+        LlmService<?> promptedService = service(
+                "backend-name",
+                "{\"answers\":[{\"keyId\":\"q\",\"kind\":\"YES_NO\",\"pTrue\":0.75}]}");
+        DecisionModel custom = NoDecisionModel.create().named("custom", "user");
+
+        integratedRunner(promptedService)
+                .withBean("custom", DecisionModel.class, () -> custom)
+                .withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.models.prompted-review.provider=prompted",
+                        "embabel.agent.decision.models.prompted-review.prompted.llm-bean-name=dynamicLlm",
+                        "embabel.models.default-llm=backend-name",
+                        "embabel.models.default-decision-model=prompted-review")
+                .run(context -> {
+                    DecisionModel configured = context.getBean("prompted-review", DecisionModel.class);
+                    assertThat(configured.ask(request())).isInstanceOf(DecisionOutcome.Success.class);
+                    DecisionModelInitialization receipt = context.getBean(DecisionModelInitialization.class);
+                    assertThat(receipt.getCreatedModels()).containsExactly(configured).doesNotContain(custom);
+                    receipt.close();
+                    receipt.close();
+                    assertThat(configured.ask(request())).isInstanceOf(DecisionOutcome.Failure.class);
+                    assertThat(custom.ask(request())).isInstanceOf(DecisionOutcome.Failure.class);
+                    verify(promptedService, atLeastOnce()).createMessageSender(any(LlmOptions.class));
                 });
     }
 
     @Test
-    void invalidSelectorUsesOnlyThePropertyKey() {
-        runner.withPropertyValues("embabel.agent.decision.enabled=true", "embabel.agent.decision.provider=SECRET_VALUE")
+    void enabledWithoutDeclarationsSynthesizesJevAsThePlatformDefault() {
+        integratedRunner(service("backend-name", "{}"))
+                .withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.models.default-llm=backend-name")
+                .run(context -> {
+                    DecisionModel jev = context.getBean("jev", DecisionModel.class);
+                    assertThat(jev.getName()).isEqualTo("jev");
+                    assertThat(jev.getProvider()).isEqualTo("typesafe");
+                    DecisionProperties.Model configured = context.getBean(DecisionProperties.class)
+                            .getModels().get("jev");
+                    assertThat(configured.getProvider()).isEqualTo("typesafe");
+                    assertThat(configured.typesafe().getModel()).isEqualTo("jev-latest");
+                    assertThat(context.getBean(DecisionModelInitialization.class).getCreatedModels())
+                            .containsExactly(jev);
+                    assertThat(context.getBean(ModelProvider.class)
+                            .getDecisionModel(DefaultModelSelectionCriteria.INSTANCE)).isSameAs(jev);
+                });
+
+        runner.withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.models=")
+                .run(context -> assertThat(context.getBean("jev", DecisionModel.class).getProvider())
+                        .isEqualTo("typesafe"));
+    }
+
+    @Test
+    void disabledDecisionAutoconfigurationLeavesAUserOnlySharedProvider() {
+        DecisionModel custom = NoDecisionModel.create().named("custom", "user");
+        integratedRunner(service("backend-name", "{}"))
+                .withBean("custom", DecisionModel.class, () -> custom)
+                .withPropertyValues(
+                        "embabel.agent.decision.enabled=false",
+                        "embabel.models.default-llm=backend-name")
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(DecisionModelInitialization.class).doesNotHaveBean("jev");
+                    assertThat(context.getBean(ModelProvider.class)
+                            .getDecisionModel(DefaultModelSelectionCriteria.INSTANCE)).isSameAs(custom);
+                });
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "embabel.agent.decision.provider=none",
+            "embabel.agent.decision.typesafe.model=secret-model",
+            "embabel.agent.decision.prompted.llm-bean-name=secret-service"
+    })
+    void rejectsLegacySingularKeysWithoutRenderingValues(String legacyProperty) {
+        runner.withPropertyValues("embabel.agent.decision.enabled=true", legacyProperty)
                 .run(context -> assertThat(context.getStartupFailure())
-                        .hasRootCauseMessage("Invalid configuration: embabel.agent.decision.provider")
-                        .hasMessageNotContaining("SECRET_VALUE"));
+                        .hasRootCauseMessage("Invalid configuration: " + legacyProperty.substring(0, legacyProperty.indexOf('=')))
+                        .hasMessageNotContaining("secret-model")
+                        .hasMessageNotContaining("secret-service"));
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"", "stub", "unknown", "TypeSafe"})
-    void rejectsEveryUnsupportedProviderSelector(String provider) {
-        runner.withPropertyValues("embabel.agent.decision.enabled=true", "embabel.agent.decision.provider=" + provider)
+    void rejectsEveryUnsupportedConfiguredProvider(String provider) {
+        runner.withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.models.selected.provider=" + provider)
                 .run(context -> assertThat(context.getStartupFailure())
-                        .hasRootCauseMessage("Invalid configuration: embabel.agent.decision.provider"));
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("invalidCommonConfiguration")
-    void commonValidationNamesOnlyTheRejectedProperty(String property, String key) {
-        runner.withPropertyValues(
-                        "embabel.agent.decision.enabled=true",
-                        "embabel.agent.decision.provider=none",
-                        "embabel.agent.decision." + property)
-                .run(context -> assertThat(context.getStartupFailure())
-                        .hasRootCauseMessage("Invalid configuration: embabel.agent.decision." + key));
-    }
-
-    static Stream<Arguments> invalidCommonConfiguration() {
-        return Stream.of(
-                Arguments.of("default-timeout=0s", "default-timeout"),
-                Arguments.of("default-timeout=-1s", "default-timeout"),
-                Arguments.of("default-timeout=not-a-duration", "default-timeout"),
-                Arguments.of("record-mode=verbose", "record-mode"),
-                Arguments.of("full-record-max-bytes=0", "full-record-max-bytes"),
-                Arguments.of("full-record-max-bytes=1", "full-record-max-bytes"),
-                Arguments.of("full-record-max-bytes=1048577", "full-record-max-bytes"),
-                Arguments.of("full-record-max-bytes=not-an-int", "full-record-max-bytes"),
-                Arguments.of("record-allowlist=*", "record-allowlist"),
-                Arguments.of("record-allowlist=distributions", "record-allowlist"));
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("invalidTypeSafeConfiguration")
-    void validatesOnlyTheSelectedTypeSafeProperties(String property, String key) {
-        runner.withPropertyValues(
-                        "embabel.agent.decision.enabled=true",
-                        "embabel.agent.decision.provider=typesafe",
-                        "embabel.agent.decision.typesafe.model=synthetic",
-                        "embabel.agent.decision." + property)
-                .run(context -> assertThat(context.getStartupFailure())
-                        .hasRootCauseMessage("Invalid configuration: embabel.agent.decision." + key));
-    }
-
-    static Stream<Arguments> invalidTypeSafeConfiguration() {
-        return Stream.of(
-                Arguments.of("typesafe.model=", "typesafe.model"),
-                Arguments.of("typesafe.connect-timeout=0s", "typesafe.connect-timeout"),
-                Arguments.of("typesafe.connect-timeout=bad", "typesafe.connect-timeout"),
-                Arguments.of("typesafe.base-url=http://localhost:1234", "typesafe.base-url"),
-                Arguments.of("typesafe.base-url=http://localhost.example:1234", "typesafe.base-url"),
-                Arguments.of("typesafe.base-url=http://127.0.0.1.example:1234", "typesafe.base-url"),
-                Arguments.of("typesafe.base-url=http://[::2]:1234", "typesafe.base-url"),
-                Arguments.of("typesafe.base-url=http://[::1]:1234/v1", "typesafe.base-url"),
-                Arguments.of("typesafe.base-url=http://[[::1]]:1234", "typesafe.base-url"),
-                Arguments.of("typesafe.base-url=http://[::1", "typesafe.base-url"),
-                Arguments.of("typesafe.base-url=https://example.org/v1", "typesafe.base-url"),
-                Arguments.of("typesafe.base-url=https://user:secret@example.org", "typesafe.base-url"));
+                        .hasRootCauseMessage("Invalid configuration: embabel.agent.decision.models.selected.provider"));
     }
 
     @Test
-    void acceptsTheTypeSafeFactoryIpv6LoopbackSpelling() {
-        runner.withPropertyValues(
-                        "embabel.agent.decision.enabled=true",
-                        "embabel.agent.decision.provider=typesafe",
-                        "embabel.agent.decision.typesafe.model=synthetic",
-                        "embabel.agent.decision.typesafe.base-url=http://[::1]:1234")
-                .run(context -> assertThat(context).hasSingleBean(DecisionModel.class));
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("typeSafeOriginPolicy")
-    void springAutoConfigurationRestrictsSecretBearingOrigins(String origin, boolean accepted) {
-        runner.withPropertyValues(
-                        "embabel.agent.decision.enabled=true",
-                        "embabel.agent.decision.provider=typesafe",
-                        "embabel.agent.decision.typesafe.model=synthetic",
-                        "embabel.agent.decision.typesafe.base-url=" + origin)
-                .run(context -> {
-                    if (accepted) assertThat(context).hasSingleBean(DecisionModel.class);
-                    else assertThat(context.getStartupFailure())
-                            .hasRootCauseMessage("Invalid configuration: embabel.agent.decision.typesafe.base-url");
-                });
-    }
-
-    static Stream<Arguments> typeSafeOriginPolicy() {
-        return Stream.of(
-                Arguments.of("https://api.typesafe.ai", true),
-                Arguments.of("https://example.org", false),
-                Arguments.of("http://127.0.0.1:1234", true),
-                Arguments.of("http://[::1]:1234", true),
-                Arguments.of("http://localhost:1234", false),
-                Arguments.of("http://127.0.0.1.example:1234", false),
-                Arguments.of("http://[::2]:1234", false),
-                Arguments.of("https://example.org/v1", false),
-                Arguments.of("https://user:secret@example.org", false),
-                Arguments.of("https://example.org?query=1", false),
-                Arguments.of("https://example.org#fragment", false));
-    }
-
-    @Test
-    void userModelWinsBeforeInvalidConfigurationIsRead() {
-        DecisionModel user = NoDecisionModel.create();
-        runner.withBean("consumerDecision", DecisionModel.class, () -> user)
-                .withPropertyValues("embabel.agent.decision.enabled=true", "embabel.agent.decision.provider=SECRET_VALUE")
-                .run(context -> {
-                    assertThat(context).hasSingleBean(DecisionModel.class);
-                    assertThat(context.getBean(DecisionModel.class)).isSameAs(user);
-                    assertThat(context).doesNotHaveBean(DecisionProperties.class);
-                });
-    }
-
-    @Test
-    void onlySelectedProviderSettingsAreValidated() {
-        runner.withPropertyValues(
-                        "embabel.agent.decision.enabled=true",
-                        "embabel.agent.decision.provider=none",
-                        "embabel.agent.decision.typesafe.base-url=not a uri",
-                        "embabel.agent.decision.prompted.llm-bean-name=")
-                .run(context -> assertThat(context).hasSingleBean(DecisionModel.class));
-    }
-
-    @Test
-    void commonAndSelectedPropertiesAreSpringBoundIntoThePublishedBean() {
-        runner.withPropertyValues(
-                        "embabel.agent.decision.enabled=true",
-                        "embabel.agent.decision.provider=typesafe",
-                        "embabel.agent.decision.default-timeout=17s",
-                        "embabel.agent.decision.record-mode=full",
-                        "embabel.agent.decision.full-record-max-bytes=2048",
-                        "embabel.agent.decision.record-allowlist[0]=answerIds",
-                        "embabel.agent.decision.mapper-bean-name=selectedMapper",
-                        "embabel.agent.decision.typesafe.model=bound-model",
-                        "embabel.agent.decision.typesafe.base-url=https://api.typesafe.ai",
-                        "embabel.agent.decision.typesafe.connect-timeout=3s")
-                .withBean("selectedMapper", EmbabelObjectMapperHolder.class, EmbabelObjectMapperHolder::createDefault)
-                .run(context -> {
-                    assertThat(context).hasSingleBean(DecisionModel.class).hasSingleBean(DecisionProperties.class);
-                    DecisionProperties properties = context.getBean(DecisionProperties.class);
-                    assertThat(properties.isEnabled()).isTrue();
-                    assertThat(properties.getProvider()).isEqualTo("typesafe");
-                    assertThat(properties.getDefaultTimeout()).isEqualTo(Duration.ofSeconds(17));
-                    assertThat(properties.getRecordMode()).isEqualTo("full");
-                    assertThat(properties.getFullRecordMaxBytes()).isEqualTo(2048);
-                    assertThat(properties.getRecordAllowlist()).containsExactly("answerIds");
-                    assertThat(properties.getMapperBeanName()).isEqualTo("selectedMapper");
-                    assertThat(properties.typesafe().getModel()).isEqualTo("bound-model");
-                    assertThat(properties.typesafe().getBaseUrl()).hasToString("https://api.typesafe.ai");
-                    assertThat(properties.typesafe().getConnectTimeout()).isEqualTo(Duration.ofSeconds(3));
-                    assertThat(properties.prompted()).isNull();
-                });
-    }
-
-    @ParameterizedTest
-    @MethodSource("equivalentAllowlists")
-    void commaAndIndexedRecordAllowlistsBindEquivalently(String[] propertyValues) {
-        runner.withPropertyValues(propertyValues).run(context -> assertThat(context.getBean(DecisionProperties.class)
-                .getRecordAllowlist()).containsExactly("answerIds"));
-    }
-
-    static Stream<Arguments> equivalentAllowlists() {
-        return Stream.of(
-                Arguments.of((Object) new String[]{
-                        "embabel.agent.decision.enabled=true",
-                        "embabel.agent.decision.provider=none",
-                        "embabel.agent.decision.record-allowlist=answerIds,answerIds"}),
-                Arguments.of((Object) new String[]{
-                        "embabel.agent.decision.enabled=true",
-                        "embabel.agent.decision.provider=none",
-                        "embabel.agent.decision.record-allowlist[0]=answerIds",
-                        "embabel.agent.decision.record-allowlist[1]=answerIds"}));
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"2", "1048576"})
-    void fullRecordByteBoundariesAreInclusive(String bytes) {
-        runner.withPropertyValues(
-                        "embabel.agent.decision.enabled=true",
-                        "embabel.agent.decision.provider=none",
-                        "embabel.agent.decision.record-mode=full",
-                        "embabel.agent.decision.record-allowlist=answerIds",
-                        "embabel.agent.decision.full-record-max-bytes=" + bytes)
-                .run(context -> assertThat(context).hasSingleBean(DecisionModel.class));
-    }
-
-    @Test
-    void promptedMissingOrWrongNamedBeansFailWithSafeKeys() {
-        runner.withPropertyValues(
-                        "embabel.agent.decision.enabled=true",
-                        "embabel.agent.decision.provider=prompted",
-                        "embabel.agent.decision.prompted.llm-bean-name=missing")
-                .run(context -> assertThat(context.getStartupFailure())
-                        .hasRootCauseMessage("Invalid configuration: embabel.agent.decision.prompted.llm-bean-name"));
-
-        runner.withBean("wrongOptions", String.class, () -> "secret-option")
-                .withBean("service", LlmService.class, () -> service("selected", "{}"))
+    void rejectsBeanDefinitionAndExistingSingletonCollisions() {
+        runner.withBean("selected", DecisionModel.class, NoDecisionModel::create)
                 .withPropertyValues(
                         "embabel.agent.decision.enabled=true",
-                        "embabel.agent.decision.provider=prompted",
-                        "embabel.agent.decision.prompted.llm-bean-name=service",
-                        "embabel.agent.decision.prompted.options-bean-name=wrongOptions")
+                        "embabel.agent.decision.models.selected.provider=none")
                 .run(context -> assertThat(context.getStartupFailure())
-                        .hasRootCauseMessage("Invalid configuration: embabel.agent.decision.prompted.options-bean-name"));
-    }
+                        .hasRootCauseMessage("Invalid configuration: embabel.agent.decision.models.selected"));
 
-    @Test
-    void missingCredentialIsLazyAndNeverTouchesTheNetwork() throws Exception {
-        AtomicInteger requests = new AtomicInteger();
-        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/", exchange -> {
-            requests.incrementAndGet();
-            exchange.sendResponseHeaders(500, -1);
-            exchange.close();
-        });
-        server.start();
-        try {
-            runner.withPropertyValues(
-                            "embabel.agent.decision.enabled=true",
-                            "embabel.agent.decision.provider=typesafe",
-                            "embabel.agent.decision.typesafe.model=synthetic-model",
-                            "embabel.agent.decision.typesafe.base-url=http://127.0.0.1:" + server.getAddress().getPort(),
-                            "embabel.agent.decision.typesafe.api-key=",
-                            "TYPESAFE_API_KEY=")
-                    .run(context -> {
-                        assertThat(requests).hasValue(0);
-                        DecisionOutcome.Failure result = (DecisionOutcome.Failure) context.getBean(DecisionModel.class)
-                                .ask(request());
-                        assertThat(result.getFailure()).isEqualTo(CallFailure.Unavailable);
-                        assertThat(requests).hasValue(0);
-                    });
-        } finally {
-            server.stop(0);
-        }
-    }
-
-    @Test
-    void explicitCredentialWinsAndEnvironmentFallbackIsUsedWhenExplicitIsBlank() throws Exception {
-        AtomicReference<String> authorization = new AtomicReference<>();
-        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/v1/systemone", exchange -> {
-            authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
-            exchange.sendResponseHeaders(422, -1);
-            exchange.close();
-        });
-        server.start();
-        String origin = "http://127.0.0.1:" + server.getAddress().getPort();
-        try {
-            ApplicationContextRunner configured = runner.withPropertyValues(
-                    "embabel.agent.decision.enabled=true",
-                    "embabel.agent.decision.provider=typesafe",
-                    "embabel.agent.decision.typesafe.model=synthetic-model",
-                    "embabel.agent.decision.typesafe.base-url=" + origin);
-            configured.withPropertyValues(
-                            "embabel.agent.decision.typesafe.api-key=explicit-key",
-                            "TYPESAFE_API_KEY=fallback-key")
-                    .run(context -> {
-                        context.getBean(DecisionModel.class).ask(request());
-                        assertThat(authorization).hasValue("Bearer explicit-key");
-                    });
-            authorization.set(null);
-            configured.withPropertyValues(
-                            "embabel.agent.decision.typesafe.api-key=",
-                            "TYPESAFE_API_KEY=fallback-key")
-                    .run(context -> {
-                        context.getBean(DecisionModel.class).ask(request());
-                        assertThat(authorization).hasValue("Bearer fallback-key");
-                    });
-        } finally {
-            server.stop(0);
-        }
-    }
-
-    @Test
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    void promptedProviderResolvesTheConfiguredServiceAndOptionsByExactName() {
-        LlmService selected = service("selected", "{\"answers\":[{\"keyId\":\"q\",\"kind\":\"YES_NO\",\"pTrue\":0.75}]}");
-        LlmService other = service("other", "{}");
-        LlmOptions selectedOptions = LlmOptions.withDefaults().withTemperature(0.17);
-        LlmOptions otherOptions = LlmOptions.withDefaults().withTemperature(0.91);
-        EmbabelObjectMapperHolder selectedMapper = EmbabelObjectMapperHolder.createDefault();
-        EmbabelObjectMapperHolder otherMapper = EmbabelObjectMapperHolder.createDefault();
-
-        runner.withBean("selectedService", LlmService.class, () -> selected)
-                .withBean("otherService", LlmService.class, () -> other)
-                .withBean("selectedOptions", LlmOptions.class, () -> selectedOptions)
-                .withBean("otherOptions", LlmOptions.class, () -> otherOptions)
-                .withBean("selectedMapper", EmbabelObjectMapperHolder.class, () -> selectedMapper)
-                .withBean("otherMapper", EmbabelObjectMapperHolder.class, () -> otherMapper)
+        runner.withInitializer(context -> context.getBeanFactory().registerSingleton("selected", new Object()))
                 .withPropertyValues(
                         "embabel.agent.decision.enabled=true",
-                        "embabel.agent.decision.provider=prompted",
-                        "embabel.agent.decision.prompted.llm-bean-name=selectedService",
-                        "embabel.agent.decision.prompted.options-bean-name=selectedOptions",
-                        "embabel.agent.decision.mapper-bean-name=selectedMapper")
+                        "embabel.agent.decision.models.selected.provider=none")
+                .run(context -> assertThat(context.getStartupFailure())
+                        .hasRootCauseMessage("Invalid configuration: embabel.agent.decision.models.selected"));
+    }
+
+    @Test
+    void rejectsInvalidModelNamesAndUndocumentedNestedKeys() {
+        runner.withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.models.bad name.provider=none")
+                .run(context -> assertThat(context.getStartupFailure())
+                        .hasRootCauseMessage("Invalid configuration: embabel.agent.decision.models"));
+
+        runner.withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.models.rules.provider=typesafe",
+                        "embabel.agent.decision.models.rules.typesafe.api-key=SECRET")
+                .run(context -> assertThat(context.getStartupFailure())
+                        .hasRootCauseMessage(
+                                "Invalid configuration: embabel.agent.decision.models.rules.typesafe.api-key")
+                        .hasMessageNotContaining("SECRET"));
+    }
+
+    @Test
+    void promptedProviderResolvesExactDynamicServiceAndOptionsBeans() {
+        LlmService<?> selected = service(
+                "backend-name",
+                "{\"answers\":[{\"keyId\":\"q\",\"kind\":\"YES_NO\",\"pTrue\":0.75}]}");
+        LlmService<?> other = service("other", "{}");
+        LlmOptions options = LlmOptions.withDefaults().withTemperature(0.17);
+
+        runner.withUserConfiguration(DynamicLlmConfiguration.class)
+                .withBean("dynamicSource", LlmService.class, () -> selected)
+                .withBean("decisionOptions", LlmOptions.class, () -> options)
+                .withBean("other", LlmService.class, () -> other)
+                .withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.models.review.provider=prompted",
+                        "embabel.agent.decision.models.review.prompted.llm-bean-name=dynamicLlm",
+                        "embabel.agent.decision.models.review.prompted.options-bean-name=decisionOptions")
                 .run(context -> {
-                    DecisionProperties properties = context.getBean(DecisionProperties.class);
-                    assertThat(properties.prompted().getLlmBeanName()).isEqualTo("selectedService");
-                    assertThat(properties.prompted().getOptionsBeanName()).isEqualTo("selectedOptions");
-                    assertThat(properties.typesafe()).isNull();
-                    selectedOptions.setTemperature(0.99);
-                    assertThat(context.getBean(DecisionModel.class).ask(request())).isInstanceOf(DecisionOutcome.Success.class);
-                    var options = org.mockito.ArgumentCaptor.forClass(LlmOptions.class);
-                    verify(selected, atLeastOnce()).createMessageSender(options.capture());
-                    assertThat(options.getValue().getTemperature()).isEqualTo(0.17);
+                    options.setTemperature(0.99);
+                    assertThat(context.getBean("review", DecisionModel.class).ask(request()))
+                            .isInstanceOf(DecisionOutcome.Success.class);
+                    var captured = org.mockito.ArgumentCaptor.forClass(LlmOptions.class);
+                    verify(selected, atLeastOnce()).createMessageSender(captured.capture());
+                    assertThat(captured.getValue().getTemperature()).isEqualTo(0.17);
                     verify(other, never()).createMessageSender(any(LlmOptions.class));
                 });
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"none", "metadata", "full"})
-    void configuredRecordDefaultsAndExplicitOverridesRemainInsideTheFacade(String mode) {
-        ApplicationContextRunner configured = runner.withPropertyValues(
-                "embabel.agent.decision.enabled=true",
-                "embabel.agent.decision.provider=none",
-                "embabel.agent.decision.record-mode=" + mode);
-        if (mode.equals("full")) configured = configured.withPropertyValues("embabel.agent.decision.record-allowlist=answerIds");
-        configured.run(context -> {
-            DecisionModel model = context.getBean(DecisionModel.class);
-            DecisionOutcome.Failure inherited = (DecisionOutcome.Failure) model.ask(request());
-            if (mode.equals("none")) assertThat(inherited.getRecord()).isNull();
-            else assertThat(inherited.getRecord()).isNotNull();
+    @Test
+    void selectedTypeSafeSettingsRemainLazyAndEnforceSafeOrigins() {
+        runner.withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.models.rules.provider=typesafe",
+                        "embabel.agent.decision.models.rules.typesafe.model=jev-latest",
+                        "embabel.agent.decision.models.rules.typesafe.base-url=https://user:SECRET@example.org")
+                .run(context -> assertThat(context.getStartupFailure())
+                        .hasRootCauseMessage(
+                                "Invalid configuration: embabel.agent.decision.models.rules.typesafe.base-url")
+                        .hasMessageNotContaining("SECRET"));
 
-            DecisionRequest.Builder explicit = DecisionRequest.builder().recordPolicy(DecisionRecordPolicy.metadata());
-            explicit.yesNo("q", "Proceed?");
-            assertThat(((DecisionOutcome.Failure) model.ask(explicit.build())).getRecord()).isNotNull();
-        });
+        runner.withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.models.rules.provider=typesafe",
+                        "embabel.agent.decision.models.rules.typesafe.model=jev-latest",
+                        "embabel.agent.decision.models.rules.typesafe.base-url=http://127.0.0.1:1",
+                        "TYPESAFE_API_KEY=")
+                .run(context -> {
+                    DecisionOutcome.Failure outcome = (DecisionOutcome.Failure) context
+                            .getBean("rules", DecisionModel.class).ask(request());
+                    assertThat(outcome.getFailure()).isEqualTo(CallFailure.Unavailable);
+                });
+    }
+
+    @Test
+    void propertiesExposeAnImmutableNamedModelMapWithGlobalDefaults() {
+        runner.withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.default-timeout=17s",
+                        "embabel.agent.decision.models.rules.provider=typesafe",
+                        "embabel.agent.decision.models.rules.typesafe.model=jev-latest",
+                        "embabel.agent.decision.models.disabled.provider=none")
+                .run(context -> {
+                    DecisionProperties properties = context.getBean(DecisionProperties.class);
+                    assertThat(properties.getDefaultTimeout()).hasSeconds(17);
+                    assertThat(properties.getModels()).containsOnlyKeys("rules", "disabled");
+                    assertThat(properties.getModels().get("rules").getProvider()).isEqualTo("typesafe");
+                    assertThat(properties.getModels().get("rules").typesafe().getModel()).isEqualTo("jev-latest");
+                    assertThat(properties.getModels().get("disabled").getProvider()).isEqualTo("none");
+                    assertThatThrownBy(() -> properties.getModels().clear())
+                            .isInstanceOf(UnsupportedOperationException.class);
+                });
+    }
+
+    @Test
+    void unresolvedDecisionDefaultsAndRolesFailAtSharedProviderStartup() {
+        integratedRunner(service("backend-name", "{}"))
+                .withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.models.available.provider=none",
+                        "embabel.models.default-llm=backend-name",
+                        "embabel.models.default-decision-model=missing")
+                .run(context -> assertThat(context.getStartupFailure())
+                        .hasRootCauseMessage("Default decision model 'missing' not found in available models: [available]"));
+
+        integratedRunner(service("backend-name", "{}"))
+                .withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.models.available.provider=none",
+                        "embabel.models.default-llm=backend-name",
+                        "embabel.models.decisions.review=missing")
+                .run(context -> assertThat(context.getStartupFailure())
+                        .hasRootCauseMessage(
+                                "Decision model 'missing' for role review is not available: Choices are [available]"));
+
+        integratedRunner(service("backend-name", "{}"))
+                .withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.models.first.provider=none",
+                        "embabel.agent.decision.models.second.provider=none",
+                        "embabel.models.default-llm=backend-name")
+                .run(context -> assertThat(context.getStartupFailure())
+                        .hasRootCauseMessage("Multiple decision models are registered; set "
+                                + "'embabel.models.default-decision-model' to one of: [first, second]"));
+    }
+
+    private ApplicationContextRunner integratedRunner(LlmService<?> service) {
+        return runner.withUserConfiguration(DynamicLlmConfiguration.class, SharedModelProviderConfiguration.class)
+                .withBean("dynamicSource", LlmService.class, () -> service)
+                .withBean("decisionOptions", LlmOptions.class, LlmOptions::withDefaults);
     }
 
     private static DecisionRequest request() {
@@ -421,7 +384,7 @@ class AgentDecisionAutoConfigurationTest {
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    private static LlmService service(String name, String responseText) {
+    private static LlmService<?> service(String name, String responseText) {
         LlmService service = mock(LlmService.class);
         LlmMessageSender sender = mock(LlmMessageSender.class);
         when(service.getName()).thenReturn(name);
@@ -429,5 +392,29 @@ class AgentDecisionAutoConfigurationTest {
         when(service.createMessageSender(any(LlmOptions.class))).thenReturn(sender);
         when(sender.call(any(), any())).thenReturn(new LlmMessageResponse(mock(Message.class), responseText, null));
         return service;
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class DynamicLlmConfiguration {
+        @Bean
+        ProviderInitialization testProviderInitialization(ConfigurableListableBeanFactory beanFactory) {
+            LlmService<?> selected = beanFactory.getBean("dynamicSource", LlmService.class);
+            beanFactory.registerSingleton("dynamicLlm", selected);
+            return new ProviderInitialization("test", List.of(), List.of(), Instant.now());
+        }
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    @EnableConfigurationProperties(ConfigurableModelProviderProperties.class)
+    static class SharedModelProviderConfiguration {
+        @Bean("modelProvider")
+        ModelProvider modelProvider(
+                ApplicationContext applicationContext,
+                ConfigurableModelProviderProperties properties,
+                List<ProviderInitialization> providerInitializations,
+                List<DecisionModelInitialization> decisionInitializations) {
+            return new AgentPlatformConfiguration().modelProvider(
+                    applicationContext, properties, providerInitializations, decisionInitializations);
+        }
     }
 }

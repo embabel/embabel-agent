@@ -16,31 +16,28 @@
 package com.embabel.agent.autoconfigure.decision;
 
 import org.jetbrains.annotations.ApiStatus;
-import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 
-/** Configuration for the experimental typed decision model. */
+/** Configuration for named experimental typed decision models. */
 @ApiStatus.Experimental
-@ConfigurationProperties("embabel.agent.decision")
 public final class DecisionProperties {
     private boolean enabled;
-    private String provider;
     private Duration defaultTimeout = Duration.ofSeconds(30);
     private String recordMode = "metadata";
     private int fullRecordMaxBytes = 65536;
     private Set<String> recordAllowlist = new LinkedHashSet<>();
     private String mapperBeanName;
-    private Typesafe typesafe;
-    private Prompted prompted;
+    private Map<String, Model> models = new LinkedHashMap<>();
 
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
-    public String getProvider() { return provider; }
-    public void setProvider(String provider) { this.provider = provider; }
     public Duration getDefaultTimeout() { return defaultTimeout; }
     public void setDefaultTimeout(Duration defaultTimeout) { this.defaultTimeout = defaultTimeout; }
     public String getRecordMode() { return recordMode; }
@@ -53,15 +50,36 @@ public final class DecisionProperties {
     }
     public String getMapperBeanName() { return mapperBeanName; }
     public void setMapperBeanName(String mapperBeanName) { this.mapperBeanName = mapperBeanName; }
-    public Typesafe typesafe() { return typesafe; }
-    public Prompted prompted() { return prompted; }
+    public Map<String, Model> getModels() {
+        return Collections.unmodifiableMap(new LinkedHashMap<>(models));
+    }
+    public void setModels(Map<String, Model> models) {
+        this.models = models == null ? new LinkedHashMap<>() : new LinkedHashMap<>(models);
+    }
 
-    void select(Typesafe typesafe) { this.typesafe = typesafe; }
-    void select(Prompted prompted) { this.prompted = prompted; }
+    void addModel(String name, Model model) { models.put(name, model); }
 
     @Override public String toString() { return "DecisionProperties[redacted]"; }
 
-    /** TypeSafe System One settings. */
+    /** One configured decision model. The enclosing map key is its Spring and registry name. */
+    @ApiStatus.Experimental
+    public static final class Model {
+        private String provider;
+        private Typesafe typesafe;
+        private Prompted prompted;
+
+        public String getProvider() { return provider; }
+        public void setProvider(String provider) { this.provider = provider; }
+        public Typesafe typesafe() { return typesafe; }
+        public Prompted prompted() { return prompted; }
+
+        void select(Typesafe typesafe) { this.typesafe = typesafe; }
+        void select(Prompted prompted) { this.prompted = prompted; }
+
+        @Override public String toString() { return "DecisionProperties.Model[redacted]"; }
+    }
+
+    /** TypeSafe System One settings for one named registry facade. */
     @ApiStatus.Experimental
     public static final class Typesafe {
         private String model;
@@ -77,7 +95,7 @@ public final class DecisionProperties {
         @Override public String toString() { return "DecisionProperties.Typesafe[redacted]"; }
     }
 
-    /** Prompted decision settings. */
+    /** Prompted decision settings for one named registry facade. */
     @ApiStatus.Experimental
     public static final class Prompted {
         private String llmBeanName;

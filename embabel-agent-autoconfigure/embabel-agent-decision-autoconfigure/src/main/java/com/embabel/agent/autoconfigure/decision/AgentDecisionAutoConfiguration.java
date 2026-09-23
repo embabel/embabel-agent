@@ -16,92 +16,158 @@
 package com.embabel.agent.autoconfigure.decision;
 
 import com.embabel.agent.decision.DecisionModel;
+import com.embabel.agent.decision.DecisionModelInitialization;
 import com.embabel.agent.decision.DecisionRecordPolicy;
 import com.embabel.agent.decision.NoDecisionModel;
 import com.embabel.agent.decision.llm.PromptedDecisionModel;
 import com.embabel.agent.decision.typesafe.TypeSafeDecisionModel;
 import com.embabel.agent.spi.LlmService;
+import com.embabel.common.ai.autoconfig.ProviderInitialization;
 import com.embabel.common.ai.model.LlmOptions;
 import com.embabel.common.util.EmbabelObjectMapperHolder;
 import org.jetbrains.annotations.ApiStatus;
-import org.springframework.beans.factory.BeanFactory;
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.bind.BindException;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.Environment;
+import org.springframework.core.env.EnumerablePropertySource;
 
-import java.time.Duration;
 import java.net.URI;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Supplier;
 
-/** Opt-in configuration for the experimental typed decision model. */
+/** Opt-in configuration for named experimental typed decision models. */
 @ApiStatus.Experimental
 @AutoConfiguration
 @ConditionalOnClass(DecisionModel.class)
 @ConditionalOnProperty(prefix = AgentDecisionAutoConfiguration.PREFIX, name = "enabled", havingValue = "true")
-@ConditionalOnMissingBean(DecisionModel.class)
 public class AgentDecisionAutoConfiguration {
     static final String PREFIX = "embabel.agent.decision";
+    private static final String MODELS_PREFIX = PREFIX + ".models.";
+    private static final Set<String> GLOBAL_KEYS = Set.of(
+            PREFIX + ".enabled",
+            PREFIX + ".default-timeout",
+            PREFIX + ".record-mode",
+            PREFIX + ".full-record-max-bytes",
+            PREFIX + ".record-allowlist",
+            PREFIX + ".mapper-bean-name",
+            PREFIX + ".models");
+    private static final List<String> MODEL_SUFFIXES = List.of(
+            ".provider",
+            ".typesafe.model",
+            ".typesafe.base-url",
+            ".typesafe.connect-timeout",
+            ".prompted.llm-bean-name",
+            ".prompted.options-bean-name");
 
     @Bean
     DecisionProperties decisionProperties(Environment environment) {
         return readProperties(environment);
     }
 
-    @Bean(name = "decisionModel")
-    DecisionModel decisionModel(DecisionProperties properties, Environment environment, BeanFactory beanFactory) {
-        DecisionRecordPolicy policy = recordPolicy(properties);
-        DecisionModel model = switch (properties.getProvider()) {
-            case "none" -> NoDecisionModel.create();
-            case "typesafe" -> typesafe(properties, environment, beanFactory);
-            case "prompted" -> prompted(properties, beanFactory);
-            default -> throw invalid("provider");
-        };
-        return model.withDefaults(properties.getDefaultTimeout(), policy);
+    @Bean
+    DecisionModelInitialization decisionModelInitialization(
+            DecisionProperties properties,
+            Environment environment,
+            ConfigurableListableBeanFactory beanFactory,
+            List<ProviderInitialization> providerInitializations) {
+        Map<String, DecisionProperties.Model> configured = properties.getModels();
+        configured.keySet().forEach(name -> rejectCollision(beanFactory, name));
+
+        Map<String, DecisionModel> created = new LinkedHashMap<>();
+        try {
+            for (var entry : configured.entrySet()) {
+                String name = entry.getKey();
+                DecisionProperties.Model selected = entry.getValue();
+                DecisionModel model = switch (selected.getProvider()) {
+                    case "none" -> NoDecisionModel.create();
+                    case "typesafe" -> typesafe(name, selected, properties, environment, beanFactory);
+                    case "prompted" -> prompted(name, selected, properties, beanFactory);
+                    default -> throw invalid(modelKey(name, "provider"));
+                };
+                created.put(name, model
+                        .withDefaults(properties.getDefaultTimeout(), recordPolicy(properties))
+                        .named(name, selected.getProvider()));
+            }
+            created.forEach(beanFactory::registerSingleton);
+            return new DecisionModelInitialization(new ArrayList<>(created.values()));
+        } catch (RuntimeException failure) {
+            created.values().forEach(DecisionModel::close);
+            throw failure;
+        }
     }
 
-    private DecisionModel typesafe(DecisionProperties properties, Environment environment, BeanFactory beanFactory) {
-        var selected = properties.typesafe();
-        if (!supportsAutoConfiguredTypeSafeOrigin(selected.getBaseUrl())) throw invalid("typesafe.base-url");
-        EmbabelObjectMapperHolder mapper = mapper(properties, beanFactory);
+    private static void rejectCollision(ConfigurableListableBeanFactory beanFactory, String name) {
+        if (beanFactory.containsBeanDefinition(name) || beanFactory.containsSingleton(name)) {
+            throw invalid(PREFIX + ".models." + name);
+        }
+    }
+
+    private DecisionModel typesafe(
+            String name,
+            DecisionProperties.Model model,
+            DecisionProperties common,
+            Environment environment,
+            ConfigurableListableBeanFactory beanFactory) {
+        DecisionProperties.Typesafe selected = model.typesafe();
+        EmbabelObjectMapperHolder mapper = mapper(common, beanFactory);
         Supplier<String> apiKey = () -> {
-            String configured = environment.getProperty(PREFIX + ".typesafe.api-key");
-            if (configured != null && !configured.isBlank()) return configured;
-            String fallback = environment.getProperty("TYPESAFE_API_KEY");
-            return fallback == null ? "" : fallback;
+            String value = environment.getProperty("TYPESAFE_API_KEY");
+            return value == null ? "" : value;
         };
         if (mapper == null) {
-            return TypeSafeDecisionModel.create(apiKey, selected.getModel(), selected.getBaseUrl(), selected.getConnectTimeout());
+            return TypeSafeDecisionModel.create(
+                    apiKey, selected.getModel(), selected.getBaseUrl(), selected.getConnectTimeout());
         }
-        return TypeSafeDecisionModel.create(apiKey, selected.getModel(), selected.getBaseUrl(), selected.getConnectTimeout(), mapper);
+        return TypeSafeDecisionModel.create(
+                apiKey, selected.getModel(), selected.getBaseUrl(), selected.getConnectTimeout(), mapper);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    private DecisionModel prompted(DecisionProperties properties, BeanFactory beanFactory) {
-        String serviceName = properties.prompted().getLlmBeanName();
-        LlmService service = exactBean(beanFactory, serviceName, LlmService.class, "prompted.llm-bean-name");
-        String optionsName = properties.prompted().getOptionsBeanName();
-        LlmOptions options = optionsName == null
+    private DecisionModel prompted(
+            String name,
+            DecisionProperties.Model model,
+            DecisionProperties common,
+            ConfigurableListableBeanFactory beanFactory) {
+        DecisionProperties.Prompted selected = model.prompted();
+        LlmService service = exactBean(
+                beanFactory, selected.getLlmBeanName(), LlmService.class, modelKey(name, "prompted.llm-bean-name"));
+        LlmOptions options = selected.getOptionsBeanName() == null
                 ? LlmOptions.withDefaults()
-                : exactBean(beanFactory, optionsName, LlmOptions.class, "prompted.options-bean-name");
-        EmbabelObjectMapperHolder mapper = mapper(properties, beanFactory);
+                : exactBean(
+                        beanFactory,
+                        selected.getOptionsBeanName(),
+                        LlmOptions.class,
+                        modelKey(name, "prompted.options-bean-name"));
+        EmbabelObjectMapperHolder mapper = mapper(common, beanFactory);
         return mapper == null
                 ? PromptedDecisionModel.create(service, options)
                 : PromptedDecisionModel.create(service, options, mapper);
     }
 
-    private EmbabelObjectMapperHolder mapper(DecisionProperties properties, BeanFactory beanFactory) {
+    private EmbabelObjectMapperHolder mapper(
+            DecisionProperties properties, ConfigurableListableBeanFactory beanFactory) {
         String name = properties.getMapperBeanName();
-        return name == null ? null : exactBean(beanFactory, name, EmbabelObjectMapperHolder.class, "mapper-bean-name");
+        return name == null
+                ? null
+                : exactBean(beanFactory, name, EmbabelObjectMapperHolder.class, PREFIX + ".mapper-bean-name");
     }
 
-    private static <T> T exactBean(BeanFactory factory, String name, Class<T> type, String key) {
+    private static <T> T exactBean(
+            ConfigurableListableBeanFactory factory, String name, Class<T> type, String key) {
         try {
             return factory.getBean(name, type);
         } catch (RuntimeException ignored) {
@@ -115,74 +181,174 @@ public class AgentDecisionAutoConfiguration {
             case "metadata" -> DecisionRecordPolicy.metadata();
             case "full" -> {
                 try {
-                    yield DecisionRecordPolicy.full(properties.getFullRecordMaxBytes(), properties.getRecordAllowlist());
+                    yield DecisionRecordPolicy.full(
+                            properties.getFullRecordMaxBytes(), properties.getRecordAllowlist());
                 } catch (RuntimeException ignored) {
-                    throw invalid("record-allowlist");
+                    throw invalid(PREFIX + ".record-allowlist");
                 }
             }
-            default -> throw invalid("record-mode");
+            default -> throw invalid(PREFIX + ".record-mode");
         };
     }
 
     private static DecisionProperties readProperties(Environment environment) {
+        validatePropertyNames(environment);
         Binder binder = Binder.get(environment);
-        DecisionProperties result = bind(binder, PREFIX, DecisionProperties.class, DecisionProperties::new);
+        DecisionProperties result = new DecisionProperties();
+        result.setEnabled(value(binder, PREFIX + ".enabled", Boolean.class, () -> false));
+        result.setDefaultTimeout(value(
+                binder, PREFIX + ".default-timeout", Duration.class, () -> Duration.ofSeconds(30)));
+        result.setRecordMode(value(binder, PREFIX + ".record-mode", String.class, () -> "metadata"));
+        result.setFullRecordMaxBytes(value(
+                binder, PREFIX + ".full-record-max-bytes", Integer.class, () -> 65536));
+        result.setRecordAllowlist(setValue(binder, PREFIX + ".record-allowlist"));
+        result.setMapperBeanName(value(binder, PREFIX + ".mapper-bean-name", String.class, () -> null));
         validateCommon(result);
 
-        if ("typesafe".equals(result.getProvider())) {
-            DecisionProperties.Typesafe selected = bind(
-                    binder, PREFIX + ".typesafe", DecisionProperties.Typesafe.class, DecisionProperties.Typesafe::new);
-            validateTypesafe(selected);
-            result.select(selected);
-        } else if ("prompted".equals(result.getProvider())) {
-            DecisionProperties.Prompted selected = bind(
-                    binder, PREFIX + ".prompted", DecisionProperties.Prompted.class, DecisionProperties.Prompted::new);
-            validatePrompted(selected);
-            result.select(selected);
+        Set<String> configuredNames = modelNames(environment);
+        if (configuredNames.isEmpty()) {
+            DecisionProperties.Model implicit = new DecisionProperties.Model();
+            implicit.setProvider("typesafe");
+            DecisionProperties.Typesafe selected = new DecisionProperties.Typesafe();
+            selected.setModel("jev-latest");
+            implicit.select(selected);
+            result.addModel("jev", implicit);
+        }
+        for (String name : configuredNames) {
+            validateModelName(name);
+            String base = MODELS_PREFIX + name;
+            DecisionProperties.Model model = new DecisionProperties.Model();
+            model.setProvider(value(binder, base + ".provider", String.class, () -> null));
+            switch (model.getProvider() == null ? "" : model.getProvider()) {
+                case "typesafe" -> {
+                    DecisionProperties.Typesafe selected = objectValue(
+                            binder, base + ".typesafe", DecisionProperties.Typesafe.class,
+                            DecisionProperties.Typesafe::new);
+                    validateTypesafe(name, selected);
+                    model.select(selected);
+                }
+                case "prompted" -> {
+                    DecisionProperties.Prompted selected = objectValue(
+                            binder, base + ".prompted", DecisionProperties.Prompted.class,
+                            DecisionProperties.Prompted::new);
+                    validatePrompted(name, selected);
+                    model.select(selected);
+                }
+                case "none" -> { }
+                default -> throw invalid(base + ".provider");
+            }
+            result.addModel(name, model);
         }
         return result;
     }
 
-    private static <T> T bind(Binder binder, String prefix, Class<T> type, Supplier<T> fallback) {
+    private static <T> T value(Binder binder, String key, Class<T> type, Supplier<T> fallback) {
+        return objectValue(binder, key, type, fallback);
+    }
+
+    private static <T> T objectValue(Binder binder, String key, Class<T> type, Supplier<T> fallback) {
         try {
-            return binder.bind(prefix, Bindable.of(type)).orElseGet(fallback);
+            return binder.bind(key, Bindable.of(type)).orElseGet(fallback);
         } catch (BindException failure) {
-            String name = failure.getName().toString();
-            String suffix = name.startsWith(PREFIX + ".") ? name.substring(PREFIX.length() + 1) : name;
-            throw invalid(suffix);
+            throw invalid(key);
         }
     }
 
+    private static Set<String> setValue(Binder binder, String key) {
+        try {
+            return binder.bind(key, Bindable.setOf(String.class)).orElseGet(LinkedHashSet::new);
+        } catch (BindException failure) {
+            throw invalid(key);
+        }
+    }
+
+    private static void validatePropertyNames(Environment environment) {
+        for (String key : decisionPropertyNames(environment)) {
+            if (isLegacyKey(key) || !isAllowedKey(key)) throw invalid(key);
+        }
+    }
+
+    private static Set<String> decisionPropertyNames(Environment environment) {
+        Set<String> names = new TreeSet<>();
+        if (environment instanceof ConfigurableEnvironment configurable) {
+            configurable.getPropertySources().forEach(source -> {
+                if (source instanceof EnumerablePropertySource<?> enumerable) {
+                    for (String name : enumerable.getPropertyNames()) {
+                        if (name.startsWith(PREFIX + ".")) names.add(name);
+                    }
+                }
+            });
+        }
+        return names;
+    }
+
+    private static Set<String> modelNames(Environment environment) {
+        Set<String> names = new TreeSet<>();
+        for (String key : decisionPropertyNames(environment)) {
+            if (!key.startsWith(MODELS_PREFIX)) continue;
+            String tail = key.substring(MODELS_PREFIX.length());
+            for (String suffix : MODEL_SUFFIXES) {
+                if (tail.endsWith(suffix)) {
+                    names.add(tail.substring(0, tail.length() - suffix.length()));
+                    break;
+                }
+            }
+        }
+        return names;
+    }
+
+    private static boolean isLegacyKey(String key) {
+        return key.equals(PREFIX + ".provider")
+                || key.startsWith(PREFIX + ".typesafe.")
+                || key.startsWith(PREFIX + ".prompted.");
+    }
+
+    private static boolean isAllowedKey(String key) {
+        if (GLOBAL_KEYS.contains(key) || key.startsWith(PREFIX + ".record-allowlist[")) return true;
+        if (!key.startsWith(MODELS_PREFIX)) return false;
+        String tail = key.substring(MODELS_PREFIX.length());
+        return MODEL_SUFFIXES.stream().anyMatch(suffix -> tail.length() > suffix.length() && tail.endsWith(suffix));
+    }
+
     private static void validateCommon(DecisionProperties properties) {
-        if (!Set.of("typesafe", "prompted", "none").contains(properties.getProvider())) throw invalid("provider");
-        positive(properties.getDefaultTimeout(), "default-timeout");
-        if (!Set.of("none", "metadata", "full").contains(properties.getRecordMode())) throw invalid("record-mode");
+        positive(properties.getDefaultTimeout(), PREFIX + ".default-timeout");
+        if (!Set.of("none", "metadata", "full").contains(properties.getRecordMode())) {
+            throw invalid(PREFIX + ".record-mode");
+        }
         try {
             DecisionRecordPolicy.full(properties.getFullRecordMaxBytes(), Set.of("answerIds"));
         } catch (RuntimeException ignored) {
-            throw invalid("full-record-max-bytes");
+            throw invalid(PREFIX + ".full-record-max-bytes");
         }
         if (!properties.getRecordAllowlist().isEmpty()) {
             try {
                 DecisionRecordPolicy.full(2, properties.getRecordAllowlist());
             } catch (RuntimeException ignored) {
-                throw invalid("record-allowlist");
+                throw invalid(PREFIX + ".record-allowlist");
             }
         } else if ("full".equals(properties.getRecordMode())) {
-            throw invalid("record-allowlist");
+            throw invalid(PREFIX + ".record-allowlist");
         }
-        optionalName(properties.getMapperBeanName(), "mapper-bean-name");
+        optionalName(properties.getMapperBeanName(), PREFIX + ".mapper-bean-name");
     }
 
-    private static void validateTypesafe(DecisionProperties.Typesafe properties) {
-        requiredName(properties.getModel(), "typesafe.model");
-        positive(properties.getConnectTimeout(), "typesafe.connect-timeout");
-        if (!supportsAutoConfiguredTypeSafeOrigin(properties.getBaseUrl())) throw invalid("typesafe.base-url");
+    private static void validateTypesafe(String name, DecisionProperties.Typesafe properties) {
+        requiredName(properties.getModel(), modelKey(name, "typesafe.model"));
+        positive(properties.getConnectTimeout(), modelKey(name, "typesafe.connect-timeout"));
+        if (!supportsAutoConfiguredTypeSafeOrigin(properties.getBaseUrl())) {
+            throw invalid(modelKey(name, "typesafe.base-url"));
+        }
     }
 
-    private static void validatePrompted(DecisionProperties.Prompted properties) {
-        requiredName(properties.getLlmBeanName(), "prompted.llm-bean-name");
-        optionalName(properties.getOptionsBeanName(), "prompted.options-bean-name");
+    private static void validatePrompted(String name, DecisionProperties.Prompted properties) {
+        requiredName(properties.getLlmBeanName(), modelKey(name, "prompted.llm-bean-name"));
+        optionalName(properties.getOptionsBeanName(), modelKey(name, "prompted.options-bean-name"));
+    }
+
+    private static void validateModelName(String name) {
+        if (name == null || !name.matches("[A-Za-z0-9][A-Za-z0-9._-]*")) {
+            throw invalid(PREFIX + ".models");
+        }
     }
 
     private static void positive(Duration duration, String key) {
@@ -212,7 +378,11 @@ public class AgentDecisionAutoConfiguration {
                 && uri.getPort() == -1;
     }
 
-    private static IllegalStateException invalid(String suffix) {
-        return new IllegalStateException("Invalid configuration: " + PREFIX + "." + suffix);
+    private static String modelKey(String name, String suffix) {
+        return MODELS_PREFIX + name + "." + suffix;
+    }
+
+    private static IllegalStateException invalid(String key) {
+        return new IllegalStateException("Invalid configuration: " + key);
     }
 }
