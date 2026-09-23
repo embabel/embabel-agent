@@ -68,7 +68,6 @@ internal fun runKotlinDecision(model: DecisionModel, timeout: Duration): KotlinD
             urgencyAnswer as KeyOutcome.Success
             KotlinDecisionEvidence(yes.value, routeAnswer.value, urgencyAnswer.value, routeAnswer.distribution, outcome.provenance)
         }
-        else -> error("Unknown decision outcome")
     }
 }
 fun main() {

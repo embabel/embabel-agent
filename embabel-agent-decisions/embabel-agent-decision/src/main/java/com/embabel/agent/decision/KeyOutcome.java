@@ -18,24 +18,27 @@ package com.embabel.agent.decision;
 import java.util.List;
 import java.util.Map;
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nullable;
 
+/** A closed per-key result. Handle {@link Success} and {@link Failure} exhaustively. */
 @ApiStatus.Experimental
-public abstract class KeyOutcome<T> {
+public abstract sealed class KeyOutcome<T> permits KeyOutcome.Success, KeyOutcome.Failure {
     private KeyOutcome() {
     }
 
     abstract T successfulValue();
 
+    /** Validated value, complete distribution, and deterministic tie projection. */
     @ApiStatus.Experimental
     public static final class Success<T> extends KeyOutcome<T> {
         private final T value;
         private final Map<T, Double> distribution;
         private final List<T> maximizers;
         private final T firstMaximizer;
-        private final Double expectedScore;
+        private final @Nullable Double expectedScore;
         private final String selectedSupportId;
 
-        Success(T value, Map<T, Double> distribution, List<T> maximizers, T firstMaximizer, Double expectedScore, String selectedSupportId) {
+        Success(T value, Map<T, Double> distribution, List<T> maximizers, T firstMaximizer, @Nullable Double expectedScore, String selectedSupportId) {
             this.value = value;
             this.distribution = distribution;
             this.maximizers = maximizers;
@@ -60,7 +63,8 @@ public abstract class KeyOutcome<T> {
             return firstMaximizer;
         }
 
-        public Double getExpectedScore() {
+        /** Returns the zero-based expected ordinal score for ratings, or {@code null} for other decision kinds. */
+        public @Nullable Double getExpectedScore() {
             return expectedScore;
         }
 
@@ -74,6 +78,7 @@ public abstract class KeyOutcome<T> {
         }
     }
 
+    /** A safe key-local failure that does not discard valid sibling answers. */
     @ApiStatus.Experimental
     public static final class Failure<T> extends KeyOutcome<T> {
         private final KeyFailure failure;

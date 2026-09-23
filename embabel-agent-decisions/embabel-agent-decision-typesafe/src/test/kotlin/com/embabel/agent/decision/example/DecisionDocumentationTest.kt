@@ -32,7 +32,7 @@ class DecisionDocumentationTest {
         val pom = read("embabel-agent-docs/pom.xml")
         assertThat(reference).contains("include::decisions/page.adoc[]")
         assertThat(page).contains("[[reference.decisions]]", "[[reference.decisions.promotion]]", "==== Promotion checkpoint")
-        assertThat(page).contains("tag=kotlin-consumer", "tag=java-consumer", "tag=dice-consumer")
+        assertThat(page).contains("tag=custom-provider", "tag=kotlin-consumer", "tag=java-consumer", "tag=dice-consumer")
         listOf("TypeSafeDecisionModel", "PromptedDecisionModel", "NoDecisionModel", "StubDecisionModel").forEach { assertThat(page).contains(it) }
         assertThat(page).doesNotContain("DroolsDecisionModel", "CamundaDecisionModel", "TimefoldDecisionModel")
         val properties = listOf(
@@ -62,6 +62,8 @@ class DecisionDocumentationTest {
             .contains("tag::java-consumer[]", "end::java-consumer[]")
         assertThat(read("embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/DicePropositionRevisionExample.java"))
             .contains("tag::dice-consumer[]", "end::dice-consumer[]")
+        assertThat(read("embabel-agent-decisions/embabel-agent-decision/src/test/kotlin/example/decision/provider/CustomDecisionProviderExample.kt"))
+            .contains("tag::custom-provider[]", "end::custom-provider[]")
     }
 
     @Test
@@ -70,11 +72,12 @@ class DecisionDocumentationTest {
         val guide = root.resolve("embabel-agent-docs/target/generated-docs/index.html")
         assertThat(guide).exists()
         val html = Files.readString(guide)
-        assertThat(html).contains("reference.decisions", "Explicit Jev consumers", "Spring Boot configuration",
+        assertThat(html).contains("reference.decisions", "Provider SPI", "Explicit Jev consumers", "Spring Boot configuration",
             "decision-modules.dot", "decision-flow.dot")
         assertThat(html).doesNotContain("Unresolved directive", "include::")
         val renderedText = normalizeRenderedHtml(html)
         listOf(
+            "embabel-agent-decisions/embabel-agent-decision/src/test/kotlin/example/decision/provider/CustomDecisionProviderExample.kt" to "custom-provider",
             "embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/kotlin/com/embabel/agent/decision/example/JevDecisionExample.kt" to "kotlin-consumer",
             "embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/JevDecisionExample.java" to "java-consumer",
             "embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/DicePropositionRevisionExample.java" to "dice-consumer",

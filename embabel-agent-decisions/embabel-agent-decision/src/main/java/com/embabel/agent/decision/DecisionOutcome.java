@@ -17,19 +17,22 @@ package com.embabel.agent.decision;
 
 import java.util.Map;
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nullable;
 
+/** A closed call-level result. Handle {@link Success} and {@link Failure} exhaustively. */
 @ApiStatus.Experimental
-public abstract class DecisionOutcome {
+public abstract sealed class DecisionOutcome permits DecisionOutcome.Success, DecisionOutcome.Failure {
     private DecisionOutcome() {
     }
 
+    /** Validated typed evidence and provenance for a completed call. */
     @ApiStatus.Experimental
     public static final class Success extends DecisionOutcome {
         private final DecisionProvenance provenance;
-        private final DecisionRecord record;
+        private final @Nullable DecisionRecord record;
         private final Map<DecisionKey<?>, KeyOutcome<?>> answers;
 
-        Success(DecisionProvenance provenance, DecisionRecord record, Map<DecisionKey<?>, KeyOutcome<?>> answers) {
+        Success(DecisionProvenance provenance, @Nullable DecisionRecord record, Map<DecisionKey<?>, KeyOutcome<?>> answers) {
             this.provenance = provenance;
             this.record = record;
             this.answers = answers;
@@ -39,7 +42,8 @@ public abstract class DecisionOutcome {
             return provenance;
         }
 
-        public DecisionRecord getRecord() {
+        /** Returns the policy-safe record, or {@code null} when record mode is {@code NONE}. */
+        public @Nullable DecisionRecord getRecord() {
             return record;
         }
 
@@ -57,14 +61,15 @@ public abstract class DecisionOutcome {
         }
     }
 
+    /** A safe call-level failure with facade provenance. */
     @ApiStatus.Experimental
     public static final class Failure extends DecisionOutcome {
         private final CallFailure failure;
         private final DecisionSafeCode safeCode;
         private final DecisionProvenance provenance;
-        private final DecisionRecord record;
+        private final @Nullable DecisionRecord record;
 
-        Failure(CallFailure failure, DecisionSafeCode safeCode, DecisionProvenance provenance, DecisionRecord record) {
+        Failure(CallFailure failure, DecisionSafeCode safeCode, DecisionProvenance provenance, @Nullable DecisionRecord record) {
             this.failure = failure;
             this.safeCode = safeCode;
             this.provenance = provenance;
@@ -83,7 +88,8 @@ public abstract class DecisionOutcome {
             return provenance;
         }
 
-        public DecisionRecord getRecord() {
+        /** Returns the policy-safe record, or {@code null} when record mode is {@code NONE}. */
+        public @Nullable DecisionRecord getRecord() {
             return record;
         }
     }

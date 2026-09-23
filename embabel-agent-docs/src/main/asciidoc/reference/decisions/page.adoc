@@ -34,6 +34,28 @@ Every adapter enters the same facade. The facade validates the question schema, 
 include::../diagrams/decision-flow.dot[]
 ....
 
+==== Provider SPI
+
+`DecisionProvider` is the public extension point for another decision engine. A provider receives one immutable, redacted `PreparedDecisionRequest` and returns raw evidence. It can be called concurrently, so its shared state must be thread-safe. It must not retain the request, state, questions, or support values after `invoke` returns.
+
+The deadline is one absolute value from a monotonic process clock. It is not wall-clock time and must not be persisted or compared outside that request. Providers should use `remainingNanos()`, stop before it reaches zero, and honor thread interruption. The facade interrupts on cancellation or timeout and discards late results. An exception becomes `Unavailable`; caller interruption becomes `Cancelled`; an overrun becomes `DeadlineExceeded`.
+
+Raw results have a deliberately narrow contract:
+
+* A successful call carries provider provenance. Missing question answers become per-key `Missing` failures. Duplicate or unknown answer ids reject the complete call.
+* A yes/no answer supplies finite `pTrue` in `0.0..1.0`. A selected id, when present, is `true` or `false` and must identify a maximizer.
+* Choice and rating distributions contain every declared support id exactly once, contain no extra ids, use finite values in `0.0..1.0`, and sum to one within `1e-9`. A selected id is optional and must identify a maximizer. The facade resolves an omitted selection in declared order and preserves every maximizer.
+* Call failures map canonically to `DISABLED`, `UNAVAILABLE`, `REJECTED_REQUEST`, `DEADLINE_EXCEEDED`, `CANCELLED`, or `UNSUPPORTED`. Key failures map to `MISSING`, `INVALID`, or `UNSUPPORTED`. The facade derives these safe codes from the failure enum and does not trust a provider-supplied code.
+
+The facade owns final validation, request identifiers, question fingerprints, record projection, and typed application values. `DecisionOutcome` and `KeyOutcome` are sealed families with public `Success` and `Failure` variants, so Kotlin consumers can handle them exhaustively. A decision record is nullable only when record mode is `NONE`. An expected score is nullable for yes/no and choice outcomes and present for rating success.
+
+This compiled example implements an external provider using only the public SPI:
+
+[source,kotlin]
+----
+include::../../../../../../embabel-agent-decisions/embabel-agent-decision/src/test/kotlin/example/decision/provider/CustomDecisionProviderExample.kt[tag=custom-provider]
+----
+
 ==== Explicit Jev consumers
 
 The Kotlin and Java examples below are compiled tests. Both handle call failure separately from per-key failure and return evidence to host code. The included regions contain their imports, application enums and evidence types, request construction, failure handling, and executable main entrypoints.
