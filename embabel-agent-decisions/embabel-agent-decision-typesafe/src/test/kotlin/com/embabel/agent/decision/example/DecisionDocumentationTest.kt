@@ -50,7 +50,7 @@ class DecisionDocumentationTest {
             "models.jev.typesafe.connect-timeout", "models.prompted-review.prompted.llm-bean-name",
             "models.prompted-review.prompted.options-bean-name",
         )
-        properties.forEach { assertThat(page).contains("embabel.agent.decision.$it") }
+        properties.forEach { assertThat(page).contains("embabel.agent.platform.decision.$it") }
         listOf("embabel-agent-decision`", "embabel-agent-decision-typesafe`", "embabel-agent-decision-llm`",
             "embabel-agent-decision-autoconfigure`", "embabel-agent-starter-decision`").forEach { assertThat(modules).contains(it) }
         assertThat(page).contains("[graphviz, decision-modules.dot, png]", "include::../diagrams/decision-modules.dot[]")
@@ -59,26 +59,52 @@ class DecisionDocumentationTest {
         assertThat(moduleDiagram).contains(
             "starter -> auto", "starter -> platform", "embabel-agent-starter-platform",
             "api -> core", "api -> ai", "ModelProvider", "ModelSelectionCriteria", "named DecisionModel beans",
+            "DecisionInstrumentation SPI", "optional Micrometer adapter",
+            "DecisionExecutionContext", "ConfigurableModelProvider", "AgentProcess + model-selection bridge",
         )
         assertThat(moduleDiagram).doesNotContain("auto -> api", "core -> ai")
         val flowDiagram = read("embabel-agent-docs/src/main/asciidoc/reference/diagrams/decision-flow.dot")
         assertThat(flowDiagram).contains(
             "ModelSelectionCriteria", "ModelProvider", "default / name / role", "per-call provenance",
             "host-owned action or proposition revision", "direct construction", "typed evidence + provenance",
+            "finite provider events", "structured terminal log", "optional telemetry adapter",
+            "DecisionExecutionContext", "AgentProcess + model selection", "Micrometer context",
         )
         assertThat(page).contains(
             "requested model `jev-latest`", "registry name `jev`", "provider `typesafe`",
-            "EMBABEL_AGENT_DECISION_MODELS_PROPOSITIONREVISION_PROVIDER",
+            "EMBABEL_AGENT_PLATFORM_DECISION_MODELS_PROPOSITIONREVISION_PROVIDER",
+            "TYPESAFE_API_KEY is required; no network request was made",
             "hyphens in registry names cannot be represented faithfully",
             "registry metadata", "per-call provenance", "Dice retains action ownership",
             "required for every explicit declaration", "required for every explicit `typesafe` declaration",
             "custom `DecisionModel` bean",
             "platform default, automatic selection, registry name, role, ordered fallback, random choice, or a pre-resolved model",
         )
+        val legacyDecisionPrefix = "embabel.agent." + "decision"
+        val legacyDecisionEnvironmentPrefix = "EMBABEL_AGENT_" + "DECISION_"
         assertThat(page).doesNotContain(
             "Automatic `Ai` or `ModelProvider` selection is deferred",
-            "embabel.agent.decision.provider",
-            "embabel.agent.decision.typesafe.model",
+            "$legacyDecisionPrefix.provider",
+            "$legacyDecisionPrefix.typesafe.model",
+            "$legacyDecisionPrefix.enabled",
+            legacyDecisionEnvironmentPrefix,
+        )
+        assertThat(page).contains(
+            "embabel.decision",
+            "embabel.decision.duration",
+            "embabel.decision.calls.total",
+            "embabel.decision.keys.total",
+            "embabel.decision.events.total",
+            "provider.family", "safe.code", "key.outcome", "trace-decisions", "metrics-decisions",
+            "Explicit instrumentation remains authoritative",
+            "Prompted attempts count `sender.call` invocations",
+            "four worker slots",
+            "best-effort cancellation",
+            "Decision telemetry never records decision content",
+            "<T> Callable<T> wrap(Callable<T>)", "DecisionModel.installExecutionContext(context)",
+            "first installation wins", "portable identity context", "registered and pre-resolved selection paths",
+            "Micrometer `ContextSnapshot`",
+            "independently of decision instrumentation",
         )
         assertThat(page).contains(
             "-pl embabel-agent-dependencies install -DskipTests",
@@ -94,23 +120,31 @@ class DecisionDocumentationTest {
             "full reactor verification",
         )
         assertThat(promotion).doesNotContain("James", "Opus", "Jev", "Fable", "Claude", "Codex", "Astra", "GEV")
-        assertThat(pom).contains("embabel-agent-decision/src/main/kotlin", "embabel-agent-decision-typesafe/src/main/kotlin",
-            "embabel-agent-decision-llm/src/main/kotlin", "embabel-agent-decision-autoconfigure/src/main/java",
+        assertThat(pom).contains("embabel-agent-decision/src/main/kotlin", "embabel-agent-decision/src/main/java",
+            "embabel-agent-decision-typesafe/src/main/kotlin", "embabel-agent-decision-llm/src/main/kotlin",
+            "embabel-agent-observability/src/main/java", "embabel-agent-decision-autoconfigure/src/main/java",
             "embabel-agent-decision-typesafe/src/test/kotlin", "embabel-agent-decision-typesafe/src/test/java")
-        assertThat(read("embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/kotlin/com/embabel/agent/decision/example/JevDecisionExample.kt"))
-            .contains(
+        val kotlinExample = read("embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/kotlin/com/embabel/agent/decision/example/JevDecisionExample.kt")
+        assertThat(kotlinExample).contains(
                 "tag::kotlin-consumer[]", "end::kotlin-consumer[]",
                 "tag::kotlin-selection[]", "end::kotlin-selection[]",
                 "PlatformDefault", "Auto", "byName", "byRole", "firstOf", "randomOf", "preResolved",
+                "System.getenv(\"TYPESAFE_API_KEY\")?.takeIf(String::isNotBlank)",
+                "System.getenv(\"TYPESAFE_MODEL\")?.takeIf(String::isNotBlank)",
             )
-        assertThat(read("embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/JevDecisionExample.java"))
-            .contains(
+        val javaExample = read("embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/JevDecisionExample.java")
+        assertThat(javaExample).contains(
                 "tag::java-consumer[]", "end::java-consumer[]",
                 "tag::java-selection[]", "end::java-selection[]",
                 "PlatformDefault", "Auto", "byName", "byRole", "firstOf", "randomOf", "preResolved",
+                "requiredEnvironment(\"TYPESAFE_API_KEY\")",
+                "if (value == null || value.isBlank())",
             )
         assertThat(read("embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/DicePropositionRevisionExample.java"))
-            .contains("tag::dice-consumer[]", "end::dice-consumer[]", "ModelProvider", "ModelSelectionCriteria")
+            .contains(
+                "tag::dice-consumer[]", "end::dice-consumer[]", "ModelProvider", "ModelSelectionCriteria",
+                "Dice is a consumer project that uses typed relation evidence for proposition revision",
+            )
         assertThat(read("embabel-agent-decisions/embabel-agent-decision/src/test/kotlin/example/decision/provider/CustomDecisionProviderExample.kt"))
             .contains("tag::custom-provider[]", "end::custom-provider[]")
     }
@@ -146,10 +180,15 @@ class DecisionDocumentationTest {
         assertThat(dokka).isDirectory()
         val files = Files.walk(dokka).use { stream -> stream.filter(Files::isRegularFile).toList() }
         assertThat(files).isNotEmpty()
-        val joined = files.filter { it.toString().endsWith(".html") }.take(200)
-            .joinToString("\n") { Files.readString(it) }
-        assertThat(joined).contains("com.embabel.agent.decision")
-        assertThat(joined).contains("com.embabel.agent.autoconfigure.decision")
+        val htmlPages = files.filter { it.toString().endsWith(".html") }.map(Files::readString)
+        listOf(
+            "DecisionExecutionContext", "DecisionInstrumentation", "DecisionRequest", "DecisionOutcome",
+            "DecisionMicrometerInstrumentation", "com.embabel.agent.autoconfigure.decision",
+        ).forEach { publicApi ->
+            assertThat(htmlPages.any { it.contains(publicApi) })
+                .describedAs("Dokka output must contain $publicApi")
+                .isTrue()
+        }
     }
 
     private fun taggedSource(path: String, tag: String): String {

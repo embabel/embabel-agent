@@ -10,6 +10,7 @@
     <packaging>pom</packaging>
     <name>Embabel Agent Decisions</name>
     <description>Typed decision model modules for Embabel Agent</description>
+
     <modules>
         <module>embabel-agent-decision</module>
         <module>embabel-agent-decision-typesafe</module>

@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/** Shows the boundary Dice needs without coupling the framework to Dice. */
+/** Dice is a consumer project that uses typed relation evidence for proposition revision. */
 public final class DicePropositionRevisionExample {
     private DicePropositionRevisionExample() {}
 
