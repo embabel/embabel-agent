@@ -368,13 +368,22 @@ class AgentDecisionAutoConfigurationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"Selected", "selected_model", "selected.model"})
+    @ValueSource(strings = {"Selected", "selected_model", "selected.model", "-selected", "selected-", "selected--model"})
     void rejectsNoncanonicalModelNames(String name) {
         runner.withPropertyValues(
                         "embabel.agent.decision.enabled=true",
                         "embabel.agent.decision.models." + name + ".provider=none")
                 .run(context -> assertThat(context.getStartupFailure())
                         .hasRootCauseMessage("Invalid configuration: embabel.agent.decision.models"));
+    }
+
+    @Test
+    void rejectsDurationsThatOverflowNanoseconds() {
+        runner.withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.default-timeout=P106752D")
+                .run(context -> assertThat(context.getStartupFailure())
+                        .hasRootCauseMessage("Invalid configuration: embabel.agent.decision.default-timeout"));
     }
 
     @Test

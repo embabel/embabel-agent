@@ -118,15 +118,7 @@ public class AgentDecisionAutoConfiguration {
             for (var entry : configured.entrySet()) {
                 String name = entry.getKey();
                 DecisionProperties.Model selected = entry.getValue();
-                DecisionModel model = switch (selected.getProvider()) {
-                    case "none" -> NoDecisionModel.create();
-                    case "typesafe" -> typesafe(selected, properties, environment, beanFactory);
-                    case "prompted" -> prompted(name, selected, properties, beanFactory);
-                    default -> throw invalid(modelKey(name, "provider"));
-                };
-                created.put(name, model
-                        .withDefaults(properties.getDefaultTimeout(), recordPolicy(properties))
-                        .named(name, selected.getProvider()));
+                created.put(name, configuredModel(name, selected, properties, environment, beanFactory));
             }
             List<String> registered = new ArrayList<>();
             try {
@@ -142,6 +134,22 @@ public class AgentDecisionAutoConfiguration {
         } catch (RuntimeException failure) {
             closeAll(created.values(), failure);
             throw failure;
+        }
+    }
+
+    private DecisionModel configuredModel(
+            String name,
+            DecisionProperties.Model selected,
+            DecisionProperties common,
+            Environment environment,
+            ConfigurableListableBeanFactory beanFactory) {
+        try (DecisionModel model = switch (selected.getProvider()) {
+            case "none" -> NoDecisionModel.create();
+            case "typesafe" -> typesafe(selected, common, environment, beanFactory);
+            case "prompted" -> prompted(name, selected, common, beanFactory);
+            default -> throw invalid(modelKey(name, "provider"));
+        }; DecisionModel defaulted = model.withDefaults(common.getDefaultTimeout(), recordPolicy(common))) {
+            return defaulted.named(name, selected.getProvider());
         }
     }
 
@@ -425,9 +433,20 @@ public class AgentDecisionAutoConfiguration {
 
     private static void validateModelName(String name) {
         // Dots are property path separators; registry names use canonical lowercase segments.
-        if (name == null || !name.matches("[a-z0-9]+(?:-[a-z0-9]+)*")) {
-            throw invalid(PREFIX + ".models");
+        if (name == null || name.isEmpty()) throw invalid(PREFIX + ".models");
+        boolean requiresSegmentCharacter = true;
+        for (int i = 0; i < name.length(); i++) {
+            char character = name.charAt(i);
+            if (character == '-') {
+                if (requiresSegmentCharacter) throw invalid(PREFIX + ".models");
+                requiresSegmentCharacter = true;
+            } else if ((character >= 'a' && character <= 'z') || (character >= '0' && character <= '9')) {
+                requiresSegmentCharacter = false;
+            } else {
+                throw invalid(PREFIX + ".models");
+            }
         }
+        if (requiresSegmentCharacter) throw invalid(PREFIX + ".models");
     }
 
     private static void rollback(
@@ -451,8 +470,8 @@ public class AgentDecisionAutoConfiguration {
 
     private static void positive(Duration duration, String key) {
         try {
-            duration.toNanos();
-            if (duration.isZero() || duration.isNegative()) throw new IllegalArgumentException();
+            long nanos = duration.toNanos();
+            if (nanos <= 0) throw new IllegalArgumentException();
         } catch (RuntimeException ignored) {
             throw invalid(key);
         }
