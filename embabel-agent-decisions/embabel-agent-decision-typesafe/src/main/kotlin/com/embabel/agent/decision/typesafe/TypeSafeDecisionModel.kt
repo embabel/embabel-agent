@@ -53,7 +53,7 @@ object TypeSafeDecisionModel {
         if (uri.path !in listOf("", "/")) return false
         return when (uri.scheme.lowercase()) {
             "https" -> uri.host != null
-            "http" -> uri.host == "127.0.0.1" || uri.host == "::1"
+            "http" -> uri.host == "127.0.0.1" || uri.host in setOf("::1", "[::1]")
             else -> false
         }
     }

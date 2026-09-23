@@ -21,6 +21,7 @@ import com.embabel.agent.decision.DecisionRecordPolicy
 import com.embabel.agent.decision.DecisionRequest
 import com.embabel.agent.decision.KeyOutcome
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import java.net.URI
 import java.net.URLClassLoader
@@ -112,6 +113,23 @@ class TypeSafeDecisionModelTest {
         }
         assertThat(Modifier.isFinal(com.embabel.agent.decision.DecisionModel::class.java.modifiers)).isTrue()
         assertThat(JevTransport::class.java.methods.map { it.name }).doesNotContain("ask", "create")
+    }
+
+    @Test
+    fun `accepts the literal IPv6 loopback origin without resolving credentials`() {
+        var credentialCalls = 0
+        val model = TypeSafeDecisionModel.create(Supplier { credentialCalls++; "synthetic-bearer" }, "requested-test", URI.create("http://[::1]:8080/"))
+        assertThat(model).isNotNull()
+        assertThat(credentialCalls).isZero()
+    }
+
+    @Test
+    fun `rejects non-loopback HTTP origins and lookalikes`() {
+        listOf("http://[::2]:8080/", "http://127.0.0.2:8080/", "http://localhost:8080/", "http://127.0.0.1:8080/not-an-origin").forEach { origin ->
+            assertThatThrownBy { TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create(origin)) }
+                .isInstanceOf(IllegalArgumentException::class.java)
+                .hasMessage("base URI must be an HTTPS origin")
+        }
     }
 
     private fun request(policy: DecisionRecordPolicy? = null): BuiltRequest {
