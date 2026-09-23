@@ -64,7 +64,7 @@ class DecisionDocumentationTest {
     }
 
     @Test
-    fun `rendered decision guide and Dokka output are nonempty when requested`() {
+    fun `rendered decision guide contains current samples and Dokka output when requested`() {
         if (System.getProperty("decision.docs.rendered") != "true") return
         val guide = root.resolve("embabel-agent-docs/target/generated-docs/index.html")
         assertThat(guide).exists()
@@ -72,6 +72,16 @@ class DecisionDocumentationTest {
         assertThat(html).contains("reference.decisions", "Explicit Jev consumers", "Spring Boot configuration",
             "decision-modules.dot", "decision-flow.dot")
         assertThat(html).doesNotContain("Unresolved directive", "include::")
+        val renderedText = normalizeRenderedHtml(html)
+        listOf(
+            "embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/kotlin/com/embabel/agent/decision/example/JevDecisionExample.kt" to "kotlin-consumer",
+            "embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/JevDecisionExample.java" to "java-consumer",
+            "embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/DicePropositionRevisionExample.java" to "dice-consumer",
+        ).forEach { (source, tag) ->
+            assertThat(renderedText.contains(normalize(taggedSource(source, tag))))
+                .describedAs("rendered guide must contain the current $tag tagged source")
+                .isTrue()
+        }
         listOf("decision-modules.dot.png", "decision-flow.dot.png").forEach { imageName ->
             val image = root.resolve("embabel-agent-docs/target/generated-docs/images/$imageName")
             assertThat(image).isRegularFile()
@@ -86,6 +96,26 @@ class DecisionDocumentationTest {
         assertThat(joined).contains("com.embabel.agent.decision")
         assertThat(joined).contains("com.embabel.agent.autoconfigure.decision")
     }
+
+    private fun taggedSource(path: String, tag: String): String {
+        val lines = read(path).lineSequence().toList()
+        val start = lines.indexOfFirst { it.contains("tag::$tag[]") }
+        val end = lines.indexOfFirst { it.contains("end::$tag[]") }
+        require(start >= 0 && end > start) { "missing or invalid $tag source markers in $path" }
+        return lines.subList(start + 1, end).joinToString("\n")
+    }
+
+    private fun normalizeRenderedHtml(html: String): String = normalize(
+        html.replace(Regex("<[^>]+>"), " ")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
+            .replace("&amp;", "&")
+            .replace(Regex("&#(\\d+);")) { match -> match.groupValues[1].toInt().toChar().toString() },
+    )
+
+    private fun normalize(value: String): String = value.replace(Regex("\\s+"), "")
 
     private fun read(path: String): String = Files.readString(root.resolve(path))
 }

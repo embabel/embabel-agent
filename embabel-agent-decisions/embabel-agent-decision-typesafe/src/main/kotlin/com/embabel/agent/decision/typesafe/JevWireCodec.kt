@@ -30,6 +30,8 @@ import com.embabel.common.util.EmbabelObjectMapperHolder
 import tools.jackson.core.JsonParser
 import tools.jackson.core.JsonToken
 import tools.jackson.databind.node.ObjectNode
+import java.math.BigDecimal
+import java.math.BigInteger
 import java.nio.charset.StandardCharsets
 
 /** Strict System One codec. The private value tree preserves duplicate JSON property names. */
@@ -169,11 +171,15 @@ internal class JevWireCodec(
         null -> mapperHolder.get().nullNode()
         is String -> mapperHolder.get().getNodeFactory().textNode(value)
         is Boolean -> mapperHolder.get().getNodeFactory().booleanNode(value)
+        is Byte -> mapperHolder.get().getNodeFactory().numberNode(value)
+        is Short -> mapperHolder.get().getNodeFactory().numberNode(value)
         is Int -> mapperHolder.get().getNodeFactory().numberNode(value)
         is Long -> mapperHolder.get().getNodeFactory().numberNode(value)
-        is Double -> mapperHolder.get().getNodeFactory().numberNode(value)
-        is Float -> mapperHolder.get().getNodeFactory().numberNode(value)
-        is Number -> mapperHolder.get().getNodeFactory().numberNode(value.toDouble())
+        is BigInteger -> mapperHolder.get().getNodeFactory().numberNode(value)
+        is BigDecimal -> mapperHolder.get().getNodeFactory().numberNode(value)
+        is Double -> mapperHolder.get().getNodeFactory().numberNode(value.also { require(it.isFinite()) { "state numbers must be finite" } })
+        is Float -> mapperHolder.get().getNodeFactory().numberNode(value.also { require(it.isFinite()) { "state numbers must be finite" } })
+        is Number -> error("prepared state contains an unsupported number type")
         is Map<*, *> -> stateNode(value.entries.associate { (key, nested) -> key as String to nested })
         is Iterable<*> -> mapperHolder.get().createArrayNode().also { array -> value.forEach { array.add(valueNode(it)) } }
         else -> error("prepared state must already be JSON-compatible")

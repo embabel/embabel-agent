@@ -23,11 +23,66 @@ import com.embabel.agent.decision.KeyFailure
 import com.embabel.agent.decision.KeyOutcome
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import java.math.BigDecimal
+import java.math.BigInteger
 import java.net.URI
 import java.util.function.Supplier
 
 /** Fixtures are synthetic wire examples, retained byte-for-byte to exercise duplicate-property handling. */
 class JevWireCodecTest {
+    @Test
+    fun `preserves arbitrary precision state numbers in the captured JSON request`() {
+        val integer = BigInteger("900719925474099312345678901234567890")
+        val decimal = BigDecimal("1234567890.123456789012345678901234567890")
+        CaptureServer.replying(success()).use { server ->
+            val result = model(server).ask(request(mapOf("integer" to integer, "decimal" to decimal)).request)
+
+            assertThat(result).isInstanceOf(DecisionOutcome.Success::class.java)
+            assertThat(server.requests).hasSize(1)
+            assertThat(server.requests.single().body)
+                .contains("\"integer\":$integer")
+                .contains("\"decimal\":${decimal.toPlainString()}")
+                .doesNotContain("9.007199254740993E")
+        }
+    }
+
+    @Test
+    fun `writes every finite primitive number as a JSON number without changing its value`() {
+        CaptureServer.replying(success()).use { server ->
+            val result = model(server).ask(request(linkedMapOf(
+                "byte" to 7.toByte(),
+                "short" to 32000.toShort(),
+                "int" to 2_000_000_001,
+                "long" to 9_007_199_254_740_993L,
+                "float" to 1.25f,
+                "double" to -42.125,
+            )).request)
+
+            assertThat(result).isInstanceOf(DecisionOutcome.Success::class.java)
+            assertThat(server.requests.single().body).contains(
+                "\"byte\":7",
+                "\"short\":32000",
+                "\"int\":2000000001",
+                "\"long\":9007199254740993",
+                "\"float\":1.25",
+                "\"double\":-42.125",
+            )
+        }
+    }
+
+    @Test
+    fun `rejects non finite state numbers before opening the transport`() {
+        listOf(Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, Float.NaN, Float.POSITIVE_INFINITY)
+            .forEach { value ->
+                CaptureServer.replying(success()).use { server ->
+                    val result = model(server).ask(request(mapOf("invalid" to value)).request) as DecisionOutcome.Failure
+
+                    assertThat(result.failure).isEqualTo(CallFailure.RejectedRequest)
+                    assertThat(server.requestCount).isZero()
+                }
+            }
+    }
+
     @Test
     fun `rejects duplicate wire answer ids without retaining the validation body`() {
         CaptureServer.replying(resource("duplicate-answer.json")).use { server ->
@@ -156,8 +211,8 @@ class JevWireCodecTest {
 
     private fun model(server: CaptureServer) = TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri))
     private fun resource(name: String): String = javaClass.getResource("/decision/typesafe/$name")!!.readText()
-    private fun request(): WireRequest {
-        val builder = DecisionRequest.builder().state(mapOf("text" to "synthetic"))
+    private fun request(state: Map<String, Any?> = mapOf("text" to "synthetic")): WireRequest {
+        val builder = DecisionRequest.builder().state(state)
         val yes = builder.yesNo("q_yes", "is this synthetic?")
         val choice = builder.choice("q_choice", "pick one", listOf(DecisionOption.of("s_a", "A", "A"), DecisionOption.of("s_b", "B", "B")))
         val rating = builder.rating("q_rating", "rate it", listOf(DecisionOption.of("low", "LOW", "low"), DecisionOption.of("high", "HIGH", "high")))
@@ -169,4 +224,6 @@ class JevWireCodecTest {
         val choice: com.embabel.agent.decision.ChoiceKey<String>,
         val rating: com.embabel.agent.decision.RatingKey<String>,
     )
+
+    private fun success() = """{"model":"resolved-test-v1","answers":{"q_yes":{"type":"noul","noul":0.75}},"usage":{"input_tokens":1,"output_tokens":1}}"""
 }
