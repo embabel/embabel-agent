@@ -15,11 +15,19 @@
  */
 package com.embabel.agent.config.models.lmstudio
 
+import com.embabel.agent.api.models.LmStudioModels
+import com.embabel.common.ai.model.ConfigurableModelProviderProperties
+import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
+import com.embabel.common.ai.model.local.LocalModelKind
 import io.micrometer.observation.ObservationRegistry
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertSame
 import io.mockk.*
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -105,6 +113,8 @@ class LmStudioModelsConfigTest {
         val config = LmStudioModelsConfig(
             lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
+            modelProviderProperties = ConfigurableModelProviderProperties(),
+            localModelDiscoveryProperties = LocalModelDiscoveryProperties(),
             observationRegistry = mockObservationRegistry,
             restClientBuilder = mockRestClientBuilderProvider,
             webClientBuilder = mockWebClientBuilderProvider
@@ -121,6 +131,101 @@ class LmStudioModelsConfigTest {
         }
     }
 
+    /**
+     * The per-call surface: what LM Studio is serving NOW. Unlike Docker and Ollama the server
+     * reports a type per model, so nothing here consults configuration to tell the two apart.
+     */
+    @Nested
+    inner class AskedPerCall {
+
+        private fun servingBoth(): LmStudioModelsConfig {
+            every { mockResponseSpec.body(String::class.java) } returns """
+                {
+                  "models": [
+                    { "key": "qwen3", "type": "llm" },
+                    { "key": "nomic-embed-text", "type": "embedding" }
+                  ]
+                }
+            """.trimIndent()
+            return createConfig()
+        }
+
+        @Test
+        fun `the catalog splits models by the type the server itself reports`() {
+            val catalog = servingBoth().lmStudioLocalModelCatalog()
+
+            assertEquals(setOf("qwen3"), catalog.servedNames(LocalModelKind.CHAT))
+            assertEquals(setOf("nomic-embed-text"), catalog.servedNames(LocalModelKind.EMBEDDING))
+        }
+
+        @Test
+        fun `a model loaded after boot resolves to a service by name`() {
+            val catalog = servingBoth().lmStudioLocalModelCatalog()
+
+            val llm = catalog.llmNamed("qwen3")
+            assertNotNull(llm)
+            assertEquals("qwen3", llm.name)
+
+            val embedding = catalog.embeddingNamed("nomic-embed-text")
+            assertNotNull(embedding)
+            assertEquals("nomic-embed-text", embedding.name)
+        }
+
+        /**
+         * Kind is decisive for a caller who named a model: it has given no other signal for which
+         * of the two lists it meant, and answering an embedding request with a chat model is worse
+         * than declining.
+         */
+        @Test
+        fun `a chat model does not answer an embedding request by name, or the reverse`() {
+            val catalog = servingBoth().lmStudioLocalModelCatalog()
+
+            assertNull(catalog.embeddingNamed("qwen3"))
+            assertNull(catalog.llmNamed("nomic-embed-text"))
+        }
+
+        @Test
+        fun `the three beans are one catalog, so the server is asked once`() {
+            val config = servingBoth()
+
+            assertSame(config.lmStudioLocalModelCatalog(), config.lmStudioLocalModelCatalog())
+            assertSame(config.lmStudioLocalModelRoleResolver(), config.lmStudioLocalModelRoleResolver())
+            assertSame(
+                config.lmStudioLocalModelEmbeddingRoleResolver(),
+                config.lmStudioLocalModelEmbeddingRoleResolver(),
+            )
+
+            config.lmStudioLocalModelCatalog().servedNames(LocalModelKind.CHAT)
+            config.lmStudioLocalModelCatalog().servedNames(LocalModelKind.EMBEDDING)
+
+            verify(exactly = 1) { mockResponseSpec.body(String::class.java) }
+        }
+
+        @Test
+        fun `the catalog declares late arrival only while discovery is enabled`() {
+            assertEquals(
+                LmStudioModels.PROVIDER,
+                servingBoth().lmStudioLocalModelCatalog().lateArrivingProvider,
+            )
+            assertNull(
+                createConfig(LocalModelDiscoveryProperties(enabled = false))
+                    .lmStudioLocalModelCatalog().lateArrivingProvider,
+            )
+        }
+    }
+
+    private fun createConfig(
+        discovery: LocalModelDiscoveryProperties = LocalModelDiscoveryProperties(),
+    ) = LmStudioModelsConfig(
+        lmStudioProperties = mockLmStudioProperties,
+        configurableBeanFactory = mockBeanFactory,
+        modelProviderProperties = ConfigurableModelProviderProperties(),
+        localModelDiscoveryProperties = discovery,
+        observationRegistry = mockObservationRegistry,
+        restClientBuilder = mockRestClientBuilderProvider,
+        webClientBuilder = mockWebClientBuilderProvider,
+    )
+
     @Test
     fun `should handle empty response`() {
         // Given
@@ -129,6 +234,8 @@ class LmStudioModelsConfigTest {
         val config = LmStudioModelsConfig(
             lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
+            modelProviderProperties = ConfigurableModelProviderProperties(),
+            localModelDiscoveryProperties = LocalModelDiscoveryProperties(),
             observationRegistry = mockObservationRegistry,
             restClientBuilder = mockRestClientBuilderProvider,
             webClientBuilder = mockWebClientBuilderProvider
@@ -149,6 +256,8 @@ class LmStudioModelsConfigTest {
         val config = LmStudioModelsConfig(
             lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
+            modelProviderProperties = ConfigurableModelProviderProperties(),
+            localModelDiscoveryProperties = LocalModelDiscoveryProperties(),
             observationRegistry = mockObservationRegistry,
             restClientBuilder = mockRestClientBuilderProvider,
             webClientBuilder = mockWebClientBuilderProvider
@@ -177,6 +286,8 @@ class LmStudioModelsConfigTest {
         val config = LmStudioModelsConfig(
             lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
+            modelProviderProperties = ConfigurableModelProviderProperties(),
+            localModelDiscoveryProperties = LocalModelDiscoveryProperties(),
             observationRegistry = mockObservationRegistry,
             restClientBuilder = mockRestClientBuilderProvider,
             webClientBuilder = mockWebClientBuilderProvider

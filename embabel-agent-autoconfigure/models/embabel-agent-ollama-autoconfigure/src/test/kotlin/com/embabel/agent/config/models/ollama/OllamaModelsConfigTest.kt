@@ -15,18 +15,32 @@
  */
 package com.embabel.agent.config.models.ollama
 
+import com.embabel.agent.api.models.OllamaModels
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
+import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
+import com.embabel.common.ai.model.local.LocalModelKind
+import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.SpringAiEmbeddingService
 import io.micrometer.observation.ObservationRegistry
 import io.mockk.*
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.ai.ollama.OllamaEmbeddingModel
+import org.springframework.ai.ollama.api.OllamaEmbeddingOptions
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.MediaType
 import org.springframework.web.client.RestClient
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 /**
  * Unit tests for multi-ollama instance registration algorithm and logic.
@@ -80,6 +94,10 @@ class OllamaModelsConfigTest {
         // Mock RestClient.Builder provider chain
         every { mockRestClientBuilder.observationRegistry(any()) } returns mockRestClientBuilder
         every { mockRestClientBuilder.clone() } returns mockClonedBuilder
+        // The bounded discovery client is built off the clone, so it must chain back to the same
+        // stubbed RestClient - otherwise model discovery silently finds nothing.
+        every { mockClonedBuilder.requestFactory(any()) } returns mockClonedBuilder
+        every { mockClonedBuilder.build() } returns mockRestClient
         every { mockRestClientBuilder.build() } returns mockRestClient
         every { mockRestClientBuilderProvider.getIfAvailable(any<java.util.function.Supplier<RestClient.Builder>>()) } returns mockRestClientBuilder
 
@@ -404,14 +422,195 @@ class OllamaModelsConfigTest {
         verify { mockRequestHeadersUriSpec.uri("http://legacy:11434/api/tags") }
     }
 
+    /**
+     * The per-call surface: what the server is serving NOW, rather than what it was serving while
+     * the platform was being built. Driven through the published catalog, because that is what the
+     * platform holds - the source itself is an implementation detail of this configuration.
+     */
+    @Nested
+    inner class AskedPerCall {
+
+        @Test
+        fun `the catalog reports what the default endpoint is serving, split by kind`() {
+            val catalog = createConfig("http://localhost:11434", null).ollamaLocalModelCatalog()
+
+            assertEquals(
+                setOf("deepseek-r1:latest", "qwen3:latest", "gemma3:latest"),
+                catalog.servedNames(LocalModelKind.CHAT),
+            )
+            assertEquals(
+                setOf("embeddinggemma:latest"),
+                catalog.servedNames(LocalModelKind.EMBEDDING),
+                "configuration decides the kind, since /api/tags does not say",
+            )
+        }
+
+        @Test
+        fun `a node's models are reported under the prefixed name registration would give them`() {
+            val nodes = OllamaNodeProperties().apply {
+                nodes = listOf(OllamaNodeConfig().apply { name = "gpu"; baseUrl = "http://gpu:11434" })
+            }
+            val catalog = createConfig("", nodes).ollamaLocalModelCatalog()
+
+            assertTrue(
+                catalog.servedNames(LocalModelKind.CHAT).contains("gpu-qwen3:latest"),
+                "a node-scoped model is asked for under the prefixed name, so it must be listed under it",
+            )
+        }
+
+        @Test
+        fun `a served chat model resolves to a service by name`() {
+            val catalog = createConfig("http://localhost:11434", null).ollamaLocalModelCatalog()
+
+            val llm = catalog.llmNamed("qwen3:latest")
+
+            assertNotNull(llm)
+            assertEquals("qwen3:latest", llm.name)
+            assertEquals(OllamaModels.PROVIDER, llm.provider)
+        }
+
+        @Test
+        fun `a served embedding model resolves to a service by name`() {
+            val catalog = createConfig("http://localhost:11434", null).ollamaLocalModelCatalog()
+
+            val embedding = catalog.embeddingNamed("embeddinggemma:latest")
+
+            assertNotNull(embedding)
+            assertEquals("embeddinggemma:latest", embedding.name)
+        }
+
+        /**
+         * A node-scoped model is ASKED for under its prefixed name and SERVED under its own, so the
+         * request has to carry the raw name - getting this wrong sends the node a model name it has
+         * never heard of.
+         */
+        @Test
+        fun `a node-scoped chat model is listed under its prefixed name and requested under its raw one`() {
+            val catalog = createConfig("", gpuNode()).ollamaLocalModelCatalog()
+
+            val llm = assertIs<SpringAiLlmService>(catalog.llmNamed("gpu-qwen3:latest"))
+
+            assertEquals("gpu-qwen3:latest", llm.name)
+            assertEquals("qwen3:latest", llm.convertOptions(LlmOptions()).model)
+            verify { mockRequestHeadersUriSpec.uri("http://gpu:11434/api/tags") }
+        }
+
+        @Test
+        fun `a node-scoped embedding model is listed under its prefixed name and requested under its raw one`() {
+            val catalog = createConfig("", gpuNode()).ollamaLocalModelCatalog()
+
+            val embedding = assertIs<SpringAiEmbeddingService>(catalog.embeddingNamed("gpu-embeddinggemma:latest"))
+
+            assertEquals("gpu-embeddinggemma:latest", embedding.name)
+            assertEquals("embeddinggemma:latest", requestedEmbeddingModel(embedding))
+        }
+
+        /**
+         * Several models on the default instance and on two nodes at once: every one of them must
+         * resolve under the name it is listed by, and ask its server for the name that server knows.
+         */
+        @Test
+        fun `every model on every endpoint resolves and requests its raw name`() {
+            val nodes = OllamaNodeProperties().apply {
+                nodes = listOf(
+                    OllamaNodeConfig().apply { name = "gpu"; baseUrl = "http://gpu:11434" },
+                    OllamaNodeConfig().apply { name = "cpu"; baseUrl = "http://cpu:11434" },
+                )
+            }
+            val catalog = createConfig("http://localhost:11434", nodes).ollamaLocalModelCatalog()
+            val chatModels = listOf("deepseek-r1:latest", "qwen3:latest", "gemma3:latest")
+
+            assertEquals(
+                chatModels.flatMap { listOf(it, "gpu-$it", "cpu-$it") }.toSet(),
+                catalog.servedNames(LocalModelKind.CHAT),
+            )
+            listOf(null, "gpu", "cpu").forEach { node ->
+                chatModels.forEach { raw ->
+                    val listed = node?.let { "$it-$raw" } ?: raw
+                    val llm = assertIs<SpringAiLlmService>(catalog.llmNamed(listed), listed)
+                    assertEquals(listed, llm.name)
+                    assertEquals(raw, llm.convertOptions(LlmOptions()).model, "request name for $listed")
+                }
+                val listedEmbedding = node?.let { "$it-embeddinggemma:latest" } ?: "embeddinggemma:latest"
+                val embedding = assertIs<SpringAiEmbeddingService>(catalog.embeddingNamed(listedEmbedding))
+                assertEquals("embeddinggemma:latest", requestedEmbeddingModel(embedding), "request name for $listedEmbedding")
+            }
+        }
+
+        @Test
+        fun `a model the server is not serving resolves to nothing`() {
+            val catalog = createConfig("http://localhost:11434", null).ollamaLocalModelCatalog()
+
+            assertNull(catalog.llmNamed("never-pulled:latest"))
+            assertNull(catalog.embeddingNamed("never-pulled:latest"))
+        }
+
+        /**
+         * Chat and embedding roles resolve from ONE catalog, so a runner asked for both is asked
+         * once. Published as beans, so the platform can find them at all.
+         */
+        @Test
+        fun `the three beans are one catalog, so the server is asked once for chat and embeddings`() {
+            val config = createConfig("http://localhost:11434", null)
+
+            // Same instance every time: with proxyBeanMethods = false a bean METHOD building its
+            // own catalog would hand the two resolvers separate caches and double the HTTP.
+            assertSame(config.ollamaLocalModelCatalog(), config.ollamaLocalModelCatalog())
+            assertSame(config.ollamaLocalModelRoleResolver(), config.ollamaLocalModelRoleResolver())
+            assertSame(
+                config.ollamaLocalModelEmbeddingRoleResolver(),
+                config.ollamaLocalModelEmbeddingRoleResolver(),
+            )
+
+            config.ollamaLocalModelCatalog().servedNames(LocalModelKind.CHAT)
+            config.ollamaLocalModelCatalog().servedNames(LocalModelKind.EMBEDDING)
+
+            verify(exactly = 1) { mockRequestHeadersUriSpec.uri("http://localhost:11434/api/tags") }
+        }
+
+        /**
+         * The catalog is what declares late arrival, not the resolvers - they exist whether or not
+         * discovery is on, so asking them would excuse a provider configured never to be asked.
+         */
+        @Test
+        fun `the catalog declares late arrival only while discovery is enabled`() {
+            assertEquals(
+                OllamaModels.PROVIDER,
+                createConfig("http://localhost:11434", null).ollamaLocalModelCatalog().lateArrivingProvider,
+            )
+            assertNull(
+                createConfig(
+                    "http://localhost:11434",
+                    null,
+                    LocalModelDiscoveryProperties(enabled = false),
+                ).ollamaLocalModelCatalog().lateArrivingProvider,
+            )
+        }
+    }
+
     // Helper methods
-    private fun createConfig(baseUrl: String, nodeProperties: OllamaNodeProperties?) =
+    private fun gpuNode() = OllamaNodeProperties().apply {
+        nodes = listOf(OllamaNodeConfig().apply { name = "gpu"; baseUrl = "http://gpu:11434" })
+    }
+
+    /** Spring AI does not expose an embedding model's default options, and they are what is sent. */
+    private fun requestedEmbeddingModel(service: SpringAiEmbeddingService): String? {
+        val field = OllamaEmbeddingModel::class.java.getDeclaredField("options").apply { isAccessible = true }
+        return (field.get(service.model) as OllamaEmbeddingOptions).model
+    }
+
+    private fun createConfig(
+        baseUrl: String,
+        nodeProperties: OllamaNodeProperties?,
+        discovery: LocalModelDiscoveryProperties = LocalModelDiscoveryProperties(),
+    ) =
         OllamaModelsConfig(
             baseUrl = baseUrl,
             nodeProperties = nodeProperties,
             configurableBeanFactory = mockBeanFactory,
             properties = mockProperties,
             observationRegistry = mockObservationRegistry,
+            localModelDiscoveryProperties = discovery,
             restClientBuilder = mockRestClientBuilderProvider,
         )
 }

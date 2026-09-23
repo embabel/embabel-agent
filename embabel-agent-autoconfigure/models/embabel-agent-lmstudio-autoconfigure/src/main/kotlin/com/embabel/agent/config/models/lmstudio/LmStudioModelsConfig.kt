@@ -21,6 +21,16 @@ import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
+import com.embabel.common.ai.model.ConfigurableModelProviderProperties
+import com.embabel.common.ai.model.local.DiscoveryFailureReporter
+import com.embabel.common.ai.model.local.LocalModel
+import com.embabel.common.ai.model.local.LocalModelBeans
+import com.embabel.common.ai.model.local.LocalModelCatalog
+import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
+import com.embabel.common.ai.model.local.LocalModelEmbeddingRoleResolver
+import com.embabel.common.ai.model.local.LocalModelKind
+import com.embabel.common.ai.model.local.LocalModelRoleResolver
+import com.embabel.common.ai.model.local.LocalModelSource
 import com.embabel.common.ai.model.PricingModel
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
@@ -87,10 +97,16 @@ class LmStudioProperties : RetryProperties {
  * and registers them as beans.
  */
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(LmStudioProperties::class)
+@EnableConfigurationProperties(
+    LmStudioProperties::class,
+    ConfigurableModelProviderProperties::class,
+    LocalModelDiscoveryProperties::class,
+)
 class LmStudioModelsConfig(
     private val lmStudioProperties: LmStudioProperties,
     private val configurableBeanFactory: ConfigurableBeanFactory,
+    private val modelProviderProperties: ConfigurableModelProviderProperties,
+    private val localModelDiscoveryProperties: LocalModelDiscoveryProperties,
     observationRegistry: ObjectProvider<ObservationRegistry>,
     @Qualifier("aiModelRestClientBuilder")
     restClientBuilder: ObjectProvider<RestClient.Builder>,
@@ -115,6 +131,8 @@ class LmStudioModelsConfig(
 ) {
 
     private val log = LoggerFactory.getLogger(LmStudioModelsConfig::class.java)
+
+    private val discoveryFailures = DiscoveryFailureReporter(log)
 
     companion object {
         /**
@@ -163,13 +181,7 @@ class LmStudioModelsConfig(
                 .filter  { it.type == LlmType.llm }
                 .forEach { modelData   ->
                 try {
-                    val llm = openAiCompatibleLlm(
-                        model = modelData.key,
-                        pricingModel = PricingModel.ALL_YOU_CAN_EAT,
-                        provider = LmStudioModels.PROVIDER,
-                        knowledgeCutoffDate = null,
-                        retryTemplate = lmStudioProperties.retryTemplate("lmstudio-$modelData.key")
-                    )
+                    val llm = lmStudioLlmOf(modelData.key)
 
                     val beanName = "lmStudioModel-${normalizeModelName(modelData.key)}"
                     configurableBeanFactory.registerSingleton(beanName, llm)
@@ -187,10 +199,7 @@ class LmStudioModelsConfig(
                 .filter  { it.type == LlmType.embedding }
                 .forEach { modelData ->
                     try {
-                        val llm = openAiCompatibleEmbeddingService(
-                            model = modelData.key,
-                            provider = LmStudioModels.PROVIDER
-                        )
+                        val llm = lmStudioEmbeddingServiceOf(modelData.key)
 
                         val beanName = "lmStudioModel-${normalizeModelName(modelData.key)}"
                         configurableBeanFactory.registerSingleton(beanName, llm)
@@ -237,7 +246,7 @@ class LmStudioModelsConfig(
                 "$apiUrl/v1/models"
             }
 
-            log.info("Attempting to fetch models from: {}", url)
+            log.debug("Attempting to fetch models from: {}", url)
 
             val responseBody = restClient.get()
                 .uri(url)
@@ -255,9 +264,10 @@ class LmStudioModelsConfig(
             val objectMapper = ObjectMapper()
             val response = objectMapper.readValue(responseBody, ModelResponse::class.java)
 
+            discoveryFailures.succeeded(lmStudioProperties.baseUrl)
             response.models?: emptyList()
         } catch (e: Exception) {
-            log.warn("Failed to load models from {}: {}", lmStudioProperties.baseUrl, e.message)
+            discoveryFailures.failed(lmStudioProperties.baseUrl, e)
             emptyList()
         }
     }
@@ -269,4 +279,67 @@ class LmStudioModelsConfig(
             .replace("\\", "-")
             .lowercase()
     }
+
+    private fun lmStudioLlmOf(model: String) = openAiCompatibleLlm(
+        model = model,
+        pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+        provider = LmStudioModels.PROVIDER,
+        knowledgeCutoffDate = null,
+        retryTemplate = lmStudioProperties.retryTemplate("lmstudio-$model"),
+    )
+
+    private fun lmStudioEmbeddingServiceOf(model: String) = openAiCompatibleEmbeddingService(
+        model = model,
+        provider = LmStudioModels.PROVIDER,
+    )
+
+    /**
+     * The LM Studio server, asked per call rather than once at startup.
+     *
+     * [lmStudioModelsInitializer] still registers what was loaded at boot; this covers a model
+     * loaded since, which otherwise needed a restart to become usable however plainly LM Studio was
+     * serving it.
+     */
+    private inner class LmStudioModelSource : LocalModelSource {
+
+        override val provider: String = LmStudioModels.PROVIDER
+
+        // LM Studio reports a type per model, so unlike Docker and Ollama this needs no
+        // configuration to tell a chat model from an embedding one.
+        override fun servedModels(): Set<LocalModel> =
+            loadModelsFromUrl().map {
+                LocalModel(
+                    name = it.key,
+                    kind = when (it.type) {
+                        LlmType.embedding -> LocalModelKind.EMBEDDING
+                        LlmType.llm -> LocalModelKind.CHAT
+                    },
+                )
+            }.toSet()
+
+        override fun llmService(model: String) = lmStudioLlmOf(model)
+
+        override fun embeddingService(model: String) = lmStudioEmbeddingServiceOf(model)
+    }
+
+    /**
+     * The catalog and the two resolvers, built once over one [LocalModelSource].
+     *
+     * Lazy, so a configuration that is loaded but never asked for a model never constructs one, and
+     * a field rather than a bean method because with `proxyBeanMethods = false` a bean method called
+     * three times would build three catalogs and the resolvers would stop sharing a cache.
+     */
+    private val localModelBeans: LocalModelBeans by lazy {
+        LocalModelBeans(LmStudioModelSource(), modelProviderProperties, localModelDiscoveryProperties)
+    }
+
+    @Bean
+    fun lmStudioLocalModelCatalog(): LocalModelCatalog = localModelBeans.catalog
+
+    @Bean
+    fun lmStudioLocalModelRoleResolver(): LocalModelRoleResolver = localModelBeans.roleResolver
+
+    @Bean
+    fun lmStudioLocalModelEmbeddingRoleResolver(): LocalModelEmbeddingRoleResolver =
+        localModelBeans.embeddingRoleResolver
 }
