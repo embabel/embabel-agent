@@ -26,7 +26,11 @@ import org.jetbrains.annotations.ApiStatus
 
 @ApiStatus.Experimental
 class DecisionOption<T> private constructor(val id: String, val value: T, val label: String) {
-    init { require(id.isNotBlank() && id.length <= 256 && id.none { it.isWhitespace() }) { "support id must be a nonblank opaque token" }; require(label.isNotBlank()) { "label must not be blank" } }
+    init {
+        require(id.isNotBlank() && id.toByteArray().size <= 256 && id.none { it.isWhitespace() }) { "support id must be a nonblank opaque token" }
+        require(label.isNotBlank()) { "label must not be blank" }
+        DecisionRequestLimits.string(label, "support label")
+    }
     companion object { @JvmStatic fun <T> of(id: String, value: T, label: String) = DecisionOption(id, value, label) }
 }
 

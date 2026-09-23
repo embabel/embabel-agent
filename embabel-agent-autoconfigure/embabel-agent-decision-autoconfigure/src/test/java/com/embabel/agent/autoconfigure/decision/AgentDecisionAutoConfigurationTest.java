@@ -158,8 +158,7 @@ class AgentDecisionAutoConfigurationTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("typeSafeOriginPolicy")
-    void springAndExplicitConstructionShareTheTypeSafeOriginPolicy(String origin, boolean accepted) {
-        assertThat(TypeSafeDecisionModel.supportsBaseUri(URI.create(origin))).isEqualTo(accepted);
+    void springAutoConfigurationRestrictsSecretBearingOrigins(String origin, boolean accepted) {
         runner.withPropertyValues(
                         "embabel.agent.decision.enabled=true",
                         "embabel.agent.decision.provider=typesafe",
@@ -174,7 +173,8 @@ class AgentDecisionAutoConfigurationTest {
 
     static Stream<Arguments> typeSafeOriginPolicy() {
         return Stream.of(
-                Arguments.of("https://example.org", true),
+                Arguments.of("https://api.typesafe.ai", true),
+                Arguments.of("https://example.org", false),
                 Arguments.of("http://127.0.0.1:1234", true),
                 Arguments.of("http://[::1]:1234", true),
                 Arguments.of("http://localhost:1234", false),
@@ -219,7 +219,7 @@ class AgentDecisionAutoConfigurationTest {
                         "embabel.agent.decision.record-allowlist[0]=answerIds",
                         "embabel.agent.decision.mapper-bean-name=selectedMapper",
                         "embabel.agent.decision.typesafe.model=bound-model",
-                        "embabel.agent.decision.typesafe.base-url=https://example.org",
+                        "embabel.agent.decision.typesafe.base-url=https://api.typesafe.ai",
                         "embabel.agent.decision.typesafe.connect-timeout=3s")
                 .withBean("selectedMapper", EmbabelObjectMapperHolder.class, EmbabelObjectMapperHolder::createDefault)
                 .run(context -> {
@@ -233,7 +233,7 @@ class AgentDecisionAutoConfigurationTest {
                     assertThat(properties.getRecordAllowlist()).containsExactly("answerIds");
                     assertThat(properties.getMapperBeanName()).isEqualTo("selectedMapper");
                     assertThat(properties.typesafe().getModel()).isEqualTo("bound-model");
-                    assertThat(properties.typesafe().getBaseUrl()).hasToString("https://example.org");
+                    assertThat(properties.typesafe().getBaseUrl()).hasToString("https://api.typesafe.ai");
                     assertThat(properties.typesafe().getConnectTimeout()).isEqualTo(Duration.ofSeconds(3));
                     assertThat(properties.prompted()).isNull();
                 });

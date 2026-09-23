@@ -31,7 +31,7 @@ import javax.tools.ToolProvider
 
 class TypeSafeDecisionModelTest {
     @Test
-    fun `maps a redacted typed request and resolved provenance through the final facade`() {
+    fun `maps the caller safe typed request and resolved provenance through the final facade`() {
         CaptureServer.replying(resource("success.json")).use { server ->
             val built = request()
             val outcome = TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri))
@@ -44,8 +44,7 @@ class TypeSafeDecisionModelTest {
             assertThat(server.requests.single().headers["Authorization"]?.single()).isEqualTo("Bearer synthetic-bearer")
             assertThat(server.requests.single().headers.entries.first { it.key.equals("Content-Type", true) }.value).contains("application/json")
             assertThat(server.requests.single().headers.entries.first { it.key.equals("Accept", true) }.value).contains("application/json")
-            assertThat(server.requests.single().body).isEqualTo("""{"state":{"text":"synthetic"},"model":"requested-test","questions":{"q_yes":{"type":"noul","instructions":"is this synthetic?","criteria":{"true":"true","false":"false"}},"q_choice":{"type":"choice","instructions":"pick one","criteria":{"s_a":"A","s_b":"B"}},"q_rating":{"type":"score","instructions":"rate it","criteria":["low","high"]}}}""")
-            assertThat(server.requests.single().body).doesNotContain("token", "do-not-send")
+            assertThat(server.requests.single().body).isEqualTo("""{"state":{"token":"do-not-send","text":"synthetic"},"model":"requested-test","questions":{"q_yes":{"type":"noul","instructions":"is this synthetic?","criteria":{"true":"true","false":"false"}},"q_choice":{"type":"choice","instructions":"pick one","criteria":{"s_a":"A","s_b":"B"}},"q_rating":{"type":"score","instructions":"rate it","criteria":["low","high"]}}}""")
             assertThat(success.provenance.requestedModel).isEqualTo("requested-test")
             assertThat(success.provenance.resolvedModel).isEqualTo("resolved-test-v1")
             assertThat(success.provenance.usage?.inputTokens).isEqualTo(7)
@@ -119,6 +118,19 @@ class TypeSafeDecisionModelTest {
     fun `accepts the literal IPv6 loopback origin without resolving credentials`() {
         var credentialCalls = 0
         val model = TypeSafeDecisionModel.create(Supplier { credentialCalls++; "synthetic-bearer" }, "requested-test", URI.create("http://[::1]:8080/"))
+        assertThat(model).isNotNull()
+        assertThat(credentialCalls).isZero()
+    }
+
+    @Test
+    fun `explicit construction retains arbitrary HTTPS custom origins`() {
+        var credentialCalls = 0
+        val model = TypeSafeDecisionModel.create(
+            Supplier { credentialCalls++; "synthetic-bearer" },
+            "requested-test",
+            URI.create("https://decision.example.org"),
+        )
+
         assertThat(model).isNotNull()
         assertThat(credentialCalls).isZero()
     }

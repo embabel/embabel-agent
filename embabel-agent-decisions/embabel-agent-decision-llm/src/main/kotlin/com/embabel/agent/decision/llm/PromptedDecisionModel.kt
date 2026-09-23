@@ -47,6 +47,7 @@ import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.node.ObjectNode
 import java.math.BigDecimal
 import java.math.BigInteger
+import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.time.Instant
 
@@ -89,6 +90,7 @@ class PromptedDecisionModel private constructor() {
                 val schema = schema()
                 if (!hasRemaining(request)) return deadlineFailure()
                 val messages = messages(request)
+                if (outboundBytes(schema, messages) > MAX_OUTBOUND_BYTES) return rejected()
                 if (!hasRemaining(request)) return deadlineFailure()
                 val sender = service.createMessageSender(optionsFor(request))
                 if (!hasRemaining(request)) return deadlineFailure()
@@ -122,6 +124,10 @@ class PromptedDecisionModel private constructor() {
         }
 
         private fun schema(): String = converter.getJsonSchema()
+
+        private fun outboundBytes(schema: String, messages: List<Message>): Long =
+            schema.toByteArray(StandardCharsets.UTF_8).size.toLong() +
+                messages.sumOf { it.content.toByteArray(StandardCharsets.UTF_8).size.toLong() }
 
         private fun messages(request: PreparedDecisionRequest): List<Message> = listOf(
             SystemMessage(SYSTEM_INSTRUCTIONS + "\n" + converter.getFormat()),
@@ -261,6 +267,8 @@ class PromptedDecisionModel private constructor() {
         private fun rejected(): RawDecisionOutcome = RawDecisionOutcome.failure(CallFailure.RejectedRequest, DecisionSafeCode.REJECTED_REQUEST)
         private fun deadlineFailure(): RawDecisionOutcome = RawDecisionOutcome.failure(CallFailure.DeadlineExceeded, DecisionSafeCode.DEADLINE_EXCEEDED)
         private fun hasRemaining(request: PreparedDecisionRequest): Boolean = request.remainingNanos() > 0
+
+        private companion object { const val MAX_OUTBOUND_BYTES = 1_048_576 }
 
         /**
          * The converter provides the schema lifecycle and fallback format. The wire protocol's

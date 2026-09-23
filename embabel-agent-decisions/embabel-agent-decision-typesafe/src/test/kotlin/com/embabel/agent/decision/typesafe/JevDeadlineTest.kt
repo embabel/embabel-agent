@@ -127,6 +127,21 @@ class JevDeadlineTest {
     }
 
     @Test
+    fun `rejects an oversized encoded request before transport dispatch`() {
+        CaptureServer.replying(success()).use { server ->
+            val normal = prepared()
+            val oversized = object : PreparedDecisionRequest by normal {
+                override val state = mapOf("callerProjection" to "x".repeat(1_048_577))
+            }
+
+            val raw = transport(server).invoke(oversized)
+
+            assertThat(raw.callFailure).isEqualTo(CallFailure.RejectedRequest)
+            assertThat(server.requestCount).isZero()
+        }
+    }
+
+    @Test
     fun `bounds stalled headers stalled bodies and oversized bodies by the single deadline`() {
         val headers = CountDownLatch(1)
         CaptureServer.custom { exchange -> headers.await(); exchange.sendResponseHeaders(200, 0) }.use { server ->

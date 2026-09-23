@@ -56,6 +56,21 @@ class PromptedDecisionModelDeadlineTest {
     }
 
     @Test
+    fun `rejects an oversized prompted request before sender dispatch`() {
+        val sender = RecordingDecisionSender.replying(promptedFixture("complete.json"))
+        val provider = providerFrom(PromptedDecisionModel.create(TestDecisionService(sender.forPath(SenderPath.NATIVE)), LlmOptions()))
+        val normal = MutablePreparedRequest(AtomicLong(Duration.ofSeconds(2).toNanos()))
+        val oversized = object : PreparedDecisionRequest by normal {
+            override val state = mapOf("callerProjection" to "x".repeat(1_048_577))
+        }
+
+        val raw = provider.invoke(oversized)
+
+        assertThat(raw.callFailure).isEqualTo(CallFailure.RejectedRequest)
+        assertThat(sender.calls).isZero()
+    }
+
+    @Test
     fun `facade deadline bounds a sender that has definitely entered`() {
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)

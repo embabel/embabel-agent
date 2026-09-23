@@ -88,24 +88,24 @@ class DecisionModelTest {
     }
 
     @Test
-    fun `uses request policy over defaults and does not leak redacted state`() {
+    fun `uses request policy over defaults and transports the caller safe state projection exactly`() {
         val seen = mutableMapOf<String, Any?>()
         val model = DecisionModel(DecisionProvider { prepared ->
             seen.putAll(prepared.state)
             RawDecisionOutcome.success(listOf(RawAnswer.yesNo("safe", .7, "true")),
                 DecisionProvenance.builder("test", EvidenceKind.DISTRIBUTION).build())
         }).withDefaults(Duration.ofMillis(200), DecisionRecordPolicy.none())
-        val builder = DecisionRequest.builder().state(mapOf("token" to "do-not-send", "visible" to "yes"))
+        val builder = DecisionRequest.builder().state(mapOf("token" to "caller-approved", "visible" to "yes"))
         builder.recordPolicy(DecisionRecordPolicy.metadata())
         builder.yesNo("safe", "safe?")
 
         val outcome = model.ask(builder.build()) as DecisionOutcome.Success
-        assertThat(seen).containsEntry("visible", "yes").doesNotContainKey("token")
+        assertThat(seen).containsEntry("visible", "yes").containsEntry("token", "caller-approved")
         assertThat(outcome.record).isNotNull
     }
 
     @Test
-    fun `redacts nested secrets and publishes immutable provider input`() {
+    fun `preserves nested caller projection and publishes immutable provider input`() {
         var nested: Map<String, Any?>? = null
         var mutationRejected = false
         var nestedMutationRejected = false
@@ -137,7 +137,7 @@ class DecisionModelTest {
         }).ask(builder.build())
 
         assertThat(outcome).isInstanceOf(DecisionOutcome.Success::class.java)
-        assertThat(nested).containsEntry("safe", "value").doesNotContainKey("nestedToken")
+        assertThat(nested).containsEntry("safe", "value").containsEntry("nestedToken", "secret")
         assertThat(mutationRejected).isTrue
         assertThat(nestedMutationRejected).isTrue
         assertThat(questionMutationRejected).isTrue
@@ -151,6 +151,75 @@ class DecisionModelTest {
             builder.state(mapOf("outer" to mapOf("valid" to "value", 7 to "unsafe")))
         }.isInstanceOf(IllegalArgumentException::class.java)
             .hasMessageContaining("state map keys must be strings")
+    }
+
+    @Test
+    fun `rejects cyclic and over budget state before provider dispatch`() {
+        val cyclicMap = linkedMapOf<String, Any?>()
+        cyclicMap["self"] = cyclicMap
+        val cyclicList = mutableListOf<Any?>()
+        cyclicList.add(cyclicList)
+        listOf(cyclicMap, mapOf("list" to cyclicList)).forEach { state ->
+            assertThatThrownBy { DecisionRequest.builder().state(state) }
+                .isInstanceOf(IllegalArgumentException::class.java)
+                .hasMessageContaining("cycle")
+        }
+        assertThatThrownBy {
+            DecisionRequest.builder().state(mapOf("nested" to nestedState(DecisionRequestLimits.MAX_NESTING_DEPTH + 1)))
+        }.isInstanceOf(IllegalArgumentException::class.java).hasMessageContaining("nesting")
+        assertThatThrownBy {
+            DecisionRequest.builder().state(mapOf("nodes" to List(DecisionRequestLimits.MAX_STATE_NODES + 1) { it }))
+        }.isInstanceOf(IllegalArgumentException::class.java).hasMessageContaining("nodes")
+        assertThatThrownBy {
+            DecisionRequest.builder().state(mapOf("text" to "é".repeat(DecisionRequestLimits.MAX_STRING_BYTES / 2 + 1)))
+        }.isInstanceOf(IllegalArgumentException::class.java).hasMessageContaining("UTF-8")
+    }
+
+    @Test
+    fun `rejects question support and request byte budgets before provider dispatch`() {
+        val invoked = AtomicLong()
+        val model = DecisionModel(DecisionProvider {
+            invoked.incrementAndGet()
+            RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.DISABLED)
+        })
+        val tooManyQuestions = DecisionRequest.builder()
+        repeat(DecisionRequestLimits.MAX_QUESTIONS) { tooManyQuestions.yesNo("q$it", "question $it") }
+        assertThatThrownBy { tooManyQuestions.yesNo("overflow", "overflow") }
+            .isInstanceOf(IllegalArgumentException::class.java).hasMessageContaining("questions")
+
+        val tooManySupports = List(DecisionRequestLimits.MAX_SUPPORT_PER_QUESTION + 1) {
+            DecisionOption.of("s$it", it, "support $it")
+        }
+        assertThatThrownBy { DecisionRequest.builder().choice("q", "question", tooManySupports) }
+            .isInstanceOf(IllegalArgumentException::class.java).hasMessageContaining("support")
+
+        val builder = DecisionRequest.builder().state(mapOf("chunks" to List(66) { "é".repeat(8_000) }))
+        builder.yesNo("q", "question")
+        val rejected = model.ask(builder.build()) as DecisionOutcome.Failure
+        assertThat(rejected.failure).isEqualTo(CallFailure.RejectedRequest)
+        assertThat(invoked.get()).isZero()
+
+        val accepted = DecisionRequest.builder().state(mapOf("chunks" to List(65) { "é".repeat(8_000) }))
+        accepted.yesNo("q", "question")
+        model.ask(accepted.build())
+        assertThat(invoked.get()).isEqualTo(1)
+    }
+
+    @Test
+    fun `correlation ids are bounded opaque single line values`() {
+        listOf("dice:proposition:42", "revision-2026_09.23", "relation/a-b").forEach { value ->
+            val builder = DecisionRequest.builder().correlationId(value)
+            builder.yesNo("q", "question")
+            assertThat(builder.build()).isNotNull
+            assertThat(DecisionProvenance.builder("dice", EvidenceKind.DISTRIBUTION).correlationId(value).build().correlationId)
+                .isEqualTo(value)
+        }
+        listOf("bad\nvalue", "bad\rvalue", "bad\u0000value", "bad\u0085value", "bad\u200bvalue", "bad\u2028value", "bad\u2029value").forEach { value ->
+            assertThatThrownBy { DecisionRequest.builder().correlationId(value) }
+                .isInstanceOf(IllegalArgumentException::class.java)
+            assertThatThrownBy { DecisionProvenance.builder("dice", EvidenceKind.DISTRIBUTION).correlationId(value) }
+                .isInstanceOf(IllegalArgumentException::class.java)
+        }
     }
 
     @Test
@@ -350,12 +419,14 @@ class DecisionModelTest {
     }
 
     @Test
-    fun `bounds noncooperative work across many models and cancels interruption`() {
+    fun `isolates poisoned capacity per model and cancels interruption`() {
         val workersStarted = CountDownLatch(DecisionExecutionSupport.MAX_WORKERS)
         val release = CountDownLatch(1)
         val workersFinished = CountDownLatch(DecisionExecutionSupport.MAX_WORKERS)
         val callersFinished = CountDownLatch(DecisionExecutionSupport.MAX_WORKERS)
+        val poisonedWorkerNames = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
         val provider = DecisionProvider {
+            poisonedWorkerNames += Thread.currentThread().name
             workersStarted.countDown()
             try {
                 while (release.count > 0) try { release.await() } catch (_: InterruptedException) { }
@@ -366,10 +437,11 @@ class DecisionModelTest {
         }
         val blockingRequest = DecisionRequest.builder().also { it.timeout(Duration.ofSeconds(2)); it.yesNo("safe", "safe?") }.build()
         val saturatedRequest = DecisionRequest.builder().also { it.timeout(Duration.ofMillis(100)); it.yesNo("safe", "safe?") }.build()
+        val poisoned = DecisionModel(provider)
         val callers = List(DecisionExecutionSupport.MAX_WORKERS) {
             Thread {
                 try {
-                    DecisionModel(provider).ask(blockingRequest)
+                    poisoned.ask(blockingRequest)
                 } finally {
                     callersFinished.countDown()
                 }
@@ -379,10 +451,17 @@ class DecisionModelTest {
             callers.forEach(Thread::start)
             assertThat(workersStarted.await(1, TimeUnit.SECONDS)).isTrue
             (1..24).forEach {
-                val outcome = DecisionModel(provider).ask(saturatedRequest) as DecisionOutcome.Failure
+                val outcome = poisoned.ask(saturatedRequest) as DecisionOutcome.Failure
                 assertThat(outcome.failure).isEqualTo(CallFailure.Unavailable)
             }
-            assertThat(Thread.getAllStackTraces().keys.count { it.name == "embabel-decision" && it.isAlive }).isLessThanOrEqualTo(4)
+            val healthy = DecisionModel(DecisionProvider {
+                RawDecisionOutcome.success(
+                    listOf(RawAnswer.yesNo("yes", 1.0, "true")),
+                    DecisionProvenance.builder("healthy", EvidenceKind.DISTRIBUTION).build(),
+                )
+            })
+            assertThat(healthy.ask(yesNoRequest())).isInstanceOf(DecisionOutcome.Success::class.java)
+            assertThat(poisonedWorkerNames).hasSize(DecisionExecutionSupport.MAX_WORKERS)
             val disabled = NoDecisionModel.create().ask(yesNoRequest()) as DecisionOutcome.Failure
             assertThat(disabled.failure).isEqualTo(CallFailure.Disabled)
             assertThat(disabled.safeCode).isEqualTo(DecisionSafeCode.DISABLED)
@@ -420,6 +499,45 @@ class DecisionModelTest {
             callers.forEach(Thread::interrupt)
         }
     }
+
+    @Test
+    fun `fresh model succeeds after a poisoned model reaches every deadline`() {
+        val entered = CountDownLatch(DecisionExecutionSupport.MAX_WORKERS)
+        val start = CountDownLatch(1)
+        val poisoned = DecisionModel(DecisionProvider {
+            entered.countDown()
+            while (true) {
+                java.util.concurrent.locks.LockSupport.parkNanos(Duration.ofMillis(1).toNanos())
+                Thread.interrupted()
+            }
+            @Suppress("UNREACHABLE_CODE")
+            RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE)
+        })
+        val request = DecisionRequest.builder().also {
+            it.timeout(Duration.ofMillis(500))
+            it.yesNo("yes", "yes?")
+        }.build()
+        val callers = List(DecisionExecutionSupport.MAX_WORKERS) {
+            Thread {
+                start.await()
+                poisoned.ask(request)
+            }.also(Thread::start)
+        }
+        start.countDown()
+        assertThat(entered.await(1, TimeUnit.SECONDS)).isTrue
+        callers.forEach { it.join(1_000) }
+        assertThat(callers).allMatch { !it.isAlive }
+
+        val healthy = DecisionModel(DecisionProvider {
+            RawDecisionOutcome.success(
+                listOf(RawAnswer.yesNo("yes", 1.0, "true")),
+                DecisionProvenance.builder("healthy", EvidenceKind.DISTRIBUTION).build(),
+            )
+        })
+        assertThat(healthy.ask(yesNoRequest())).isInstanceOf(DecisionOutcome.Success::class.java)
+    }
+
+    private fun nestedState(depth: Int): Any? = if (depth == 0) "leaf" else mapOf("next" to nestedState(depth - 1))
 
     private fun serializedRecordBytes(fields: Map<String, String>): Int = fields.entries.joinToString(",", "{", "}") { (key, value) ->
         "${jsonString(key)}:${jsonString(value)}"

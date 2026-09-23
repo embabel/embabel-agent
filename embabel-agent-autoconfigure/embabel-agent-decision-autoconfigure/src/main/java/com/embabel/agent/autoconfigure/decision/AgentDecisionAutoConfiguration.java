@@ -36,6 +36,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 
 import java.time.Duration;
+import java.net.URI;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -67,7 +68,7 @@ public class AgentDecisionAutoConfiguration {
 
     private DecisionModel typesafe(DecisionProperties properties, Environment environment, BeanFactory beanFactory) {
         var selected = properties.typesafe();
-        if (!TypeSafeDecisionModel.supportsBaseUri(selected.getBaseUrl())) throw invalid("typesafe.base-url");
+        if (!supportsAutoConfiguredTypeSafeOrigin(selected.getBaseUrl())) throw invalid("typesafe.base-url");
         EmbabelObjectMapperHolder mapper = mapper(properties, beanFactory);
         Supplier<String> apiKey = () -> {
             String configured = environment.getProperty(PREFIX + ".typesafe.api-key");
@@ -176,7 +177,7 @@ public class AgentDecisionAutoConfiguration {
     private static void validateTypesafe(DecisionProperties.Typesafe properties) {
         requiredName(properties.getModel(), "typesafe.model");
         positive(properties.getConnectTimeout(), "typesafe.connect-timeout");
-        if (!TypeSafeDecisionModel.supportsBaseUri(properties.getBaseUrl())) throw invalid("typesafe.base-url");
+        if (!supportsAutoConfiguredTypeSafeOrigin(properties.getBaseUrl())) throw invalid("typesafe.base-url");
     }
 
     private static void validatePrompted(DecisionProperties.Prompted properties) {
@@ -199,6 +200,20 @@ public class AgentDecisionAutoConfiguration {
 
     private static void optionalName(String value, String key) {
         if (value != null && value.isBlank()) throw invalid(key);
+    }
+
+    private static boolean supportsAutoConfiguredTypeSafeOrigin(URI uri) {
+        if (!uri.isAbsolute()
+                || uri.getUserInfo() != null
+                || uri.getQuery() != null
+                || uri.getFragment() != null
+                || !(uri.getPath().isEmpty() || "/".equals(uri.getPath()))) return false;
+        String host = uri.getHost();
+        if (("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
+                && ("127.0.0.1".equals(host) || "::1".equals(host) || "[::1]".equals(host))) return true;
+        return "https".equalsIgnoreCase(uri.getScheme())
+                && "api.typesafe.ai".equalsIgnoreCase(host)
+                && uri.getPort() == -1;
     }
 
     private static IllegalStateException invalid(String suffix) {

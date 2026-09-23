@@ -21,13 +21,13 @@ import java.time.Instant
 import java.util.Collections
 
 /**
- * The immutable, redacted request passed to a [DecisionProvider].
+ * The immutable caller-approved request passed to a [DecisionProvider].
  *
  * One instance exists for one [DecisionModel.ask] call. A provider may read it only for the
  * duration of [DecisionProvider.invoke] and must not retain it or any nested state, question, or
- * support value. All collections are immutable snapshots. The facade removes state entries whose
- * keys look like credentials before this boundary, but providers must still treat state and
- * question text as sensitive application data.
+ * support value. All collections are immutable snapshots. [state] is transported exactly as the
+ * caller supplies it; callers must project only data that is safe for the selected provider.
+ * Providers must treat state and question text as sensitive application data.
  *
  * [deadlineNanos] is an absolute value from the facade's monotonic clock. It is meaningful only in
  * the current process and clock domain; do not compare it with wall-clock time or persist it.
@@ -136,10 +136,7 @@ class DecisionProvenance private constructor(
         override fun adapterVersion(value: String) = apply { adapterVersion = text(value) }
         override fun promptVersion(value: String) = apply { promptVersion = text(value) }
         override fun requestId(value: String) = apply { requestId = text(value) }
-        override fun correlationId(value: String) = apply {
-            require(value.isNotBlank() && value.toByteArray(StandardCharsets.UTF_8).size <= 256)
-            correlationId = value
-        }
+        override fun correlationId(value: String) = apply { correlationId = DecisionRequestLimits.correlationId(value) }
         override fun questionFingerprint(value: String) = apply { fingerprint = text(value) }
         override fun timestamp(value: Instant) = apply { timestamp = value }
         override fun usage(inputTokens: Int, outputTokens: Int) = apply {
@@ -278,7 +275,8 @@ class RawDecisionOutcome private constructor(
  * Provider SPI behind the final [DecisionModel] facade.
  *
  * A provider instance can receive concurrent invocations and must be thread-safe. The facade invokes
- * it once per ask on a bounded worker pool, applies the request's single monotonic deadline, and owns
+ * it once per ask on a worker pool bounded to that [DecisionModel], applies the request's single
+ * monotonic deadline, and owns
  * all schema, probability, selection, provenance, and record validation. Providers return raw
  * evidence only; they do not construct trusted outcomes or choose application actions.
  *
@@ -288,6 +286,7 @@ class RawDecisionOutcome private constructor(
  * must not publish side effects after the deadline. An uncaught exception maps to call-level
  * `Unavailable`; caller interruption maps to `Cancelled`; an overrun maps to `DeadlineExceeded`.
  * Implementations must not return `null` or retain the prepared request after this method returns.
+ * Close a model that is no longer used to interrupt its workers and release its execution capacity.
  */
 @ApiStatus.Experimental
 fun interface DecisionProvider {

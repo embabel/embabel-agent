@@ -50,6 +50,7 @@ internal class JevTransport(
         val key = try { apiKey.get() } catch (_: Exception) { return unavailable() }
         if (key.isNullOrBlank() || key.contains('\r') || key.contains('\n')) return unavailable()
         val payload = try { codec.encode(request, model) } catch (_: Exception) { return rejected() }
+        if (payload.size > MAX_OUTBOUND_BYTES) return rejected()
         var firstStatus: Int? = null
         for (attempt in 0..1) {
             if (remaining(request) == null) return deadline()
@@ -148,5 +149,8 @@ internal class JevTransport(
         override fun onComplete() { result.complete(bytes.toByteArray()) }
     }
 
-    private companion object { const val MAX_BODY_BYTES = 1_048_576 }
+    private companion object {
+        const val MAX_BODY_BYTES = 1_048_576
+        const val MAX_OUTBOUND_BYTES = 1_048_576
+    }
 }

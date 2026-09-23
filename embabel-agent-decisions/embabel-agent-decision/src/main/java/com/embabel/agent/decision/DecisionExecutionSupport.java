@@ -22,30 +22,38 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
-final class DecisionExecutionSupport {
+final class DecisionExecutionSupport implements AutoCloseable {
     static final int MAX_WORKERS = 4;
+    private static final AtomicLong POOL_IDS = new AtomicLong();
 
-    private static final ThreadPoolExecutor EXECUTOR = new ThreadPoolExecutor(
-        MAX_WORKERS,
-        MAX_WORKERS,
+    private final ThreadPoolExecutor executor = new ThreadPoolExecutor(
         0,
-        TimeUnit.NANOSECONDS,
+        MAX_WORKERS,
+        30,
+        TimeUnit.SECONDS,
         new SynchronousQueue<>(),
-        daemonThreads(),
+        daemonThreads(POOL_IDS.incrementAndGet()),
         new ThreadPoolExecutor.AbortPolicy()
     );
 
-    private DecisionExecutionSupport() {
+    DecisionExecutionSupport() {
     }
 
-    static Future<RawDecisionOutcome> submit(Callable<RawDecisionOutcome> work) throws RejectedExecutionException {
-        return EXECUTOR.submit(work);
+    Future<RawDecisionOutcome> submit(Callable<RawDecisionOutcome> work) throws RejectedExecutionException {
+        return executor.submit(work);
     }
 
-    private static ThreadFactory daemonThreads() {
+    @Override
+    public void close() {
+        executor.shutdownNow();
+    }
+
+    private static ThreadFactory daemonThreads(long poolId) {
+        AtomicLong threadIds = new AtomicLong();
         return runnable -> {
-            Thread thread = new Thread(runnable, "embabel-decision");
+            Thread thread = new Thread(runnable, "embabel-decision-" + poolId + "-" + threadIds.incrementAndGet());
             thread.setDaemon(true);
             return thread;
         };
