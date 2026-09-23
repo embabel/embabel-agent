@@ -15,7 +15,7 @@
  */
 package com.embabel.common.ai.model
 
-import com.embabel.agent.decision.DecisionModel
+import com.embabel.agent.decision.api.DecisionModel
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.PlaceholderLlmService
 import com.embabel.agent.spi.support.DecisionExecutionContextBridge

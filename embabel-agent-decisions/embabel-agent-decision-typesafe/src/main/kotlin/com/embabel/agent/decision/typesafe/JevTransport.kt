@@ -15,11 +15,11 @@
  */
 package com.embabel.agent.decision.typesafe
 
-import com.embabel.agent.decision.CallFailure
-import com.embabel.agent.decision.DecisionSafeCode
-import com.embabel.agent.decision.DecisionTelemetryEvent
-import com.embabel.agent.decision.PreparedDecisionRequest
-import com.embabel.agent.decision.RawDecisionOutcome
+import com.embabel.agent.decision.api.CallFailure
+import com.embabel.agent.decision.api.DecisionSafeCode
+import com.embabel.agent.decision.api.DecisionTelemetryEvent
+import com.embabel.agent.decision.api.PreparedDecisionRequest
+import com.embabel.agent.decision.api.RawDecisionOutcome
 import java.io.ByteArrayOutputStream
 import java.io.InterruptedIOException
 import java.net.URI

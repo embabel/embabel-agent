@@ -15,17 +15,17 @@
  */
 package com.embabel.agent.observability.decision;
 
-import com.embabel.agent.decision.CallFailure;
-import com.embabel.agent.decision.DecisionModel;
-import com.embabel.agent.decision.DecisionOutcome;
-import com.embabel.agent.decision.DecisionProvenance;
-import com.embabel.agent.decision.DecisionRequest;
-import com.embabel.agent.decision.DecisionSafeCode;
-import com.embabel.agent.decision.DecisionTelemetryEvent;
-import com.embabel.agent.decision.EvidenceKind;
-import com.embabel.agent.decision.KeyFailure;
-import com.embabel.agent.decision.RawAnswer;
-import com.embabel.agent.decision.RawDecisionOutcome;
+import com.embabel.agent.decision.api.CallFailure;
+import com.embabel.agent.decision.api.DecisionModel;
+import com.embabel.agent.decision.api.DecisionOutcome;
+import com.embabel.agent.decision.api.DecisionProvenance;
+import com.embabel.agent.decision.api.DecisionRequest;
+import com.embabel.agent.decision.api.DecisionSafeCode;
+import com.embabel.agent.decision.api.DecisionTelemetryEvent;
+import com.embabel.agent.decision.api.EvidenceKind;
+import com.embabel.agent.decision.api.KeyFailure;
+import com.embabel.agent.decision.api.RawAnswer;
+import com.embabel.agent.decision.api.RawDecisionOutcome;
 import io.micrometer.context.ContextRegistry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler;

@@ -15,12 +15,12 @@
  */
 package com.embabel.agent.autoconfigure.observability;
 
-import com.embabel.agent.decision.DecisionModel;
-import com.embabel.agent.decision.DecisionProvenance;
-import com.embabel.agent.decision.DecisionRequest;
-import com.embabel.agent.decision.EvidenceKind;
-import com.embabel.agent.decision.RawAnswer;
-import com.embabel.agent.decision.RawDecisionOutcome;
+import com.embabel.agent.decision.api.DecisionModel;
+import com.embabel.agent.decision.api.DecisionProvenance;
+import com.embabel.agent.decision.api.DecisionRequest;
+import com.embabel.agent.decision.api.EvidenceKind;
+import com.embabel.agent.decision.api.RawAnswer;
+import com.embabel.agent.decision.api.RawDecisionOutcome;
 import com.embabel.agent.observability.decision.DecisionMicrometerInstrumentation;
 import io.micrometer.context.ContextRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;

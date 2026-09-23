@@ -15,16 +15,17 @@
  */
 package com.embabel.agent.decision.llm
 
-import com.embabel.agent.decision.CallFailure
-import com.embabel.agent.decision.DecisionKind
-import com.embabel.agent.decision.DecisionModel
-import com.embabel.agent.decision.DecisionOutcome
-import com.embabel.agent.decision.DecisionProvider
-import com.embabel.agent.decision.DecisionRecordPolicy
-import com.embabel.agent.decision.DecisionTelemetryEvent
-import com.embabel.agent.decision.PreparedDecisionRequest
-import com.embabel.agent.decision.PreparedQuestion
-import com.embabel.agent.decision.PreparedSupport
+import com.embabel.agent.decision.api.llm.PromptedDecisionModel
+import com.embabel.agent.decision.api.CallFailure
+import com.embabel.agent.decision.api.DecisionKind
+import com.embabel.agent.decision.api.DecisionModel
+import com.embabel.agent.decision.api.DecisionOutcome
+import com.embabel.agent.decision.api.DecisionProvider
+import com.embabel.agent.decision.api.DecisionRecordPolicy
+import com.embabel.agent.decision.api.DecisionTelemetryEvent
+import com.embabel.agent.decision.api.PreparedDecisionRequest
+import com.embabel.agent.decision.api.PreparedQuestion
+import com.embabel.agent.decision.api.PreparedSupport
 import com.embabel.agent.spi.loop.LlmMessageResponse
 import com.embabel.chat.AssistantMessage
 import com.embabel.common.ai.model.LlmOptions
@@ -155,7 +156,7 @@ class PromptedDecisionModelDeadlineTest {
             TestDecisionService(sender.forPath(SenderPath.LEGACY)),
             LlmOptions(),
         )
-        val request = com.embabel.agent.decision.DecisionRequest.builder()
+        val request = com.embabel.agent.decision.api.DecisionRequest.builder()
             .timeout(Duration.ofMillis(500))
             .also { it.yesNo("safe", "Is this safe?") }
             .build()
@@ -185,7 +186,7 @@ class PromptedDecisionModelDeadlineTest {
             TestDecisionService(sender.forPath(SenderPath.LEGACY)),
             LlmOptions(),
         )
-        val request = com.embabel.agent.decision.DecisionRequest.builder()
+        val request = com.embabel.agent.decision.api.DecisionRequest.builder()
             .timeout(Duration.ofSeconds(5))
             .also { it.yesNo("safe", "Is this safe?") }
             .build()

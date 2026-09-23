@@ -15,16 +15,16 @@
  */
 package com.embabel.agent.autoconfigure.decision;
 
-import com.embabel.agent.decision.CallFailure;
-import com.embabel.agent.decision.DecisionCompletion;
-import com.embabel.agent.decision.DecisionInstrumentation;
-import com.embabel.agent.decision.DecisionModel;
-import com.embabel.agent.decision.DecisionModelInitialization;
-import com.embabel.agent.decision.DecisionObservation;
-import com.embabel.agent.decision.DecisionOutcome;
-import com.embabel.agent.decision.DecisionRequest;
-import com.embabel.agent.decision.DecisionTelemetryEvent;
-import com.embabel.agent.decision.NoDecisionModel;
+import com.embabel.agent.decision.api.CallFailure;
+import com.embabel.agent.decision.api.DecisionCompletion;
+import com.embabel.agent.decision.api.DecisionInstrumentation;
+import com.embabel.agent.decision.api.DecisionModel;
+import com.embabel.agent.decision.api.DecisionModelInitialization;
+import com.embabel.agent.decision.api.DecisionObservation;
+import com.embabel.agent.decision.api.DecisionOutcome;
+import com.embabel.agent.decision.api.DecisionRequest;
+import com.embabel.agent.decision.api.DecisionTelemetryEvent;
+import com.embabel.agent.decision.api.NoDecisionModel;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.spi.LlmService;
 import com.embabel.agent.spi.config.spring.AgentPlatformConfiguration;

@@ -15,13 +15,13 @@
  */
 package com.embabel.agent.autoconfigure.decision;
 
-import com.embabel.agent.decision.DecisionModel;
-import com.embabel.agent.decision.DecisionInstrumentation;
-import com.embabel.agent.decision.DecisionModelInitialization;
-import com.embabel.agent.decision.DecisionRecordPolicy;
-import com.embabel.agent.decision.NoDecisionModel;
-import com.embabel.agent.decision.llm.PromptedDecisionModel;
-import com.embabel.agent.decision.typesafe.TypeSafeDecisionModel;
+import com.embabel.agent.decision.api.DecisionModel;
+import com.embabel.agent.decision.api.DecisionInstrumentation;
+import com.embabel.agent.decision.api.DecisionModelInitialization;
+import com.embabel.agent.decision.api.DecisionRecordPolicy;
+import com.embabel.agent.decision.api.NoDecisionModel;
+import com.embabel.agent.decision.api.llm.PromptedDecisionModel;
+import com.embabel.agent.decision.api.typesafe.TypeSafeDecisionModel;
 import com.embabel.agent.spi.LlmService;
 import com.embabel.common.ai.autoconfig.ProviderInitialization;
 import com.embabel.common.ai.model.LlmOptions;

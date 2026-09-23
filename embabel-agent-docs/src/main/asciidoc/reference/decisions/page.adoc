@@ -5,6 +5,8 @@ Decisions are the experimental third Embabel model type, alongside language mode
 
 For explicit use, depend on `com.embabel.agent:embabel-agent-decision` and one provider leaf, normally `com.embabel.agent:embabel-agent-decision-typesafe`. Spring Boot applications can opt into `com.embabel.agent:embabel-agent-starter-decision`. The `embabel-agent-decisions` aggregate is Maven packaging only.
 
+Public contracts are under `com.embabel.agent.decision.api`. Provider factories are under `com.embabel.agent.decision.api.typesafe` and `com.embabel.agent.decision.api.llm`; their transport, codec, and provider implementations remain in implementation packages.
+
 ==== Configurations and modules
 
 Four built-in products ship in this release and create the same final facade:

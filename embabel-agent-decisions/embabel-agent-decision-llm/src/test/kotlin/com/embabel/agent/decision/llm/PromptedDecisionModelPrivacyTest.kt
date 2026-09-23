@@ -15,15 +15,16 @@
  */
 package com.embabel.agent.decision.llm
 
+import com.embabel.agent.decision.api.llm.PromptedDecisionModel
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
-import com.embabel.agent.decision.CallFailure
-import com.embabel.agent.decision.DecisionOption
-import com.embabel.agent.decision.DecisionOutcome
-import com.embabel.agent.decision.DecisionRecordPolicy
-import com.embabel.agent.decision.DecisionRequest
-import com.embabel.agent.decision.RecordMode
+import com.embabel.agent.decision.api.CallFailure
+import com.embabel.agent.decision.api.DecisionOption
+import com.embabel.agent.decision.api.DecisionOutcome
+import com.embabel.agent.decision.api.DecisionRecordPolicy
+import com.embabel.agent.decision.api.DecisionRequest
+import com.embabel.agent.decision.api.RecordMode
 import com.embabel.common.ai.model.LlmOptions
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.params.ParameterizedTest

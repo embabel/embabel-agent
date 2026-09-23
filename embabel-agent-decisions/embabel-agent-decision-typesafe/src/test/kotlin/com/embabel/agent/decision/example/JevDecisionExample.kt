@@ -16,12 +16,12 @@
 package com.embabel.agent.decision.example
 
 // tag::kotlin-consumer[]
-import com.embabel.agent.decision.DecisionModel
-import com.embabel.agent.decision.DecisionOption
-import com.embabel.agent.decision.DecisionOutcome
-import com.embabel.agent.decision.DecisionRequest
-import com.embabel.agent.decision.KeyOutcome
-import com.embabel.agent.decision.typesafe.TypeSafeDecisionModel
+import com.embabel.agent.decision.api.DecisionModel
+import com.embabel.agent.decision.api.DecisionOption
+import com.embabel.agent.decision.api.DecisionOutcome
+import com.embabel.agent.decision.api.DecisionRequest
+import com.embabel.agent.decision.api.KeyOutcome
+import com.embabel.agent.decision.api.typesafe.TypeSafeDecisionModel
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
 import java.time.Duration
@@ -35,7 +35,7 @@ data class KotlinDecisionEvidence(
     val route: KotlinRoute,
     val urgency: KotlinUrgency,
     val routeDistribution: Map<KotlinRoute, Double>,
-    val provenance: com.embabel.agent.decision.DecisionProvenance,
+    val provenance: com.embabel.agent.decision.api.DecisionProvenance,
 )
 
 fun runKotlinDecision(model: DecisionModel): KotlinDecisionEvidence =
@@ -101,7 +101,7 @@ fun main() {
     val requestedModel = System.getenv("TYPESAFE_MODEL")?.takeIf(String::isNotBlank)
         ?: error("TYPESAFE_MODEL is required; no network request was made")
     val model = TypeSafeDecisionModel.create(Supplier { key }, requestedModel)
-        .withDefaults(Duration.ofSeconds(20), com.embabel.agent.decision.DecisionRecordPolicy.metadata())
+        .withDefaults(Duration.ofSeconds(20), com.embabel.agent.decision.api.DecisionRecordPolicy.metadata())
     val evidence = runKotlinDecision(model)
     println("Decision completed with ${evidence.provenance.evidenceKind} evidence from ${evidence.provenance.resolvedModel}")
 }

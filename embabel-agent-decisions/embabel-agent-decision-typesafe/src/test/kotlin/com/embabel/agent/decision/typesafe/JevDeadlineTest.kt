@@ -15,19 +15,20 @@
  */
 package com.embabel.agent.decision.typesafe
 
-import com.embabel.agent.decision.CallFailure
-import com.embabel.agent.decision.DecisionModel
-import com.embabel.agent.decision.DecisionCompletion
-import com.embabel.agent.decision.DecisionInstrumentation
-import com.embabel.agent.decision.DecisionObservation
-import com.embabel.agent.decision.DecisionObservationContext
-import com.embabel.agent.decision.DecisionOutcome
-import com.embabel.agent.decision.DecisionProvider
-import com.embabel.agent.decision.DecisionRequest
-import com.embabel.agent.decision.DecisionSafeCode
-import com.embabel.agent.decision.DecisionTelemetryEvent
-import com.embabel.agent.decision.PreparedDecisionRequest
-import com.embabel.agent.decision.RawDecisionOutcome
+import com.embabel.agent.decision.api.typesafe.TypeSafeDecisionModel
+import com.embabel.agent.decision.api.CallFailure
+import com.embabel.agent.decision.api.DecisionModel
+import com.embabel.agent.decision.api.DecisionCompletion
+import com.embabel.agent.decision.api.DecisionInstrumentation
+import com.embabel.agent.decision.api.DecisionObservation
+import com.embabel.agent.decision.api.DecisionObservationContext
+import com.embabel.agent.decision.api.DecisionOutcome
+import com.embabel.agent.decision.api.DecisionProvider
+import com.embabel.agent.decision.api.DecisionRequest
+import com.embabel.agent.decision.api.DecisionSafeCode
+import com.embabel.agent.decision.api.DecisionTelemetryEvent
+import com.embabel.agent.decision.api.PreparedDecisionRequest
+import com.embabel.agent.decision.api.RawDecisionOutcome
 import com.embabel.common.util.EmbabelObjectMapperHolder
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
@@ -502,7 +503,7 @@ class JevDeadlineTest {
         return builder.build()
     }
     private fun model(server: CaptureServer, timeout: Duration = Duration.ofSeconds(2)) =
-        TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri)).withDefaults(timeout, com.embabel.agent.decision.DecisionRecordPolicy.metadata())
+        TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri)).withDefaults(timeout, com.embabel.agent.decision.api.DecisionRecordPolicy.metadata())
 
     private fun prepared(): PreparedDecisionRequest {
         var captured: PreparedDecisionRequest? = null

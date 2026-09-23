@@ -15,14 +15,15 @@
  */
 package com.embabel.agent.decision.llm;
 
-import com.embabel.agent.decision.ChoiceKey;
-import com.embabel.agent.decision.DecisionModel;
-import com.embabel.agent.decision.DecisionOption;
-import com.embabel.agent.decision.DecisionOutcome;
-import com.embabel.agent.decision.DecisionRequest;
-import com.embabel.agent.decision.KeyOutcome;
-import com.embabel.agent.decision.RatingKey;
-import com.embabel.agent.decision.YesNoKey;
+import com.embabel.agent.decision.api.ChoiceKey;
+import com.embabel.agent.decision.api.DecisionModel;
+import com.embabel.agent.decision.api.DecisionOption;
+import com.embabel.agent.decision.api.DecisionOutcome;
+import com.embabel.agent.decision.api.DecisionRequest;
+import com.embabel.agent.decision.api.KeyOutcome;
+import com.embabel.agent.decision.api.RatingKey;
+import com.embabel.agent.decision.api.YesNoKey;
+import com.embabel.agent.decision.api.llm.PromptedDecisionModel;
 import com.embabel.agent.spi.LlmService;
 import com.embabel.agent.spi.loop.LlmMessageResponse;
 import com.embabel.agent.spi.loop.LlmMessageSender;
@@ -87,7 +88,7 @@ class PromptedDecisionModelJavaTest {
         Path directory = Files.createTempDirectory("prompted-decision-java-");
         Path source = directory.resolve("Consumer.java");
         Files.writeString(source, """
-                import com.embabel.agent.decision.*;
+                import com.embabel.agent.decision.api.*;
                 class Consumer {
                   void check(DecisionOutcome.Success result, YesNoKey yes, ChoiceKey<String> choice, RatingKey<Integer> rating) {
                     KeyOutcome<Boolean> a = result.answer(yes);

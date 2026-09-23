@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.decision;
+package com.embabel.agent.decision.api;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -156,7 +156,7 @@ class DecisionModelJavaTest {
         assertNotNull(compiler);
         String classpath = System.getProperty("java.class.path");
         String positive = """
-            import com.embabel.agent.decision.*;
+            import com.embabel.agent.decision.api.*;
             import java.util.List;
             class PositiveConsumer {
                 String use() {
@@ -175,7 +175,7 @@ class DecisionModelJavaTest {
             }
             """;
         String bypass = """
-            import com.embabel.agent.decision.*;
+            import com.embabel.agent.decision.api.*;
             import java.time.Duration;
             class FacadeBypass {
                 DecisionModel bypass(DecisionProvider provider) {
@@ -184,7 +184,7 @@ class DecisionModelJavaTest {
             }
             """;
         String forge = """
-            import com.embabel.agent.decision.*;
+            import com.embabel.agent.decision.api.*;
             class ForgeDecisionSuccess extends DecisionOutcome {
                 ForgeDecisionSuccess() { }
             }

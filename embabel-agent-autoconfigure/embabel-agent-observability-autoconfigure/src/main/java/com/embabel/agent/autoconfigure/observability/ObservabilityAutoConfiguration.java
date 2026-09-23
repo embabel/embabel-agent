@@ -30,8 +30,8 @@ import com.embabel.agent.observability.tracing.EmbabelToolLoopObservationConvent
 import com.embabel.agent.api.event.observation.AgentInstrumentation;
 import com.embabel.agent.observability.metrics.EmbabelMetricsEventListener;
 import com.embabel.agent.observability.decision.DecisionMicrometerInstrumentation;
-import com.embabel.agent.decision.DecisionInstrumentation;
-import com.embabel.agent.decision.DecisionModel;
+import com.embabel.agent.decision.api.DecisionInstrumentation;
+import com.embabel.agent.decision.api.DecisionModel;
 import com.embabel.agent.observability.tracing.MicrometerAgentInstrumentation;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
@@ -343,7 +343,7 @@ public class ObservabilityAutoConfiguration {
     /** Supplies the optional decision adapter without making the decision starter depend on monitoring. */
     @Bean
     @Lazy
-    @ConditionalOnClass(name = "com.embabel.agent.decision.DecisionInstrumentation")
+    @ConditionalOnClass(name = "com.embabel.agent.decision.api.DecisionInstrumentation")
     @ConditionalOnMissingBean(DecisionInstrumentation.class)
     public DecisionInstrumentation decisionInstrumentation(
             ObjectProvider<ObservationRegistry> observationRegistryProvider,
@@ -364,7 +364,7 @@ public class ObservabilityAutoConfiguration {
     /** Installs the optional adapter on user-defined decision beans without replacing explicit choices. */
     @Bean
     @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
-    @ConditionalOnClass(name = "com.embabel.agent.decision.DecisionModel")
+    @ConditionalOnClass(name = "com.embabel.agent.decision.api.DecisionModel")
     public static BeanPostProcessor decisionInstrumentationPostProcessor(
             ObjectProvider<DecisionInstrumentation> instrumentationProvider) {
         return new BeanPostProcessor() {

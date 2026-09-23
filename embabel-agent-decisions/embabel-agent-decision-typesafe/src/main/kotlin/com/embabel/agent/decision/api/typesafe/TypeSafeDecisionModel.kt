@@ -13,10 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.decision.typesafe
+package com.embabel.agent.decision.api.typesafe
 
-import com.embabel.agent.decision.DecisionModel
-import com.embabel.agent.decision.DecisionProvider
+import com.embabel.agent.decision.typesafe.JevTransport
+import com.embabel.agent.decision.typesafe.JevWireCodec
+import com.embabel.agent.decision.api.DecisionModel
+import com.embabel.agent.decision.api.DecisionProvider
 import com.embabel.common.util.EmbabelObjectMapperHolder
 import org.jetbrains.annotations.ApiStatus
 import java.net.URI

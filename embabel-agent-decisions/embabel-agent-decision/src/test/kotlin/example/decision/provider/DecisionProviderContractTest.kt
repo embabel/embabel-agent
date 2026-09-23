@@ -15,11 +15,11 @@
  */
 package example.decision.provider
 
-import com.embabel.agent.decision.DecisionOutcome
-import com.embabel.agent.decision.DecisionRecord
-import com.embabel.agent.decision.DecisionRecordPolicy
-import com.embabel.agent.decision.DecisionRequest
-import com.embabel.agent.decision.KeyOutcome
+import com.embabel.agent.decision.api.DecisionOutcome
+import com.embabel.agent.decision.api.DecisionRecord
+import com.embabel.agent.decision.api.DecisionRecordPolicy
+import com.embabel.agent.decision.api.DecisionRequest
+import com.embabel.agent.decision.api.KeyOutcome
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 

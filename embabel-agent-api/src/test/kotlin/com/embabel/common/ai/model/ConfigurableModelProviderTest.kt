@@ -15,11 +15,11 @@
  */
 package com.embabel.common.ai.model
 
-import com.embabel.agent.decision.CallFailure
-import com.embabel.agent.decision.DecisionModel
-import com.embabel.agent.decision.DecisionProvider
-import com.embabel.agent.decision.DecisionSafeCode
-import com.embabel.agent.decision.RawDecisionOutcome
+import com.embabel.agent.decision.api.CallFailure
+import com.embabel.agent.decision.api.DecisionModel
+import com.embabel.agent.decision.api.DecisionProvider
+import com.embabel.agent.decision.api.DecisionSafeCode
+import com.embabel.agent.decision.api.RawDecisionOutcome
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.PlaceholderEmbeddingService
 import com.embabel.agent.spi.PlaceholderLlmService

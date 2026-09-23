@@ -15,17 +15,18 @@
  */
 package com.embabel.agent.decision.llm
 
-import com.embabel.agent.decision.ChoiceKey
-import com.embabel.agent.decision.DecisionOption
-import com.embabel.agent.decision.DecisionCompletion
-import com.embabel.agent.decision.DecisionInstrumentation
-import com.embabel.agent.decision.DecisionObservation
-import com.embabel.agent.decision.DecisionObservationContext
-import com.embabel.agent.decision.DecisionRecordPolicy
-import com.embabel.agent.decision.DecisionRequest
-import com.embabel.agent.decision.DecisionTelemetryEvent
-import com.embabel.agent.decision.RatingKey
-import com.embabel.agent.decision.YesNoKey
+import com.embabel.agent.decision.api.llm.PromptedDecisionModel
+import com.embabel.agent.decision.api.ChoiceKey
+import com.embabel.agent.decision.api.DecisionOption
+import com.embabel.agent.decision.api.DecisionCompletion
+import com.embabel.agent.decision.api.DecisionInstrumentation
+import com.embabel.agent.decision.api.DecisionObservation
+import com.embabel.agent.decision.api.DecisionObservationContext
+import com.embabel.agent.decision.api.DecisionRecordPolicy
+import com.embabel.agent.decision.api.DecisionRequest
+import com.embabel.agent.decision.api.DecisionTelemetryEvent
+import com.embabel.agent.decision.api.RatingKey
+import com.embabel.agent.decision.api.YesNoKey
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.loop.LlmMessageRequest
 import com.embabel.agent.spi.loop.LlmMessageResponse

@@ -15,10 +15,10 @@
  */
 package com.embabel.agent.starter.decision;
 
-import com.embabel.agent.decision.CallFailure;
-import com.embabel.agent.decision.DecisionModel;
-import com.embabel.agent.decision.DecisionOutcome;
-import com.embabel.agent.decision.DecisionRequest;
+import com.embabel.agent.decision.api.CallFailure;
+import com.embabel.agent.decision.api.DecisionModel;
+import com.embabel.agent.decision.api.DecisionOutcome;
+import com.embabel.agent.decision.api.DecisionRequest;
 import com.embabel.agent.spi.LlmService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;

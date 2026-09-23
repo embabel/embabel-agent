@@ -15,14 +15,14 @@
  */
 package com.embabel.agent.autoconfigure.observability;
 
-import com.embabel.agent.decision.DecisionCompletion;
-import com.embabel.agent.decision.DecisionInstrumentation;
-import com.embabel.agent.decision.DecisionModel;
-import com.embabel.agent.decision.DecisionObservation;
-import com.embabel.agent.decision.DecisionOutcome;
-import com.embabel.agent.decision.DecisionRequest;
-import com.embabel.agent.decision.DecisionTelemetryEvent;
-import com.embabel.agent.decision.NoDecisionModel;
+import com.embabel.agent.decision.api.DecisionCompletion;
+import com.embabel.agent.decision.api.DecisionInstrumentation;
+import com.embabel.agent.decision.api.DecisionModel;
+import com.embabel.agent.decision.api.DecisionObservation;
+import com.embabel.agent.decision.api.DecisionOutcome;
+import com.embabel.agent.decision.api.DecisionRequest;
+import com.embabel.agent.decision.api.DecisionTelemetryEvent;
+import com.embabel.agent.decision.api.NoDecisionModel;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.Test;

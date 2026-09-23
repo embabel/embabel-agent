@@ -13,9 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.decision.llm
+package com.embabel.agent.decision.api.llm
 
-import com.embabel.agent.decision.DecisionModel
+import com.embabel.agent.decision.llm.PromptedProvider
+import com.embabel.agent.decision.llm.PromptedWireCodec
+import com.embabel.agent.decision.api.DecisionModel
 import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.EmbabelObjectMapperHolder

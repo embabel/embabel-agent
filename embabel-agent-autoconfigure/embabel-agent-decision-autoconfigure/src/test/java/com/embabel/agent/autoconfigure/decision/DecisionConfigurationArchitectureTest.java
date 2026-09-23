@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.autoconfigure.decision;
 
-import com.embabel.agent.decision.DecisionModel;
-import com.embabel.agent.decision.DecisionModelInitialization;
+import com.embabel.agent.decision.api.DecisionModel;
+import com.embabel.agent.decision.api.DecisionModelInitialization;
 import com.embabel.common.ai.autoconfig.ProviderInitialization;
 import kotlin.Metadata;
 import kotlin.jvm.JvmClassMappingKt;
@@ -111,18 +111,18 @@ class DecisionConfigurationArchitectureTest {
 
     private void assertExactlyFourProducts(Set<Class<?>> products) {
         assertThat(products).containsExactlyInAnyOrder(
-                com.embabel.agent.decision.typesafe.TypeSafeDecisionModel.class,
-                com.embabel.agent.decision.llm.PromptedDecisionModel.class,
-                com.embabel.agent.decision.NoDecisionModel.class,
-                com.embabel.agent.decision.StubDecisionModel.class);
+                com.embabel.agent.decision.api.typesafe.TypeSafeDecisionModel.class,
+                com.embabel.agent.decision.api.llm.PromptedDecisionModel.class,
+                com.embabel.agent.decision.api.NoDecisionModel.class,
+                com.embabel.agent.decision.api.StubDecisionModel.class);
     }
 
     private Set<Class<?>> discoverDecisionFactoryProducts() throws Exception {
         Set<Class<?>> classes = new LinkedHashSet<>();
         for (Class<?> anchor : Set.of(
                 DecisionModel.class,
-                com.embabel.agent.decision.typesafe.TypeSafeDecisionModel.class,
-                com.embabel.agent.decision.llm.PromptedDecisionModel.class)) {
+                com.embabel.agent.decision.api.typesafe.TypeSafeDecisionModel.class,
+                com.embabel.agent.decision.api.llm.PromptedDecisionModel.class)) {
             scanCompiledArtifact(anchor, classes);
         }
         return classes.stream()
@@ -247,7 +247,7 @@ class DecisionConfigurationArchitectureTest {
 
     public static final class FifthDecisionProduct {
         public static DecisionModel create() {
-            return com.embabel.agent.decision.NoDecisionModel.create();
+            return com.embabel.agent.decision.api.NoDecisionModel.create();
         }
     }
 }

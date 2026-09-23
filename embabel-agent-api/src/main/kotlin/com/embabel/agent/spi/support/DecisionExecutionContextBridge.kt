@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.spi.support
 
-import com.embabel.agent.decision.DecisionExecutionContext
+import com.embabel.agent.decision.api.DecisionExecutionContext
 import com.embabel.common.ai.model.ModelSelectionContextHolder
 import org.jetbrains.annotations.ApiStatus
 import java.util.concurrent.Callable

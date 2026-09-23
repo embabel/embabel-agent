@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.decision
+package com.embabel.agent.decision.api
 
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.Level

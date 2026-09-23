@@ -16,17 +16,17 @@
 package com.embabel.agent.decision.example;
 
 // tag::java-consumer[]
-import com.embabel.agent.decision.ChoiceKey;
-import com.embabel.agent.decision.DecisionModel;
-import com.embabel.agent.decision.DecisionOption;
-import com.embabel.agent.decision.DecisionOutcome;
-import com.embabel.agent.decision.DecisionRecordPolicy;
-import com.embabel.agent.decision.DecisionRequest;
-import com.embabel.agent.decision.DecisionProvenance;
-import com.embabel.agent.decision.KeyOutcome;
-import com.embabel.agent.decision.RatingKey;
-import com.embabel.agent.decision.YesNoKey;
-import com.embabel.agent.decision.typesafe.TypeSafeDecisionModel;
+import com.embabel.agent.decision.api.ChoiceKey;
+import com.embabel.agent.decision.api.DecisionModel;
+import com.embabel.agent.decision.api.DecisionOption;
+import com.embabel.agent.decision.api.DecisionOutcome;
+import com.embabel.agent.decision.api.DecisionRecordPolicy;
+import com.embabel.agent.decision.api.DecisionRequest;
+import com.embabel.agent.decision.api.DecisionProvenance;
+import com.embabel.agent.decision.api.KeyOutcome;
+import com.embabel.agent.decision.api.RatingKey;
+import com.embabel.agent.decision.api.YesNoKey;
+import com.embabel.agent.decision.api.typesafe.TypeSafeDecisionModel;
 import com.embabel.common.ai.model.ModelProvider;
 import com.embabel.common.ai.model.ModelSelectionCriteria;
 

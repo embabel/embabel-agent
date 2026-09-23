@@ -15,11 +15,12 @@
  */
 package com.embabel.agent.decision.typesafe
 
-import com.embabel.agent.decision.DecisionOption
-import com.embabel.agent.decision.DecisionOutcome
-import com.embabel.agent.decision.DecisionRecordPolicy
-import com.embabel.agent.decision.DecisionRequest
-import com.embabel.agent.decision.KeyOutcome
+import com.embabel.agent.decision.api.typesafe.TypeSafeDecisionModel
+import com.embabel.agent.decision.api.DecisionOption
+import com.embabel.agent.decision.api.DecisionOutcome
+import com.embabel.agent.decision.api.DecisionRecordPolicy
+import com.embabel.agent.decision.api.DecisionRequest
+import com.embabel.agent.decision.api.KeyOutcome
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
@@ -69,8 +70,8 @@ class TypeSafeDecisionModelTest {
         val source = kotlin.io.path.createTempDirectory("typesafe-java-probe").toFile()
         val java = source.resolve("Probe.java")
         java.writeText("""
-            import com.embabel.agent.decision.*;
-            import com.embabel.agent.decision.typesafe.TypeSafeDecisionModel;
+            import com.embabel.agent.decision.api.*;
+            import com.embabel.agent.decision.api.typesafe.TypeSafeDecisionModel;
             import java.net.URI;
             import java.util.function.Supplier;
             public class Probe {
@@ -116,9 +117,9 @@ class TypeSafeDecisionModelTest {
     fun `keeps only the final decision facade as its public model surface`() {
         CaptureServer.replying(resource("success.json")).use { server ->
             val model = TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri))
-            assertThat(model.javaClass).isEqualTo(DecisionOutcome::class.java.classLoader.loadClass("com.embabel.agent.decision.DecisionModel"))
+            assertThat(model.javaClass).isEqualTo(DecisionOutcome::class.java.classLoader.loadClass("com.embabel.agent.decision.api.DecisionModel"))
         }
-        assertThat(Modifier.isFinal(com.embabel.agent.decision.DecisionModel::class.java.modifiers)).isTrue()
+        assertThat(Modifier.isFinal(com.embabel.agent.decision.api.DecisionModel::class.java.modifiers)).isTrue()
         assertThat(JevTransport::class.java.methods.map { it.name }).doesNotContain("ask", "create")
     }
 
@@ -178,8 +179,8 @@ class TypeSafeDecisionModelTest {
     private fun resource(name: String): String = javaClass.getResource("/decision/typesafe/$name")!!.readText()
     private data class BuiltRequest(
         val request: DecisionRequest,
-        val yes: com.embabel.agent.decision.YesNoKey,
-        val choice: com.embabel.agent.decision.ChoiceKey<String>,
-        val rating: com.embabel.agent.decision.RatingKey<String>,
+        val yes: com.embabel.agent.decision.api.YesNoKey,
+        val choice: com.embabel.agent.decision.api.ChoiceKey<String>,
+        val rating: com.embabel.agent.decision.api.RatingKey<String>,
     )
 }

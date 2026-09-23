@@ -13,7 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.decision
+package com.embabel.agent.decision.api;
 
-// Keep the original file facade for binary compatibility after splitting the contracts by role.
-private const val DECISION_CONTRACTS_ABI_MARKER = 0
+/** Marks built-in providers that already enforce the caller's deadline. */
+interface CallerBoundDecisionProvider extends DecisionProvider {
+}

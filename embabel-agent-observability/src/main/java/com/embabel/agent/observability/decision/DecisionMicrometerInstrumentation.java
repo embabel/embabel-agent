@@ -15,12 +15,12 @@
  */
 package com.embabel.agent.observability.decision;
 
-import com.embabel.agent.decision.DecisionCompletion;
-import com.embabel.agent.decision.DecisionInstrumentation;
-import com.embabel.agent.decision.DecisionObservation;
-import com.embabel.agent.decision.DecisionObservationContext;
-import com.embabel.agent.decision.DecisionProviderFamily;
-import com.embabel.agent.decision.DecisionTelemetryEvent;
+import com.embabel.agent.decision.api.DecisionCompletion;
+import com.embabel.agent.decision.api.DecisionInstrumentation;
+import com.embabel.agent.decision.api.DecisionObservation;
+import com.embabel.agent.decision.api.DecisionObservationContext;
+import com.embabel.agent.decision.api.DecisionProviderFamily;
+import com.embabel.agent.decision.api.DecisionTelemetryEvent;
 import io.micrometer.context.ContextSnapshot;
 import io.micrometer.context.ContextSnapshotFactory;
 import io.micrometer.core.instrument.Counter;

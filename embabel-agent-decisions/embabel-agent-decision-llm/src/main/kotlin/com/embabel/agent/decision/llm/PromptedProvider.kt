@@ -15,12 +15,12 @@
  */
 package com.embabel.agent.decision.llm
 
-import com.embabel.agent.decision.CallFailure
-import com.embabel.agent.decision.DecisionProvider
-import com.embabel.agent.decision.DecisionSafeCode
-import com.embabel.agent.decision.DecisionTelemetryEvent
-import com.embabel.agent.decision.PreparedDecisionRequest
-import com.embabel.agent.decision.RawDecisionOutcome
+import com.embabel.agent.decision.api.CallFailure
+import com.embabel.agent.decision.api.DecisionProvider
+import com.embabel.agent.decision.api.DecisionSafeCode
+import com.embabel.agent.decision.api.DecisionTelemetryEvent
+import com.embabel.agent.decision.api.PreparedDecisionRequest
+import com.embabel.agent.decision.api.RawDecisionOutcome
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.loop.LlmMessageRequest
 import com.embabel.agent.spi.loop.NativeStructuredOutputRequest

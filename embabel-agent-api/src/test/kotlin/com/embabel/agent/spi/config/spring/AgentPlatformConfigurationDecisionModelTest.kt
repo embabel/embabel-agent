@@ -15,11 +15,11 @@
  */
 package com.embabel.agent.spi.config.spring
 
-import com.embabel.agent.decision.CallFailure
-import com.embabel.agent.decision.DecisionModel
-import com.embabel.agent.decision.DecisionProvider
-import com.embabel.agent.decision.DecisionSafeCode
-import com.embabel.agent.decision.RawDecisionOutcome
+import com.embabel.agent.decision.api.CallFailure
+import com.embabel.agent.decision.api.DecisionModel
+import com.embabel.agent.decision.api.DecisionProvider
+import com.embabel.agent.decision.api.DecisionSafeCode
+import com.embabel.agent.decision.api.RawDecisionOutcome
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties

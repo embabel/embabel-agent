@@ -15,12 +15,13 @@
  */
 package com.embabel.agent.decision.typesafe
 
-import com.embabel.agent.decision.CallFailure
-import com.embabel.agent.decision.DecisionOption
-import com.embabel.agent.decision.DecisionOutcome
-import com.embabel.agent.decision.DecisionRequest
-import com.embabel.agent.decision.KeyFailure
-import com.embabel.agent.decision.KeyOutcome
+import com.embabel.agent.decision.api.typesafe.TypeSafeDecisionModel
+import com.embabel.agent.decision.api.CallFailure
+import com.embabel.agent.decision.api.DecisionOption
+import com.embabel.agent.decision.api.DecisionOutcome
+import com.embabel.agent.decision.api.DecisionRequest
+import com.embabel.agent.decision.api.KeyFailure
+import com.embabel.agent.decision.api.KeyOutcome
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import tools.jackson.core.json.JsonReadFeature
@@ -263,9 +264,9 @@ class JevWireCodecTest {
     }
     private data class WireRequest(
         val request: DecisionRequest,
-        val yes: com.embabel.agent.decision.YesNoKey,
-        val choice: com.embabel.agent.decision.ChoiceKey<String>,
-        val rating: com.embabel.agent.decision.RatingKey<String>,
+        val yes: com.embabel.agent.decision.api.YesNoKey,
+        val choice: com.embabel.agent.decision.api.ChoiceKey<String>,
+        val rating: com.embabel.agent.decision.api.RatingKey<String>,
     )
 
     private fun success() = """{"model":"resolved-test-v1","answers":{"q_yes":{"type":"noul","noul":0.75}},"usage":{"input_tokens":1,"output_tokens":1}}"""

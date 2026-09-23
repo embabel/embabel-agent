@@ -15,17 +15,17 @@
  */
 package com.embabel.agent.decision.typesafe
 
-import com.embabel.agent.decision.CallFailure
-import com.embabel.agent.decision.DecisionKind
-import com.embabel.agent.decision.DecisionProvenance
-import com.embabel.agent.decision.DecisionSafeCode
-import com.embabel.agent.decision.EvidenceKind
-import com.embabel.agent.decision.KeyFailure
-import com.embabel.agent.decision.PreparedDecisionRequest
-import com.embabel.agent.decision.PreparedQuestion
-import com.embabel.agent.decision.RawAnswer
-import com.embabel.agent.decision.RawDecisionOutcome
-import com.embabel.agent.decision.RawProbability
+import com.embabel.agent.decision.api.CallFailure
+import com.embabel.agent.decision.api.DecisionKind
+import com.embabel.agent.decision.api.DecisionProvenance
+import com.embabel.agent.decision.api.DecisionSafeCode
+import com.embabel.agent.decision.api.EvidenceKind
+import com.embabel.agent.decision.api.KeyFailure
+import com.embabel.agent.decision.api.PreparedDecisionRequest
+import com.embabel.agent.decision.api.PreparedQuestion
+import com.embabel.agent.decision.api.RawAnswer
+import com.embabel.agent.decision.api.RawDecisionOutcome
+import com.embabel.agent.decision.api.RawProbability
 import com.embabel.common.util.EmbabelObjectMapperHolder
 import tools.jackson.core.JsonParser
 import tools.jackson.core.JsonToken

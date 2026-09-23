@@ -15,9 +15,10 @@
  */
 package com.embabel.agent.decision.llm
 
-import com.embabel.agent.decision.DecisionModel
-import com.embabel.agent.decision.NoDecisionModel
-import com.embabel.agent.decision.StubDecisionModel
+import com.embabel.agent.decision.api.llm.PromptedDecisionModel
+import com.embabel.agent.decision.api.DecisionModel
+import com.embabel.agent.decision.api.NoDecisionModel
+import com.embabel.agent.decision.api.StubDecisionModel
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import java.lang.reflect.Modifier
@@ -35,7 +36,7 @@ class PromptedDecisionModelArchitectureTest {
         )
         val typeSafeSource = repositoryRoot().resolve(
             "embabel-agent-decisions/embabel-agent-decision-typesafe/src/main/kotlin/" +
-                "com/embabel/agent/decision/typesafe/TypeSafeDecisionModel.kt",
+                "com/embabel/agent/decision/api/typesafe/TypeSafeDecisionModel.kt",
         )
         val typeSafeText = Files.readString(typeSafeSource)
 

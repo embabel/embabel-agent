@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.decision.example
 
-import com.embabel.agent.decision.EvidenceKind
-import com.embabel.agent.decision.typesafe.TypeSafeDecisionModel
+import com.embabel.agent.decision.api.EvidenceKind
+import com.embabel.agent.decision.api.typesafe.TypeSafeDecisionModel
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
@@ -91,7 +91,7 @@ class JevLiveSmokeIT {
         val properties = System.getProperties().stringPropertyNames().associateWith(System::getProperty)
         val authorized = runAuthorizedLiveSmoke(env, properties) {
             val model = TypeSafeDecisionModel.create(Supplier { env.getValue("TYPESAFE_API_KEY") }, env.getValue("TYPESAFE_MODEL"))
-                .withDefaults(Duration.ofSeconds(30), com.embabel.agent.decision.DecisionRecordPolicy.metadata())
+                .withDefaults(Duration.ofSeconds(30), com.embabel.agent.decision.api.DecisionRecordPolicy.metadata())
             val kotlin = runKotlinDecision(model)
             val javaEvidence = JevDecisionExample.run(model)
             listOf(kotlin.provenance, javaEvidence.provenance()).forEach { provenance ->

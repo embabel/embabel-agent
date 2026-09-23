@@ -15,11 +15,12 @@
  */
 package com.embabel.agent.decision.llm
 
-import com.embabel.agent.decision.CallFailure
-import com.embabel.agent.decision.DecisionOutcome
-import com.embabel.agent.decision.DecisionTelemetryEvent
-import com.embabel.agent.decision.KeyFailure
-import com.embabel.agent.decision.KeyOutcome
+import com.embabel.agent.decision.api.llm.PromptedDecisionModel
+import com.embabel.agent.decision.api.CallFailure
+import com.embabel.agent.decision.api.DecisionOutcome
+import com.embabel.agent.decision.api.DecisionTelemetryEvent
+import com.embabel.agent.decision.api.KeyFailure
+import com.embabel.agent.decision.api.KeyOutcome
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.EmbabelObjectMapperHolder
 import org.assertj.core.api.Assertions.assertThat

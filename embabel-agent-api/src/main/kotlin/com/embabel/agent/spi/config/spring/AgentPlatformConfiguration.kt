@@ -29,8 +29,8 @@ import com.embabel.agent.core.AgentProcessRepository
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.persistence.BlackboardEntrySerializer
-import com.embabel.agent.decision.DecisionModel
-import com.embabel.agent.decision.DecisionModelInitialization
+import com.embabel.agent.decision.api.DecisionModel
+import com.embabel.agent.decision.api.DecisionModelInitialization
 import com.embabel.agent.spi.*
 import com.embabel.agent.spi.logging.ColorPalette
 import com.embabel.agent.spi.logging.DefaultColorPalette

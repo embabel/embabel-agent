@@ -16,13 +16,13 @@
 package com.embabel.agent.decision.example;
 
 // tag::dice-consumer[]
-import com.embabel.agent.decision.ChoiceKey;
-import com.embabel.agent.decision.DecisionModel;
-import com.embabel.agent.decision.DecisionOption;
-import com.embabel.agent.decision.DecisionOutcome;
-import com.embabel.agent.decision.DecisionProvenance;
-import com.embabel.agent.decision.DecisionRequest;
-import com.embabel.agent.decision.KeyOutcome;
+import com.embabel.agent.decision.api.ChoiceKey;
+import com.embabel.agent.decision.api.DecisionModel;
+import com.embabel.agent.decision.api.DecisionOption;
+import com.embabel.agent.decision.api.DecisionOutcome;
+import com.embabel.agent.decision.api.DecisionProvenance;
+import com.embabel.agent.decision.api.DecisionRequest;
+import com.embabel.agent.decision.api.KeyOutcome;
 import com.embabel.common.ai.model.ModelProvider;
 import com.embabel.common.ai.model.ModelSelectionCriteria;
 

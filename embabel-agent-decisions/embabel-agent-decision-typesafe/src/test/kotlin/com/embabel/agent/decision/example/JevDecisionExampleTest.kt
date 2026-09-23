@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.decision.example
 
-import com.embabel.agent.decision.*
-import com.embabel.agent.decision.typesafe.TypeSafeDecisionModel
+import com.embabel.agent.decision.api.*
+import com.embabel.agent.decision.api.typesafe.TypeSafeDecisionModel
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ConfigurableModelProvider
@@ -528,7 +528,7 @@ class JevDecisionExampleTest {
     private fun minimalConsumerRunner() = """
         package com.embabel.agent.decision.example;
 
-        import com.embabel.agent.decision.NoDecisionModel;
+        import com.embabel.agent.decision.api.NoDecisionModel;
 
         public final class MinimalConsumerRunner {
             public static void main(String[] args) throws Exception {

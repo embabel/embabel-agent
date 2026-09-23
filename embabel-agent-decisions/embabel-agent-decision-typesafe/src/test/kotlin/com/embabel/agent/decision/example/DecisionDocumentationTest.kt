@@ -40,6 +40,9 @@ class DecisionDocumentationTest {
             "embabel.models.default-decision-model",
             "compiled and executed by the TypeSafe example tests",
             "`StubDecisionModel` is test-only",
+            "`com.embabel.agent.decision.api`",
+            "`com.embabel.agent.decision.api.typesafe`",
+            "`com.embabel.agent.decision.api.llm`",
         )
         assertThat(page).contains("tag=custom-provider", "tag=kotlin-consumer", "tag=java-consumer", "tag=dice-consumer")
         listOf("TypeSafeDecisionModel", "PromptedDecisionModel", "NoDecisionModel", "StubDecisionModel").forEach { assertThat(page).contains(it) }
