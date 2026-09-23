@@ -19,8 +19,10 @@ import org.junit.jupiter.api.Test;
 import com.embabel.common.util.EmbabelObjectMapperHolder;
 
 import java.io.IOException;
+import java.beans.Introspector;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -35,21 +37,31 @@ class DecisionConfigurationMetadataTest {
         root.get("properties").forEach(property -> names.add(property.get("name").asText()));
         for (String suffix : new String[]{
                 "enabled", "default-timeout", "record-mode", "full-record-max-bytes",
-                "record-allowlist", "mapper-bean-name", "models",
-                "models.*.provider", "models.*.typesafe.model", "models.*.typesafe.base-url",
-                "models.*.typesafe.connect-timeout", "models.*.prompted.llm-bean-name",
-                "models.*.prompted.options-bean-name"
+                "record-allowlist", "mapper-bean-name", "models"
         }) {
             assertThat(names).contains("embabel.agent.decision." + suffix);
         }
+        assertThat(names).noneMatch(name -> name.contains("*"));
+        var hintNames = new ArrayList<String>();
+        root.get("hints").forEach(hint -> hintNames.add(hint.get("name").asText()));
+        assertThat(hintNames).noneMatch(name -> name.contains("*"));
         assertThat(names).doesNotContain(
                 "embabel.agent.decision.provider",
                 "embabel.agent.decision.typesafe.model",
                 "embabel.agent.decision.prompted.llm-bean-name");
         assertThat(metadata)
-                .contains("30s", "10s", "65536", "proposition-revision", "Spring bean and registry name",
+                .contains("30s", "65536", "proposition-revision", "Spring bean and registry name",
                         "backend requested model")
                 .doesNotContain("TYPESAFE_API_KEY=", "\"value\" : \"stub\"");
+    }
+
+    @Test
+    void nestedModelBlocksExposeJavaBeanPropertiesForMapValueBinding() throws Exception {
+        var names = Arrays.stream(Introspector.getBeanInfo(DecisionProperties.Model.class)
+                        .getPropertyDescriptors())
+                .map(descriptor -> descriptor.getName())
+                .toList();
+        assertThat(names).contains("provider", "typesafe", "prompted");
     }
 
     @Test

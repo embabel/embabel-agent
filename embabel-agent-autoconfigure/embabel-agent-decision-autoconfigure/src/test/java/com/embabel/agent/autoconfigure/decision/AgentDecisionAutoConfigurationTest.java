@@ -42,16 +42,23 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.support.GenericApplicationContext;
+import org.springframework.core.env.MapPropertySource;
+import org.springframework.core.env.StandardEnvironment;
+import org.springframework.core.env.SystemEnvironmentPropertySource;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -193,6 +200,44 @@ class AgentDecisionAutoConfigurationTest {
     }
 
     @Test
+    void environmentVariableDeclarationReplacesImplicitJev() {
+        runner.withInitializer(context -> context.getEnvironment().getPropertySources().addFirst(
+                        new SystemEnvironmentPropertySource(
+                                StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                                Map.of("EMBABEL_AGENT_DECISION_MODELS_FOO_PROVIDER", "none"))))
+                .withPropertyValues("embabel.agent.decision.enabled=true")
+                .run(context -> assertThat(context)
+                        .hasBean("foo")
+                        .doesNotHaveBean("jev"));
+    }
+
+    @Test
+    void legacyEnvironmentVariableIsRejected() {
+        runner.withInitializer(context -> context.getEnvironment().getPropertySources().addFirst(
+                        new SystemEnvironmentPropertySource(
+                                StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                                Map.of("EMBABEL_AGENT_DECISION_PROVIDER", "none"))))
+                .withPropertyValues("embabel.agent.decision.enabled=true")
+                .run(context -> assertThat(context.getStartupFailure())
+                        .hasRootCauseMessage("Invalid configuration: embabel.agent.decision.provider"));
+    }
+
+    @Test
+    void relaxedPropertySpellingsAreCanonicalizedBeforeValidation() {
+        runner.withInitializer(context -> context.getEnvironment().getPropertySources().addFirst(
+                        new MapPropertySource(
+                                "relaxed",
+                                Map.of(
+                                        "embabel.agent.decision.models.rules.provider", "typesafe",
+                                        "embabel.agent.decision.models.rules.typesafe.model", "jev-latest",
+                                        "embabel.agent.decision.models.rules.typesafe.connectTimeout", "11s"))))
+                .withPropertyValues("embabel.agent.decision.enabled=true")
+                .run(context -> assertThat(context.getBean(DecisionProperties.class)
+                                .getModels().get("rules").getTypesafe().getConnectTimeout())
+                        .hasSeconds(11));
+    }
+
+    @Test
     void disabledDecisionAutoconfigurationLeavesAUserOnlySharedProvider() {
         DecisionModel custom = NoDecisionModel.create().named("custom", "user");
         integratedRunner(service("backend-name", "{}"))
@@ -249,6 +294,62 @@ class AgentDecisionAutoConfigurationTest {
     }
 
     @Test
+    void rejectsAliasAndParentContextCollisions() {
+        runner.withBean("existing", DecisionModel.class, NoDecisionModel::create)
+                .withInitializer(context -> context.getBeanFactory().registerAlias("existing", "selected"))
+                .withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.models.selected.provider=none")
+                .run(context -> assertThat(context.getStartupFailure())
+                        .hasRootCauseMessage("Invalid configuration: embabel.agent.decision.models.selected"));
+
+        try (GenericApplicationContext parent = new GenericApplicationContext()) {
+            parent.registerBean("selected", DecisionModel.class, NoDecisionModel::create);
+            parent.refresh();
+            runner.withParent(parent)
+                    .withPropertyValues(
+                            "embabel.agent.decision.enabled=true",
+                            "embabel.agent.decision.models.selected.provider=none")
+                    .run(context -> assertThat(context.getStartupFailure())
+                            .hasRootCauseMessage("Invalid configuration: embabel.agent.decision.models.selected"));
+        }
+    }
+
+    @Test
+    void failedSingletonRegistrationRollsBackRegisteredBeansAndClosesEveryFacade() {
+        LlmService<?> promptedService = service(
+                "backend-name",
+                "{\"answers\":[{\"keyId\":\"q\",\"kind\":\"YES_NO\",\"pTrue\":0.75}]}");
+        class FailingBeanFactory extends DefaultListableBeanFactory {
+            private final List<DecisionModel> registered = new ArrayList<>();
+
+            @Override
+            public void registerSingleton(String name, Object singleton) {
+                if (singleton instanceof DecisionModel model) {
+                    registered.add(model);
+                    if (registered.size() == 2) throw new IllegalStateException("registration failed");
+                }
+                super.registerSingleton(name, singleton);
+            }
+        }
+        FailingBeanFactory beanFactory = new FailingBeanFactory();
+        beanFactory.registerSingleton("dynamicLlm", promptedService);
+
+        DecisionProperties properties = new DecisionProperties();
+        properties.addModel("first", promptedModel("dynamicLlm"));
+        properties.addModel("second", promptedModel("dynamicLlm"));
+
+        assertThatThrownBy(() -> new AgentDecisionAutoConfiguration().decisionModelInitialization(
+                        properties, new StandardEnvironment(), beanFactory, List.of()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("registration failed");
+        assertThat(beanFactory.containsSingleton("first")).isFalse();
+        assertThat(beanFactory.registered).hasSize(2);
+        assertThat(beanFactory.registered)
+                .allSatisfy(model -> assertThat(model.ask(request())).isInstanceOf(DecisionOutcome.Failure.class));
+    }
+
+    @Test
     void rejectsInvalidModelNamesAndUndocumentedNestedKeys() {
         runner.withPropertyValues(
                         "embabel.agent.decision.enabled=true",
@@ -264,6 +365,16 @@ class AgentDecisionAutoConfigurationTest {
                         .hasRootCauseMessage(
                                 "Invalid configuration: embabel.agent.decision.models.rules.typesafe.api-key")
                         .hasMessageNotContaining("SECRET"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Selected", "selected_model", "selected.model"})
+    void rejectsNoncanonicalModelNames(String name) {
+        runner.withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.models." + name + ".provider=none")
+                .run(context -> assertThat(context.getStartupFailure())
+                        .hasRootCauseMessage("Invalid configuration: embabel.agent.decision.models"));
     }
 
     @Test
@@ -332,11 +443,48 @@ class AgentDecisionAutoConfigurationTest {
                     assertThat(properties.getDefaultTimeout()).hasSeconds(17);
                     assertThat(properties.getModels()).containsOnlyKeys("rules", "disabled");
                     assertThat(properties.getModels().get("rules").getProvider()).isEqualTo("typesafe");
-                    assertThat(properties.getModels().get("rules").typesafe().getModel()).isEqualTo("jev-latest");
+                    assertThat(properties.getModels().get("rules").getTypesafe().getModel()).isEqualTo("jev-latest");
                     assertThat(properties.getModels().get("disabled").getProvider()).isEqualTo("none");
                     assertThatThrownBy(() -> properties.getModels().clear())
                             .isInstanceOf(UnsupportedOperationException.class);
+                    assertThatThrownBy(() -> properties.getModels().get("rules").setProvider("none"))
+                            .isInstanceOf(UnsupportedOperationException.class);
+                    assertThatThrownBy(() -> properties.getModels().get("rules").getTypesafe().setModel("changed"))
+                            .isInstanceOf(UnsupportedOperationException.class);
                 });
+    }
+
+    @Test
+    void contextShutdownClosesConfiguredFacades() {
+        LlmService<?> promptedService = service(
+                "backend-name",
+                "{\"answers\":[{\"keyId\":\"q\",\"kind\":\"YES_NO\",\"pTrue\":0.75}]}");
+        AtomicReference<DecisionModel> configured = new AtomicReference<>();
+
+        runner.withUserConfiguration(DynamicLlmConfiguration.class)
+                .withBean("dynamicSource", LlmService.class, () -> promptedService)
+                .withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.models.prompted-review.provider=prompted",
+                        "embabel.agent.decision.models.prompted-review.prompted.llm-bean-name=dynamicLlm")
+                .run(context -> {
+                    configured.set(context.getBean("prompted-review", DecisionModel.class));
+                    assertThat(configured.get().ask(request())).isInstanceOf(DecisionOutcome.Success.class);
+                });
+
+        assertThat(configured.get().ask(request())).isInstanceOf(DecisionOutcome.Failure.class);
+    }
+
+    @Test
+    void implicitJevAndCustomBeanRequireAnExplicitDefault() {
+        integratedRunner(service("backend-name", "{}"))
+                .withBean("custom", DecisionModel.class, () -> NoDecisionModel.create().named("custom", "user"))
+                .withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.models.default-llm=backend-name")
+                .run(context -> assertThat(context.getStartupFailure())
+                        .hasRootCauseMessage("Multiple decision models are registered; set "
+                                + "'embabel.models.default-decision-model' to one of: [custom, jev]"));
     }
 
     @Test
@@ -381,6 +529,15 @@ class AgentDecisionAutoConfigurationTest {
         DecisionRequest.Builder builder = DecisionRequest.builder();
         builder.yesNo("q", "Proceed?");
         return builder.build();
+    }
+
+    private static DecisionProperties.Model promptedModel(String serviceName) {
+        DecisionProperties.Prompted prompted = new DecisionProperties.Prompted();
+        prompted.setLlmBeanName(serviceName);
+        DecisionProperties.Model model = new DecisionProperties.Model();
+        model.setProvider("prompted");
+        model.setPrompted(prompted);
+        return model;
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

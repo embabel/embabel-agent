@@ -27,16 +27,21 @@ import com.embabel.common.ai.model.LlmOptions;
 import com.embabel.common.util.EmbabelObjectMapperHolder;
 import org.jetbrains.annotations.ApiStatus;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
+import org.springframework.beans.factory.support.DefaultSingletonBeanRegistry;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.bind.BindException;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.source.ConfigurationPropertySources;
+import org.springframework.boot.context.properties.source.IterableConfigurationPropertySource;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.AliasRegistry;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.EnumerablePropertySource;
+import org.springframework.core.env.SystemEnvironmentPropertySource;
 
 import java.net.URI;
 import java.time.Duration;
@@ -72,6 +77,26 @@ public class AgentDecisionAutoConfiguration {
             ".typesafe.connect-timeout",
             ".prompted.llm-bean-name",
             ".prompted.options-bean-name");
+    private static final Map<String, String> RELAXED_GLOBAL_KEYS = Map.ofEntries(
+            Map.entry(PREFIX + ".defaulttimeout", PREFIX + ".default-timeout"),
+            Map.entry(PREFIX + ".default.timeout", PREFIX + ".default-timeout"),
+            Map.entry(PREFIX + ".recordmode", PREFIX + ".record-mode"),
+            Map.entry(PREFIX + ".record.mode", PREFIX + ".record-mode"),
+            Map.entry(PREFIX + ".fullrecordmaxbytes", PREFIX + ".full-record-max-bytes"),
+            Map.entry(PREFIX + ".full.record.max.bytes", PREFIX + ".full-record-max-bytes"),
+            Map.entry(PREFIX + ".recordallowlist", PREFIX + ".record-allowlist"),
+            Map.entry(PREFIX + ".record.allowlist", PREFIX + ".record-allowlist"),
+            Map.entry(PREFIX + ".mapperbeanname", PREFIX + ".mapper-bean-name"),
+            Map.entry(PREFIX + ".mapper.bean.name", PREFIX + ".mapper-bean-name"));
+    private static final Map<String, String> RELAXED_MODEL_SUFFIXES = Map.ofEntries(
+            Map.entry(".typesafe.baseurl", ".typesafe.base-url"),
+            Map.entry(".typesafe.base.url", ".typesafe.base-url"),
+            Map.entry(".typesafe.connecttimeout", ".typesafe.connect-timeout"),
+            Map.entry(".typesafe.connect.timeout", ".typesafe.connect-timeout"),
+            Map.entry(".prompted.llmbeanname", ".prompted.llm-bean-name"),
+            Map.entry(".prompted.llm.bean.name", ".prompted.llm-bean-name"),
+            Map.entry(".prompted.optionsbeanname", ".prompted.options-bean-name"),
+            Map.entry(".prompted.options.bean.name", ".prompted.options-bean-name"));
 
     @Bean
     DecisionProperties decisionProperties(Environment environment) {
@@ -83,6 +108,7 @@ public class AgentDecisionAutoConfiguration {
             DecisionProperties properties,
             Environment environment,
             ConfigurableListableBeanFactory beanFactory,
+            // Intentional ordering dependency: dynamic LLM beans must exist before prompted lookup.
             List<ProviderInitialization> providerInitializations) {
         Map<String, DecisionProperties.Model> configured = properties.getModels();
         configured.keySet().forEach(name -> rejectCollision(beanFactory, name));
@@ -94,7 +120,7 @@ public class AgentDecisionAutoConfiguration {
                 DecisionProperties.Model selected = entry.getValue();
                 DecisionModel model = switch (selected.getProvider()) {
                     case "none" -> NoDecisionModel.create();
-                    case "typesafe" -> typesafe(name, selected, properties, environment, beanFactory);
+                    case "typesafe" -> typesafe(selected, properties, environment, beanFactory);
                     case "prompted" -> prompted(name, selected, properties, beanFactory);
                     default -> throw invalid(modelKey(name, "provider"));
                 };
@@ -102,27 +128,38 @@ public class AgentDecisionAutoConfiguration {
                         .withDefaults(properties.getDefaultTimeout(), recordPolicy(properties))
                         .named(name, selected.getProvider()));
             }
-            created.forEach(beanFactory::registerSingleton);
+            List<String> registered = new ArrayList<>();
+            try {
+                created.forEach((name, model) -> {
+                    beanFactory.registerSingleton(name, model);
+                    registered.add(name);
+                });
+            } catch (RuntimeException failure) {
+                rollback(beanFactory, registered, created, failure);
+                throw failure;
+            }
             return new DecisionModelInitialization(new ArrayList<>(created.values()));
         } catch (RuntimeException failure) {
-            created.values().forEach(DecisionModel::close);
+            closeAll(created.values(), failure);
             throw failure;
         }
     }
 
     private static void rejectCollision(ConfigurableListableBeanFactory beanFactory, String name) {
-        if (beanFactory.containsBeanDefinition(name) || beanFactory.containsSingleton(name)) {
+        if (beanFactory.containsBean(name)
+                || (beanFactory instanceof AliasRegistry aliases && aliases.isAlias(name))
+                || beanFactory.containsBeanDefinition(name)
+                || beanFactory.containsSingleton(name)) {
             throw invalid(PREFIX + ".models." + name);
         }
     }
 
     private DecisionModel typesafe(
-            String name,
             DecisionProperties.Model model,
             DecisionProperties common,
             Environment environment,
             ConfigurableListableBeanFactory beanFactory) {
-        DecisionProperties.Typesafe selected = model.typesafe();
+        DecisionProperties.Typesafe selected = model.getTypesafe();
         EmbabelObjectMapperHolder mapper = mapper(common, beanFactory);
         Supplier<String> apiKey = () -> {
             String value = environment.getProperty("TYPESAFE_API_KEY");
@@ -142,7 +179,7 @@ public class AgentDecisionAutoConfiguration {
             DecisionProperties.Model model,
             DecisionProperties common,
             ConfigurableListableBeanFactory beanFactory) {
-        DecisionProperties.Prompted selected = model.prompted();
+        DecisionProperties.Prompted selected = model.getPrompted();
         LlmService service = exactBean(
                 beanFactory, selected.getLlmBeanName(), LlmService.class, modelKey(name, "prompted.llm-bean-name"));
         LlmOptions options = selected.getOptionsBeanName() == null
@@ -263,6 +300,7 @@ public class AgentDecisionAutoConfiguration {
     }
 
     private static void validatePropertyNames(Environment environment) {
+        validateRawModelNames(environment);
         for (String key : decisionPropertyNames(environment)) {
             if (isLegacyKey(key) || !isAllowedKey(key)) throw invalid(key);
         }
@@ -270,16 +308,46 @@ public class AgentDecisionAutoConfiguration {
 
     private static Set<String> decisionPropertyNames(Environment environment) {
         Set<String> names = new TreeSet<>();
-        if (environment instanceof ConfigurableEnvironment configurable) {
-            configurable.getPropertySources().forEach(source -> {
-                if (source instanceof EnumerablePropertySource<?> enumerable) {
-                    for (String name : enumerable.getPropertyNames()) {
-                        if (name.startsWith(PREFIX + ".")) names.add(name);
-                    }
-                }
-            });
+        for (var source : ConfigurationPropertySources.get(environment)) {
+            if (source instanceof IterableConfigurationPropertySource iterable) {
+                iterable.stream()
+                        .map(Object::toString)
+                        .filter(name -> name.startsWith(PREFIX + "."))
+                        .map(AgentDecisionAutoConfiguration::canonicalDecisionKey)
+                        .forEach(names::add);
+            }
         }
         return names;
+    }
+
+    private static String canonicalDecisionKey(String key) {
+        String canonical = RELAXED_GLOBAL_KEYS.getOrDefault(key, key);
+        for (var alias : RELAXED_GLOBAL_KEYS.entrySet()) {
+            if (key.startsWith(alias.getKey() + "[")) {
+                canonical = alias.getValue() + key.substring(alias.getKey().length());
+                break;
+            }
+        }
+        for (var alias : RELAXED_MODEL_SUFFIXES.entrySet()) {
+            if (canonical.endsWith(alias.getKey())) {
+                return canonical.substring(0, canonical.length() - alias.getKey().length()) + alias.getValue();
+            }
+        }
+        return canonical;
+    }
+
+    private static void validateRawModelNames(Environment environment) {
+        if (!(environment instanceof ConfigurableEnvironment configurable)) return;
+        configurable.getPropertySources().forEach(source -> {
+            if (source instanceof SystemEnvironmentPropertySource) return;
+            if (!(source instanceof EnumerablePropertySource<?> enumerable)) return;
+            for (String key : enumerable.getPropertyNames()) {
+                if (!key.startsWith(MODELS_PREFIX)) continue;
+                String tail = key.substring(MODELS_PREFIX.length());
+                int separator = tail.indexOf('.');
+                if (separator > 0) validateModelName(tail.substring(0, separator));
+            }
+        });
     }
 
     private static Set<String> modelNames(Environment environment) {
@@ -340,14 +408,44 @@ public class AgentDecisionAutoConfiguration {
         }
     }
 
+    private static void closeAll(Iterable<DecisionModel> models, RuntimeException failure) {
+        for (DecisionModel model : models) {
+            try {
+                model.close();
+            } catch (RuntimeException cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+            }
+        }
+    }
+
     private static void validatePrompted(String name, DecisionProperties.Prompted properties) {
         requiredName(properties.getLlmBeanName(), modelKey(name, "prompted.llm-bean-name"));
         optionalName(properties.getOptionsBeanName(), modelKey(name, "prompted.options-bean-name"));
     }
 
     private static void validateModelName(String name) {
-        if (name == null || !name.matches("[A-Za-z0-9][A-Za-z0-9._-]*")) {
+        // Dots are property path separators; registry names use canonical lowercase segments.
+        if (name == null || !name.matches("[a-z0-9]+(?:-[a-z0-9]+)*")) {
             throw invalid(PREFIX + ".models");
+        }
+    }
+
+    private static void rollback(
+            ConfigurableListableBeanFactory beanFactory,
+            List<String> registered,
+            Map<String, DecisionModel> created,
+            RuntimeException failure) {
+        for (int i = registered.size() - 1; i >= 0; i--) {
+            String name = registered.get(i);
+            try {
+                if (beanFactory instanceof DefaultSingletonBeanRegistry registry) {
+                    registry.destroySingleton(name);
+                } else {
+                    beanFactory.destroyBean(name, created.get(name));
+                }
+            } catch (RuntimeException cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+            }
         }
     }
 
