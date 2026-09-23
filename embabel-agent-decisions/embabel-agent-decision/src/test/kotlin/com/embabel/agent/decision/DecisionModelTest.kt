@@ -140,6 +140,16 @@ class DecisionModelTest {
     }
 
     @Test
+    fun `rejects non-string keys anywhere in nested state`() {
+        val builder = DecisionRequest.builder()
+
+        assertThatThrownBy {
+            builder.state(mapOf("outer" to mapOf("valid" to "value", 7 to "unsafe")))
+        }.isInstanceOf(IllegalArgumentException::class.java)
+            .hasMessageContaining("state map keys must be strings")
+    }
+
+    @Test
     fun `bounds a noncooperative provider at the request deadline`() {
         val builder = DecisionRequest.builder().timeout(Duration.ofMillis(20))
         builder.yesNo("safe", "safe?")
@@ -184,6 +194,37 @@ class DecisionModelTest {
 
         assertThat(result).isInstanceOf(DecisionOutcome.Failure::class.java)
         assertThat((result as DecisionOutcome.Failure).failure).isEqualTo(CallFailure.DeadlineExceeded)
+    }
+
+    @Test
+    fun `computes deadlines across negative origins and signed wrap`() {
+        listOf(Long.MIN_VALUE, Long.MAX_VALUE - 10).forEach { origin ->
+            val clock = AtomicLong(origin)
+            val builder = DecisionRequest.builder()
+            builder.yesNo("safe", "safe?")
+            val request = builder.build()
+            val success = RawDecisionOutcome.success(
+                listOf(RawAnswer.yesNo("safe", 1.0, "true")),
+                DecisionProvenance.builder("test", EvidenceKind.DISTRIBUTION).build(),
+            )
+            val model = modelWithClock(DecisionProvider {
+                success
+            }, Duration.ofSeconds(5), DecisionRecordPolicy.metadata(), clock::get)
+
+            assertThat(model.ask(request)).isInstanceOf(DecisionOutcome.Success::class.java)
+
+            clock.set(origin)
+            val lateModel = modelWithClock(DecisionProvider {
+                clock.set(origin + Duration.ofSeconds(5).toNanos())
+                RawDecisionOutcome.success(
+                    listOf(RawAnswer.yesNo("safe", 1.0, "true")),
+                    DecisionProvenance.builder("test", EvidenceKind.DISTRIBUTION).build(),
+                )
+            }, Duration.ofSeconds(5), DecisionRecordPolicy.metadata(), clock::get)
+
+            val late = lateModel.ask(request) as DecisionOutcome.Failure
+            assertThat(late.failure).isEqualTo(CallFailure.DeadlineExceeded)
+        }
     }
 
     @Test
@@ -272,6 +313,9 @@ class DecisionModelTest {
         try {
             (1..24).forEach { DecisionModel(provider).ask(request) }
             assertThat(Thread.getAllStackTraces().keys.count { it.name == "embabel-decision" && it.isAlive }).isLessThanOrEqualTo(4)
+            val disabled = NoDecisionModel.create().ask(yesNoRequest()) as DecisionOutcome.Failure
+            assertThat(disabled.failure).isEqualTo(CallFailure.Disabled)
+            assertThat(disabled.safeCode).isEqualTo(DecisionSafeCode.DISABLED)
             release.countDown()
             Thread.sleep(20)
 
