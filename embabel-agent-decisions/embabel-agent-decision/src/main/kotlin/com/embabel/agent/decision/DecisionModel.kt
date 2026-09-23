@@ -100,6 +100,7 @@ class DecisionModel private constructor(
     private var defaultPolicy: DecisionRecordPolicy,
     private var clock: () -> Long,
     initialInstrumentation: InstrumentationSelection,
+    initialExecutionContext: DecisionExecutionContext?,
 ) : AutoCloseable {
     constructor(decisionProvider: DecisionProvider) : this(
         decisionProvider = decisionProvider,
@@ -109,20 +110,40 @@ class DecisionModel private constructor(
         defaultPolicy = DecisionRecordPolicy.metadata(),
         clock = System::nanoTime,
         initialInstrumentation = InstrumentationSelection.Unset,
+        initialExecutionContext = null,
     )
 
     private val execution = DecisionExecutionSupport()
     private val instrumentation = AtomicReference(initialInstrumentation)
+    private val executionContext = AtomicReference(initialExecutionContext)
 
     fun withDefaults(defaultTimeout: Duration, defaultRecordPolicy: DecisionRecordPolicy): DecisionModel {
         validDuration(defaultTimeout)
-        return DecisionModel(decisionProvider, name, provider, defaultTimeout, defaultRecordPolicy, clock, instrumentation.get())
+        return DecisionModel(
+            decisionProvider,
+            name,
+            provider,
+            defaultTimeout,
+            defaultRecordPolicy,
+            clock,
+            instrumentation.get(),
+            executionContext.get(),
+        )
     }
 
     fun named(name: String, provider: String): DecisionModel {
         require(name.isNotBlank()) { "name must not be blank" }
         require(provider.isNotBlank()) { "provider must not be blank" }
-        return DecisionModel(decisionProvider, name, provider, defaultTimeout, defaultPolicy, clock, instrumentation.get())
+        return DecisionModel(
+            decisionProvider,
+            name,
+            provider,
+            defaultTimeout,
+            defaultPolicy,
+            clock,
+            instrumentation.get(),
+            executionContext.get(),
+        )
     }
 
     @ApiStatus.Experimental
@@ -135,6 +156,7 @@ class DecisionModel private constructor(
             defaultPolicy,
             clock,
             InstrumentationSelection.Explicit(instrumentation),
+            executionContext.get(),
         )
 
     /** Installs one startup default without replacing this facade or its execution capacity. */
@@ -145,11 +167,17 @@ class DecisionModel private constructor(
             InstrumentationSelection.Default(instrumentation),
         )
 
+    /** Installs the first execution-context carrier without replacing this facade. */
+    @ApiStatus.Experimental
+    fun installExecutionContext(context: DecisionExecutionContext): Boolean =
+        executionContext.compareAndSet(null, context)
+
     fun ask(request: DecisionRequest): DecisionOutcome {
         val startedAt = clock()
         val family = providerFamily(provider)
         val questionCount = (request as? RequestToken)?.data?.questions?.size ?: 0
         val selectedInstrumentation = instrumentation.get().instrumentation
+        val selectedExecutionContext = executionContext.get() ?: IdentityDecisionExecutionContext
         val observation = startObservation(
             selectedInstrumentation,
             DecisionObservationContext.create(family, questionCount),
@@ -162,7 +190,7 @@ class DecisionModel private constructor(
         var result: DecisionCallResult? = null
         var fatalError: Error? = null
         try {
-            result = executeDecision(request, startedAt, observation)
+            result = executeDecision(request, startedAt, observation, selectedExecutionContext)
             return result.outcome
         } catch (error: Error) {
             fatalError = error
@@ -185,6 +213,7 @@ class DecisionModel private constructor(
         request: DecisionRequest,
         startedAt: Long,
         observation: GuardedDecisionObservation,
+        executionContext: DecisionExecutionContext,
     ): DecisionCallResult {
         val prepared = try {
             prepare(request, defaultTimeout, defaultPolicy, startedAt, clock, observation::providerEventSafely)
@@ -193,7 +222,7 @@ class DecisionModel private constructor(
             return failedResult(CallFailure.RejectedRequest, null)
         }
         val raw = try {
-            invokeWithinDeadline(prepared, observation)
+            invokeWithinDeadline(prepared, observation, executionContext)
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
             observation.facadeEventSafely(DecisionTelemetryEvent.CANCELLATION)
@@ -242,6 +271,7 @@ class DecisionModel private constructor(
     private fun invokeWithinDeadline(
         prepared: PreparedDecisionRequest,
         observation: GuardedDecisionObservation,
+        executionContext: DecisionExecutionContext,
     ): RawDecisionOutcome? {
         val providerWork = Callable {
             try {
@@ -250,7 +280,8 @@ class DecisionModel private constructor(
                 observation.sealProviderEvents()
             }
         }
-        val work = observation.wrapSafely(providerWork)
+        val work = executionContext.wrapSafely(observation.wrapSafely(providerWork))
+            ?: return RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE)
         try {
             if (decisionProvider is CallerBoundDecisionProvider) {
                 return try {
@@ -424,33 +455,108 @@ private class GuardedDecisionObservation(
     }
 }
 
-private fun <T> DecisionObservation.wrapSafely(work: Callable<T>): Callable<T> {
-    val once = OnceCallable(work)
+private enum class ExecutionContextPhase { WRAP, CALL }
+
+private interface InstrumentedDecisionWork<T> : Callable<T> {
+    fun arm()
+    fun wasInvoked(): Boolean
+    fun failure(): Throwable?
+    fun replay(): T
+}
+
+private fun <T> DecisionExecutionContext.wrapSafely(work: InstrumentedDecisionWork<T>): Callable<T>? {
+    val deferred = DeferredCallable(work)
     val wrapped = try {
-        requireNotNull(wrap(once))
+        requireNotNull(wrap(deferred))
+    } catch (error: Exception) {
+        if (error is InterruptedException) throw error
+        logExecutionContextFailure(ExecutionContextPhase.WRAP)
+        return null
+    }
+    work.arm()
+    // Arm the carrier-facing guard last so eager wrap calls cannot enter instrumentation.
+    deferred.arm()
+    return Callable {
+        var contextFailure: Throwable? = null
+        try {
+            wrapped.call()
+        } catch (error: Throwable) {
+            contextFailure = error
+        }
+        val workFailure = work.failure()
+        // Preserve provider fatality; otherwise a carrier Error must outrank ordinary failures.
+        if (workFailure is Error) {
+            if (contextFailure is Error && contextFailure !== workFailure) {
+                workFailure.addSuppressed(contextFailure)
+            }
+            throw workFailure
+        }
+        if (contextFailure is Error) {
+            workFailure?.let(contextFailure::addSuppressed)
+            logExecutionContextFailure(ExecutionContextPhase.CALL)
+            throw contextFailure
+        }
+        workFailure?.let { throw it }
+        contextFailure?.let { failure ->
+            logExecutionContextFailure(ExecutionContextPhase.CALL)
+            throw failure
+        }
+        if (!work.wasInvoked()) {
+            logExecutionContextFailure(ExecutionContextPhase.CALL)
+            throw IllegalStateException("execution context did not invoke work")
+        }
+        work.replay()
+    }
+}
+
+private fun <T> DecisionObservation.wrapSafely(work: Callable<T>): InstrumentedDecisionWork<T> {
+    val once = OnceCallable(work)
+    val deferred = DeferredCallable(once)
+    val wrapped = try {
+        requireNotNull(wrap(deferred))
     } catch (error: Exception) {
         if (error is InterruptedException) throw error
         logInstrumentationFailure(InstrumentationHook.WRAP)
-        once
+        deferred
     }
-    return Callable {
-        var wrapperFailure: Exception? = null
-        try {
-            wrapped.call()
-        } catch (error: Exception) {
-            if (error is InterruptedException && !once.wasInvoked()) throw error
-            wrapperFailure = error
+    return object : InstrumentedDecisionWork<T> {
+        override fun call(): T {
+            var wrapperFailure: Exception? = null
+            try {
+                wrapped.call()
+            } catch (error: Exception) {
+                if (error is InterruptedException && !once.wasInvoked()) throw error
+                wrapperFailure = error
+            }
+            val workFailure = once.failure()
+            if (!once.wasInvoked() || wrapperFailure != null && wrapperFailure !== workFailure ||
+                wrapperFailure == null && workFailure != null
+            ) {
+                logInstrumentationFailure(InstrumentationHook.WRAPPED_WORK)
+            }
+            if (wrapperFailure is InterruptedException && wrapperFailure !== workFailure) {
+                Thread.currentThread().interrupt()
+            }
+            return deferred.call()
         }
-        val workFailure = once.failure()
-        if (!once.wasInvoked() || wrapperFailure != null && wrapperFailure !== workFailure ||
-            wrapperFailure == null && workFailure != null
-        ) {
-            logInstrumentationFailure(InstrumentationHook.WRAPPED_WORK)
-        }
-        if (wrapperFailure is InterruptedException && wrapperFailure !== workFailure) {
-            Thread.currentThread().interrupt()
-        }
-        once.call()
+
+        override fun arm() = deferred.arm()
+        override fun wasInvoked(): Boolean = once.wasInvoked()
+        override fun failure(): Throwable? = once.failure()
+        override fun replay(): T = once.call()
+    }
+}
+
+private class DeferredCallable<T>(private val work: Callable<T>) : Callable<T> {
+    private val armed = AtomicBoolean()
+
+    override fun call(): T {
+        check(armed.get()) { "execution context is not established" }
+        return work.call()
+    }
+
+    fun arm() {
+        armed.set(true)
     }
 }
 
@@ -493,6 +599,10 @@ private fun closeObservation(observation: DecisionObservation) {
 
 private fun logInstrumentationFailure(hook: InstrumentationHook) {
     decisionLogger.warn("Decision instrumentation hook failed hook={}", hook)
+}
+
+private fun logExecutionContextFailure(phase: ExecutionContextPhase) {
+    decisionLogger.warn("Decision execution context failed phase={}", phase)
 }
 
 private fun providerFamily(provider: String): DecisionProviderFamily = when (provider) {

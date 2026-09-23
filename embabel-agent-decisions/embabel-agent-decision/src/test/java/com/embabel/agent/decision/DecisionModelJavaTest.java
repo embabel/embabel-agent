@@ -107,6 +107,23 @@ class DecisionModelJavaTest {
     }
 
     @Test
+    void executionContextIsJavaFriendlyGenericAndInstallableOnce() {
+        DecisionExecutionContext context = new DecisionExecutionContext() {
+            @Override
+            public <T> Callable<T> wrap(Callable<T> work) {
+                return work;
+            }
+        };
+        var model = new DecisionModel(prepared ->
+                RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.DISABLED));
+
+        assertTrue(model.installExecutionContext(context));
+        assertTrue(!model.installExecutionContext(context));
+        assertEquals(1, DecisionExecutionContext.class.getDeclaredMethods().length);
+        assertEquals(1, DecisionExecutionContext.class.getDeclaredMethods()[0].getTypeParameters().length);
+    }
+
+    @Test
     void javaNullObservationFallsBackToNoop() {
         DecisionInstrumentation instrumentation = context -> null;
         var model = new DecisionModel(prepared ->

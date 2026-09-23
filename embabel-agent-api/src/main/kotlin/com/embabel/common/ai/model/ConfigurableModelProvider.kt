@@ -18,6 +18,7 @@ package com.embabel.common.ai.model
 import com.embabel.agent.decision.DecisionModel
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.PlaceholderLlmService
+import com.embabel.agent.spi.support.DecisionExecutionContextBridge
 import com.embabel.common.util.indent
 import com.embabel.common.util.loggerFor
 import org.jetbrains.annotations.ApiStatus
@@ -229,6 +230,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
 ) : ModelProvider {
 
     private val logger = loggerFor<ConfigurableModelProvider>()
+    private val decisionExecutionContext = DecisionExecutionContextBridge()
 
     private val configurableRoleResolver =
         ConfigurableRoleResolver(properties) { defaultLlm.provider }
@@ -801,6 +803,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 "Decision model '$model' for role $role is not available: Choices are ${decisionModels.map { it.name }}"
             }
         }
+        decisionModels.forEach(::installDecisionExecutionContext)
     }
 
     /**
@@ -1292,8 +1295,15 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 defaultDecisionModel ?: decisionFallback(criteria)
 
             is PreResolvedModelSelectionCriteria<*> ->
-                criteria.resolved as? DecisionModel ?: decisionFallback(criteria)
+                (criteria.resolved as? DecisionModel)
+                    ?.let(::installDecisionExecutionContext)
+                    ?: decisionFallback(criteria)
         }
+
+    private fun installDecisionExecutionContext(model: DecisionModel): DecisionModel {
+        model.installExecutionContext(decisionExecutionContext)
+        return model
+    }
 
     private fun decisionNamed(name: String): DecisionModel? =
         decisionModels.firstOrNull { it.name == name }
