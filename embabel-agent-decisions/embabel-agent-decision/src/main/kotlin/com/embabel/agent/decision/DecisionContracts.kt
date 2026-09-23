@@ -51,12 +51,14 @@ private class RatingToken<T>(override val id: String, val binding: String, val q
 @ApiStatus.Experimental
 class DecisionRecordPolicy private constructor(val mode: RecordMode, val maxBytes: Int?, val allowlist: Set<String>) {
     companion object {
+        private val FULL_RECORD_FIELDS = setOf("answerIds")
         @JvmStatic fun none() = DecisionRecordPolicy(RecordMode.NONE, null, emptySet())
         @JvmStatic fun metadata() = DecisionRecordPolicy(RecordMode.METADATA, null, emptySet())
         @JvmStatic fun full(maxBytes: Int, allowlist: Set<String>): DecisionRecordPolicy {
-            require(maxBytes in 1..MAX_RECORD_BYTES) { "maxBytes must be between 1 and $MAX_RECORD_BYTES" }
+            require(maxBytes in 2..MAX_RECORD_BYTES) { "maxBytes must be between 2 and $MAX_RECORD_BYTES" }
             require(allowlist.isNotEmpty()) { "full records require an explicit allowlist" }
             val copied = allowlist.map { require(it.isNotBlank() && '*' !in it) { "allowlist entries must be explicit" }; it }.toSet()
+            require(copied.all { it in FULL_RECORD_FIELDS }) { "unsupported record field in allowlist" }
             return DecisionRecordPolicy(RecordMode.FULL, maxBytes, Collections.unmodifiableSet(copied))
         }
     }
@@ -128,13 +130,13 @@ class DecisionModel(private val provider: DecisionProvider) {
         return DecisionModel(provider).also { it.defaultTimeout = defaultTimeout; it.defaultPolicy = defaultRecordPolicy; it.clock = clock }
     }
     fun ask(request: DecisionRequest): DecisionOutcome {
-        val prepared = try { prepare(request, defaultTimeout, defaultPolicy, clock(), clock) } catch (_: RuntimeException) { return failed(CallFailure.RejectedRequest, null, null) }
-        val raw = try { invokeWithinDeadline(prepared) } catch (_: InterruptedException) { Thread.currentThread().interrupt(); return failed(CallFailure.Cancelled, DecisionSafeCode.CANCELLED, prepared) } ?: return failed(CallFailure.DeadlineExceeded, DecisionSafeCode.DEADLINE_EXCEEDED, prepared)
-        if (remaining(prepared) == 0L) return failed(CallFailure.DeadlineExceeded, DecisionSafeCode.DEADLINE_EXCEEDED, prepared)
-        raw.callFailure?.let { return failed(it, code(it), prepared) }; val input = raw.answers ?: return failed(CallFailure.RejectedRequest, DecisionSafeCode.REJECTED_REQUEST, prepared); val source = raw.provenance ?: return failed(CallFailure.RejectedRequest, DecisionSafeCode.REJECTED_REQUEST, prepared)
-        if (input.map { it.keyId }.distinct().size != input.size || input.any { answer -> prepared.questions.none { it.id == answer.keyId } }) return failed(CallFailure.RejectedRequest, DecisionSafeCode.REJECTED_REQUEST, prepared)
+        val prepared = try { prepare(request, defaultTimeout, defaultPolicy, clock(), clock) } catch (_: RuntimeException) { return failed(CallFailure.RejectedRequest, null) }
+        val raw = try { invokeWithinDeadline(prepared) } catch (_: InterruptedException) { Thread.currentThread().interrupt(); return failed(CallFailure.Cancelled, prepared) } ?: return failed(CallFailure.DeadlineExceeded, prepared)
+        if (remaining(prepared) == 0L) return failed(CallFailure.DeadlineExceeded, prepared)
+        raw.callFailure?.let { return failed(it, prepared) }; val input = raw.answers ?: return failed(CallFailure.RejectedRequest, prepared); val source = raw.provenance ?: return failed(CallFailure.RejectedRequest, prepared)
+        if (input.map { it.keyId }.distinct().size != input.size || input.any { answer -> prepared.questions.none { it.id == answer.keyId } }) return failed(CallFailure.RejectedRequest, prepared)
         val data = requestData(request); val answers = data.questions.associate { question -> question.key to validate(question, input.firstOrNull { it.keyId == question.id }) }; val provenance = completed(source, prepared)
-        return DecisionOutcome.Success(provenance, safeRecord(prepared.recordPolicy, provenance, answers), Collections.unmodifiableMap(answers))
+        return DecisionOutcome.Success(provenance, safeRecord(prepared.recordPolicy, provenance, answers, prepared.questions.size), Collections.unmodifiableMap(answers))
     }
     private fun invokeWithinDeadline(prepared: PreparedDecisionRequest): RawDecisionOutcome? {
         if (provider is CallerBoundDecisionProvider) return try { provider.invoke(prepared) } catch (_: RuntimeException) { RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE) }
@@ -151,11 +153,42 @@ class DecisionModel(private val provider: DecisionProvider) {
         return KeyOutcome.Success(selected, Collections.unmodifiableMap(values), immutableList(maxima), maxima.first(), score, raw.selectedId ?: ids.first())
     }
     private fun yesNo(raw: RawAnswer): KeyOutcome<Boolean> { val p = raw.pTrue ?: return KeyOutcome.Failure(KeyFailure.Invalid, DecisionSafeCode.INVALID); if (!p.isFinite() || p !in 0.0..1.0) return KeyOutcome.Failure(KeyFailure.Invalid, DecisionSafeCode.INVALID); val values = linkedMapOf(false to 1.0 - p, true to p); val maxima = values.filterValues { it == values.values.max() }.keys.toList(); if (raw.selectedId != null && raw.selectedId !in maxima.map { it.toString() }) return KeyOutcome.Failure(KeyFailure.Invalid, DecisionSafeCode.INVALID); val selected = raw.selectedId?.toBooleanStrictOrNull() ?: maxima.first(); return KeyOutcome.Success(selected, Collections.unmodifiableMap(values), immutableList(maxima), maxima.first(), null, raw.selectedId ?: maxima.first().toString()) }
-    private fun failed(failure: CallFailure, safeCode: DecisionSafeCode?, request: PreparedDecisionRequest?): DecisionOutcome { val canonical = safeCode ?: code(failure); val provenance = facadeProvenance(request); return DecisionOutcome.Failure(failure, canonical, provenance, request?.let { safeRecord(it.recordPolicy, provenance, emptyMap()) }) }
+    private fun failed(failure: CallFailure, request: PreparedDecisionRequest?): DecisionOutcome { val canonical = code(failure); val provenance = facadeProvenance(request); return DecisionOutcome.Failure(failure, canonical, provenance, request?.let { safeRecord(it.recordPolicy, provenance, emptyMap(), it.questions.size, canonical) }) }
     private fun requestData(request: DecisionRequest) = (request as? RequestToken)?.data ?: throw IllegalArgumentException("unknown decision request")
     private fun prepare(request: DecisionRequest, timeoutDefault: Duration, policyDefault: DecisionRecordPolicy, start: Long, clock: () -> Long): PreparedDecisionRequest { val data = requestData(request); val timeout = data.timeout ?: timeoutDefault; validDuration(timeout); val nanos = try { timeout.toNanos() } catch (_: ArithmeticException) { throw IllegalArgumentException("timeout too large") }; val deadline = start + nanos; val questions = data.questions.map { question -> val support = if (question.kind == DecisionKind.YES_NO) listOf(PreparedSupportData("false", "false"), PreparedSupportData("true", "true")) else question.options.map { PreparedSupportData(it.id, it.label) }; PreparedQuestionData(question.id, question.kind, question.text, immutableList(support)) }; return PreparedData(data.state, immutableList(questions), deadline, data.policy ?: policyDefault, data.correlationId, UUID.randomUUID().toString(), fingerprint(questions), clock) }
     private fun remaining(request: PreparedDecisionRequest): Long = request.remainingNanos()
-    private fun safeRecord(policy: DecisionRecordPolicy, provenance: DecisionProvenance, answers: Map<DecisionKey<*>, KeyOutcome<*>>): DecisionRecord? { if (policy.mode == RecordMode.NONE) return null; val max = policy.maxBytes ?: MAX_METADATA_BYTES; val fields = linkedMapOf("envelopeVersion" to "1", "schemaVersion" to "1", "provider" to provenance.provider, "requestId" to (provenance.requestId ?: ""), "questionFingerprint" to (provenance.questionFingerprint ?: ""), "questionCount" to answers.size.toString()); provenance.correlationId?.let { fields["correlationId"] = it }; val failures = answers.values.filterIsInstance<KeyOutcome.Failure<*>>().map { it.safeCode.name }; if (failures.isNotEmpty()) fields["safeCodes"] = failures.joinToString(","); if (policy.mode == RecordMode.FULL && "answerIds" in policy.allowlist) fields["answerIds"] = answers.values.filterIsInstance<KeyOutcome.Success<*>>().joinToString(",") { it.selectedSupportId() }; val bounded = linkedMapOf<String, String>(); var bytes = 0; for ((key, value) in fields) { val size = (key + value).toByteArray(StandardCharsets.UTF_8).size; if (bytes + size <= max) { bounded[key] = value; bytes += size } }; return SafeRecord(policy.mode, Collections.unmodifiableMap(bounded)) }
+    private fun safeRecord(policy: DecisionRecordPolicy, provenance: DecisionProvenance, answers: Map<DecisionKey<*>, KeyOutcome<*>>, questionCount: Int, callSafeCode: DecisionSafeCode? = null): DecisionRecord? {
+        if (policy.mode == RecordMode.NONE) return null
+        val max = policy.maxBytes ?: MAX_METADATA_BYTES
+        val fields = linkedMapOf("envelopeVersion" to "1", "schemaVersion" to "1", "provider" to provenance.provider, "requestId" to (provenance.requestId ?: ""), "questionFingerprint" to (provenance.questionFingerprint ?: ""), "questionCount" to questionCount.toString())
+        provenance.correlationId?.let { fields["correlationId"] = it }
+        val failures = callSafeCode?.let(::listOf) ?: answers.values.filterIsInstance<KeyOutcome.Failure<*>>().map { it.safeCode }
+        if (failures.isNotEmpty()) fields["safeCodes"] = failures.joinToString(",") { it.name }
+        if (policy.mode == RecordMode.FULL && "answerIds" in policy.allowlist) fields["answerIds"] = answers.values.filterIsInstance<KeyOutcome.Success<*>>().joinToString(",") { it.selectedSupportId() }
+        val bounded = linkedMapOf<String, String>()
+        fields.forEach { (key, value) ->
+            val candidate = LinkedHashMap(bounded).apply { put(key, value) }
+            if (serializedSafeRecord(candidate).size <= max) bounded[key] = value
+        }
+        return SafeRecord(policy.mode, Collections.unmodifiableMap(bounded))
+    }
+    private fun serializedSafeRecord(fields: Map<String, String>): ByteArray = fields.entries.joinToString(",", "{", "}") { (key, value) -> "${jsonString(key)}:${jsonString(value)}" }.toByteArray(StandardCharsets.UTF_8)
+    private fun jsonString(value: String): String = buildString {
+        append('"')
+        value.forEach { character ->
+            when (character) {
+                '"' -> append("\\\"")
+                '\\' -> append("\\\\")
+                '\b' -> append("\\b")
+                '\u000c' -> append("\\f")
+                '\n' -> append("\\n")
+                '\r' -> append("\\r")
+                '\t' -> append("\\t")
+                else -> if (character < ' ') append("\\u%04x".format(character.code)) else append(character)
+            }
+        }
+        append('"')
+    }
     private fun facadeProvenance(request: PreparedDecisionRequest?) = DecisionProvenance.builder("decision-facade", EvidenceKind.VERBALIZED).requestId(request?.requestId ?: UUID.randomUUID().toString()).apply { request?.correlationId?.let { correlationId(it) }; request?.questionFingerprint?.let { questionFingerprint(it) } }.build()
     private fun completed(source: DecisionProvenance, request: PreparedDecisionRequest) = DecisionProvenance.builder(source.provider, source.evidenceKind).apply { source.requestedModel?.let { requestedModel(it) }; source.resolvedModel?.let { resolvedModel(it) }; source.modelVersion?.let { modelVersion(it) }; source.adapterVersion?.let { adapterVersion(it) }; source.promptVersion?.let { promptVersion(it) }; requestId(request.requestId); request.correlationId?.let { correlationId(it) }; questionFingerprint(request.questionFingerprint); source.timestamp?.let { timestamp(it) }; source.usage?.let { usage(it.inputTokens ?: 0, it.outputTokens ?: 0) } }.build()
     private fun validDuration(value: Duration) { require(!value.isNegative && !value.isZero) { "timeout must be positive" }; try { value.toNanos() } catch (_: ArithmeticException) { throw IllegalArgumentException("timeout too large") } }

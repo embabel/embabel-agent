@@ -80,7 +80,11 @@ class DecisionModelTest {
         assertThat(outcome).isInstanceOf(DecisionOutcome.Failure::class.java)
         assertThat((outcome as DecisionOutcome.Failure).failure).isEqualTo(CallFailure.RejectedRequest)
         assertThatThrownBy { DecisionRecordPolicy.full(0, setOf("answerIds")) }.isInstanceOf(IllegalArgumentException::class.java)
+        assertThatThrownBy { DecisionRecordPolicy.full(1, setOf("answerIds")) }.isInstanceOf(IllegalArgumentException::class.java)
         assertThatThrownBy { DecisionRecordPolicy.full(10, setOf("*")) }.isInstanceOf(IllegalArgumentException::class.java)
+        assertThatThrownBy { DecisionRecordPolicy.full(10, setOf("answerId")) }
+            .isInstanceOf(IllegalArgumentException::class.java)
+            .hasMessageContaining("unsupported record field")
     }
 
     @Test
@@ -290,6 +294,51 @@ class DecisionModelTest {
     }
 
     @Test
+    fun `failure records use prepared question count and canonical call safe code`() {
+        CallFailure.entries.forEach { failure ->
+            val builder = DecisionRequest.builder().recordPolicy(DecisionRecordPolicy.metadata())
+            builder.yesNo("first", "first?")
+            builder.yesNo("second", "second?")
+            val outcome = DecisionModel(DecisionProvider {
+                RawDecisionOutcome.failure(failure, DecisionSafeCode.INVALID)
+            }).ask(builder.build()) as DecisionOutcome.Failure
+
+            assertThat(outcome.safeCode).isEqualTo(canonical(failure))
+            assertThat(outcome.record!!.fields)
+                .containsEntry("questionCount", "2")
+                .containsEntry("safeCodes", canonical(failure).name)
+            assertThat(outcome.record!!.fields.values.joinToString()).doesNotContain("first?").doesNotContain("second?")
+        }
+    }
+
+    @Test
+    fun `full record byte limit covers deterministic JSON encoding`() {
+        val correlationId = "\"\\é".repeat(64).take(256)
+        assertThat(correlationId.toByteArray(Charsets.UTF_8)).hasSize(256)
+        fun ask(maxBytes: Int): DecisionOutcome.Success {
+            val builder = DecisionRequest.builder()
+                .recordPolicy(DecisionRecordPolicy.full(maxBytes, setOf("answerIds")))
+                .correlationId(correlationId)
+            builder.yesNo("quoted", "quoted?")
+            return DecisionModel(DecisionProvider {
+                RawDecisionOutcome.success(
+                    listOf(RawAnswer.yesNo("quoted", 1.0, "true")),
+                    DecisionProvenance.builder("provider-\"\\é", EvidenceKind.DISTRIBUTION).build(),
+                )
+            }).ask(builder.build()) as DecisionOutcome.Success
+        }
+
+        val complete = ask(4096)
+        assertThat(complete.record!!.fields)
+            .containsEntry("correlationId", correlationId)
+            .containsEntry("provider", "provider-\"\\é")
+            .containsEntry("answerIds", "true")
+        val maxBytes = serializedRecordBytes(complete.record!!.fields) - 1
+        val bounded = ask(maxBytes)
+        assertThat(serializedRecordBytes(bounded.record!!.fields)).isLessThanOrEqualTo(maxBytes)
+    }
+
+    @Test
     fun `rejects mutable number state before provider invocation`() {
         val invoked = AtomicLong()
         assertThatThrownBy {
@@ -302,41 +351,95 @@ class DecisionModelTest {
 
     @Test
     fun `bounds noncooperative work across many models and cancels interruption`() {
-        val started = CountDownLatch(1)
+        val workersStarted = CountDownLatch(DecisionExecutionSupport.MAX_WORKERS)
         val release = CountDownLatch(1)
+        val workersFinished = CountDownLatch(DecisionExecutionSupport.MAX_WORKERS)
+        val callersFinished = CountDownLatch(DecisionExecutionSupport.MAX_WORKERS)
         val provider = DecisionProvider {
-            started.countDown()
-            while (release.count > 0) try { release.await() } catch (_: InterruptedException) { }
-            RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE)
+            workersStarted.countDown()
+            try {
+                while (release.count > 0) try { release.await() } catch (_: InterruptedException) { }
+                RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE)
+            } finally {
+                workersFinished.countDown()
+            }
         }
-        val request = DecisionRequest.builder().also { it.timeout(Duration.ofMillis(5)); it.yesNo("safe", "safe?") }.build()
+        val blockingRequest = DecisionRequest.builder().also { it.timeout(Duration.ofSeconds(2)); it.yesNo("safe", "safe?") }.build()
+        val saturatedRequest = DecisionRequest.builder().also { it.timeout(Duration.ofMillis(100)); it.yesNo("safe", "safe?") }.build()
+        val callers = List(DecisionExecutionSupport.MAX_WORKERS) {
+            Thread {
+                try {
+                    DecisionModel(provider).ask(blockingRequest)
+                } finally {
+                    callersFinished.countDown()
+                }
+            }
+        }
         try {
-            (1..24).forEach { DecisionModel(provider).ask(request) }
+            callers.forEach(Thread::start)
+            assertThat(workersStarted.await(1, TimeUnit.SECONDS)).isTrue
+            (1..24).forEach {
+                val outcome = DecisionModel(provider).ask(saturatedRequest) as DecisionOutcome.Failure
+                assertThat(outcome.failure).isEqualTo(CallFailure.Unavailable)
+            }
             assertThat(Thread.getAllStackTraces().keys.count { it.name == "embabel-decision" && it.isAlive }).isLessThanOrEqualTo(4)
             val disabled = NoDecisionModel.create().ask(yesNoRequest()) as DecisionOutcome.Failure
             assertThat(disabled.failure).isEqualTo(CallFailure.Disabled)
             assertThat(disabled.safeCode).isEqualTo(DecisionSafeCode.DISABLED)
             release.countDown()
-            Thread.sleep(20)
+            assertThat(workersFinished.await(1, TimeUnit.SECONDS)).isTrue
+            assertThat(callersFinished.await(1, TimeUnit.SECONDS)).isTrue
 
             val result = AtomicReference<DecisionOutcome>()
             val interruptStarted = CountDownLatch(1)
             val interruptRelease = CountDownLatch(1)
+            val interruptWorkerFinished = CountDownLatch(1)
             val caller = Thread { result.set(DecisionModel(DecisionProvider {
                 interruptStarted.countDown()
-                while (interruptRelease.count > 0) try { interruptRelease.await() } catch (_: InterruptedException) { }
-                RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE)
-            }).ask(request)) }
-            caller.start()
-            assertThat(interruptStarted.await(1, TimeUnit.SECONDS)).isTrue
-            caller.interrupt()
-            caller.join(500)
-            assertThat(result.get()).isInstanceOf(DecisionOutcome.Failure::class.java)
-            assertThat((result.get() as DecisionOutcome.Failure).failure).isEqualTo(CallFailure.Cancelled)
-            interruptRelease.countDown()
+                try {
+                    while (interruptRelease.count > 0) try { interruptRelease.await() } catch (_: InterruptedException) { }
+                    RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE)
+                } finally {
+                    interruptWorkerFinished.countDown()
+                }
+            }).ask(blockingRequest)) }
+            try {
+                caller.start()
+                assertThat(interruptStarted.await(1, TimeUnit.SECONDS)).isTrue
+                caller.interrupt()
+                caller.join(500)
+                assertThat(result.get()).isInstanceOf(DecisionOutcome.Failure::class.java)
+                assertThat((result.get() as DecisionOutcome.Failure).failure).isEqualTo(CallFailure.Cancelled)
+            } finally {
+                caller.interrupt()
+                interruptRelease.countDown()
+            }
+            assertThat(interruptWorkerFinished.await(1, TimeUnit.SECONDS)).isTrue
         } finally {
             release.countDown()
+            callers.forEach(Thread::interrupt)
         }
+    }
+
+    private fun serializedRecordBytes(fields: Map<String, String>): Int = fields.entries.joinToString(",", "{", "}") { (key, value) ->
+        "${jsonString(key)}:${jsonString(value)}"
+    }.toByteArray(Charsets.UTF_8).size
+
+    private fun jsonString(value: String): String = buildString {
+        append('"')
+        value.forEach { character ->
+            when (character) {
+                '"' -> append("\\\"")
+                '\\' -> append("\\\\")
+                '\b' -> append("\\b")
+                '\u000c' -> append("\\f")
+                '\n' -> append("\\n")
+                '\r' -> append("\\r")
+                '\t' -> append("\\t")
+                else -> if (character < ' ') append("\\u%04x".format(character.code)) else append(character)
+            }
+        }
+        append('"')
     }
 
     @Test
