@@ -8,6 +8,7 @@ digraph DecisionModules {
   llm [label="embabel-agent-decision-llm\nprompted adapter"];
   auto [label="embabel-agent-decision-autoconfigure\nopt-in Spring wiring"];
   starter [label="embabel-agent-starter-decision\nthin dependency starter"];
+  platform [label="embabel-agent-starter-platform\nagent platform starter"];
   core -> ai;
   jev -> core;
   llm -> core;
@@ -15,4 +16,5 @@ digraph DecisionModules {
   auto -> jev;
   auto -> llm;
   starter -> auto;
+  starter -> platform;
 }

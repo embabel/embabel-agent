@@ -36,7 +36,7 @@ include::../diagrams/decision-flow.dot[]
 
 ==== Explicit Jev consumers
 
-The Kotlin and Java examples below are compiled tests. Both handle call failure separately from per-key failure and return evidence to host code.
+The Kotlin and Java examples below are compiled tests. Both handle call failure separately from per-key failure and return evidence to host code. The included regions contain their imports, application enums and evidence types, request construction, failure handling, and executable main entrypoints.
 
 [source,kotlin]
 ----
@@ -52,6 +52,7 @@ The public adapter can be built directly:
 
 [source,kotlin]
 ----
+val requestedModel = System.getenv("TYPESAFE_MODEL")
 val model = TypeSafeDecisionModel.create({ System.getenv("TYPESAFE_API_KEY") }, requestedModel)
 ----
 
@@ -98,22 +99,37 @@ Dice is an external consumer, not a framework special case. The compiled example
 include::../../../../../../embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/DicePropositionRevisionExample.java[tag=dice-consumer]
 ----
 
-The decision supplies relation evidence and decision provenance. Dice still owns candidate retrieval, confidence, proposition status, revision disposition, persistence, trust, and source provenance. The opaque correlation id links the decision to a bounded revision operation without sending a domain object or arbitrary metadata.
+The decision supplies relation evidence and decision provenance. The example sends synthetic proposition text as explicit facts so Jev can classify meaning rather than guess from opaque ids. Mapped relations, confidence, proposition status, revision disposition, persistence, trust, and source provenance stay in process. The consumer-owned audit keeps both proposition ids, the bounded correlation id, stable question id, complete evidence, and decision provenance.
 
 ==== Running the examples
 
-Each main intentionally calls the network. It refuses to call when `TYPESAFE_API_KEY` or `TYPESAFE_MODEL` is blank.
+Each main intentionally calls the network. It refuses to call when `TYPESAFE_API_KEY` or `TYPESAFE_MODEL` is blank. Export both variables before running these commands. Run the first three commands from the repository root; the `cd` then moves into the leaf module for both launches.
 
 [source,bash]
 ----
-mvn -B -pl embabel-agent-decisions/embabel-agent-decision-typesafe -am test-compile
-mvn -B -f embabel-agent-decisions/embabel-agent-decision-typesafe/pom.xml dependency:build-classpath -Dmdep.includeScope=test -Dmdep.outputFile=target/example-classpath.txt
+# Fail before Maven work if either live credential setting is absent.
+: "${TYPESAFE_API_KEY:?export TYPESAFE_API_KEY before running the live examples}"
+: "${TYPESAFE_MODEL:?export TYPESAFE_MODEL before running the live examples}"
+
+# A standalone leaf classpath needs the current reactor BOM and artifacts installed first.
+mvn -B -Dmaven.gitcommitid.skip=true -pl embabel-agent-dependencies install -DskipTests
+mvn -B -Dmaven.gitcommitid.skip=true -pl embabel-agent-decisions/embabel-agent-decision-typesafe -am install -DskipTests
+mvn -B -Dmaven.gitcommitid.skip=true -f embabel-agent-decisions/embabel-agent-decision-typesafe/pom.xml dependency:build-classpath -Dmdep.includeScope=test -Dmdep.outputFile=target/example-classpath.txt
 cd embabel-agent-decisions/embabel-agent-decision-typesafe
 java -cp "target/test-classes:target/classes:$(cat target/example-classpath.txt)" com.embabel.agent.decision.example.JevDecisionExampleKt
 java -cp "target/test-classes:target/classes:$(cat target/example-classpath.txt)" com.embabel.agent.decision.example.JevDecisionExample
 ----
 
-Windows uses `;` as the classpath separator; this release has not claimed a local Windows run. The live JUnit smoke is also guarded by the `integration-tests` profile, `-Ddecision.live=true`, a nonblank key and model, and `CI` absent or false.
+Windows uses `;` as the classpath separator; this release has not claimed a local Windows run. The live JUnit smoke fails closed unless the command supplies both the integration-profile marker and live opt-in:
+
+[source,bash]
+----
+mvn -B -Pintegration-tests -Ddecision.integration-profile=true -Ddecision.live=true \
+  -pl embabel-agent-decisions/embabel-agent-decision-typesafe -am \
+  -Dtest=JevLiveSmokeIT -Dsurefire.failIfNoSpecifiedTests=false test
+----
+
+The marker is explicit because Maven does not expose the active profile id to the test runtime without changing the shared root build. Direct `-Dtest=JevLiveSmokeIT` selection without it cannot construct the transport. A nonblank key and model are still required, and `CI` must be absent or exactly `false` (case-insensitive).
 
 [[reference.decisions.promotion]]
 ==== Promotion checkpoint

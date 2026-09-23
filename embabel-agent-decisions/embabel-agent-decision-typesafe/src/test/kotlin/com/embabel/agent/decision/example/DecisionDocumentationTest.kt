@@ -45,6 +45,13 @@ class DecisionDocumentationTest {
             "embabel-agent-decision-autoconfigure`", "embabel-agent-starter-decision`").forEach { assertThat(modules).contains(it) }
         assertThat(page).contains("[graphviz, decision-modules.dot, png]", "include::../diagrams/decision-modules.dot[]")
         assertThat(page).contains("[graphviz, decision-flow.dot, png]", "include::../diagrams/decision-flow.dot[]")
+        val moduleDiagram = read("embabel-agent-docs/src/main/asciidoc/reference/diagrams/decision-modules.dot")
+        assertThat(moduleDiagram).contains("starter -> auto", "starter -> platform", "embabel-agent-starter-platform")
+        assertThat(page).contains(
+            "-pl embabel-agent-dependencies install -DskipTests",
+            "-am install -DskipTests",
+            "-Ddecision.integration-profile=true",
+        )
         assertThat(pom).contains("embabel-agent-decision/src/main/kotlin", "embabel-agent-decision-typesafe/src/main/kotlin",
             "embabel-agent-decision-llm/src/main/kotlin", "embabel-agent-decision-autoconfigure/src/main/java",
             "embabel-agent-decision-typesafe/src/test/kotlin", "embabel-agent-decision-typesafe/src/test/java")
@@ -65,6 +72,11 @@ class DecisionDocumentationTest {
         assertThat(html).contains("reference.decisions", "Explicit Jev consumers", "Spring Boot configuration",
             "decision-modules.dot", "decision-flow.dot")
         assertThat(html).doesNotContain("Unresolved directive", "include::")
+        listOf("decision-modules.dot.png", "decision-flow.dot.png").forEach { imageName ->
+            val image = root.resolve("embabel-agent-docs/target/generated-docs/images/$imageName")
+            assertThat(image).isRegularFile()
+            assertThat(Files.size(image)).isGreaterThan(0)
+        }
         val dokka = root.resolve("embabel-agent-docs/target/dokka-aggregate")
         assertThat(dokka).isDirectory()
         val files = Files.walk(dokka).use { stream -> stream.filter(Files::isRegularFile).toList() }
