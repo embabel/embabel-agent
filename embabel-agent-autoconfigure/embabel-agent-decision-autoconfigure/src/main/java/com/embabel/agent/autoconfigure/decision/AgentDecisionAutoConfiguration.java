@@ -203,11 +203,7 @@ public class AgentDecisionAutoConfiguration {
     }
 
     private static boolean supportsAutoConfiguredTypeSafeOrigin(URI uri) {
-        if (!uri.isAbsolute()
-                || uri.getUserInfo() != null
-                || uri.getQuery() != null
-                || uri.getFragment() != null
-                || !(uri.getPath().isEmpty() || "/".equals(uri.getPath()))) return false;
+        if (!TypeSafeDecisionModel.supportsBaseUri(uri)) return false;
         String host = uri.getHost();
         if (("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
                 && ("127.0.0.1".equals(host) || "::1".equals(host) || "[::1]".equals(host))) return true;
