@@ -34,8 +34,8 @@ public final class DecisionProperties {
     private int fullRecordMaxBytes = 65536;
     private Set<String> recordAllowlist = new LinkedHashSet<>();
     private String mapperBeanName;
-    private final Typesafe typesafe = new Typesafe();
-    private final Prompted prompted = new Prompted();
+    private Typesafe typesafe;
+    private Prompted prompted;
 
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
@@ -48,11 +48,16 @@ public final class DecisionProperties {
     public int getFullRecordMaxBytes() { return fullRecordMaxBytes; }
     public void setFullRecordMaxBytes(int fullRecordMaxBytes) { this.fullRecordMaxBytes = fullRecordMaxBytes; }
     public Set<String> getRecordAllowlist() { return Set.copyOf(recordAllowlist); }
-    public void setRecordAllowlist(Set<String> recordAllowlist) { this.recordAllowlist = new LinkedHashSet<>(recordAllowlist); }
+    public void setRecordAllowlist(Set<String> recordAllowlist) {
+        this.recordAllowlist = recordAllowlist == null ? new LinkedHashSet<>() : new LinkedHashSet<>(recordAllowlist);
+    }
     public String getMapperBeanName() { return mapperBeanName; }
     public void setMapperBeanName(String mapperBeanName) { this.mapperBeanName = mapperBeanName; }
-    public Typesafe getTypesafe() { return typesafe; }
-    public Prompted getPrompted() { return prompted; }
+    public Typesafe typesafe() { return typesafe; }
+    public Prompted prompted() { return prompted; }
+
+    void select(Typesafe typesafe) { this.typesafe = typesafe; }
+    void select(Prompted prompted) { this.prompted = prompted; }
 
     @Override public String toString() { return "DecisionProperties[redacted]"; }
 
@@ -61,7 +66,6 @@ public final class DecisionProperties {
         private String model;
         private URI baseUrl = URI.create("https://api.typesafe.ai");
         private Duration connectTimeout = Duration.ofSeconds(10);
-        private String apiKey;
 
         public String getModel() { return model; }
         public void setModel(String model) { this.model = model; }
@@ -69,8 +73,6 @@ public final class DecisionProperties {
         public void setBaseUrl(URI baseUrl) { this.baseUrl = baseUrl; }
         public Duration getConnectTimeout() { return connectTimeout; }
         public void setConnectTimeout(Duration connectTimeout) { this.connectTimeout = connectTimeout; }
-        public String getApiKey() { return apiKey; }
-        public void setApiKey(String apiKey) { this.apiKey = apiKey; }
         @Override public String toString() { return "DecisionProperties.Typesafe[redacted]"; }
     }
 

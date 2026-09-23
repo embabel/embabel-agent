@@ -36,6 +36,9 @@ class DecisionConfigurationPrivacyTest {
     void propertyObjectsAndValidationFailuresDoNotRenderSecrets(CapturedOutput output) {
         assertThat(new DecisionProperties().toString()).doesNotContain("apiKey", "model", "bean");
         assertThat(new DecisionProperties.Typesafe().toString()).isEqualTo("DecisionProperties.Typesafe[redacted]");
+        assertThat(DecisionProperties.Typesafe.class.getDeclaredFields())
+                .extracting(java.lang.reflect.Field::getName)
+                .doesNotContain("apiKey");
 
         AtomicReference<ConditionEvaluationReport> capturedReport = new AtomicReference<>();
         new ApplicationContextRunner()

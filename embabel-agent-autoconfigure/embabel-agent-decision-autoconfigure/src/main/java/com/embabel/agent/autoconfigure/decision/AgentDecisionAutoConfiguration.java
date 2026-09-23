@@ -29,14 +29,14 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.convert.DurationStyle;
+import org.springframework.boot.context.properties.bind.BindException;
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 
 import java.net.URI;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -67,7 +67,7 @@ public class AgentDecisionAutoConfiguration {
     }
 
     private DecisionModel typesafe(DecisionProperties properties, Environment environment, BeanFactory beanFactory) {
-        var selected = properties.getTypesafe();
+        var selected = properties.typesafe();
         if (!validBaseUrl(selected.getBaseUrl())) throw invalid("typesafe.base-url");
         EmbabelObjectMapperHolder mapper = mapper(properties, beanFactory);
         Supplier<String> apiKey = () -> {
@@ -84,9 +84,9 @@ public class AgentDecisionAutoConfiguration {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private DecisionModel prompted(DecisionProperties properties, BeanFactory beanFactory) {
-        String serviceName = properties.getPrompted().getLlmBeanName();
+        String serviceName = properties.prompted().getLlmBeanName();
         LlmService service = exactBean(beanFactory, serviceName, LlmService.class, "prompted.llm-bean-name");
-        String optionsName = properties.getPrompted().getOptionsBeanName();
+        String optionsName = properties.prompted().getOptionsBeanName();
         LlmOptions options = optionsName == null
                 ? LlmOptions.withDefaults()
                 : exactBean(beanFactory, optionsName, LlmOptions.class, "prompted.options-bean-name");
@@ -125,84 +125,73 @@ public class AgentDecisionAutoConfiguration {
     }
 
     private static DecisionProperties readProperties(Environment environment) {
-        DecisionProperties result = new DecisionProperties();
-        result.setEnabled(true);
-        result.setProvider(requiredSelector(environment, "provider", Set.of("typesafe", "prompted", "none")));
-        result.setDefaultTimeout(duration(environment, "default-timeout", Duration.ofSeconds(30), true));
-        result.setRecordMode(selector(environment, "record-mode", "metadata", Set.of("none", "metadata", "full")));
-        result.setFullRecordMaxBytes(integer(environment, "full-record-max-bytes", 65536, 1, 1048576));
-        result.setRecordAllowlist(allowlist(environment.getProperty(PREFIX + ".record-allowlist")));
-        result.setMapperBeanName(optionalName(environment, "mapper-bean-name"));
+        Binder binder = Binder.get(environment);
+        DecisionProperties result = bind(binder, PREFIX, DecisionProperties.class, DecisionProperties::new);
+        validateCommon(result);
 
         if ("typesafe".equals(result.getProvider())) {
-            result.getTypesafe().setModel(requiredName(environment, "typesafe.model"));
-            result.getTypesafe().setBaseUrl(uri(environment, "typesafe.base-url", URI.create("https://api.typesafe.ai")));
-            result.getTypesafe().setConnectTimeout(duration(environment, "typesafe.connect-timeout", Duration.ofSeconds(10), true));
+            DecisionProperties.Typesafe selected = bind(
+                    binder, PREFIX + ".typesafe", DecisionProperties.Typesafe.class, DecisionProperties.Typesafe::new);
+            validateTypesafe(selected);
+            result.select(selected);
         } else if ("prompted".equals(result.getProvider())) {
-            result.getPrompted().setLlmBeanName(requiredName(environment, "prompted.llm-bean-name"));
-            result.getPrompted().setOptionsBeanName(optionalName(environment, "prompted.options-bean-name"));
+            DecisionProperties.Prompted selected = bind(
+                    binder, PREFIX + ".prompted", DecisionProperties.Prompted.class, DecisionProperties.Prompted::new);
+            validatePrompted(selected);
+            result.select(selected);
         }
         return result;
     }
 
-    private static String requiredSelector(Environment env, String key, Set<String> allowed) {
-        String value = env.getProperty(PREFIX + "." + key);
-        if (value == null || !allowed.contains(value)) throw invalid(key);
-        return value;
-    }
-
-    private static String selector(Environment env, String key, String fallback, Set<String> allowed) {
-        String value = env.getProperty(PREFIX + "." + key, fallback);
-        if (!allowed.contains(value)) throw invalid(key);
-        return value;
-    }
-
-    private static String requiredName(Environment env, String key) {
-        String value = env.getProperty(PREFIX + "." + key);
-        if (value == null || value.isBlank()) throw invalid(key);
-        return value;
-    }
-
-    private static String optionalName(Environment env, String key) {
-        String value = env.getProperty(PREFIX + "." + key);
-        if (value == null) return null;
-        if (value.isBlank()) throw invalid(key);
-        return value;
-    }
-
-    private static Duration duration(Environment env, String key, Duration fallback, boolean positive) {
-        String raw = env.getProperty(PREFIX + "." + key);
-        if (raw == null) return fallback;
+    private static <T> T bind(Binder binder, String prefix, Class<T> type, Supplier<T> fallback) {
         try {
-            Duration duration = DurationStyle.detectAndParse(raw);
+            return binder.bind(prefix, Bindable.of(type)).orElseGet(fallback);
+        } catch (BindException failure) {
+            String name = failure.getName().toString();
+            String suffix = name.startsWith(PREFIX + ".") ? name.substring(PREFIX.length() + 1) : name;
+            throw invalid(suffix);
+        }
+    }
+
+    private static void validateCommon(DecisionProperties properties) {
+        if (!Set.of("typesafe", "prompted", "none").contains(properties.getProvider())) throw invalid("provider");
+        positive(properties.getDefaultTimeout(), "default-timeout");
+        if (!Set.of("none", "metadata", "full").contains(properties.getRecordMode())) throw invalid("record-mode");
+        if (properties.getFullRecordMaxBytes() < 1 || properties.getFullRecordMaxBytes() > 1048576) {
+            throw invalid("full-record-max-bytes");
+        }
+        for (String value : properties.getRecordAllowlist()) {
+            if (value == null || value.isBlank() || value.contains("*")) throw invalid("record-allowlist");
+        }
+        optionalName(properties.getMapperBeanName(), "mapper-bean-name");
+    }
+
+    private static void validateTypesafe(DecisionProperties.Typesafe properties) {
+        requiredName(properties.getModel(), "typesafe.model");
+        positive(properties.getConnectTimeout(), "typesafe.connect-timeout");
+        if (!validBaseUrl(properties.getBaseUrl())) throw invalid("typesafe.base-url");
+    }
+
+    private static void validatePrompted(DecisionProperties.Prompted properties) {
+        requiredName(properties.getLlmBeanName(), "prompted.llm-bean-name");
+        optionalName(properties.getOptionsBeanName(), "prompted.options-bean-name");
+    }
+
+    private static void positive(Duration duration, String key) {
+        try {
             duration.toNanos();
-            if (positive && (duration.isZero() || duration.isNegative())) throw new IllegalArgumentException();
-            return duration;
+            if (duration.isZero() || duration.isNegative()) throw new IllegalArgumentException();
         } catch (RuntimeException ignored) {
             throw invalid(key);
         }
     }
 
-    private static int integer(Environment env, String key, int fallback, int minimum, int maximum) {
-        String raw = env.getProperty(PREFIX + "." + key);
-        if (raw == null) return fallback;
-        try {
-            int value = Integer.parseInt(raw);
-            if (value < minimum || value > maximum) throw new IllegalArgumentException();
-            return value;
-        } catch (RuntimeException ignored) {
-            throw invalid(key);
-        }
+    private static void requiredName(String value, String key) {
+        if (value == null || value.isBlank()) throw invalid(key);
     }
 
-    private static URI uri(Environment env, String key, URI fallback) {
-        String raw = env.getProperty(PREFIX + "." + key);
-        if (raw == null) return fallback;
-        try {
-            return URI.create(raw);
-        } catch (RuntimeException ignored) {
-            throw invalid(key);
-        }
+    private static void optionalName(String value, String key) {
+        if (value != null && value.isBlank()) throw invalid(key);
     }
 
     private static boolean validBaseUrl(URI uri) {
@@ -214,16 +203,6 @@ public class AgentDecisionAutoConfiguration {
                 && (uri.getHost().equals("127.0.0.1")
                 || uri.getHost().equals("::1")
                 || uri.getHost().equals("[::1]"));
-    }
-
-    private static Set<String> allowlist(String raw) {
-        if (raw == null || raw.isBlank()) return Set.of();
-        LinkedHashSet<String> result = new LinkedHashSet<>();
-        Arrays.stream(raw.split(",", -1)).map(String::trim).forEach(value -> {
-            if (value.isBlank() || value.contains("*")) throw invalid("record-allowlist");
-            result.add(value);
-        });
-        return result;
     }
 
     private static IllegalStateException invalid(String suffix) {

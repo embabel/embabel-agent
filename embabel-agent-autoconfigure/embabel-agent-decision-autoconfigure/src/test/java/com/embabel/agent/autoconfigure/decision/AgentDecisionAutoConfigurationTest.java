@@ -37,6 +37,8 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import java.net.InetSocketAddress;
+import java.time.Duration;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -158,6 +160,7 @@ class AgentDecisionAutoConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasSingleBean(DecisionModel.class);
                     assertThat(context.getBean(DecisionModel.class)).isSameAs(user);
+                    assertThat(context).doesNotHaveBean(DecisionProperties.class);
                 });
     }
 
@@ -169,6 +172,58 @@ class AgentDecisionAutoConfigurationTest {
                         "embabel.agent.decision.typesafe.base-url=not a uri",
                         "embabel.agent.decision.prompted.llm-bean-name=")
                 .run(context -> assertThat(context).hasSingleBean(DecisionModel.class));
+    }
+
+    @Test
+    void commonAndSelectedPropertiesAreSpringBoundIntoThePublishedBean() {
+        runner.withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.provider=typesafe",
+                        "embabel.agent.decision.default-timeout=17s",
+                        "embabel.agent.decision.record-mode=full",
+                        "embabel.agent.decision.full-record-max-bytes=2048",
+                        "embabel.agent.decision.record-allowlist[0]=answerIds",
+                        "embabel.agent.decision.record-allowlist[1]=distributions",
+                        "embabel.agent.decision.mapper-bean-name=selectedMapper",
+                        "embabel.agent.decision.typesafe.model=bound-model",
+                        "embabel.agent.decision.typesafe.base-url=https://example.org",
+                        "embabel.agent.decision.typesafe.connect-timeout=3s")
+                .withBean("selectedMapper", EmbabelObjectMapperHolder.class, EmbabelObjectMapperHolder::createDefault)
+                .run(context -> {
+                    assertThat(context).hasSingleBean(DecisionModel.class).hasSingleBean(DecisionProperties.class);
+                    DecisionProperties properties = context.getBean(DecisionProperties.class);
+                    assertThat(properties.isEnabled()).isTrue();
+                    assertThat(properties.getProvider()).isEqualTo("typesafe");
+                    assertThat(properties.getDefaultTimeout()).isEqualTo(Duration.ofSeconds(17));
+                    assertThat(properties.getRecordMode()).isEqualTo("full");
+                    assertThat(properties.getFullRecordMaxBytes()).isEqualTo(2048);
+                    assertThat(properties.getRecordAllowlist()).containsExactlyInAnyOrder("answerIds", "distributions");
+                    assertThat(properties.getMapperBeanName()).isEqualTo("selectedMapper");
+                    assertThat(properties.typesafe().getModel()).isEqualTo("bound-model");
+                    assertThat(properties.typesafe().getBaseUrl()).hasToString("https://example.org");
+                    assertThat(properties.typesafe().getConnectTimeout()).isEqualTo(Duration.ofSeconds(3));
+                    assertThat(properties.prompted()).isNull();
+                });
+    }
+
+    @ParameterizedTest
+    @MethodSource("equivalentAllowlists")
+    void commaAndIndexedRecordAllowlistsBindEquivalently(String[] propertyValues) {
+        runner.withPropertyValues(propertyValues).run(context -> assertThat(context.getBean(DecisionProperties.class)
+                .getRecordAllowlist()).containsExactlyInAnyOrder("answerIds", "distributions"));
+    }
+
+    static Stream<Arguments> equivalentAllowlists() {
+        return Stream.of(
+                Arguments.of((Object) new String[]{
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.provider=none",
+                        "embabel.agent.decision.record-allowlist=answerIds,distributions"}),
+                Arguments.of((Object) new String[]{
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.provider=none",
+                        "embabel.agent.decision.record-allowlist[0]=answerIds",
+                        "embabel.agent.decision.record-allowlist[1]=distributions"}));
     }
 
     @ParameterizedTest
@@ -293,6 +348,10 @@ class AgentDecisionAutoConfigurationTest {
                         "embabel.agent.decision.prompted.options-bean-name=selectedOptions",
                         "embabel.agent.decision.mapper-bean-name=selectedMapper")
                 .run(context -> {
+                    DecisionProperties properties = context.getBean(DecisionProperties.class);
+                    assertThat(properties.prompted().getLlmBeanName()).isEqualTo("selectedService");
+                    assertThat(properties.prompted().getOptionsBeanName()).isEqualTo("selectedOptions");
+                    assertThat(properties.typesafe()).isNull();
                     selectedOptions.setTemperature(0.99);
                     assertThat(context.getBean(DecisionModel.class).ask(request())).isInstanceOf(DecisionOutcome.Success.class);
                     var options = org.mockito.ArgumentCaptor.forClass(LlmOptions.class);
