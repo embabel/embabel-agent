@@ -189,6 +189,11 @@
                           of the developer's system locale (e.g., date formatting).
                         -->
                         <argLine>@{argLine} -Duser.language=en -Duser.country=US</argLine>
+                        <systemPropertyVariables>
+                            <!-- A direct -Dtest invocation cannot authorize a live decision call. -->
+                            <decision.integration-profile>false</decision.integration-profile>
+                            <decision.integration-profile-owned>false</decision.integration-profile-owned>
+                        </systemPropertyVariables>
                     </configuration>
                 </plugin>
             </plugins>
@@ -237,12 +242,19 @@
         <!-- Run integration tests that follow the *IT naming convention -->
         <profile>
             <id>integration-tests</id>
+            <properties>
+                <decision.integration-profile>true</decision.integration-profile>
+            </properties>
             <build>
                 <plugins>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
+                            <systemPropertyVariables combine.self="override">
+                                <decision.integration-profile>true</decision.integration-profile>
+                                <decision.integration-profile-owned>true</decision.integration-profile-owned>
+                            </systemPropertyVariables>
                             <includes>
                                 <include>**/*IT.*</include>
                             </includes>

@@ -25,6 +25,7 @@ import java.util.function.Supplier
 
 internal fun liveSmokeEnabled(env: Map<String, String>, properties: Map<String, String>): Boolean =
     properties["decision.integration-profile"] == "true" &&
+        properties["decision.integration-profile-owned"] == "true" &&
         properties["decision.live"] == "true" &&
         !env["TYPESAFE_API_KEY"].isNullOrBlank() &&
         !env["TYPESAFE_MODEL"].isNullOrBlank() &&
@@ -42,9 +43,19 @@ internal fun runAuthorizedLiveSmoke(
 
 class JevLiveSmokeIT {
     @Test
+    fun `integration profile owns the authorization marker`() {
+        assertThat(System.getProperty("decision.integration-profile")).isEqualTo("true")
+        assertThat(System.getProperty("decision.integration-profile-owned")).isEqualTo("true")
+    }
+
+    @Test
     fun `live guard requires opt in credentials model and a non CI process`() {
         val enabledEnv = mapOf("TYPESAFE_API_KEY" to "present", "TYPESAFE_MODEL" to "requested")
-        val enabledProperties = mapOf("decision.integration-profile" to "true", "decision.live" to "true")
+        val enabledProperties = mapOf(
+            "decision.integration-profile" to "true",
+            "decision.integration-profile-owned" to "true",
+            "decision.live" to "true",
+        )
         assertThat(liveSmokeEnabled(enabledEnv, enabledProperties)).isTrue()
         assertThat(liveSmokeEnabled(enabledEnv + ("CI" to "false"), enabledProperties)).isTrue()
         assertThat(liveSmokeEnabled(enabledEnv + ("CI" to "FALSE"), enabledProperties)).isTrue()
@@ -53,6 +64,8 @@ class JevLiveSmokeIT {
         }
         assertThat(liveSmokeEnabled(enabledEnv, enabledProperties - "decision.integration-profile")).isFalse()
         assertThat(liveSmokeEnabled(enabledEnv, enabledProperties + ("decision.integration-profile" to "false"))).isFalse()
+        assertThat(liveSmokeEnabled(enabledEnv, enabledProperties - "decision.integration-profile-owned")).isFalse()
+        assertThat(liveSmokeEnabled(enabledEnv, enabledProperties + ("decision.integration-profile-owned" to "false"))).isFalse()
         assertThat(liveSmokeEnabled(enabledEnv, enabledProperties - "decision.live")).isFalse()
         assertThat(liveSmokeEnabled(enabledEnv, enabledProperties + ("decision.live" to "false"))).isFalse()
         assertThat(liveSmokeEnabled(enabledEnv - "TYPESAFE_API_KEY", enabledProperties)).isFalse()
