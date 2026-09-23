@@ -16,13 +16,22 @@
 package com.embabel.agent.autoconfigure.decision;
 
 import com.embabel.agent.decision.DecisionModel;
+import kotlin.Metadata;
+import kotlin.jvm.JvmClassMappingKt;
+import kotlin.reflect.KVisibility;
 import org.junit.jupiter.api.Test;
+import org.springframework.asm.AnnotationVisitor;
+import org.springframework.asm.ClassReader;
+import org.springframework.asm.ClassVisitor;
+import org.springframework.asm.Opcodes;
 import org.springframework.ai.chat.model.ChatModel;
 
 import java.lang.reflect.Modifier;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.jar.JarFile;
@@ -31,6 +40,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class DecisionConfigurationArchitectureTest {
+    private static final String EXPERIMENTAL_DESCRIPTOR = "Lorg/jetbrains/annotations/ApiStatus$Experimental;";
+
     @Test
     void configurationIsNotAnotherModelProductOrLlmRegistration() {
         assertThat(DecisionModel.class.getModifiers()).matches(Modifier::isFinal);
@@ -65,6 +76,19 @@ class DecisionConfigurationArchitectureTest {
         Set<Class<?>> mutated = new LinkedHashSet<>(discoverDecisionFactoryProducts());
         mutated.add(FifthDecisionProduct.class);
         assertThatThrownBy(() -> assertExactlyFourProducts(mutated)).isInstanceOf(AssertionError.class);
+    }
+
+    @Test
+    void everyCompiledPublicDecisionApiTypeIsExperimental() throws Exception {
+        List<String> unannotated = discoverPublicDecisionTypesWithoutExperimentalAnnotation();
+        assertThat(unannotated).isEmpty();
+    }
+
+    @Test
+    void publicApiDiscoveryWouldRejectAnUnannotatedType() throws Exception {
+        Path root = Path.of(UnannotatedPublicApi.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+        Path classFile = root.resolve(UnannotatedPublicApi.class.getName().replace('.', '/') + ".class");
+        assertThat(readPublicTypeAnnotations(classFile)).isEqualTo(new PublicTypeAnnotations(true, false));
     }
 
     private void assertExactlyFourProducts(Set<Class<?>> products) {
@@ -124,6 +148,84 @@ class DecisionConfigurationArchitectureTest {
                 .replace('/', '.').replace('\\', '.');
         classes.add(Class.forName(className, false, getClass().getClassLoader()));
     }
+
+    private List<String> discoverPublicDecisionTypesWithoutExperimentalAnnotation() throws Exception {
+        Path root = reactorRoot();
+        List<Path> artifacts = List.of(
+                root.resolve("embabel-agent-decisions/embabel-agent-decision/target/classes"),
+                root.resolve("embabel-agent-decisions/embabel-agent-decision-typesafe/target/classes"),
+                root.resolve("embabel-agent-decisions/embabel-agent-decision-llm/target/classes"),
+                root.resolve("embabel-agent-autoconfigure/embabel-agent-decision-autoconfigure/target/classes"),
+                root.resolve("embabel-agent-starters/embabel-agent-starter-decision/target/classes"));
+        List<String> unannotated = new ArrayList<>();
+        for (Path artifact : artifacts) {
+            if (!Files.isDirectory(artifact)) {
+                assertThat(artifact.getParent().getParent().resolve("src/main"))
+                        .describedAs("an uncompiled runtime artifact cannot contain production sources")
+                        .doesNotExist();
+                continue;
+            }
+            try (var files = Files.walk(artifact)) {
+                for (Path classFile : files.filter(path -> path.toString().endsWith(".class")).toList()) {
+                    PublicTypeAnnotations annotations = readPublicTypeAnnotations(classFile);
+                    if (annotations.publicApi() && isSourcePublicApi(artifact, classFile) && !annotations.experimental()) {
+                        unannotated.add(artifact.relativize(classFile).toString());
+                    }
+                }
+            }
+        }
+        return unannotated;
+    }
+
+    private PublicTypeAnnotations readPublicTypeAnnotations(Path classFile) throws Exception {
+        boolean[] publicType = {false};
+        boolean[] synthetic = {false};
+        boolean[] experimental = {false};
+        new ClassReader(Files.readAllBytes(classFile)).accept(new ClassVisitor(Opcodes.ASM9) {
+            @Override
+            public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
+                publicType[0] = (access & Opcodes.ACC_PUBLIC) != 0;
+                synthetic[0] = (access & Opcodes.ACC_SYNTHETIC) != 0 || name.endsWith("$DefaultImpls")
+                        || name.endsWith("$Companion") || name.contains("$WhenMappings");
+            }
+
+            @Override
+            public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+                if (EXPERIMENTAL_DESCRIPTOR.equals(descriptor)) experimental[0] = true;
+                return null;
+            }
+        }, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+        return new PublicTypeAnnotations(publicType[0] && !synthetic[0], experimental[0]);
+    }
+
+    private boolean isSourcePublicApi(Path artifact, Path classFile) throws ClassNotFoundException {
+        String relative = artifact.relativize(classFile).toString();
+        if (relative.endsWith("Kt.class")) return false;
+        String className = relative.substring(0, relative.length() - ".class".length())
+                .replace('/', '.').replace('\\', '.');
+        Class<?> type = Class.forName(className, false, getClass().getClassLoader());
+        return isSourcePublicApi(type);
+    }
+
+    private boolean isSourcePublicApi(Class<?> type) {
+        if (!Modifier.isPublic(type.getModifiers())) return false;
+        if (type.getAnnotation(Metadata.class) != null
+                && JvmClassMappingKt.getKotlinClass(type).getVisibility() != KVisibility.PUBLIC) return false;
+        return type.getEnclosingClass() == null || isSourcePublicApi(type.getEnclosingClass());
+    }
+
+    private Path reactorRoot() {
+        Path path = Path.of("").toAbsolutePath();
+        while (path != null) {
+            if (Files.exists(path.resolve("embabel-agent-decisions/pom.xml"))) return path;
+            path = path.getParent();
+        }
+        throw new AssertionError("reactor root not found");
+    }
+
+    private record PublicTypeAnnotations(boolean publicApi, boolean experimental) {}
+
+    public static final class UnannotatedPublicApi {}
 
     public static final class FifthDecisionProduct {
         public static DecisionModel create() {

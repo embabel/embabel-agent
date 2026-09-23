@@ -62,6 +62,7 @@ public final class DecisionProperties {
     @Override public String toString() { return "DecisionProperties[redacted]"; }
 
     /** TypeSafe System One settings. */
+    @ApiStatus.Experimental
     public static final class Typesafe {
         private String model;
         private URI baseUrl = URI.create("https://api.typesafe.ai");
@@ -77,6 +78,7 @@ public final class DecisionProperties {
     }
 
     /** Prompted decision settings. */
+    @ApiStatus.Experimental
     public static final class Prompted {
         private String llmBeanName;
         private String optionsBeanName;

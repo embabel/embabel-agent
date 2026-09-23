@@ -23,10 +23,12 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.PrintStream
 import java.net.InetSocketAddress
 import java.net.URI
 import java.nio.file.Files
+import java.nio.file.Path
 import java.time.Duration
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
@@ -383,23 +385,89 @@ class JevDecisionExampleTest {
     }
 
     @Test
-    fun `owned Java consumers compile independently without unchecked warnings`() {
+    fun `owned Java consumers compile and run on only the public runtime closure`() {
         val compiler = ToolProvider.getSystemJavaCompiler()
         val output = Files.createTempDirectory("decision-consumer-java")
         val root = repositoryRoot()
+        val runtimeClasspath = root.resolve(
+            "embabel-agent-decisions/embabel-agent-decision-typesafe/target/consumer-runtime-classpath.txt",
+        )
+        assertThat(runtimeClasspath).isRegularFile()
+        val resolvedRuntime = Files.readString(runtimeClasspath).trim().split(File.pathSeparator)
+            .filter { it.isNotBlank() }.map(Path::of)
+        assertThat(resolvedRuntime).isNotEmpty()
+        assertThat(resolvedRuntime.map { it.toString() })
+            .noneMatch { path ->
+                path.contains("/embabel-agent-api/") || path.contains("embabel-agent-api-") ||
+                    path.contains("embabel-agent-decision-autoconfigure") ||
+                    path.contains("embabel-agent-starter-")
+            }
+        val productionClasspath = listOf(
+            root.resolve("embabel-agent-decisions/embabel-agent-decision-typesafe/target/classes"),
+        ) + resolvedRuntime
+        val classpath = productionClasspath.joinToString(File.pathSeparator)
         val sources = listOf(
             root.resolve("embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/JevDecisionExample.java"),
             root.resolve("embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/DicePropositionRevisionExample.java"),
         )
+        val runner = output.resolve("MinimalConsumerRunner.java")
+        Files.writeString(runner, minimalConsumerRunner())
         val exit = compiler.run(
             null, null, null, "-proc:none", "-Xlint:unchecked", "-Werror",
-            "-classpath", System.getProperty("java.class.path"), "-d", output.toString(),
-            *sources.map { it.toString() }.toTypedArray(),
+            "-classpath", classpath, "-d", output.toString(),
+            *(sources + listOf(runner)).map { it.toString() }.toTypedArray(),
         )
         assertThat(exit).isZero()
         assertThat(Files.walk(output).use { files -> files.filter { it.toString().endsWith(".class") }.count() })
             .isGreaterThan(0)
+        val process = ProcessBuilder(
+            Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+            "-cp", listOf(output).plus(productionClasspath).joinToString(File.pathSeparator),
+            "com.embabel.agent.decision.example.MinimalConsumerRunner",
+        ).redirectErrorStream(true).start()
+        val processOutput = process.inputStream.bufferedReader().readText()
+        assertThat(process.waitFor()).describedAs(processOutput).isZero()
+        assertThat(processOutput).contains("minimal-consumer-ok")
     }
+
+    private fun minimalConsumerRunner() = """
+        package com.embabel.agent.decision.example;
+
+        import com.embabel.agent.decision.NoDecisionModel;
+
+        public final class MinimalConsumerRunner {
+            public static void main(String[] args) throws Exception {
+                unavailable("com.embabel.agent.autoconfigure.decision.AgentDecisionAutoConfiguration");
+                unavailable("com.embabel.agent.core.hitl.WaitFor");
+                expectDisabled(() -> JevDecisionExample.run(NoDecisionModel.create()));
+                expectDisabled(() -> DicePropositionRevisionExample.classify(
+                        NoDecisionModel.create(), "revision-minimal",
+                        new DicePropositionRevisionExample.PropositionState(
+                                "p-1", "existing", 0.8, "ACTIVE", "existing-source"),
+                        new DicePropositionRevisionExample.PropositionState(
+                                "p-2", "candidate", 0.6, "CANDIDATE", "candidate-source")));
+                System.out.println("minimal-consumer-ok");
+            }
+
+            private static void unavailable(String name) throws Exception {
+                try {
+                    Class.forName(name);
+                    throw new AssertionError(name + " leaked onto the minimal consumer classpath");
+                } catch (ClassNotFoundException expected) {
+                    // This consumer intentionally depends on the public decision artifacts only.
+                }
+            }
+
+            private static void expectDisabled(Runnable operation) {
+                try {
+                    operation.run();
+                    throw new AssertionError("disabled model unexpectedly returned evidence");
+                } catch (IllegalStateException expected) {
+                    if (!expected.getMessage().contains("DISABLED")) throw expected;
+                }
+            }
+        }
+    """.trimIndent()
 
     private fun model(server: ScriptedExampleServer) = TypeSafeDecisionModel.create(
         Supplier { "synthetic-bearer" }, "requested-example", URI.create(server.baseUri),
