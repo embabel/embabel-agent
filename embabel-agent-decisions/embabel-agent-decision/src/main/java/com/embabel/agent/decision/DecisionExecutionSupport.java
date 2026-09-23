@@ -30,6 +30,9 @@ final class DecisionExecutionSupport implements AutoCloseable {
 
     // Core cannot depend on agent-api Asyncer without a dependency cycle; this zero-queue pool
     // provides bounded admission and a cancellable Future for deadline and close interruption.
+    // TODO: After this prototype merges, file a follow-up issue and move the shared async code
+    // into a reusable module. Use it here and in Asyncer without a circular dependency,
+    // then remove this separate implementation. Make this the immediate follow-up.
     private final ThreadPoolExecutor executor = new ThreadPoolExecutor(
         0,
         MAX_WORKERS,
