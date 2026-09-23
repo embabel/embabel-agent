@@ -112,7 +112,8 @@ class DecisionProvenance private constructor(val provider: String, val evidenceK
 @ApiStatus.Experimental class RawAnswer private constructor(val keyId: String, val kind: DecisionKind?, val probabilities: List<RawProbability>, val selectedId: String?, val pTrue: Double?, val keyFailure: KeyFailure?, val safeCode: DecisionSafeCode?) { companion object { @JvmStatic fun yesNo(keyId: String, pTrue: Double, selectedId: String?) = RawAnswer(keyId, DecisionKind.YES_NO, emptyList(), selectedId, pTrue, null, null); @JvmStatic fun distribution(keyId: String, kind: DecisionKind, probabilities: List<RawProbability>, selectedId: String?) = RawAnswer(keyId, kind, Collections.unmodifiableList(ArrayList(probabilities)), selectedId, null, null, null); @JvmStatic fun failure(keyId: String, keyFailure: KeyFailure, safeCode: DecisionSafeCode) = RawAnswer(keyId, null, emptyList(), null, null, keyFailure, safeCode) } }
 @ApiStatus.Experimental class RawDecisionOutcome private constructor(val answers: List<RawAnswer>?, val provenance: DecisionProvenance?, val callFailure: CallFailure?, val safeCode: DecisionSafeCode?) { companion object { @JvmStatic fun success(answers: List<RawAnswer>, provenance: DecisionProvenance) = RawDecisionOutcome(Collections.unmodifiableList(ArrayList(answers)), provenance, null, null); @JvmStatic fun failure(callFailure: CallFailure, safeCode: DecisionSafeCode) = RawDecisionOutcome(null, null, callFailure, safeCode) } }
 @ApiStatus.Experimental fun interface DecisionProvider { fun invoke(request: PreparedDecisionRequest): RawDecisionOutcome }
-private class FixedDecisionProvider(val outcome: RawDecisionOutcome) : DecisionProvider { override fun invoke(request: PreparedDecisionRequest): RawDecisionOutcome = error("fixed decisions do not invoke a provider") }
+private interface CallerBoundDecisionProvider : DecisionProvider
+private class FixedDecisionProvider(private val outcome: RawDecisionOutcome) : CallerBoundDecisionProvider { override fun invoke(request: PreparedDecisionRequest): RawDecisionOutcome = outcome }
 
 @ApiStatus.Experimental interface DecisionRecord { val mode: RecordMode; val fields: Map<String, String> }
 private data class SafeRecord(override val mode: RecordMode, override val fields: Map<String, String>) : DecisionRecord
@@ -136,7 +137,7 @@ class DecisionModel(private val provider: DecisionProvider) {
         return DecisionOutcome.Success(provenance, safeRecord(prepared.recordPolicy, provenance, answers), Collections.unmodifiableMap(answers))
     }
     private fun invokeWithinDeadline(prepared: PreparedDecisionRequest): RawDecisionOutcome? {
-        if (provider is FixedDecisionProvider) return provider.outcome
+        if (provider is CallerBoundDecisionProvider) return try { provider.invoke(prepared) } catch (_: RuntimeException) { RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE) }
         val future = try { DecisionExecutionSupport.submit(Callable { provider.invoke(prepared) }) } catch (_: RejectedExecutionException) { return RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE) }
         return try { future.get(remaining(prepared), TimeUnit.NANOSECONDS) } catch (_: TimeoutException) { future.cancel(true); null } catch (_: InterruptedException) { future.cancel(true); throw InterruptedException() } catch (_: java.util.concurrent.ExecutionException) { RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE) }
     }
@@ -167,7 +168,19 @@ class DecisionModel(private val provider: DecisionProvider) {
 @ApiStatus.Experimental object NoDecisionModel { @JvmStatic fun create() = DecisionModel(FixedDecisionProvider(RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.DISABLED))) }
 @ApiStatus.Experimental interface StubStep { companion object { @JvmStatic fun immediate(raw: RawDecisionOutcome): StubStep = StubStepData(Duration.ZERO, raw); @JvmStatic fun after(delay: Duration, raw: RawDecisionOutcome): StubStep { require(!delay.isNegative); return StubStepData(delay, raw) } } }
 private data class StubStepData(val delay: Duration, val raw: RawDecisionOutcome) : StubStep
-@ApiStatus.Experimental object StubDecisionModel { @JvmStatic fun create(steps: List<StubStep>): DecisionModel { require(steps.isNotEmpty()); val scripted = steps.map { step -> step as? StubStepData ?: throw IllegalArgumentException("foreign stub step") }; val cursor = java.util.concurrent.atomic.AtomicInteger(); return DecisionModel(DecisionProvider { request -> scripted.getOrNull(cursor.getAndIncrement())?.let { step -> if (step.delay.toNanos() >= request.remainingNanos()) RawDecisionOutcome.failure(CallFailure.DeadlineExceeded, DecisionSafeCode.DEADLINE_EXCEEDED) else { if (!step.delay.isZero) Thread.sleep(step.delay.toMillis()); step.raw } } ?: RawDecisionOutcome.failure(CallFailure.Unsupported, DecisionSafeCode.UNSUPPORTED) }) } }
+private class StubDecisionProvider(private val scripted: List<StubStepData>) : CallerBoundDecisionProvider {
+    private val cursor = java.util.concurrent.atomic.AtomicInteger()
+    override fun invoke(request: PreparedDecisionRequest): RawDecisionOutcome {
+        val step = scripted.getOrNull(cursor.getAndIncrement())
+            ?: return RawDecisionOutcome.failure(CallFailure.Unsupported, DecisionSafeCode.UNSUPPORTED)
+        if (Thread.currentThread().isInterrupted) throw InterruptedException()
+        val delay = step.delay.toNanos()
+        if (delay >= request.remainingNanos()) return RawDecisionOutcome.failure(CallFailure.DeadlineExceeded, DecisionSafeCode.DEADLINE_EXCEEDED)
+        if (delay > 0) TimeUnit.NANOSECONDS.sleep(delay)
+        return step.raw
+    }
+}
+@ApiStatus.Experimental object StubDecisionModel { @JvmStatic fun create(steps: List<StubStep>): DecisionModel { require(steps.isNotEmpty()); val scripted = steps.map { step -> step as? StubStepData ?: throw IllegalArgumentException("foreign stub step") }; return DecisionModel(StubDecisionProvider(scripted)) } }
 
 private data class RequestData(val binding: String, val state: Map<String, Any?>, val questions: List<QuestionData<*>>, val timeout: Duration?, val policy: DecisionRecordPolicy?, val correlationId: String?)
 private data class QuestionData<T>(val key: DecisionKey<T>, val kind: DecisionKind, val options: List<DecisionOption<T>>) { val id get() = key.id; val text get() = when (key) { is YesNoToken -> key.question; is ChoiceToken<*> -> key.question; is RatingToken<*> -> key.question; else -> error("foreign key") } }

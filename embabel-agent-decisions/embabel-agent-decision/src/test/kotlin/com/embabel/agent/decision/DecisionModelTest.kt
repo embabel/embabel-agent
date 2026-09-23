@@ -339,6 +339,104 @@ class DecisionModelTest {
         }
     }
 
+    @Test
+    fun `stub preserves immediate and delayed script while external providers saturate workers`() {
+        val workersStarted = CountDownLatch(DecisionExecutionSupport.MAX_WORKERS)
+        val releaseWorkers = CountDownLatch(1)
+        val blockingProvider = DecisionProvider {
+            workersStarted.countDown()
+            while (releaseWorkers.count > 0) try {
+                releaseWorkers.await()
+            } catch (_: InterruptedException) {
+                // Model an external provider that cannot cooperate with cancellation.
+            }
+            RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE)
+        }
+        val blockingRequest = DecisionRequest.builder().also {
+            it.timeout(Duration.ofSeconds(5))
+            it.yesNo("blocked", "blocked?")
+        }.build()
+        val callers = List(DecisionExecutionSupport.MAX_WORKERS) {
+            Thread { DecisionModel(blockingProvider).ask(blockingRequest) }
+        }
+        val scriptedSuccess = RawDecisionOutcome.success(
+            listOf(RawAnswer.yesNo("yes", 1.0, "true")),
+            DecisionProvenance.builder("stub", EvidenceKind.DISTRIBUTION).build(),
+        )
+        val stub = StubDecisionModel.create(listOf(
+            StubStep.immediate(scriptedSuccess),
+            StubStep.after(Duration.ofMillis(10), scriptedSuccess),
+            StubStep.immediate(RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.UNAVAILABLE)),
+        ))
+
+        try {
+            callers.forEachIndexed { index, caller ->
+                caller.start()
+                val expected = DecisionExecutionSupport.MAX_WORKERS - index - 1L
+                val waitUntil = System.nanoTime() + Duration.ofSeconds(1).toNanos()
+                while (workersStarted.count > expected && System.nanoTime() - waitUntil < 0) Thread.yield()
+                assertThat(workersStarted.count).isEqualTo(expected)
+            }
+
+            assertThat(stub.ask(yesNoRequest())).isInstanceOf(DecisionOutcome.Success::class.java)
+            assertThat(stub.ask(yesNoRequest())).isInstanceOf(DecisionOutcome.Success::class.java)
+            val normalized = stub.ask(yesNoRequest()) as DecisionOutcome.Failure
+            assertThat(normalized.failure).isEqualTo(CallFailure.Disabled)
+            assertThat(normalized.safeCode).isEqualTo(DecisionSafeCode.DISABLED)
+            val exhausted = stub.ask(yesNoRequest()) as DecisionOutcome.Failure
+            assertThat(exhausted.failure).isEqualTo(CallFailure.Unsupported)
+            assertThat(exhausted.safeCode).isEqualTo(DecisionSafeCode.UNSUPPORTED)
+        } finally {
+            releaseWorkers.countDown()
+            callers.forEach { it.join(1_000) }
+        }
+    }
+
+    @Test
+    fun `stub delayed steps honor deadline and caller cancellation`() {
+        val success = RawDecisionOutcome.success(
+            listOf(RawAnswer.yesNo("yes", 1.0, "true")),
+            DecisionProvenance.builder("stub", EvidenceKind.DISTRIBUTION).build(),
+        )
+        val deadlineRequest = DecisionRequest.builder().also {
+            it.timeout(Duration.ofMillis(10))
+            it.yesNo("yes", "yes?")
+        }.build()
+        val deadlineStub = StubDecisionModel.create(listOf(
+            StubStep.after(Duration.ofMillis(20), success),
+            StubStep.immediate(success),
+        ))
+
+        val deadline = deadlineStub.ask(deadlineRequest) as DecisionOutcome.Failure
+        assertThat(deadline.failure).isEqualTo(CallFailure.DeadlineExceeded)
+        assertThat(deadline.safeCode).isEqualTo(DecisionSafeCode.DEADLINE_EXCEEDED)
+        assertThat(deadlineStub.ask(yesNoRequest())).isInstanceOf(DecisionOutcome.Success::class.java)
+
+        val cancellationStub = StubDecisionModel.create(listOf(StubStep.after(Duration.ofSeconds(5), success)))
+        val cancellationRequest = DecisionRequest.builder().also {
+            it.timeout(Duration.ofSeconds(10))
+            it.yesNo("yes", "yes?")
+        }.build()
+        val result = AtomicReference<DecisionOutcome>()
+        val interrupted = AtomicReference<Boolean>()
+        val caller = Thread {
+            result.set(cancellationStub.ask(cancellationRequest))
+            interrupted.set(Thread.currentThread().isInterrupted)
+        }
+
+        caller.start()
+        val waitUntil = System.nanoTime() + Duration.ofSeconds(1).toNanos()
+        while (caller.state != Thread.State.TIMED_WAITING && System.nanoTime() - waitUntil < 0) Thread.yield()
+        assertThat(caller.state).isEqualTo(Thread.State.TIMED_WAITING)
+        caller.interrupt()
+        caller.join(1_000)
+
+        val cancelled = result.get() as DecisionOutcome.Failure
+        assertThat(cancelled.failure).isEqualTo(CallFailure.Cancelled)
+        assertThat(cancelled.safeCode).isEqualTo(DecisionSafeCode.CANCELLED)
+        assertThat(interrupted.get()).isTrue
+    }
+
     private fun yesNoRequest(): DecisionRequest {
         val builder = DecisionRequest.builder()
         builder.yesNo("yes", "yes?")
