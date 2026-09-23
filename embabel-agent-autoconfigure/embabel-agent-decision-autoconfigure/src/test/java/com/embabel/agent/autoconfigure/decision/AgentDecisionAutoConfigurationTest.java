@@ -21,6 +21,7 @@ import com.embabel.agent.decision.DecisionOutcome;
 import com.embabel.agent.decision.DecisionRequest;
 import com.embabel.agent.decision.DecisionRecordPolicy;
 import com.embabel.agent.decision.NoDecisionModel;
+import com.embabel.agent.decision.typesafe.TypeSafeDecisionModel;
 import com.embabel.agent.spi.LlmService;
 import com.embabel.agent.spi.loop.LlmMessageResponse;
 import com.embabel.agent.spi.loop.LlmMessageSender;
@@ -37,6 +38,7 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -109,9 +111,11 @@ class AgentDecisionAutoConfigurationTest {
                 Arguments.of("default-timeout=not-a-duration", "default-timeout"),
                 Arguments.of("record-mode=verbose", "record-mode"),
                 Arguments.of("full-record-max-bytes=0", "full-record-max-bytes"),
+                Arguments.of("full-record-max-bytes=1", "full-record-max-bytes"),
                 Arguments.of("full-record-max-bytes=1048577", "full-record-max-bytes"),
                 Arguments.of("full-record-max-bytes=not-an-int", "full-record-max-bytes"),
-                Arguments.of("record-allowlist=*", "record-allowlist"));
+                Arguments.of("record-allowlist=*", "record-allowlist"),
+                Arguments.of("record-allowlist=distributions", "record-allowlist"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -152,6 +156,36 @@ class AgentDecisionAutoConfigurationTest {
                 .run(context -> assertThat(context).hasSingleBean(DecisionModel.class));
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("typeSafeOriginPolicy")
+    void springAndExplicitConstructionShareTheTypeSafeOriginPolicy(String origin, boolean accepted) {
+        assertThat(TypeSafeDecisionModel.supportsBaseUri(URI.create(origin))).isEqualTo(accepted);
+        runner.withPropertyValues(
+                        "embabel.agent.decision.enabled=true",
+                        "embabel.agent.decision.provider=typesafe",
+                        "embabel.agent.decision.typesafe.model=synthetic",
+                        "embabel.agent.decision.typesafe.base-url=" + origin)
+                .run(context -> {
+                    if (accepted) assertThat(context).hasSingleBean(DecisionModel.class);
+                    else assertThat(context.getStartupFailure())
+                            .hasRootCauseMessage("Invalid configuration: embabel.agent.decision.typesafe.base-url");
+                });
+    }
+
+    static Stream<Arguments> typeSafeOriginPolicy() {
+        return Stream.of(
+                Arguments.of("https://example.org", true),
+                Arguments.of("http://127.0.0.1:1234", true),
+                Arguments.of("http://[::1]:1234", true),
+                Arguments.of("http://localhost:1234", false),
+                Arguments.of("http://127.0.0.1.example:1234", false),
+                Arguments.of("http://[::2]:1234", false),
+                Arguments.of("https://example.org/v1", false),
+                Arguments.of("https://user:secret@example.org", false),
+                Arguments.of("https://example.org?query=1", false),
+                Arguments.of("https://example.org#fragment", false));
+    }
+
     @Test
     void userModelWinsBeforeInvalidConfigurationIsRead() {
         DecisionModel user = NoDecisionModel.create();
@@ -183,7 +217,6 @@ class AgentDecisionAutoConfigurationTest {
                         "embabel.agent.decision.record-mode=full",
                         "embabel.agent.decision.full-record-max-bytes=2048",
                         "embabel.agent.decision.record-allowlist[0]=answerIds",
-                        "embabel.agent.decision.record-allowlist[1]=distributions",
                         "embabel.agent.decision.mapper-bean-name=selectedMapper",
                         "embabel.agent.decision.typesafe.model=bound-model",
                         "embabel.agent.decision.typesafe.base-url=https://example.org",
@@ -197,7 +230,7 @@ class AgentDecisionAutoConfigurationTest {
                     assertThat(properties.getDefaultTimeout()).isEqualTo(Duration.ofSeconds(17));
                     assertThat(properties.getRecordMode()).isEqualTo("full");
                     assertThat(properties.getFullRecordMaxBytes()).isEqualTo(2048);
-                    assertThat(properties.getRecordAllowlist()).containsExactlyInAnyOrder("answerIds", "distributions");
+                    assertThat(properties.getRecordAllowlist()).containsExactly("answerIds");
                     assertThat(properties.getMapperBeanName()).isEqualTo("selectedMapper");
                     assertThat(properties.typesafe().getModel()).isEqualTo("bound-model");
                     assertThat(properties.typesafe().getBaseUrl()).hasToString("https://example.org");
@@ -210,7 +243,7 @@ class AgentDecisionAutoConfigurationTest {
     @MethodSource("equivalentAllowlists")
     void commaAndIndexedRecordAllowlistsBindEquivalently(String[] propertyValues) {
         runner.withPropertyValues(propertyValues).run(context -> assertThat(context.getBean(DecisionProperties.class)
-                .getRecordAllowlist()).containsExactlyInAnyOrder("answerIds", "distributions"));
+                .getRecordAllowlist()).containsExactly("answerIds"));
     }
 
     static Stream<Arguments> equivalentAllowlists() {
@@ -218,16 +251,16 @@ class AgentDecisionAutoConfigurationTest {
                 Arguments.of((Object) new String[]{
                         "embabel.agent.decision.enabled=true",
                         "embabel.agent.decision.provider=none",
-                        "embabel.agent.decision.record-allowlist=answerIds,distributions"}),
+                        "embabel.agent.decision.record-allowlist=answerIds,answerIds"}),
                 Arguments.of((Object) new String[]{
                         "embabel.agent.decision.enabled=true",
                         "embabel.agent.decision.provider=none",
                         "embabel.agent.decision.record-allowlist[0]=answerIds",
-                        "embabel.agent.decision.record-allowlist[1]=distributions"}));
+                        "embabel.agent.decision.record-allowlist[1]=answerIds"}));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"1", "1048576"})
+    @ValueSource(strings = {"2", "1048576"})
     void fullRecordByteBoundariesAreInclusive(String bytes) {
         runner.withPropertyValues(
                         "embabel.agent.decision.enabled=true",

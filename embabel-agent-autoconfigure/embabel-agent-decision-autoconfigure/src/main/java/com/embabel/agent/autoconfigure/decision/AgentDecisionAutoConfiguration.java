@@ -35,7 +35,6 @@ import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 
-import java.net.URI;
 import java.time.Duration;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -68,7 +67,7 @@ public class AgentDecisionAutoConfiguration {
 
     private DecisionModel typesafe(DecisionProperties properties, Environment environment, BeanFactory beanFactory) {
         var selected = properties.typesafe();
-        if (!validBaseUrl(selected.getBaseUrl())) throw invalid("typesafe.base-url");
+        if (!TypeSafeDecisionModel.supportsBaseUri(selected.getBaseUrl())) throw invalid("typesafe.base-url");
         EmbabelObjectMapperHolder mapper = mapper(properties, beanFactory);
         Supplier<String> apiKey = () -> {
             String configured = environment.getProperty(PREFIX + ".typesafe.api-key");
@@ -157,11 +156,19 @@ public class AgentDecisionAutoConfiguration {
         if (!Set.of("typesafe", "prompted", "none").contains(properties.getProvider())) throw invalid("provider");
         positive(properties.getDefaultTimeout(), "default-timeout");
         if (!Set.of("none", "metadata", "full").contains(properties.getRecordMode())) throw invalid("record-mode");
-        if (properties.getFullRecordMaxBytes() < 1 || properties.getFullRecordMaxBytes() > 1048576) {
+        try {
+            DecisionRecordPolicy.full(properties.getFullRecordMaxBytes(), Set.of("answerIds"));
+        } catch (RuntimeException ignored) {
             throw invalid("full-record-max-bytes");
         }
-        for (String value : properties.getRecordAllowlist()) {
-            if (value == null || value.isBlank() || value.contains("*")) throw invalid("record-allowlist");
+        if (!properties.getRecordAllowlist().isEmpty()) {
+            try {
+                DecisionRecordPolicy.full(2, properties.getRecordAllowlist());
+            } catch (RuntimeException ignored) {
+                throw invalid("record-allowlist");
+            }
+        } else if ("full".equals(properties.getRecordMode())) {
+            throw invalid("record-allowlist");
         }
         optionalName(properties.getMapperBeanName(), "mapper-bean-name");
     }
@@ -169,7 +176,7 @@ public class AgentDecisionAutoConfiguration {
     private static void validateTypesafe(DecisionProperties.Typesafe properties) {
         requiredName(properties.getModel(), "typesafe.model");
         positive(properties.getConnectTimeout(), "typesafe.connect-timeout");
-        if (!validBaseUrl(properties.getBaseUrl())) throw invalid("typesafe.base-url");
+        if (!TypeSafeDecisionModel.supportsBaseUri(properties.getBaseUrl())) throw invalid("typesafe.base-url");
     }
 
     private static void validatePrompted(DecisionProperties.Prompted properties) {
@@ -192,17 +199,6 @@ public class AgentDecisionAutoConfiguration {
 
     private static void optionalName(String value, String key) {
         if (value != null && value.isBlank()) throw invalid(key);
-    }
-
-    private static boolean validBaseUrl(URI uri) {
-        if (!uri.isAbsolute() || uri.getHost() == null || uri.getUserInfo() != null
-                || uri.getQuery() != null || uri.getFragment() != null) return false;
-        if (!(uri.getPath().isEmpty() || uri.getPath().equals("/"))) return false;
-        if (uri.getScheme().equalsIgnoreCase("https")) return true;
-        return uri.getScheme().equalsIgnoreCase("http")
-                && (uri.getHost().equals("127.0.0.1")
-                || uri.getHost().equals("::1")
-                || uri.getHost().equals("[::1]"));
     }
 
     private static IllegalStateException invalid(String suffix) {

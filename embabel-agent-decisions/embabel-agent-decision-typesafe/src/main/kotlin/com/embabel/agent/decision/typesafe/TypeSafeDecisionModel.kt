@@ -38,7 +38,7 @@ object TypeSafeDecisionModel {
     ): DecisionModel {
         require(model.isNotBlank()) { "model must not be blank" }
         require(!connectTimeout.isZero && !connectTimeout.isNegative) { "connect timeout must be positive" }
-        require(validBaseUri(baseUri)) { "base URI must be an HTTPS origin" }
+        require(supportsBaseUri(baseUri)) { "base URI must be an HTTPS origin" }
         val client = HttpClient.newBuilder()
             .connectTimeout(connectTimeout)
             .followRedirects(HttpClient.Redirect.NEVER)
@@ -48,7 +48,14 @@ object TypeSafeDecisionModel {
         return DecisionModel(DecisionProvider(transport::invoke))
     }
 
-    private fun validBaseUri(uri: URI): Boolean {
+    /**
+     * Reports whether [uri] is a safe System One origin.
+     *
+     * HTTPS origins are accepted. Plain HTTP is limited to literal IPv4 or IPv6 loopback
+     * origins so tests can use a local server without weakening production transport.
+     */
+    @JvmStatic
+    fun supportsBaseUri(uri: URI): Boolean {
         if (!uri.isAbsolute || uri.userInfo != null || uri.query != null || uri.fragment != null) return false
         if (uri.path !in listOf("", "/")) return false
         return when (uri.scheme.lowercase()) {
