@@ -591,7 +591,11 @@ class DecisionInstrumentationTest {
             DecisionObservation::class.java,
             DecisionObservationContext::class.java,
             DecisionCompletion::class.java,
-        ).flatMap { type -> type.declaredMethods.flatMap { listOf(it.returnType, *it.parameterTypes) } }.toSet()
+        ).flatMap { type ->
+            type.declaredMethods
+                .filterNot { it.isSynthetic }
+                .flatMap { listOf(it.returnType, *it.parameterTypes) }
+        }.toSet()
 
         assertThat(exposedTypes).doesNotContain(
             DecisionRequest::class.java,
