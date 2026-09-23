@@ -1,24 +1,26 @@
 [[reference.decisions]]
 === Typed Decisions
 
-Typed decisions are experimental in this release. They give application code typed evidence and provenance while leaving every action, mutation, and persistence decision with the host. A `DecisionModel` is not an LLM, Spring AI `ChatModel`, agent role, or action executor. Automatic `Ai` or `ModelProvider` selection is deferred.
+Decisions are the experimental third Embabel model type, alongside language models and embedding services. They give application code typed evidence and provenance while leaving every action, mutation, and persistence decision with the host. The prototype is tagged experimental so we can get the API into real consumers quickly. It is still built and tested as a maintained model service, with the same discovery and selection surface as other agent models.
 
 For explicit use, depend on `com.embabel.agent:embabel-agent-decision` and one provider leaf, normally `com.embabel.agent:embabel-agent-decision-typesafe`. Spring Boot applications can opt into `com.embabel.agent:embabel-agent-starter-decision`. The `embabel-agent-decisions` aggregate is Maven packaging only.
 
 ==== Configurations and modules
 
-Four built-in named factories ship in this release and create the same final facade:
+Four built-in products ship in this release and create the same final facade:
 
 [cols="1,2,1"]
 |===
 |Configuration |Evidence source |Construction
-|`TypeSafeDecisionModel` |Jev distributions |Explicit or Spring `typesafe`
+|`TypeSafeDecisionModel` |Jev distributions |Explicit or Spring `typesafe`; the default configured model
 |`PromptedDecisionModel` |An `LlmService` verbalized distribution |Explicit or Spring `prompted`
 |`NoDecisionModel` |Disabled result |Explicit or Spring `none`
 |`StubDecisionModel` |Caller-scripted deterministic outcomes |Explicit tests only; never property-selected
 |===
 
-Five runtime JARs separate the stable dependency directions: core contracts and facade, TypeSafe/Jev, prompted LLM, Spring autoconfiguration, and the thin starter.
+These are four implementation families, not four singleton instances. An application can configure several named TypeSafe, prompted, or no-op instances. `StubDecisionModel` stays an explicit test fixture. Custom implementations are extension adapters and do not add another built-in product.
+
+Five runtime JARs separate the stable dependency directions: core contracts and facade, TypeSafe/Jev, prompted LLM, Spring autoconfiguration, and the thin starter. `embabel-agent-api` supplies `ModelProvider` and the common selection criteria without pulling Spring into the core decision JAR.
 
 [graphviz, decision-modules.dot, png]
 ....
@@ -33,6 +35,24 @@ Every adapter enters the same facade. The facade validates the question schema, 
 ....
 include::../diagrams/decision-flow.dot[]
 ....
+
+==== Model discovery and selection
+
+`DecisionModel` uses the ordinary `ModelProvider` contract. A workflow can use the platform default, select a registry name or role, try names in order, choose randomly from available names, or pass a model it has already resolved:
+
+[source,kotlin]
+----
+val defaultModel = models.getDecisionModel(ModelSelectionCriteria.PlatformDefault)
+val named = models.getDecisionModel(ModelSelectionCriteria.byName("proposition-revision"))
+val forRole = models.getDecisionModel(ModelSelectionCriteria.byRole("revision"))
+val fallback = models.getDecisionModel(ModelSelectionCriteria.firstOf("specialist", "jev"))
+val sampled = models.getDecisionModel(ModelSelectionCriteria.randomOf("jev", "prompted-review"))
+val supplied = models.getDecisionModel(ModelSelectionCriteria.preResolved(named))
+----
+
+`Auto` and `PlatformDefault` both resolve the configured default decision model. A deployment with one decision model can use it as the implicit default. A deployment with several decision models must set `embabel.models.default-decision-model`; startup fails rather than picking one by accident. Roles use `embabel.models.decisions.<role>=<registry-name>`.
+
+`listModelNames(DecisionModel.class)`, `listRoles(DecisionModel.class)`, `listModels()`, and `infoString()` expose the same operational discovery surface as the other model types. The resulting `DecisionModelMetadata` is registry metadata: it identifies the configured name and provider. Each successful call carries separate per-call provenance with the requested and resolved backend identities, adapter version, request id, timestamp, usage when supplied, and evidence kind. Registry metadata must never be substituted for per-call provenance.
 
 ==== Provider SPI
 
@@ -72,7 +92,7 @@ include::../../../../../../embabel-agent-decisions/embabel-agent-decision-typesa
 include::../../../../../../embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/JevDecisionExample.java[tag=java-consumer]
 ----
 
-The public adapter can be built directly:
+The compiled examples also show default, name, and role selection through `ModelProvider`. A small application or a test can still build the public adapter directly:
 
 [source,kotlin]
 ----
@@ -84,27 +104,70 @@ The supplier resolves the credential only when a request is made. Do not put a k
 
 ==== Spring Boot configuration
 
-Autoconfiguration is inert unless `embabel.agent.decision.enabled=true`. A user-provided `DecisionModel` wins before decision properties are validated. The created beans are named `decisionProperties` and `decisionModel`; `mapper-bean-name`, `prompted.llm-bean-name`, and `prompted.options-bean-name` select exact existing beans.
+Autoconfiguration is inert unless `embabel.agent.decision.enabled=true`. Enabling it with no declarations, or with an empty `models` map, synthesizes registry name `jev`, provider `typesafe`, and requested model `jev-latest`. That is the platform's sole implicit decision default.
+
+A nonempty `models` map replaces implicit Jev completely. Every map key becomes both the Spring bean name and the decision registry name. Several declarations therefore create several ordinary model services. When more than one decision model is available, set `embabel.models.default-decision-model` explicitly. Custom `DecisionModel` beans join the same registry and selection rules.
+
+[source,yaml]
+----
+embabel:
+  agent:
+    decision:
+      enabled: true
+      default-timeout: 20s
+      record-mode: metadata
+      models:
+        jev:
+          provider: typesafe
+          typesafe:
+            model: jev-latest
+            base-url: https://api.typesafe.ai
+            connect-timeout: 10s
+        prompted-review:
+          provider: prompted
+          prompted:
+            llm-bean-name: reviewLlm
+            options-bean-name: reviewOptions
+        disabled:
+          provider: none
+  models:
+    default-decision-model: jev
+    decisions:
+      revision: prompted-review
+----
+
+The TypeSafe credential comes from `TYPESAFE_API_KEY`; it is not a configuration property and must not be logged. `mapper-bean-name`, prompted `llm-bean-name`, and prompted `options-bean-name` select exact existing beans.
 
 [cols="2,1,2"]
 |===
 |Property |Default |Meaning
-|`embabel.agent.decision.enabled` |`false` |Opt into autoconfiguration
-|`embabel.agent.decision.provider` |required |`typesafe`, `prompted`, or `none`
+|`embabel.agent.decision.enabled` |`false` |Opt into autoconfiguration; an empty declaration registers `jev`
 |`embabel.agent.decision.default-timeout` |`30s` |Positive facade default
 |`embabel.agent.decision.record-mode` |`metadata` |`none`, `metadata`, or bounded `full`
 |`embabel.agent.decision.full-record-max-bytes` |`65536` |Full-record byte ceiling
 |`embabel.agent.decision.record-allowlist` |empty |Explicit full-record fields
 |`embabel.agent.decision.mapper-bean-name` |unset |Exact `EmbabelObjectMapperHolder` bean
-|`embabel.agent.decision.typesafe.model` |required for TypeSafe |Requested model; resolved identity comes from Jev
-|`embabel.agent.decision.typesafe.base-url` |`https://api.typesafe.ai` |TypeSafe origin; Spring accepts the canonical service or literal loopback only
-|`embabel.agent.decision.typesafe.connect-timeout` |`10s` |Positive HTTP connect timeout
-|`embabel.agent.decision.typesafe.api-key` |unset |Credential; `TYPESAFE_API_KEY` is the fallback
-|`embabel.agent.decision.prompted.llm-bean-name` |required for prompted |Exact `LlmService` bean
-|`embabel.agent.decision.prompted.options-bean-name` |unset |Exact `LlmOptions` bean; defaults when absent
+|`embabel.agent.decision.models.jev.provider` |implicit `typesafe` |Provider for named model `jev`: `typesafe`, `prompted`, or `none`
+|`embabel.agent.decision.models.jev.typesafe.model` |implicit `jev-latest` |Requested backend model; the response supplies resolved identity
+|`embabel.agent.decision.models.jev.typesafe.base-url` |`https://api.typesafe.ai` |TypeSafe origin; canonical service or literal loopback only
+|`embabel.agent.decision.models.jev.typesafe.connect-timeout` |`10s` |Positive HTTP connect timeout
+|`embabel.agent.decision.models.prompted-review.prompted.llm-bean-name` |required for prompted |Exact `LlmService` bean
+|`embabel.agent.decision.models.prompted-review.prompted.options-bean-name` |unset |Exact `LlmOptions` bean; defaults when absent
+|`embabel.models.default-decision-model` |single registered model |Registry name used by default and automatic selection; required for multiple models
+|`embabel.models.decisions.<role>` |unset |Maps a workflow role to a registered decision model name
 |===
 
-Spring selects `typesafe`, `prompted`, or `none`. `none` returns disabled outcomes. `StubDecisionModel` is test-only and deliberately absent from property selection.
+`none` returns disabled outcomes. `StubDecisionModel` is test-only and deliberately absent from property selection.
+
+Registry names use lowercase ASCII letters and digits with optional interior hyphens. Dots and underscores are rejected. Environment-variable model names must use a single canonical segment because Spring turns underscores into property separators; hyphens in registry names cannot be represented faithfully in that segment. For an environment-only declaration, use an unhyphenated name such as `propositionrevision`:
+
+[source,bash]
+----
+export EMBABEL_AGENT_DECISION_ENABLED=true
+export EMBABEL_AGENT_DECISION_MODELS_PROPOSITIONREVISION_PROVIDER=typesafe
+export EMBABEL_AGENT_DECISION_MODELS_PROPOSITIONREVISION_TYPESAFE_MODEL=jev-latest
+export EMBABEL_MODELS_DEFAULT_DECISION_MODEL=propositionrevision
+----
 
 ==== Evidence, failure, and privacy
 
@@ -123,7 +186,7 @@ Dice is an external consumer, not a framework special case. The compiled example
 include::../../../../../../embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/DicePropositionRevisionExample.java[tag=dice-consumer]
 ----
 
-The decision supplies relation evidence and decision provenance. The example sends synthetic proposition text as explicit facts so the provider can classify meaning rather than guess from opaque ids. Dice maps that evidence to a revision disposition. Confidence, proposition status, persistence, trust, and every mutation remain consumer concerns. The consumer-owned event keeps its disposition, both proposition ids, bounded correlation id, stable question id, complete distribution, decision provenance, and separate source provenance.
+The example asks `ModelProvider` for the selected decision model and then supplies relation evidence and decision provenance to Dice. The example sends synthetic proposition text as explicit facts so the provider can classify meaning rather than guess from opaque ids. Dice maps that evidence to a revision disposition. Dice retains action ownership: proposition status, persistence, trust, and every mutation remain consumer concerns. The consumer-owned event keeps its disposition, both proposition ids, bounded correlation id, stable question id, complete distribution, decision provenance, and separate source provenance.
 
 ==== Running the examples
 

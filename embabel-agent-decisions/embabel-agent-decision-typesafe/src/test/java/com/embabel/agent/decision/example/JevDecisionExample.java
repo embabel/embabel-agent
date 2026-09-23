@@ -27,6 +27,8 @@ import com.embabel.agent.decision.KeyOutcome;
 import com.embabel.agent.decision.RatingKey;
 import com.embabel.agent.decision.YesNoKey;
 import com.embabel.agent.decision.typesafe.TypeSafeDecisionModel;
+import com.embabel.common.ai.model.ModelProvider;
+import com.embabel.common.ai.model.ModelSelectionCriteria;
 
 import java.time.Duration;
 import java.util.List;
@@ -42,6 +44,10 @@ public final class JevDecisionExample {
 
     public static Evidence run(DecisionModel model) {
         return run(model, Duration.ofSeconds(20));
+    }
+
+    public static Evidence runForRole(ModelProvider models, String role) {
+        return run(models.getDecisionModel(ModelSelectionCriteria.byRole(role)));
     }
 
     static Evidence run(DecisionModel model, Duration timeout) {

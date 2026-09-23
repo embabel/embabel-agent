@@ -2,19 +2,21 @@ digraph DecisionModules {
   rankdir=LR;
   node [shape=box, style="rounded"];
   ai [label="embabel-agent-ai"];
-  api [label="embabel-agent-api"];
+  api [label="embabel-agent-api\nModelProvider + selection"];
   core [label="embabel-agent-decision\ncontracts + final facade"];
   jev [label="embabel-agent-decision-typesafe\nJev adapter"];
   llm [label="embabel-agent-decision-llm\nprompted adapter"];
-  auto [label="embabel-agent-decision-autoconfigure\nopt-in Spring wiring"];
+  auto [label="embabel-agent-decision-autoconfigure\nnamed DecisionModel beans"];
   starter [label="embabel-agent-starter-decision\nthin dependency starter"];
   platform [label="embabel-agent-starter-platform\nagent platform starter"];
   core -> ai;
+  api -> core;
   jev -> core;
   llm -> core;
   llm -> api;
   auto -> jev;
   auto -> llm;
+  auto -> api;
   starter -> auto;
   starter -> platform;
 }

@@ -33,18 +33,26 @@ class DecisionDocumentationTest {
         assertThat(reference).contains("include::decisions/page.adoc[]")
         assertThat(page).contains("[[reference.decisions]]", "[[reference.decisions.promotion]]", "==== Promotion checkpoint")
         assertThat(page).contains(
-            "Four built-in named factories ship in this release",
+            "Decisions are the experimental third Embabel model type",
+            "Four built-in products ship in this release",
             "Custom implementations are extension adapters",
-            "Spring selects `typesafe`, `prompted`, or `none`",
+            "A nonempty `models` map replaces implicit Jev completely",
+            "embabel.models.default-decision-model",
+            "ModelSelectionCriteria.byName",
+            "ModelSelectionCriteria.byRole",
+            "ModelSelectionCriteria.firstOf",
+            "ModelSelectionCriteria.randomOf",
+            "ModelSelectionCriteria.preResolved",
             "`StubDecisionModel` is test-only",
         )
         assertThat(page).contains("tag=custom-provider", "tag=kotlin-consumer", "tag=java-consumer", "tag=dice-consumer")
         listOf("TypeSafeDecisionModel", "PromptedDecisionModel", "NoDecisionModel", "StubDecisionModel").forEach { assertThat(page).contains(it) }
         assertThat(page).doesNotContain("DroolsDecisionModel", "CamundaDecisionModel", "TimefoldDecisionModel")
         val properties = listOf(
-            "enabled", "provider", "default-timeout", "record-mode", "full-record-max-bytes", "record-allowlist",
-            "mapper-bean-name", "typesafe.model", "typesafe.base-url", "typesafe.connect-timeout", "typesafe.api-key",
-            "prompted.llm-bean-name", "prompted.options-bean-name",
+            "enabled", "models.jev.provider", "default-timeout", "record-mode", "full-record-max-bytes", "record-allowlist",
+            "mapper-bean-name", "models.jev.typesafe.model", "models.jev.typesafe.base-url",
+            "models.jev.typesafe.connect-timeout", "models.prompted-review.prompted.llm-bean-name",
+            "models.prompted-review.prompted.options-bean-name",
         )
         properties.forEach { assertThat(page).contains("embabel.agent.decision.$it") }
         listOf("embabel-agent-decision`", "embabel-agent-decision-typesafe`", "embabel-agent-decision-llm`",
@@ -52,7 +60,26 @@ class DecisionDocumentationTest {
         assertThat(page).contains("[graphviz, decision-modules.dot, png]", "include::../diagrams/decision-modules.dot[]")
         assertThat(page).contains("[graphviz, decision-flow.dot, png]", "include::../diagrams/decision-flow.dot[]")
         val moduleDiagram = read("embabel-agent-docs/src/main/asciidoc/reference/diagrams/decision-modules.dot")
-        assertThat(moduleDiagram).contains("starter -> auto", "starter -> platform", "embabel-agent-starter-platform")
+        assertThat(moduleDiagram).contains(
+            "starter -> auto", "starter -> platform", "embabel-agent-starter-platform",
+            "api -> core", "ModelProvider + selection", "named DecisionModel beans",
+        )
+        val flowDiagram = read("embabel-agent-docs/src/main/asciidoc/reference/diagrams/decision-flow.dot")
+        assertThat(flowDiagram).contains(
+            "ModelSelectionCriteria", "ModelProvider", "default / name / role", "per-call provenance",
+            "host-owned action or proposition revision",
+        )
+        assertThat(page).contains(
+            "requested model `jev-latest`", "registry name `jev`", "provider `typesafe`",
+            "EMBABEL_AGENT_DECISION_MODELS_PROPOSITIONREVISION_PROVIDER",
+            "hyphens in registry names cannot be represented faithfully",
+            "registry metadata", "per-call provenance", "Dice retains action ownership",
+        )
+        assertThat(page).doesNotContain(
+            "Automatic `Ai` or `ModelProvider` selection is deferred",
+            "embabel.agent.decision.provider",
+            "embabel.agent.decision.typesafe.model",
+        )
         assertThat(page).contains(
             "-pl embabel-agent-dependencies install -DskipTests",
             "-am install -DskipTests",
@@ -71,11 +98,11 @@ class DecisionDocumentationTest {
             "embabel-agent-decision-llm/src/main/kotlin", "embabel-agent-decision-autoconfigure/src/main/java",
             "embabel-agent-decision-typesafe/src/test/kotlin", "embabel-agent-decision-typesafe/src/test/java")
         assertThat(read("embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/kotlin/com/embabel/agent/decision/example/JevDecisionExample.kt"))
-            .contains("tag::kotlin-consumer[]", "end::kotlin-consumer[]")
+            .contains("tag::kotlin-consumer[]", "end::kotlin-consumer[]", "getDecisionModel", "PlatformDefault", "byName")
         assertThat(read("embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/JevDecisionExample.java"))
-            .contains("tag::java-consumer[]", "end::java-consumer[]")
+            .contains("tag::java-consumer[]", "end::java-consumer[]", "getDecisionModel", "byRole")
         assertThat(read("embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/DicePropositionRevisionExample.java"))
-            .contains("tag::dice-consumer[]", "end::dice-consumer[]")
+            .contains("tag::dice-consumer[]", "end::dice-consumer[]", "ModelProvider", "ModelSelectionCriteria")
         assertThat(read("embabel-agent-decisions/embabel-agent-decision/src/test/kotlin/example/decision/provider/CustomDecisionProviderExample.kt"))
             .contains("tag::custom-provider[]", "end::custom-provider[]")
     }

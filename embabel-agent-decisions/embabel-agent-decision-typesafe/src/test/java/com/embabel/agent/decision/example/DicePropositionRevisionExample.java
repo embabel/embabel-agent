@@ -23,6 +23,8 @@ import com.embabel.agent.decision.DecisionOutcome;
 import com.embabel.agent.decision.DecisionProvenance;
 import com.embabel.agent.decision.DecisionRequest;
 import com.embabel.agent.decision.KeyOutcome;
+import com.embabel.common.ai.model.ModelProvider;
+import com.embabel.common.ai.model.ModelSelectionCriteria;
 
 import java.time.Duration;
 import java.util.List;
@@ -89,6 +91,12 @@ public final class DicePropositionRevisionExample {
                 evidence.getValue(), evidence.getDistribution(), success.getProvenance(),
                 new SourceProvenance(existing.sourceProvenance(), candidate.sourceProvenance()));
         return new RevisionResult(disposition, event);
+    }
+
+    public static RevisionResult revise(ModelProvider models, ModelSelectionCriteria selection,
+                                        RevisionPolicy policy, String correlationId,
+                                        PropositionState existing, PropositionState candidate) {
+        return revise(models.getDecisionModel(selection), policy, correlationId, existing, candidate);
     }
 
     private static DecisionOption<PropositionRelation> option(PropositionRelation relation) {

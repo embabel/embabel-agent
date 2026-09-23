@@ -433,6 +433,8 @@ class JevDecisionExampleTest {
             }
         val productionClasspath = listOf(
             root.resolve("embabel-agent-decisions/embabel-agent-decision-typesafe/target/classes"),
+            // The provider-selected examples are test consumers of the agent API. The adapter remains API-free at runtime.
+            root.resolve("embabel-agent-api/target/classes"),
         ) + resolvedRuntime
         val classpath = productionClasspath.joinToString(File.pathSeparator)
         val sources = listOf(
@@ -467,7 +469,6 @@ class JevDecisionExampleTest {
         public final class MinimalConsumerRunner {
             public static void main(String[] args) throws Exception {
                 unavailable("com.embabel.agent.autoconfigure.decision.AgentDecisionAutoConfiguration");
-                unavailable("com.embabel.agent.core.hitl.WaitFor");
                 expectDisabled(() -> JevDecisionExample.run(NoDecisionModel.create()));
                 expectDisabled(() -> DicePropositionRevisionExample.revise(
                         NoDecisionModel.create(), new DicePropositionRevisionExample.RevisionPolicy(), "revision-minimal",

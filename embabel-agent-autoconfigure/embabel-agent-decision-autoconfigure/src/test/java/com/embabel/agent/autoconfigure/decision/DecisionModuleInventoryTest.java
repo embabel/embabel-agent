@@ -58,6 +58,9 @@ class DecisionModuleInventoryTest {
     void actualReactorAndDependencyGraphMatchesThePublishedDecisionArchitecture() throws Exception {
         DecisionGraph graph = readGraph(reactorRoot());
         assertThat(validate(graph)).isEmpty();
+        assertThat(scopedDependencies(reactorRoot().resolve(
+                "embabel-agent-decisions/embabel-agent-decision-typesafe/pom.xml"), "test"))
+                .containsExactly(new Coordinate("com.embabel.agent", "embabel-agent-api"));
         assertThat(Files.exists(reactorRoot()
                 .resolve("embabel-agent-starters/embabel-agent-starter-decision/src/main"))).isFalse();
     }
@@ -141,6 +144,18 @@ class DecisionModuleInventoryTest {
         Set<Coordinate> result = new LinkedHashSet<>();
         for (Element dependency : directChildren(dependencies, "dependency")) {
             if (!"test".equals(childText(dependency, "scope"))) {
+                result.add(new Coordinate(childText(dependency, "groupId"), childText(dependency, "artifactId")));
+            }
+        }
+        return result;
+    }
+
+    private Set<Coordinate> scopedDependencies(Path pom, String scope) throws Exception {
+        Element dependencies = directChild(parse(pom), "dependencies");
+        if (dependencies == null) return Set.of();
+        Set<Coordinate> result = new LinkedHashSet<>();
+        for (Element dependency : directChildren(dependencies, "dependency")) {
+            if (scope.equals(childText(dependency, "scope"))) {
                 result.add(new Coordinate(childText(dependency, "groupId"), childText(dependency, "artifactId")));
             }
         }

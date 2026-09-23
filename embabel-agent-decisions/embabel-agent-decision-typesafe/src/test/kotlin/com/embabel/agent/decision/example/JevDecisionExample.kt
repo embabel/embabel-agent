@@ -22,6 +22,8 @@ import com.embabel.agent.decision.DecisionOutcome
 import com.embabel.agent.decision.DecisionRequest
 import com.embabel.agent.decision.KeyOutcome
 import com.embabel.agent.decision.typesafe.TypeSafeDecisionModel
+import com.embabel.common.ai.model.ModelProvider
+import com.embabel.common.ai.model.ModelSelectionCriteria
 import java.time.Duration
 import java.util.function.Supplier
 
@@ -38,6 +40,12 @@ data class KotlinDecisionEvidence(
 
 fun runKotlinDecision(model: DecisionModel): KotlinDecisionEvidence =
     runKotlinDecision(model, Duration.ofSeconds(20))
+
+fun runKotlinDecision(models: ModelProvider): KotlinDecisionEvidence =
+    runKotlinDecision(models.getDecisionModel(ModelSelectionCriteria.PlatformDefault))
+
+fun runNamedKotlinDecision(models: ModelProvider, name: String): KotlinDecisionEvidence =
+    runKotlinDecision(models.getDecisionModel(ModelSelectionCriteria.byName(name)))
 
 internal fun runKotlinDecision(model: DecisionModel, timeout: Duration): KotlinDecisionEvidence {
     val builder = DecisionRequest.builder()

@@ -1,19 +1,21 @@
 digraph DecisionFlow {
   rankdir=LR;
   node [shape=box, style="rounded"];
-  host [label="Explicit or Spring-configured host"];
+  host [label="Embabel workflow or Dice"];
+  criteria [label="ModelSelectionCriteria\ndefault / name / role\nfallback / random / pre-resolved"];
+  registry [label="ModelProvider\nregistry metadata + diagnostics"];
   facade [label="final DecisionModel facade"];
   prepare [label="Copy bounded projection + absolute deadline"];
   spi [label="Prepared DecisionProvider SPI"];
   jev [label="Jev"];
   prompted [label="Prompted LLM"];
-  validate [label="Validate + project safe record"];
-  policy [label="Host-owned action or revision policy"];
-  host -> facade -> prepare -> spi;
+  validate [label="Validate + project safe record\nper-call provenance"];
+  policy [label="host-owned action or proposition revision"];
+  host -> criteria -> registry -> facade -> prepare -> spi;
   spi -> jev;
   spi -> prompted;
   jev -> validate;
   prompted -> validate;
-  validate -> facade -> host;
+  validate -> facade -> host [label=" typed evidence + provenance"];
   host -> policy [label=" evidence + provenance"];
 }

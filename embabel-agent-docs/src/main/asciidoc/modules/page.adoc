@@ -115,7 +115,7 @@ The following are modules intended for direct use (versus supporting infrastruct
 | `embabel-agent-decision`
 | This repo
 | Typed decision contracts, validation, records, `NoDecisionModel`, and `StubDecisionModel`
-| Framework-neutral; depends on `embabel-agent-ai`
+| Framework-neutral decision facade; registered instances are the third `ModelProvider` model type
 | Experimental
 
 | `embabel-agent-decision-typesafe`
@@ -133,7 +133,7 @@ The following are modules intended for direct use (versus supporting infrastruct
 | `embabel-agent-decision-autoconfigure`
 | This repo
 | Opt-in Spring Boot configuration for typed decisions
-| Depends on both real provider adapters
+| Registers one or more named decision models; an empty enabled declaration supplies Jev
 | Experimental
 
 
@@ -305,7 +305,7 @@ The following are modules intended for direct use (versus supporting infrastruct
 | `embabel-agent-starter-decision`
 | This repo
 | Opt-in typed decision starter
-| Adds the platform and decision autoconfiguration; no provider is enabled by default
+| Adds the platform and decision autoconfiguration; configuration remains disabled by default
 | Experimental
 |===
 
