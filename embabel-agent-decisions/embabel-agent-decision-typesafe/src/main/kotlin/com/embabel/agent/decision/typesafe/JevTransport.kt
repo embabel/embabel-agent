@@ -20,12 +20,15 @@ import com.embabel.agent.decision.DecisionSafeCode
 import com.embabel.agent.decision.PreparedDecisionRequest
 import com.embabel.agent.decision.RawDecisionOutcome
 import java.io.ByteArrayOutputStream
+import java.net.http.HttpTimeoutException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.ByteBuffer
 import java.time.Duration
+import java.util.Collections
+import java.util.IdentityHashMap
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.ExecutionException
@@ -99,7 +102,11 @@ internal class JevTransport(
             future.cancel(true); Thread.currentThread().interrupt(); Attempt.Failure(cancelled())
         } catch (error: ExecutionException) {
             future.cancel(true)
-            if (error.cause is BodyTooLargeException) Attempt.Failure(rejected()) else Attempt.Failure(unavailable())
+            when {
+                error.hasCause(BodyTooLargeException::class.java) -> Attempt.Failure(rejected())
+                error.hasCause(HttpTimeoutException::class.java) -> Attempt.Failure(deadline())
+                else -> Attempt.Failure(unavailable())
+            }
         } catch (_: Exception) {
             future.cancel(true); Attempt.Failure(unavailable())
         }
@@ -114,6 +121,16 @@ internal class JevTransport(
     private fun rejected() = RawDecisionOutcome.failure(CallFailure.RejectedRequest, DecisionSafeCode.REJECTED_REQUEST)
     private fun deadline() = RawDecisionOutcome.failure(CallFailure.DeadlineExceeded, DecisionSafeCode.DEADLINE_EXCEEDED)
     private fun cancelled() = RawDecisionOutcome.failure(CallFailure.Cancelled, DecisionSafeCode.CANCELLED)
+
+    private fun Throwable.hasCause(type: Class<out Throwable>): Boolean {
+        var current: Throwable? = this
+        val seen = Collections.newSetFromMap(IdentityHashMap<Throwable, Boolean>())
+        while (current != null && seen.add(current)) {
+            if (type.isInstance(current)) return true
+            current = current.cause
+        }
+        return false
+    }
 
     private sealed interface Attempt {
         class Response(val status: Int, val body: ByteArray) : Attempt

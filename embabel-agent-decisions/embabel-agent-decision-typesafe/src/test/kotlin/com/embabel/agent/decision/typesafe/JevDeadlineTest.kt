@@ -24,14 +24,20 @@ import com.embabel.agent.decision.DecisionSafeCode
 import com.embabel.agent.decision.PreparedDecisionRequest
 import com.embabel.agent.decision.RawDecisionOutcome
 import com.embabel.common.util.EmbabelObjectMapperHolder
+import io.mockk.every
+import io.mockk.mockk
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.URI
 import java.net.http.HttpClient
+import java.net.http.HttpResponse
+import java.net.http.HttpTimeoutException
 import java.time.Duration
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -39,6 +45,36 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Supplier
 
 class JevDeadlineTest {
+    @Test
+    fun `maps an asynchronous JDK request timeout to the public deadline failure`() {
+        val client = mockk<HttpClient>()
+        every {
+            client.sendAsync(any(), any<HttpResponse.BodyHandler<ByteArray>>())
+        } returns CompletableFuture.failedFuture(HttpTimeoutException("synthetic timeout"))
+        val transport = transport(client)
+        val model = DecisionModel(DecisionProvider(transport::invoke))
+
+        val result = model.ask(request()) as DecisionOutcome.Failure
+
+        assertThat(result.failure).isEqualTo(CallFailure.DeadlineExceeded)
+        assertThat(result.safeCode).isEqualTo(DecisionSafeCode.DEADLINE_EXCEEDED)
+    }
+
+    @Test
+    fun `keeps a non-timeout asynchronous transport failure unavailable`() {
+        val client = mockk<HttpClient>()
+        every {
+            client.sendAsync(any(), any<HttpResponse.BodyHandler<ByteArray>>())
+        } returns CompletableFuture.failedFuture(IOException("synthetic I O failure"))
+        val transport = transport(client)
+        val model = DecisionModel(DecisionProvider(transport::invoke))
+
+        val result = model.ask(request()) as DecisionOutcome.Failure
+
+        assertThat(result.failure).isEqualTo(CallFailure.Unavailable)
+        assertThat(result.safeCode).isEqualTo(DecisionSafeCode.UNAVAILABLE)
+    }
+
     @Test
     fun `retries 429 once and resolves the credential only once`() {
         CaptureServer.sequence(CaptureServer.Reply(429, "{}"), CaptureServer.Reply(200, success())).use { server ->
@@ -239,6 +275,11 @@ class JevDeadlineTest {
     ) = JevTransport(
         Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri), HttpClient.newHttpClient(),
         JevWireCodec(EmbabelObjectMapperHolder.createDefault(), "requested-test"), sleeper, remaining, observer,
+    )
+
+    private fun transport(client: HttpClient) = JevTransport(
+        Supplier { "synthetic-bearer" }, "requested-test", URI.create("https://jev.invalid"), client,
+        JevWireCodec(EmbabelObjectMapperHolder.createDefault(), "requested-test"),
     )
 
     private fun success() = """{"model":"resolved-test-v1","answers":{"q_yes":{"type":"noul","noul":0.75}},"usage":{"input_tokens":1,"output_tokens":1}}"""
