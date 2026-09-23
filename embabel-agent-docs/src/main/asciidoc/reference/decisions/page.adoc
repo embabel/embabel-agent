@@ -124,12 +124,12 @@ Windows uses `;` as the classpath separator; this release has not claimed a loca
 
 [source,bash]
 ----
-mvn -B -Pintegration-tests -Ddecision.integration-profile=true -Ddecision.live=true \
+mvn -B -Pintegration-tests -Ddecision.live=true \
   -pl embabel-agent-decisions/embabel-agent-decision-typesafe -am \
   -Dtest=JevLiveSmokeIT -Dsurefire.failIfNoSpecifiedTests=false test
 ----
 
-The marker is explicit because Maven does not expose the active profile id to the test runtime without changing the shared root build. Direct `-Dtest=JevLiveSmokeIT` selection without it cannot construct the transport. A nonblank key and model are still required, and `CI` must be absent or exactly `false` (case-insensitive).
+The `integration-tests` profile owns the authorization marker. Supplying the marker directly cannot enable the transport, so a direct `-Dtest=JevLiveSmokeIT` selection remains safe. The separate `decision.live=true` opt-in, a nonblank key and model are still required, and `CI` must be absent or exactly `false` (case-insensitive).
 
 [[reference.decisions.promotion]]
 ==== Promotion checkpoint

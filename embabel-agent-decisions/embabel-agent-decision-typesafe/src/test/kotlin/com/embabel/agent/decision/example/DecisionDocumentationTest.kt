@@ -50,8 +50,9 @@ class DecisionDocumentationTest {
         assertThat(page).contains(
             "-pl embabel-agent-dependencies install -DskipTests",
             "-am install -DskipTests",
-            "-Ddecision.integration-profile=true",
+            "-Pintegration-tests -Ddecision.live=true",
         )
+        assertThat(page).doesNotContain("-Ddecision.integration-profile=true")
         assertThat(pom).contains("embabel-agent-decision/src/main/kotlin", "embabel-agent-decision-typesafe/src/main/kotlin",
             "embabel-agent-decision-llm/src/main/kotlin", "embabel-agent-decision-autoconfigure/src/main/java",
             "embabel-agent-decision-typesafe/src/test/kotlin", "embabel-agent-decision-typesafe/src/test/java")
