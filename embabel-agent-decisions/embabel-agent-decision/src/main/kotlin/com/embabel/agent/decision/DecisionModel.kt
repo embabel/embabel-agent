@@ -33,6 +33,14 @@ import java.util.concurrent.atomic.AtomicReference
 private class YesNoToken(override val id: String, val binding: String, val question: String) : YesNoKey
 private class ChoiceToken<T>(override val id: String, val binding: String, val question: String, val options: List<DecisionOption<T>>) : ChoiceKey<T>
 private class RatingToken<T>(override val id: String, val binding: String, val question: String, val options: List<DecisionOption<T>>) : RatingKey<T>
+
+/**
+ * Immutable input to one [DecisionModel.ask] call.
+ *
+ * Build the request and retain the returned typed keys: each key is bound to this request and is
+ * the only supported way to read its validated answer from a successful outcome. Timeout and
+ * record policy can be set per request; otherwise the model defaults apply.
+ */
 @ApiStatus.Experimental
 interface DecisionRequest {
     @ApiStatus.Experimental class Builder {
@@ -75,10 +83,13 @@ private sealed interface InstrumentationSelection {
     class Explicit(override val instrumentation: DecisionInstrumentation) : InstrumentationSelection
 }
 /**
- * Final decision facade with execution capacity isolated to this model instance.
+ * Final facade that prepares a request, bounds provider execution, validates raw evidence, and
+ * returns typed outcomes without exposing provider-specific wire data.
  *
- * Call [close] when an externally backed model is no longer used. Closing interrupts active
- * provider calls and rejects later external-provider work; interruption remains best effort.
+ * One absolute timeout covers preparation, queueing, provider work, and validation. Expected call
+ * failures are returned as [DecisionOutcome.Failure]; caller interruption returns Cancelled and
+ * restores the interrupt flag. Call [close] when an externally backed model is no longer used.
+ * Closing interrupts active provider calls best effort and rejects later external-provider work.
  */
 @ApiStatus.Experimental
 class DecisionModel private constructor(
@@ -158,9 +169,15 @@ class DecisionModel private constructor(
             throw error
         } finally {
             val completion = completion(family, result, fatalError, elapsedNanos(startedAt, clock()))
-            completeObservation(observation, completion)
-            closeObservation(observation)
-            logCompletion(completion)
+            try {
+                completeObservation(observation, completion)
+            } finally {
+                try {
+                    closeObservation(observation)
+                } finally {
+                    logCompletion(completion)
+                }
+            }
         }
     }
 
@@ -356,7 +373,7 @@ private fun startObservation(
 ): GuardedDecisionObservation {
     val observation = try {
         requireNotNull(instrumentation.start(context))
-    } catch (_: RuntimeException) {
+    } catch (_: Exception) {
         logInstrumentationFailure(InstrumentationHook.START)
         DecisionInstrumentation.noop().start(context)
     }
@@ -401,7 +418,7 @@ private class GuardedDecisionObservation(
         try {
             decisionLogger.debug("Decision event={}", event)
             delegate.event(event)
-        } catch (_: RuntimeException) {
+        } catch (_: Exception) {
             logInstrumentationFailure(InstrumentationHook.EVENT)
         }
     }
@@ -411,7 +428,8 @@ private fun <T> DecisionObservation.wrapSafely(work: Callable<T>): Callable<T> {
     val once = OnceCallable(work)
     val wrapped = try {
         requireNotNull(wrap(once))
-    } catch (_: RuntimeException) {
+    } catch (error: Exception) {
+        if (error is InterruptedException) throw error
         logInstrumentationFailure(InstrumentationHook.WRAP)
         once
     }
@@ -420,6 +438,7 @@ private fun <T> DecisionObservation.wrapSafely(work: Callable<T>): Callable<T> {
         try {
             wrapped.call()
         } catch (error: Exception) {
+            if (error is InterruptedException && !once.wasInvoked()) throw error
             wrapperFailure = error
         }
         val workFailure = once.failure()
@@ -427,6 +446,9 @@ private fun <T> DecisionObservation.wrapSafely(work: Callable<T>): Callable<T> {
             wrapperFailure == null && workFailure != null
         ) {
             logInstrumentationFailure(InstrumentationHook.WRAPPED_WORK)
+        }
+        if (wrapperFailure is InterruptedException && wrapperFailure !== workFailure) {
+            Thread.currentThread().interrupt()
         }
         once.call()
     }
@@ -456,7 +478,7 @@ private class OnceCallable<T>(private val work: Callable<T>) : Callable<T> {
 private fun completeObservation(observation: DecisionObservation, completion: DecisionCompletion) {
     try {
         observation.complete(completion)
-    } catch (_: RuntimeException) {
+    } catch (_: Exception) {
         logInstrumentationFailure(InstrumentationHook.COMPLETE)
     }
 }
@@ -464,7 +486,7 @@ private fun completeObservation(observation: DecisionObservation, completion: De
 private fun closeObservation(observation: DecisionObservation) {
     try {
         observation.close()
-    } catch (_: RuntimeException) {
+    } catch (_: Exception) {
         logInstrumentationFailure(InstrumentationHook.CLOSE)
     }
 }

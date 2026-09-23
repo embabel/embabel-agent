@@ -145,6 +145,40 @@ class DecisionInstrumentationTest {
     }
 
     @Test
+    fun `checked hook failures cannot change outcome or skip close`() {
+        CheckedHook.entries.forEach { failingHook ->
+            val invoked = AtomicInteger()
+            val closed = AtomicInteger()
+            val instrumentation = checkedFailureInstrumentation(failingHook, closed)
+            val model = DecisionModel(DecisionProvider { prepared ->
+                invoked.incrementAndGet()
+                prepared.event(DecisionTelemetryEvent.PROVIDER_ATTEMPT)
+                success()
+            }).withInstrumentation(instrumentation)
+
+            assertThat(model.ask(yesNoRequest())).describedAs(failingHook.name)
+                .isInstanceOf(DecisionOutcome.Success::class.java)
+            assertThat(invoked.get()).describedAs(failingHook.name).isEqualTo(1)
+            if (failingHook != CheckedHook.START) {
+                assertThat(closed.get()).describedAs(failingHook.name).isEqualTo(1)
+            }
+
+            if (failingHook == CheckedHook.WRAP) {
+                val callerBoundClosed = AtomicInteger()
+                val stub = StubDecisionModel.create(listOf(StubStep.immediate(success())))
+                assertThat(
+                    stub.withInstrumentation(checkedFailureInstrumentation(failingHook, callerBoundClosed))
+                        .ask(yesNoRequest()),
+                ).isInstanceOf(DecisionOutcome.Success::class.java)
+                assertThat(callerBoundClosed.get()).isEqualTo(1)
+                val exhausted = stub.withInstrumentation(DecisionInstrumentation.noop())
+                    .ask(yesNoRequest()) as DecisionOutcome.Failure
+                assertThat(exhausted.failure).isEqualTo(CallFailure.Unsupported)
+            }
+        }
+    }
+
+    @Test
     fun `checked wrapper failures and skipped work preserve genuine worker result exactly once`() {
         WrapperBehavior.entries.forEach { behavior ->
             val invoked = AtomicInteger()
@@ -279,6 +313,77 @@ class DecisionInstrumentationTest {
     }
 
     @Test
+    fun `pre-work wrapper interruption cancels worker call without invoking provider`() {
+        val invoked = AtomicInteger()
+        val result = DecisionModel(DecisionProvider {
+            invoked.incrementAndGet()
+            success()
+        }).withInstrumentation(preWorkInterruption()).ask(yesNoRequest()) as DecisionOutcome.Failure
+
+        assertThat(result.failure).isEqualTo(CallFailure.Cancelled)
+        assertThat(invoked.get()).isZero()
+        assertThat(Thread.currentThread().isInterrupted).isFalse()
+    }
+
+    @Test
+    fun `pre-work wrapper interruption cancels caller-bound calls without consuming stub step`() {
+        val none = askOnFreshThread(NoDecisionModel.create().withInstrumentation(preWorkInterruption()))
+        assertThat((none.first as DecisionOutcome.Failure).failure).isEqualTo(CallFailure.Cancelled)
+        assertThat(none.second).isTrue()
+
+        val stub = StubDecisionModel.create(listOf(StubStep.immediate(success())))
+        val cancelled = askOnFreshThread(stub.withInstrumentation(preWorkInterruption()))
+        assertThat((cancelled.first as DecisionOutcome.Failure).failure).isEqualTo(CallFailure.Cancelled)
+        assertThat(cancelled.second).isTrue()
+        assertThat(stub.withInstrumentation(DecisionInstrumentation.noop()).ask(yesNoRequest()))
+            .isInstanceOf(DecisionOutcome.Success::class.java)
+        val exhausted = stub.withInstrumentation(DecisionInstrumentation.noop())
+            .ask(yesNoRequest()) as DecisionOutcome.Failure
+        assertThat(exhausted.failure).isEqualTo(CallFailure.Unsupported)
+    }
+
+    @Test
+    fun `wrapper construction interruption cancels on caller without invoking provider`() {
+        val invoked = AtomicInteger()
+        val result = askOnFreshThread(
+            DecisionModel(DecisionProvider {
+                invoked.incrementAndGet()
+                success()
+            }).withInstrumentation(wrapperConstructionInterruption()),
+        )
+
+        assertThat((result.first as DecisionOutcome.Failure).failure).isEqualTo(CallFailure.Cancelled)
+        assertThat(result.second).isTrue()
+        assertThat(invoked.get()).isZero()
+    }
+
+    @Test
+    fun `post-work wrapper interruption preserves caller-bound result flag and one stub step`() {
+        val stub = StubDecisionModel.create(listOf(StubStep.immediate(success())))
+
+        val result = askOnFreshThread(stub.withInstrumentation(postWorkInterruption()))
+
+        assertThat(result.first).isInstanceOf(DecisionOutcome.Success::class.java)
+        assertThat(result.second).isTrue()
+        val exhausted = stub.withInstrumentation(DecisionInstrumentation.noop())
+            .ask(yesNoRequest()) as DecisionOutcome.Failure
+        assertThat(exhausted.failure).isEqualTo(CallFailure.Unsupported)
+    }
+
+    @Test
+    fun `post-work wrapper interruption preserves worker result without changing caller flag`() {
+        val invoked = AtomicInteger()
+        val model = DecisionModel(DecisionProvider {
+            invoked.incrementAndGet()
+            success()
+        }).withInstrumentation(postWorkInterruption())
+
+        assertThat(model.ask(yesNoRequest())).isInstanceOf(DecisionOutcome.Success::class.java)
+        assertThat(invoked.get()).isEqualTo(1)
+        assertThat(Thread.currentThread().isInterrupted).isFalse()
+    }
+
+    @Test
     fun `fatal provider errors propagate after completion and close`() {
         val instrumentation = RecordingInstrumentation()
         val fatal = AssertionError("sentinel-fatal")
@@ -289,6 +394,29 @@ class DecisionInstrumentationTest {
         assertThat(instrumentation.completions.single().status).isEqualTo(DecisionCompletionStatus.FAILURE)
         assertThat(instrumentation.completions.single().safeCode).isNull()
         assertThat(instrumentation.closeCount.get()).isEqualTo(1)
+    }
+
+    @Test
+    fun `fatal completion errors propagate after close is attempted`() {
+        val closed = AtomicInteger()
+        val fatal = AssertionError("sentinel-completion-fatal")
+        val instrumentation = DecisionInstrumentation {
+            object : DecisionObservation {
+                override fun <T> wrap(work: Callable<T>): Callable<T> = work
+                override fun event(event: DecisionTelemetryEvent) = Unit
+                override fun complete(completion: DecisionCompletion) = throw fatal
+                override fun close() {
+                    closed.incrementAndGet()
+                }
+            }
+        }
+
+        assertThatThrownBy {
+            DecisionModel(DecisionProvider { success() })
+                .withInstrumentation(instrumentation)
+                .ask(yesNoRequest())
+        }.isSameAs(fatal)
+        assertThat(closed.get()).isEqualTo(1)
     }
 
     @Test
@@ -543,6 +671,83 @@ class DecisionInstrumentationTest {
     }
 
     private enum class WrapperBehavior { CHECKED_BEFORE_WORK, CHECKED_AFTER_WORK, SKIP_WORK }
+
+    private enum class CheckedHook { START, WRAP, EVENT, COMPLETE, CLOSE }
+
+    private fun checkedFailureInstrumentation(
+        failingHook: CheckedHook,
+        closed: AtomicInteger,
+    ) = DecisionInstrumentation {
+        if (failingHook == CheckedHook.START) throw IOException("sentinel-start")
+        object : DecisionObservation {
+            override fun <T> wrap(work: Callable<T>): Callable<T> =
+                if (failingHook == CheckedHook.WRAP) throw IOException("sentinel-wrap") else work
+
+            override fun event(event: DecisionTelemetryEvent) {
+                if (failingHook == CheckedHook.EVENT) throw IOException("sentinel-event")
+            }
+
+            override fun complete(completion: DecisionCompletion) {
+                if (failingHook == CheckedHook.COMPLETE) throw IOException("sentinel-complete")
+            }
+
+            override fun close() {
+                closed.incrementAndGet()
+                if (failingHook == CheckedHook.CLOSE) throw IOException("sentinel-close")
+            }
+        }
+    }
+
+    private fun preWorkInterruption() = DecisionInstrumentation {
+        object : DecisionObservation {
+            override fun <T> wrap(work: Callable<T>): Callable<T> = Callable {
+                throw InterruptedException("sentinel-wrapper")
+            }
+
+            override fun event(event: DecisionTelemetryEvent) = Unit
+            override fun complete(completion: DecisionCompletion) = Unit
+            override fun close() = Unit
+        }
+    }
+
+    private fun wrapperConstructionInterruption() = DecisionInstrumentation {
+        object : DecisionObservation {
+            override fun <T> wrap(work: Callable<T>): Callable<T> =
+                throw InterruptedException("sentinel-construction")
+
+            override fun event(event: DecisionTelemetryEvent) = Unit
+            override fun complete(completion: DecisionCompletion) = Unit
+            override fun close() = Unit
+        }
+    }
+
+    private fun postWorkInterruption() = DecisionInstrumentation {
+        object : DecisionObservation {
+            override fun <T> wrap(work: Callable<T>): Callable<T> = Callable {
+                work.call()
+                Thread.currentThread().interrupt()
+                check(Thread.interrupted())
+                throw InterruptedException("sentinel-after-work")
+            }
+
+            override fun event(event: DecisionTelemetryEvent) = Unit
+            override fun complete(completion: DecisionCompletion) = Unit
+            override fun close() = Unit
+        }
+    }
+
+    private fun askOnFreshThread(model: DecisionModel): Pair<DecisionOutcome, Boolean> {
+        val outcome = AtomicReference<DecisionOutcome>()
+        val interrupted = AtomicBoolean()
+        val caller = Thread {
+            outcome.set(model.ask(yesNoRequest()))
+            interrupted.set(Thread.currentThread().isInterrupted)
+        }
+        caller.start()
+        caller.join(1_000)
+        assertThat(caller.isAlive).isFalse()
+        return outcome.get() to interrupted.get()
+    }
 
     private fun wrapperInstrumentation(behavior: WrapperBehavior) = DecisionInstrumentation {
         object : DecisionObservation {
