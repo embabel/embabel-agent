@@ -30,6 +30,7 @@ import com.embabel.common.util.EmbabelObjectMapperHolder
 import tools.jackson.core.JsonParser
 import tools.jackson.core.JsonToken
 import tools.jackson.databind.node.ObjectNode
+import java.nio.charset.StandardCharsets
 
 /** Strict System One codec. The private value tree preserves duplicate JSON property names. */
 internal class JevWireCodec(
@@ -67,10 +68,16 @@ internal class JevWireCodec(
         return mapper.writeValueAsBytes(root)
     }
 
-    fun decode(bytes: ByteArray, request: PreparedDecisionRequest): RawDecisionOutcome {
+    fun decode(bytes: ByteArray, request: PreparedDecisionRequest): RawDecisionOutcome = try {
+        decodeEnvelope(bytes, request)
+    } catch (_: RuntimeException) {
+        rejected()
+    }
+
+    private fun decodeEnvelope(bytes: ByteArray, request: PreparedDecisionRequest): RawDecisionOutcome {
         val root = try { parse(bytes) as? JsonValue.Obj } catch (_: Exception) { null }
             ?: return rejected()
-        val model = root.singleString("model")?.takeIf { it.isNotBlank() } ?: return rejected()
+        val model = root.singleString("model")?.takeIf(::safeProvenanceText) ?: return rejected()
         val usage = root.single("usage") as? JsonValue.Obj ?: return rejected()
         val inputTokens = usage.nonNegativeInt("input_tokens") ?: return rejected()
         val outputTokens = usage.nonNegativeInt("output_tokens") ?: return rejected()
@@ -125,15 +132,16 @@ internal class JevWireCodec(
             }) return invalid(question)
         val probabilities = answer.single("probabilities") as? JsonValue.Obj ?: return invalid(question)
         if (probabilities.entries.map { it.first }.distinct().size != probabilities.entries.size || probabilities.entries.size != question.support.size) return invalid(question)
-        val mapped = probabilities.entries.mapNotNull { (index, value) ->
+        val indexed = probabilities.entries.map { (index, value) ->
             val parsed = index.toIntOrNull() ?: return invalid(question)
             if (index != parsed.toString()) return invalid(question)
             val probability = (value as? JsonValue.Num)?.value ?: return invalid(question)
             val support = question.support.getOrNull(parsed) ?: return invalid(question)
-            RawProbability.of(support.id, probability)
+            parsed to RawProbability.of(support.id, probability)
         }
+        val mapped = indexed.map { it.second }
         if (mapped.size != question.support.size || mapped.any { !it.probability.isFinite() || it.probability !in 0.0..1.0 }) return invalid(question)
-        val expected = mapped.withIndex().sumOf { (index, value) -> index * value.probability }
+        val expected = indexed.sumOf { (index, value) -> index * value.probability }
         if (kotlin.math.abs(expected - score) > 1e-9) return invalid(question)
         return RawAnswer.distribution(question.id, question.kind, mapped, null)
     }
@@ -150,6 +158,8 @@ internal class JevWireCodec(
 
     private fun invalid(question: PreparedQuestion) = RawAnswer.failure(question.id, KeyFailure.Invalid, DecisionSafeCode.INVALID)
     private fun rejected() = RawDecisionOutcome.failure(CallFailure.RejectedRequest, DecisionSafeCode.REJECTED_REQUEST)
+    private fun safeProvenanceText(value: String) = value.isNotBlank() &&
+        value.toByteArray(StandardCharsets.UTF_8).size <= 256 && value.none { it == '\n' || it == '\r' }
 
     private fun stateNode(state: Map<String, Any?>): ObjectNode = mapperHolder.get().createObjectNode().also { target ->
         state.forEach { (key, value) -> target.set(key, valueNode(value)) }

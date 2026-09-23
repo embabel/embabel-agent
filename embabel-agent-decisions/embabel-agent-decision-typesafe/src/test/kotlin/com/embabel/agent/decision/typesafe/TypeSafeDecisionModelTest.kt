@@ -17,12 +17,14 @@ package com.embabel.agent.decision.typesafe
 
 import com.embabel.agent.decision.DecisionOption
 import com.embabel.agent.decision.DecisionOutcome
+import com.embabel.agent.decision.DecisionRecordPolicy
 import com.embabel.agent.decision.DecisionRequest
 import com.embabel.agent.decision.KeyOutcome
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import java.net.URI
 import java.net.URLClassLoader
+import java.lang.reflect.Modifier
 import java.util.function.Supplier
 import javax.tools.ToolProvider
 
@@ -39,7 +41,9 @@ class TypeSafeDecisionModelTest {
             assertThat(server.requests.single().method).isEqualTo("POST")
             assertThat(server.requests.single().path).isEqualTo("/v1/systemone")
             assertThat(server.requests.single().headers["Authorization"]?.single()).isEqualTo("Bearer synthetic-bearer")
-            assertThat(server.requests.single().body).contains("q_yes", "q_choice", "q_rating")
+            assertThat(server.requests.single().headers.entries.first { it.key.equals("Content-Type", true) }.value).contains("application/json")
+            assertThat(server.requests.single().headers.entries.first { it.key.equals("Accept", true) }.value).contains("application/json")
+            assertThat(server.requests.single().body).isEqualTo("""{"state":{"text":"synthetic"},"model":"requested-test","questions":{"q_yes":{"type":"noul","instructions":"is this synthetic?","criteria":{"true":"true","false":"false"}},"q_choice":{"type":"choice","instructions":"pick one","criteria":{"s_a":"A","s_b":"B"}},"q_rating":{"type":"score","instructions":"rate it","criteria":["low","high"]}}}""")
             assertThat(server.requests.single().body).doesNotContain("token", "do-not-send")
             assertThat(success.provenance.requestedModel).isEqualTo("requested-test")
             assertThat(success.provenance.resolvedModel).isEqualTo("resolved-test-v1")
@@ -80,8 +84,39 @@ class TypeSafeDecisionModelTest {
         }
     }
 
-    private fun request(): BuiltRequest {
+    @Test
+    fun `uses facade record projection and never places state or evidence in records`() {
+        CaptureServer.replying(resource("success.json")).use { server ->
+            val none = request(DecisionRecordPolicy.none())
+            val noneOutcome = TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri)).ask(none.request) as DecisionOutcome.Success
+            assertThat(noneOutcome.record).isNull()
+        }
+        CaptureServer.replying(resource("success.json")).use { server ->
+            val metadata = request(DecisionRecordPolicy.metadata())
+            val result = TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri)).ask(metadata.request) as DecisionOutcome.Success
+            assertThat(result.record!!.fields.values.joinToString()).doesNotContain("synthetic", "do-not-send", "0.75", "A", "LOW")
+        }
+        CaptureServer.replying(resource("success.json")).use { server ->
+            val full = request(DecisionRecordPolicy.full(256, setOf("answerIds")))
+            val result = TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri)).ask(full.request) as DecisionOutcome.Success
+            assertThat(result.record!!.fields["answerIds"]).contains("q_yes", "q_choice", "q_rating")
+            assertThat(result.record!!.fields.values.joinToString()).doesNotContain("do-not-send", "synthetic-bearer")
+        }
+    }
+
+    @Test
+    fun `keeps only the final decision facade as its public model surface`() {
+        CaptureServer.replying(resource("success.json")).use { server ->
+            val model = TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri))
+            assertThat(model.javaClass).isEqualTo(DecisionOutcome::class.java.classLoader.loadClass("com.embabel.agent.decision.DecisionModel"))
+        }
+        assertThat(Modifier.isFinal(com.embabel.agent.decision.DecisionModel::class.java.modifiers)).isTrue()
+        assertThat(JevTransport::class.java.methods.map { it.name }).doesNotContain("ask", "create")
+    }
+
+    private fun request(policy: DecisionRecordPolicy? = null): BuiltRequest {
         val builder = DecisionRequest.builder().state(mapOf("token" to "do-not-send", "text" to "synthetic"))
+        policy?.let(builder::recordPolicy)
         val yes = builder.yesNo("q_yes", "is this synthetic?")
         val choice = builder.choice("q_choice", "pick one", listOf(
             DecisionOption.of("s_a", "A", "A"), DecisionOption.of("s_b", "B", "B")

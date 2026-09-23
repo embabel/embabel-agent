@@ -42,6 +42,8 @@ internal class JevTransport(
     private val client: HttpClient,
     private val codec: JevWireCodec,
     private val sleeper: (Duration) -> Unit = { Thread.sleep(it.toMillis()) },
+    private val remainingNanos: (PreparedDecisionRequest) -> Long = { it.remainingNanos() },
+    private val attemptObserver: (Duration) -> Unit = {},
 ) {
     fun invoke(request: PreparedDecisionRequest): RawDecisionOutcome {
         if (remaining(request) == null) return deadline()
@@ -76,6 +78,7 @@ internal class JevTransport(
     }
 
     private fun execute(payload: ByteArray, key: String, remaining: Duration): Attempt {
+        attemptObserver(remaining)
         val request = HttpRequest.newBuilder(baseUri.resolve("/v1/systemone"))
             .timeout(remaining)
             .header("Authorization", "Bearer $key")
@@ -102,7 +105,7 @@ internal class JevTransport(
     }
 
     private fun remaining(request: PreparedDecisionRequest): Duration? {
-        val nanos = request.remainingNanos()
+        val nanos = remainingNanos(request)
         return if (nanos > 0) Duration.ofNanos(nanos) else null
     }
 

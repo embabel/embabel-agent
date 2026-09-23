@@ -16,15 +16,24 @@
 package com.embabel.agent.decision.typesafe
 
 import com.embabel.agent.decision.CallFailure
+import com.embabel.agent.decision.DecisionModel
 import com.embabel.agent.decision.DecisionOutcome
+import com.embabel.agent.decision.DecisionProvider
 import com.embabel.agent.decision.DecisionRequest
+import com.embabel.agent.decision.DecisionSafeCode
+import com.embabel.agent.decision.PreparedDecisionRequest
+import com.embabel.agent.decision.RawDecisionOutcome
+import com.embabel.common.util.EmbabelObjectMapperHolder
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
 import java.net.URI
+import java.net.http.HttpClient
 import java.time.Duration
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Supplier
@@ -52,11 +61,42 @@ class JevDeadlineTest {
     }
 
     @Test
+    fun `retries a 529 response once`() {
+        CaptureServer.sequence(CaptureServer.Reply(529, "{}"), CaptureServer.Reply(200, success())).use { server ->
+            val result = TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri)).ask(request())
+            assertThat(result).isInstanceOf(DecisionOutcome.Success::class.java)
+            assertThat(server.requestCount).isEqualTo(2)
+        }
+    }
+
+    @Test
+    fun `maps terminal statuses and I O failures without retrying`() {
+        listOf(401, 403, 500, 503).forEach { status ->
+            CaptureServer.replying("{}", status).use { server ->
+                val result = TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri)).ask(request()) as DecisionOutcome.Failure
+                assertThat(result.failure).isEqualTo(CallFailure.Unavailable)
+                assertThat(server.requestCount).isEqualTo(1)
+            }
+        }
+        CaptureServer.replying("{}", 422).use { server ->
+            val result = TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri)).ask(request()) as DecisionOutcome.Failure
+            assertThat(result.failure).isEqualTo(CallFailure.RejectedRequest)
+            assertThat(server.requestCount).isEqualTo(1)
+        }
+        val result = TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create("http://127.0.0.1:1")).ask(request()) as DecisionOutcome.Failure
+        assertThat(result.failure).isEqualTo(CallFailure.Unavailable)
+    }
+
+    @Test
     fun `never follows a redirect or sends credentials to its target`() {
-        CaptureServer.replying("{}", 302, mapOf("Location" to "http://127.0.0.1:1/steal")).use { server ->
+        CaptureServer.replying("{}", 200).use { hostile ->
+            CaptureServer.replying("{}", 302, mapOf("Location" to "${hostile.baseUri}/steal")).use { server ->
             val result = TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri)).ask(request()) as DecisionOutcome.Failure
             assertThat(result.failure).isEqualTo(CallFailure.Unavailable)
             assertThat(server.requestCount).isEqualTo(1)
+                assertThat(hostile.requestCount).isZero()
+                assertThat(hostile.requests).isEmpty()
+            }
         }
     }
 
@@ -70,16 +110,126 @@ class JevDeadlineTest {
         }
     }
 
+    @Test
+    fun `does not dispatch blank unsafe or failing credentials`() {
+        listOf<Supplier<String>>(
+            Supplier { "" },
+            Supplier { "synthetic\ncredential" },
+            Supplier { throw IllegalStateException("SECRET_DO_NOT_LOG") },
+        ).forEach { credentials ->
+            CaptureServer.replying(success()).use { server ->
+                val result = TypeSafeDecisionModel.create(credentials, "requested-test", URI.create(server.baseUri)).ask(request()) as DecisionOutcome.Failure
+                assertThat(result.failure).isEqualTo(CallFailure.Unavailable)
+                assertThat(server.requestCount).isZero()
+                assertThat(result.record?.fields?.values.orEmpty().joinToString()).doesNotContain("SECRET_DO_NOT_LOG")
+            }
+        }
+    }
+
+    @Test
+    fun `bounds stalled headers stalled bodies and oversized bodies by the single deadline`() {
+        val headers = CountDownLatch(1)
+        CaptureServer.custom { exchange -> headers.await(); exchange.sendResponseHeaders(200, 0) }.use { server ->
+            val result = model(server, Duration.ofMillis(40)).ask(request()) as DecisionOutcome.Failure
+            assertThat(result.failure).isEqualTo(CallFailure.DeadlineExceeded)
+        }
+        val body = CountDownLatch(1)
+        CaptureServer.custom { exchange ->
+            exchange.sendResponseHeaders(200, 0)
+            body.await()
+        }.use { server ->
+            val result = model(server, Duration.ofMillis(40)).ask(request()) as DecisionOutcome.Failure
+            assertThat(result.failure).isEqualTo(CallFailure.DeadlineExceeded)
+        }
+        CaptureServer.custom { exchange ->
+            val payload = ByteArray(1_048_577) { 'x'.code.toByte() }
+            exchange.sendResponseHeaders(200, payload.size.toLong())
+            exchange.responseBody.use { it.write(payload) }
+        }.use { server ->
+            val result = model(server).ask(request()) as DecisionOutcome.Failure
+            assertThat(result.failure).isEqualTo(CallFailure.RejectedRequest)
+        }
+    }
+
+    @Test
+    fun `does not spend a fresh deadline on retry and rejects a late decoded success`() {
+        CaptureServer.sequence(CaptureServer.Reply(429, "{}"), CaptureServer.Reply(200, success())).use { server ->
+            val raw = transport(server, sleeper = { throw AssertionError("must not sleep with consumed budget") }) {
+                if (server.requestCount == 0) Duration.ofSeconds(1).toNanos() else Duration.ofMillis(99).toNanos()
+            }.invoke(prepared())
+            assertThat(raw.callFailure).isEqualTo(CallFailure.DeadlineExceeded)
+            assertThat(server.requestCount).isEqualTo(1)
+        }
+        CaptureServer.replying(success()).use { server ->
+            val raw = transport(server) { if (server.requestCount == 0) Duration.ofSeconds(1).toNanos() else 0L }.invoke(prepared())
+            assertThat(raw.callFailure).isEqualTo(CallFailure.DeadlineExceeded)
+        }
+    }
+
+    @Test
+    fun `uses the remaining budget for the second attempt and cancellation wins`() {
+        CaptureServer.sequence(CaptureServer.Reply(429, "{}"), CaptureServer.Reply(200, success())).use { server ->
+            val observed = mutableListOf<Duration>()
+            val raw = transport(server, sleeper = {}, observer = observed::add) {
+                if (server.requestCount == 0) Duration.ofSeconds(1).toNanos() else Duration.ofMillis(200).toNanos()
+            }.invoke(prepared())
+            assertThat(raw.callFailure).isNull()
+            assertThat(observed).containsExactly(Duration.ofSeconds(1), Duration.ofMillis(200))
+        }
+        CaptureServer.sequence(CaptureServer.Reply(429, "{}")).use { server ->
+            val raw = transport(server, sleeper = { throw InterruptedException() }).invoke(prepared())
+            assertThat(raw.callFailure).isEqualTo(CallFailure.Cancelled)
+            assertThat(Thread.interrupted()).isTrue()
+        }
+    }
+
+    @Test
+    fun `cancels an in flight send and restores interruption`() {
+        val gate = CountDownLatch(1)
+        CaptureServer.custom { gate.await() }.use { server ->
+            Thread.currentThread().interrupt()
+            try {
+                val raw = transport(server).invoke(prepared())
+                assertThat(raw.callFailure).isEqualTo(CallFailure.Cancelled)
+                assertThat(Thread.currentThread().isInterrupted).isTrue()
+            } finally {
+                Thread.interrupted()
+            }
+        }
+    }
+
     private fun request(): DecisionRequest {
         val builder = DecisionRequest.builder()
         builder.yesNo("q_yes", "question")
         return builder.build()
     }
+    private fun model(server: CaptureServer, timeout: Duration = Duration.ofSeconds(2)) =
+        TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri)).withDefaults(timeout, com.embabel.agent.decision.DecisionRecordPolicy.metadata())
+
+    private fun prepared(): PreparedDecisionRequest {
+        var captured: PreparedDecisionRequest? = null
+        DecisionModel(DecisionProvider { request ->
+            captured = request
+            RawDecisionOutcome.failure(CallFailure.Disabled, DecisionSafeCode.DISABLED)
+        }).ask(request())
+        return requireNotNull(captured)
+    }
+
+    private fun transport(
+        server: CaptureServer,
+        sleeper: (Duration) -> Unit = { Thread.sleep(it.toMillis()) },
+        observer: (Duration) -> Unit = {},
+        remaining: (PreparedDecisionRequest) -> Long = { it.remainingNanos() },
+    ) = JevTransport(
+        Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri), HttpClient.newHttpClient(),
+        JevWireCodec(EmbabelObjectMapperHolder.createDefault(), "requested-test"), sleeper, remaining, observer,
+    )
+
     private fun success() = """{"model":"resolved-test-v1","answers":{"q_yes":{"type":"noul","noul":0.75}},"usage":{"input_tokens":1,"output_tokens":1}}"""
 }
 
 internal class CaptureServer private constructor(private val script: List<Reply>) : AutoCloseable {
-    data class Reply(val status: Int, val body: String, val headers: Map<String, String> = emptyMap())
+    data class Reply(val status: Int, val body: String, val headers: Map<String, String> = emptyMap(), val custom: ((HttpExchange) -> Unit)? = null)
     data class Captured(val method: String, val path: String, val headers: Map<String, List<String>>, val body: String)
 
     private val cursor = AtomicInteger()
@@ -94,6 +244,7 @@ internal class CaptureServer private constructor(private val script: List<Reply>
         server.createContext("/") { exchange ->
             val reply = script[minOf(cursor.getAndIncrement(), script.lastIndex)]
             requests += Captured(exchange.requestMethod, exchange.requestURI.path, exchange.requestHeaders, exchange.requestBody.readBytes().decodeToString())
+            reply.custom?.let { handler -> handler(exchange); return@createContext }
             reply.headers.forEach { (name, value) -> exchange.responseHeaders.add(name, value) }
             exchange.responseHeaders.add("Content-Type", "application/json")
             val bytes = reply.body.toByteArray()
@@ -108,5 +259,6 @@ internal class CaptureServer private constructor(private val script: List<Reply>
     companion object {
         fun replying(body: String, status: Int = 200, headers: Map<String, String> = emptyMap()) = CaptureServer(listOf(Reply(status, body, headers)))
         fun sequence(vararg replies: Reply) = CaptureServer(replies.toList())
+        fun custom(handler: (HttpExchange) -> Unit) = CaptureServer(listOf(Reply(200, "", custom = handler)))
     }
 }

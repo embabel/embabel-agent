@@ -68,6 +68,92 @@ class JevWireCodecTest {
         }
     }
 
+    @Test
+    fun `accepts rating probabilities and legends in semantic rather than JSON field order`() {
+        val body = """{"model":"resolved-test-v1","answers":{"q_rating":{"type":"score","score":0.75,"confidence":0.75,"legend":{"1":"high","0":"low"},"probabilities":{"1":0.75,"0":0.25}}},"usage":{"input_tokens":1,"output_tokens":1}}"""
+        CaptureServer.replying(body).use { server ->
+            val built = request()
+            val result = model(server).ask(built.request) as DecisionOutcome.Success
+            val rating = result.answer(built.rating) as KeyOutcome.Success
+            assertThat(rating.expectedScore).isEqualTo(0.75)
+            assertThat(rating.value).isEqualTo("HIGH")
+        }
+    }
+
+    @Test
+    fun `keeps declared rating tie order and does not treat score as a selected level`() {
+        val body = """{"model":"resolved-test-v1","answers":{"q_rating":{"type":"score","score":0.5,"confidence":0.5,"legend":{"0":"low","1":"high"},"probabilities":{"1":0.5,"0":0.5}}},"usage":{"input_tokens":1,"output_tokens":1}}"""
+        CaptureServer.replying(body).use { server ->
+            val built = request()
+            val rating = (model(server).ask(built.request) as DecisionOutcome.Success).answer(built.rating) as KeyOutcome.Success
+            assertThat(rating.expectedScore).isEqualTo(0.5)
+            assertThat(rating.maximizers).containsExactly("LOW", "HIGH")
+            assertThat(rating.firstMaximizer).isEqualTo("LOW")
+        }
+    }
+
+    @Test
+    fun `rejects malformed envelopes including unsafe resolved models`() {
+        listOf(
+            "{",
+            """{"model":"","answers":{},"usage":{"input_tokens":0,"output_tokens":0}}""",
+            """{"model":"line\nbreak","answers":{},"usage":{"input_tokens":0,"output_tokens":0}}""",
+            """{"model":"${"x".repeat(257)}","answers":{},"usage":{"input_tokens":0,"output_tokens":0}}""",
+            """{"model":"resolved","answers":{}}""",
+            """{"model":"resolved","answers":{},"usage":{"input_tokens":-1,"output_tokens":0}}""",
+            """{"model":"resolved","answers":{},"usage":{"input_tokens":1.5,"output_tokens":0}}""",
+            """{"model":"resolved","answers":{"unknown":{"type":"noul","noul":1}},"usage":{"input_tokens":0,"output_tokens":0}}""",
+        ).forEach { body ->
+            CaptureServer.replying(body).use { server ->
+                val result = model(server).ask(request().request) as DecisionOutcome.Failure
+                assertThat(result.failure).isEqualTo(CallFailure.RejectedRequest)
+            }
+        }
+    }
+
+    @Test
+    fun `isolates malformed recognizable answers while rejecting duplicate wire structures`() {
+        val invalidRatingBodies = listOf(
+            """{"q_rating":{"type":"score","score":0.75,"confidence":0.5,"legend":{"0":"low","0":"low","1":"high"},"probabilities":{"0":0.25,"1":0.75}}}""",
+            """{"q_rating":{"type":"score","score":0.75,"confidence":0.5,"legend":{"00":"low","1":"high"},"probabilities":{"0":0.25,"1":0.75}}}""",
+            """{"q_rating":{"type":"score","score":0.75,"confidence":0.5,"legend":{"0":"low","1":"high"},"probabilities":{"0":0.25,"0":0.75}}}""",
+            """{"q_rating":{"type":"score","score":0.75,"confidence":1.1,"legend":{"0":"low","1":"high"},"probabilities":{"0":0.25,"1":0.75}}}""",
+            """{"q_rating":{"type":"score","score":0.75,"confidence":0.5,"legend":{"0":"low","1":"high"},"probabilities":{"0":0.2,"1":0.7}}}""",
+        )
+        invalidRatingBodies.forEach { answer ->
+            val rating = answer.removePrefix("{\"q_rating\":").removeSuffix("}")
+            val body = """{"model":"resolved","answers":{"q_yes":{"type":"noul","noul":1.0},"q_rating":$rating},"usage":{"input_tokens":0,"output_tokens":0}}"""
+            CaptureServer.replying(body).use { server ->
+                val built = request()
+                val result = model(server).ask(built.request) as DecisionOutcome.Success
+                assertThat(result.answer(built.yes)).isInstanceOf(KeyOutcome.Success::class.java)
+                assertThat((result.answer(built.rating) as KeyOutcome.Failure).failure).isEqualTo(KeyFailure.Invalid)
+            }
+        }
+        val mismatch = """{"model":"resolved","answers":{"q_yes":{"type":"choice","choice":"s_a","confidence":1,"probabilities":{"s_a":1}}},"usage":{"input_tokens":0,"output_tokens":0}}"""
+        CaptureServer.replying(mismatch).use { server ->
+            val built = request()
+            val result = model(server).ask(built.request) as DecisionOutcome.Success
+            assertThat((result.answer(built.yes) as KeyOutcome.Failure).failure).isEqualTo(KeyFailure.Invalid)
+        }
+    }
+
+    @Test
+    fun `rejects extra and duplicate top level ids while missing answers stay missing`() {
+        val extra = """{"model":"resolved","answers":{"q_yes":{"type":"noul","noul":1},"extra":{"type":"noul","noul":1}},"usage":{"input_tokens":0,"output_tokens":0}}"""
+        CaptureServer.replying(extra).use { server ->
+            val result = model(server).ask(request().request) as DecisionOutcome.Failure
+            assertThat(result.failure).isEqualTo(CallFailure.RejectedRequest)
+        }
+        val missing = """{"model":"resolved","answers":{"q_yes":{"type":"noul","noul":1}},"usage":{"input_tokens":0,"output_tokens":0}}"""
+        CaptureServer.replying(missing).use { server ->
+            val built = request()
+            val result = model(server).ask(built.request) as DecisionOutcome.Success
+            assertThat((result.answer(built.choice) as KeyOutcome.Failure).failure).isEqualTo(KeyFailure.Missing)
+            assertThat((result.answer(built.rating) as KeyOutcome.Failure).failure).isEqualTo(KeyFailure.Missing)
+        }
+    }
+
     private fun model(server: CaptureServer) = TypeSafeDecisionModel.create(Supplier { "synthetic-bearer" }, "requested-test", URI.create(server.baseUri))
     private fun resource(name: String): String = javaClass.getResource("/decision/typesafe/$name")!!.readText()
     private fun request(): WireRequest {
