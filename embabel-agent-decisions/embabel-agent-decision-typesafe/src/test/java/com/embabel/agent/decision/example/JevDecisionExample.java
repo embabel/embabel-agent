@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.decision.example;
 
+// tag::java-consumer[]
 import com.embabel.agent.decision.ChoiceKey;
 import com.embabel.agent.decision.DecisionModel;
 import com.embabel.agent.decision.DecisionOption;
@@ -39,7 +40,6 @@ public final class JevDecisionExample {
     public record Evidence(boolean eligible, Route route, Urgency urgency,
                            Map<Route, Double> routeDistribution, DecisionProvenance provenance) {}
 
-    // tag::java-consumer[]
     public static Evidence run(DecisionModel model) {
         DecisionRequest.Builder builder = DecisionRequest.builder()
                 .state(Map.of("subject", "synthetic public example"))
@@ -77,8 +77,6 @@ public final class JevDecisionExample {
         return new Evidence(yes.getValue(), selectedRoute.getValue(), selectedUrgency.getValue(),
                 selectedRoute.getDistribution(), success.getProvenance());
     }
-    // end::java-consumer[]
-
     public static void main(String[] args) {
         String key = requiredEnvironment("TYPESAFE_API_KEY");
         String requestedModel = requiredEnvironment("TYPESAFE_MODEL");
@@ -97,3 +95,4 @@ public final class JevDecisionExample {
         return value;
     }
 }
+// end::java-consumer[]

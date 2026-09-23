@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.decision.example;
 
+// tag::dice-consumer[]
 import com.embabel.agent.decision.ChoiceKey;
 import com.embabel.agent.decision.DecisionModel;
 import com.embabel.agent.decision.DecisionOption;
@@ -32,18 +33,21 @@ public final class DicePropositionRevisionExample {
     private DicePropositionRevisionExample() {}
 
     public enum PropositionRelation { IDENTICAL, SIMILAR, UNRELATED, CONTRADICTORY, GENERALIZES }
-    public record PropositionState(String id, double confidence, String status, String sourceProvenance) {}
-    public record RevisionAudit(String operationId, String questionId, PropositionRelation relation,
+    public record PropositionState(String id, String text, double confidence, String status,
+                                   String sourceProvenance) {}
+    public record RevisionAudit(String operationId, String existingPropositionId, String candidatePropositionId,
+                                String questionId, PropositionRelation relation,
                                 Map<PropositionRelation, Double> distribution,
                                 DecisionProvenance decisionProvenance, String sourceProvenance) {}
 
-    // tag::dice-consumer[]
     public static RevisionAudit classify(DecisionModel model, String operationId,
                                          PropositionState existing, PropositionState candidate) {
         DecisionRequest.Builder builder = DecisionRequest.builder()
                 .correlationId(operationId)
                 .timeout(Duration.ofSeconds(20))
-                .state(Map.of("existingId", existing.id(), "candidateId", candidate.id()));
+                .state(Map.of(
+                        "existingText", existing.text(),
+                        "candidateText", candidate.text()));
         ChoiceKey<PropositionRelation> relation = builder.choice(
                 "proposition-relation", "How are these propositions related?",
                 List.of(
@@ -61,12 +65,13 @@ public final class DicePropositionRevisionExample {
         }
         KeyOutcome.Success<PropositionRelation> evidence = (KeyOutcome.Success<PropositionRelation>) answer;
         // Dice still owns confidence, status, persistence and its source provenance.
-        return new RevisionAudit(operationId, relation.getId(), evidence.getValue(), evidence.getDistribution(),
-                success.getProvenance(), candidate.sourceProvenance());
+        return new RevisionAudit(operationId, existing.id(), candidate.id(), relation.getId(),
+                evidence.getValue(), evidence.getDistribution(), success.getProvenance(),
+                candidate.sourceProvenance());
     }
-    // end::dice-consumer[]
 
     private static DecisionOption<PropositionRelation> option(PropositionRelation relation) {
         return DecisionOption.of(relation.name().toLowerCase(), relation, relation.name().toLowerCase());
     }
 }
+// end::dice-consumer[]

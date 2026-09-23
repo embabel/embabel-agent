@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.decision.example
 
+// tag::kotlin-consumer[]
 import com.embabel.agent.decision.DecisionModel
 import com.embabel.agent.decision.DecisionOption
 import com.embabel.agent.decision.DecisionOutcome
@@ -35,7 +36,6 @@ data class KotlinDecisionEvidence(
     val provenance: com.embabel.agent.decision.DecisionProvenance,
 )
 
-// tag::kotlin-consumer[]
 fun runKotlinDecision(model: DecisionModel): KotlinDecisionEvidence {
     val builder = DecisionRequest.builder()
         .state(mapOf("subject" to "synthetic public example"))
@@ -68,8 +68,6 @@ fun runKotlinDecision(model: DecisionModel): KotlinDecisionEvidence {
         else -> error("Unknown decision outcome")
     }
 }
-// end::kotlin-consumer[]
-
 fun main() {
     val key = System.getenv("TYPESAFE_API_KEY")?.takeIf(String::isNotBlank)
         ?: error("TYPESAFE_API_KEY is required; no network request was made")
@@ -80,3 +78,4 @@ fun main() {
     val evidence = runKotlinDecision(model)
     println("Decision completed with ${evidence.provenance.evidenceKind} evidence from ${evidence.provenance.resolvedModel}")
 }
+// end::kotlin-consumer[]

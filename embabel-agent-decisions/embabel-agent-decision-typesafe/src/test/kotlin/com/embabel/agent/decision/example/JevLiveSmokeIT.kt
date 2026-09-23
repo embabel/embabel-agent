@@ -24,37 +24,71 @@ import java.time.Duration
 import java.util.function.Supplier
 
 internal fun liveSmokeEnabled(env: Map<String, String>, properties: Map<String, String>): Boolean =
-    properties["decision.live"] == "true" &&
+    properties["decision.integration-profile"] == "true" &&
+        properties["decision.live"] == "true" &&
         !env["TYPESAFE_API_KEY"].isNullOrBlank() &&
         !env["TYPESAFE_MODEL"].isNullOrBlank() &&
-        !env["CI"].equals("true", ignoreCase = true)
+        (env["CI"] == null || env["CI"].equals("false", ignoreCase = true))
+
+internal fun runAuthorizedLiveSmoke(
+    env: Map<String, String>,
+    properties: Map<String, String>,
+    action: () -> Unit,
+): Boolean {
+    if (!liveSmokeEnabled(env, properties)) return false
+    action()
+    return true
+}
 
 class JevLiveSmokeIT {
     @Test
     fun `live guard requires opt in credentials model and a non CI process`() {
         val enabledEnv = mapOf("TYPESAFE_API_KEY" to "present", "TYPESAFE_MODEL" to "requested")
-        assertThat(liveSmokeEnabled(enabledEnv, mapOf("decision.live" to "true"))).isTrue()
-        assertThat(liveSmokeEnabled(enabledEnv + ("CI" to "true"), mapOf("decision.live" to "true"))).isFalse()
-        assertThat(liveSmokeEnabled(enabledEnv, mapOf("decision.live" to "false"))).isFalse()
-        assertThat(liveSmokeEnabled(enabledEnv - "TYPESAFE_API_KEY", mapOf("decision.live" to "true"))).isFalse()
-        assertThat(liveSmokeEnabled(enabledEnv - "TYPESAFE_MODEL", mapOf("decision.live" to "true"))).isFalse()
+        val enabledProperties = mapOf("decision.integration-profile" to "true", "decision.live" to "true")
+        assertThat(liveSmokeEnabled(enabledEnv, enabledProperties)).isTrue()
+        assertThat(liveSmokeEnabled(enabledEnv + ("CI" to "false"), enabledProperties)).isTrue()
+        assertThat(liveSmokeEnabled(enabledEnv + ("CI" to "FALSE"), enabledProperties)).isTrue()
+        listOf("", "1", "yes", "true", "TRUE").forEach { ci ->
+            assertThat(liveSmokeEnabled(enabledEnv + ("CI" to ci), enabledProperties)).isFalse()
+        }
+        assertThat(liveSmokeEnabled(enabledEnv, enabledProperties - "decision.integration-profile")).isFalse()
+        assertThat(liveSmokeEnabled(enabledEnv, enabledProperties + ("decision.integration-profile" to "false"))).isFalse()
+        assertThat(liveSmokeEnabled(enabledEnv, enabledProperties - "decision.live")).isFalse()
+        assertThat(liveSmokeEnabled(enabledEnv, enabledProperties + ("decision.live" to "false"))).isFalse()
+        assertThat(liveSmokeEnabled(enabledEnv - "TYPESAFE_API_KEY", enabledProperties)).isFalse()
+        assertThat(liveSmokeEnabled(enabledEnv + ("TYPESAFE_API_KEY" to " "), enabledProperties)).isFalse()
+        assertThat(liveSmokeEnabled(enabledEnv - "TYPESAFE_MODEL", enabledProperties)).isFalse()
+        assertThat(liveSmokeEnabled(enabledEnv + ("TYPESAFE_MODEL" to " "), enabledProperties)).isFalse()
+    }
+
+    @Test
+    fun `direct test selection without integration marker cannot construct transport`() {
+        val env = mapOf("TYPESAFE_API_KEY" to "present", "TYPESAFE_MODEL" to "requested")
+        var networkConstructions = 0
+        val authorized = runAuthorizedLiveSmoke(env, mapOf("decision.live" to "true")) {
+            networkConstructions++
+        }
+        assertThat(authorized).isFalse()
+        assertThat(networkConstructions).isZero()
     }
 
     @Test
     fun `both public consumers run against live Jev`() {
         val env = System.getenv().toMap()
         val properties = System.getProperties().stringPropertyNames().associateWith(System::getProperty)
-        assumeTrue(liveSmokeEnabled(env, properties), "live Jev smoke is explicitly opt-in")
-        val model = TypeSafeDecisionModel.create(Supplier { env.getValue("TYPESAFE_API_KEY") }, env.getValue("TYPESAFE_MODEL"))
-            .withDefaults(Duration.ofSeconds(30), com.embabel.agent.decision.DecisionRecordPolicy.metadata())
-        val kotlin = runKotlinDecision(model)
-        val javaEvidence = JevDecisionExample.run(model)
-        listOf(kotlin.provenance, javaEvidence.provenance()).forEach { provenance ->
-            assertThat(provenance.evidenceKind).isEqualTo(EvidenceKind.DISTRIBUTION)
-            assertThat(provenance.resolvedModel).isNotBlank()
+        val authorized = runAuthorizedLiveSmoke(env, properties) {
+            val model = TypeSafeDecisionModel.create(Supplier { env.getValue("TYPESAFE_API_KEY") }, env.getValue("TYPESAFE_MODEL"))
+                .withDefaults(Duration.ofSeconds(30), com.embabel.agent.decision.DecisionRecordPolicy.metadata())
+            val kotlin = runKotlinDecision(model)
+            val javaEvidence = JevDecisionExample.run(model)
+            listOf(kotlin.provenance, javaEvidence.provenance()).forEach { provenance ->
+                assertThat(provenance.evidenceKind).isEqualTo(EvidenceKind.DISTRIBUTION)
+                assertThat(provenance.resolvedModel).isNotBlank()
+            }
+            assertThat(kotlin.routeDistribution.values).allMatch { it.isFinite() && it in 0.0..1.0 }
+            assertThat(javaEvidence.routeDistribution().values).allMatch { it.isFinite() && it in 0.0..1.0 }
+            System.err.println("Live decision smoke passed at ${java.time.Instant.now()} with resolved model ${javaEvidence.provenance().resolvedModel}")
         }
-        assertThat(kotlin.routeDistribution.values).allMatch { it.isFinite() && it in 0.0..1.0 }
-        assertThat(javaEvidence.routeDistribution().values).allMatch { it.isFinite() && it in 0.0..1.0 }
-        System.err.println("Live decision smoke passed at ${java.time.Instant.now()} with resolved model ${javaEvidence.provenance().resolvedModel}")
+        assumeTrue(authorized, "live Jev smoke requires the integration profile marker and explicit opt-in")
     }
 }
