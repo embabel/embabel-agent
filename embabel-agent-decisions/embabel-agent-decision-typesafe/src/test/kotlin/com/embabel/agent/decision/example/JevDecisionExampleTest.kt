@@ -344,17 +344,30 @@ class JevDecisionExampleTest {
                 ),
             ), provenance,
         )
-        val stubAudit = DicePropositionRevisionExample.classify(
-            StubDecisionModel.create(listOf(StubStep.immediate(raw))), "revision-42", existing, candidate,
+        val policy = DicePropositionRevisionExample.RevisionPolicy()
+        val stubResult = DicePropositionRevisionExample.revise(
+            StubDecisionModel.create(listOf(StubStep.immediate(raw))), policy, "revision-42", existing, candidate,
         )
-        assertThat(stubAudit.relation()).isEqualTo(DicePropositionRevisionExample.PropositionRelation.SIMILAR)
-        assertThat(stubAudit.distribution()).hasSize(5)
-        assertThat(stubAudit.decisionProvenance().correlationId).isEqualTo("revision-42")
-        assertThat(stubAudit.sourceProvenance()).isEqualTo("source-candidate")
-        assertThat(stubAudit.operationId()).isEqualTo("revision-42")
-        assertThat(stubAudit.questionId()).isEqualTo("proposition-relation")
-        assertThat(stubAudit.existingPropositionId()).isEqualTo("p-1")
-        assertThat(stubAudit.candidatePropositionId()).isEqualTo("p-2")
+        val stubEvent = stubResult.event()
+        assertThat(stubResult.disposition()).isEqualTo(DicePropositionRevisionExample.RevisionDisposition.MERGE)
+        assertThat(stubEvent.disposition()).isEqualTo(stubResult.disposition())
+        assertThat(stubEvent.relation()).isEqualTo(DicePropositionRevisionExample.PropositionRelation.SIMILAR)
+        assertThat(stubEvent.distribution()).containsExactlyInAnyOrderEntriesOf(
+            mapOf(
+                DicePropositionRevisionExample.PropositionRelation.IDENTICAL to 0.05,
+                DicePropositionRevisionExample.PropositionRelation.SIMILAR to 0.7,
+                DicePropositionRevisionExample.PropositionRelation.UNRELATED to 0.1,
+                DicePropositionRevisionExample.PropositionRelation.CONTRADICTORY to 0.1,
+                DicePropositionRevisionExample.PropositionRelation.GENERALIZES to 0.05,
+            ),
+        )
+        assertThat(stubEvent.decisionProvenance().correlationId).isEqualTo("revision-42")
+        assertThat(stubEvent.sourceProvenance().existing()).isEqualTo("source-existing")
+        assertThat(stubEvent.sourceProvenance().candidate()).isEqualTo("source-candidate")
+        assertThat(stubEvent.correlationId()).isEqualTo("revision-42")
+        assertThat(stubEvent.questionId()).isEqualTo("proposition-relation")
+        assertThat(stubEvent.existingPropositionId()).isEqualTo("p-1")
+        assertThat(stubEvent.candidatePropositionId()).isEqualTo("p-2")
         assertThat(existing).isEqualTo(
             DicePropositionRevisionExample.PropositionState(
                 "p-1", "existing proposition", 0.82, "ACTIVE", "source-existing",
@@ -367,19 +380,35 @@ class JevDecisionExampleTest {
         )
 
         ScriptedExampleServer.replying(relationResponse()).use { server ->
-            val audit = DicePropositionRevisionExample.classify(model(server), "revision-43", existing, candidate)
-            assertThat(audit.relation()).isEqualTo(DicePropositionRevisionExample.PropositionRelation.SIMILAR)
-            assertThat(audit.decisionProvenance().resolvedModel).isEqualTo("resolved-example-v1")
-            assertThat(audit.operationId()).isEqualTo("revision-43")
-            assertThat(audit.questionId()).isEqualTo("proposition-relation")
-            assertThat(audit.existingPropositionId()).isEqualTo("p-1")
-            assertThat(audit.candidatePropositionId()).isEqualTo("p-2")
+            val result = DicePropositionRevisionExample.revise(model(server), policy, "revision-43", existing, candidate)
+            val event = result.event()
+            assertThat(result.disposition()).isEqualTo(DicePropositionRevisionExample.RevisionDisposition.MERGE)
+            assertThat(event.relation()).isEqualTo(DicePropositionRevisionExample.PropositionRelation.SIMILAR)
+            assertThat(event.distribution()).containsExactlyInAnyOrderEntriesOf(stubEvent.distribution())
+            assertThat(event.decisionProvenance().resolvedModel).isEqualTo("resolved-example-v1")
+            assertThat(event.correlationId()).isEqualTo("revision-43")
+            assertThat(event.questionId()).isEqualTo("proposition-relation")
+            assertThat(event.existingPropositionId()).isEqualTo("p-1")
+            assertThat(event.candidatePropositionId()).isEqualTo("p-2")
+            assertThat(event.sourceProvenance()).isEqualTo(
+                DicePropositionRevisionExample.SourceProvenance("source-existing", "source-candidate"),
+            )
             assertThat(server.requests.single().body).contains(
                 "proposition-relation", "existingText", "existing proposition",
                 "candidateText", "candidate proposition",
             )
             assertThat(server.requests.single().body).doesNotContain(
                 "source-candidate", "source-existing", "0.82", "0.61", "ACTIVE", "CANDIDATE", "p-1", "p-2",
+            )
+            assertThat(existing).isEqualTo(
+                DicePropositionRevisionExample.PropositionState(
+                    "p-1", "existing proposition", 0.82, "ACTIVE", "source-existing",
+                ),
+            )
+            assertThat(candidate).isEqualTo(
+                DicePropositionRevisionExample.PropositionState(
+                    "p-2", "candidate proposition", 0.61, "CANDIDATE", "source-candidate",
+                ),
             )
         }
     }
@@ -440,8 +469,8 @@ class JevDecisionExampleTest {
                 unavailable("com.embabel.agent.autoconfigure.decision.AgentDecisionAutoConfiguration");
                 unavailable("com.embabel.agent.core.hitl.WaitFor");
                 expectDisabled(() -> JevDecisionExample.run(NoDecisionModel.create()));
-                expectDisabled(() -> DicePropositionRevisionExample.classify(
-                        NoDecisionModel.create(), "revision-minimal",
+                expectDisabled(() -> DicePropositionRevisionExample.revise(
+                        NoDecisionModel.create(), new DicePropositionRevisionExample.RevisionPolicy(), "revision-minimal",
                         new DicePropositionRevisionExample.PropositionState(
                                 "p-1", "existing", 0.8, "ACTIVE", "existing-source"),
                         new DicePropositionRevisionExample.PropositionState(

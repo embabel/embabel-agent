@@ -32,6 +32,12 @@ class DecisionDocumentationTest {
         val pom = read("embabel-agent-docs/pom.xml")
         assertThat(reference).contains("include::decisions/page.adoc[]")
         assertThat(page).contains("[[reference.decisions]]", "[[reference.decisions.promotion]]", "==== Promotion checkpoint")
+        assertThat(page).contains(
+            "Four built-in named factories ship in this release",
+            "Custom implementations are extension adapters",
+            "Spring selects `typesafe`, `prompted`, or `none`",
+            "`StubDecisionModel` is test-only",
+        )
         assertThat(page).contains("tag=custom-provider", "tag=kotlin-consumer", "tag=java-consumer", "tag=dice-consumer")
         listOf("TypeSafeDecisionModel", "PromptedDecisionModel", "NoDecisionModel", "StubDecisionModel").forEach { assertThat(page).contains(it) }
         assertThat(page).doesNotContain("DroolsDecisionModel", "CamundaDecisionModel", "TimefoldDecisionModel")
@@ -53,6 +59,14 @@ class DecisionDocumentationTest {
             "-Pintegration-tests -Ddecision.live=true",
         )
         assertThat(page).doesNotContain("-Ddecision.integration-profile=true")
+        val promotion = page.substringAfter("[[reference.decisions.promotion]]")
+        assertThat(promotion).contains(
+            "Project maintainers own promotion",
+            "release immediately after the first experimental release",
+            "repository-observable checkpoint",
+            "full reactor verification",
+        )
+        assertThat(promotion).doesNotContain("James", "Opus", "Jev", "Fable", "Claude", "Codex", "Astra", "GEV")
         assertThat(pom).contains("embabel-agent-decision/src/main/kotlin", "embabel-agent-decision-typesafe/src/main/kotlin",
             "embabel-agent-decision-llm/src/main/kotlin", "embabel-agent-decision-autoconfigure/src/main/java",
             "embabel-agent-decision-typesafe/src/test/kotlin", "embabel-agent-decision-typesafe/src/test/java")

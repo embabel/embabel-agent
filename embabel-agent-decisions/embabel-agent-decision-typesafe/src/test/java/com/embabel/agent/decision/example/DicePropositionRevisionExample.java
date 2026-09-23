@@ -33,17 +33,35 @@ public final class DicePropositionRevisionExample {
     private DicePropositionRevisionExample() {}
 
     public enum PropositionRelation { IDENTICAL, SIMILAR, UNRELATED, CONTRADICTORY, GENERALIZES }
+    public enum RevisionDisposition { REJECT_CANDIDATE, MERGE, ACCEPT_CANDIDATE, REVIEW_CONFLICT, REPLACE_EXISTING }
     public record PropositionState(String id, String text, double confidence, String status,
                                    String sourceProvenance) {}
-    public record RevisionAudit(String operationId, String existingPropositionId, String candidatePropositionId,
-                                String questionId, PropositionRelation relation,
-                                Map<PropositionRelation, Double> distribution,
-                                DecisionProvenance decisionProvenance, String sourceProvenance) {}
+    public record SourceProvenance(String existing, String candidate) {}
+    public record RevisionEvent(RevisionDisposition disposition,
+                                String existingPropositionId, String candidatePropositionId,
+                                String questionId, String correlationId,
+                                PropositionRelation relation, Map<PropositionRelation, Double> distribution,
+                                DecisionProvenance decisionProvenance,
+                                SourceProvenance sourceProvenance) {}
+    public record RevisionResult(RevisionDisposition disposition, RevisionEvent event) {}
 
-    public static RevisionAudit classify(DecisionModel model, String operationId,
-                                         PropositionState existing, PropositionState candidate) {
+    /** Dice owns this policy and can replace it without changing the decision adapter. */
+    public static final class RevisionPolicy {
+        public RevisionDisposition dispositionFor(PropositionRelation relation) {
+            return switch (relation) {
+                case IDENTICAL -> RevisionDisposition.REJECT_CANDIDATE;
+                case SIMILAR -> RevisionDisposition.MERGE;
+                case UNRELATED -> RevisionDisposition.ACCEPT_CANDIDATE;
+                case CONTRADICTORY -> RevisionDisposition.REVIEW_CONFLICT;
+                case GENERALIZES -> RevisionDisposition.REPLACE_EXISTING;
+            };
+        }
+    }
+
+    public static RevisionResult revise(DecisionModel model, RevisionPolicy policy, String correlationId,
+                                        PropositionState existing, PropositionState candidate) {
         DecisionRequest.Builder builder = DecisionRequest.builder()
-                .correlationId(operationId)
+                .correlationId(correlationId)
                 .timeout(Duration.ofSeconds(20))
                 .state(Map.of(
                         "existingText", existing.text(),
@@ -64,10 +82,13 @@ public final class DicePropositionRevisionExample {
             throw new IllegalStateException("Relation evidence failed safely: " + failure.getSafeCode());
         }
         KeyOutcome.Success<PropositionRelation> evidence = (KeyOutcome.Success<PropositionRelation>) answer;
-        // Dice still owns confidence, status, persistence and its source provenance.
-        return new RevisionAudit(operationId, existing.id(), candidate.id(), relation.getId(),
+        RevisionDisposition disposition = policy.dispositionFor(evidence.getValue());
+        // The event is evidence for Dice to persist. It does not mutate either proposition.
+        RevisionEvent event = new RevisionEvent(
+                disposition, existing.id(), candidate.id(), relation.getId(), correlationId,
                 evidence.getValue(), evidence.getDistribution(), success.getProvenance(),
-                candidate.sourceProvenance());
+                new SourceProvenance(existing.sourceProvenance(), candidate.sourceProvenance()));
+        return new RevisionResult(disposition, event);
     }
 
     private static DecisionOption<PropositionRelation> option(PropositionRelation relation) {

@@ -7,7 +7,7 @@ For explicit use, depend on `com.embabel.agent:embabel-agent-decision` and one p
 
 ==== Configurations and modules
 
-Exactly four configurations create the same final facade:
+Four built-in named factories ship in this release and create the same final facade:
 
 [cols="1,2,1"]
 |===
@@ -36,7 +36,7 @@ include::../diagrams/decision-flow.dot[]
 
 ==== Provider SPI
 
-`DecisionProvider` is the public extension point for another decision engine. A provider receives one immutable, redacted `PreparedDecisionRequest` and returns raw evidence. It can be called concurrently, so its shared state must be thread-safe. It must not retain the request, state, questions, or support values after `invoke` returns.
+`DecisionProvider` is the public extension point for another decision engine. Custom implementations are extension adapters; they do not become additional built-in decision products. A provider receives one immutable, redacted `PreparedDecisionRequest` and returns raw evidence. It can be called concurrently, so its shared state must be thread-safe. It must not retain the request, state, questions, or support values after `invoke` returns.
 
 The deadline is one absolute value from a monotonic process clock. It is not wall-clock time and must not be persisted or compared outside that request. Providers should use `remainingNanos()`, stop before it reaches zero, and honor thread interruption. The facade interrupts on cancellation or timeout and discards late results. An exception becomes `Unavailable`; caller interruption becomes `Cancelled`; an overrun becomes `DeadlineExceeded`.
 
@@ -102,7 +102,7 @@ Autoconfiguration is inert unless `embabel.agent.decision.enabled=true`. A user-
 |`embabel.agent.decision.prompted.options-bean-name` |unset |Exact `LlmOptions` bean; defaults when absent
 |===
 
-`none` returns disabled outcomes. Stub is deliberately absent from property selection.
+Spring selects `typesafe`, `prompted`, or `none`. `none` returns disabled outcomes. `StubDecisionModel` is test-only and deliberately absent from property selection.
 
 ==== Evidence, failure, and privacy
 
@@ -114,14 +114,14 @@ Metadata records contain opaque identifiers, counts, schema versions, and safe c
 
 ==== Dice-shaped proposition revision
 
-Dice is an external consumer, not a framework special case. The compiled example asks for one of five consumer-local proposition relations and creates a consumer-owned audit projection:
+Dice is an external consumer, not a framework special case. The compiled example asks for one of five consumer-local proposition relations, applies a consumer-owned revision policy, and creates a consumer-owned result and revision event:
 
 [source,java]
 ----
 include::../../../../../../embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java/com/embabel/agent/decision/example/DicePropositionRevisionExample.java[tag=dice-consumer]
 ----
 
-The decision supplies relation evidence and decision provenance. The example sends synthetic proposition text as explicit facts so Jev can classify meaning rather than guess from opaque ids. Mapped relations, confidence, proposition status, revision disposition, persistence, trust, and source provenance stay in process. The consumer-owned audit keeps both proposition ids, the bounded correlation id, stable question id, complete evidence, and decision provenance.
+The decision supplies relation evidence and decision provenance. The example sends synthetic proposition text as explicit facts so the provider can classify meaning rather than guess from opaque ids. Dice maps that evidence to a revision disposition. Confidence, proposition status, persistence, trust, and every mutation remain consumer concerns. The consumer-owned event keeps its disposition, both proposition ids, bounded correlation id, stable question id, complete distribution, decision provenance, and separate source provenance.
 
 ==== Running the examples
 
@@ -156,4 +156,4 @@ The `integration-tests` profile owns the authorization marker. Supplying the mar
 [[reference.decisions.promotion]]
 ==== Promotion checkpoint
 
-James owns promotion immediately after the first experimental release. The checkpoint requires passing contract and validation suites, Java interoperability, fixture compatibility, privacy and failure/deadline tests, reviewed public API and docs, both executable consumers, a successful opt-in live Jev run with its actual resolved model, full repository and documentation gates, and recorded Opus implementation review and Jev prose review. Every new public API and SPI remains `@ApiStatus.Experimental` in the first release. Remove that marker in the next release once these checks pass; promotion does not wait for other engines, action calibration, or another release train.
+Project maintainers own promotion in the release immediately after the first experimental release. The repository-observable checkpoint requires passing contract and validation suites, Java and Kotlin interoperability, adapter fixture compatibility, privacy, failure, deadline and cancellation tests, checked public API compatibility, current compiled consumer snippets, both executable consumer examples, an opt-in live provider smoke that records the resolved model, the generated guide and API documentation, and the full reactor verification. Every new public API and SPI remains `@ApiStatus.Experimental` in the first release. Maintainers will remove that marker in the next release once these gates pass; promotion does not wait for other engines, action calibration, or another release train.
