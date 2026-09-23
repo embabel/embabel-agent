@@ -101,7 +101,9 @@ internal class SpringAiLlmMessageSender(
         // the first is empty and the second contains tool calls. We need to find the
         // generation with tool calls, or fall back to the first one if none have them.
         // See: https://github.com/embabel/embabel-agent/issues/1350
-        val assistantMessage = findGenerationWithToolCalls(response) ?: response.result!!.output
+        val assistantMessage = withNativeReasoningInline(
+            findGenerationWithToolCalls(response) ?: response.result!!.output
+        )
         val embabelMessage = assistantMessage.toEmbabelMessage()
 
         // Extract usage information
@@ -112,6 +114,31 @@ internal class SpringAiLlmMessageSender(
             textContent = assistantMessage.text ?: "",
             usage = usage,
         )
+    }
+
+    /**
+     * Moves reasoning a provider returned BESIDE the answer into it, as a `<think>` block.
+     *
+     * Ollama puts a thinking model's reasoning in its own field, which Spring AI exposes as
+     * [NATIVE_REASONING_METADATA_KEY] metadata. Thinking extraction, tag filtering and the
+     * suppression that precedes JSON parsing all read the text, so reasoning left in metadata is
+     * lost to all of them. Inlining it here lets the whole pipeline treat it as it treats a model
+     * that writes its reasoning into the content.
+     *
+     * Only a non-blank String counts: other providers may use the key for a flag.
+     */
+    private fun withNativeReasoningInline(
+        message: org.springframework.ai.chat.messages.AssistantMessage,
+    ): org.springframework.ai.chat.messages.AssistantMessage {
+        val reasoning = (message.metadata[NATIVE_REASONING_METADATA_KEY] as? String)
+            ?.takeIf { it.isNotBlank() }
+            ?: return message
+        return org.springframework.ai.chat.messages.AssistantMessage.builder()
+            .content("<think>$reasoning</think>\n${message.text ?: ""}")
+            .toolCalls(message.toolCalls)
+            .properties(message.metadata)
+            .media(message.media)
+            .build()
     }
 
     /**
@@ -228,3 +255,9 @@ internal class SpringAiLlmMessageSender(
         return builder.toolCallbacks(toolCallbacks).build()
     }
 }
+
+/**
+ * Where Spring AI puts a provider's native reasoning on an assistant message - the value of
+ * `OllamaChatModel.THINKING_METADATA_KEY`, which this module cannot reference directly.
+ */
+private const val NATIVE_REASONING_METADATA_KEY = "thinking"

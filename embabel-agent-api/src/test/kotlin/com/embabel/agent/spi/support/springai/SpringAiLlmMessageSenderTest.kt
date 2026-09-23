@@ -23,6 +23,8 @@ import com.embabel.chat.UserMessage
 import com.embabel.common.ai.autoconfig.NativeStructuredOutputCapability
 import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.NativeStructuredOutputMode
+import com.embabel.common.core.thinking.spi.InternalThinkingApi
+import com.embabel.common.core.thinking.spi.extractAllThinkingBlocks
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -672,6 +674,80 @@ class SpringAiLlmMessageSenderTest {
             assertThat(built).extracting("temperature").isNull()
             assertThat(built).extracting("topP").isEqualTo(0.9)
             assertThat(built).extracting("maxTokens").isEqualTo(100)
+        }
+    }
+
+    /**
+     * Ollama returns a thinking model's reasoning beside the answer, not inside it. It must still
+     * reach thinking extraction, which reads the text.
+     */
+    @OptIn(InternalThinkingApi::class)
+    @Nested
+    inner class NativeReasoningTests {
+
+        @Test
+        fun `reasoning in message metadata becomes an extractable thinking block`() {
+            val response = senderReplying(
+                SpringAiAssistantMessage.builder()
+                    .content("""{"name": "July"}""")
+                    .properties(mapOf("thinking" to "July is usually hottest."))
+                    .build()
+            ).call(messages = listOf(UserMessage("Hottest month?")), tools = emptyList())
+
+            val blocks = extractAllThinkingBlocks(response.textContent)
+            assertThat(blocks.map { it.content.trim() }).containsExactly("July is usually hottest.")
+            assertThat(response.textContent).contains("""{"name": "July"}""")
+            assertThat(response.message.content).isEqualTo(response.textContent)
+        }
+
+        @Test
+        fun `reasoning survives alongside tool calls`() {
+            val response = senderReplying(
+                SpringAiAssistantMessage.builder()
+                    .content("")
+                    .toolCalls(listOf(SpringAiAssistantMessage.ToolCall("call-1", "function", "get_weather", "{}")))
+                    .properties(mapOf("thinking" to "I need the weather first."))
+                    .build()
+            ).call(messages = listOf(UserMessage("Weather?")), tools = emptyList())
+
+            val message = response.message as AssistantMessageWithToolCalls
+            assertThat(message.toolCalls).hasSize(1)
+            assertThat(extractAllThinkingBlocks(response.textContent).map { it.content.trim() })
+                .containsExactly("I need the weather first.")
+        }
+
+        @Test
+        fun `a reply without reasoning is unchanged`() {
+            val response = senderReplying(
+                SpringAiAssistantMessage.builder().content("Plain answer").build()
+            ).call(messages = listOf(UserMessage("hi")), tools = emptyList())
+
+            assertThat(response.textContent).isEqualTo("Plain answer")
+        }
+
+        @Test
+        fun `blank or non-text thinking metadata is ignored`() {
+            listOf<Any>("  ", true).forEach { thinking ->
+                val response = senderReplying(
+                    SpringAiAssistantMessage.builder()
+                        .content("Plain answer")
+                        .properties(mapOf("thinking" to thinking))
+                        .build()
+                ).call(messages = listOf(UserMessage("hi")), tools = emptyList())
+
+                assertThat(response.textContent).isEqualTo("Plain answer")
+            }
+        }
+
+        private fun senderReplying(output: SpringAiAssistantMessage): SpringAiLlmMessageSender {
+            val generation = Generation(output)
+            val chatResponse = mockk<ChatResponse> {
+                every { result } returns generation
+                every { results } returns listOf(generation)
+                every { metadata } returns mockk<ChatResponseMetadata> { every { usage } returns mockk(relaxed = true) }
+            }
+            val chatModel = mockk<ChatModel> { every { call(any<Prompt>()) } returns chatResponse }
+            return SpringAiLlmMessageSender(chatModel, testChatOptions())
         }
     }
 

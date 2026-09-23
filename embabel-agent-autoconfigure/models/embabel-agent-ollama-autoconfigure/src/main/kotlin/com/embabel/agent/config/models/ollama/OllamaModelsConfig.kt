@@ -355,7 +355,9 @@ class OllamaOptionsConverter(
      *  - *(absent)*    — model default: Ollama omits the parameter entirely. Models like
      *                    deepseek-r1 then output `<think>...</think>` naturally in `message.content`,
      *                    which [extractAllThinkingBlocks] can extract. This is the correct mode for
-     *                    prompt-driven thinking ([Thinking.withExtraction]).
+     *                    prompt-driven thinking ([Thinking.withExtraction]). Current Ollama instead
+     *                    routes a thinking-capable model's reasoning to `message.thinking`, as for
+     *                    `think=true`; the message sender inlines that as a `<think>` block.
      *
      * This method returns `null` when no budget is set, intentionally omitting the `think`
      * parameter from the request so prompt-driven models behave correctly.
