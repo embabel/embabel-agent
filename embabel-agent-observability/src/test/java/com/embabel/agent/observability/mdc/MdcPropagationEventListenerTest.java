@@ -163,6 +163,21 @@ class MdcPropagationEventListenerTest {
         }
 
         @Test
+        @DisplayName("Agent terminated should clear all MDC keys")
+        void agentTerminated_shouldClearAllMdcKeys() {
+            ObservabilityProperties properties = new ObservabilityProperties();
+            MdcPropagationEventListener listener = new MdcPropagationEventListener(properties);
+            AgentProcess process = createMockAgentProcess("run-1", "TestAgent");
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new AgentProcessTerminatedEvent(process));
+
+            assertThat(MDC.get("embabel.agent.run_id")).isNull();
+            assertThat(MDC.get("embabel.agent.name")).isNull();
+            assertThat(MDC.get("embabel.action.name")).isNull();
+        }
+
+        @Test
         @DisplayName("Process killed should clear all MDC keys")
         void processKilled_shouldClearAllMdcKeys() {
             ObservabilityProperties properties = new ObservabilityProperties();
