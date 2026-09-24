@@ -43,7 +43,21 @@ final class BoundedResponse {
                     }
                     return limited;
                 }
-                public void close() { response.close(); }
+                public void close() {
+                    // Close before delegating: URLConnection response cleanup otherwise drains
+                    // unread bytes, defeating early rejection of oversized and error responses.
+                    try {
+                        (limited != null ? limited : response.getBody()).close();
+                    } catch (IOException | RuntimeException ignored) {
+                        // Cleanup must not replace the primary failure or expose transport data.
+                    } finally {
+                        try {
+                            response.close();
+                        } catch (RuntimeException ignored) {
+                            // Preserve the result even when an application transport cannot close.
+                        }
+                    }
+                }
             };
         };
     }

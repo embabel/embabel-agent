@@ -117,10 +117,14 @@ class JevBoundaryTest {
         var client = JevClients.create(JevClientOptions.defaults(), () -> { throw new TypeSafeApiException("PRIVATE", 400, "PRIVATE", new HttpHeaders(), "PRIVATE"); });
         assertThatThrownBy(() -> call(client)).hasMessage("Jev request or response invalid").hasNoCause();
     }
-    @Test void errorStatusNeverOpensResponseBody() {
+    @Test void errorStatusNeverReadsResponseBody() {
         var f = fixture();
         f.server.expect(anything()).andRespond(request -> new org.springframework.mock.http.client.MockClientHttpResponse(new byte[0], HttpStatus.SERVICE_UNAVAILABLE) {
-            @Override public java.io.InputStream getBody() { throw new IllegalStateException("PRIVATE_BODY"); }
+            @Override public java.io.InputStream getBody() {
+                return new java.io.InputStream() {
+                    public int read() { throw new AssertionError("Error body must not be read"); }
+                };
+            }
             @Override public void close() { }
         });
         assertThatThrownBy(() -> call(f.client)).isInstanceOfSatisfying(TypeSafeApiException.class,
@@ -155,6 +159,19 @@ class JevBoundaryTest {
         var f = fixture();
         f.server.expect(requestTo("https://api.typesafe.ai/v1/models")).andRespond(withSuccess("PRIVATE", MediaType.APPLICATION_JSON));
         assertThatThrownBy(f.client::listModels).hasMessage("Jev request or response invalid").hasNoCause();
+    }
+    @Test void modelsSuccessUsesNativeMetadata() {
+        var f = fixture();
+        f.server.expect(requestTo("https://api.typesafe.ai/v1/models")).andRespond(withSuccess(
+                "{\"models\":[{\"name\":\"jev-latest\",\"description\":\"Default model\",\"release_date\":\"2026-09-24\"}]}",
+                MediaType.APPLICATION_JSON));
+        var models = f.client.listModels();
+        assertThat(models).singleElement().satisfies(model -> {
+            assertThat(model.name()).isEqualTo("jev-latest");
+            assertThat(model.description()).isEqualTo("Default model");
+            assertThat(model.releaseDate()).isEqualTo("2026-09-24");
+        });
+        f.server.verify();
     }
     @Test void observationsHaveOnlyFixedValues() {
         var contexts = new ArrayList<Observation.Context>();
@@ -205,6 +222,38 @@ class JevBoundaryTest {
             assertThatThrownBy(() -> call(client)).isInstanceOf(TypeSafeApiTimeoutException.class).hasNoCause();
         } finally { server.stop(0); }
     }
+    @ParameterizedTest @ValueSource(ints = {200, 503})
+    void closesRejectedStreamingResponseWithoutDraining(int status) throws Exception {
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        var streamFinished = new AtomicBoolean();
+        server.createContext("/v1/systemone", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(status, 0);
+            long finish = System.nanoTime() + Duration.ofSeconds(3).toNanos();
+            try (var output = exchange.getResponseBody()) {
+                byte[] chunk = " ".repeat(8192).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                while (System.nanoTime() < finish) {
+                    output.write(chunk);
+                    output.flush();
+                    java.util.concurrent.locks.LockSupport.parkNanos(Duration.ofMillis(5).toNanos());
+                }
+                streamFinished.set(true);
+            } catch (java.io.IOException expectedClientDisconnect) { }
+        });
+        server.start();
+        try {
+            var client = JevClients.create(options(server.getAddress().getPort(), Duration.ofSeconds(1), 100), () -> "key");
+            long started = System.nanoTime();
+            assertThatThrownBy(() -> call(client)).isInstanceOf(TypeSafeException.class).hasNoCause().satisfies(error -> {
+                if (status == 503) assertThat(((TypeSafeApiException) error).status()).isEqualTo(503);
+                assertThat(error.getSuppressed()).isEmpty();
+            });
+            assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(1));
+            assertThat(streamFinished).isFalse();
+        } finally { server.stop(0); }
+    }
+
     @Test void fallbackDoesNotFollowRedirects() throws Exception {
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         var redirected = new AtomicInteger();
