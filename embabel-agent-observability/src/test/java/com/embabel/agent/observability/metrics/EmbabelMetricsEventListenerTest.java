@@ -100,6 +100,24 @@ class EmbabelMetricsEventListenerTest {
         }
 
         @Test
+        @DisplayName("Terminated should decrement active agents gauge and record duration once")
+        void terminated_shouldDecrementGaugeAndRecordDuration() {
+            var registry = new SimpleMeterRegistry();
+            var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
+            var process = createMockAgentProcess("run-1", "TestAgent");
+            mockUsageAndCost(process, null, 0.0);
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new AgentProcessTerminatedEvent(process));
+
+            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(0.0);
+            Timer timer = registry.find("embabel.agent.duration")
+                    .tag("agent", "TestAgent").tag("status", "terminated").timer();
+            assertThat(timer).isNotNull();
+            assertThat(timer.count()).isEqualTo(1);
+        }
+
+        @Test
         @DisplayName("Killed should decrement active agents gauge")
         void killed_shouldDecrementGauge() {
             var registry = new SimpleMeterRegistry();
@@ -444,15 +462,21 @@ class EmbabelMetricsEventListenerTest {
         }
 
         @Test
-        @DisplayName("Early termination should record duration with status=terminated")
-        void earlyTermination_shouldRecordDuration() {
+        @DisplayName("Paired termination events record duration only on the terminal event")
+        void pairedTermination_shouldRecordDurationOnce() {
             var registry = new SimpleMeterRegistry();
             var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
             var process = createMockAgentProcess("run-1", "DurationAgent");
 
+            mockUsageAndCost(process, null, 0.0);
             listener.onProcessEvent(new AgentProcessCreationEvent(process));
             listener.onProcessEvent(new EarlyTermination(
                     process, true, "budget exceeded", mock(EarlyTerminationPolicy.class)));
+
+            assertThat(registry.find("embabel.agent.duration").timer()).isNull();
+            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(1.0);
+            listener.onProcessEvent(new AgentProcessTerminatedEvent(process));
+            assertThat(registry.find("embabel.agent.active").gauge().value()).isEqualTo(0.0);
 
             Timer timer = registry.find("embabel.agent.duration")
                     .tag("agent", "DurationAgent").tag("status", "terminated").timer();
@@ -500,19 +524,18 @@ class EmbabelMetricsEventListenerTest {
         }
 
         @Test
-        @DisplayName("Early termination should purge the creation timestamp (no leak)")
-        void earlyTermination_shouldPurgeTimestamp() {
+        @DisplayName("Terminal event should purge the creation timestamp (no leak)")
+        void terminalEvent_shouldPurgeTimestamp() {
             var registry = new SimpleMeterRegistry();
             var listener = new EmbabelMetricsEventListener(registry, new ObservabilityProperties());
             var process = createMockAgentProcess("run-1", "DurationAgent");
 
+            mockUsageAndCost(process, null, 0.0);
             listener.onProcessEvent(new AgentProcessCreationEvent(process));
-            listener.onProcessEvent(new EarlyTermination(
-                    process, true, "budget exceeded", mock(EarlyTerminationPolicy.class)));
+            listener.onProcessEvent(new AgentProcessTerminatedEvent(process));
             // A second terminal event for the same process must not re-record:
             // the timestamp was purged on the first, proving no entry lingers.
-            listener.onProcessEvent(new EarlyTermination(
-                    process, true, "budget exceeded", mock(EarlyTerminationPolicy.class)));
+            listener.onProcessEvent(new AgentProcessTerminatedEvent(process));
 
             Timer timer = registry.find("embabel.agent.duration")
                     .tag("agent", "DurationAgent").tag("status", "terminated").timer();

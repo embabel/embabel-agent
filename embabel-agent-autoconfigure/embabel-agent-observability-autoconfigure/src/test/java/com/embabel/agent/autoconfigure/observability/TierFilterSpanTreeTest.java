@@ -16,6 +16,11 @@
 package com.embabel.agent.autoconfigure.observability;
 
 import com.embabel.agent.api.event.LlmRequestEvent;
+import com.embabel.agent.api.event.AgentProcessTerminatedEvent;
+import com.embabel.agent.core.AgentProcessStatusCode;
+import com.embabel.agent.observability.SpanAttributes;
+import com.embabel.agent.observability.tracing.EmbabelSpanEventListener;
+import io.opentelemetry.api.common.AttributeKey;
 import com.embabel.agent.api.event.ToolLoopStartEvent;
 import com.embabel.agent.api.event.observation.ActionObservationContext;
 import com.embabel.agent.api.event.observation.AgentObservationContext;
@@ -52,6 +57,7 @@ import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Proves, against a real OpenTelemetry bridge, the actual trace-level semantics of suppressing a
@@ -67,6 +73,7 @@ class TierFilterSpanTreeTest {
     private InMemorySpanExporter spanExporter;
     private OpenTelemetrySdk openTelemetry;
     private ObservationRegistry registry;
+    private Tracer tracer;
     private Scope otelRootScope;
 
     @BeforeEach
@@ -84,11 +91,41 @@ class TierFilterSpanTreeTest {
         io.opentelemetry.api.trace.Tracer otelTracer = openTelemetry.getTracer("test");
         OtelBaggageManager baggageManager = new OtelBaggageManager(
                 otelCurrentTraceContext, Collections.emptyList(), Collections.emptyList());
-        Tracer tracer = new OtelTracer(otelTracer, otelCurrentTraceContext, event -> {
+        tracer = new OtelTracer(otelTracer, otelCurrentTraceContext, event -> {
         }, baggageManager);
 
         registry = ObservationRegistry.create();
         registry.observationConfig().observationHandler(new DefaultTracingObservationHandler(tracer));
+    }
+
+    @Test
+    void crossProcessTerminationCreatesTargetRootAndRestoresCallerTrace() {
+        var target = mock(AgentProcess.class);
+        when(target.getId()).thenReturn("target");
+        when(target.getStatus()).thenReturn(AgentProcessStatusCode.TERMINATED);
+        var listener = new EmbabelSpanEventListener(registry, new ObservabilityProperties(), tracer);
+        Observation caller = Observation.createNotStarted("caller", registry)
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_RUN_ID, "caller");
+        caller.observe(() -> {
+            listener.onProcessEvent(new AgentProcessTerminatedEvent(target));
+            Observation.createNotStarted("caller-continues", registry).observe(() -> {});
+        });
+        var spans = spanExporter.getFinishedSpanItems();
+        var callerSpan = span(spans, "caller");
+        var terminal = span(spans, "TERMINATED");
+        assertThat(terminal.getParentSpanId()).isEqualTo(SpanId.getInvalid());
+        assertThat(terminal.getTraceId()).isNotEqualTo(callerSpan.getTraceId());
+        assertThat(terminal.getAttributes().get(AttributeKey.stringKey(SpanAttributes.EMBABEL_RUN_ID)))
+                .isEqualTo("target");
+        assertThat(span(spans, "caller-continues").getParentSpanId()).isEqualTo(callerSpan.getSpanId());
+
+        spanExporter.reset();
+        Observation.createNotStarted("target-owner", registry)
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_RUN_ID, "target")
+                .observe(() -> listener.onProcessEvent(new AgentProcessTerminatedEvent(target)));
+        spans = spanExporter.getFinishedSpanItems();
+        assertThat(span(spans, "TERMINATED").getParentSpanId())
+                .isEqualTo(span(spans, "target-owner").getSpanId());
     }
 
     @AfterEach

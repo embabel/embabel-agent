@@ -36,6 +36,7 @@ import io.micrometer.observation.ObservationRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import io.micrometer.tracing.Tracer;
 import org.springframework.boot.micrometer.observation.autoconfigure.ObservationRegistryCustomizer;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -204,9 +205,10 @@ public class ObservabilityAutoConfiguration {
     @ConditionalOnProperty(prefix = "embabel.agent.platform.observability", name = "tracing-enabled", havingValue = "true", matchIfMissing = true)
     public EmbabelSpanEventListener embabelSpanEventListener(
             ObservationRegistry observationRegistry,
-            ObservabilityProperties properties) {
+            ObservabilityProperties properties,
+            ObjectProvider<Tracer> tracerProvider) {
         log.info("Configuring Embabel point-event span listener (LLM + embedding invocations)");
-        return new EmbabelSpanEventListener(observationRegistry, properties);
+        return new EmbabelSpanEventListener(observationRegistry, properties, tracerProvider.getIfAvailable(() -> Tracer.NOOP));
     }
 
     /**

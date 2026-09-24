@@ -19,7 +19,6 @@ import com.embabel.agent.api.event.*;
 import com.embabel.agent.api.event.observation.ToolCallOutcomes;
 import com.embabel.agent.core.ActionInvocation;
 import com.embabel.agent.core.AgentProcess;
-import com.embabel.agent.core.EarlyTermination;
 import com.embabel.agent.core.Usage;
 import com.embabel.agent.observability.ObservabilityProperties;
 import io.micrometer.core.instrument.Counter;
@@ -117,14 +116,17 @@ public class EmbabelMetricsEventListener implements AgenticEventListener {
                 recordTokensAndCost(e.getAgentProcess());
                 recordAgentDuration(e.getAgentProcess(), "failed");
             }
+            case AgentProcessTerminatedEvent e -> {
+                activeProcessIds.remove(e.getAgentProcess().getId());
+                recordTokensAndCost(e.getAgentProcess());
+                recordAgentDuration(e.getAgentProcess(), "terminated");
+            }
             case ProcessKilledEvent e -> {
                 activeProcessIds.remove(e.getAgentProcess().getId());
                 creationTimestamps.remove(e.getAgentProcess().getId());
             }
-            case EarlyTermination e -> {
-                activeProcessIds.remove(e.getAgentProcess().getId());
-                recordAgentDuration(e.getAgentProcess(), "terminated");
-            }
+            // EarlyTermination remains a compatibility notification; terminal accounting
+            // is performed only when AgentProcessTerminatedEvent arrives after persistence.
             case ToolCallRequestEvent e -> recordToolCall(e);
             case ToolCallResponseEvent e -> {
                 recordToolError(e);

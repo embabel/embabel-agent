@@ -483,7 +483,7 @@ class SubagentExecutionTest {
         }
 
         @Test
-        fun `terminateAgent cascades to child subagents`() {
+        fun `terminateAgent preserves completed parent and child subagents`() {
             val agent = reader.createAgentMetadata(OuterAgentViaSubprocessInvocation()) as CoreAgent
             val ap = IntegrationTestUtils.dummyAgentPlatform()
             val parentProcess = ap.createAgentProcess(
@@ -499,15 +499,16 @@ class SubagentExecutionTest {
             val children = repository.findByParentId(parentProcess.id)
             assertTrue(children.isNotEmpty(), "Should have at least one child process")
 
-            // Terminate parent - should cascade to children immediately
+            // A completed process is already terminal. Terminating its hierarchy must not
+            // overwrite successful parent or child results with TERMINATED.
             parentProcess.terminateAgent("Test termination")
 
-            assertEquals(AgentProcessStatusCode.TERMINATED, parentProcess.status, "Parent should be terminated")
+            assertEquals(AgentProcessStatusCode.COMPLETED, parentProcess.status, "Completed parent should be preserved")
             children.forEach { child ->
                 assertEquals(
-                    AgentProcessStatusCode.TERMINATED,
+                    AgentProcessStatusCode.COMPLETED,
                     child.status,
-                    "Child ${child.id} should be terminated when parent is terminated"
+                    "Completed child ${child.id} should be preserved"
                 )
             }
         }
