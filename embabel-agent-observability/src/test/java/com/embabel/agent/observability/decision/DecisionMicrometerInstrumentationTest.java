@@ -28,6 +28,7 @@ import com.embabel.agent.decision.api.RawAnswer;
 import com.embabel.agent.decision.api.RawDecisionOutcome;
 import io.micrometer.context.ContextRegistry;
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.Observation;
@@ -128,7 +129,7 @@ class DecisionMicrometerInstrumentationTest {
                 .timer();
         assertThat(observationTimer.count()).isEqualTo(1L);
         assertThat(observationTimer.getId().getTags())
-                .extracting(tag -> tag.getKey())
+                .extracting(Tag::getKey)
                 .doesNotContain("question.count", "key.success.count", "key.failure.count");
     }
 
@@ -237,8 +238,9 @@ class DecisionMicrometerInstrumentationTest {
             model.ask(oneQuestionRequest());
         }
 
-        assertThat(observed).contains("first", "caller-0", "caller-1", "caller-2", "caller-3", "<null>");
-        assertThat(observed).doesNotContain("worker-residue");
+        assertThat(observed)
+                .contains("first", "caller-0", "caller-1", "caller-2", "caller-3", "<null>")
+                .doesNotContain("worker-residue");
         assertThat(counter(meters, "embabel.decision.calls.total", "provider.family", "custom",
                 "outcome", "success", "safe.code", "none")).isEqualTo(5.0);
         assertThat(counter(meters, "embabel.decision.calls.total", "provider.family", "custom",

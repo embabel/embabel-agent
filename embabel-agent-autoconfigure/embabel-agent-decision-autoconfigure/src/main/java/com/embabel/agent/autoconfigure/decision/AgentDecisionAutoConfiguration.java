@@ -63,42 +63,55 @@ import java.util.function.Supplier;
 @ConditionalOnProperty(prefix = AgentDecisionAutoConfiguration.PREFIX, name = "enabled", havingValue = "true")
 public class AgentDecisionAutoConfiguration {
     static final String PREFIX = "embabel.agent.platform.decision";
-    private static final String MODELS_PREFIX = PREFIX + ".models.";
+    private static final String DEFAULT_TIMEOUT_SUFFIX = ".default-timeout";
+    private static final String RECORD_MODE_SUFFIX = ".record-mode";
+    private static final String FULL_RECORD_MAX_BYTES_SUFFIX = ".full-record-max-bytes";
+    private static final String RECORD_ALLOWLIST_SUFFIX = ".record-allowlist";
+    private static final String MAPPER_BEAN_NAME_SUFFIX = ".mapper-bean-name";
+    private static final String MODELS_SUFFIX = ".models";
+    private static final String PROVIDER_SUFFIX = ".provider";
+    private static final String TYPESAFE_BASE_URL_SUFFIX = ".typesafe.base-url";
+    private static final String TYPESAFE_CONNECT_TIMEOUT_SUFFIX = ".typesafe.connect-timeout";
+    private static final String PROMPTED_LLM_BEAN_NAME_SUFFIX = ".prompted.llm-bean-name";
+    private static final String PROMPTED_OPTIONS_BEAN_NAME_SUFFIX = ".prompted.options-bean-name";
+    private static final String TYPESAFE_PROVIDER = "typesafe";
+    private static final String METADATA_RECORD_MODE = "metadata";
+    private static final String MODELS_PREFIX = PREFIX + MODELS_SUFFIX + ".";
     private static final Set<String> GLOBAL_KEYS = Set.of(
             PREFIX + ".enabled",
-            PREFIX + ".default-timeout",
-            PREFIX + ".record-mode",
-            PREFIX + ".full-record-max-bytes",
-            PREFIX + ".record-allowlist",
-            PREFIX + ".mapper-bean-name",
-            PREFIX + ".models");
+            PREFIX + DEFAULT_TIMEOUT_SUFFIX,
+            PREFIX + RECORD_MODE_SUFFIX,
+            PREFIX + FULL_RECORD_MAX_BYTES_SUFFIX,
+            PREFIX + RECORD_ALLOWLIST_SUFFIX,
+            PREFIX + MAPPER_BEAN_NAME_SUFFIX,
+            PREFIX + MODELS_SUFFIX);
     private static final List<String> MODEL_SUFFIXES = List.of(
-            ".provider",
+            PROVIDER_SUFFIX,
             ".typesafe.model",
-            ".typesafe.base-url",
-            ".typesafe.connect-timeout",
-            ".prompted.llm-bean-name",
-            ".prompted.options-bean-name");
+            TYPESAFE_BASE_URL_SUFFIX,
+            TYPESAFE_CONNECT_TIMEOUT_SUFFIX,
+            PROMPTED_LLM_BEAN_NAME_SUFFIX,
+            PROMPTED_OPTIONS_BEAN_NAME_SUFFIX);
     private static final Map<String, String> RELAXED_GLOBAL_KEYS = Map.ofEntries(
-            Map.entry(PREFIX + ".defaulttimeout", PREFIX + ".default-timeout"),
-            Map.entry(PREFIX + ".default.timeout", PREFIX + ".default-timeout"),
-            Map.entry(PREFIX + ".recordmode", PREFIX + ".record-mode"),
-            Map.entry(PREFIX + ".record.mode", PREFIX + ".record-mode"),
-            Map.entry(PREFIX + ".fullrecordmaxbytes", PREFIX + ".full-record-max-bytes"),
-            Map.entry(PREFIX + ".full.record.max.bytes", PREFIX + ".full-record-max-bytes"),
-            Map.entry(PREFIX + ".recordallowlist", PREFIX + ".record-allowlist"),
-            Map.entry(PREFIX + ".record.allowlist", PREFIX + ".record-allowlist"),
-            Map.entry(PREFIX + ".mapperbeanname", PREFIX + ".mapper-bean-name"),
-            Map.entry(PREFIX + ".mapper.bean.name", PREFIX + ".mapper-bean-name"));
+            Map.entry(PREFIX + ".defaulttimeout", PREFIX + DEFAULT_TIMEOUT_SUFFIX),
+            Map.entry(PREFIX + ".default.timeout", PREFIX + DEFAULT_TIMEOUT_SUFFIX),
+            Map.entry(PREFIX + ".recordmode", PREFIX + RECORD_MODE_SUFFIX),
+            Map.entry(PREFIX + ".record.mode", PREFIX + RECORD_MODE_SUFFIX),
+            Map.entry(PREFIX + ".fullrecordmaxbytes", PREFIX + FULL_RECORD_MAX_BYTES_SUFFIX),
+            Map.entry(PREFIX + ".full.record.max.bytes", PREFIX + FULL_RECORD_MAX_BYTES_SUFFIX),
+            Map.entry(PREFIX + ".recordallowlist", PREFIX + RECORD_ALLOWLIST_SUFFIX),
+            Map.entry(PREFIX + ".record.allowlist", PREFIX + RECORD_ALLOWLIST_SUFFIX),
+            Map.entry(PREFIX + ".mapperbeanname", PREFIX + MAPPER_BEAN_NAME_SUFFIX),
+            Map.entry(PREFIX + ".mapper.bean.name", PREFIX + MAPPER_BEAN_NAME_SUFFIX));
     private static final Map<String, String> RELAXED_MODEL_SUFFIXES = Map.ofEntries(
-            Map.entry(".typesafe.baseurl", ".typesafe.base-url"),
-            Map.entry(".typesafe.base.url", ".typesafe.base-url"),
-            Map.entry(".typesafe.connecttimeout", ".typesafe.connect-timeout"),
-            Map.entry(".typesafe.connect.timeout", ".typesafe.connect-timeout"),
-            Map.entry(".prompted.llmbeanname", ".prompted.llm-bean-name"),
-            Map.entry(".prompted.llm.bean.name", ".prompted.llm-bean-name"),
-            Map.entry(".prompted.optionsbeanname", ".prompted.options-bean-name"),
-            Map.entry(".prompted.options.bean.name", ".prompted.options-bean-name"));
+            Map.entry(".typesafe.baseurl", TYPESAFE_BASE_URL_SUFFIX),
+            Map.entry(".typesafe.base.url", TYPESAFE_BASE_URL_SUFFIX),
+            Map.entry(".typesafe.connecttimeout", TYPESAFE_CONNECT_TIMEOUT_SUFFIX),
+            Map.entry(".typesafe.connect.timeout", TYPESAFE_CONNECT_TIMEOUT_SUFFIX),
+            Map.entry(".prompted.llmbeanname", PROMPTED_LLM_BEAN_NAME_SUFFIX),
+            Map.entry(".prompted.llm.bean.name", PROMPTED_LLM_BEAN_NAME_SUFFIX),
+            Map.entry(".prompted.optionsbeanname", PROMPTED_OPTIONS_BEAN_NAME_SUFFIX),
+            Map.entry(".prompted.options.bean.name", PROMPTED_OPTIONS_BEAN_NAME_SUFFIX));
 
     @Bean
     DecisionProperties decisionProperties(Environment environment) {
@@ -125,19 +138,25 @@ public class AgentDecisionAutoConfiguration {
                         name, selected, properties, environment, beanFactory,
                         instrumentationProvider.getIfUnique(DecisionInstrumentation::noop)));
             }
-            List<String> registered = new ArrayList<>();
-            try {
-                created.forEach((name, model) -> {
-                    beanFactory.registerSingleton(name, model);
-                    registered.add(name);
-                });
-            } catch (RuntimeException failure) {
-                rollback(beanFactory, registered, created, failure);
-                throw failure;
-            }
+            registerModels(beanFactory, created);
             return new DecisionModelInitialization(new ArrayList<>(created.values()));
         } catch (RuntimeException failure) {
             closeAll(created.values(), failure);
+            throw failure;
+        }
+    }
+
+    private static void registerModels(
+            ConfigurableListableBeanFactory beanFactory,
+            Map<String, DecisionModel> created) {
+        List<String> registered = new ArrayList<>();
+        try {
+            created.forEach((name, model) -> {
+                beanFactory.registerSingleton(name, model);
+                registered.add(name);
+            });
+        } catch (RuntimeException failure) {
+            rollback(beanFactory, registered, created, failure);
             throw failure;
         }
     }
@@ -151,7 +170,7 @@ public class AgentDecisionAutoConfiguration {
             DecisionInstrumentation instrumentation) {
         try (DecisionModel model = switch (selected.provider()) {
             case "none" -> NoDecisionModel.create();
-            case "typesafe" -> typesafe(selected, common, environment, beanFactory);
+            case TYPESAFE_PROVIDER -> typesafe(selected, common, environment, beanFactory);
             case "prompted" -> prompted(name, selected, common, beanFactory);
             default -> throw invalid(modelKey(name, "provider"));
         }; DecisionModel defaulted = model.withDefaults(common.defaultTimeout(), recordPolicy(common))) {
@@ -166,7 +185,7 @@ public class AgentDecisionAutoConfiguration {
                 || (beanFactory instanceof AliasRegistry aliases && aliases.isAlias(name))
                 || beanFactory.containsBeanDefinition(name)
                 || beanFactory.containsSingleton(name)) {
-            throw invalid(PREFIX + ".models." + name);
+            throw invalid(MODELS_PREFIX + name);
         }
     }
 
@@ -216,7 +235,7 @@ public class AgentDecisionAutoConfiguration {
         String name = properties.mapperBeanName();
         return name == null
                 ? null
-                : exactBean(beanFactory, name, EmbabelObjectMapperHolder.class, PREFIX + ".mapper-bean-name");
+                : exactBean(beanFactory, name, EmbabelObjectMapperHolder.class, PREFIX + MAPPER_BEAN_NAME_SUFFIX);
     }
 
     private static <T> T exactBean(
@@ -231,16 +250,16 @@ public class AgentDecisionAutoConfiguration {
     private static DecisionRecordPolicy recordPolicy(DecisionProperties properties) {
         return switch (properties.recordMode()) {
             case "none" -> DecisionRecordPolicy.none();
-            case "metadata" -> DecisionRecordPolicy.metadata();
+            case METADATA_RECORD_MODE -> DecisionRecordPolicy.metadata();
             case "full" -> {
                 try {
                     yield DecisionRecordPolicy.full(
                             properties.fullRecordMaxBytes(), properties.recordAllowlist());
                 } catch (RuntimeException ignored) {
-                    throw invalid(PREFIX + ".record-allowlist");
+                    throw invalid(PREFIX + RECORD_ALLOWLIST_SUFFIX);
                 }
             }
-            default -> throw invalid(PREFIX + ".record-mode");
+            default -> throw invalid(PREFIX + RECORD_MODE_SUFFIX);
         };
     }
 
@@ -249,25 +268,25 @@ public class AgentDecisionAutoConfiguration {
         Binder binder = Binder.get(environment);
         var result = new DecisionProperties(
                 value(binder, PREFIX + ".enabled", Boolean.class, () -> false),
-                value(binder, PREFIX + ".default-timeout", Duration.class, () -> Duration.ofSeconds(30)),
-                value(binder, PREFIX + ".record-mode", String.class, () -> "metadata"),
-                value(binder, PREFIX + ".full-record-max-bytes", Integer.class, () -> 65536),
-                setValue(binder, PREFIX + ".record-allowlist"),
-                value(binder, PREFIX + ".mapper-bean-name", String.class, () -> null),
+                value(binder, PREFIX + DEFAULT_TIMEOUT_SUFFIX, Duration.class, () -> Duration.ofSeconds(30)),
+                value(binder, PREFIX + RECORD_MODE_SUFFIX, String.class, () -> METADATA_RECORD_MODE),
+                value(binder, PREFIX + FULL_RECORD_MAX_BYTES_SUFFIX, Integer.class, () -> 65536),
+                setValue(binder, PREFIX + RECORD_ALLOWLIST_SUFFIX),
+                value(binder, PREFIX + MAPPER_BEAN_NAME_SUFFIX, String.class, () -> null),
                 Map.of());
         validateCommon(result);
         Map<String, DecisionProperties.Model> models = new LinkedHashMap<>();
         Set<String> configuredNames = modelNames(environment);
         if (configuredNames.isEmpty()) {
-            models.put("jev", new DecisionProperties.Model("typesafe",
+            models.put("jev", new DecisionProperties.Model(TYPESAFE_PROVIDER,
                     DecisionProperties.Typesafe.defaults("jev-latest"), null));
         }
         for (String name : configuredNames) {
             validateModelName(name);
             String base = MODELS_PREFIX + name;
-            String provider = value(binder, base + ".provider", String.class, () -> null);
+            String provider = value(binder, base + PROVIDER_SUFFIX, String.class, () -> null);
             DecisionProperties.Model model = switch (provider) {
-                case "typesafe" -> {
+                case TYPESAFE_PROVIDER -> {
                     DecisionProperties.Typesafe selected = objectValue(
                             binder, base + ".typesafe", DecisionProperties.Typesafe.class,
                             () -> DecisionProperties.Typesafe.defaults(null));
@@ -282,7 +301,7 @@ public class AgentDecisionAutoConfiguration {
                     yield new DecisionProperties.Model(provider, null, selected);
                 }
                 case "none" -> new DecisionProperties.Model(provider, null, null);
-                case null, default -> throw invalid(base + ".provider");
+                case null, default -> throw invalid(base + PROVIDER_SUFFIX);
             };
             models.put(name, model);
         }
@@ -377,38 +396,38 @@ public class AgentDecisionAutoConfiguration {
     }
 
     private static boolean isLegacyKey(String key) {
-        return key.equals(PREFIX + ".provider")
+        return key.equals(PREFIX + PROVIDER_SUFFIX)
                 || key.startsWith(PREFIX + ".typesafe.")
                 || key.startsWith(PREFIX + ".prompted.");
     }
 
     private static boolean isAllowedKey(String key) {
-        if (GLOBAL_KEYS.contains(key) || key.startsWith(PREFIX + ".record-allowlist[")) return true;
+        if (GLOBAL_KEYS.contains(key) || key.startsWith(PREFIX + RECORD_ALLOWLIST_SUFFIX + "[")) return true;
         if (!key.startsWith(MODELS_PREFIX)) return false;
         String tail = key.substring(MODELS_PREFIX.length());
         return MODEL_SUFFIXES.stream().anyMatch(suffix -> tail.length() > suffix.length() && tail.endsWith(suffix));
     }
 
     private static void validateCommon(DecisionProperties properties) {
-        positive(properties.defaultTimeout(), PREFIX + ".default-timeout");
-        if (!Set.of("none", "metadata", "full").contains(properties.recordMode())) {
-            throw invalid(PREFIX + ".record-mode");
+        positive(properties.defaultTimeout(), PREFIX + DEFAULT_TIMEOUT_SUFFIX);
+        if (!Set.of("none", METADATA_RECORD_MODE, "full").contains(properties.recordMode())) {
+            throw invalid(PREFIX + RECORD_MODE_SUFFIX);
         }
         try {
             DecisionRecordPolicy.full(properties.fullRecordMaxBytes(), Set.of("answerIds"));
         } catch (RuntimeException ignored) {
-            throw invalid(PREFIX + ".full-record-max-bytes");
+            throw invalid(PREFIX + FULL_RECORD_MAX_BYTES_SUFFIX);
         }
         if (!properties.recordAllowlist().isEmpty()) {
             try {
                 DecisionRecordPolicy.full(2, properties.recordAllowlist());
             } catch (RuntimeException ignored) {
-                throw invalid(PREFIX + ".record-allowlist");
+                throw invalid(PREFIX + RECORD_ALLOWLIST_SUFFIX);
             }
         } else if ("full".equals(properties.recordMode())) {
-            throw invalid(PREFIX + ".record-allowlist");
+            throw invalid(PREFIX + RECORD_ALLOWLIST_SUFFIX);
         }
-        optionalName(properties.mapperBeanName(), PREFIX + ".mapper-bean-name");
+        optionalName(properties.mapperBeanName(), PREFIX + MAPPER_BEAN_NAME_SUFFIX);
     }
 
     private static void validateTypesafe(String name, DecisionProperties.Typesafe properties) {
@@ -436,20 +455,20 @@ public class AgentDecisionAutoConfiguration {
 
     private static void validateModelName(String name) {
         // Dots are property path separators; registry names use canonical lowercase segments.
-        if (name == null || name.isEmpty()) throw invalid(PREFIX + ".models");
+        if (name == null || name.isEmpty()) throw invalid(PREFIX + MODELS_SUFFIX);
         boolean requiresSegmentCharacter = true;
         for (int i = 0; i < name.length(); i++) {
             char character = name.charAt(i);
             if (character == '-') {
-                if (requiresSegmentCharacter) throw invalid(PREFIX + ".models");
+                if (requiresSegmentCharacter) throw invalid(PREFIX + MODELS_SUFFIX);
                 requiresSegmentCharacter = true;
             } else if ((character >= 'a' && character <= 'z') || (character >= '0' && character <= '9')) {
                 requiresSegmentCharacter = false;
             } else {
-                throw invalid(PREFIX + ".models");
+                throw invalid(PREFIX + MODELS_SUFFIX);
             }
         }
-        if (requiresSegmentCharacter) throw invalid(PREFIX + ".models");
+        if (requiresSegmentCharacter) throw invalid(PREFIX + MODELS_SUFFIX);
     }
 
     private static void rollback(

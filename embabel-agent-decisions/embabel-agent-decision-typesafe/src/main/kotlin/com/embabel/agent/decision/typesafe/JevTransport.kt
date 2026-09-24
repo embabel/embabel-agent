@@ -53,48 +53,62 @@ internal class JevTransport(
     private val attemptObserver: (Duration) -> Unit = {},
 ) {
     fun invoke(request: PreparedDecisionRequest): RawDecisionOutcome {
-        if (Thread.currentThread().isInterrupted) throw InterruptedException()
-        if (remaining(request) == null) return deadline()
+        ensureNotInterrupted()
+        return when (val preparation = prepare(request)) {
+            is Preparation.Complete -> preparation.outcome
+            is Preparation.Ready -> invokePrepared(request, preparation)
+        }
+    }
+
+    private fun prepare(request: PreparedDecisionRequest): Preparation {
+        if (remaining(request) == null) return Preparation.Complete(deadline())
         val key = try {
             apiKey.get()
         } catch (error: Exception) {
             if (error.isCancellation()) throw InterruptedException()
-            return unavailable()
+            return Preparation.Complete(unavailable())
         }
-        if (!key.isHeaderSafeCredential()) return unavailable()
-        val payload = try { codec.encode(request, model) } catch (_: Exception) { return rejectBeforeSend(request) }
-        if (payload.size > MAX_OUTBOUND_BYTES) return rejectBeforeSend(request)
-        var firstStatus: Int? = null
-        for (attempt in 0..1) {
-            if (remaining(request) == null) return deadline()
-            if (attempt == 1) {
-                if (firstStatus !in setOf(429, 529)) return unavailable()
-                val delay = Duration.ofMillis(100)
-                val beforeDelay = remaining(request) ?: return deadline()
-                if (beforeDelay < delay) return deadline()
-                if (Thread.currentThread().isInterrupted) throw InterruptedException()
-                request.event(DecisionTelemetryEvent.RETRY)
-                sleeper(delay)
-                if (Thread.currentThread().isInterrupted) throw InterruptedException()
-                if (remaining(request) == null) return deadline()
-            }
-            val response = execute(payload, key, request, remaining(request) ?: return deadline())
-            when (response) {
-                is Attempt.Failure -> return response.outcome
-                is Attempt.Response -> {
-                    when (val disposition = classifyResponse(response, request)) {
-                        is ResponseDisposition.RateLimited -> if (attempt == 0) {
-                            firstStatus = disposition.status
-                            continue
-                        } else {
-                            return unavailable()
-                        }
-                        is ResponseDisposition.Complete -> return disposition.outcome
-                    }
-                }
-            }
+        if (!key.isHeaderSafeCredential()) return Preparation.Complete(unavailable())
+        val payload = try {
+            codec.encode(request, model)
+        } catch (_: Exception) {
+            return Preparation.Complete(rejectBeforeSend(request))
         }
-        return unavailable()
+        if (payload.size > MAX_OUTBOUND_BYTES) {
+            return Preparation.Complete(rejectBeforeSend(request))
+        }
+        return Preparation.Ready(key, payload)
+    }
+
+    private fun invokePrepared(request: PreparedDecisionRequest, preparation: Preparation.Ready): RawDecisionOutcome =
+        when (val first = attempt(request, preparation)) {
+            is ResponseDisposition.Complete -> first.outcome
+            ResponseDisposition.RateLimited -> retry(request, preparation)
+        }
+
+    private fun retry(request: PreparedDecisionRequest, preparation: Preparation.Ready): RawDecisionOutcome {
+        val delay = Duration.ofMillis(100)
+        val beforeDelay = remaining(request) ?: return deadline()
+        if (beforeDelay < delay) return deadline()
+        ensureNotInterrupted()
+        request.event(DecisionTelemetryEvent.RETRY)
+        sleeper(delay)
+        ensureNotInterrupted()
+        return when (val second = attempt(request, preparation)) {
+            is ResponseDisposition.Complete -> second.outcome
+            ResponseDisposition.RateLimited -> unavailable()
+        }
+    }
+
+    private fun attempt(
+        request: PreparedDecisionRequest,
+        preparation: Preparation.Ready,
+    ): ResponseDisposition {
+        val attemptBudget = remaining(request) ?: return ResponseDisposition.Complete(deadline())
+        return when (val response = execute(preparation.payload, preparation.key, request, attemptBudget)) {
+            is Attempt.Failure -> ResponseDisposition.Complete(response.outcome)
+            is Attempt.Response -> classifyResponse(response, request)
+        }
     }
 
     private fun classifyResponse(
@@ -103,7 +117,7 @@ internal class JevTransport(
     ): ResponseDisposition = when {
         response.status in setOf(429, 529) -> {
             prepared.event(DecisionTelemetryEvent.TRANSPORT_RATE_LIMITED)
-            ResponseDisposition.RateLimited(response.status)
+            ResponseDisposition.RateLimited
         }
         response.status == 422 -> {
             prepared.event(DecisionTelemetryEvent.TRANSPORT_REJECTED)
@@ -193,6 +207,10 @@ internal class JevTransport(
         return if (nanos > 0) Duration.ofNanos(nanos) else null
     }
 
+    private fun ensureNotInterrupted() {
+        if (Thread.currentThread().isInterrupted) throw InterruptedException()
+    }
+
     private fun unavailable() = RawDecisionOutcome.failure(CallFailure.Unavailable, DecisionSafeCode.UNAVAILABLE)
     private fun rejected() = RawDecisionOutcome.failure(CallFailure.RejectedRequest, DecisionSafeCode.REJECTED_REQUEST)
     private fun rejectBeforeSend(request: PreparedDecisionRequest): RawDecisionOutcome {
@@ -230,8 +248,13 @@ internal class JevTransport(
         class Failure(val outcome: RawDecisionOutcome) : Attempt
     }
 
+    private sealed interface Preparation {
+        class Ready(val key: String, val payload: ByteArray) : Preparation
+        class Complete(val outcome: RawDecisionOutcome) : Preparation
+    }
+
     private sealed interface ResponseDisposition {
-        class RateLimited(val status: Int) : ResponseDisposition
+        data object RateLimited : ResponseDisposition
         class Complete(val outcome: RawDecisionOutcome) : ResponseDisposition
     }
 

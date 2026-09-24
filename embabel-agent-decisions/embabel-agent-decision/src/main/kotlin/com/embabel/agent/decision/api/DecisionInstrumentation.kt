@@ -122,9 +122,7 @@ interface DecisionObservation : AutoCloseable {
     override fun close()
 }
 
-private object NoOpDecisionInstrumentation : DecisionInstrumentation {
-    override fun start(context: DecisionObservationContext): DecisionObservation = NoOpDecisionObservation
-}
+private val NoOpDecisionInstrumentation = DecisionInstrumentation { NoOpDecisionObservation }
 
 private object NoOpDecisionObservation : DecisionObservation {
     override fun <T> wrap(work: Callable<T>): Callable<T> = work

@@ -38,7 +38,7 @@ class DecisionConfigurationMetadataTest {
         String metadata = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         var root = EmbabelObjectMapperHolder.createDefault().get().readTree(metadata);
         var names = new ArrayList<String>();
-        root.get("properties").forEach(property -> names.add(property.get("name").asText()));
+        root.get("properties").forEach(property -> names.add(property.get("name").stringValue()));
         for (String suffix : new String[]{
                 "enabled", "default-timeout", "record-mode", "full-record-max-bytes",
                 "record-allowlist", "mapper-bean-name", "models"
@@ -47,7 +47,7 @@ class DecisionConfigurationMetadataTest {
         }
         assertThat(names).noneMatch(name -> name.contains("*"));
         var hintNames = new ArrayList<String>();
-        root.get("hints").forEach(hint -> hintNames.add(hint.get("name").asText()));
+        root.get("hints").forEach(hint -> hintNames.add(hint.get("name").stringValue()));
         assertThat(hintNames).noneMatch(name -> name.contains("*"));
         assertThat(names).doesNotContain(
                 "embabel.agent.platform.decision.provider",

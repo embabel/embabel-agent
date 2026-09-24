@@ -191,14 +191,14 @@ internal class JevWireCodec(
     private fun parse(bytes: ByteArray): JsonValue = mapper.createParser(bytes).use { parser ->
         parser.nextToken() ?: throw IllegalArgumentException()
         val result = parseValue(parser)
-        if (parser.nextToken() != null) throw IllegalArgumentException()
+        require(parser.nextToken() == null)
         result
     }
 
     private fun parseValue(parser: JsonParser): JsonValue = when (parser.currentToken()) {
         JsonToken.START_OBJECT -> JsonValue.Obj(buildList {
             while (parser.nextToken() != JsonToken.END_OBJECT) {
-                if (parser.currentToken() != JsonToken.PROPERTY_NAME) throw IllegalArgumentException()
+                require(parser.currentToken() == JsonToken.PROPERTY_NAME)
                 val name = parser.currentName()
                 parser.nextToken() ?: throw IllegalArgumentException()
                 add(name to parseValue(parser))
@@ -217,7 +217,7 @@ internal class JevWireCodec(
 
     private sealed interface JsonValue {
         class Obj(val entries: List<Pair<String, JsonValue>>) : JsonValue {
-            fun single(name: String): JsonValue? = entries.filter { it.first == name }.singleOrNull()?.second
+            fun single(name: String): JsonValue? = entries.singleOrNull { it.first == name }?.second
             fun singleString(name: String): String? = (single(name) as? Str)?.value
             fun number(name: String): Double? = (single(name) as? Num)?.value
             fun nonNegativeInt(name: String): Int? = number(name)?.let { value ->

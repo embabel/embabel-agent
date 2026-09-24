@@ -81,16 +81,16 @@ public abstract sealed class KeyOutcome<T> permits KeyOutcome.Success, KeyOutcom
     /** A safe key-local failure that does not discard valid sibling answers. */
     @ApiStatus.Experimental
     public static final class Failure<T> extends KeyOutcome<T> {
-        private final KeyFailure failure;
+        private final KeyFailure keyFailure;
         private final DecisionSafeCode safeCode;
 
-        Failure(KeyFailure failure, DecisionSafeCode safeCode) {
-            this.failure = failure;
+        Failure(KeyFailure keyFailure, DecisionSafeCode safeCode) {
+            this.keyFailure = keyFailure;
             this.safeCode = safeCode;
         }
 
         public KeyFailure getFailure() {
-            return failure;
+            return keyFailure;
         }
 
         public DecisionSafeCode getSafeCode() {

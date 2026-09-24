@@ -41,6 +41,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @ApiStatus.Experimental
 public final class DecisionMicrometerInstrumentation implements DecisionInstrumentation {
     private static final String OBSERVATION_NAME = "embabel.decision";
+    private static final String PROVIDER_FAMILY_TAG = "provider.family";
+    private static final String OUTCOME_TAG = "outcome";
+    private static final String SAFE_CODE_TAG = "safe.code";
     private final ObservationRegistry observationRegistry;
     private final MeterRegistry meterRegistry;
     private final boolean tracingEnabled;
@@ -73,7 +76,7 @@ public final class DecisionMicrometerInstrumentation implements DecisionInstrume
         Observation.Scope scope = null;
         if (tracingEnabled) {
             observation = Observation.createNotStarted(OBSERVATION_NAME, observationRegistry)
-                    .lowCardinalityKeyValue("provider.family", family(context.getProviderFamily()))
+                    .lowCardinalityKeyValue(PROVIDER_FAMILY_TAG, family(context.getProviderFamily()))
                     .highCardinalityKeyValue("question.count", Integer.toString(context.getQuestionCount()))
                     .start();
             scope = observation.openScope();
@@ -114,7 +117,7 @@ public final class DecisionMicrometerInstrumentation implements DecisionInstrume
             }
             if (metricsEnabled) {
                 Counter.builder("embabel.decision.events.total")
-                        .tag("provider.family", family(providerFamily))
+                        .tag(PROVIDER_FAMILY_TAG, family(providerFamily))
                         .tag("event", eventValue)
                         .register(meterRegistry)
                         .increment();
@@ -126,32 +129,32 @@ public final class DecisionMicrometerInstrumentation implements DecisionInstrume
             String outcome = value(completion.getStatus());
             String safeCode = completion.getSafeCode() == null ? "none" : value(completion.getSafeCode());
             if (observation != null) {
-                observation.lowCardinalityKeyValue("outcome", outcome)
-                        .lowCardinalityKeyValue("safe.code", safeCode)
+                observation.lowCardinalityKeyValue(OUTCOME_TAG, outcome)
+                        .lowCardinalityKeyValue(SAFE_CODE_TAG, safeCode)
                         .highCardinalityKeyValue("key.success.count", Integer.toString(completion.getKeySuccessCount()))
                         .highCardinalityKeyValue("key.failure.count", Integer.toString(completion.getKeyFailureCount()));
             }
             if (metricsEnabled) {
                 String family = family(completion.getProviderFamily());
                 Counter.builder("embabel.decision.calls.total")
-                        .tag("provider.family", family)
-                        .tag("outcome", outcome)
-                        .tag("safe.code", safeCode)
+                        .tag(PROVIDER_FAMILY_TAG, family)
+                        .tag(OUTCOME_TAG, outcome)
+                        .tag(SAFE_CODE_TAG, safeCode)
                         .register(meterRegistry)
                         .increment();
                 Timer.builder("embabel.decision.duration")
-                        .tag("provider.family", family)
-                        .tag("outcome", outcome)
-                        .tag("safe.code", safeCode)
+                        .tag(PROVIDER_FAMILY_TAG, family)
+                        .tag(OUTCOME_TAG, outcome)
+                        .tag(SAFE_CODE_TAG, safeCode)
                         .register(meterRegistry)
                         .record(completion.getElapsedNanos(), TimeUnit.NANOSECONDS);
                 Counter.builder("embabel.decision.keys.total")
-                        .tag("provider.family", family)
+                        .tag(PROVIDER_FAMILY_TAG, family)
                         .tag("key.outcome", "success")
                         .register(meterRegistry)
                         .increment(completion.getKeySuccessCount());
                 Counter.builder("embabel.decision.keys.total")
-                        .tag("provider.family", family)
+                        .tag(PROVIDER_FAMILY_TAG, family)
                         .tag("key.outcome", "failure")
                         .register(meterRegistry)
                         .increment(completion.getKeyFailureCount());

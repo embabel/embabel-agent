@@ -45,7 +45,7 @@ class PromptedDecisionModel private constructor() {
             options: LlmOptions,
             mapperHolder: EmbabelObjectMapperHolder = EmbabelObjectMapperHolder.createDefault(),
         ): DecisionModel {
-            val serviceName = requireNotNull(service.name) { "service.name must not be null" }
+            val serviceName = requireNotNull(javaNullableServiceName(service)) { "service.name must not be null" }
             require(serviceName.isNotBlank()) { "service.name must not be blank" }
             require(isSafeProvenanceText(serviceName)) { "service.name must be safe provenance text" }
             require(isSafeProvenanceText(service.provider)) { "service.provider must be safe provenance text" }
@@ -59,6 +59,9 @@ class PromptedDecisionModel private constructor() {
                 ),
             ).named(serviceName, "prompted")
         }
+
+        // Java implementations can violate Kotlin nullability, so normalize at the public factory boundary.
+        private fun javaNullableServiceName(service: LlmService<*>): String? = service.name
 
         private fun isSafeProvenanceText(value: String): Boolean = value.isNotBlank() &&
             value.toByteArray(StandardCharsets.UTF_8).size <= 256 &&

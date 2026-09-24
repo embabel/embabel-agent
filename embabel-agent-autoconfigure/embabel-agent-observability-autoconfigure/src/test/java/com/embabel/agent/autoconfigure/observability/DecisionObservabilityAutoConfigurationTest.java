@@ -126,14 +126,17 @@ class DecisionObservabilityAutoConfigurationTest {
 
                 @Override
                 public void event(DecisionTelemetryEvent event) {
+                    // This fixture counts starts only, so events are intentionally ignored.
                 }
 
                 @Override
                 public void complete(DecisionCompletion completion) {
+                    // This fixture counts starts only, so completion is intentionally ignored.
                 }
 
                 @Override
                 public void close() {
+                    // This fixture owns no resources, so there is nothing to close.
                 }
             };
         };

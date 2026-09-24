@@ -18,6 +18,7 @@ package com.embabel.agent.decision.api;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
@@ -78,6 +79,7 @@ class DecisionModelJavaTest {
 
             @Override
             public void event(DecisionTelemetryEvent event) {
+                // This test observes terminal lifecycle callbacks only.
             }
 
             @Override
@@ -191,8 +193,8 @@ class DecisionModelJavaTest {
             """;
 
         assertEquals(0, compile(compiler, classpath, "PositiveConsumer", positive));
-        assertTrue(compile(compiler, classpath, "FacadeBypass", bypass) != 0);
-        assertTrue(compile(compiler, classpath, "ForgeDecisionSuccess", forge) != 0);
+        assertNotEquals(0, compile(compiler, classpath, "FacadeBypass", bypass));
+        assertNotEquals(0, compile(compiler, classpath, "ForgeDecisionSuccess", forge));
     }
 
     private static int compile(JavaCompiler compiler, String classpath, String className, String source) {

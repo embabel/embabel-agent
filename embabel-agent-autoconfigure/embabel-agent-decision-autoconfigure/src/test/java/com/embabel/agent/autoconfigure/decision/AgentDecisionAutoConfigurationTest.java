@@ -438,17 +438,12 @@ class AgentDecisionAutoConfigurationTest {
         var properties = new DecisionProperties(true, Duration.ofSeconds(30), "metadata", 65536,
                 Set.of(), null, configured);
 
-        assertThatThrownBy(() -> new AgentDecisionAutoConfiguration().decisionModelInitialization(
-                        properties,
-                        new StandardEnvironment(),
-                        beanFactory,
-                        beanFactory.getBeanProvider(DecisionInstrumentation.class),
-                        List.of()))
+        assertThatThrownBy(() -> initializeModels(properties, beanFactory))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("registration failed");
         assertThat(beanFactory.containsSingleton("first")).isFalse();
-        assertThat(beanFactory.registered).hasSize(2);
         assertThat(beanFactory.registered)
+                .hasSize(2)
                 .allSatisfy(model -> assertThat(model.ask(request())).isInstanceOf(DecisionOutcome.Failure.class));
     }
 
@@ -552,12 +547,13 @@ class AgentDecisionAutoConfigurationTest {
                         "embabel.agent.platform.decision.models.disabled.provider=none")
                 .run(context -> {
                     DecisionProperties properties = context.getBean(DecisionProperties.class);
+                    Map<String, DecisionProperties.Model> configuredModels = properties.models();
                     assertThat(properties.defaultTimeout()).hasSeconds(17);
-                    assertThat(properties.models()).containsOnlyKeys("rules", "disabled");
-                    assertThat(properties.models().get("rules").provider()).isEqualTo("typesafe");
-                    assertThat(properties.models().get("rules").typesafe().model()).isEqualTo("jev-latest");
-                    assertThat(properties.models().get("disabled").provider()).isEqualTo("none");
-                    assertThatThrownBy(() -> properties.models().clear())
+                    assertThat(configuredModels).containsOnlyKeys("rules", "disabled");
+                    assertThat(configuredModels.get("rules").provider()).isEqualTo("typesafe");
+                    assertThat(configuredModels.get("rules").typesafe().model()).isEqualTo("jev-latest");
+                    assertThat(configuredModels.get("disabled").provider()).isEqualTo("none");
+                    assertThatThrownBy(configuredModels::clear)
                             .isInstanceOf(UnsupportedOperationException.class);
                 });
     }
@@ -636,11 +632,13 @@ class AgentDecisionAutoConfigurationTest {
                 allowlist, null, models);
         allowlist.clear();
         models.clear();
-        assertThat(properties.recordAllowlist()).containsExactly("answerIds");
-        assertThat(properties.models()).containsOnlyKeys("review");
-        assertThatThrownBy(() -> properties.recordAllowlist().clear())
+        Set<String> configuredAllowlist = properties.recordAllowlist();
+        Map<String, DecisionProperties.Model> configuredModels = properties.models();
+        assertThat(configuredAllowlist).containsExactly("answerIds");
+        assertThat(configuredModels).containsOnlyKeys("review");
+        assertThatThrownBy(configuredAllowlist::clear)
                 .isInstanceOf(UnsupportedOperationException.class);
-        assertThatThrownBy(() -> properties.models().clear())
+        assertThatThrownBy(configuredModels::clear)
                 .isInstanceOf(UnsupportedOperationException.class);
     }
 
@@ -654,6 +652,17 @@ class AgentDecisionAutoConfigurationTest {
         DecisionRequest.Builder builder = DecisionRequest.builder();
         builder.yesNo("q", "Proceed?");
         return builder.build();
+    }
+
+    private static void initializeModels(
+            DecisionProperties properties,
+            ConfigurableListableBeanFactory beanFactory) {
+        new AgentDecisionAutoConfiguration().decisionModelInitialization(
+                properties,
+                new StandardEnvironment(),
+                beanFactory,
+                beanFactory.getBeanProvider(DecisionInstrumentation.class),
+                List.of());
     }
 
     private static DecisionProperties.Model promptedModel(String serviceName) {
@@ -672,14 +681,17 @@ class AgentDecisionAutoConfigurationTest {
 
                 @Override
                 public void event(DecisionTelemetryEvent event) {
+                    // This fixture counts starts only, so events are intentionally ignored.
                 }
 
                 @Override
                 public void complete(DecisionCompletion completion) {
+                    // This fixture counts starts only, so completion is intentionally ignored.
                 }
 
                 @Override
                 public void close() {
+                    // This fixture owns no resources, so there is nothing to close.
                 }
             };
         };

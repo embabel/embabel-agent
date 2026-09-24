@@ -177,18 +177,16 @@ internal class PromptedWireCodec(
                 }
                 generator.writeEndObject()
             }
-            is Iterable<*> -> {
-                generator.writeStartArray()
-                value.forEach { writeValue(generator, it) }
-                generator.writeEndArray()
-            }
-            is Array<*> -> {
-                generator.writeStartArray()
-                value.forEach { writeValue(generator, it) }
-                generator.writeEndArray()
-            }
+            is Iterable<*> -> writeArray(generator, value)
+            is Array<*> -> writeArray(generator, value.asIterable())
             else -> throw UnsafePreparedStateException()
         }
+    }
+
+    private fun writeArray(generator: JsonGenerator, values: Iterable<*>) {
+        generator.writeStartArray()
+        values.forEach { writeValue(generator, it) }
+        generator.writeEndArray()
     }
 
     private fun answer(entry: JsonNode, keyId: String): RawAnswer {

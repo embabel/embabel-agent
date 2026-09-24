@@ -403,7 +403,7 @@ private fun startObservation(
     context: DecisionObservationContext,
 ): GuardedDecisionObservation {
     val observation = try {
-        requireNotNull(instrumentation.start(context))
+        requireJavaSpiResult(instrumentation.start(context))
     } catch (_: Exception) {
         logInstrumentationFailure(InstrumentationHook.START)
         DecisionInstrumentation.noop().start(context)
@@ -413,11 +413,9 @@ private fun startObservation(
 
 private class GuardedDecisionObservation(
     private val delegate: DecisionObservation,
-) : DecisionObservation {
+) : DecisionObservation by delegate {
     private val terminal = AtomicBoolean()
     private val providerEventsOpen = AtomicBoolean(true)
-
-    override fun <T> wrap(work: Callable<T>): Callable<T> = delegate.wrap(work)
 
     override fun event(event: DecisionTelemetryEvent) {
         facadeEventSafely(event)
@@ -467,7 +465,7 @@ private interface InstrumentedDecisionWork<T> : Callable<T> {
 private fun <T> DecisionExecutionContext.wrapSafely(work: InstrumentedDecisionWork<T>): Callable<T>? {
     val deferred = DeferredCallable(work)
     val wrapped = try {
-        requireNotNull(wrap(deferred))
+        requireJavaSpiResult(wrap(deferred))
     } catch (error: Exception) {
         if (error is InterruptedException) throw error
         logExecutionContextFailure(ExecutionContextPhase.WRAP)
@@ -476,78 +474,92 @@ private fun <T> DecisionExecutionContext.wrapSafely(work: InstrumentedDecisionWo
     work.arm()
     // Arm the carrier-facing guard last so eager wrap calls cannot enter instrumentation.
     deferred.arm()
-    return Callable {
-        var contextFailure: Throwable? = null
-        try {
-            wrapped.call()
-        } catch (error: Throwable) {
-            contextFailure = error
-        }
-        val workFailure = work.failure()
-        // Preserve provider fatality; otherwise a carrier Error must outrank ordinary failures.
-        if (workFailure is Error) {
-            if (contextFailure is Error && contextFailure !== workFailure) {
-                workFailure.addSuppressed(contextFailure)
-            }
-            throw workFailure
-        }
-        if (contextFailure is Error) {
-            // The fatal wrapper wins, but consumed interruption still belongs to this thread.
-            if (workFailure is InterruptedException) Thread.currentThread().interrupt()
-            workFailure?.let(contextFailure::addSuppressed)
-            logExecutionContextFailure(ExecutionContextPhase.CALL)
-            throw contextFailure
-        }
-        workFailure?.let { throw it }
-        contextFailure?.let { failure ->
-            logExecutionContextFailure(ExecutionContextPhase.CALL)
-            throw failure
-        }
-        if (!work.wasInvoked()) {
-            logExecutionContextFailure(ExecutionContextPhase.CALL)
-            throw IllegalStateException("execution context did not invoke work")
-        }
-        work.replay()
-    }
+    return Callable { callWithinExecutionContext(work, wrapped) }
 }
 
 private fun <T> DecisionObservation.wrapSafely(work: Callable<T>): InstrumentedDecisionWork<T> {
     val once = OnceCallable(work)
     val deferred = DeferredCallable(once)
     val wrapped = try {
-        requireNotNull(wrap(deferred))
+        requireJavaSpiResult(wrap(deferred))
     } catch (error: Exception) {
         if (error is InterruptedException) throw error
         logInstrumentationFailure(InstrumentationHook.WRAP)
         deferred
     }
-    return object : InstrumentedDecisionWork<T> {
-        override fun call(): T {
-            var wrapperFailure: Exception? = null
-            try {
-                wrapped.call()
-            } catch (error: Exception) {
-                if (error is InterruptedException && !once.wasInvoked()) throw error
-                wrapperFailure = error
-            }
-            val workFailure = once.failure()
-            if (!once.wasInvoked() || wrapperFailure != null && wrapperFailure !== workFailure ||
-                wrapperFailure == null && workFailure != null
-            ) {
-                logInstrumentationFailure(InstrumentationHook.WRAPPED_WORK)
-            }
-            if (wrapperFailure is InterruptedException && wrapperFailure !== workFailure) {
-                Thread.currentThread().interrupt()
-            }
-            return deferred.call()
-        }
-
-        override fun arm() = deferred.arm()
-        override fun wasInvoked(): Boolean = once.wasInvoked()
-        override fun failure(): Throwable? = once.failure()
-        override fun replay(): T = once.call()
-    }
+    return GuardedInstrumentedDecisionWork(once, deferred, wrapped)
 }
+
+private fun <T> callWithinExecutionContext(
+    work: InstrumentedDecisionWork<T>,
+    wrapped: Callable<T>,
+): T {
+    val contextFailure = try {
+        wrapped.call()
+        null
+    } catch (error: Throwable) {
+        error
+    }
+    val workFailure = work.failure()
+    // Preserve provider fatality; otherwise a carrier Error must outrank ordinary failures.
+    if (workFailure is Error) {
+        if (contextFailure is Error && contextFailure !== workFailure) {
+            workFailure.addSuppressed(contextFailure)
+        }
+        throw workFailure
+    }
+    if (contextFailure is Error) {
+        // The fatal wrapper wins, but consumed interruption still belongs to this thread.
+        if (workFailure is InterruptedException) Thread.currentThread().interrupt()
+        workFailure?.let(contextFailure::addSuppressed)
+        logExecutionContextFailure(ExecutionContextPhase.CALL)
+        throw contextFailure
+    }
+    workFailure?.let { throw it }
+    contextFailure?.let { failure ->
+        logExecutionContextFailure(ExecutionContextPhase.CALL)
+        throw failure
+    }
+    if (!work.wasInvoked()) {
+        logExecutionContextFailure(ExecutionContextPhase.CALL)
+        throw IllegalStateException("execution context did not invoke work")
+    }
+    return work.replay()
+}
+
+private class GuardedInstrumentedDecisionWork<T>(
+    private val once: OnceCallable<T>,
+    private val deferred: DeferredCallable<T>,
+    private val wrapped: Callable<T>,
+) : InstrumentedDecisionWork<T> {
+    override fun call(): T {
+        var wrapperFailure: Exception? = null
+        try {
+            wrapped.call()
+        } catch (error: Exception) {
+            if (error is InterruptedException && !once.wasInvoked()) throw error
+            wrapperFailure = error
+        }
+        val workFailure = once.failure()
+        if (!once.wasInvoked() || wrapperFailure != null && wrapperFailure !== workFailure ||
+            wrapperFailure == null && workFailure != null
+        ) {
+            logInstrumentationFailure(InstrumentationHook.WRAPPED_WORK)
+        }
+        if (wrapperFailure is InterruptedException && wrapperFailure !== workFailure) {
+            Thread.currentThread().interrupt()
+        }
+        return deferred.call()
+    }
+
+    override fun arm() = deferred.arm()
+    override fun wasInvoked(): Boolean = once.wasInvoked()
+    override fun failure(): Throwable? = once.failure()
+    override fun replay(): T = once.call()
+}
+
+// Kotlin contracts are non-null, but Java implementations can still violate the SPI boundary.
+private fun <T : Any> requireJavaSpiResult(value: T?): T = requireNotNull(value)
 
 private class DeferredCallable<T>(private val work: Callable<T>) : Callable<T> {
     private val armed = AtomicBoolean()

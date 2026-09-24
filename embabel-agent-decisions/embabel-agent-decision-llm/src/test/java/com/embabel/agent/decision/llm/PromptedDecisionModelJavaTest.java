@@ -126,7 +126,7 @@ class PromptedDecisionModelJavaTest {
         assertThat(yesOutcome).isInstanceOf(KeyOutcome.Success.class);
         assertThat(choiceOutcome).isInstanceOf(KeyOutcome.Success.class);
         assertThat(ratingOutcome).isInstanceOf(KeyOutcome.Success.class);
-        assertThat(((KeyOutcome.Success<?>) yesOutcome).getValue()).isEqualTo(true);
+        assertThat((Boolean) ((KeyOutcome.Success<?>) yesOutcome).getValue()).isTrue();
         assertThat(((KeyOutcome.Success<?>) choiceOutcome).getValue()).isEqualTo("revise-value");
         assertThat(((KeyOutcome.Success<?>) ratingOutcome).getValue()).isEqualTo(2);
     }

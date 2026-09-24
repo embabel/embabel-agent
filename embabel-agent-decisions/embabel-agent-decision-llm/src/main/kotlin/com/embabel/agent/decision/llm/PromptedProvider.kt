@@ -23,9 +23,12 @@ import com.embabel.agent.decision.api.PreparedDecisionRequest
 import com.embabel.agent.decision.api.RawDecisionOutcome
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.loop.LlmMessageRequest
+import com.embabel.agent.spi.loop.LlmMessageResponse
+import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.NativeStructuredOutputRequest
 import com.embabel.agent.spi.loop.RequestAwareLlmMessageSender
 import com.embabel.agent.spi.loop.StructuredOutputRequest
+import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions
 import java.io.InterruptedIOException
 import java.net.SocketTimeoutException
@@ -68,18 +71,7 @@ internal class PromptedProvider(
         if (!hasRemaining(request)) return deadlineFailure()
 
         val response = try {
-            request.event(DecisionTelemetryEvent.PROVIDER_ATTEMPT)
-            if (sender is RequestAwareLlmMessageSender) {
-                sender.call(
-                    LlmMessageRequest(
-                        messages,
-                        emptyList(),
-                        NativeStructuredOutputRequest(StructuredOutputRequest("decision_response", schema)),
-                    ),
-                )
-            } else {
-                sender.call(messages, emptyList())
-            }
+            send(request, sender, messages, schema)
         } catch (error: InterruptedException) {
             // The facade owns caller interrupt restoration and cancellation telemetry.
             throw error
@@ -100,6 +92,26 @@ internal class PromptedProvider(
             if (outcome.callFailure == CallFailure.RejectedRequest) {
                 request.event(DecisionTelemetryEvent.REJECTION)
             }
+        }
+    }
+
+    private fun send(
+        request: PreparedDecisionRequest,
+        sender: LlmMessageSender,
+        messages: List<Message>,
+        schema: String,
+    ): LlmMessageResponse {
+        request.event(DecisionTelemetryEvent.PROVIDER_ATTEMPT)
+        return if (sender is RequestAwareLlmMessageSender) {
+            sender.call(
+                LlmMessageRequest(
+                    messages,
+                    emptyList(),
+                    NativeStructuredOutputRequest(StructuredOutputRequest("decision_response", schema)),
+                ),
+            )
+        } else {
+            sender.call(messages, emptyList())
         }
     }
 
