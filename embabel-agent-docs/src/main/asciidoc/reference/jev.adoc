@@ -82,9 +82,13 @@ flowchart LR
 ----
 
 `JevClients.create` accepts an optional `RestClient.Builder` and an `ObservationRegistry`.
-It clones the supplied builder, preserving its transport, interceptors, proxy and TLS configuration.
+For manual factory use, it clones the supplied builder, preserving its transport, interceptors,
+proxy, TLS configuration and HTTP observation registry. The supplied `ObservationRegistry` controls
+the logical Jev observations and, when no builder is supplied, the fallback HTTP client.
 Spring first selects the `aiModelRestClientBuilder` bean, then the only `RestClient.Builder` bean;
-if neither is available it uses the fallback transport.
+if neither is available it uses the fallback transport. When a unique application
+`ObservationRegistry` bean is present, Spring clones the selected builder and attaches that registry
+before creating the client. The shared builder remains unchanged.
 The application owns that transport's timeouts and redirect policy: the Jev timeout options apply only
 to the fallback transport. Without a supplied builder, the fallback uses 10-second connect and read
 timeouts and does not follow redirects. Timeouts are not a hard end-to-end deadline.
@@ -97,9 +101,16 @@ trailing content; it does not inherit application Jackson modules. Convert custo
 JSON-compatible values in a `Map` or `JsonContent` before passing it to the SDK if application-specific
 serialization is required. Do not mutate state, questions or nested collections during a call.
 
-Embabel's logical Jev observations use controlled metadata and sanitized failures. Application HTTP
-observations, interceptors and status handlers have their own access to URLs, headers and payloads;
-the application owns their privacy policy. Avoid logging raw requests, responses or SDK exceptions.
+The logical `embabel.jev.request` observation opens a scope around each call, parenting nested
+`http.client.requests` observations. Metrics and traces require the corresponding observation
+handlers and exporters on the registry; the registry alone does not export them.
+Embabel's own observation tags and log fields use bounded values and sanitized failures.
+Application HTTP instrumentation, interceptors and status handlers have their own access to URLs,
+headers and payloads; the application owns their instrumentation and redaction policy.
+Avoid logging raw requests, responses or SDK exceptions.
+
+Calls are synchronous. A caller or framework may invoke them from Java 21 virtual threads and owns
+that thread's lifecycle.
 
 Native SDK response objects are not a persistence or replay format. Map the fields you need into an
 application-owned versioned record. The SDK's batch helpers, including `systemOneAll`, are unsupported
