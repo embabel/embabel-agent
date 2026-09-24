@@ -15,25 +15,34 @@
  */
 package com.embabel.agent.jev.api;
 
-import org.junit.jupiter.api.Test;
-import java.util.Map;
-import org.springaicommunity.typesafe.question.Noul;
-import org.springframework.web.client.RestClient;
-import org.springframework.test.web.client.MockRestServiceServer;
-import org.springframework.http.MediaType;
+import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
-import static org.assertj.core.api.Assertions.*;
+
+import org.junit.jupiter.api.Test;
+import org.springaicommunity.typesafe.question.Noul;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient;
+
+import java.util.Map;
 
 class JevClientsTest {
-    @Test void nativeNoul() {
+    @Test
+    void nativeNoul() {
         var builder = RestClient.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo("https://api.typesafe.ai/v1/systemone"))
-            .andExpect(header("Authorization", "Bearer rotating-key"))
-            .andRespond(withSuccess("{\"answers\":{\"ok\":{\"type\":\"noul\",\"noul\":0.8}}}", MediaType.APPLICATION_JSON));
+                .andExpect(header("Authorization", "Bearer rotating-key"))
+                .andRespond(
+                        withSuccess(
+                                """
+                                {"answers":{"ok":{"type":"noul","noul":0.8}}}
+                                """,
+                                MediaType.APPLICATION_JSON));
         var client = JevClients.create(JevClientOptions.defaults(), () -> "rotating-key", builder);
-        assertThat(client.systemOne("state", Map.of("ok", Noul.of("ok?"))).noulValue("ok")).isEqualTo(0.8);
+        assertThat(client.systemOne("state", Map.of("ok", Noul.of("ok?"))).noulValue("ok"))
+                .isEqualTo(0.8);
         server.verify();
     }
 }
