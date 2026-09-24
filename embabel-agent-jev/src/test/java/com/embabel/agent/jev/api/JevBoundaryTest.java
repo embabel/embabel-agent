@@ -28,6 +28,7 @@ import com.sun.net.httpserver.HttpServer;
 
 import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;
@@ -407,6 +408,40 @@ class JevBoundaryTest {
                             assertThat(c.getHighCardinalityKeyValues()).isEmpty();
                             assertThat(c.getError()).isNull();
                         });
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void suppliedBuilderRetainsHttpObservationsWhenJevUsesNoopRegistry(boolean success) {
+        var meters = new SimpleMeterRegistry();
+        try {
+            var httpRegistry = ObservationRegistry.create();
+            httpRegistry
+                    .observationConfig()
+                    .observationHandler(new DefaultMeterObservationHandler(meters));
+            var builder = RestClient.builder().observationRegistry(httpRegistry);
+            var server = MockRestServiceServer.bindTo(builder).build();
+            // This overload uses NOOP for Jev while retaining the builder's HTTP registry.
+            var client =
+                    JevClients.create(JevClientOptions.defaults(), () -> "PRIVATE_KEY", builder);
+            var expectation = server.expect(anything());
+            if (success) {
+                expectation.andRespond(withSuccess(GOOD, MediaType.APPLICATION_JSON));
+                call(client);
+            } else {
+                expectation.andRespond(
+                        withStatus(HttpStatus.SERVICE_UNAVAILABLE).body("PRIVATE_BODY"));
+                assertThatThrownBy(() -> call(client)).isInstanceOf(TypeSafeApiException.class);
+            }
+            var httpTimer = meters.get("http.client.requests").timer();
+            assertThat(httpTimer.count()).isEqualTo(1);
+            assertThat(httpTimer.getId().getTag("status")).isEqualTo(success ? "200" : "503");
+            assertThat(meters.find("embabel.jev.request").meters()).isEmpty();
+            assertThat(httpRegistry.getCurrentObservation()).isNull();
+            server.verify();
+        } finally {
+            meters.close();
+        }
     }
 
     @ParameterizedTest
