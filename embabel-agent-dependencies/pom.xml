@@ -25,6 +25,30 @@
     <dependencyManagement>
         <dependencies>
             <dependency>
+                <groupId>org.springaicommunity</groupId>
+                <artifactId>typesafe-java-sdk</artifactId>
+                <version>0.2.0</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-jev</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-jev-autoconfigure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-starter-jev</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
                 <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-api</artifactId>
                 <version>${project.version}</version>
