@@ -86,8 +86,7 @@ class JevAutoConfigurationTest {
                             assertThat(context).hasSingleBean(TypeSafeClient.class);
                             var properties = context.getBean(JevProperties.class);
                             assertThat(properties.model()).isEqualTo("jev-latest");
-                            assertThat(properties.baseUri().toString())
-                                    .isEqualTo("https://api.typesafe.ai");
+                            assertThat(properties.baseUri()).hasToString("https://api.typesafe.ai");
                             assertThat(properties.connectTimeout())
                                     .isEqualTo(Duration.ofSeconds(10));
                             assertThat(properties.readTimeout()).isEqualTo(Duration.ofSeconds(10));
@@ -249,27 +248,24 @@ class JevAutoConfigurationTest {
                 }) {
             var builder =
                     RestClient.builder()
-                            .messageConverters(
+                            .configureMessageConverters(
                                     converters ->
-                                            converters.addFirst(
-                                                    new JacksonJsonHttpMessageConverter()));
+                                            converters
+                                                    .registerDefaults()
+                                                    .withJsonConverter(
+                                                            new JacksonJsonHttpMessageConverter()));
             var server = MockRestServiceServer.bindTo(builder).build();
             server.expect(requestTo(SYSTEM_ONE_URI))
                     .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
             enabled()
                     .withBean(RestClient.Builder.class, () -> builder)
                     .run(
-                            context ->
-                                    assertThatThrownBy(
-                                                    () ->
-                                                            context.getBean(TypeSafeClient.class)
-                                                                    .systemOne(
-                                                                            "state",
-                                                                            Map.of(
-                                                                                    "ok",
-                                                                                    Noul.of(
-                                                                                            "ok?"))))
-                                            .isInstanceOf(RuntimeException.class));
+                            context -> {
+                                var client = context.getBean(TypeSafeClient.class);
+                                var questions = Map.of("ok", Noul.of("ok?"));
+                                assertThatThrownBy(() -> client.systemOne("state", questions))
+                                        .isInstanceOf(RuntimeException.class);
+                            });
             server.verify();
         }
     }

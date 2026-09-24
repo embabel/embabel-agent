@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.jev.internal;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
@@ -26,59 +28,80 @@ import java.util.Objects;
 
 /** Streaming limit for both declared and chunked response bodies. */
 final class BoundedResponse {
+    private static final Logger logger = LoggerFactory.getLogger(BoundedResponse.class);
+
     private BoundedResponse() {}
 
     static ClientHttpRequestInterceptor interceptor(int maximumBytes) {
-        return (request, body, execution) -> {
-            ClientHttpResponse response = execution.execute(request, body);
-            // Leave the body unopened until decoding: HTTP failures need only their status.
-            return new ClientHttpResponse() {
-                private InputStream limited;
+        return (request, body, execution) ->
+                new LimitedResponse(execution.execute(request, body), maximumBytes);
+    }
 
-                @Override
-                public HttpStatusCode getStatusCode() throws IOException {
-                    return response.getStatusCode();
-                }
+    private static final class LimitedResponse implements ClientHttpResponse {
+        private final ClientHttpResponse response;
+        private final int maximumBytes;
+        private InputStream limited;
 
-                @Override
-                public String getStatusText() throws IOException {
-                    return response.getStatusText();
-                }
+        private LimitedResponse(ClientHttpResponse response, int maximumBytes) {
+            this.response = response;
+            this.maximumBytes = maximumBytes;
+        }
 
-                @Override
-                public HttpHeaders getHeaders() {
-                    return response.getHeaders();
-                }
+        @Override
+        public HttpStatusCode getStatusCode() throws IOException {
+            return response.getStatusCode();
+        }
 
-                @Override
-                public InputStream getBody() throws IOException {
-                    if (limited == null) {
-                        if (response.getHeaders().getContentLength() > maximumBytes) {
-                            throw exceeded();
-                        }
-                        limited = bounded(response.getBody(), maximumBytes);
-                    }
-                    return limited;
-                }
+        @Override
+        public String getStatusText() throws IOException {
+            return response.getStatusText();
+        }
 
-                @Override
-                public void close() {
-                    // Close before delegating: URLConnection response cleanup otherwise drains
-                    // unread bytes, defeating early rejection of oversized and error responses.
-                    try {
-                        (limited != null ? limited : response.getBody()).close();
-                    } catch (IOException | RuntimeException ignored) {
-                        // Cleanup must not replace the primary failure or expose transport data.
-                    } finally {
-                        try {
-                            response.close();
-                        } catch (RuntimeException ignored) {
-                            // Preserve the result even when an application transport cannot close.
-                        }
-                    }
+        @Override
+        public HttpHeaders getHeaders() {
+            return response.getHeaders();
+        }
+
+        @Override
+        public InputStream getBody() throws IOException {
+            if (limited == null) {
+                if (response.getHeaders().getContentLength() > maximumBytes) {
+                    throw exceeded();
                 }
-            };
-        };
+                limited = bounded(response.getBody(), maximumBytes);
+            }
+            return limited;
+        }
+
+        @Override
+        public void close() {
+            // Close the raw stream first so URLConnection cannot drain a rejected body.
+            try {
+                closeBody();
+            } finally {
+                closeResponse();
+            }
+        }
+
+        private void closeResponse() {
+            try {
+                response.close();
+            } catch (RuntimeException ignored) {
+                logger.debug("Jev response cleanup failed");
+            }
+        }
+
+        private void closeBody() {
+            try {
+                InputStream body = limited;
+                if (body == null) {
+                    body = response.getBody();
+                }
+                body.close();
+            } catch (IOException | RuntimeException ignored) {
+                logger.debug("Jev response body cleanup failed");
+            }
+        }
     }
 
     private static InputStream bounded(InputStream source, int maximumBytes) {
@@ -101,8 +124,11 @@ final class BoundedResponse {
                     return 0;
                 }
                 int count = source.read(bytes, offset, (int) Math.min(length, remaining + 1));
-                if (count > 0 && (remaining -= count) < 0) {
-                    throw exceeded();
+                if (count > 0) {
+                    remaining -= count;
+                    if (remaining < 0) {
+                        throw exceeded();
+                    }
                 }
                 return count;
             }
