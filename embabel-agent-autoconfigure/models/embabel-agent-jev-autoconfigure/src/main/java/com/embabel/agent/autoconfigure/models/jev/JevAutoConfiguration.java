@@ -50,10 +50,15 @@ public class JevAutoConfiguration {
         if (builder == null) {
             builder = builders.getIfUnique();
         }
+        var registry = registries.getIfUnique();
+        if (builder != null && registry != null) {
+            // Shared platform builders need the application's HTTP observations without mutation.
+            builder = builder.clone().observationRegistry(registry);
+        }
         var options = new JevClientOptions(properties.baseUri(), properties.model(),
                 properties.connectTimeout(), properties.readTimeout(), properties.maxResponseBytes());
         return JevClients.create(options, () -> requireApiKey(properties, environment), builder,
-                registries.getIfUnique(() -> ObservationRegistry.NOOP));
+                registry != null ? registry : ObservationRegistry.NOOP);
     }
 
     private static String requireApiKey(JevProperties properties, Environment environment) {

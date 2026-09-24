@@ -131,20 +131,26 @@ class JevAutoConfigurationTest {
         verifyNoInteractions(one, two);
     }
 
-    @Test void applicationObservationRegistryIsUsed() {
+    @ParameterizedTest
+    @ValueSource(strings = {"aiModelRestClientBuilder", "restClientBuilder"})
+    void applicationObservationRegistryIsUsedWithoutMutatingSharedBuilder(String builderName) {
         var registry = ObservationRegistry.create();
         var observations = new ArrayList<String>();
         registry.observationConfig().observationHandler(new ObservationHandler<Observation.Context>() {
             public boolean supportsContext(Observation.Context context) { return true; }
             public void onStop(Observation.Context context) { observations.add(context.getName()); }
         });
-        var builder = RestClient.builder().observationRegistry(registry);
+        var builder = RestClient.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo("https://api.typesafe.ai/v1/systemone")).andRespond(withSuccess(RESPONSE, MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://application.example/unrelated")).andRespond(withSuccess("unrelated", MediaType.TEXT_PLAIN));
         enabled().withBean(ObservationRegistry.class, () -> registry)
-                .withBean(RestClient.Builder.class, () -> builder)
+                .withBean(builderName, RestClient.Builder.class, () -> builder)
                 .run(context -> context.getBean(TypeSafeClient.class).systemOne("state", Map.of("ok", Noul.of("ok?"))));
         assertThat(observations).contains("embabel.jev.request", "http.client.requests");
+        int count = observations.size();
+        assertThat(builder.build().get().uri("https://application.example/unrelated").retrieve().body(String.class)).isEqualTo("unrelated");
+        assertThat(observations).hasSize(count);
         server.verify();
     }
 
