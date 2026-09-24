@@ -83,14 +83,16 @@ flowchart LR
 
 `JevClients.create` accepts an optional `RestClient.Builder` and an `ObservationRegistry`.
 It clones the supplied builder, preserving its transport, interceptors, proxy and TLS configuration.
-Spring first selects the `aiModelRestClientBuilder` bean, then a unique unqualified builder;
+Spring first selects the `aiModelRestClientBuilder` bean, then the only `RestClient.Builder` bean;
 if neither is available it uses the fallback transport.
 The application owns that transport's timeouts and redirect policy: the Jev timeout options apply only
 to the fallback transport. Without a supplied builder, the fallback uses 10-second connect and read
 timeouts and does not follow redirects. Timeouts are not a hard end-to-end deadline.
 Retries are fixed off with `RetryPolicy.noRetry()`.
 
-Responses are bounded to 1 MiB by default. A private strict JSON mapper rejects duplicate fields and
+Jev decoding reads at most 1 MiB of each response by default. Supplied request factories or
+interceptors may buffer or read the response before this bound applies; those components remain
+application-owned. A private strict JSON mapper rejects duplicate fields and
 trailing content; it does not inherit application Jackson modules. Convert custom state into ordinary
 JSON-compatible values in a `Map` or `JsonContent` before passing it to the SDK if application-specific
 serialization is required. Do not mutate state, questions or nested collections during a call.
