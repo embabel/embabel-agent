@@ -59,6 +59,8 @@ include::customizing/page.adoc[]
 
 include::integrations/page.adoc[]
 
+include::jev.adoc[]
+
 include::tooling/page.adoc[]
 
 include::agent_skills/page.adoc[]
