@@ -7,6 +7,14 @@ Embabel configures the native `TypeSafeClient` from `org.springaicommunity:types
 Requests, answers, model identity, usage and request identifiers remain SDK types.
 This integration does not introduce a `DecisionModel`, a `ChatModel`, or a selection policy.
 
+==== Relationship to Embabel model APIs
+
+The native `TypeSafeClient` is a provider client, not an Embabel model abstraction, so this module
+does not implement `ModelMetadata` or register the client with `ModelProvider`. A later model-layer
+change can build on these primitives with a `DecisionModel` that participates in Embabel model
+metadata and exposes classification through a narrower capability. Keeping that layer separate
+lets applications use Jev now without making the provider SDK define the framework model contract.
+
 ==== Dependencies and Spring setup
 
 Use `com.embabel.agent:embabel-agent-starter-jev` in a Spring Boot application.
@@ -102,8 +110,9 @@ JSON-compatible values in a `Map` or `JsonContent` before passing it to the SDK 
 serialization is required. Do not mutate state, questions or nested collections during a call.
 
 The logical `embabel.jev.request` observation opens a scope around each call.
-Nested HTTP observations are children of the Jev observation when both use the same registry. Metrics and traces require the corresponding observation
-handlers and exporters on the registry; the registry alone does not export them.
+Nested HTTP observations are children of the Jev observation when both use the same registry.
+Metrics and traces require the corresponding observation handlers and exporters on the registry;
+the registry alone does not export them.
 Embabel's own observation tags and log fields use bounded values and sanitized failures.
 Application HTTP instrumentation, interceptors and status handlers have their own access to URLs,
 headers and payloads; the application owns their instrumentation and redaction policy.
