@@ -658,6 +658,7 @@ class JevBoundaryTest {
                     .allSatisfy(
                             meter ->
                                     assertThat(meter.getId().getTags())
+                                            .isNotEmpty()
                                             .allSatisfy(
                                                     tag -> {
                                                         assertThat(tag.getKey())
