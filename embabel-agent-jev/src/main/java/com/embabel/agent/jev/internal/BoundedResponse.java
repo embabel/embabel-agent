@@ -102,42 +102,42 @@ final class BoundedResponse {
                 logger.debug("Jev response body cleanup failed");
             }
         }
-    }
 
-    private static InputStream bounded(InputStream source, int maximumBytes) {
-        return new InputStream() {
-            private long remaining = maximumBytes;
+        private static InputStream bounded(InputStream source, int maximumBytes) {
+            return new InputStream() {
+                private long remaining = maximumBytes;
 
-            @Override
-            public int read() throws IOException {
-                int value = source.read();
-                if (value != -1 && --remaining < 0) {
-                    throw exceeded();
-                }
-                return value;
-            }
-
-            @Override
-            public int read(byte[] bytes, int offset, int length) throws IOException {
-                Objects.checkFromIndexSize(offset, length, bytes.length);
-                if (length == 0) {
-                    return 0;
-                }
-                int count = source.read(bytes, offset, (int) Math.min(length, remaining + 1));
-                if (count > 0) {
-                    remaining -= count;
-                    if (remaining < 0) {
+                @Override
+                public int read() throws IOException {
+                    int value = source.read();
+                    if (value != -1 && --remaining < 0) {
                         throw exceeded();
                     }
+                    return value;
                 }
-                return count;
-            }
 
-            @Override
-            public void close() throws IOException {
-                source.close();
-            }
-        };
+                @Override
+                public int read(byte[] bytes, int offset, int length) throws IOException {
+                    Objects.checkFromIndexSize(offset, length, bytes.length);
+                    if (length == 0) {
+                        return 0;
+                    }
+                    int count = source.read(bytes, offset, (int) Math.min(length, remaining + 1));
+                    if (count > 0) {
+                        remaining -= count;
+                        if (remaining < 0) {
+                            throw exceeded();
+                        }
+                    }
+                    return count;
+                }
+
+                @Override
+                public void close() throws IOException {
+                    source.close();
+                }
+            };
+        }
     }
 
     private static IOException exceeded() {
