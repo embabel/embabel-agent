@@ -160,7 +160,7 @@ public final class GuardedJevApi extends TypeSafeApi {
                     }
                     for (Answer answer : response.getBody().answers().values()) {
                         switch (answer) {
-                            case NoulAnswer n -> probability(n.value());
+                            case NoulAnswer(double value) -> probability(value);
                             case ChoiceAnswer c -> {
                                 probability(c.confidence());
                                 c.probabilities().values().forEach(GuardedJevApi::probability);
@@ -172,7 +172,8 @@ public final class GuardedJevApi extends TypeSafeApi {
                                 probability(s.confidence());
                                 s.probabilities().values().forEach(GuardedJevApi::probability);
                             }
-                            case UnknownAnswer ignored -> {}
+                            case UnknownAnswer ignored ->
+                                    logger.debug("Jev response contains an unknown answer type");
                             case null ->
                                     throw new IllegalArgumentException(
                                             "Jev answer must not be null");
@@ -220,19 +221,11 @@ public final class GuardedJevApi extends TypeSafeApi {
         } catch (SafeHttpFailure failure) {
             family = failure.status() / 100 + "xx";
             throw failure;
-        } catch (RuntimeException failure) {
-            if (failure instanceof RestClientException) {
-                for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
-                    if (cause instanceof SocketTimeoutException
-                            || cause instanceof HttpTimeoutException) {
-                        throw new TypeSafeApiTimeoutException(
-                                "Jev transport timed out", null, null);
-                    }
-                }
-                if (failure instanceof ResourceAccessException) {
-                    throw new TypeSafeApiConnectionException("Jev connection failed", null);
-                }
-            }
+        } catch (ResourceAccessException failure) {
+            throw safeFailure(failure);
+        } catch (RestClientException failure) {
+            throw safeFailure(failure);
+        } catch (RuntimeException ignored) {
             throw new TypeSafeException("Jev request or response invalid");
         } finally {
             observation
@@ -244,6 +237,31 @@ public final class GuardedJevApi extends TypeSafeApi {
         }
     }
 
+    private static TypeSafeException safeFailure(ResourceAccessException failure) {
+        if (causedByTimeout(failure)) {
+            return new TypeSafeApiTimeoutException("Jev transport timed out", null, null);
+        }
+        return new TypeSafeApiConnectionException("Jev connection failed", null);
+    }
+
+    private static TypeSafeException safeFailure(RestClientException failure) {
+        if (causedByTimeout(failure)) {
+            return new TypeSafeApiTimeoutException("Jev transport timed out", null, null);
+        }
+        return new TypeSafeException("Jev request or response invalid");
+    }
+
+    private static boolean causedByTimeout(Throwable failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SocketTimeoutException || cause instanceof HttpTimeoutException) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Extends the SDK exception so callers retain status without response content.
+    @SuppressWarnings("java:S110")
     private static final class SafeHttpFailure extends TypeSafeApiException {
         @Serial private static final long serialVersionUID = 1L;
 
