@@ -15,37 +15,97 @@
  */
 package com.embabel.agent.jev.api;
 
-import java.net.URI;
-import java.time.Duration;
 import org.jetbrains.annotations.ApiStatus.Experimental;
 
-/** Non-secret options. Timeouts apply to the fallback transport, not a global deadline. */
+import java.net.URI;
+import java.time.Duration;
+import java.util.Set;
+
+/**
+ * Non-secret settings for a synchronous native Jev client.
+ *
+ * <p>Timeouts configure only the fallback transport. A supplied transport owns its timeouts;
+ * neither configuration establishes a global request deadline.
+ *
+ * @param baseUri HTTPS origin without user information, query, fragment or non-root path; HTTP is
+ *     allowed only for localhost, 127.0.0.1 and ::1
+ * @param model nonblank default model, supplied explicitly to the SDK without environment fallback
+ * @param connectTimeout fallback connection timeout, from one millisecond to Integer.MAX_VALUE
+ *     milliseconds
+ * @param readTimeout fallback socket read timeout, with the same limits as connectTimeout
+ * @param maxResponseBytes positive byte limit for Jev response decoding; application-owned
+ *     buffering/interceptors may read before this limit applies
+ */
 @Experimental
-public record JevClientOptions(URI baseUri, String model, Duration connectTimeout,
-                               Duration readTimeout, int maxResponseBytes) {
+public record JevClientOptions(
+        URI baseUri,
+        String model,
+        Duration connectTimeout,
+        Duration readTimeout,
+        int maxResponseBytes) {
+    private static final URI DEFAULT_BASE_URI = URI.create("https://api.typesafe.ai");
+    private static final String DEFAULT_MODEL = "jev-latest";
+    private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(10);
+    private static final int DEFAULT_RESPONSE_BYTES = 1024 * 1024;
+    private static final Duration MIN_TIMEOUT = Duration.ofMillis(1);
+    private static final Duration MAX_TIMEOUT = Duration.ofMillis(Integer.MAX_VALUE);
+    private static final Set<String> LOOPBACK_HOSTS = Set.of("localhost", "127.0.0.1", "[::1]");
+
+    /**
+     * Validates settings without resolving credentials or opening a connection.
+     *
+     * @throws IllegalArgumentException if the origin, model, timeout or response limit is invalid
+     */
     public JevClientOptions {
-        if (baseUri == null || baseUri.getHost() == null || baseUri.getUserInfo() != null
-                || baseUri.getQuery() != null || baseUri.getFragment() != null
-                || !(baseUri.getPath().isEmpty() || baseUri.getPath().equals("/"))
-                || !("https".equals(baseUri.getScheme()) || "http".equals(baseUri.getScheme())
-                && java.util.Set.of("localhost", "127.0.0.1", "[::1]").contains(baseUri.getHost()))) {
-            throw new IllegalArgumentException("Jev base URI must be an HTTPS origin (HTTP allowed on loopback)");
+        if (!isSafeOrigin(baseUri)) {
+            throw new IllegalArgumentException(
+                    "Jev base URI must be an HTTPS origin (HTTP allowed on loopback)");
         }
-        if (model == null || model.isBlank()) throw new IllegalArgumentException("Jev model must not be blank");
-        validTimeout(connectTimeout);
-        validTimeout(readTimeout);
-        if (maxResponseBytes < 1) throw new IllegalArgumentException("Jev response byte limit must be positive");
+        if (model == null || model.isBlank()) {
+            throw new IllegalArgumentException("Jev model must not be blank");
+        }
+        validateTimeout(connectTimeout);
+        validateTimeout(readTimeout);
+        if (maxResponseBytes < 1) {
+            throw new IllegalArgumentException("Jev response byte limit must be positive");
+        }
     }
 
-    private static void validTimeout(Duration timeout) {
-        if (timeout == null || timeout.isNegative() || timeout.isZero()
-                || timeout.compareTo(Duration.ofMillis(Integer.MAX_VALUE)) > 0 || timeout.toMillis() < 1) {
+    private static boolean isSafeOrigin(URI uri) {
+        if (uri == null
+                || uri.getHost() == null
+                || uri.getUserInfo() != null
+                || uri.getQuery() != null
+                || uri.getFragment() != null) {
+            return false;
+        }
+        boolean rootPath = uri.getPath().isEmpty() || uri.getPath().equals("/");
+        boolean allowedScheme =
+                "https".equals(uri.getScheme())
+                        || "http".equals(uri.getScheme()) && LOOPBACK_HOSTS.contains(uri.getHost());
+        return rootPath && allowedScheme;
+    }
+
+    private static void validateTimeout(Duration timeout) {
+        if (timeout == null
+                || timeout.compareTo(MIN_TIMEOUT) < 0
+                || timeout.compareTo(MAX_TIMEOUT) > 0) {
             throw new IllegalArgumentException("Jev timeout must be between 1ms and 2147483647ms");
         }
     }
 
+    /**
+     * Returns defaults targeting https://api.typesafe.ai with model jev-latest, ten-second fallback
+     * connect/read timeouts and a one-MiB response decoding limit.
+     *
+     * @return immutable defaults without a credential
+     */
     public static JevClientOptions defaults() {
-        return new JevClientOptions(URI.create("https://api.typesafe.ai"), "jev-latest",
-                Duration.ofSeconds(10), Duration.ofSeconds(10), 1024 * 1024);
+        return new JevClientOptions(
+                DEFAULT_BASE_URI,
+                DEFAULT_MODEL,
+                DEFAULT_TIMEOUT,
+                DEFAULT_TIMEOUT,
+                DEFAULT_RESPONSE_BYTES);
     }
 }

@@ -15,17 +15,18 @@
  */
 package com.embabel.agent.jev.internal;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Objects;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.ClientHttpResponse;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Objects;
+
 /** Streaming limit for both declared and chunked response bodies. */
 final class BoundedResponse {
-    private BoundedResponse() { }
+    private BoundedResponse() {}
 
     static ClientHttpRequestInterceptor interceptor(int maximumBytes) {
         return (request, body, execution) -> {
@@ -33,16 +34,34 @@ final class BoundedResponse {
             // Leave the body unopened until decoding: HTTP failures need only their status.
             return new ClientHttpResponse() {
                 private InputStream limited;
-                public HttpStatusCode getStatusCode() throws IOException { return response.getStatusCode(); }
-                public String getStatusText() throws IOException { return response.getStatusText(); }
-                public HttpHeaders getHeaders() { return response.getHeaders(); }
+
+                @Override
+                public HttpStatusCode getStatusCode() throws IOException {
+                    return response.getStatusCode();
+                }
+
+                @Override
+                public String getStatusText() throws IOException {
+                    return response.getStatusText();
+                }
+
+                @Override
+                public HttpHeaders getHeaders() {
+                    return response.getHeaders();
+                }
+
+                @Override
                 public InputStream getBody() throws IOException {
                     if (limited == null) {
-                        if (response.getHeaders().getContentLength() > maximumBytes) throw exceeded();
+                        if (response.getHeaders().getContentLength() > maximumBytes) {
+                            throw exceeded();
+                        }
                         limited = bounded(response.getBody(), maximumBytes);
                     }
                     return limited;
                 }
+
+                @Override
                 public void close() {
                     // Close before delegating: URLConnection response cleanup otherwise drains
                     // unread bytes, defeating early rejection of oversized and error responses.
@@ -65,21 +84,37 @@ final class BoundedResponse {
     private static InputStream bounded(InputStream source, int maximumBytes) {
         return new InputStream() {
             private long remaining = maximumBytes;
+
+            @Override
             public int read() throws IOException {
                 int value = source.read();
-                if (value != -1 && --remaining < 0) throw exceeded();
+                if (value != -1 && --remaining < 0) {
+                    throw exceeded();
+                }
                 return value;
             }
+
+            @Override
             public int read(byte[] bytes, int offset, int length) throws IOException {
                 Objects.checkFromIndexSize(offset, length, bytes.length);
-                if (length == 0) return 0;
+                if (length == 0) {
+                    return 0;
+                }
                 int count = source.read(bytes, offset, (int) Math.min(length, remaining + 1));
-                if (count > 0 && (remaining -= count) < 0) throw exceeded();
+                if (count > 0 && (remaining -= count) < 0) {
+                    throw exceeded();
+                }
                 return count;
             }
-            public void close() throws IOException { source.close(); }
+
+            @Override
+            public void close() throws IOException {
+                source.close();
+            }
         };
     }
 
-    private static IOException exceeded() { return new IOException("Jev response exceeds configured byte limit"); }
+    private static IOException exceeded() {
+        return new IOException("Jev response exceeds configured byte limit");
+    }
 }

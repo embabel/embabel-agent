@@ -15,77 +15,189 @@
  */
 package com.embabel.agent.jev.api;
 
-import com.sun.net.httpserver.HttpServer;
-import io.micrometer.observation.*;
-import java.net.*;
-import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.atomic.*;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.http.*;
-import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
-import org.springframework.test.web.client.MockRestServiceServer;
-import org.springframework.web.client.RestClient;
-import org.springaicommunity.typesafe.TypeSafeClient;
-import org.springaicommunity.typesafe.exception.*;
-import org.springaicommunity.typesafe.question.*;
-import org.springaicommunity.typesafe.response.UnknownAnswer;
 import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+
+import com.sun.net.httpserver.HttpServer;
+
+import io.micrometer.core.instrument.Tag;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationHandler;
+import io.micrometer.observation.ObservationRegistry;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.LoggerFactory;
+import org.springaicommunity.typesafe.JsonContent;
+import org.springaicommunity.typesafe.TypeSafeClient;
+import org.springaicommunity.typesafe.exception.TypeSafeApiConnectionException;
+import org.springaicommunity.typesafe.exception.TypeSafeApiException;
+import org.springaicommunity.typesafe.exception.TypeSafeApiTimeoutException;
+import org.springaicommunity.typesafe.exception.TypeSafeException;
+import org.springaicommunity.typesafe.question.Choice;
+import org.springaicommunity.typesafe.question.Noul;
+import org.springaicommunity.typesafe.question.Score;
+import org.springaicommunity.typesafe.response.UnknownAnswer;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
+import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
+import org.springframework.mock.http.client.MockClientHttpResponse;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
 class JevBoundaryTest {
-    static final String GOOD = "{\"answers\":{\"ok\":{\"type\":\"noul\",\"noul\":0.8}}}";
-    static void call(TypeSafeClient client) { client.systemOne("PRIVATE_STATE", Map.of("ok", Noul.of("PRIVATE_QUESTION"))); }
-    record Fixture(RestClient.Builder builder, MockRestServiceServer server, TypeSafeClient client) { }
-    Fixture fixture() {
-        var builder = RestClient.builder().messageConverters(c -> c.add(new JacksonJsonHttpMessageConverter()));
-        var server = MockRestServiceServer.bindTo(builder).build();
-        return new Fixture(builder, server, JevClients.create(JevClientOptions.defaults(), () -> "PRIVATE_KEY", builder));
+    static final String GOOD =
+            """
+            {"answers":{"ok":{"type":"noul","noul":0.8}}}
+            """;
+
+    static void call(TypeSafeClient client) {
+        client.systemOne("PRIVATE_STATE", Map.of("ok", Noul.of("PRIVATE_QUESTION")));
     }
-    @ParameterizedTest @ValueSource(strings = {
-        "{\"answers\":{\"ok\":{\"type\":\"noul\"}}}",
-        "{}", "{\"answers\":{}}", "null", "PRIVATE_BODY",
-        "{\"answers\":{\"ok\":{\"type\":\"noul\",\"noul\":0.1,\"noul\":0.9}}}",
-        GOOD + " {}",
-        "{\"answers\":{\"ok\":{\"type\":\"noul\",\"noul\":\"0.5\"}}}",
-        "{\"answers\":{\"ok\":{\"type\":\"noul\",\"noul\":1.1}}}",
-        "{\"answers\":{\"ok\":{\"type\":\"noul\",\"noul\":null}}}",
-        "{\"answers\":{\"ok\":{\"type\":\"score\",\"score\":1e999}}}",
-        "{\"answers\":{\"ok\":{\"type\":\"choice\",\"choice\":\"a\",\"probabilities\":{\"a\":-0.1}}}}"
-    })
+
+    record Fixture(
+            RestClient.Builder builder, MockRestServiceServer server, TypeSafeClient client) {}
+
+    Fixture fixture() {
+        var builder =
+                RestClient.builder()
+                        .configureMessageConverters(
+                                c ->
+                                        c.registerDefaults()
+                                                .withJsonConverter(
+                                                        new JacksonJsonHttpMessageConverter()));
+        var server = MockRestServiceServer.bindTo(builder).build();
+        return new Fixture(
+                builder,
+                server,
+                JevClients.create(JevClientOptions.defaults(), () -> "PRIVATE_KEY", builder));
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                """
+                {"answers":{"ok":{"type":"noul"}}}
+                """,
+                "{}",
+                """
+                {"answers":{}}
+                """,
+                "null",
+                "PRIVATE_BODY",
+                """
+                {"answers":{"ok":{"type":"noul","noul":0.1,"noul":0.9}}}
+                """,
+                GOOD + " {}",
+                """
+                {"answers":{"ok":{"type":"noul","noul":"0.5"}}}
+                """,
+                """
+                {"answers":{"ok":{"type":"noul","noul":1.1}}}
+                """,
+                """
+                {"answers":{"ok":{"type":"noul","noul":null}}}
+                """,
+                """
+                {"answers":{"ok":{"type":"score","score":1e999}}}
+                """,
+                """
+                {"answers":{"ok":{"type":"choice","choice":"a","probabilities":{"a":-0.1}}}}
+                """
+            })
     void strictPrivateFailures(String body) {
         var f = fixture();
-        f.server.expect(anything()).andRespond(withSuccess(body, MediaType.APPLICATION_JSON).header("x-typesafe-request-id", "PRIVATE_ID"));
-        assertThatThrownBy(() -> call(f.client)).isInstanceOf(TypeSafeException.class)
-            .hasMessage("Jev request or response invalid").hasNoCause().satisfies(e -> assertThat(e.getSuppressed()).isEmpty());
+        f.server
+                .expect(anything())
+                .andRespond(
+                        withSuccess(body, MediaType.APPLICATION_JSON)
+                                .header("x-typesafe-request-id", "PRIVATE_ID"));
+        assertThatThrownBy(() -> call(f.client))
+                .isInstanceOf(TypeSafeException.class)
+                .hasMessage("Jev request or response invalid")
+                .hasNoCause()
+                .satisfies(e -> assertThat(e.getSuppressed()).isEmpty());
         f.server.verify();
     }
-    @ParameterizedTest @ValueSource(ints = {301, 400, 401, 429, 503})
+
+    @ParameterizedTest
+    @ValueSource(ints = {301, 400, 401, 429, 503})
     void oneAttemptAndNoErrorBody(int status) {
         var f = fixture();
-        f.server.expect(anything()).andRespond(withStatus(HttpStatusCode.valueOf(status)).body("PRIVATE_BODY")
-            .header("x-typesafe-request-id", "PRIVATE_ID"));
-        assertThatThrownBy(() -> call(f.client)).isInstanceOfSatisfying(TypeSafeApiException.class, e -> {
-            assertThat(e.status()).isEqualTo(status); assertThat(e.body()).isNull(); assertThat(e.headers().isEmpty()).isTrue();
-            assertThat(e.endpoint()).isEmpty(); assertThat(e.getCause()).isNull(); assertThat(e.getMessage()).isEqualTo("Jev HTTP request failed");
-        });
+        f.server
+                .expect(anything())
+                .andRespond(
+                        withStatus(HttpStatusCode.valueOf(status))
+                                .body("PRIVATE_BODY")
+                                .header("x-typesafe-request-id", "PRIVATE_ID"));
+        assertThatThrownBy(() -> call(f.client))
+                .isInstanceOfSatisfying(
+                        TypeSafeApiException.class,
+                        e -> {
+                            assertThat(e.status()).isEqualTo(status);
+                            assertThat(e.body()).isNull();
+                            assertThat(e.headers().isEmpty()).isTrue();
+                            assertThat(e.endpoint()).isEmpty();
+                            assertThat(e.getCause()).isNull();
+                            assertThat(e.getMessage()).isEqualTo("Jev HTTP request failed");
+                        });
         f.server.verify();
     }
-    @Test void nativePrimitivesUsageAndForwardCompatibility() {
+
+    @Test
+    void nativePrimitivesUsageAndForwardCompatibility() {
         var f = fixture();
-        f.server.expect(anything()).andRespond(withSuccess("""
-            {"model":"jev-latest","usage":{"input_tokens":12,"output_tokens":3},"answers":{
-              "n":{"type":"noul","noul":0.8},
-              "c":{"type":"choice","choice":"b","probabilities":{"a":0.9,"b":0.1},"confidence":0.4},
-              "s":{"type":"score","score":7.3,"probabilities":{"0":0.8,"1":0.1},"confidence":0.4},
-              "future":{"type":"future","data":"preserved"}}}
-            """, MediaType.APPLICATION_JSON).header("x-typesafe-request-id", "request-123"));
-        var result = f.client.systemOne(Map.of("state", "hello"), Map.of("n", Noul.of("n?"),
-            "c", Choice.of("c?", "a", "b"), "s", Score.of("s?", "low", "high")));
+        f.server
+                .expect(anything())
+                .andRespond(
+                        withSuccess(
+                                        """
+                                        {"model":"jev-latest","usage":{"input_tokens":12,"output_tokens":3},"answers":{
+                                          "n":{"type":"noul","noul":0.8},
+                                          "c":{"type":"choice","choice":"b","probabilities":{"a":0.9,"b":0.1},"confidence":0.4},
+                                          "s":{"type":"score","score":7.3,"probabilities":{"0":0.8,"1":0.1},"confidence":0.4},
+                                          "future":{"type":"future","data":"preserved"}}}
+                                        """,
+                                        MediaType.APPLICATION_JSON)
+                                .header("x-typesafe-request-id", "request-123"));
+        var result =
+                f.client.systemOne(
+                        Map.of("state", "hello"),
+                        Map.of(
+                                "n",
+                                Noul.of("n?"),
+                                "c",
+                                Choice.of("c?", "a", "b"),
+                                "s",
+                                Score.of("s?", "low", "high")));
         assertThat(result.noulValue("n")).isEqualTo(0.8);
         assertThat(result.choiceValue("c")).isEqualTo("b");
         assertThat(result.scoreValue("s")).isEqualTo(7.3);
@@ -94,198 +206,631 @@ class JevBoundaryTest {
         assertThat(result.answer("future")).isInstanceOf(UnknownAnswer.class);
         f.server.verify();
     }
-    @Test void credentialsRotateAndCustomTransportIsPreserved() {
+
+    @Test
+    void credentialsRotateAndCustomTransportIsPreserved() {
         var builder = RestClient.builder();
         var seen = new AtomicInteger();
-        builder.requestInterceptor((request, body, execution) -> { seen.incrementAndGet(); return execution.execute(request, body); });
+        builder.requestInterceptor(
+                (request, body, execution) -> {
+                    seen.incrementAndGet();
+                    return execution.execute(request, body);
+                });
         var server = MockRestServiceServer.bindTo(builder).build();
         var key = new AtomicReference<>("one");
         var client = JevClients.create(JevClientOptions.defaults(), key::get, builder);
-        server.expect(anything()).andExpect(header("Authorization", "Bearer one")).andRespond(withSuccess(GOOD, MediaType.APPLICATION_JSON));
-        server.expect(anything()).andExpect(header("Authorization", "Bearer two")).andRespond(withSuccess(GOOD, MediaType.APPLICATION_JSON));
-        call(client); key.set("two"); call(client);
-        assertThat(seen).hasValue(2); server.verify();
+        server.expect(anything())
+                .andExpect(header("Authorization", "Bearer one"))
+                .andRespond(withSuccess(GOOD, MediaType.APPLICATION_JSON));
+        server.expect(anything())
+                .andExpect(header("Authorization", "Bearer two"))
+                .andRespond(withSuccess(GOOD, MediaType.APPLICATION_JSON));
+        call(client);
+        key.set("two");
+        call(client);
+        assertThat(seen).hasValue(2);
+        server.verify();
     }
-    @Test void interruptionMakesNoRequestAndPreservesFlag() {
+
+    @Test
+    void interruptionMakesNoRequestAndPreservesFlag() {
         var f = fixture();
         Thread.currentThread().interrupt();
-        try { assertThatThrownBy(() -> call(f.client)).isInstanceOf(CancellationException.class); assertThat(Thread.currentThread().isInterrupted()).isTrue(); }
-        finally { Thread.interrupted(); }
+        try {
+            assertThatThrownBy(() -> call(f.client)).isInstanceOf(CancellationException.class);
+            assertThat(Thread.currentThread().isInterrupted()).isTrue();
+        } finally {
+            Thread.interrupted();
+        }
         f.server.verify();
     }
-    @Test void arbitrarySupplierExceptionsAreNotTrusted() {
-        var client = JevClients.create(JevClientOptions.defaults(), () -> { throw new TypeSafeApiException("PRIVATE", 400, "PRIVATE", new HttpHeaders(), "PRIVATE"); });
-        assertThatThrownBy(() -> call(client)).hasMessage("Jev request or response invalid").hasNoCause();
+
+    @Test
+    void arbitrarySupplierExceptionsAreNotTrusted() {
+        var client =
+                JevClients.create(
+                        JevClientOptions.defaults(),
+                        () -> {
+                            throw new TypeSafeApiException(
+                                    "PRIVATE", 400, "PRIVATE", new HttpHeaders(), "PRIVATE");
+                        });
+        assertThatThrownBy(() -> call(client))
+                .hasMessage("Jev request or response invalid")
+                .hasNoCause();
     }
-    @Test void errorStatusNeverReadsResponseBody() {
+
+    @Test
+    void errorStatusNeverReadsResponseBody() {
         var f = fixture();
-        f.server.expect(anything()).andRespond(request -> new org.springframework.mock.http.client.MockClientHttpResponse(new byte[0], HttpStatus.SERVICE_UNAVAILABLE) {
-            @Override public java.io.InputStream getBody() {
-                return new java.io.InputStream() {
-                    public int read() { throw new AssertionError("Error body must not be read"); }
-                };
-            }
-            @Override public void close() { }
-        });
-        assertThatThrownBy(() -> call(f.client)).isInstanceOfSatisfying(TypeSafeApiException.class,
-                error -> assertThat(error.status()).isEqualTo(503));
+        f.server
+                .expect(anything())
+                .andRespond(
+                        request ->
+                                new MockClientHttpResponse(
+                                        new byte[0], HttpStatus.SERVICE_UNAVAILABLE) {
+                                    @Override
+                                    public InputStream getBody() {
+                                        return new InputStream() {
+                                            @Override
+                                            public int read() {
+                                                throw new AssertionError(
+                                                        "Error body must not be read");
+                                            }
+                                        };
+                                    }
+
+                                    @Override
+                                    public void close() {}
+                                });
+        assertThatThrownBy(() -> call(f.client))
+                .isInstanceOfSatisfying(
+                        TypeSafeApiException.class,
+                        error -> assertThat(error.status()).isEqualTo(503));
     }
-    record DatedState(java.time.LocalDate date) { }
-    @Test void privateMapperHandlesJavaTimePojoState() {
+
+    record DatedState(LocalDate date) {}
+
+    @Test
+    void privateMapperHandlesJavaTimePojoState() {
         var f = fixture();
-        f.server.expect(anything()).andExpect(content().string(org.hamcrest.Matchers.containsString("2026-09-24")))
+        f.server
+                .expect(anything())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("2026-09-24")))
                 .andRespond(withSuccess(GOOD, MediaType.APPLICATION_JSON));
-        var response = f.client.systemOne(org.springaicommunity.typesafe.JsonContent.of(
-                new DatedState(java.time.LocalDate.of(2026, 9, 24))), Map.of("ok", Noul.of("ok?")));
+        var response =
+                f.client.systemOne(
+                        JsonContent.of(new DatedState(LocalDate.of(2026, 9, 24))),
+                        Map.of("ok", Noul.of("ok?")));
         assertThat(response.noulValue("ok")).isEqualTo(0.8);
         f.server.verify();
     }
-    @Test void logsNeverRetainPrivateFailures() {
-        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger("com.embabel.agent.jev.internal.GuardedJevApi");
+
+    @Test
+    void logsNeverRetainPrivateFailures() {
+        var logger =
+                (Logger) LoggerFactory.getLogger("com.embabel.agent.jev.internal.GuardedJevApi");
         var oldLevel = logger.getLevel();
-        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
-        appender.start(); logger.addAppender(appender); logger.setLevel(ch.qos.logback.classic.Level.DEBUG);
+        var appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        logger.setLevel(Level.DEBUG);
         try {
             var f = fixture();
-            f.server.expect(anything()).andRespond(withSuccess("PRIVATE_BODY", MediaType.APPLICATION_JSON));
+            f.server
+                    .expect(anything())
+                    .andRespond(withSuccess("PRIVATE_BODY", MediaType.APPLICATION_JSON));
             assertThatThrownBy(() -> call(f.client)).isInstanceOf(TypeSafeException.class);
-            assertThat(appender.list).hasSize(1).allSatisfy(event -> {
-                assertThat(event.getFormattedMessage()).doesNotContain("PRIVATE", "https", "jev-latest");
-                assertThat(event.getThrowableProxy()).isNull();
-            });
-        } finally { logger.detachAppender(appender); logger.setLevel(oldLevel); appender.stop(); }
+            assertThat(appender.list)
+                    .hasSize(1)
+                    .allSatisfy(
+                            event -> {
+                                assertThat(event.getFormattedMessage())
+                                        .doesNotContain("PRIVATE", "https", "jev-latest");
+                                assertThat(event.getThrowableProxy()).isNull();
+                            });
+        } finally {
+            logger.detachAppender(appender);
+            logger.setLevel(oldLevel);
+            appender.stop();
+        }
     }
-    @Test void modelsUsesSameGuard() {
+
+    @Test
+    void modelsUsesSameGuard() {
         var f = fixture();
-        f.server.expect(requestTo("https://api.typesafe.ai/v1/models")).andRespond(withSuccess("PRIVATE", MediaType.APPLICATION_JSON));
-        assertThatThrownBy(f.client::listModels).hasMessage("Jev request or response invalid").hasNoCause();
+        f.server
+                .expect(requestTo("https://api.typesafe.ai/v1/models"))
+                .andRespond(withSuccess("PRIVATE", MediaType.APPLICATION_JSON));
+        assertThatThrownBy(f.client::listModels)
+                .hasMessage("Jev request or response invalid")
+                .hasNoCause();
     }
-    @Test void modelsSuccessUsesNativeMetadata() {
+
+    @Test
+    void modelsSuccessUsesNativeMetadata() {
         var f = fixture();
-        f.server.expect(requestTo("https://api.typesafe.ai/v1/models")).andRespond(withSuccess(
-                "{\"models\":[{\"name\":\"jev-latest\",\"description\":\"Default model\",\"release_date\":\"2026-09-24\"}]}",
-                MediaType.APPLICATION_JSON));
+        f.server
+                .expect(requestTo("https://api.typesafe.ai/v1/models"))
+                .andRespond(
+                        withSuccess(
+                                """
+                                {"models":[{"name":"jev-latest","description":"Default model","release_date":"2026-09-24"}]}
+                                """,
+                                MediaType.APPLICATION_JSON));
         var models = f.client.listModels();
-        assertThat(models).singleElement().satisfies(model -> {
-            assertThat(model.name()).isEqualTo("jev-latest");
-            assertThat(model.description()).isEqualTo("Default model");
-            assertThat(model.releaseDate()).isEqualTo("2026-09-24");
-        });
+        assertThat(models)
+                .singleElement()
+                .satisfies(
+                        model -> {
+                            assertThat(model.name()).isEqualTo("jev-latest");
+                            assertThat(model.description()).isEqualTo("Default model");
+                            assertThat(model.releaseDate()).isEqualTo("2026-09-24");
+                        });
         f.server.verify();
     }
-    @Test void observationsHaveOnlyFixedValues() {
+
+    @Test
+    void observationsHaveOnlyFixedValues() {
         var contexts = new ArrayList<Observation.Context>();
         var registry = ObservationRegistry.create();
-        registry.observationConfig().observationHandler(new ObservationHandler<Observation.Context>() {
-            public boolean supportsContext(Observation.Context c) { return true; }
-            public void onStop(Observation.Context c) { contexts.add(c); }
-        });
-        var builder = RestClient.builder(); var server = MockRestServiceServer.bindTo(builder).build();
-        var client = JevClients.create(JevClientOptions.defaults(), () -> "PRIVATE", builder, registry);
+        registry.observationConfig()
+                .observationHandler(
+                        new ObservationHandler<Observation.Context>() {
+                            @Override
+                            public boolean supportsContext(Observation.Context c) {
+                                return true;
+                            }
+
+                            @Override
+                            public void onStop(Observation.Context c) {
+                                contexts.add(c);
+                            }
+                        });
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var client =
+                JevClients.create(JevClientOptions.defaults(), () -> "PRIVATE", builder, registry);
         server.expect(anything()).andRespond(withSuccess(GOOD, MediaType.APPLICATION_JSON));
-        server.expect(anything()).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS).body("PRIVATE"));
-        call(client); assertThatThrownBy(() -> call(client)).isInstanceOf(TypeSafeApiException.class);
+        server.expect(anything())
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS).body("PRIVATE"));
+        call(client);
+        assertThatThrownBy(() -> call(client)).isInstanceOf(TypeSafeApiException.class);
         assertThat(contexts).hasSize(2);
-        assertThat(contexts.getFirst().getLowCardinalityKeyValues().toString()).contains("success", "2xx", "systemone").doesNotContain("PRIVATE");
-        assertThat(contexts.getLast().getLowCardinalityKeyValues().toString()).contains("failure", "4xx");
-        assertThat(contexts).allSatisfy(c -> { assertThat(c.getHighCardinalityKeyValues()).isEmpty(); assertThat(c.getError()).isNull(); });
+        assertThat(contexts.getFirst().getLowCardinalityKeyValues().toString())
+                .contains("success", "2xx", "systemone")
+                .doesNotContain("PRIVATE");
+        assertThat(contexts.getLast().getLowCardinalityKeyValues().toString())
+                .contains("failure", "4xx");
+        assertThat(contexts)
+                .allSatisfy(
+                        c -> {
+                            assertThat(c.getHighCardinalityKeyValues()).isEmpty();
+                            assertThat(c.getError()).isNull();
+                        });
     }
-    @ParameterizedTest @ValueSource(booleans = {true, false})
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void httpObservationIsChildOfJevAndCallerScopeIsRestored(boolean success) {
+        var contexts = new ArrayList<Observation.Context>();
+        var registry = ObservationRegistry.create();
+        registry.observationConfig()
+                .observationHandler(
+                        new ObservationHandler<Observation.Context>() {
+                            @Override
+                            public boolean supportsContext(Observation.Context context) {
+                                return true;
+                            }
+
+                            @Override
+                            public void onStop(Observation.Context context) {
+                                contexts.add(context);
+                            }
+                        });
+        var builder = RestClient.builder().observationRegistry(registry);
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var client =
+                JevClients.create(
+                        JevClientOptions.defaults(), () -> "PRIVATE_KEY", builder, registry);
+        var expectation = server.expect(anything());
+        if (success) {
+            expectation.andRespond(withSuccess(GOOD, MediaType.APPLICATION_JSON));
+        } else {
+            expectation.andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE).body("PRIVATE_BODY"));
+        }
+        var caller = Observation.start("caller.workflow", registry);
+        try (var scope = caller.openScope()) {
+            if (success) {
+                call(client);
+            } else {
+                assertThatThrownBy(() -> call(client)).isInstanceOf(TypeSafeApiException.class);
+            }
+            assertThat(registry.getCurrentObservation()).isSameAs(caller);
+        } finally {
+            caller.stop();
+        }
+        assertThat(registry.getCurrentObservation()).isNull();
+        var http =
+                contexts.stream()
+                        .filter(context -> context.getName().equals("http.client.requests"))
+                        .findFirst()
+                        .orElseThrow();
+        assertThat(http.getParentObservation()).isNotNull();
+        assertThat(http.getParentObservation().getContextView().getName())
+                .isEqualTo("embabel.jev.request");
+        var jev =
+                contexts.stream()
+                        .filter(context -> context.getName().equals("embabel.jev.request"))
+                        .findFirst()
+                        .orElseThrow();
+        assertThat(jev.getParentObservation()).isSameAs(caller);
+        server.verify();
+    }
+
+    @Test
+    void fallbackEmitsHttpObservationUnderJevObservation() throws Exception {
+        var contexts = new ArrayList<Observation.Context>();
+        var registry = ObservationRegistry.create();
+        registry.observationConfig()
+                .observationHandler(
+                        new ObservationHandler<Observation.Context>() {
+                            @Override
+                            public boolean supportsContext(Observation.Context context) {
+                                return true;
+                            }
+
+                            @Override
+                            public void onStop(Observation.Context context) {
+                                contexts.add(context);
+                            }
+                        });
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext(
+                "/v1/systemone",
+                exchange -> {
+                    exchange.getRequestBody().readAllBytes();
+                    exchange.getResponseHeaders().add("Content-Type", "application/json");
+                    byte[] body = GOOD.getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, body.length);
+                    try (var output = exchange.getResponseBody()) {
+                        output.write(body);
+                    }
+                });
+        server.start();
+        try {
+            var client =
+                    JevClients.create(
+                            options(server.getAddress().getPort(), Duration.ofSeconds(1), 1024),
+                            () -> "PRIVATE_KEY",
+                            null,
+                            registry);
+            call(client);
+            assertThat(contexts)
+                    .extracting(Observation.Context::getName)
+                    .containsExactlyInAnyOrder("http.client.requests", "embabel.jev.request");
+            var http =
+                    contexts.stream()
+                            .filter(context -> context.getName().equals("http.client.requests"))
+                            .findFirst()
+                            .orElseThrow();
+            assertThat(http.getParentObservation()).isNotNull();
+            assertThat(http.getParentObservation().getContextView().getName())
+                    .isEqualTo("embabel.jev.request");
+            assertThat(registry.getCurrentObservation()).isNull();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void callerCanUseVirtualThreads() throws Exception {
+        var fixture = fixture();
+        fixture.server.expect(anything()).andRespond(withSuccess(GOOD, MediaType.APPLICATION_JSON));
+        try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var completed =
+                    executor.submit(
+                            () -> {
+                                call(fixture.client);
+                                return Thread.currentThread().isVirtual();
+                            });
+            assertThat(completed.get(2, TimeUnit.SECONDS)).isTrue();
+        }
+        fixture.server.verify();
+    }
+
+    @Test
+    void realMeterHandlerRecordsOneSafeTimerPerInvocation() {
+        var meters = new SimpleMeterRegistry();
+        try {
+            var registry = ObservationRegistry.create();
+            registry.observationConfig()
+                    .observationHandler(
+                            new io.micrometer.core.instrument.observation
+                                    .DefaultMeterObservationHandler(meters));
+            var builder = RestClient.builder();
+            var server = MockRestServiceServer.bindTo(builder).build();
+            var options =
+                    new JevClientOptions(
+                            URI.create("https://private.example.invalid"),
+                            "PRIVATE_MODEL",
+                            Duration.ofSeconds(1),
+                            Duration.ofSeconds(1),
+                            1024);
+            var client = JevClients.create(options, () -> "PRIVATE_KEY", builder, registry);
+            for (String operation : List.of("systemone", "models")) {
+                for (boolean success : List.of(true, false)) {
+                    var expectation =
+                            server.expect(
+                                    requestTo("https://private.example.invalid/v1/" + operation));
+                    if (success) {
+                        expectation.andRespond(
+                                withSuccess(
+                                                operation.equals("systemone")
+                                                        ? GOOD
+                                                        : """
+                                                        {"models":[{"name":"PRIVATE_MODEL"}]}
+                                                        """,
+                                                MediaType.APPLICATION_JSON)
+                                        .header("x-typesafe-request-id", "PRIVATE_REQUEST_ID"));
+                    } else {
+                        expectation.andRespond(
+                                withStatus(HttpStatus.SERVICE_UNAVAILABLE).body("PRIVATE_BODY"));
+                    }
+                }
+            }
+            int invocations = 0;
+            for (String operation : List.of("systemone", "models")) {
+                for (boolean success : List.of(true, false)) {
+                    Runnable invoke =
+                            operation.equals("systemone") ? () -> call(client) : client::listModels;
+                    if (success) {
+                        invoke.run();
+                    } else {
+                        assertThatThrownBy(invoke::run).isInstanceOf(TypeSafeApiException.class);
+                    }
+                    invocations++;
+                    var timer =
+                            meters.get("embabel.jev.request")
+                                    .tags(
+                                            "operation",
+                                            operation,
+                                            "outcome",
+                                            success ? "success" : "failure",
+                                            "status.family",
+                                            success ? "2xx" : "5xx")
+                                    .timer();
+                    assertThat(timer.count()).isEqualTo(1);
+                    assertThat(timer.totalTime(TimeUnit.NANOSECONDS)).isPositive();
+                    assertThat(timer.getId().getTags())
+                            .containsExactlyInAnyOrder(
+                                    Tag.of("operation", operation),
+                                    Tag.of("outcome", success ? "success" : "failure"),
+                                    Tag.of("status.family", success ? "2xx" : "5xx"),
+                                    Tag.of("error", "none"));
+                    assertThat(
+                                    meters.find("embabel.jev.request").timers().stream()
+                                            .mapToLong(Timer::count)
+                                            .sum())
+                            .isEqualTo(invocations);
+                }
+            }
+            assertThat(meters.getMeters())
+                    .allSatisfy(
+                            meter ->
+                                    assertThat(meter.getId().getTags())
+                                            .allSatisfy(
+                                                    tag -> {
+                                                        assertThat(tag.getKey())
+                                                                .isIn(
+                                                                        "operation",
+                                                                        "outcome",
+                                                                        "status.family",
+                                                                        "error");
+                                                        assertThat(tag.getValue())
+                                                                .isIn(
+                                                                        "systemone",
+                                                                        "models",
+                                                                        "success",
+                                                                        "failure",
+                                                                        "2xx",
+                                                                        "5xx",
+                                                                        "none");
+                                                    }));
+            server.verify();
+        } finally {
+            meters.close();
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
     void realSocketResponseLimits(boolean chunked) throws Exception {
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/v1/systemone", exchange -> {
-            exchange.getResponseHeaders().add("Content-Type", "application/json");
-            byte[] bytes = (GOOD + " ".repeat(2000)).getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, chunked ? 0 : bytes.length);
-            try (var out = exchange.getResponseBody()) { out.write(bytes); }
-        });
+        server.createContext(
+                "/v1/systemone",
+                exchange -> {
+                    exchange.getResponseHeaders().add("Content-Type", "application/json");
+                    byte[] bytes = (GOOD + " ".repeat(2000)).getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, chunked ? 0 : bytes.length);
+                    try (var out = exchange.getResponseBody()) {
+                        out.write(bytes);
+                    }
+                });
         server.start();
         try {
             var options = options(server.getAddress().getPort(), Duration.ofSeconds(2), 100);
-            assertThatThrownBy(() -> call(JevClients.create(options, () -> "key"))).isInstanceOf(TypeSafeException.class).hasNoCause();
-        } finally { server.stop(0); }
+            assertThatThrownBy(() -> call(JevClients.create(options, () -> "key")))
+                    .isInstanceOf(TypeSafeException.class)
+                    .hasNoCause();
+        } finally {
+            server.stop(0);
+        }
     }
-    @ParameterizedTest @ValueSource(booleans = {false, true})
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
     void realSocketReadTimeout(boolean bodyStalls) throws Exception {
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/v1/systemone", exchange -> {
-            if (bodyStalls) {
-                exchange.getResponseHeaders().add("Content-Type", "application/json");
-                exchange.sendResponseHeaders(200, 0);
-                exchange.getResponseBody().write('{');
-                exchange.getResponseBody().flush();
-            }
-        });
+        server.createContext(
+                "/v1/systemone",
+                exchange -> {
+                    if (bodyStalls) {
+                        exchange.getResponseHeaders().add("Content-Type", "application/json");
+                        exchange.sendResponseHeaders(200, 0);
+                        exchange.getResponseBody().write('{');
+                        exchange.getResponseBody().flush();
+                    }
+                });
         server.start();
         try {
-            var client = JevClients.create(options(server.getAddress().getPort(), Duration.ofMillis(80), 1024), () -> "key");
-            assertThatThrownBy(() -> call(client)).isInstanceOf(TypeSafeApiTimeoutException.class).hasNoCause();
-        } finally { server.stop(0); }
+            var client =
+                    JevClients.create(
+                            options(server.getAddress().getPort(), Duration.ofMillis(80), 1024),
+                            () -> "key");
+            assertThatThrownBy(() -> call(client))
+                    .isInstanceOf(TypeSafeApiTimeoutException.class)
+                    .hasNoCause();
+        } finally {
+            server.stop(0);
+        }
     }
-    @ParameterizedTest @ValueSource(ints = {200, 503})
+
+    @ParameterizedTest
+    @ValueSource(ints = {200, 503})
     void closesRejectedStreamingResponseWithoutDraining(int status) throws Exception {
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         var streamFinished = new AtomicBoolean();
-        server.createContext("/v1/systemone", exchange -> {
-            exchange.getRequestBody().readAllBytes();
-            exchange.getResponseHeaders().add("Content-Type", "application/json");
-            exchange.sendResponseHeaders(status, 0);
-            long finish = System.nanoTime() + Duration.ofSeconds(3).toNanos();
-            try (var output = exchange.getResponseBody()) {
-                byte[] chunk = " ".repeat(8192).getBytes(java.nio.charset.StandardCharsets.UTF_8);
-                while (System.nanoTime() < finish) {
-                    output.write(chunk);
-                    output.flush();
-                    java.util.concurrent.locks.LockSupport.parkNanos(Duration.ofMillis(5).toNanos());
-                }
-                streamFinished.set(true);
-            } catch (java.io.IOException expectedClientDisconnect) { }
-        });
+        server.createContext(
+                "/v1/systemone",
+                exchange -> {
+                    exchange.getRequestBody().readAllBytes();
+                    exchange.getResponseHeaders().add("Content-Type", "application/json");
+                    exchange.sendResponseHeaders(status, 0);
+                    long finish = System.nanoTime() + Duration.ofSeconds(3).toNanos();
+                    try (var output = exchange.getResponseBody()) {
+                        byte[] chunk = " ".repeat(8192).getBytes(StandardCharsets.UTF_8);
+                        while (System.nanoTime() < finish) {
+                            output.write(chunk);
+                            output.flush();
+                            java.util.concurrent.locks.LockSupport.parkNanos(
+                                    Duration.ofMillis(5).toNanos());
+                        }
+                        streamFinished.set(true);
+                    } catch (IOException expectedClientDisconnect) {
+                    }
+                });
         server.start();
         try {
-            var client = JevClients.create(options(server.getAddress().getPort(), Duration.ofSeconds(1), 100), () -> "key");
+            var client =
+                    JevClients.create(
+                            options(server.getAddress().getPort(), Duration.ofSeconds(1), 100),
+                            () -> "key");
             long started = System.nanoTime();
-            assertThatThrownBy(() -> call(client)).isInstanceOf(TypeSafeException.class).hasNoCause().satisfies(error -> {
-                if (status == 503) assertThat(((TypeSafeApiException) error).status()).isEqualTo(503);
-                assertThat(error.getSuppressed()).isEmpty();
-            });
-            assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(1));
+            assertThatThrownBy(() -> call(client))
+                    .isInstanceOf(TypeSafeException.class)
+                    .hasNoCause()
+                    .satisfies(
+                            error -> {
+                                if (status == 503) {
+                                    assertThat(((TypeSafeApiException) error).status())
+                                            .isEqualTo(503);
+                                }
+                                assertThat(error.getSuppressed()).isEmpty();
+                            });
+            assertThat(Duration.ofNanos(System.nanoTime() - started))
+                    .isLessThan(Duration.ofSeconds(1));
             assertThat(streamFinished).isFalse();
-        } finally { server.stop(0); }
+        } finally {
+            server.stop(0);
+        }
     }
 
-    @Test void fallbackDoesNotFollowRedirects() throws Exception {
+    @Test
+    void fallbackDoesNotFollowRedirects() throws Exception {
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         var redirected = new AtomicInteger();
-        server.createContext("/v1/models", exchange -> {
-            exchange.getResponseHeaders().add("Location", "/unexpected");
-            exchange.sendResponseHeaders(302, -1); exchange.close();
-        });
-        server.createContext("/unexpected", exchange -> { redirected.incrementAndGet(); exchange.sendResponseHeaders(200, -1); exchange.close(); });
+        server.createContext(
+                "/v1/models",
+                exchange -> {
+                    exchange.getResponseHeaders().add("Location", "/unexpected");
+                    exchange.sendResponseHeaders(302, -1);
+                    exchange.close();
+                });
+        server.createContext(
+                "/unexpected",
+                exchange -> {
+                    redirected.incrementAndGet();
+                    exchange.sendResponseHeaders(200, -1);
+                    exchange.close();
+                });
         server.start();
         try {
-            var client = JevClients.create(options(server.getAddress().getPort(), Duration.ofSeconds(1), 1024), () -> "key");
-            assertThatThrownBy(client::listModels).isInstanceOfSatisfying(TypeSafeApiException.class,
-                    error -> assertThat(error.status()).isEqualTo(302));
+            var client =
+                    JevClients.create(
+                            options(server.getAddress().getPort(), Duration.ofSeconds(1), 1024),
+                            () -> "key");
+            assertThatThrownBy(client::listModels)
+                    .isInstanceOfSatisfying(
+                            TypeSafeApiException.class,
+                            error -> assertThat(error.status()).isEqualTo(302));
             assertThat(redirected).hasValue(0);
-        } finally { server.stop(0); }
+        } finally {
+            server.stop(0);
+        }
     }
-    @Test void realRefusedConnection() throws Exception {
+
+    @Test
+    void realRefusedConnection() throws Exception {
         int port;
-        try (var socket = new java.net.ServerSocket(0)) { port = socket.getLocalPort(); }
+        try (var socket = new ServerSocket(0)) {
+            port = socket.getLocalPort();
+        }
         var client = JevClients.create(options(port, Duration.ofSeconds(1), 1024), () -> "key");
-        assertThatThrownBy(() -> call(client)).isInstanceOf(TypeSafeApiConnectionException.class).hasNoCause();
+        assertThatThrownBy(() -> call(client))
+                .isInstanceOf(TypeSafeApiConnectionException.class)
+                .hasNoCause();
     }
+
     static JevClientOptions options(int port, Duration timeout, int limit) {
-        return new JevClientOptions(URI.create("http://127.0.0.1:" + port), "jev-latest", timeout, timeout, limit);
+        return new JevClientOptions(
+                URI.create("http://127.0.0.1:" + port), "jev-latest", timeout, timeout, limit);
     }
-    @ParameterizedTest @ValueSource(strings = {"http://example.com", "https://user:secret@example.com", "https://example.com/path", "https://example.com?key=secret"})
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "http://example.com",
+                "https://user:secret@example.com",
+                "https://example.com/path",
+                "https://example.com?key=secret"
+            })
     void invalidOrigins(String origin) {
-        assertThatThrownBy(() -> new JevClientOptions(URI.create(origin), "jev-latest", Duration.ofSeconds(1), Duration.ofSeconds(1), 1024)).isInstanceOf(IllegalArgumentException.class).hasMessageNotContaining("secret");
+        assertThatThrownBy(
+                        () ->
+                                new JevClientOptions(
+                                        URI.create(origin),
+                                        "jev-latest",
+                                        Duration.ofSeconds(1),
+                                        Duration.ofSeconds(1),
+                                        1024))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageNotContaining("secret");
     }
-    @Test void invalidOptions() {
-        assertThatThrownBy(() -> options(80, Duration.ZERO, 1)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> options(80, Duration.ofSeconds(1), 0)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new JevClientOptions(URI.create("https://example.com"), " ", Duration.ofSeconds(1), Duration.ofSeconds(1), 1)).isInstanceOf(IllegalArgumentException.class);
+
+    @Test
+    void invalidOptions() {
+        assertThatThrownBy(() -> options(80, Duration.ZERO, 1))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> options(80, Duration.ofSeconds(1), 0))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(
+                        () ->
+                                new JevClientOptions(
+                                        URI.create("https://example.com"),
+                                        " ",
+                                        Duration.ofSeconds(1),
+                                        Duration.ofSeconds(1),
+                                        1))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }
