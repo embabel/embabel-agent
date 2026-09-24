@@ -57,10 +57,7 @@ public record JevClientOptions(
      * @throws IllegalArgumentException if the origin, model, timeout or response limit is invalid
      */
     public JevClientOptions {
-        if (!isSafeOrigin(baseUri)) {
-            throw new IllegalArgumentException(
-                    "Jev base URI must be an HTTPS origin (HTTP allowed on loopback)");
-        }
+        validateOrigin(baseUri);
         if (model == null || model.isBlank()) {
             throw new IllegalArgumentException("Jev model must not be blank");
         }
@@ -71,19 +68,26 @@ public record JevClientOptions(
         }
     }
 
-    private static boolean isSafeOrigin(URI uri) {
+    private static void validateOrigin(URI uri) {
         if (uri == null
                 || uri.getHost() == null
                 || uri.getUserInfo() != null
                 || uri.getQuery() != null
                 || uri.getFragment() != null) {
-            return false;
+            throw invalidOrigin();
         }
         boolean rootPath = uri.getPath().isEmpty() || uri.getPath().equals("/");
         boolean allowedScheme =
                 "https".equals(uri.getScheme())
                         || "http".equals(uri.getScheme()) && LOOPBACK_HOSTS.contains(uri.getHost());
-        return rootPath && allowedScheme;
+        if (!rootPath || !allowedScheme) {
+            throw invalidOrigin();
+        }
+    }
+
+    private static IllegalArgumentException invalidOrigin() {
+        return new IllegalArgumentException(
+                "Jev base URI must be an HTTPS origin (HTTP allowed on loopback)");
     }
 
     private static void validateTimeout(Duration timeout) {
