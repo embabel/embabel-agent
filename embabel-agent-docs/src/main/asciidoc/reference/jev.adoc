@@ -101,8 +101,8 @@ trailing content; it does not inherit application Jackson modules. Convert custo
 JSON-compatible values in a `Map` or `JsonContent` before passing it to the SDK if application-specific
 serialization is required. Do not mutate state, questions or nested collections during a call.
 
-The logical `embabel.jev.request` observation opens a scope around each call, parenting nested
-`http.client.requests` observations. Metrics and traces require the corresponding observation
+The logical `embabel.jev.request` observation opens a scope around each call.
+Nested HTTP observations are children of the Jev observation when both use the same registry. Metrics and traces require the corresponding observation
 handlers and exporters on the registry; the registry alone does not export them.
 Embabel's own observation tags and log fields use bounded values and sanitized failures.
 Application HTTP instrumentation, interceptors and status handlers have their own access to URLs,
