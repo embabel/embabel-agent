@@ -57,6 +57,7 @@ import org.springframework.mock.http.client.MockClientHttpResponse;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
@@ -739,54 +740,67 @@ class JevBoundaryTest {
 
     @ParameterizedTest
     @ValueSource(ints = {200, 503})
-    void closesRejectedStreamingResponseWithoutDraining(int status) throws Exception {
-        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        var streamFinished = new AtomicBoolean();
-        server.createContext(
-                "/v1/systemone",
-                exchange -> {
-                    exchange.getRequestBody().readAllBytes();
-                    exchange.getResponseHeaders().add("Content-Type", "application/json");
-                    exchange.sendResponseHeaders(status, 0);
-                    long finish = System.nanoTime() + Duration.ofSeconds(3).toNanos();
-                    try (var output = exchange.getResponseBody()) {
-                        byte[] chunk = " ".repeat(8192).getBytes(StandardCharsets.UTF_8);
-                        while (System.nanoTime() < finish) {
-                            output.write(chunk);
-                            output.flush();
-                            java.util.concurrent.locks.LockSupport.parkNanos(
-                                    Duration.ofMillis(5).toNanos());
-                        }
-                        streamFinished.set(true);
-                    } catch (IOException expectedClientDisconnect) {
-                        LoggerFactory.getLogger(JevBoundaryTest.class)
-                                .debug("Streaming fixture observed the expected client disconnect");
-                    }
-                });
-        server.start();
-        try {
-            var client =
-                    JevClients.create(
-                            options(server.getAddress().getPort(), Duration.ofSeconds(1), 100),
-                            () -> "key");
-            long started = System.nanoTime();
-            assertThatThrownBy(() -> call(client))
-                    .isInstanceOf(TypeSafeException.class)
-                    .hasNoCause()
-                    .satisfies(
-                            error -> {
-                                if (status == 503) {
-                                    assertThat(((TypeSafeApiException) error).status())
-                                            .isEqualTo(503);
-                                }
-                                assertThat(error.getSuppressed()).isEmpty();
-                            });
-            assertThat(Duration.ofNanos(System.nanoTime() - started))
-                    .isLessThan(Duration.ofSeconds(1));
-            assertThat(streamFinished).isFalse();
-        } finally {
-            server.stop(0);
-        }
+    void closesRejectedBodyBeforeResponse(int status) {
+        var builder =
+                RestClient.builder()
+                        .configureMessageConverters(
+                                converters ->
+                                        converters
+                                                .registerDefaults()
+                                                .withJsonConverter(
+                                                        new JacksonJsonHttpMessageConverter()));
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var bodyClosed = new AtomicBoolean();
+        var responseClosed = new AtomicBoolean();
+        byte[] responseBody = (GOOD + " ".repeat(200)).getBytes(StandardCharsets.UTF_8);
+        server.expect(anything())
+                .andRespond(
+                        request ->
+                                new MockClientHttpResponse(
+                                        responseBody, HttpStatusCode.valueOf(status)) {
+                                    private final InputStream body =
+                                            new ByteArrayInputStream(responseBody) {
+                                                @Override
+                                                public void close() throws IOException {
+                                                    bodyClosed.set(true);
+                                                    super.close();
+                                                }
+                                            };
+
+                                    @Override
+                                    public InputStream getBody() {
+                                        return body;
+                                    }
+
+                                    @Override
+                                    public void close() {
+                                        assertThat(bodyClosed).isTrue();
+                                        responseClosed.set(true);
+                                    }
+                                });
+        var timeout = Duration.ofSeconds(1);
+        var options =
+                new JevClientOptions(
+                        URI.create("https://api.typesafe.ai"),
+                        "jev-latest",
+                        timeout,
+                        timeout,
+                        100);
+        var client = JevClients.create(options, () -> "key", builder);
+
+        assertThatThrownBy(() -> call(client))
+                .isInstanceOf(TypeSafeException.class)
+                .hasNoCause()
+                .satisfies(
+                        error -> {
+                            if (status == 503) {
+                                assertThat(((TypeSafeApiException) error).status()).isEqualTo(503);
+                            }
+                            assertThat(error.getSuppressed()).isEmpty();
+                        });
+        assertThat(bodyClosed).isTrue();
+        assertThat(responseClosed).isTrue();
+        server.verify();
     }
 
     @Test
