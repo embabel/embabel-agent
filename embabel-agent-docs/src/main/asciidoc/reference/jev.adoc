@@ -1,0 +1,114 @@
+[[reference.jev]]
+=== Jev primitives (experimental)
+
+Jev answers named questions about a shared state using three primitives: `noul` for a truth value,
+`choice` for a label with its distribution, and `score` for a value on an ordered rubric.
+Embabel configures the native `TypeSafeClient` from `org.springaicommunity:typesafe-java-sdk:0.2.0`.
+Requests, answers, model identity, usage and request identifiers remain SDK types.
+This integration does not introduce a `DecisionModel`, a `ChatModel`, or a selection policy.
+
+==== Dependencies and Spring setup
+
+Use `com.embabel.agent:embabel-agent-starter-jev` in a Spring Boot application.
+The starter brings in `embabel-agent-jev-autoconfigure` and the core `embabel-agent-jev` module.
+For plain Java, depend on `embabel-agent-jev` alone; it does not require the agent platform.
+
+The Spring integration requires explicit opt-in: set
+`embabel.agent.platform.models.jev.enabled=true` and supply `TYPESAFE_API_KEY`.
+Adding the starter alone leaves the integration disabled.
+The `api-key` property under the same prefix takes precedence over the environment variable.
+Other properties are `base-uri` (default `https://api.typesafe.ai`), `model` (`jev-latest`),
+`connect-timeout` (`10s`), `read-timeout` (`10s`), and `max-response-bytes` (`1048576`).
+Inject the native `TypeSafeClient` into your application service or the constructor of an Embabel
+agent, then call it from an action as you would any other service.
+
+==== Plain Java
+
+Supply credentials through a `Supplier<String>` so they can be resolved for each request.
+The supplier must return a non-blank key. Keep the key out of source code and logs.
+
+[source,java]
+----
+include::../../../../../embabel-agent-jev/src/test/java/com/embabel/agent/jev/api/JevUsageExamples.java[tag=client,indent=0]
+----
+
+The factory and model examples are compiled with the core module; the following consumer is
+exercised by the starter tests. The imports for the protocol types come from
+`org.springaicommunity.typesafe.question` and `org.springaicommunity.typesafe.response`.
+
+[source,java]
+----
+include::../../../../../embabel-agent-starters/embabel-agent-starter-jev/src/test/java/com/embabel/agent/jev/example/JevConsumerTest.java[tag=jev-consumer,indent=0]
+----
+
+Read answers with `response.noul("urgent")`, `response.choice("team")`, and
+`response.score("priority")`. The response also exposes `model()`, `usage()`, and `requestId()`.
+Unknown answer kinds remain native `UnknownAnswer` values.
+
+A score's reported mean and per-level distribution are separate pieces of evidence.
+Preserve both; rounding the mean or taking the distribution's highest entry is an application decision.
+Reported confidence is not a guarantee of correctness.
+
+[source,java]
+----
+include::../../../../../embabel-agent-jev/src/test/java/com/embabel/agent/jev/api/JevUsageExamples.java[tag=evidence,indent=0]
+----
+
+==== Model selection and multiple clients
+
+The default model is `jev-latest`. Select a model per request when needed:
+
+[source,java]
+----
+include::../../../../../embabel-agent-jev/src/test/java/com/embabel/agent/jev/api/JevUsageExamples.java[tag=model,indent=0]
+----
+
+To set a client's default, construct `JevClientOptions` with the base URI, model, connect timeout,
+read timeout and response byte limit. Create separate clients for different defaults or credentials.
+In Spring, declare named `TypeSafeClient` beans and inject them with `@Qualifier`.
+An application-provided `TypeSafeClient` makes the default client configuration back off.
+
+==== Transport, parsing and observations
+
+The layers are:
+
+[source,mermaid]
+----
+flowchart LR
+    App[Application or action] --> Client[Native TypeSafeClient]
+    Client --> Guard[Embabel guards around TypeSafeApi]
+    Guard --> HTTP[Spring RestClient]
+    HTTP --> Jev[Jev service]
+----
+
+`JevClients.create` accepts an optional `RestClient.Builder` and an `ObservationRegistry`.
+It clones the supplied builder, preserving its transport, interceptors, proxy and TLS configuration.
+Spring first selects the `aiModelRestClientBuilder` bean, then a unique unqualified builder;
+if neither is available it uses the fallback transport.
+The application owns that transport's timeouts and redirect policy: the Jev timeout options apply only
+to the fallback transport. Without a supplied builder, the fallback uses 10-second connect and read
+timeouts and does not follow redirects. Timeouts are not a hard end-to-end deadline.
+Retries are fixed off with `RetryPolicy.noRetry()`.
+
+Responses are bounded to 1 MiB by default. A private strict JSON mapper rejects duplicate fields and
+trailing content; it does not inherit application Jackson modules. Convert custom state into ordinary
+JSON-compatible values in a `Map` or `JsonContent` before passing it to the SDK if application-specific
+serialization is required. Do not mutate state, questions or nested collections during a call.
+
+Embabel's logical Jev observations use controlled metadata and sanitized failures. Application HTTP
+observations, interceptors and status handlers have their own access to URLs, headers and payloads;
+the application owns their privacy policy. Avoid logging raw requests, responses or SDK exceptions.
+
+Native SDK response objects are not a persistence or replay format. Map the fields you need into an
+application-owned versioned record. The SDK's batch helpers, including `systemOneAll`, are unsupported
+by this integration.
+
+==== Experimental status
+
+Promotion requires passing assembled Java and Spring integration tests for all three primitives,
+model overrides, custom clients, opt-in and backoff behavior, credential rotation, transport ownership,
+response bounds, strict parsing, sanitized failures, interruption and safe observations.
+The published documentation and compiled examples must also pass the repository documentation build.
+These criteria concern the primitive client integration; a later decision framework is a separate change.
+
+The upstream source is https://github.com/spring-ai-community/spring-ai-typesafe/tree/v0.2.0[TypeSafe SDK 0.2.0].
