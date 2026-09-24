@@ -263,6 +263,7 @@ class JevBoundaryTest {
     @Test
     void errorStatusNeverReadsResponseBody() {
         var f = fixture();
+        var closed = new AtomicBoolean();
         f.server
                 .expect(anything())
                 .andRespond(
@@ -281,12 +282,15 @@ class JevBoundaryTest {
                                     }
 
                                     @Override
-                                    public void close() {}
+                                    public void close() {
+                                        closed.set(true);
+                                    }
                                 });
         assertThatThrownBy(() -> call(f.client))
                 .isInstanceOfSatisfying(
                         TypeSafeApiException.class,
                         error -> assertThat(error.status()).isEqualTo(503));
+        assertThat(closed).isTrue();
     }
 
     record DatedState(LocalDate date) {}
@@ -650,6 +654,7 @@ class JevBoundaryTest {
                 }
             }
             assertThat(meters.getMeters())
+                    .isNotEmpty()
                     .allSatisfy(
                             meter ->
                                     assertThat(meter.getId().getTags())
@@ -694,7 +699,8 @@ class JevBoundaryTest {
         server.start();
         try {
             var options = options(server.getAddress().getPort(), Duration.ofSeconds(2), 100);
-            assertThatThrownBy(() -> call(JevClients.create(options, () -> "key")))
+            var client = JevClients.create(options, () -> "key");
+            assertThatThrownBy(() -> call(client))
                     .isInstanceOf(TypeSafeException.class)
                     .hasNoCause();
         } finally {
@@ -752,6 +758,8 @@ class JevBoundaryTest {
                         }
                         streamFinished.set(true);
                     } catch (IOException expectedClientDisconnect) {
+                        LoggerFactory.getLogger(JevBoundaryTest.class)
+                                .debug("Streaming fixture observed the expected client disconnect");
                     }
                 });
         server.start();
@@ -840,32 +848,22 @@ class JevBoundaryTest {
                 "https://example.com?key=secret"
             })
     void invalidOrigins(String origin) {
-        assertThatThrownBy(
-                        () ->
-                                new JevClientOptions(
-                                        URI.create(origin),
-                                        "jev-latest",
-                                        Duration.ofSeconds(1),
-                                        Duration.ofSeconds(1),
-                                        1024))
+        var uri = URI.create(origin);
+        var timeout = Duration.ofSeconds(1);
+        assertThatThrownBy(() -> new JevClientOptions(uri, "jev-latest", timeout, timeout, 1024))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageNotContaining("secret");
     }
 
     @Test
     void invalidOptions() {
+        var timeout = Duration.ofSeconds(1);
         assertThatThrownBy(() -> options(80, Duration.ZERO, 1))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> options(80, Duration.ofSeconds(1), 0))
+        assertThatThrownBy(() -> options(80, timeout, 0))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(
-                        () ->
-                                new JevClientOptions(
-                                        URI.create("https://example.com"),
-                                        " ",
-                                        Duration.ofSeconds(1),
-                                        Duration.ofSeconds(1),
-                                        1))
+        var uri = URI.create("https://example.com");
+        assertThatThrownBy(() -> new JevClientOptions(uri, " ", timeout, timeout, 1))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }
