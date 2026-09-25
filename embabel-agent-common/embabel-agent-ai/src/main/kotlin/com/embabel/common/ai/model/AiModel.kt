@@ -25,9 +25,11 @@ import org.jetbrains.annotations.ApiStatus
 enum class ModelType {
     LLM, EMBEDDING,
 
+    /** Models that classify input against a closed category set. */
     @ApiStatus.Experimental
     CLASSIFICATION,
 
+    /** Models that support classification and proposition assessment. */
     @ApiStatus.Experimental
     DECISION,
 }

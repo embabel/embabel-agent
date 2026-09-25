@@ -27,8 +27,10 @@ class DecisionServiceMetadataTest {
         override val provider = "provider"
         val credential: String get() = error("secret getter must never run")
         val client: Any get() = error("client getter must never run")
-        override fun classify(request: ClassificationRequest) = ClassificationResult.NoMatch(ModelProvenance(name, provider))
-        override fun assess(request: PropositionRequest) = PropositionResult.Answered(false, ModelProvenance(name, provider))
+        override fun classify(request: ClassificationRequest) =
+            ClassificationResult.NoMatch(ModelProvenance(name, provider))
+        override fun assess(request: PropositionRequest) =
+            PropositionResult.Answered(false, ModelProvenance(name, provider))
     }
 
     @Test
@@ -58,10 +60,14 @@ class DecisionServiceMetadataTest {
             override val name = "classifier"
             override val provider = "provider"
             val credential: String get() = error("secret getter must never run")
-            override fun classify(request: ClassificationRequest) = ClassificationResult.NoMatch(ModelProvenance(name, provider))
+            override fun classify(request: ClassificationRequest) =
+                ClassificationResult.NoMatch(ModelProvenance(name, provider))
         }
-        val snapshots = listOf(service.metadata(), ClassificationServiceMetadata.create("classifier", "provider"),
-            DecisionServiceMetadata.create("decision", "provider"))
+        val snapshots = listOf(
+            service.metadata(),
+            ClassificationServiceMetadata.create("classifier", "provider"),
+            DecisionServiceMetadata.create("decision", "provider"),
+        )
         val mapper = jacksonObjectMapper()
         snapshots.forEach {
             val json = mapper.writerFor(ModelMetadata::class.java).writeValueAsString(it)

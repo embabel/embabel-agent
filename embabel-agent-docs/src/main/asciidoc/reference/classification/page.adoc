@@ -80,7 +80,7 @@ It is evidence from that provider, not a guarantee of correctness or calibration
 
 ==== Assess a Proposition
 
-`DecisionService` extends `ClassificationService` and adds `assess(PropositionRequest)` for a proposition about input text.
+`DecisionService` extends `ClassificationService` and adds `assess(PropositionRequest)` for a nonblank proposition about input text; the input itself may be empty.
 An `Answered` result contains a boolean answer: both `true` and `false` are successful assessments.
 `Inconclusive` and `Failure` remain distinct from a negative answer.
 Optional `pTrue` is the provider's probability that the proposition is true, not confidence in whichever boolean answer was returned.
