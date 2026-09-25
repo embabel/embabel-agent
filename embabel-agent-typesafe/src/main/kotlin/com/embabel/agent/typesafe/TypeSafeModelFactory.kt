@@ -16,7 +16,7 @@
 package com.embabel.agent.typesafe
 
 import com.embabel.common.ai.model.DecisionService
-import com.embabel.common.ai.model.ObservedDecisionService
+import com.embabel.common.ai.model.observation.ObservedDecisionService
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
 import com.embabel.common.byok.requireUsableApiKey

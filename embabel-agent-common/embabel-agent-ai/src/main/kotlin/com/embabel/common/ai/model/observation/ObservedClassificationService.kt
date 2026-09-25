@@ -13,11 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.common.ai.model
+package com.embabel.common.ai.model.observation
 
 import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.decision.PropositionResult
+import com.embabel.common.ai.model.ClassificationService
 import io.micrometer.observation.Observation
 import io.micrometer.observation.ObservationRegistry
 import org.jetbrains.annotations.ApiStatus
