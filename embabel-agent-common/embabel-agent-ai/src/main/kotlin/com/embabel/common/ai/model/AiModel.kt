@@ -21,7 +21,7 @@ import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 
 enum class ModelType {
-    LLM, EMBEDDING,
+    LLM, EMBEDDING, CLASSIFICATION, DECISION,
 }
 
 /**
@@ -36,6 +36,8 @@ enum class ModelType {
 @JsonSubTypes(
     JsonSubTypes.Type(value = LlmMetadata::class),
     JsonSubTypes.Type(value = EmbeddingServiceMetadata::class),
+    JsonSubTypes.Type(value = ClassificationServiceMetadata::class),
+    JsonSubTypes.Type(value = DecisionServiceMetadata::class),
 )
 interface ModelMetadata {
 
