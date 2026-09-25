@@ -43,8 +43,8 @@ import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
-import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 
 class AgentTypeSafeAutoConfigurationTest {
@@ -52,22 +52,17 @@ class AgentTypeSafeAutoConfigurationTest {
     private static final String SYSTEM_ONE_URI = "https://api.typesafe.ai/v1/systemone";
     private final ApplicationContextRunner runner =
             new ApplicationContextRunner()
-                    .withConfiguration(AutoConfigurations.of(AgentTypeSafeAutoConfiguration.class));
+                    .withConfiguration(AutoConfigurations.of(AgentTypeSafeAutoConfiguration.class))
+                    .withPropertyValues("TYPESAFE_API_KEY=");
 
     @Test
-    void disabledByDefault() {
-        runner.run(context -> assertThat(context).doesNotHaveBean(TypeSafeClient.class));
-    }
-
-    @Test
-    void enabledRequiresCredential() {
-        runner.withPropertyValues(PREFIX + "enabled=true", "TYPESAFE_API_KEY=")
+    void requiresCredential() {
+        runner.withPropertyValues("TYPESAFE_API_KEY=")
                 .run(
                         context -> {
                             assertThat(context).hasFailed();
                             assertThat(context.getStartupFailure())
-                                    .hasRootCauseMessage(
-                                            "TypeSafe API key is required when enabled");
+                                    .hasRootCauseMessage("TypeSafe API key is required");
                         });
     }
 
@@ -83,16 +78,12 @@ class AgentTypeSafeAutoConfigurationTest {
                                                         Map.of(
                                                                 "TYPESAFE_API_KEY",
                                                                 "environment-secret"))))
-                .withPropertyValues(PREFIX + "enabled=true")
                 .run(
                         context -> {
                             assertThat(context).hasSingleBean(TypeSafeClient.class);
                             var properties = context.getBean(TypeSafeProperties.class);
                             assertThat(properties.model()).isEqualTo("jev-latest");
-                            assertThat(properties.baseUri()).hasToString("https://api.typesafe.ai");
-                            assertThat(properties.connectTimeout())
-                                    .isEqualTo(Duration.ofSeconds(10));
-                            assertThat(properties.readTimeout()).isEqualTo(Duration.ofSeconds(10));
+                            assertThat(properties.baseUrl()).isEqualTo("https://api.typesafe.ai");
                             assertThat(properties.maxResponseBytes()).isEqualTo(1024 * 1024);
                         });
     }
@@ -101,8 +92,7 @@ class AgentTypeSafeAutoConfigurationTest {
     void customClientBacksOffEvenWithoutCredentialOrValidOptions() {
         var supplied = mock(TypeSafeClient.class);
         runner.withBean(TypeSafeClient.class, () -> supplied)
-                .withPropertyValues(
-                        PREFIX + "enabled=true", PREFIX + "base-uri=%%%", "TYPESAFE_API_KEY=")
+                .withPropertyValues(PREFIX + "base-url=%%%", "TYPESAFE_API_KEY=")
                 .run(
                         context ->
                                 assertThat(context.getBean(TypeSafeClient.class))
@@ -113,7 +103,7 @@ class AgentTypeSafeAutoConfigurationTest {
     void twoClientsBackOff() {
         runner.withBean("one", TypeSafeClient.class, () -> mock(TypeSafeClient.class))
                 .withBean("two", TypeSafeClient.class, () -> mock(TypeSafeClient.class))
-                .withPropertyValues(PREFIX + "enabled=true", "TYPESAFE_API_KEY=")
+                .withPropertyValues("TYPESAFE_API_KEY=")
                 .run(
                         context -> {
                             assertThat(context).hasNotFailed();
@@ -122,13 +112,11 @@ class AgentTypeSafeAutoConfigurationTest {
     }
 
     @Test
-    void enabledInvalidOptionsFailAndSecretsAreRedacted() {
+    void invalidOptionsFailAndSecretsAreRedacted() {
         runner.withPropertyValues(
-                        PREFIX + "enabled=true",
-                        PREFIX + "api-key=secret-sentinel",
-                        PREFIX + "read-timeout=0s")
+                        PREFIX + "api-key=secret-sentinel", PREFIX + "max-response-bytes=0")
                 .run(context -> assertThat(context).hasFailed());
-        runner.withPropertyValues(PREFIX + "enabled=true", PREFIX + "api-key=secret-sentinel")
+        runner.withPropertyValues(PREFIX + "api-key=secret-sentinel")
                 .run(
                         context ->
                                 assertThat(context.getBean(TypeSafeProperties.class).toString())
@@ -136,7 +124,7 @@ class AgentTypeSafeAutoConfigurationTest {
     }
 
     @Test
-    void configuredCredentialWinsAndUniqueBootBuilderRetainsFactoryAndInterceptor() {
+    void environmentCredentialWinsAndUniqueBootBuilderRetainsFactoryAndInterceptor() {
         var builder =
                 RestClient.builder()
                         .requestInterceptor(
@@ -146,11 +134,11 @@ class AgentTypeSafeAutoConfigurationTest {
                                 });
         var server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo(SYSTEM_ONE_URI))
-                .andExpect(header("Authorization", "Bearer configured-secret"))
+                .andExpect(header("Authorization", "Bearer environment-secret"))
                 .andExpect(header("X-Application", "retained"))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("jev-latest")))
                 .andRespond(withSuccess(RESPONSE, MediaType.APPLICATION_JSON));
-        enabled()
+        configured()
                 .withPropertyValues(
                         PREFIX + "api-key=configured-secret", "TYPESAFE_API_KEY=environment-secret")
                 .withBean(RestClient.Builder.class, () -> builder)
@@ -167,6 +155,70 @@ class AgentTypeSafeAutoConfigurationTest {
         server.verify();
     }
 
+    @ParameterizedTest
+    @ValueSource(ints = {1, 1024})
+    void configuredEndpointModelAndResponseLimitAreUsed(int maximumBytes) {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("https://proxy.example/typesafe/v1/systemone"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("test-model")))
+                .andRespond(withSuccess(RESPONSE, MediaType.APPLICATION_JSON));
+        configured()
+                .withPropertyValues(
+                        PREFIX + "base-url=https://proxy.example/typesafe",
+                        PREFIX + "model=test-model",
+                        PREFIX + "max-response-bytes=" + maximumBytes)
+                .withBean(RestClient.Builder.class, () -> builder)
+                .run(
+                        context -> {
+                            assertThat(context).hasNotFailed();
+                            var client = context.getBean(TypeSafeClient.class);
+                            var questions = Map.of("ok", Noul.of("ok?"));
+                            if (maximumBytes == 1) {
+                                assertThatThrownBy(() -> client.systemOne("state", questions))
+                                        .isInstanceOf(
+                                                org.springaicommunity.typesafe.exception
+                                                        .TypeSafeException.class);
+                            } else {
+                                assertThat(client.systemOne("state", questions).noulValue("ok"))
+                                        .isEqualTo(0.8);
+                            }
+                        });
+        server.verify();
+    }
+
+    @Test
+    void environmentCredentialIsResolvedForEachRequest() {
+        var credentials = new HashMap<String, Object>();
+        credentials.put("TYPESAFE_API_KEY", "first-key");
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        for (var key : new String[] {"first-key", "second-key", "test-key"}) {
+            server.expect(requestTo(SYSTEM_ONE_URI))
+                    .andExpect(header("Authorization", "Bearer " + key))
+                    .andRespond(withSuccess(RESPONSE, MediaType.APPLICATION_JSON));
+        }
+        configured()
+                .withInitializer(
+                        context ->
+                                context.getEnvironment()
+                                        .getPropertySources()
+                                        .addFirst(
+                                                new MapPropertySource(
+                                                        "rotating-credentials", credentials)))
+                .withBean(RestClient.Builder.class, () -> builder)
+                .run(
+                        context -> {
+                            var client = context.getBean(TypeSafeClient.class);
+                            client.systemOne("state", Map.of("ok", Noul.of("ok?")));
+                            credentials.put("TYPESAFE_API_KEY", "second-key");
+                            client.systemOne("state", Map.of("ok", Noul.of("ok?")));
+                            credentials.put("TYPESAFE_API_KEY", "");
+                            client.systemOne("state", Map.of("ok", Noul.of("ok?")));
+                        });
+        server.verify();
+    }
+
     @Test
     void qualifiedPlatformBuilderWinsOverOtherBuilders() {
         var selected = RestClient.builder();
@@ -174,7 +226,7 @@ class AgentTypeSafeAutoConfigurationTest {
         var server = MockRestServiceServer.bindTo(selected).build();
         server.expect(requestTo(SYSTEM_ONE_URI))
                 .andRespond(withSuccess(RESPONSE, MediaType.APPLICATION_JSON));
-        enabled()
+        configured()
                 .withBean("aiModelRestClientBuilder", RestClient.Builder.class, () -> selected)
                 .withBean("other", RestClient.Builder.class, () -> ignored)
                 .run(
@@ -189,7 +241,7 @@ class AgentTypeSafeAutoConfigurationTest {
     void ambiguousBuildersAreNotChosen() {
         var one = mock(RestClient.Builder.class);
         var two = mock(RestClient.Builder.class);
-        enabled()
+        configured()
                 .withBean("one", RestClient.Builder.class, () -> one)
                 .withBean("two", RestClient.Builder.class, () -> two)
                 .run(context -> assertThat(context).hasSingleBean(TypeSafeClient.class));
@@ -220,7 +272,7 @@ class AgentTypeSafeAutoConfigurationTest {
                 .andRespond(withSuccess(RESPONSE, MediaType.APPLICATION_JSON));
         server.expect(requestTo("https://application.example/unrelated"))
                 .andRespond(withSuccess("unrelated", MediaType.TEXT_PLAIN));
-        enabled()
+        configured()
                 .withBean(ObservationRegistry.class, () -> registry)
                 .withBean(builderName, RestClient.Builder.class, () -> builder)
                 .run(
@@ -260,7 +312,7 @@ class AgentTypeSafeAutoConfigurationTest {
             var server = MockRestServiceServer.bindTo(builder).build();
             server.expect(requestTo(SYSTEM_ONE_URI))
                     .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
-            enabled()
+            configured()
                     .withBean(RestClient.Builder.class, () -> builder)
                     .run(
                             context -> {
@@ -274,33 +326,26 @@ class AgentTypeSafeAutoConfigurationTest {
     }
 
     @Test
-    void disabledNeverResolvesHttpBuilder() {
-        runner.withBean(
+    void customClientNeverResolvesHttpBuilder() {
+        runner.withBean(TypeSafeClient.class, () -> mock(TypeSafeClient.class))
+                .withBean(
                         RestClient.Builder.class,
                         () -> {
                             throw new AssertionError("Builder must stay lazy");
                         },
                         definition -> definition.setLazyInit(true))
-                .withPropertyValues(
-                        PREFIX + "enabled=false", PREFIX + "api-key=", PREFIX + "model=")
+                .withPropertyValues(PREFIX + "api-key=", PREFIX + "model=")
                 .run(
                         context -> {
                             assertThat(context).hasNotFailed();
-                            assertThat(context).doesNotHaveBean(TypeSafeClient.class);
+                            assertThat(context).hasSingleBean(TypeSafeClient.class);
                         });
     }
 
     @ParameterizedTest
-    @ValueSource(
-            strings = {
-                "model=",
-                "connect-timeout=0s",
-                "read-timeout=-1s",
-                "max-response-bytes=0",
-                "base-uri=file:///tmp/typesafe"
-            })
-    void invalidOptionsAreRejectedWhenEnabled(String property) {
-        enabled()
+    @ValueSource(strings = {"model=", "max-response-bytes=0", "base-url=file:///tmp/typesafe"})
+    void invalidOptionsAreRejected(String property) {
+        configured()
                 .withPropertyValues(PREFIX + property)
                 .run(context -> assertThat(context).hasFailed());
     }
@@ -312,7 +357,7 @@ class AgentTypeSafeAutoConfigurationTest {
         server.expect(requestTo(SYSTEM_ONE_URI))
                 .andExpect(header("Authorization", "Bearer test-key"))
                 .andRespond(withSuccess(RESPONSE, MediaType.APPLICATION_JSON));
-        enabled()
+        configured()
                 .withConfiguration(
                         AutoConfigurations.of(
                                 org.springaicommunity.typesafe.autoconfigure
@@ -329,8 +374,8 @@ class AgentTypeSafeAutoConfigurationTest {
         server.verify();
     }
 
-    private ApplicationContextRunner enabled() {
-        return runner.withPropertyValues(PREFIX + "enabled=true", PREFIX + "api-key=test-key");
+    private ApplicationContextRunner configured() {
+        return runner.withPropertyValues(PREFIX + "api-key=test-key");
     }
 
     private static final String RESPONSE =

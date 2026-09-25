@@ -27,18 +27,19 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
+import java.net.URI;
+
 /**
  * Supplies a native {@link TypeSafeClient} independently of the Embabel platform and its model
  * providers.
  *
- * <p>Requires {@code embabel.agent.platform.models.typesafe.enabled=true}. Any existing native
+ * <p>Adding the starter activates this configuration and requires an API key. Any existing native
  * client bean disables this configuration, including credential validation and property binding.
  * The upstream TypeSafe starter is ordered after this configuration so its client can back off.
  *
@@ -52,10 +53,11 @@ import org.springframework.web.client.RestClient;
         beforeName = "org.springaicommunity.typesafe.autoconfigure.TypeSafeAutoConfiguration",
         afterName = "com.embabel.agent.autoconfigure.netty.NettyClientAutoConfiguration")
 @ConditionalOnClass(TypeSafeClient.class)
-@ConditionalOnProperty(prefix = TypeSafeProperties.PREFIX, name = "enabled", havingValue = "true")
 @ConditionalOnMissingBean(TypeSafeClient.class)
 @EnableConfigurationProperties(TypeSafeProperties.class)
 public class AgentTypeSafeAutoConfiguration {
+
+    private static final String API_KEY_ENVIRONMENT_VARIABLE = "TYPESAFE_API_KEY";
 
     static final String AI_MODEL_REST_CLIENT_BUILDER = "aiModelRestClientBuilder";
 
@@ -77,12 +79,13 @@ public class AgentTypeSafeAutoConfiguration {
             // Shared platform builders need the application's HTTP observations without mutation.
             builder = builder.clone().observationRegistry(registry);
         }
+        var defaults = TypeSafeClientOptions.defaults();
         var options =
                 new TypeSafeClientOptions(
-                        properties.baseUri(),
+                        URI.create(properties.baseUrl()),
                         properties.model(),
-                        properties.connectTimeout(),
-                        properties.readTimeout(),
+                        defaults.connectTimeout(),
+                        defaults.readTimeout(),
                         properties.maxResponseBytes());
         return TypeSafeClients.create(
                 options,
@@ -92,16 +95,14 @@ public class AgentTypeSafeAutoConfiguration {
     }
 
     /**
-     * Uses the configured key first and resolves the environment fallback for each request. Startup
-     * validation uses the same path, and failures never include credential contents.
+     * Prefers the environment key, matching the other providers, and resolves it for each request.
+     * Startup validation uses the same path, and failures never include credential contents.
      */
     private static String requireApiKey(TypeSafeProperties properties, Environment environment) {
-        var key =
-                StringUtils.hasText(properties.apiKey())
-                        ? properties.apiKey()
-                        : environment.getProperty(TypeSafeProperties.API_KEY_ENVIRONMENT_VARIABLE);
+        var environmentKey = environment.getProperty(API_KEY_ENVIRONMENT_VARIABLE);
+        var key = StringUtils.hasText(environmentKey) ? environmentKey : properties.apiKey();
         if (!StringUtils.hasText(key)) {
-            throw new IllegalStateException("TypeSafe API key is required when enabled");
+            throw new IllegalStateException("TypeSafe API key is required");
         }
         return key;
     }
