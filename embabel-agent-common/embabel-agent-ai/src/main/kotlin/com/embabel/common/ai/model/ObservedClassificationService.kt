@@ -80,6 +80,7 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
                 try {
                     work().also {
                         outcome = outcomeOf(it)
+                        observation.lowCardinalityKeyValue(OUTCOME, outcome.tag)
                         if (outcome == Outcome.FAILURE) observation.error(SafeFailure(outcome))
                     }
                 } catch (failure: Throwable) {
@@ -88,6 +89,7 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
                         is CancellationException -> Outcome.CANCELLED
                         else -> Outcome.EXCEPTION
                     }
+                    observation.lowCardinalityKeyValue(OUTCOME, outcome.tag)
                     observation.error(SafeFailure(outcome))
                     throw failure
                 }
