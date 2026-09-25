@@ -37,7 +37,6 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import com.embabel.agent.core.Blackboard
 import io.mockk.every
-import java.util.Collections
 
 /**
  * An [Executor] may run a task on the thread that submitted it. The [AgentProcess] thread local
@@ -276,10 +275,10 @@ class ExecutorAsyncerCallerThreadTest {
          * The same executor a deployment actually configures, driving parallelMap rather than a
          * single async.
          *
-         * `parallelMap` is how an action fans out, so this is the realistic way to meet the defect:
-         * more items than the pool can take, the overflow running on the submitting thread, and -
-         * with a clear on the way out - the caller losing its process partway through its own
-         * fan-out while some items still succeed.
+         * `parallelMap` is how an action fans out. The worker and queue are occupied before the
+         * call, so every submitted item must use [ThreadPoolExecutor.CallerRunsPolicy]. This
+         * avoids making the test depend on whether the worker drains the queue between
+         * submissions.
          */
         @Test
         fun `parallelMap over a saturated pool keeps the process for the overflow and the caller`() {
@@ -289,27 +288,39 @@ class ExecutorAsyncerCallerThreadTest {
                 ThreadPoolExecutor.CallerRunsPolicy(),
             )
             val asyncer = ExecutorAsyncer(pool)
+            val release = CountDownLatch(1)
+            val ranOnCaller = AtomicReference(false)
             val outer = mockk<AgentProcess>()
 
             try {
                 outer.withCurrent {
                     val callerThread = Thread.currentThread()
-                    val ranOn = Collections.synchronizedList(mutableListOf<Thread>())
+
+                    // Hold the only worker and fill the only queue slot before parallelMap submits.
+                    val blocking = asyncer.async { release.await(10, TimeUnit.SECONDS) }
+                    val queued = asyncer.async { "queued" }
 
                     val seen = asyncer.parallelMap((1..12).toList(), maxConcurrency = 12) {
-                        ranOn += Thread.currentThread()
+                        if (Thread.currentThread() === callerThread) {
+                            ranOnCaller.set(true)
+                        }
                         AgentProcess.get()
                     }
 
                     assertTrue(
-                        ranOn.any { it === callerThread },
+                        ranOnCaller.get(),
                         "precondition: the pool must have overflowed onto the caller",
                     )
                     assertEquals(12, seen.size)
                     seen.forEachIndexed { i, p -> assertSame(outer, p, "item ${i + 1} ran without the process") }
                     assertSame(outer, AgentProcess.get(), "the caller must still hold its process")
+
+                    release.countDown()
+                    blocking.get(10, TimeUnit.SECONDS)
+                    queued.get(10, TimeUnit.SECONDS)
                 }
             } finally {
+                release.countDown()
                 pool.shutdown()
                 pool.awaitTermination(10, TimeUnit.SECONDS)
             }
