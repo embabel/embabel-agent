@@ -46,7 +46,6 @@ import org.springframework.web.client.RestClient;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
 
 class AgentTypeSafeAutoConfigurationTest {
     private static final String PREFIX = TypeSafeProperties.PREFIX + ".";
