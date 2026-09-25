@@ -935,11 +935,10 @@ class TypeSafeBoundaryTest {
             })
     void credentialBearingProviderEndpointsAreRejectedWithFixedDiagnostics(String baseUrl) {
         var timeout = Duration.ofSeconds(1);
+        var baseUri = URI.create(baseUrl);
 
         assertThatThrownBy(
-                        () ->
-                                new TypeSafeClientOptions(
-                                        URI.create(baseUrl), timeout, timeout, 1024))
+                        () -> new TypeSafeClientOptions(baseUri, timeout, timeout, 1024))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
                         "TypeSafe base URI must not contain credentials, a query or a fragment")
