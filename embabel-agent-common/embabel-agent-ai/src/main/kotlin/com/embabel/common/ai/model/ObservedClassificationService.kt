@@ -31,6 +31,8 @@ import java.util.concurrent.CancellationException
  * Payloads, model identifiers and raw exceptions are never added to these observations or debug logs.
  * Operational failures and thrown exceptions record a fixed, stackless error marker with no cause.
  * The original exception is rethrown unchanged; the wrapper never changes thread interruption state.
+ * Non-fatal observation lifecycle exceptions use bounded diagnostics when logging is available and
+ * never replace service behavior. JVM error types propagate.
  */
 @ApiStatus.Experimental
 class ObservedClassificationService @JvmOverloads constructor(
@@ -62,6 +64,16 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         INTERRUPTED("interrupted"),
     }
 
+    private enum class TelemetryPhase(val tag: String) {
+        START("start"),
+        OPEN_SCOPE("open_scope"),
+        RECORD_OUTCOME("record_outcome"),
+        RECORD_ERROR("record_error"),
+        CLOSE_SCOPE("close_scope"),
+        RESTORE_SCOPE("restore_scope"),
+        STOP("stop"),
+    }
+
     private class SafeFailure(outcome: Outcome) : RuntimeException(outcome.tag, null, false, false)
 
     fun classify(request: ClassificationRequest, work: () -> ClassificationResult): ClassificationResult =
@@ -71,33 +83,134 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
 
     /** Validate and execute inside the call scope, recording only bounded diagnostics on every completion. */
     private fun <T> observe(operation: Operation, outcomeOf: (T) -> Outcome, work: () -> T): T {
-        val observation = Observation.createNotStarted(operation.observationName, registry)
-            .lowCardinalityKeyValue(OPERATION, operation.tag)
-            .start()
+        val observation = startObservation(operation)
+        val scope = observation?.let { openScope(it, operation) }
         var outcome = Outcome.EXCEPTION
         try {
-            return observation.openScope().use {
-                try {
-                    work().also {
-                        outcome = outcomeOf(it)
-                        observation.lowCardinalityKeyValue(OUTCOME, outcome.tag)
-                        if (outcome == Outcome.FAILURE) observation.error(SafeFailure(outcome))
-                    }
-                } catch (failure: Throwable) {
-                    outcome = when (failure) {
-                        is InterruptedException -> Outcome.INTERRUPTED
-                        is CancellationException -> Outcome.CANCELLED
-                        else -> Outcome.EXCEPTION
-                    }
-                    observation.lowCardinalityKeyValue(OUTCOME, outcome.tag)
-                    observation.error(SafeFailure(outcome))
-                    throw failure
+            return work().also {
+                outcome = outcomeOf(it)
+                observation?.let { current ->
+                    recordOutcome(current, operation, outcome)
+                    if (outcome == Outcome.FAILURE) recordError(current, operation, outcome)
                 }
             }
+        } catch (failure: Throwable) {
+            outcome = when (failure) {
+                is InterruptedException -> Outcome.INTERRUPTED
+                is CancellationException -> Outcome.CANCELLED
+                else -> Outcome.EXCEPTION
+            }
+            observation?.let {
+                recordOutcome(it, operation, outcome)
+                recordError(it, operation, outcome)
+            }
+            throw failure
         } finally {
+            scope?.let { closeScope(it, operation) }
+            observation?.let {
+                recordOutcome(it, operation, outcome)
+                stop(it, operation)
+            }
+            logCompletion(operation, outcome)
+        }
+    }
+
+    /** Start telemetry without allowing a broken convention or handler to prevent the provider call. */
+    private fun startObservation(operation: Operation): Observation? {
+        var observation: Observation? = null
+        return try {
+            observation = Observation.createNotStarted(operation.observationName, registry)
+                .lowCardinalityKeyValue(OPERATION, operation.tag)
+            observation.start()
+        } catch (_: Exception) {
+            observation?.let { stop(it, operation) }
+            logTelemetryFailure(operation, TelemetryPhase.START)
+            null
+        }
+    }
+
+    /** Open the provider scope and unwind callbacks that completed before a later handler failed. */
+    private fun openScope(observation: Observation, operation: Operation): Observation.Scope? {
+        val previous = registry.currentObservationScope
+        return try {
+            observation.openScope()
+        } catch (_: Exception) {
+            val partial = registry.currentObservationScope
+            if (partial != null && partial !== previous && partial.currentObservation === observation) {
+                closeScope(partial, operation, previous)
+            } else {
+                restoreRegistryScope(previous, operation)
+            }
+            logTelemetryFailure(operation, TelemetryPhase.OPEN_SCOPE)
+            null
+        }
+    }
+
+    /** Close the provider scope without allowing a handler failure to leak it or replace the call result. */
+    private fun closeScope(
+        scope: Observation.Scope,
+        operation: Operation,
+        previous: Observation.Scope? = scope.previousObservationScope,
+    ) {
+        try {
+            scope.close()
+        } catch (_: Exception) {
+            restoreRegistryScope(previous, operation)
+            logTelemetryFailure(operation, TelemetryPhase.CLOSE_SCOPE)
+        }
+    }
+
+    /** Restore the registry pointer after a handler interrupts Micrometer's normal scope cleanup. */
+    private fun restoreRegistryScope(previous: Observation.Scope?, operation: Operation) {
+        try {
+            registry.setCurrentObservationScope(previous)
+        } catch (_: Exception) {
+            logTelemetryFailure(operation, TelemetryPhase.RESTORE_SCOPE)
+        }
+    }
+
+    /** Record a bounded outcome while keeping telemetry failures outside the service contract. */
+    private fun recordOutcome(observation: Observation, operation: Operation, outcome: Outcome) {
+        try {
             observation.lowCardinalityKeyValue(OUTCOME, outcome.tag)
+        } catch (_: Exception) {
+            logTelemetryFailure(operation, TelemetryPhase.RECORD_OUTCOME)
+        }
+    }
+
+    /** Notify handlers with a stackless marker without exposing or replacing the provider failure. */
+    private fun recordError(observation: Observation, operation: Operation, outcome: Outcome) {
+        try {
+            observation.error(SafeFailure(outcome))
+        } catch (_: Exception) {
+            logTelemetryFailure(operation, TelemetryPhase.RECORD_ERROR)
+        }
+    }
+
+    /** Stop telemetry without allowing exporters to replace a successful result or provider failure. */
+    private fun stop(observation: Observation, operation: Operation) {
+        try {
             observation.stop()
+        } catch (_: Exception) {
+            logTelemetryFailure(operation, TelemetryPhase.STOP)
+        }
+    }
+
+    /** Log only bounded lifecycle labels; handler exceptions can contain provider payloads or credentials. */
+    private fun logTelemetryFailure(operation: Operation, phase: TelemetryPhase) {
+        try {
+            logger.warn("AI {} observation failed during {}", operation.tag, phase.tag)
+        } catch (_: Exception) {
+            // Diagnostics must remain outside the service contract even when the logging backend fails.
+        }
+    }
+
+    /** Emit the bounded completion diagnostic without allowing a logging backend to alter the call. */
+    private fun logCompletion(operation: Operation, outcome: Outcome) {
+        try {
             logger.debug("AI {} completed with outcome {}", operation.tag, outcome.tag)
+        } catch (_: Exception) {
+            // Diagnostics must remain outside the service contract even when the logging backend fails.
         }
     }
 
@@ -109,6 +222,7 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         is ClassificationResult.Failure -> Outcome.FAILURE
     }
 
+    /** Map proposition result variants to labels without inspecting provider evidence. */
     private fun propositionOutcome(result: PropositionResult): Outcome = when (result) {
         is PropositionResult.Answered -> Outcome.ANSWERED
         is PropositionResult.Inconclusive -> Outcome.INCONCLUSIVE

@@ -17,8 +17,11 @@ package com.embabel.common.ai.model
 
 import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.classic.turbo.TurboFilter
 import ch.qos.logback.core.read.ListAppender
+import ch.qos.logback.core.spi.FilterReply
 import com.embabel.common.ai.classification.Category
 import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
@@ -36,10 +39,14 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.slf4j.LoggerFactory
+import org.slf4j.Marker
+import java.io.IOException
 import java.util.concurrent.CancellationException
 
 class DecisionObservationTest {
     private val secret = "sensitive-payload-and-credential"
+    private val telemetryFailureMessage = "telemetry failed"
+    private val observationLoggerName = "com.embabel.common.ai.model.ServiceCallObservation"
     private val provenance = ModelProvenance(secret, secret, secret, secret)
     private val request = ClassificationRequest(secret, listOf(Category("dog", secret)))
     private val proposition = PropositionRequest(secret, secret)
@@ -271,6 +278,104 @@ class DecisionObservationTest {
         }
 
         @Test
+        fun `telemetry error handlers cannot replace provider failures`() {
+            val handlerFailure = IllegalStateException(telemetryFailureMessage)
+            val registry = ObservationRegistry.create().apply {
+                observationConfig().observationHandler(object : ObservationHandler<Observation.Context> {
+                    override fun supportsContext(context: Observation.Context) = true
+                    override fun onError(context: Observation.Context) = throw handlerFailure
+                })
+            }
+            val providerFailure = IllegalStateException(secret)
+            val thrown = assertThrows<IllegalStateException> {
+                ObservedClassificationService(classifier { throw providerFailure }, registry).classify(request)
+            }
+            assertSame(providerFailure, thrown)
+            assertNull(registry.currentObservation)
+        }
+
+        @Test
+        fun `checked telemetry handler failures cannot replace service behavior`() {
+            val registry = ObservationRegistry.create().apply {
+                observationConfig().observationHandler(object : ObservationHandler<Observation.Context> {
+                    override fun supportsContext(context: Observation.Context) = true
+                    override fun onStop(context: Observation.Context) = throw IOException(telemetryFailureMessage)
+                })
+            }
+            val result = ClassificationResult.NoMatch(provenance)
+            assertSame(result, ObservedClassificationService(classifier { result }, registry).classify(request))
+            assertNull(registry.currentObservation)
+        }
+
+        @Test
+        fun `partial scope opens unwind handler thread locals before the provider runs`() {
+            val handlerScope = ThreadLocal<String?>()
+            val registry = ObservationRegistry.create().apply {
+                observationConfig()
+                    .observationHandler(object : ObservationHandler<Observation.Context> {
+                        override fun supportsContext(context: Observation.Context) = true
+                        override fun onScopeOpened(context: Observation.Context) = handlerScope.set(context.name)
+                        override fun onScopeClosed(context: Observation.Context) = handlerScope.remove()
+                    })
+                    .observationHandler(object : ObservationHandler<Observation.Context> {
+                        override fun supportsContext(context: Observation.Context) = true
+                        override fun onScopeOpened(context: Observation.Context) = throw IOException(telemetryFailureMessage)
+                    })
+            }
+            val result = ClassificationResult.NoMatch(provenance)
+            val observed = ObservedClassificationService(classifier {
+                assertNull(handlerScope.get())
+                result
+            }, registry)
+            assertSame(result, observed.classify(request))
+            assertNull(handlerScope.get())
+            assertNull(registry.currentObservation)
+        }
+
+        @Test
+        fun `telemetry stop handlers cannot replace results or provider failures`() {
+            val registry = ObservationRegistry.create().apply {
+                observationConfig().observationHandler(object : ObservationHandler<Observation.Context> {
+                    override fun supportsContext(context: Observation.Context) = true
+                    override fun onStop(context: Observation.Context) =
+                        throw IllegalStateException(telemetryFailureMessage)
+                })
+            }
+            val result = ClassificationResult.NoMatch(provenance)
+            assertSame(result, ObservedClassificationService(classifier { result }, registry).classify(request))
+            val providerFailure = IllegalStateException(secret)
+            val thrown = assertThrows<IllegalStateException> {
+                ObservedDecisionService(decision(assess = { throw providerFailure }), registry).assess(proposition)
+            }
+            assertSame(providerFailure, thrown)
+            assertNull(registry.currentObservation)
+        }
+
+        @Test
+        fun `telemetry scope close failures restore the previous scope`() {
+            var failNextScopeClose = true
+            val registry = ObservationRegistry.create().apply {
+                observationConfig().observationHandler(object : ObservationHandler<Observation.Context> {
+                    override fun supportsContext(context: Observation.Context) = true
+                    override fun onScopeClosed(context: Observation.Context) {
+                        if (failNextScopeClose) {
+                            failNextScopeClose = false
+                            throw IllegalStateException(telemetryFailureMessage)
+                        }
+                    }
+                })
+            }
+            val parent = Observation.start("caller", registry)
+            parent.openScope().use {
+                val result = ClassificationResult.NoMatch(provenance)
+                assertSame(result, ObservedClassificationService(classifier { result }, registry).classify(request))
+                assertSame(parent, registry.currentObservation)
+            }
+            parent.stop()
+            assertNull(registry.currentObservation)
+        }
+
+        @Test
         fun `cancellation and interruption propagate unchanged with fixed outcomes`() {
             val telemetry = Telemetry()
             val cancellation = CancellationException(secret)
@@ -307,8 +412,51 @@ class DecisionObservationTest {
     @Nested
     inner class Diagnostics {
         @Test
+        fun `logging failures cannot replace service results or provider failures`() {
+            val loggerContext = LoggerFactory.getILoggerFactory() as LoggerContext
+            val filter = object : TurboFilter() {
+                override fun decide(
+                    marker: Marker?,
+                    logger: Logger?,
+                    level: Level?,
+                    format: String?,
+                    params: Array<out Any?>?,
+                    throwable: Throwable?,
+                ): FilterReply {
+                    if (logger?.name == observationLoggerName) throw IOException(telemetryFailureMessage)
+                    return FilterReply.NEUTRAL
+                }
+            }.apply {
+                context = loggerContext
+                start()
+            }
+            loggerContext.addTurboFilter(filter)
+            try {
+                val result = ClassificationResult.NoMatch(provenance)
+                assertSame(result, ObservedClassificationService(classifier { result }).classify(request))
+
+                val registry = ObservationRegistry.create().apply {
+                    observationConfig().observationHandler(object : ObservationHandler<Observation.Context> {
+                        override fun supportsContext(context: Observation.Context) = true
+                        override fun onError(context: Observation.Context) =
+                            throw IOException(telemetryFailureMessage)
+                    })
+                }
+                val providerFailure = IllegalStateException(secret)
+                val thrown = assertThrows<IllegalStateException> {
+                    ObservedDecisionService(decision(assess = { throw providerFailure }), registry).assess(proposition)
+                }
+                assertSame(providerFailure, thrown)
+                assertNull(registry.currentObservation)
+            } finally {
+                loggerContext.turboFilterList.remove(filter)
+                filter.stop()
+            }
+        }
+
+        @Test
         fun `debug diagnostics contain only fixed operation and outcome without throwable`() {
-            val logger = LoggerFactory.getLogger("com.embabel.common.ai.model.ServiceCallObservation") as Logger
+            val logger = LoggerFactory.getLogger(observationLoggerName) as Logger
             val previous = logger.level
             val appender = ListAppender<ILoggingEvent>().apply { start() }
             logger.addAppender(appender)

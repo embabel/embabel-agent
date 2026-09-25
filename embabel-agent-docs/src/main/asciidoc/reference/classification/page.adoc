@@ -117,3 +117,6 @@ A `false` answer has the same `answered` outcome as `true`.
 The decorators validate selected IDs and preserve the delegate's metadata and model family.
 Observations and debug logs exclude input, category IDs, model identifiers, and raw exceptions; failures use a fixed error marker without a cause or stack trace.
 Exceptions still reach the caller unchanged.
+If an observation convention, handler, or exporter throws a non-fatal exception, the decorator logs only the fixed operation and lifecycle phase, makes a best-effort close of any partially opened scope, restores the previous registry scope, and preserves the service result or original provider exception.
+Micrometer owns handler-specific scope state, so a handler that also throws from its close callback can prevent its own cleanup callbacks from completing.
+Diagnostic logging is also best-effort: a logging backend failure cannot replace the service result or exception.
