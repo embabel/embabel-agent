@@ -18,53 +18,37 @@ package com.embabel.agent.config.models.typesafe;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
-import java.net.URI;
-import java.time.Duration;
-
 /**
- * Configuration for the opt-in native TypeSafe client, bound beneath {@value #PREFIX}.
+ * Configuration for the native TypeSafe client, bound beneath {@value #PREFIX}.
  *
- * <p>Client creation validates these options only when TypeSafe is enabled and no application
- * {@code TypeSafeClient} bean exists. A supplied HTTP transport retains ownership of its
- * connection/read timeouts, redirects, TLS and proxy settings.
+ * <p>An application-provided {@code TypeSafeClient} skips this configuration. HTTP transport
+ * settings belong to the shared or application-provided {@code RestClient.Builder}.
  *
- * @param enabled whether to create a client; defaults to {@code false}
- * @param apiKey optional API credential; a nonblank value takes precedence over {@value
- *     #API_KEY_ENVIRONMENT_VARIABLE}. The environment fallback is resolved for each request. This
- *     value is excluded from {@link #toString()}.
+ * @param apiKey API credential used when {@code TYPESAFE_API_KEY} is absent or blank; excluded from
+ *     {@link #toString()}. The environment key is resolved for each request.
+ * @param baseUrl HTTP(S) provider endpoint; defaults to {@code https://api.typesafe.ai}. Proxy base
+ *     paths are supported. Credentials, query parameters and fragments are rejected.
  * @param model default model for requests without an explicit model; defaults to {@code jev-latest}
  *     and must be nonblank
- * @param baseUri HTTP(S) base URI; defaults to {@code https://api.typesafe.ai}. Proxy base paths
- *     are supported. User information, query and fragment are rejected.
- * @param connectTimeout fallback transport connection timeout; defaults to 10 seconds and must be
- *     between 1 millisecond and {@link Integer#MAX_VALUE} milliseconds
- * @param readTimeout fallback transport read timeout; defaults to 10 seconds with the same bounds
- *     as {@code connectTimeout}. Neither timeout is a total request deadline.
  * @param maxResponseBytes positive maximum response body size in bytes; defaults to 1 MiB
  */
 @ConfigurationProperties(TypeSafeProperties.PREFIX)
 public record TypeSafeProperties(
-        @DefaultValue("false") boolean enabled,
         String apiKey,
+        @DefaultValue("https://api.typesafe.ai") String baseUrl,
         @DefaultValue("jev-latest") String model,
-        @DefaultValue("https://api.typesafe.ai") URI baseUri,
-        @DefaultValue("10s") Duration connectTimeout,
-        @DefaultValue("10s") Duration readTimeout,
         @DefaultValue("1048576") int maxResponseBytes) {
 
     /** Spring property namespace for the native TypeSafe client. */
     public static final String PREFIX = "embabel.agent.platform.models.typesafe";
 
-    /** Environment property used when no nonblank API key is configured. */
-    public static final String API_KEY_ENVIRONMENT_VARIABLE = "TYPESAFE_API_KEY";
-
     /**
-     * Returns the enablement state without credentials or other configured values.
+     * Keeps credentials out of configuration diagnostics.
      *
      * @return a credential-redacted diagnostic representation
      */
     @Override
     public String toString() {
-        return "TypeSafeProperties[enabled=" + enabled + ", apiKey=[REDACTED]]";
+        return "TypeSafeProperties[apiKey=[REDACTED]]";
     }
 }
