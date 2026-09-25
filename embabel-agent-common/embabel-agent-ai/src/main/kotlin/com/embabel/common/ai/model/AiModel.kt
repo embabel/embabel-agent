@@ -19,9 +19,17 @@ import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
+import org.jetbrains.annotations.ApiStatus
 
+/** Model families. External exhaustive switches must handle newly introduced families. */
 enum class ModelType {
-    LLM, EMBEDDING, CLASSIFICATION, DECISION,
+    LLM, EMBEDDING,
+
+    @ApiStatus.Experimental
+    CLASSIFICATION,
+
+    @ApiStatus.Experimental
+    DECISION,
 }
 
 /**
