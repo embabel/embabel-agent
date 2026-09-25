@@ -19,9 +19,16 @@ import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
 import org.jetbrains.annotations.ApiStatus
 
-/** Text and a proposition to assess against that text; neither implies extraction of an object. */
+/**
+ * Text and a nonblank proposition to assess against it. Input may be empty.
+ * The default string representation omits both text fields.
+ */
 @ApiStatus.Experimental
-data class PropositionRequest(val input: String, val proposition: String)
+class PropositionRequest(val input: String, val proposition: String) {
+    init {
+        require(proposition.isNotBlank()) { "Proposition must not be blank" }
+    }
+}
 
 /** A proposition assessment keeps false answers, insufficient evidence, and failures distinct. */
 @ApiStatus.Experimental

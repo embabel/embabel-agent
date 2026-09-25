@@ -24,6 +24,21 @@ class PropositionTest {
     private val provenance = ModelProvenance("model", "provider", "v1", "request-1")
 
     @Test
+    fun `request string representation excludes assessment payloads`() {
+        val request = PropositionRequest("private-input-sentinel", "private-proposition-sentinel")
+        assertFalse(request.toString().contains(request.input))
+        assertFalse(request.toString().contains(request.proposition))
+    }
+
+    @Test
+    fun `request rejects blank propositions but allows empty input`() {
+        for (proposition in listOf("", " ", "\t\n")) {
+            assertThrows(IllegalArgumentException::class.java) { PropositionRequest("input", proposition) }
+        }
+        assertEquals("", PropositionRequest("", "The input is empty").input)
+    }
+
+    @Test
     fun `false is an answer with optional independent probability of truth`() {
         val answer = PropositionResult.Answered(false, provenance)
         assertFalse(answer.answer)
