@@ -98,18 +98,25 @@ class ClassificationTest {
         @Test
         fun `confidence must be provider supplied finite probability`() {
             for (score in listOf(Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, -0.1, 1.1)) {
-                assertThrows(IllegalArgumentException::class.java) { ClassificationResult.Selected("dog", provenance, score) }
+                assertThrows(IllegalArgumentException::class.java) {
+                    ClassificationResult.Selected("dog", provenance, score)
+                }
             }
             assertNull(ClassificationResult.Selected("dog", provenance).confidence)
-            for (score in listOf(0.0, 1.0)) assertEquals(score, ClassificationResult.Selected("dog", provenance, score).confidence)
+            for (score in listOf(0.0, 1.0)) {
+                assertEquals(score, ClassificationResult.Selected("dog", provenance, score).confidence)
+            }
             assertThrows(IllegalArgumentException::class.java) { ClassificationResult.Selected(" ", provenance) }
         }
 
         @Test
         fun `mapping retains distinct nonselection evidence unchanged`() {
             val mapping = CategoryMapping(mapOf(Category("dog", "Canine") to Animal.DOG))
-            val outcomes = listOf(ClassificationResult.NoMatch(provenance), ClassificationResult.Inconclusive(provenance),
-                ClassificationResult.Failure(FailureReason.UNAVAILABLE))
+            val outcomes = listOf(
+                ClassificationResult.NoMatch(provenance),
+                ClassificationResult.Inconclusive(provenance),
+                ClassificationResult.Failure(FailureReason.UNAVAILABLE),
+            )
             outcomes.forEach {
                 assertSame(it, mapping.map(it))
                 assertSame(it, mapping.request("input").validate(it))
