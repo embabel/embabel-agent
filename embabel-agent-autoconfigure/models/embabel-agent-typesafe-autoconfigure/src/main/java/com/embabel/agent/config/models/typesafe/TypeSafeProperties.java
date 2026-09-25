@@ -15,19 +15,21 @@
  */
 package com.embabel.agent.config.models.typesafe;
 
+import com.embabel.agent.typesafe.TypeSafeModelFactory;
+
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
- * Configuration for the native TypeSafe client, bound beneath {@value #PREFIX}.
+ * Configuration for TypeSafe decision services, bound beneath {@value #PREFIX}.
  *
- * <p>An application-provided {@code TypeSafeClient} skips this configuration. HTTP transport
- * settings belong to the shared or application-provided {@code RestClient.Builder}.
+ * <p>HTTP transport settings belong to the shared or application-provided {@code
+ * RestClient.Builder}.
  *
  * @param apiKey API credential used when {@code TYPESAFE_API_KEY} is absent or blank; excluded from
  *     {@link #toString()}. The environment key is resolved for each request.
- * @param baseUrl HTTP(S) provider endpoint; defaults to {@code https://api.typesafe.ai}. Proxy base
- *     paths are supported. Credentials, query parameters and fragments are rejected.
+ * @param baseUrl provider endpoint; defaults to {@code https://api.typesafe.ai}. Endpoint
+ *     validation belongs to the HTTP client.
  * @param model default model for requests without an explicit model; defaults to {@code jev-latest}
  *     and must be nonblank
  * @param maxResponseBytes positive maximum response body size in bytes; defaults to 1 MiB
@@ -36,10 +38,10 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 public record TypeSafeProperties(
         String apiKey,
         @DefaultValue("https://api.typesafe.ai") String baseUrl,
-        @DefaultValue("jev-latest") String model,
+        @DefaultValue(TypeSafeModelFactory.DEFAULT_MODEL) String model,
         @DefaultValue("1048576") int maxResponseBytes) {
 
-    /** Spring property namespace for the native TypeSafe client. */
+    /** Spring property namespace for TypeSafe decision services. */
     public static final String PREFIX = "embabel.agent.platform.models.typesafe";
 
     /**
@@ -49,6 +51,7 @@ public record TypeSafeProperties(
      */
     @Override
     public String toString() {
-        return "TypeSafeProperties[apiKey=[REDACTED]]";
+        return "TypeSafeProperties[apiKey=[REDACTED], baseUrl=[CONFIGURED], model=[CONFIGURED], maxResponseBytes=%d]"
+                .formatted(maxResponseBytes);
     }
 }

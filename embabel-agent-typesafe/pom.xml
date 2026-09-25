@@ -8,8 +8,20 @@
     </parent>
     <artifactId>embabel-agent-typesafe</artifactId>
     <name>Embabel Agent TypeSafe</name>
-    <description>Native TypeSafe primitives with guarded synchronous transport</description>
+    <description>TypeSafe decision services with guarded synchronous transport</description>
     <dependencies>
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-ai</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-byok</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springaicommunity</groupId>
             <artifactId>typesafe-java-sdk</artifactId>
@@ -36,4 +48,12 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
 </project>
