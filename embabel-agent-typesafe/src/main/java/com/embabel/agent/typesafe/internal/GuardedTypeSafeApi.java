@@ -39,6 +39,7 @@ import org.springaicommunity.typesafe.response.SystemOneResponse;
 import org.springaicommunity.typesafe.response.UnknownAnswer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -54,11 +55,13 @@ import tools.jackson.databind.MapperFeature;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.Serial;
 import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.http.HttpTimeoutException;
+import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.function.Supplier;
 
@@ -150,7 +153,11 @@ public final class GuardedTypeSafeApi extends TypeSafeApi {
         builder.requestInterceptors(
                 interceptors ->
                         interceptors.add(
-                                0, BoundedResponse.interceptor(options.maxResponseBytes())));
+                                0,
+                                (request, body, execution) ->
+                                        new BoundedResponse(
+                                                execution.execute(request, body),
+                                                options.maxResponseBytes())));
         return builder;
     }
 
@@ -294,6 +301,123 @@ public final class GuardedTypeSafeApi extends TypeSafeApi {
 
         SafeHttpFailure(int status) {
             super("TypeSafe HTTP request failed", status, null, HttpHeaders.EMPTY, "");
+        }
+    }
+
+    /** Streaming limit for both declared and chunked response bodies. */
+    private static final class BoundedResponse implements ClientHttpResponse {
+        private final ClientHttpResponse response;
+        private final int maximumBytes;
+        private InputStream limited;
+
+        private BoundedResponse(ClientHttpResponse response, int maximumBytes) {
+            this.response = response;
+            this.maximumBytes = maximumBytes;
+        }
+
+        @Override
+        public HttpStatusCode getStatusCode() throws IOException {
+            return response.getStatusCode();
+        }
+
+        @Override
+        public String getStatusText() throws IOException {
+            return response.getStatusText();
+        }
+
+        @Override
+        public HttpHeaders getHeaders() {
+            return response.getHeaders();
+        }
+
+        @Override
+        public InputStream getBody() throws IOException {
+            if (limited == null) {
+                if (response.getHeaders().getContentLength() > maximumBytes) {
+                    throw exceeded();
+                }
+                limited = bounded(response.getBody(), maximumBytes);
+            }
+            return limited;
+        }
+
+        @Override
+        public void close() {
+            // Close the raw stream first so URLConnection cannot drain a rejected body.
+            try {
+                closeBody();
+            } finally {
+                closeResponse();
+            }
+        }
+
+        /** Contains transport cleanup failures so they cannot replace the request outcome. */
+        private void closeResponse() {
+            try {
+                response.close();
+            } catch (RuntimeException ignored) {
+                logger.debug("TypeSafe response cleanup failed");
+            }
+        }
+
+        /**
+         * Closes the raw stream before transport cleanup can drain a rejected response. Opening the
+         * body here is required when status or content length caused early rejection.
+         */
+        private void closeBody() {
+            try {
+                InputStream body = limited;
+                if (body == null) {
+                    body = response.getBody();
+                }
+                body.close();
+            } catch (IOException | RuntimeException ignored) {
+                logger.debug("TypeSafe response body cleanup failed");
+            }
+        }
+
+        /**
+         * Reads at most one byte beyond the limit to detect oversized chunked bodies. Delegating
+         * close releases the underlying connection even after decoding has failed.
+         */
+        private static InputStream bounded(InputStream source, int maximumBytes) {
+            return new InputStream() {
+                private long remaining = maximumBytes;
+
+                @Override
+                public int read() throws IOException {
+                    int value = source.read();
+                    if (value != -1 && --remaining < 0) {
+                        throw exceeded();
+                    }
+                    return value;
+                }
+
+                @Override
+                public int read(byte[] bytes, int offset, int length) throws IOException {
+                    Objects.checkFromIndexSize(offset, length, bytes.length);
+                    if (length == 0) {
+                        return 0;
+                    }
+                    int count = source.read(bytes, offset, (int) Math.min(length, remaining + 1));
+                    if (count > 0) {
+                        remaining -= count;
+                        if (remaining < 0) {
+                            throw exceeded();
+                        }
+                    }
+                    return count;
+                }
+
+                @Override
+                public void close() throws IOException {
+                    source.close();
+                }
+            };
+        }
+
+        private static IOException exceeded() {
+            return new IOException("TypeSafe response exceeds configured byte limit");
         }
     }
 
