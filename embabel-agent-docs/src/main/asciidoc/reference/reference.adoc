@@ -59,7 +59,7 @@ include::customizing/page.adoc[]
 
 include::integrations/page.adoc[]
 
-include::jev.adoc[]
+include::typesafe/page.adoc[]
 
 include::tooling/page.adoc[]
 
