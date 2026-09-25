@@ -15,95 +15,22 @@
  */
 package com.embabel.agent.autoconfigure.models.typesafe;
 
-import com.embabel.agent.config.models.typesafe.TypeSafeProperties;
-import com.embabel.agent.typesafe.api.TypeSafeClientOptions;
-import com.embabel.agent.typesafe.api.TypeSafeClients;
+import com.embabel.agent.config.models.typesafe.TypeSafeModelsConfig;
 
-import io.micrometer.observation.ObservationRegistry;
-
-import org.springaicommunity.typesafe.TypeSafeClient;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.annotation.Bean;
-import org.springframework.core.env.Environment;
-import org.springframework.util.StringUtils;
-import org.springframework.web.client.RestClient;
-
-import java.net.URI;
+import org.springframework.context.annotation.Import;
 
 /**
- * Supplies a native {@link TypeSafeClient} independently of the Embabel platform and its model
- * providers.
- *
- * <p>Adding the starter activates this configuration and requires an API key. Any existing native
- * client bean disables this configuration, including credential validation and property binding.
- * The upstream TypeSafe starter is ordered after this configuration so its client can back off.
- *
- * <p>Prefers the qualified {@code aiModelRestClientBuilder}, then a unique application builder,
- * then the core factory's fallback transport. Selected builders are cloned before the application's
- * unique {@link ObservationRegistry} is assigned, preserving transport settings and interceptors
- * without changing a shared builder. Without a registry bean, inherited HTTP observations remain
- * intact and logical TypeSafe observations use {@link ObservationRegistry#NOOP}.
+ * Activates TypeSafe decision-service configuration when the integration is available. Runs after
+ * the shared HTTP transport and before the community starter so both can reuse application transport
+ * configuration without changing each other's beans.
  */
 @AutoConfiguration(
         beforeName = "org.springaicommunity.typesafe.autoconfigure.TypeSafeAutoConfiguration",
         afterName = "com.embabel.agent.autoconfigure.netty.NettyClientAutoConfiguration")
-@ConditionalOnClass(TypeSafeClient.class)
-@ConditionalOnMissingBean(TypeSafeClient.class)
-@EnableConfigurationProperties(TypeSafeProperties.class)
-public class AgentTypeSafeAutoConfiguration {
-
-    private static final String API_KEY_ENVIRONMENT_VARIABLE = "TYPESAFE_API_KEY";
-
-    static final String AI_MODEL_REST_CLIENT_BUILDER = "aiModelRestClientBuilder";
-
-    @Bean
-    TypeSafeClient typeSafeClient(
-            TypeSafeProperties properties,
-            Environment environment,
-            @Qualifier(AI_MODEL_REST_CLIENT_BUILDER)
-                    ObjectProvider<RestClient.Builder> platformBuilders,
-            ObjectProvider<RestClient.Builder> builders,
-            ObjectProvider<ObservationRegistry> registries) {
-        requireApiKey(properties, environment);
-        var builder = platformBuilders.getIfUnique();
-        if (builder == null) {
-            builder = builders.getIfUnique();
-        }
-        var registry = registries.getIfUnique();
-        if (builder != null && registry != null) {
-            // Shared platform builders need the application's HTTP observations without mutation.
-            builder = builder.clone().observationRegistry(registry);
-        }
-        var defaults = TypeSafeClientOptions.defaults();
-        var options =
-                new TypeSafeClientOptions(
-                        URI.create(properties.baseUrl()),
-                        properties.model(),
-                        defaults.connectTimeout(),
-                        defaults.readTimeout(),
-                        properties.maxResponseBytes());
-        return TypeSafeClients.create(
-                options,
-                () -> requireApiKey(properties, environment),
-                builder,
-                registry != null ? registry : ObservationRegistry.NOOP);
-    }
-
-    /**
-     * Prefers the environment key, matching the other providers, and resolves it for each request.
-     * Startup validation uses the same path, and failures never include credential contents.
-     */
-    private static String requireApiKey(TypeSafeProperties properties, Environment environment) {
-        var environmentKey = environment.getProperty(API_KEY_ENVIRONMENT_VARIABLE);
-        var key = StringUtils.hasText(environmentKey) ? environmentKey : properties.apiKey();
-        if (!StringUtils.hasText(key)) {
-            throw new IllegalStateException("TypeSafe API key is required");
-        }
-        return key;
-    }
-}
+@ConditionalOnClass(com.embabel.agent.typesafe.TypeSafeModelFactory.class)
+@ConditionalOnMissingBean(name = "typeSafeDecisionService")
+@Import(TypeSafeModelsConfig.class)
+public class AgentTypeSafeAutoConfiguration {}

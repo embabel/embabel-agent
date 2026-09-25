@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.typesafe.api;
+package com.embabel.agent.typesafe;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
@@ -100,8 +100,9 @@ class TypeSafeBoundaryTest {
         return new Fixture(
                 builder,
                 server,
-                TypeSafeClients.create(
-                        TypeSafeClientOptions.defaults(), () -> "PRIVATE_KEY", builder));
+                new TypeSafeClientFactory(
+                                TypeSafeClientOptions.defaults(), () -> "PRIVATE_KEY", builder)
+                        .build());
     }
 
     @ParameterizedTest
@@ -221,7 +222,9 @@ class TypeSafeBoundaryTest {
                 });
         var server = MockRestServiceServer.bindTo(builder).build();
         var key = new AtomicReference<>("one");
-        var client = TypeSafeClients.create(TypeSafeClientOptions.defaults(), key::get, builder);
+        var client =
+                new TypeSafeClientFactory(TypeSafeClientOptions.defaults(), key::get, builder)
+                        .build();
         server.expect(anything())
                 .andExpect(header("Authorization", "Bearer one"))
                 .andRespond(withSuccess(GOOD, MediaType.APPLICATION_JSON));
@@ -251,15 +254,34 @@ class TypeSafeBoundaryTest {
     @Test
     void arbitrarySupplierExceptionsAreNotTrusted() {
         var client =
-                TypeSafeClients.create(
-                        TypeSafeClientOptions.defaults(),
-                        () -> {
-                            throw new TypeSafeApiException(
-                                    "PRIVATE", 400, "PRIVATE", new HttpHeaders(), "PRIVATE");
-                        });
+                new TypeSafeClientFactory(
+                                TypeSafeClientOptions.defaults(),
+                                () -> {
+                                    throw new TypeSafeApiException(
+                                            "PRIVATE",
+                                            400,
+                                            "PRIVATE",
+                                            new HttpHeaders(),
+                                            "PRIVATE");
+                                })
+                        .build();
         assertThatThrownBy(() -> call(client))
                 .hasMessage("TypeSafe request or response invalid")
                 .hasNoCause();
+    }
+
+    @Test
+    void cancellationFromTheRequestPathPropagatesUnchanged() {
+        var cancellation = new CancellationException("cancelled by caller");
+        var client =
+                new TypeSafeClientFactory(
+                                TypeSafeClientOptions.defaults(),
+                                () -> {
+                                    throw cancellation;
+                                })
+                        .build();
+
+        assertThatThrownBy(() -> call(client)).isSameAs(cancellation);
     }
 
     @Test
@@ -398,8 +420,12 @@ class TypeSafeBoundaryTest {
         var builder = RestClient.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
         var client =
-                TypeSafeClients.create(
-                        TypeSafeClientOptions.defaults(), () -> "PRIVATE", builder, registry);
+                new TypeSafeClientFactory(
+                                TypeSafeClientOptions.defaults(),
+                                () -> "PRIVATE",
+                                builder,
+                                registry)
+                        .build();
         server.expect(anything()).andRespond(withSuccess(GOOD, MediaType.APPLICATION_JSON));
         server.expect(anything())
                 .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS).body("PRIVATE"));
@@ -432,8 +458,9 @@ class TypeSafeBoundaryTest {
             var server = MockRestServiceServer.bindTo(builder).build();
             // This overload uses NOOP for TypeSafe while retaining the builder's HTTP registry.
             var client =
-                    TypeSafeClients.create(
-                            TypeSafeClientOptions.defaults(), () -> "PRIVATE_KEY", builder);
+                    new TypeSafeClientFactory(
+                                    TypeSafeClientOptions.defaults(), () -> "PRIVATE_KEY", builder)
+                            .build();
             var expectation = server.expect(anything());
             if (success) {
                 expectation.andRespond(withSuccess(GOOD, MediaType.APPLICATION_JSON));
@@ -475,8 +502,12 @@ class TypeSafeBoundaryTest {
         var builder = RestClient.builder().observationRegistry(registry);
         var server = MockRestServiceServer.bindTo(builder).build();
         var client =
-                TypeSafeClients.create(
-                        TypeSafeClientOptions.defaults(), () -> "PRIVATE_KEY", builder, registry);
+                new TypeSafeClientFactory(
+                                TypeSafeClientOptions.defaults(),
+                                () -> "PRIVATE_KEY",
+                                builder,
+                                registry)
+                        .build();
         var expectation = server.expect(anything());
         if (success) {
             expectation.andRespond(withSuccess(GOOD, MediaType.APPLICATION_JSON));
@@ -544,11 +575,15 @@ class TypeSafeBoundaryTest {
         server.start();
         try {
             var client =
-                    TypeSafeClients.create(
-                            options(server.getAddress().getPort(), Duration.ofSeconds(1), 1024),
-                            () -> "PRIVATE_KEY",
-                            null,
-                            registry);
+                    new TypeSafeClientFactory(
+                                    options(
+                                            server.getAddress().getPort(),
+                                            Duration.ofSeconds(1),
+                                            1024),
+                                    () -> "PRIVATE_KEY",
+                                    null,
+                                    registry)
+                            .build();
             call(client);
             assertThat(contexts)
                     .extracting(Observation.Context::getName)
@@ -597,11 +632,12 @@ class TypeSafeBoundaryTest {
             var options =
                     new TypeSafeClientOptions(
                             URI.create("https://private.example.invalid"),
-                            "PRIVATE_MODEL",
                             Duration.ofSeconds(1),
                             Duration.ofSeconds(1),
                             1024);
-            var client = TypeSafeClients.create(options, () -> "PRIVATE_KEY", builder, registry);
+            var client =
+                    new TypeSafeClientFactory(options, () -> "PRIVATE_KEY", builder, registry)
+                            .build("PRIVATE_MODEL");
             for (String operation : List.of("systemone", "models")) {
                 for (boolean success : List.of(true, false)) {
                     var expectation =
@@ -706,7 +742,7 @@ class TypeSafeBoundaryTest {
         server.start();
         try {
             var options = options(server.getAddress().getPort(), Duration.ofSeconds(2), 100);
-            var client = TypeSafeClients.create(options, () -> "key");
+            var client = new TypeSafeClientFactory(options, () -> "key").build();
             assertThatThrownBy(() -> call(client))
                     .isInstanceOf(TypeSafeException.class)
                     .hasNoCause();
@@ -732,9 +768,13 @@ class TypeSafeBoundaryTest {
         server.start();
         try {
             var client =
-                    TypeSafeClients.create(
-                            options(server.getAddress().getPort(), Duration.ofMillis(80), 1024),
-                            () -> "key");
+                    new TypeSafeClientFactory(
+                                    options(
+                                            server.getAddress().getPort(),
+                                            Duration.ofMillis(80),
+                                            1024),
+                                    () -> "key")
+                            .build();
             assertThatThrownBy(() -> call(client))
                     .isInstanceOf(TypeSafeApiTimeoutException.class)
                     .hasNoCause();
@@ -786,8 +826,8 @@ class TypeSafeBoundaryTest {
         var timeout = Duration.ofSeconds(1);
         var options =
                 new TypeSafeClientOptions(
-                        URI.create("https://api.typesafe.ai"), "jev-latest", timeout, timeout, 100);
-        var client = TypeSafeClients.create(options, () -> "key", builder);
+                        URI.create("https://api.typesafe.ai"), timeout, timeout, 100);
+        var client = new TypeSafeClientFactory(options, () -> "key", builder).build();
 
         assertThatThrownBy(() -> call(client))
                 .isInstanceOf(TypeSafeException.class)
@@ -825,9 +865,13 @@ class TypeSafeBoundaryTest {
         server.start();
         try {
             var client =
-                    TypeSafeClients.create(
-                            options(server.getAddress().getPort(), Duration.ofSeconds(1), 1024),
-                            () -> "key");
+                    new TypeSafeClientFactory(
+                                    options(
+                                            server.getAddress().getPort(),
+                                            Duration.ofSeconds(1),
+                                            1024),
+                                    () -> "key")
+                            .build();
             assertThatThrownBy(client::listModels)
                     .isInstanceOfSatisfying(
                             TypeSafeApiException.class,
@@ -845,7 +889,8 @@ class TypeSafeBoundaryTest {
             port = socket.getLocalPort();
         }
         var client =
-                TypeSafeClients.create(options(port, Duration.ofSeconds(1), 1024), () -> "key");
+                new TypeSafeClientFactory(options(port, Duration.ofSeconds(1), 1024), () -> "key")
+                        .build();
         assertThatThrownBy(() -> call(client))
                 .isInstanceOf(TypeSafeApiConnectionException.class)
                 .hasNoCause();
@@ -853,26 +898,7 @@ class TypeSafeBoundaryTest {
 
     static TypeSafeClientOptions options(int port, Duration timeout, int limit) {
         return new TypeSafeClientOptions(
-                URI.create("http://127.0.0.1:" + port), "jev-latest", timeout, timeout, limit);
-    }
-
-    @ParameterizedTest
-    @ValueSource(
-            strings = {
-                "/relative",
-                "file:///tmp/typesafe",
-                "https:/missing-host",
-                "https://user:secret@example.com",
-                "https://example.com?key=secret",
-                "https://example.com#secret"
-            })
-    void invalidBaseUris(String origin) {
-        var uri = URI.create(origin);
-        var timeout = Duration.ofSeconds(1);
-        assertThatThrownBy(
-                        () -> new TypeSafeClientOptions(uri, "jev-latest", timeout, timeout, 1024))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageNotContaining("secret");
+                URI.create("http://127.0.0.1:" + port), timeout, timeout, limit);
     }
 
     @Test
@@ -882,8 +908,7 @@ class TypeSafeBoundaryTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> options(80, timeout, 0))
                 .isInstanceOf(IllegalArgumentException.class);
-        var uri = URI.create("https://example.com");
-        assertThatThrownBy(() -> new TypeSafeClientOptions(uri, " ", timeout, timeout, 1))
+        assertThatThrownBy(() -> new TypeSafeClientOptions(null, timeout, timeout, 1))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -896,10 +921,29 @@ class TypeSafeBoundaryTest {
             })
     void configuredProviderEndpoints(String baseUrl) {
         var timeout = Duration.ofSeconds(1);
-        var options =
-                new TypeSafeClientOptions(
-                        URI.create(baseUrl), "jev-latest", timeout, timeout, 1024);
+        var options = new TypeSafeClientOptions(URI.create(baseUrl), timeout, timeout, 1024);
         assertThat(options.baseUri()).hasToString(baseUrl);
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "https://user:private@example.test",
+                "https://user:private@bad_host",
+                "https://example.test?token=private",
+                "https://example.test#private"
+            })
+    void credentialBearingProviderEndpointsAreRejectedWithFixedDiagnostics(String baseUrl) {
+        var timeout = Duration.ofSeconds(1);
+
+        assertThatThrownBy(
+                        () ->
+                                new TypeSafeClientOptions(
+                                        URI.create(baseUrl), timeout, timeout, 1024))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "TypeSafe base URI must not contain credentials, a query or a fragment")
+                .hasMessageNotContaining("private");
     }
 
     @Test
