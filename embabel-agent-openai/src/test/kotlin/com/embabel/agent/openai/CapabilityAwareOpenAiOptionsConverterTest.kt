@@ -24,6 +24,22 @@ import org.springframework.ai.openai.OpenAiChatOptions
 
 class CapabilityAwareOpenAiOptionsConverterTest {
 
+    @Test
+    fun `reasoning effort extension survives conversion without affecting absent default`() {
+        val converter = CapabilityAwareOpenAiOptionsConverter()
+        val absent = LlmOptions()
+        assertNull(absent.getOpenAiReasoningEffort())
+        assertNull((converter.convertOptions(absent, "test-model") as OpenAiChatOptions).reasoningEffort)
+
+        for (effort in listOf("none", "low", "medium")) {
+            val configured = absent.withOpenAiReasoningEffort(effort)
+            assertEquals(effort, configured.getOpenAiReasoningEffort())
+            assertNull(absent.getOpenAiReasoningEffort())
+            val converted = converter.convertOptions(configured, "test-model") as OpenAiChatOptions
+            assertEquals(effort, converted.reasoningEffort)
+        }
+    }
+
     @Nested
     inner class DefaultCapabilities {
 

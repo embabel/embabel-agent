@@ -20,6 +20,8 @@ import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
 import com.openai.core.JsonValue
+import com.openai.models.Reasoning
+import com.openai.models.ReasoningEffort
 import com.openai.models.ResponsesModel
 import com.openai.models.responses.EasyInputMessage
 import com.openai.models.responses.FunctionTool
@@ -121,6 +123,9 @@ class OpenAiResponsesChatModel(
             )
         instructionsOf(prompt)?.let(builder::instructions)
         maxOutputTokensOf(options)?.let { builder.maxOutputTokens(it.toLong()) }
+        ((options as? OpenAiChatOptions)?.reasoningEffort ?: defaultOptions.reasoningEffort)?.let {
+            builder.reasoning(Reasoning.builder().effort(ReasoningEffort.of(it)).build())
+        }
         toolsOf(options).takeIf { it.isNotEmpty() }?.let(builder::tools)
         textConfigOf(options)?.let(builder::text)
         // No sampling parameters. Gpt5ChatOptionsConverter stopped setting them, and the Responses
