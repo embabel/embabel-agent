@@ -27,8 +27,6 @@
         <jruby.version>9.2.17.0</jruby.version>
         <maven.resources.plugin.version>3.3.1</maven.resources.plugin.version>
         <agent-api.version>${project.parent.version}</agent-api.version>
-        <node.version>v20.11.1</node.version>
-        <frontend.maven.plugin.version>1.15.0</frontend.maven.plugin.version>
     </properties>
 
     <build>
@@ -103,77 +101,6 @@
                                     </includes>
                                 </resource>
                             </resources>
-                        </configuration>
-                    </execution>
-                    <!-- 2. Copy Node builder resources to target/frontend -->
-                    <execution>
-                        <id>copy-node-build-files</id>
-                        <phase>generate-resources</phase>
-                        <goals>
-                            <goal>copy-resources</goal>
-                        </goals>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}/frontend</outputDirectory>
-                            <resources>
-                                <resource>
-                                    <directory>${project.basedir}</directory>
-                                    <includes>
-                                        <include>package.json</include>
-                                        <include>llms-txt-extension.js</include>
-                                        <include>verify-generated-llms-txt.js</include>
-                                    </includes>
-                                </resource>
-                            </resources>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <!-- Plugin to run Node.js and Asciidoctor.js script -->
-            <plugin>
-                <groupId>com.github.eirslett</groupId>
-                <artifactId>frontend-maven-plugin</artifactId>
-                <version>${frontend.maven.plugin.version}</version>
-                <configuration>
-                    <!-- Route BOTH node binaries AND node_modules into target/ -->
-                    <installDirectory>${project.build.directory}/frontend</installDirectory>
-                    <workingDirectory>${project.build.directory}/frontend</workingDirectory>
-                </configuration>
-                <executions>
-                    <!-- 1. Download local Node.js & npm (no global installs required) -->
-                    <execution>
-                        <id>install-node-and-npm</id>
-                        <goals>
-                            <goal>install-node-and-npm</goal>
-                        </goals>
-                        <phase>prepare-package</phase>
-                        <configuration>
-                            <nodeVersion>${node.version}</nodeVersion>
-                        </configuration>
-                    </execution>
-                    <!-- 2. Install @asciidoctor/core inside target/frontend -->
-                    <execution>
-                        <id>npm-install</id>
-                        <goals>
-                            <goal>npm</goal>
-                        </goals>
-                        <phase>prepare-package</phase>
-                        <configuration>
-                            <arguments>install</arguments>
-                        </configuration>
-                    </execution>
-
-                    <!-- 3. Execute Asciidoctor.js via npm run in from target directory -->
-                    <execution>
-                        <id>generate-llmstxt</id>
-                        <goals>
-                            <goal>npm</goal>
-                        </goals>
-                        <phase>prepare-package</phase>
-                        <configuration>
-                            <arguments>run build:llms</arguments>
-                            <environmentVariables>
-                                <DOC_VERSION>${project.parent.version}</DOC_VERSION>
-                            </environmentVariables>
                         </configuration>
                     </execution>
                 </executions>

@@ -67,12 +67,20 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: maven  
+          cache: maven
+#      - name: Install Maven
+#        run: |
+#          sudo apt-get update
+#          sudo apt-get install -y wget
+#          wget https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz
+#          sudo tar -xzf apache-maven-3.9.6-bin.tar.gz -C /opt/
+#          echo "/opt/apache-maven-3.9.6/bin" >> $GITHUB_PATH
+
       - name: Build and analyze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: mvn -Pguide-html,dokka package
+       # run: /opt/apache-maven-3.9.6/bin/mvn -Pguide-html,dokka package
 
       - name: Extract version from pom.xml
         id: get_version
@@ -81,14 +89,32 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "Extracted version: $VERSION"
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: embabel-agent-docs/package-lock.json
+
+      - name: Install Locked Node Dependencies
+        run: npm ci
+
+      - name: Generate and Verify llms.txt
+        env:
+          DOC_VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: |
+          node llms-txt-extension.js
+          node verify-generated-llms-txt.js
+
       - name: Create deployment archive
         run: |
           echo "Creating deployment archive at $(date)"
           # Clean up any stale archive from previous runs
           rm -f docs-bundle.tar.gz
           cd target
-          tar -czf ../docs-bundle.tar.gz generated-docs dokka-aggregate
+          tar -czf ../docs-bundle.tar.gz generated-docs dokka-aggregate llms
           echo "Archive created at $(date), size: $(ls -lh ../docs-bundle.tar.gz | awk '{print $5}')"
+
 
       - name: Google Auth
         id: auth
@@ -128,7 +154,7 @@ jobs:
               sudo tar -xzf ~/docs-bundle.tar.gz &&
               sudo cp -r generated-docs/* /var/www/html/embabel-agent/guide/\$VERSION/ &&
               sudo cp -r dokka-aggregate/* /var/www/html/embabel-agent/api-docs/\$VERSION/ &&
-              sudo cp generated-docs/llms.txt /var/www/html/llms.txt &&
+              sudo cp llms/llms.txt /var/www/html/llms.txt &&
               sudo chmod 644 /var/www/html/llms.txt &&
               rm -f ~/docs-bundle.tar.gz &&
               sudo rm -rf /tmp/generated-docs /tmp/dokka-aggregate &&
@@ -151,6 +177,8 @@ jobs:
               sudo ls -la /var/www/html/embabel-agent/guide/$VERSION/ | head -10 &&
               echo 'Files in versioned api-docs directory:' &&
               sudo ls -la /var/www/html/embabel-agent/api-docs/$VERSION/ | head -10 &&
+              echo 'Verify presence of llms.txt:' &&
+              sudo ls -la /var/www/html/llms.txt &&
               echo 'Testing web access:' &&
               curl -I http://localhost/embabel-agent/guide/$VERSION/index.html || echo 'Versioned guide not responding'
             "

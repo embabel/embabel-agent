@@ -45,13 +45,13 @@ asciidoctor.Extensions.register(function () {
       llmsContent += `- [Embabel Cookbook](https://github.com/embabel/embabel-cookbook): Practical recipes, patterns, and code snippets for building agentic workflows.\n`;
 
       // Write to target folder where Maven packages static site assets
-      const outputDir = path.resolve(__dirname, '../generated-docs');
+      const outputDir = path.resolve(__dirname, 'target/llms');
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
       }
 
       fs.writeFileSync(path.join(outputDir, 'llms.txt'), llmsContent, 'utf-8');
-      console.log('[llms.txt] Successfully generated target/generated-docs/llms.txt');
+      console.log('[llms.txt] Successfully generated targetllms/llms.txt');
 
       return document;
     });
@@ -60,7 +60,7 @@ asciidoctor.Extensions.register(function () {
 
 // Run conversion
 asciidoctor.convertFile(
-  path.resolve(__dirname, '../../src/main/asciidoc/reference/reference.adoc'),
+  path.resolve(__dirname, 'src/main/asciidoc/reference/reference.adoc'),
   {
     safe: 'safe',
     to_file: false, // Prevents creating reference.html in source tree.
