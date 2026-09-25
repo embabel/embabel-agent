@@ -28,7 +28,8 @@ import org.jetbrains.annotations.ApiStatus
  * `embabel.ai.decision` observation. Both carry only fixed `operation` and `outcome` tags. False is an
  * `answered` outcome, just like true. Operational failures and exceptions use a fixed, stackless
  * error marker with no cause. Original exceptions are rethrown unchanged and never logged.
- * Thread interruption state is untouched.
+ * Thread interruption state is untouched. Non-fatal observation lifecycle exceptions use bounded
+ * diagnostics when logging is available and never replace service behavior. JVM error types propagate.
  */
 @ApiStatus.Experimental
 class ObservedDecisionService @JvmOverloads constructor(
