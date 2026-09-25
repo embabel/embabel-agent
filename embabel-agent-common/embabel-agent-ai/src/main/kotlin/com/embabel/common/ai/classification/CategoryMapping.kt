@@ -22,6 +22,7 @@ import java.util.function.Function
  * A closed category domain paired with caller-owned values. Structural collections are copied;
  * value references are retained and may themselves be mutable. Values, including Class tokens,
  * never enter provider requests and are never instantiated or populated from model output.
+ * Categories follow the supplied map's iteration order; pass an ordered map for stable provider order.
  */
 @ApiStatus.Experimental
 class CategoryMapping<T : Any>(values: Map<Category, T>) {
