@@ -45,13 +45,13 @@ asciidoctor.Extensions.register(function () {
       llmsContent += `- [Embabel Cookbook](https://github.com/embabel/embabel-cookbook): Practical recipes, patterns, and code snippets for building agentic workflows.\n`;
 
       // Write to target folder where Maven packages static site assets
-      const outputDir = path.resolve(__dirname, 'target/llms');
+      const outputDir = path.resolve(__dirname, 'target', 'llms');
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
       }
 
       fs.writeFileSync(path.join(outputDir, 'llms.txt'), llmsContent, 'utf-8');
-      console.log('[llms.txt] Successfully generated targetllms/llms.txt');
+      console.log('[llms.txt] Successfully generated target/llms/llms.txt');
 
       return document;
     });

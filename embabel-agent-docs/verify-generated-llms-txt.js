@@ -2,11 +2,11 @@ const fs = require('fs');
 const path = require('path');
 const asciidoctor = require('@asciidoctor/core')();
 
-const adocPath = path.resolve(__dirname, '../../src/main/asciidoc/reference/reference.adoc');
-const llmsTxtPath = path.resolve(__dirname, '../generated-docs/llms.txt');
+const adocPath = path.resolve(__dirname, 'src/main/asciidoc/reference/reference.adoc');
+const llmsTxtPath = path.resolve(__dirname, 'target/llms/llms.txt');
 
 if (!fs.existsSync(llmsTxtPath)) {
-  console.error('[ERROR] target/generated-docs/llms.txt does not exist.');
+  console.error('[ERROR] target/llms/llms.txt does not exist.');
   process.exit(1);
 }
 
