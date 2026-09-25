@@ -22,12 +22,13 @@ Use `com.embabel.agent:embabel-agent-starter-typesafe` in a Spring Boot applicat
 The starter brings in `embabel-agent-typesafe-autoconfigure` and the core `embabel-agent-typesafe` module.
 For plain Java, depend on `embabel-agent-typesafe` alone; it does not require the agent platform.
 
-The Spring integration requires explicit opt-in: set
-`embabel.agent.platform.models.typesafe.enabled=true` and supply `TYPESAFE_API_KEY`.
-Adding the starter alone leaves the integration disabled.
-The `api-key` property under the same prefix takes precedence over the environment variable.
-Other properties are `base-uri` (default `https://api.typesafe.ai`), `model` (`jev-latest`),
-`connect-timeout` (`10s`), `read-timeout` (`10s`), and `max-response-bytes` (`1048576`).
+Adding the starter activates the integration. Supply `TYPESAFE_API_KEY` or set
+`embabel.agent.platform.models.typesafe.api-key`.
+A nonblank environment key takes precedence over the property, matching the other model providers,
+and is resolved for each request so credential rotation takes effect on the next call.
+Startup fails if neither supplies a key, unless an application-provided client replaces the default.
+Other properties under `embabel.agent.platform.models.typesafe` are `base-url`
+(default `https://api.typesafe.ai`), `model` (`jev-latest`), and `max-response-bytes` (`1048576`).
 Inject the native `TypeSafeClient` into your application service or the constructor of an Embabel
 agent, then call it from an action as you would any other service.
 
@@ -38,7 +39,6 @@ These names identify the provider; changing the `model` property does not change
 
 The base URI accepts HTTP(S) endpoints and proxy base paths. Use HTTPS for remote service calls.
 Credentials, query parameters and fragments do not belong in the base URI.
-Timeout validation keeps values within the fallback transport's finite millisecond range.
 
 ==== Plain Java
 
@@ -107,9 +107,12 @@ Spring first selects the `aiModelRestClientBuilder` bean, then the only `RestCli
 if neither is available it uses the fallback transport. When a unique application
 `ObservationRegistry` bean is present, Spring clones the selected builder and attaches that registry
 before creating the client. The shared builder remains unchanged.
-The application owns that transport's timeouts and redirect policy: the TypeSafe timeout options apply only
-to the fallback transport. Without a supplied builder, the fallback uses 10-second connect and read
-timeouts and does not follow redirects. Timeouts are not a hard end-to-end deadline.
+The application owns that transport's timeouts and redirect policy. With Embabel's shared Netty
+builder, use `embabel.agent.platform.http-client.connect-timeout` and
+`embabel.agent.platform.http-client.read-timeout`.
+There are no provider-specific timeout properties. The plain Java `TypeSafeClientOptions`
+timeouts apply only to the fallback transport. Without a supplied builder, the fallback uses
+10-second connect and read timeouts and does not follow redirects. Timeouts are not a hard end-to-end deadline.
 Retries are fixed off with `RetryPolicy.noRetry()`.
 
 TypeSafe decoding reads at most 1 MiB of each response by default. Supplied request factories or
@@ -142,8 +145,8 @@ by this integration.
 ==== Experimental status
 
 Promotion requires passing assembled Java and Spring integration tests for all three primitives,
-model overrides, custom clients, opt-in and backoff behavior, credential rotation, transport ownership,
-response bounds, strict parsing, sanitized failures, interruption and safe observations.
+model overrides, starter activation, custom-client backoff, credential precedence and rotation,
+transport ownership, response bounds, strict parsing, sanitized failures, interruption and safe observations.
 The published documentation and compiled examples must also pass the repository documentation build.
 These criteria concern the primitive client integration; a later decision framework is a separate change.
 

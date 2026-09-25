@@ -9,7 +9,7 @@
     </parent>
     <artifactId>embabel-agent-typesafe-autoconfigure</artifactId>
     <name>Embabel Agent TypeSafe Auto-Configuration</name>
-    <description>Opt-in native TypeSafe primitives for Spring Boot applications</description>
+    <description>Native TypeSafe primitives for Spring Boot applications</description>
     <dependencies>
         <dependency>
             <groupId>com.embabel.agent</groupId>

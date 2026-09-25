@@ -55,7 +55,7 @@ class TypeSafeConsumerTest {
                 .withUserConfiguration(ConsumerConfiguration.class)
                 .withBean(RestClient.Builder.class, () -> builder)
                 .withPropertyValues(
-                        "embabel.agent.platform.models.typesafe.enabled=true",
+                        "TYPESAFE_API_KEY=",
                         "embabel.agent.platform.models.typesafe.api-key=test-key")
                 .run(
                         context -> {
