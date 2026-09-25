@@ -59,6 +59,27 @@ private val Tool.Result.content: String
     }
 
 /**
+ * Recorded on a [com.embabel.agent.api.event.ToolCallResponseEvent] when a tool
+ * returns [Tool.Result.Error] instead of throwing, so the event reports a failure.
+ */
+class ToolReturnedError(
+    val toolName: String,
+    message: String,
+    cause: Throwable? = null,
+) : RuntimeException(message, cause)
+
+private fun Result<Tool.Result>.toEventResult(toolName: String): Result<String> =
+    fold(
+        onSuccess = { r ->
+            when (r) {
+                is Tool.Result.Error -> Result.failure(ToolReturnedError(toolName, r.message, r.cause))
+                else -> Result.success(r.content)
+            }
+        },
+        onFailure = { Result.failure(it) },
+    )
+
+/**
  * Tool decorator that adds Micrometer Observability.
  */
 class ObservabilityTool(
@@ -212,7 +233,7 @@ class EventPublishingTool(
         }
         agentProcess.processContext.onProcessEvent(
             functionCallRequestEvent.responseEvent(
-                result = result.map { it.content },
+                result = result.toEventResult(delegate.definition.name),
                 runningTime = Duration.ofMillis(millis),
             )
         )
