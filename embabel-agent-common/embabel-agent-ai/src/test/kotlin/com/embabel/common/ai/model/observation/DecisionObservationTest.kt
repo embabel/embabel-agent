@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.common.ai.model
+package com.embabel.common.ai.model.observation
 
 import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
@@ -29,6 +29,9 @@ import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
 import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
+import com.embabel.common.ai.model.ClassificationService
+import com.embabel.common.ai.model.DecisionService
+import com.embabel.common.ai.model.ModelType
 import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.micrometer.observation.Observation
@@ -46,7 +49,7 @@ import java.util.concurrent.CancellationException
 class DecisionObservationTest {
     private val secret = "sensitive-payload-and-credential"
     private val telemetryFailureMessage = "telemetry failed"
-    private val observationLoggerName = "com.embabel.common.ai.model.ServiceCallObservation"
+    private val observationLoggerName = "com.embabel.common.ai.model.observation.ServiceCallObservation"
     private val provenance = ModelProvenance(secret, secret, secret, secret)
     private val request = ClassificationRequest(secret, listOf(Category("dog", secret)))
     private val proposition = PropositionRequest(secret, secret)

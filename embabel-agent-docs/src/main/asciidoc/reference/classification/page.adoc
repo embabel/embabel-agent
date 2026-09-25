@@ -110,7 +110,9 @@ There is no automatic bean registration, `ModelProvider` lookup, role selection,
 
 ==== Observe Calls
 
-Wrap a service in `ObservedClassificationService` or `ObservedDecisionService`, passing your application's Micrometer `ObservationRegistry` after the delegate.
+The observation decorators live in `com.embabel.common.ai.model.observation`, separate from the
+service contracts. Wrap a service in `ObservedClassificationService` or `ObservedDecisionService`,
+passing your application's Micrometer `ObservationRegistry` after the delegate.
 The optional registry defaults to `ObservationRegistry.NOOP`.
 Each call creates one observation: `embabel.ai.classification` for `classify`, or `embabel.ai.decision` for `assess`, with fixed `operation` and `outcome` tags.
 A `false` answer has the same `answered` outcome as `true`.
