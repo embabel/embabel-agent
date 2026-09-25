@@ -47,9 +47,15 @@ class DecisionObservationTest {
     private class Recorder : ObservationHandler<Observation.Context> {
         val stopped = mutableListOf<Observation.Context>()
         val errors = mutableListOf<Throwable>()
+        val errorOutcomes = mutableListOf<String?>()
+        val closedScopeOutcomes = mutableListOf<String?>()
         override fun supportsContext(context: Observation.Context) = true
         override fun onError(context: Observation.Context) {
             errors += context.error!!
+            errorOutcomes += context.getLowCardinalityKeyValue("outcome")?.value
+        }
+        override fun onScopeClosed(context: Observation.Context) {
+            closedScopeOutcomes += context.getLowCardinalityKeyValue("outcome")?.value
         }
         override fun onStop(context: Observation.Context) {
             stopped += context
@@ -176,6 +182,40 @@ class DecisionObservationTest {
 
     @Nested
     inner class ScopesAndExceptions {
+        @Test
+        fun `operational failure outcome is available to error and scope close handlers`() {
+            val telemetry = Telemetry()
+            ObservedClassificationService(classifier {
+                ClassificationResult.Failure(FailureReason.UNAVAILABLE)
+            }, telemetry.registry).classify(request)
+            ObservedDecisionService(decision(assess = {
+                PropositionResult.Failure(FailureReason.INVALID_RESPONSE)
+            }), telemetry.registry).assess(proposition)
+            assertEquals(listOf("failure", "failure"), telemetry.recorder.errorOutcomes)
+            assertEquals(listOf("failure", "failure"), telemetry.recorder.closedScopeOutcomes)
+        }
+
+        @Test
+        fun `thrown error outcome is available to error and scope close handlers`() {
+            val telemetry = Telemetry()
+            val failure = IllegalStateException(secret)
+            assertSame(failure, assertThrows<IllegalStateException> {
+                ObservedClassificationService(classifier { throw failure }, telemetry.registry).classify(request)
+            })
+            assertEquals(listOf("exception"), telemetry.recorder.errorOutcomes)
+            assertEquals(listOf("exception"), telemetry.recorder.closedScopeOutcomes)
+        }
+
+        @Test
+        fun `success outcome is available before scope closes`() {
+            val telemetry = Telemetry()
+            ObservedClassificationService(classifier {
+                ClassificationResult.Selected("dog", provenance)
+            }, telemetry.registry).classify(request)
+            assertTrue(telemetry.recorder.errorOutcomes.isEmpty())
+            assertEquals(listOf("selected"), telemetry.recorder.closedScopeOutcomes)
+        }
+
         @Test
         fun `provider observations are children and previous scope is restored`() {
             val telemetry = Telemetry()

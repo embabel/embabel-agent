@@ -30,6 +30,15 @@ class ClassificationTest {
     @Nested
     inner class Categories {
         @Test
+        fun `request string excludes input and category descriptions`() {
+            val input = "sensitive-input-sentinel"
+            val description = "sensitive-category-description-sentinel"
+            val request = ClassificationRequest(input, listOf(Category("dog", description)))
+            assertFalse(request.toString().contains(input))
+            assertFalse(request.toString().contains(description))
+        }
+
+        @Test
         fun `reject malformed category domains`() {
             assertThrows(IllegalArgumentException::class.java) { Category(" ", "description") }
             assertThrows(IllegalArgumentException::class.java) { ClassificationRequest("input", emptyList()) }
