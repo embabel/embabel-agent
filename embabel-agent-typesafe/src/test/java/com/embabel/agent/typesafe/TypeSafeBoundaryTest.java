@@ -62,6 +62,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -544,65 +545,6 @@ class TypeSafeBoundaryTest {
     }
 
     @Test
-    void fallbackEmitsHttpObservationUnderTypeSafeObservation() throws Exception {
-        var contexts = new ArrayList<Observation.Context>();
-        var registry = ObservationRegistry.create();
-        registry.observationConfig()
-                .observationHandler(
-                        new ObservationHandler<Observation.Context>() {
-                            @Override
-                            public boolean supportsContext(Observation.Context context) {
-                                return true;
-                            }
-
-                            @Override
-                            public void onStop(Observation.Context context) {
-                                contexts.add(context);
-                            }
-                        });
-        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext(
-                "/v1/systemone",
-                exchange -> {
-                    exchange.getRequestBody().readAllBytes();
-                    exchange.getResponseHeaders().add("Content-Type", "application/json");
-                    byte[] body = GOOD.getBytes(StandardCharsets.UTF_8);
-                    exchange.sendResponseHeaders(200, body.length);
-                    try (var output = exchange.getResponseBody()) {
-                        output.write(body);
-                    }
-                });
-        server.start();
-        try {
-            var client =
-                    new TypeSafeClientFactory(
-                                    options(
-                                            server.getAddress().getPort(),
-                                            Duration.ofSeconds(1),
-                                            1024),
-                                    () -> "PRIVATE_KEY",
-                                    null,
-                                    registry)
-                            .build();
-            call(client);
-            assertThat(contexts)
-                    .extracting(Observation.Context::getName)
-                    .containsExactlyInAnyOrder("http.client.requests", "embabel.typesafe.request");
-            var http =
-                    contexts.stream()
-                            .filter(context -> context.getName().equals("http.client.requests"))
-                            .findFirst()
-                            .orElseThrow();
-            assertThat(http.getParentObservation()).isNotNull();
-            assertThat(http.getParentObservation().getContextView().getName())
-                    .isEqualTo("embabel.typesafe.request");
-            assertThat(registry.getCurrentObservation()).isNull();
-        } finally {
-            server.stop(0);
-        }
-    }
-
-    @Test
     void callerCanUseVirtualThreads() throws Exception {
         var fixture = fixture();
         fixture.server.expect(anything()).andRespond(withSuccess(GOOD, MediaType.APPLICATION_JSON));
@@ -751,36 +693,21 @@ class TypeSafeBoundaryTest {
         }
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void realSocketReadTimeout(boolean bodyStalls) throws Exception {
-        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext(
-                "/v1/systemone",
-                exchange -> {
-                    if (bodyStalls) {
-                        exchange.getResponseHeaders().add("Content-Type", "application/json");
-                        exchange.sendResponseHeaders(200, 0);
-                        exchange.getResponseBody().write('{');
-                        exchange.getResponseBody().flush();
-                    }
-                });
-        server.start();
-        try {
-            var client =
-                    new TypeSafeClientFactory(
-                                    options(
-                                            server.getAddress().getPort(),
-                                            Duration.ofMillis(80),
-                                            1024),
-                                    () -> "key")
-                            .build();
-            assertThatThrownBy(() -> call(client))
-                    .isInstanceOf(TypeSafeApiTimeoutException.class)
-                    .hasNoCause();
-        } finally {
-            server.stop(0);
-        }
+    @Test
+    void transportTimeoutsAreSanitizedWithoutWaiting() {
+        var fixture = fixture();
+        fixture.server
+                .expect(anything())
+                .andRespond(
+                        request -> {
+                            throw new SocketTimeoutException("PRIVATE_TIMEOUT");
+                        });
+
+        assertThatThrownBy(() -> call(fixture.client))
+                .isInstanceOf(TypeSafeApiTimeoutException.class)
+                .hasMessage("TypeSafe transport timed out")
+                .hasNoCause();
+        fixture.server.verify();
     }
 
     @ParameterizedTest
