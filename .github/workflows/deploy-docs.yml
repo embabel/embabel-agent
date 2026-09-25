@@ -68,19 +68,12 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: maven
-#      - name: Install Maven
-#        run: |
-#          sudo apt-get update
-#          sudo apt-get install -y wget
-#          wget https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz
-#          sudo tar -xzf apache-maven-3.9.6-bin.tar.gz -C /opt/
-#          echo "/opt/apache-maven-3.9.6/bin" >> $GITHUB_PATH
 
       - name: Build and analyze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-       # run: /opt/apache-maven-3.9.6/bin/mvn -Pguide-html,dokka package
+        run: mvn -Pguide-html,dokka package
 
       - name: Extract version from pom.xml
         id: get_version
