@@ -17,7 +17,7 @@ package com.embabel.common.ai.classification
 
 import org.jetbrains.annotations.ApiStatus
 
-/** A canonical category ID and its natural-language meaning, including any caller-defined aliases. */
+/** A nonblank canonical category ID and its natural-language meaning, including caller-defined aliases. */
 @ApiStatus.Experimental
 data class Category(val id: String, val description: String) {
     init {
@@ -27,7 +27,7 @@ data class Category(val id: String, val description: String) {
 
 /**
  * Text to classify against a closed, nonempty set of categories. The category list is copied
- * and immutable; it contains no application values or class tokens.
+ * and immutable; it contains no application values or class tokens. Input may be empty.
  */
 @ApiStatus.Experimental
 class ClassificationRequest(val input: String, categories: List<Category>) {
@@ -41,7 +41,11 @@ class ClassificationRequest(val input: String, categories: List<Category>) {
 
     /** Create a selection only when the provider's category ID belongs to this request. */
     @JvmOverloads
-    fun selected(categoryId: String, provenance: ModelProvenance, confidence: Double? = null): ClassificationResult.Selected {
+    fun selected(
+        categoryId: String,
+        provenance: ModelProvenance,
+        confidence: Double? = null,
+    ): ClassificationResult.Selected {
         val result = ClassificationResult.Selected(categoryId, provenance, confidence)
         validate(result)
         return result

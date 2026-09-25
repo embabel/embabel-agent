@@ -27,7 +27,8 @@ import org.jetbrains.annotations.ApiStatus
  * Classification emits one `embabel.ai.classification` observation; proposition assessment emits one
  * `embabel.ai.decision` observation. Both carry only fixed `operation` and `outcome` tags. False is an
  * `answered` outcome, just like true. Operational failures and exceptions use a fixed, stackless
- * error marker with no cause. Original exceptions are rethrown unchanged and never logged. Thread interruption state is untouched.
+ * error marker with no cause. Original exceptions are rethrown unchanged and never logged.
+ * Thread interruption state is untouched.
  */
 @ApiStatus.Experimental
 class ObservedDecisionService @JvmOverloads constructor(

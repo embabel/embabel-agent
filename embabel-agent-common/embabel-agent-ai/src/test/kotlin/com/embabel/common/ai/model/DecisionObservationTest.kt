@@ -71,12 +71,14 @@ class DecisionObservationTest {
         }
     }
 
+    /** Supply a classifier whose model identity can expose accidental telemetry leaks. */
     private fun classifier(work: (ClassificationRequest) -> ClassificationResult) = object : ClassificationService {
         override val name = secret
         override val provider = secret
         override fun classify(request: ClassificationRequest) = work(request)
     }
 
+    /** Exercise both decision capabilities with controlled results and sensitive model identity. */
     private fun decision(
         classify: (ClassificationRequest) -> ClassificationResult = { ClassificationResult.NoMatch(provenance) },
         assess: (PropositionRequest) -> PropositionResult = { PropositionResult.Answered(false, provenance) },
