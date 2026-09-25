@@ -16,6 +16,7 @@
 package com.embabel.agent.config.models.openai
 
 import com.embabel.agent.openai.CapabilityAwareOpenAiOptionsConverter
+import com.embabel.agent.openai.OpenAiReasoningEffortOptionsConverter
 import com.embabel.agent.openai.withOpenAiReasoningEffort
 import com.embabel.agent.spi.loop.StructuredOutputRequest
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
@@ -111,7 +112,7 @@ class OpenAiResponsesChatModelTest {
 
         @Test
         fun `reasoning is omitted by default and forwarded for configured efforts`() {
-            val converter = CapabilityAwareOpenAiOptionsConverter()
+            val converter = OpenAiReasoningEffortOptionsConverter(CapabilityAwareOpenAiOptionsConverter())
             val absent = converter.convertOptions(LlmOptions(), "gpt-5-pro")
             assertTrue(capture(Prompt(listOf(UserMessage("Hi")), absent)).reasoning().isEmpty)
 

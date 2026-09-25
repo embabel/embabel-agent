@@ -126,7 +126,6 @@ class CapabilityAwareOpenAiOptionsConverter(
         warnAboutIgnoredParameters(options, model)
 
         val builder = OpenAiChatOptions.builder().model(model)
-        options.getOpenAiReasoningEffort()?.let(builder::reasoningEffort)
 
         if (capabilities.usesMaxCompletionTokens) {
             // GPT-5 family: max_tokens is a 400 for presence alone; use max_completion_tokens.

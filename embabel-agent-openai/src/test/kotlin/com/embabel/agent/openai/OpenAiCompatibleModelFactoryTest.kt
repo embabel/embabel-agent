@@ -15,16 +15,21 @@
  */
 package com.embabel.agent.openai
 
+import com.embabel.agent.api.models.GoogleGenAiModels
+import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.PricingModel
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.ai.openai.OpenAiChatModel
+import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.web.client.RestClient
 import java.util.function.Supplier
@@ -78,6 +83,30 @@ class OpenAiCompatibleModelFactoryTest {
         assertEquals("foo", llm.name)
         assertEquals("Test", llm.provider)
         assertTrue(llm.model is OpenAiChatModel)
+    }
+
+    @Test
+    fun `reasoning effort reaches OpenAI but not other OpenAI-compatible providers`() {
+        val mf = OpenAiCompatibleModelFactory(
+            baseUrl = null,
+            apiKey = "test-key",
+            completionsPath = null,
+            embeddingsPath = null,
+            observationRegistry = mockk(),
+            restClientBuilder = restClientBuilder,
+        )
+        val options = LlmOptions().withOpenAiReasoningEffort("low")
+
+        fun effortSentTo(provider: String): String? {
+            val llm = mf.openAiCompatibleLlm(
+                model = "foo", pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+                provider = provider, knowledgeCutoffDate = null,
+            ) as SpringAiLlmService
+            return (llm.optionsConverter.convertOptions(options, "foo") as OpenAiChatOptions).reasoningEffort
+        }
+
+        assertEquals("low", effortSentTo(OpenAiModels.PROVIDER))
+        assertNull(effortSentTo(GoogleGenAiModels.PROVIDER))
     }
 
 }
