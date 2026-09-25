@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.typesafe.internal;
 
-import com.embabel.agent.typesafe.api.TypeSafeClientOptions;
+import com.embabel.agent.typesafe.TypeSafeClientOptions;
 
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
@@ -250,6 +250,8 @@ public final class GuardedTypeSafeApi extends TypeSafeApi {
             throw safeFailure(failure);
         } catch (RestClientException failure) {
             throw safeFailure(failure);
+        } catch (CancellationException cancelled) {
+            throw cancelled;
         } catch (RuntimeException ignored) {
             throw new TypeSafeException("TypeSafe request or response invalid");
         } finally {

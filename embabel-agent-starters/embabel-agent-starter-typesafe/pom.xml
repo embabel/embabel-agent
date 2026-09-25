@@ -9,7 +9,7 @@
     </parent>
     <artifactId>embabel-agent-starter-typesafe</artifactId>
     <name>Embabel Agent TypeSafe Starter</name>
-    <description>Native TypeSafe primitives for Spring Boot applications</description>
+    <description>TypeSafe decision services for Spring Boot applications</description>
     <dependencies>
         <dependency>
             <groupId>com.embabel.agent</groupId>
