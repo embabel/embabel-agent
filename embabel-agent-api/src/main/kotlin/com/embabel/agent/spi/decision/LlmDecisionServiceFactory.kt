@@ -42,7 +42,7 @@ import org.jetbrains.annotations.ApiStatus
  * Applications inject the `LlmDecisionServiceFactory` bean from the Spring context.
  */
 @ApiStatus.Experimental
-class LlmDecisionServiceFactory @JvmOverloads internal constructor(
+class LlmDecisionServiceFactory @ApiStatus.Internal @JvmOverloads internal constructor(
     private val llmOperations: LlmOperations,
     private val modelProvider: ModelProvider,
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
