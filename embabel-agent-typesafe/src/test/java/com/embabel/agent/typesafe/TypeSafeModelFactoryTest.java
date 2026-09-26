@@ -69,31 +69,53 @@ class TypeSafeModelFactoryTest {
         try {
             var builder = RestClient.builder();
             var server = MockRestServiceServer.bindTo(builder).build();
-            var factory = new TypeSafeModelFactory(TypeSafeClientOptions.defaults(),
-                    () -> "PRIVATE_KEY", builder,
-                    io.micrometer.observation.ObservationRegistry.NOOP, "PRIVATE_MODEL");
+            var factory =
+                    new TypeSafeModelFactory(
+                            TypeSafeClientOptions.defaults(),
+                            () -> "PRIVATE_KEY",
+                            builder,
+                            io.micrometer.observation.ObservationRegistry.NOOP,
+                            "PRIVATE_MODEL");
             factory.build();
-            server.expect(requestTo(MODELS_URI)).andRespond(withSuccess(
-                    "{\"models\":[{\"name\":\"PRIVATE_MODEL\"}]}", MediaType.APPLICATION_JSON));
+            server.expect(requestTo(MODELS_URI))
+                    .andRespond(
+                            withSuccess(
+                                    "{\"models\":[{\"name\":\"PRIVATE_MODEL\"}]}",
+                                    MediaType.APPLICATION_JSON));
             factory.buildValidated();
             server.verify();
 
-            assertThat(appender.list).anySatisfy(event -> {
-                assertThat(event.getLevel()).isEqualTo(Level.INFO);
-                assertThat(event.getFormattedMessage()).contains("TypeSafe model factory initialized");
-            }).anySatisfy(event -> {
-                assertThat(event.getLevel()).isEqualTo(Level.DEBUG);
-                assertThat(event.getFormattedMessage()).contains("TypeSafe decision service built");
-            }).anySatisfy(event -> {
-                assertThat(event.getLevel()).isEqualTo(Level.DEBUG);
-                assertThat(event.getFormattedMessage()).contains("TypeSafe credential validation started");
-            }).anySatisfy(event -> {
-                assertThat(event.getLevel()).isEqualTo(Level.INFO);
-                assertThat(event.getFormattedMessage()).contains("TypeSafe credential validation succeeded");
-            }).allSatisfy(event -> {
-                assertThat(event.getFormattedMessage()).doesNotContain("PRIVATE", "https://");
-                assertThat(event.getThrowableProxy()).isNull();
-            });
+            assertThat(appender.list)
+                    .anySatisfy(
+                            event -> {
+                                assertThat(event.getLevel()).isEqualTo(Level.INFO);
+                                assertThat(event.getFormattedMessage())
+                                        .contains("TypeSafe model factory initialized");
+                            })
+                    .anySatisfy(
+                            event -> {
+                                assertThat(event.getLevel()).isEqualTo(Level.DEBUG);
+                                assertThat(event.getFormattedMessage())
+                                        .contains("TypeSafe decision service built");
+                            })
+                    .anySatisfy(
+                            event -> {
+                                assertThat(event.getLevel()).isEqualTo(Level.DEBUG);
+                                assertThat(event.getFormattedMessage())
+                                        .contains("TypeSafe credential validation started");
+                            })
+                    .anySatisfy(
+                            event -> {
+                                assertThat(event.getLevel()).isEqualTo(Level.INFO);
+                                assertThat(event.getFormattedMessage())
+                                        .contains("TypeSafe credential validation succeeded");
+                            })
+                    .allSatisfy(
+                            event -> {
+                                assertThat(event.getFormattedMessage())
+                                        .doesNotContain("PRIVATE", "https://");
+                                assertThat(event.getThrowableProxy()).isNull();
+                            });
         } finally {
             logger.detachAppender(appender);
             logger.setLevel(oldLevel);
@@ -104,7 +126,11 @@ class TypeSafeModelFactoryTest {
     @Test
     void buildingDoesNotResolveCredentialsAndValidationPreservesCancellation() {
         var cancelled = new CancellationException("PRIVATE_CANCELLATION");
-        var factory = new TypeSafeModelFactory(() -> { throw cancelled; });
+        var factory =
+                new TypeSafeModelFactory(
+                        () -> {
+                            throw cancelled;
+                        });
         assertThat(factory.build().getName()).isEqualTo(TypeSafeModelFactory.DEFAULT_MODEL);
         assertThatThrownBy(factory::buildValidated).isSameAs(cancelled);
     }
@@ -118,19 +144,30 @@ class TypeSafeModelFactoryTest {
         logger.addAppender(appender);
         logger.setLevel(Level.DEBUG);
         try {
-            var factory = new TypeSafeModelFactory(() -> {
-                throw new IllegalStateException("PRIVATE_CREDENTIAL", new RuntimeException("PRIVATE_CAUSE"));
-            });
+            var factory =
+                    new TypeSafeModelFactory(
+                            () -> {
+                                throw new IllegalStateException(
+                                        "PRIVATE_CREDENTIAL",
+                                        new RuntimeException("PRIVATE_CAUSE"));
+                            });
             assertThatThrownBy(factory::buildValidated)
-                    .isInstanceOf(InvalidApiKeyException.class).hasNoCause();
-            assertThat(appender.list).anySatisfy(event -> {
-                assertThat(event.getLevel()).isEqualTo(Level.WARN);
-                assertThat(event.getFormattedMessage()).contains(
-                        "credential resolution failed", "java.lang.IllegalStateException");
-            }).allSatisfy(event -> {
-                assertThat(event.getFormattedMessage()).doesNotContain("PRIVATE");
-                assertThat(event.getThrowableProxy()).isNull();
-            });
+                    .isInstanceOf(InvalidApiKeyException.class)
+                    .hasNoCause();
+            assertThat(appender.list)
+                    .anySatisfy(
+                            event -> {
+                                assertThat(event.getLevel()).isEqualTo(Level.WARN);
+                                assertThat(event.getFormattedMessage())
+                                        .contains(
+                                                "credential resolution failed",
+                                                "java.lang.IllegalStateException");
+                            })
+                    .allSatisfy(
+                            event -> {
+                                assertThat(event.getFormattedMessage()).doesNotContain("PRIVATE");
+                                assertThat(event.getThrowableProxy()).isNull();
+                            });
         } finally {
             logger.detachAppender(appender);
             logger.setLevel(oldLevel);
@@ -205,16 +242,19 @@ class TypeSafeModelFactoryTest {
 
         var result = fixture.factory().build("configured-alias").classify(CLASSIFICATION_REQUEST);
 
-        assertThat(result).isInstanceOfSatisfying(
-                ClassificationResult.Selected.class,
-                selected -> {
-                    assertThat(selected.getCategoryId()).isEqualTo("dog");
-                    assertThat(selected.getConfidence()).isEqualTo(0.8);
-                    assertThat(selected.getProvenance().getModelName()).isEqualTo("jev-2026-09");
-                    assertThat(selected.getProvenance().getProvider())
-                            .isEqualTo(TypeSafeModelFactory.PROVIDER);
-                    assertThat(selected.getProvenance().getRequestId()).isEqualTo("request-17");
-                });
+        assertThat(result)
+                .isInstanceOfSatisfying(
+                        ClassificationResult.Selected.class,
+                        selected -> {
+                            assertThat(selected.getCategoryId()).isEqualTo("dog");
+                            assertThat(selected.getConfidence()).isEqualTo(0.8);
+                            assertThat(selected.getProvenance().getModelName())
+                                    .isEqualTo("jev-2026-09");
+                            assertThat(selected.getProvenance().getProvider())
+                                    .isEqualTo(TypeSafeModelFactory.PROVIDER);
+                            assertThat(selected.getProvenance().getRequestId())
+                                    .isEqualTo("request-17");
+                        });
         fixture.server().verify();
     }
 

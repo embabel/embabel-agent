@@ -55,6 +55,9 @@ public class TypeSafeModelFactory implements ByokFactory<DecisionService> {
     /** TypeSafe's default Jev model alias. */
     public static final String DEFAULT_MODEL = "jev-latest";
 
+    private static final String CREDENTIAL_VALIDATION_FAILURE =
+            "TypeSafe credential could not be validated";
+
     private static final Logger logger = LoggerFactory.getLogger(TypeSafeModelFactory.class);
 
     private final TypeSafeClientFactory clients;
@@ -78,7 +81,11 @@ public class TypeSafeModelFactory implements ByokFactory<DecisionService> {
      * @param defaultModel model returned by {@link #build()} and {@link #buildValidated()}
      */
     public TypeSafeModelFactory(Supplier<String> keySupplier, String defaultModel) {
-        this(TypeSafeClientOptions.defaults(), keySupplier, null, ObservationRegistry.NOOP,
+        this(
+                TypeSafeClientOptions.defaults(),
+                keySupplier,
+                null,
+                ObservationRegistry.NOOP,
                 defaultModel);
     }
 
@@ -99,7 +106,9 @@ public class TypeSafeModelFactory implements ByokFactory<DecisionService> {
      * @param keySupplier credential source evaluated for each request
      * @param restClientBuilder application builder to clone, or null for the fallback transport
      */
-    public TypeSafeModelFactory(TypeSafeClientOptions options, Supplier<String> keySupplier,
+    public TypeSafeModelFactory(
+            TypeSafeClientOptions options,
+            Supplier<String> keySupplier,
             RestClient.@Nullable Builder restClientBuilder) {
         this(options, keySupplier, restClientBuilder, ObservationRegistry.NOOP);
     }
@@ -112,8 +121,11 @@ public class TypeSafeModelFactory implements ByokFactory<DecisionService> {
      * @param restClientBuilder application builder to clone, or null for the fallback transport
      * @param observationRegistry registry for framework, provider and fallback HTTP observations
      */
-    public TypeSafeModelFactory(TypeSafeClientOptions options, Supplier<String> keySupplier,
-            RestClient.@Nullable Builder restClientBuilder, ObservationRegistry observationRegistry) {
+    public TypeSafeModelFactory(
+            TypeSafeClientOptions options,
+            Supplier<String> keySupplier,
+            RestClient.@Nullable Builder restClientBuilder,
+            ObservationRegistry observationRegistry) {
         this(options, keySupplier, restClientBuilder, observationRegistry, DEFAULT_MODEL);
     }
 
@@ -126,14 +138,19 @@ public class TypeSafeModelFactory implements ByokFactory<DecisionService> {
      * @param observationRegistry registry for framework, provider and fallback HTTP observations
      * @param defaultModel model returned by {@link #build()} and {@link #buildValidated()}
      */
-    public TypeSafeModelFactory(TypeSafeClientOptions options, Supplier<String> keySupplier,
-            RestClient.@Nullable Builder restClientBuilder, ObservationRegistry observationRegistry,
+    public TypeSafeModelFactory(
+            TypeSafeClientOptions options,
+            Supplier<String> keySupplier,
+            RestClient.@Nullable Builder restClientBuilder,
+            ObservationRegistry observationRegistry,
             String defaultModel) {
         this.keySupplier = Objects.requireNonNull(keySupplier, "keySupplier");
         this.defaultModel = Objects.requireNonNull(defaultModel, "defaultModel");
-        this.observationRegistry = Objects.requireNonNull(observationRegistry, "observationRegistry");
-        this.clients = new TypeSafeClientFactory(options, keySupplier, restClientBuilder,
-                observationRegistry);
+        this.observationRegistry =
+                Objects.requireNonNull(observationRegistry, "observationRegistry");
+        this.clients =
+                new TypeSafeClientFactory(
+                        options, keySupplier, restClientBuilder, observationRegistry);
         logger.info(
                 "TypeSafe model factory initialized: transport={}, observations={}",
                 restClientBuilder == null ? "fallback" : "application",
@@ -169,9 +186,11 @@ public class TypeSafeModelFactory implements ByokFactory<DecisionService> {
      * @return observed decision service for the requested model
      */
     public final DecisionService build(String model) {
-        var service = new ObservedDecisionService(new TypeSafeDecisionService(clients.build(model)),
-                observationRegistry);
-        logger.debug("TypeSafe decision service built: model.selection={}",
+        var service =
+                new ObservedDecisionService(
+                        new TypeSafeDecisionService(clients.build(model)), observationRegistry);
+        logger.debug(
+                "TypeSafe decision service built: model.selection={}",
                 defaultModel.equals(model) ? "default" : "explicit");
         return service;
     }
@@ -197,22 +216,23 @@ public class TypeSafeModelFactory implements ByokFactory<DecisionService> {
         } catch (TypeSafeException failure) {
             // The guarded transport has already removed credentials and response content.
             logger.warn("TypeSafe provider credential validation failed", failure);
-            var invalidKey = new InvalidApiKeyException("TypeSafe credential could not be validated");
+            var invalidKey = new InvalidApiKeyException(CREDENTIAL_VALIDATION_FAILURE);
             invalidKey.initCause(failure);
             throw invalidKey;
         } catch (RuntimeException failure) {
             // Application callbacks can contain credentials; log the type without wrapping.
-            logger.warn("TypeSafe provider validation failed: exception.type={}",
+            logger.warn(
+                    "TypeSafe provider validation failed: exception.type={}",
                     failure.getClass().getName());
-            throw new InvalidApiKeyException("TypeSafe credential could not be validated");
+            throw new InvalidApiKeyException(CREDENTIAL_VALIDATION_FAILURE);
         }
         logger.info("TypeSafe credential validation succeeded");
         return build();
     }
 
     /**
-     * Reject unusable credentials before contacting the provider. Supplier failures are outside
-     * the guarded transport, so log their type without retaining potentially secret exception data.
+     * Reject unusable credentials before contacting the provider. Supplier failures are outside the
+     * guarded transport, so log their type without retaining potentially secret exception data.
      */
     private void validateCredentialSource() {
         try {
@@ -222,9 +242,10 @@ public class TypeSafeModelFactory implements ByokFactory<DecisionService> {
             throw cancelled;
         } catch (RuntimeException failure) {
             // Supplier exceptions can contain credentials; log the type without wrapping.
-            logger.warn("TypeSafe credential resolution failed: exception.type={}",
+            logger.warn(
+                    "TypeSafe credential resolution failed: exception.type={}",
                     failure.getClass().getName());
-            throw new InvalidApiKeyException("TypeSafe credential could not be validated");
+            throw new InvalidApiKeyException(CREDENTIAL_VALIDATION_FAILURE);
         }
     }
 }
