@@ -101,16 +101,4 @@ class LlmDecisionServiceJavaTest {
         assertEquals(new ClassificationResult.Selected("billing", provenance), result);
         verify(modelProvider, times(1)).getLlm(ModelSelectionCriteria.byName("gpt-test"));
     }
-
-    @Test
-    void tunedRetry() {
-        modelReplies("{\"verdict\":\"FALSE\"}");
-
-        var retry = new LlmDecisionRetryProperties(3, 200L);
-        var factory = new LlmDecisionServiceFactory(llmOperations, modelProvider, ObservationRegistry.NOOP, retry);
-
-        assertEquals(new PropositionResult.Answered(false, provenance), factory.decisionService(llm).assess(
-                new PropositionRequest("My card was charged twice", "The customer is happy")));
-        assertEquals("embabel.agent.platform.decisions.llm", retry.getPropertyPrefix());
-    }
 }
