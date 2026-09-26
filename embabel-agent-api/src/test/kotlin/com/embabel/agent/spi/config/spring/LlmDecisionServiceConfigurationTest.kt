@@ -70,6 +70,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.core.env.EnumerablePropertySource
 import org.springframework.core.env.MapPropertySource
 import org.springframework.core.env.StandardEnvironment
+import org.springframework.core.env.SystemEnvironmentPropertySource
 import java.util.function.Supplier
 
 /**
@@ -455,6 +456,112 @@ class LlmDecisionServiceConfigurationTest {
                     names.filter { it.startsWith("embabel.") }.toSet(),
                 )
             }
+        }
+    }
+
+    /**
+     * Environment variables reach the binder through a source named `systemEnvironment`, which maps
+     * `MAX_ATTEMPTS` to `max.attempts`. These tests put such a source in place of the real one.
+     */
+    @Nested
+    inner class EnvironmentVariables {
+
+        private fun ApplicationContextRunner.withEnvironmentVariables(vararg variables: Pair<String, String>) =
+            withInitializer { context ->
+                context.environment.propertySources.replace(
+                    StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                    SystemEnvironmentPropertySource(
+                        StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                        mapOf<String, Any>(*variables),
+                    ),
+                )
+            }
+
+        private fun failEveryAssess() {
+            every {
+                llmOperations.doTransform(any<List<Message>>(), any(), PropositionAnswer::class.java, null)
+            } throws TransientAiException("provider busy")
+        }
+
+        private fun assertAssessCalls(context: AssertableApplicationContext, calls: Int) {
+            context.startupFailure?.let { throw it }
+            val result = context.getBean("triage", DecisionService::class.java).assess(proposition)
+            assertEquals(PropositionResult.Failure(FailureReason.UNAVAILABLE), result)
+            verify(exactly = calls) {
+                llmOperations.doTransform(any<List<Message>>(), any(), PropositionAnswer::class.java, null)
+            }
+        }
+
+        @Test
+        fun `service retry fields set by environment variables start and apply`() {
+            failEveryAssess()
+            runner.withEnvironmentVariables(
+                "EMBABEL_AGENT_PLATFORM_DECISIONS_LLM_SERVICES_TRIAGE_LLM" to "gpt-test",
+                "EMBABEL_AGENT_PLATFORM_DECISIONS_LLM_SERVICES_TRIAGE_MAX_ATTEMPTS" to "3",
+                "EMBABEL_AGENT_PLATFORM_DECISIONS_LLM_SERVICES_TRIAGE_BACKOFF_MILLIS" to "1",
+                "EMBABEL_AGENT_PLATFORM_DECISIONS_LLM_SERVICES_TRIAGE_BACKOFF_MULTIPLIER" to "2",
+                "EMBABEL_AGENT_PLATFORM_DECISIONS_LLM_SERVICES_TRIAGE_BACKOFF_MAX_INTERVAL" to "2",
+            ).run { context -> assertAssessCalls(context, 3) }
+        }
+
+        @Test
+        fun `an environment variable and a property can set different fields of one service`() {
+            failEveryAssess()
+            runner.withEnvironmentVariables("EMBABEL_AGENT_PLATFORM_DECISIONS_LLM_SERVICES_TRIAGE_MAX_ATTEMPTS" to "3")
+                .withPropertyValues(
+                    "embabel.agent.platform.decisions.llm.services.triage.llm=gpt-test",
+                    "embabel.agent.platform.decisions.llm.services.triage.backoff-millis=1",
+                    "embabel.agent.platform.decisions.llm.services.triage.backoff-max-interval=2",
+                )
+                .run { context -> assertAssessCalls(context, 3) }
+        }
+
+        @Test
+        fun `a property overrides an environment variable for the same field`() {
+            failEveryAssess()
+            runner.withEnvironmentVariables("EMBABEL_AGENT_PLATFORM_DECISIONS_LLM_SERVICES_TRIAGE_MAX_ATTEMPTS" to "4")
+                .withPropertyValues(
+                    "embabel.agent.platform.decisions.llm.services.triage.llm=gpt-test",
+                    "embabel.agent.platform.decisions.llm.services.triage.max-attempts=2",
+                    "embabel.agent.platform.decisions.llm.services.triage.backoff-millis=1",
+                    "embabel.agent.platform.decisions.llm.services.triage.backoff-max-interval=2",
+                )
+                .run { context -> assertAssessCalls(context, 2) }
+        }
+
+        @Test
+        fun `an unknown key in a property still fails beside environment variables`() {
+            runner.withEnvironmentVariables("EMBABEL_AGENT_PLATFORM_DECISIONS_LLM_SERVICES_TRIAGE_MAX_ATTEMPTS" to "3")
+                .withPropertyValues(
+                    "embabel.agent.platform.decisions.llm.services.triage.llm=gpt-test",
+                    "embabel.agent.platform.decisions.llm.services.triage.role=fast",
+                )
+                .run { context ->
+                    val unbound = context.failureChain().filterIsInstance<UnboundConfigurationPropertiesException>().single()
+                    assertEquals(
+                        listOf("embabel.agent.platform.decisions.llm.services.triage.role"),
+                        unbound.unboundProperties.map { it.name.toString() },
+                    )
+                }
+        }
+
+        @Test
+        fun `bind services reads a multi-word field from the system environment`() {
+            val environment = StandardEnvironment().apply {
+                propertySources.replace(
+                    StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                    SystemEnvironmentPropertySource(
+                        StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                        mapOf<String, Any>(
+                            "EMBABEL_AGENT_PLATFORM_DECISIONS_LLM_SERVICES_TRIAGE_LLM" to "gpt-test",
+                            "EMBABEL_AGENT_PLATFORM_DECISIONS_LLM_SERVICES_TRIAGE_BACKOFF_MAX_INTERVAL" to "900",
+                        ),
+                    ),
+                )
+            }
+            val triage = LlmDecisionServiceConfiguration.bindServices(environment).getValue("triage")
+            assertEquals("gpt-test", triage.llm)
+            assertEquals(900L, triage.backoffMaxInterval)
         }
     }
 
