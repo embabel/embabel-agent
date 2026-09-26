@@ -24,19 +24,24 @@ import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.NoSuitableModelException
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.beans.factory.BeanFactory
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.BeanDefinition
 import org.springframework.beans.factory.support.BeanDefinitionBuilder
 import org.springframework.beans.factory.support.BeanDefinitionRegistry
 import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+import org.springframework.boot.context.properties.bind.BindHandler
 import org.springframework.boot.context.properties.bind.Bindable
 import org.springframework.boot.context.properties.bind.Binder
+import org.springframework.boot.context.properties.bind.handler.NoUnboundElementsBindHandler
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
 
 /**
- * Registers a decision or classification service bean for each entry under
- * `embabel.agent.platform.decisions.llm.services`. The entry's key is the bean name.
+ * Supplies the `LlmDecisionServiceFactory` bean and registers a decision or classification service
+ * bean for each entry under `embabel.agent.platform.decisions.llm.services`. The entry's key is the
+ * bean name.
  *
  * ```yaml
  * embabel:
@@ -44,6 +49,7 @@ import org.springframework.core.env.Environment
  *     platform:
  *       decisions:
  *         llm:
+ *           max-attempts: 5
  *           services:
  *             triage:
  *               llm: gpt-4.1-mini
@@ -53,13 +59,36 @@ import org.springframework.core.env.Environment
  *               max-attempts: 3
  * ```
  *
- * Startup fails if an entry names no LLM or one the model provider doesn't know.
+ * The retry settings `max-attempts`, `backoff-millis`, `backoff-multiplier` and
+ * `backoff-max-interval` apply to the factory bean at the top level. An entry takes each one it
+ * leaves unset from the top level.
+ *
+ * Startup fails if an entry names no LLM or one the model provider doesn't know, if an entry has a
+ * key this class doesn't know, or if a retry setting is out of range. The error names the property.
  */
 @Configuration(proxyBeanMethods = false)
 internal class LlmDecisionServiceConfiguration {
 
     /**
-     * One declared service.
+     * The factory applications inject. Configured services are built by this bean too, so an
+     * application that supplies its own factory changes them as well.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun llmDecisionServiceFactory(
+        llmOperations: LlmOperations,
+        modelProvider: ModelProvider,
+        observationRegistry: ObjectProvider<ObservationRegistry>,
+        environment: Environment,
+    ): LlmDecisionServiceFactory = LlmDecisionServiceFactory(
+        llmOperations = llmOperations,
+        modelProvider = modelProvider,
+        observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
+        retry = bindRetry(environment),
+    )
+
+    /**
+     * One declared service. A retry field left unset takes the top-level value.
      *
      * @property llm name of the model that answers
      * @property kind whether the bean is a decision service or only classifies
@@ -67,25 +96,40 @@ internal class LlmDecisionServiceConfiguration {
     data class ServiceProperties(
         val llm: String? = null,
         val kind: Kind = Kind.DECISION,
-        val maxAttempts: Int = DEFAULT_RETRY.maxAttempts,
-        val backoffMillis: Long = DEFAULT_RETRY.backoffMillis,
-        val backoffMultiplier: Double = DEFAULT_RETRY.backoffMultiplier,
-        val backoffMaxInterval: Long = DEFAULT_RETRY.backoffMaxInterval,
+        val maxAttempts: Int? = null,
+        val backoffMillis: Long? = null,
+        val backoffMultiplier: Double? = null,
+        val backoffMaxInterval: Long? = null,
     ) {
-        fun retry(key: String) = LlmDecisionRetryProperties(
-            maxAttempts = maxAttempts,
-            backoffMillis = backoffMillis,
-            backoffMultiplier = backoffMultiplier,
-            backoffMaxInterval = backoffMaxInterval,
-            propertyPrefix = "$PREFIX.$key",
-        )
+
+        /**
+         * The retry settings for the entry with this key, filling unset fields from [defaults].
+         *
+         * @throws IllegalStateException if a setting is out of range, naming the entry
+         */
+        fun retry(key: String, defaults: LlmDecisionRetryProperties): LlmDecisionRetryProperties {
+            val prefix = "$SERVICES_PREFIX.$key"
+            return try {
+                LlmDecisionRetryProperties(
+                    maxAttempts = maxAttempts ?: defaults.maxAttempts,
+                    backoffMillis = backoffMillis ?: defaults.backoffMillis,
+                    backoffMultiplier = backoffMultiplier ?: defaults.backoffMultiplier,
+                    backoffMaxInterval = backoffMaxInterval ?: defaults.backoffMaxInterval,
+                    propertyPrefix = prefix,
+                )
+            } catch (e: IllegalArgumentException) {
+                throw IllegalStateException("$prefix: ${e.message}", e)
+            }
+        }
     }
 
     enum class Kind { DECISION, CLASSIFICATION }
 
     companion object {
 
-        const val PREFIX = "embabel.agent.platform.decisions.llm.services"
+        const val PREFIX = "embabel.agent.platform.decisions.llm"
+
+        const val SERVICES_PREFIX = "$PREFIX.services"
 
         private val DEFAULT_RETRY = LlmDecisionRetryProperties()
 
@@ -98,16 +142,55 @@ internal class LlmDecisionServiceConfiguration {
         fun llmDecisionServiceRegistrar(
             environment: Environment,
             beanFactory: BeanFactory,
-        ): BeanDefinitionRegistryPostProcessor = Registrar(bindServices(environment), beanFactory)
+        ): BeanDefinitionRegistryPostProcessor = Registrar(bindServices(environment), bindRetry(environment), beanFactory)
 
+        /**
+         * Binds the declared services. A key that no service field matches fails the binding.
+         */
         fun bindServices(environment: Environment): Map<String, ServiceProperties> =
             Binder.get(environment)
-                .bind(PREFIX, Bindable.mapOf(String::class.java, ServiceProperties::class.java))
+                .bind(
+                    SERVICES_PREFIX,
+                    Bindable.mapOf(String::class.java, ServiceProperties::class.java),
+                    NoUnboundElementsBindHandler(BindHandler.DEFAULT),
+                )
                 .orElse(emptyMap())
+
+        /**
+         * Binds the top-level retry settings. Each field is bound on its own so the services under
+         * the same prefix are left to [bindServices].
+         *
+         * @throws IllegalStateException if a setting is out of range, naming the prefix
+         */
+        fun bindRetry(environment: Environment): LlmDecisionRetryProperties {
+            val binder = Binder.get(environment)
+            fun <T : Any> field(name: String, type: Class<T>, default: T): T =
+                binder.bind("$PREFIX.$name", type).orElse(default)
+            return try {
+                LlmDecisionRetryProperties(
+                    maxAttempts = field("max-attempts", Int::class.javaObjectType, DEFAULT_RETRY.maxAttempts),
+                    backoffMillis = field("backoff-millis", Long::class.javaObjectType, DEFAULT_RETRY.backoffMillis),
+                    backoffMultiplier = field(
+                        "backoff-multiplier",
+                        Double::class.javaObjectType,
+                        DEFAULT_RETRY.backoffMultiplier,
+                    ),
+                    backoffMaxInterval = field(
+                        "backoff-max-interval",
+                        Long::class.javaObjectType,
+                        DEFAULT_RETRY.backoffMaxInterval,
+                    ),
+                    propertyPrefix = PREFIX,
+                )
+            } catch (e: IllegalArgumentException) {
+                throw IllegalStateException("$PREFIX: ${e.message}", e)
+            }
+        }
     }
 
     private class Registrar(
         private val services: Map<String, ServiceProperties>,
+        private val defaults: LlmDecisionRetryProperties,
         private val beanFactory: BeanFactory,
     ) : BeanDefinitionRegistryPostProcessor {
 
@@ -117,39 +200,32 @@ internal class LlmDecisionServiceConfiguration {
 
         // The definition names the service type so the model provider's search for LLM beans can
         // skip it without creating it. It is eager, so an unknown LLM stops startup even when the
-        // application makes beans lazy by default.
+        // application makes beans lazy by default. The retry settings are checked here, before any
+        // bean is created.
         private fun definition(key: String, service: ServiceProperties): BeanDefinition {
             val llm = service.llm?.takeIf { it.isNotBlank() }
-                ?: throw IllegalStateException("$PREFIX.$key.llm must name an LLM")
+                ?: throw IllegalStateException("$SERVICES_PREFIX.$key.llm must name an LLM")
+            val retry = service.retry(key, defaults)
             val builder = when (service.kind) {
                 Kind.DECISION -> BeanDefinitionBuilder.genericBeanDefinition(DecisionService::class.java) {
-                    build(key, llm, service) { it.decisionService(llm) }
+                    build(key, llm) { it.decisionService(llm, retry, "decision-$key") }
                 }
 
                 Kind.CLASSIFICATION -> BeanDefinitionBuilder.genericBeanDefinition(ClassificationService::class.java) {
-                    build(key, llm, service) { it.classificationService(llm) }
+                    build(key, llm) { it.classificationService(llm, retry, "classification-$key") }
                 }
             }
             return builder.setLazyInit(false).beanDefinition
         }
 
-        private fun <T> build(
-            key: String,
-            llm: String,
-            service: ServiceProperties,
-            create: (LlmDecisionServiceFactory) -> T,
-        ): T {
-            val factory = LlmDecisionServiceFactory(
-                llmOperations = beanFactory.getBean(LlmOperations::class.java),
-                modelProvider = beanFactory.getBean(ModelProvider::class.java),
-                observationRegistry = beanFactory.getBeanProvider(ObservationRegistry::class.java)
-                    .getIfUnique { ObservationRegistry.NOOP },
-                retry = service.retry(key),
-            )
+        // The factory bean builds every configured service, so a factory the application supplies
+        // builds them as well.
+        private fun <T> build(key: String, llm: String, create: (LlmDecisionServiceFactory) -> T): T {
+            val factory = beanFactory.getBean(LlmDecisionServiceFactory::class.java)
             return try {
                 create(factory)
             } catch (e: NoSuitableModelException) {
-                throw IllegalStateException("$PREFIX.$key.llm names unknown LLM '$llm'", e)
+                throw IllegalStateException("$SERVICES_PREFIX.$key.llm names unknown LLM '$llm'", e)
             }
         }
     }
