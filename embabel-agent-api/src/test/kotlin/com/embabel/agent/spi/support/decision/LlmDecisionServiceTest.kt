@@ -51,12 +51,15 @@ import jakarta.validation.Validation
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.ai.chat.messages.MessageType
 import org.springframework.ai.retry.TransientAiException
+import org.springframework.retry.backoff.ExponentialBackOffPolicy
+import org.springframework.retry.support.RetryTemplate
 import java.net.SocketTimeoutException
 import java.nio.channels.ClosedByInterruptException
 import java.util.concurrent.Executors
@@ -257,7 +260,7 @@ class LlmDecisionServiceTest {
         }
 
         @Test
-        fun `interruption during the retry backoff is rethrown after one call with the flag set`() {
+        fun `failure with the flag set is stopped by the retry guard and rethrown after one call`() {
             whenAsked(PropositionAnswer::class.java) answers {
                 Thread.currentThread().interrupt()
                 throw TransientAiException("busy")
@@ -290,25 +293,33 @@ class LlmDecisionServiceTest {
 
         @Test
         fun `interrupt that lands while waiting to retry is rethrown with the flag set`() {
-            val slowRetry = object : RetryProperties {
-                override val maxAttempts = 3
-                override val backoffMillis = 30_000L
-                override val backoffMultiplier = 2.0
-                override val backoffMaxInterval = 60_000L
-                override val propertyPrefix = "embabel.agent.platform.decisions.test"
+            // The backoff's sleeper throws at once, just as Thread.sleep does when interrupted.
+            val interrupted = InterruptedException("sleep interrupted")
+            val interruptedBackoff = object : RetryProperties by retry {
+                override fun retryTemplate(name: String): RetryTemplate =
+                    RetryTemplate.builder()
+                        .maxAttempts(retry.maxAttempts)
+                        .customBackoff(ExponentialBackOffPolicy().withSleeper { throw interrupted })
+                        .build()
             }
-            val service = LlmDecisionService(llmOperations, llm, options, slowRetry)
-            val caller = Thread.currentThread()
-            whenAsked(ClassificationAnswer::class.java) answers {
-                Thread {
-                    Thread.sleep(200)
-                    caller.interrupt()
-                }.start()
-                throw TransientAiException("busy")
-            }
+            val service = LlmDecisionService(llmOperations, llm, options, interruptedBackoff)
+            whenAsked(ClassificationAnswer::class.java) throws TransientAiException("busy")
             try {
                 val thrown = assertThrows<InterruptedException> { service.classify(classification) }
-                assertFalse(thrown.cause is TransientAiException)
+                assertSame(interrupted, thrown)
+                assertTrue(Thread.currentThread().isInterrupted)
+                assertEquals(1, interactions.size)
+            } finally {
+                Thread.interrupted()
+            }
+        }
+
+        @Test
+        fun `flag already set before a successful call leaves the result and the flag alone`() {
+            whenAsked(ClassificationAnswer::class.java) returns ClassificationAnswer(ClassificationVerdict.SELECTED, "billing")
+            Thread.currentThread().interrupt()
+            try {
+                assertEquals(ClassificationResult.Selected("billing", provenance), service.classify(classification))
                 assertTrue(Thread.currentThread().isInterrupted)
                 assertEquals(1, interactions.size)
             } finally {
