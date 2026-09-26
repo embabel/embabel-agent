@@ -156,7 +156,6 @@ internal class LlmDecisionServiceConfiguration {
                 .bind(
                     SERVICES_PREFIX,
                     Bindable.mapOf(String::class.java, ServiceProperties::class.java),
-                    // Unknown keys from environment variables and system properties are not checked, as in Spring Boot's own strict binding.
                     NoUnboundElementsBindHandler(BindHandler.DEFAULT, UnboundElementsSourceFilter()),
                 )
                 .orElse(emptyMap())
