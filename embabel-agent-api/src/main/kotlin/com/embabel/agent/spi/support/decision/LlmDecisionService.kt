@@ -43,6 +43,11 @@ import org.slf4j.LoggerFactory
  * [InterruptedException] with the thread's interrupt flag set. It is the original one when the
  * failure carries it, and otherwise a new one caused by the failure.
  *
+ * A failed model call counts as interrupted when an [InterruptedException] is in its cause chain
+ * or the thread's interrupt flag is set. Once the model has answered, the flag no longer matters.
+ * An answer that breaks the rules is an invalid response even when the caller's flag was already
+ * set, and the service leaves the flag as the caller set it.
+ *
  * @param llm the model to ask, already resolved; the service takes its name and provider from it
  * @param options the options for every call, which should select [llm] directly
  * @param retryName the name the retry log lines carry
@@ -97,6 +102,11 @@ internal class LlmDecisionService(
      * Runs one decision and maps whatever it throws to a failure result, except an interruption,
      * which it rethrows.
      *
+     * An interruption here is an [InterruptedException] in the cause chain. That covers an
+     * interrupted model call, which [guarded] has already turned into one, and an interrupted wait
+     * between retries. The interrupt flag alone never turns a failure into an interruption here, so
+     * an answer that breaks the rules stays an invalid response when the caller's flag was set.
+     *
      * The failure keeps only the reason. This class logs only the operation, the model name and
      * the outcome, while the shared model-call path and the retry listener log failed attempts on
      * their own terms.
@@ -110,7 +120,7 @@ internal class LlmDecisionService(
         } catch (e: Exception) {
             // The retry template reports an interrupted backoff wait as its own exception, with the
             // InterruptedException as the cause.
-            interruptionOf(e)?.let { interrupted ->
+            interruptionIn(e)?.let { interrupted ->
                 logger.debug("Decision {} with model {} was interrupted", operation, name)
                 throw interrupted
             }
@@ -128,32 +138,34 @@ internal class LlmDecisionService(
     /**
      * Stops the retry template from retrying an interrupted call. The template would otherwise
      * retry it like any other failure and lose the interrupt flag along the way.
+     *
+     * A failed call was interrupted when an [InterruptedException] is in its cause chain, since the
+     * operations often wrap it. Without one, a set interrupt flag still means the call was
+     * interrupted: an interrupted blocking read can surface as a `ClosedByInterruptException` or
+     * another I/O error. Then the interruption is a new [InterruptedException] caused by the
+     * failure. The type `InterruptedIOException` proves nothing, because `SocketTimeoutException`
+     * extends it and is only a timeout.
      */
     private inline fun <T> guarded(call: () -> T): T =
         try {
             call()
         } catch (e: Exception) {
-            throw DecisionInterrupted(interruptionOf(e) ?: throw e)
+            val interrupted = interruptionIn(e)
+                ?: if (Thread.currentThread().isInterrupted) {
+                    InterruptedException("Decision interrupted").apply { initCause(e) }
+                } else {
+                    throw e
+                }
+            throw DecisionInterrupted(interrupted)
         }
 
     /**
-     * Finds the interruption behind a failure, or returns null for an ordinary failure. It leaves
-     * the interrupt flag set whenever it finds one.
-     *
-     * An [InterruptedException] anywhere in the cause chain wins, since the operations often wrap
-     * it. Without one, a set interrupt flag still means the call was interrupted: an interrupted
-     * blocking read can surface as a `ClosedByInterruptException` or another I/O error. The type
-     * `InterruptedIOException` proves nothing, because `SocketTimeoutException` extends it and is
-     * only a timeout.
+     * Finds an [InterruptedException] in the cause chain of a failure, or returns null when there
+     * is none. It sets the interrupt flag whenever it finds one.
      */
-    private fun interruptionOf(e: Throwable): InterruptedException? {
-        generateSequence(e) { it.cause }.filterIsInstance<InterruptedException>().firstOrNull()?.let {
-            Thread.currentThread().interrupt()
-            return it
-        }
-        if (!Thread.currentThread().isInterrupted) return null
-        return InterruptedException("Decision interrupted").apply { initCause(e) }
-    }
+    private fun interruptionIn(e: Throwable): InterruptedException? =
+        generateSequence(e) { it.cause }.filterIsInstance<InterruptedException>().firstOrNull()
+            ?.also { Thread.currentThread().interrupt() }
 
     /** Carries an interrupted call out of the retry template, which never retries it. */
     private class DecisionInterrupted(val interrupted: InterruptedException) :
