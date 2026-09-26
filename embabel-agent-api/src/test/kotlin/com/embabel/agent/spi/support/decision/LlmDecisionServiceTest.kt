@@ -57,6 +57,8 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.ai.chat.messages.MessageType
 import org.springframework.ai.retry.TransientAiException
+import java.net.SocketTimeoutException
+import java.nio.channels.ClosedByInterruptException
 import java.util.concurrent.Executors
 
 class LlmDecisionServiceTest {
@@ -222,6 +224,14 @@ class LlmDecisionServiceTest {
         }
 
         @Test
+        fun `socket timeout with the flag clear is retried and ends unavailable`() {
+            whenAsked(ClassificationAnswer::class.java) throws SocketTimeoutException("read timed out")
+            assertEquals(ClassificationResult.Failure(FailureReason.UNAVAILABLE), service.classify(classification))
+            assertEquals(retry.maxAttempts, interactions.size)
+            assertFalse(Thread.currentThread().isInterrupted)
+        }
+
+        @Test
         fun `provider illegal state is unavailable after one call`() {
             whenAsked(ClassificationAnswer::class.java) throws IllegalStateException("provider rejected the request")
             assertEquals(ClassificationResult.Failure(FailureReason.UNAVAILABLE), service.classify(classification))
@@ -259,6 +269,62 @@ class LlmDecisionServiceTest {
             } finally {
                 Thread.interrupted()
             }
+        }
+
+        @Test
+        fun `io failure with the flag set is rethrown as an interruption after one call`() {
+            val closed = ClosedByInterruptException()
+            whenAsked(ClassificationAnswer::class.java) answers {
+                Thread.currentThread().interrupt()
+                throw closed
+            }
+            try {
+                val thrown = assertThrows<InterruptedException> { service.classify(classification) }
+                assertEquals(closed, thrown.cause)
+                assertTrue(Thread.currentThread().isInterrupted)
+                assertEquals(1, interactions.size)
+            } finally {
+                Thread.interrupted()
+            }
+        }
+
+        @Test
+        fun `interrupt that lands while waiting to retry is rethrown with the flag set`() {
+            val slowRetry = object : RetryProperties {
+                override val maxAttempts = 3
+                override val backoffMillis = 30_000L
+                override val backoffMultiplier = 2.0
+                override val backoffMaxInterval = 60_000L
+                override val propertyPrefix = "embabel.agent.platform.decisions.test"
+            }
+            val service = LlmDecisionService(llmOperations, llm, options, slowRetry)
+            val caller = Thread.currentThread()
+            whenAsked(ClassificationAnswer::class.java) answers {
+                Thread {
+                    Thread.sleep(200)
+                    caller.interrupt()
+                }.start()
+                throw TransientAiException("busy")
+            }
+            try {
+                val thrown = assertThrows<InterruptedException> { service.classify(classification) }
+                assertFalse(thrown.cause is TransientAiException)
+                assertTrue(Thread.currentThread().isInterrupted)
+                assertEquals(1, interactions.size)
+            } finally {
+                Thread.interrupted()
+            }
+        }
+    }
+
+    @Nested
+    inner class RetryName {
+
+        @Test
+        fun `retry template takes the given name`() {
+            val names = TestRetryProperties()
+            LlmDecisionService(llmOperations, llm, options, names, retryName = "classification-support")
+            assertEquals(listOf("classification-support"), names.templateNames)
         }
     }
 
