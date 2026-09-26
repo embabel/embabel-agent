@@ -17,8 +17,10 @@ package com.embabel.agent.core.support
 
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.event.AgentProcessEvent
+import com.embabel.agent.api.event.AgentProcessTerminatedEvent
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.AgentProcessRepository
 import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.EarlyTermination
 import com.embabel.agent.core.EarlyTerminationPolicy
@@ -26,9 +28,13 @@ import com.embabel.agent.core.ProcessControl
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.spi.support.DefaultPlannerFactory
 import com.embabel.agent.support.SimpleTestAgent
+import com.embabel.agent.test.common.EventSavingAgenticEventListener
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyPlatformServices
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.never
+import org.mockito.Mockito.verify
 
 /**
  * The termination event delivered from [AbstractAgentProcess.identifyEarlyTermination] must observe
@@ -102,5 +108,21 @@ class AbstractAgentProcessTerminationStatusOrderingTest {
             listener.statusAtDelivery,
             "Listener must observe TERMINATED status when the policy-termination event is delivered",
         )
+    }
+
+    @Test
+    fun `immediate termination of ephemeral process skips repository update`() {
+        val repository = mock(AgentProcessRepository::class.java)
+        val listener = EventSavingAgenticEventListener()
+        val services = object : PlatformServices by dummyPlatformServices(eventListener = listener) {
+            override val agentProcessRepository = repository
+        }
+        val process = TestProcess(ProcessOptions(ephemeral = true), services)
+        process.forceStatus(AgentProcessStatusCode.WAITING)
+
+        process.terminateAgent("stop now")
+
+        verify(repository, never()).update(process)
+        assertEquals(1, listener.processEvents.filterIsInstance<AgentProcessTerminatedEvent>().size)
     }
 }

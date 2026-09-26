@@ -15,30 +15,50 @@
  */
 package com.embabel.agent.spi.support.persistence
 
-import com.embabel.agent.core.AgentProcessStatusCode
+import com.embabel.agent.api.common.PlatformServices
+import com.embabel.agent.api.dsl.Frog
+import com.embabel.agent.api.dsl.agent
+import com.embabel.agent.api.event.ActionExecutionStartEvent
+import com.embabel.agent.api.event.AgentProcessEvent
+import com.embabel.agent.api.event.AgentProcessTerminatedEvent
+import com.embabel.agent.api.event.AgenticEventListener
+import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.AgentProcessCallback
 import com.embabel.agent.core.AgentProcessRepository
+import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.persistence.AgentProcessPersistenceException
+import com.embabel.agent.core.support.ConcurrentAgentProcess
 import com.embabel.agent.core.support.DslWaitingAgent
 import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.agent.core.support.InternalAgentStateApi
 import com.embabel.agent.core.support.SimpleAgentProcess
 import com.embabel.agent.domain.io.UserInput
+import com.embabel.agent.spi.DelayedActionExecutionSchedule
+import com.embabel.agent.spi.OperationScheduler
 import com.embabel.agent.spi.persistence.AgentProcessCheckpointPolicy
+import com.embabel.agent.spi.persistence.AgentProcessSnapshotStore
 import com.embabel.agent.spi.persistence.SerializedAgentProcessSnapshot
 import com.embabel.agent.spi.persistence.StoredSnapshotMetadata
-import com.embabel.agent.spi.persistence.AgentProcessSnapshotStore
 import com.embabel.agent.spi.support.DefaultPlannerFactory
+import com.embabel.agent.spi.support.ExecutorAsyncer
 import com.embabel.agent.spi.support.InMemoryAgentProcessRepository
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyPlatformServices
 import com.embabel.common.util.EmbabelObjectMapperHolder
+import java.time.Duration
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.EnumSource
 
 @OptIn(InternalAgentStateApi::class)
 class PersistentAgentProcessRepositoryTest {
@@ -53,6 +73,133 @@ class PersistentAgentProcessRepositoryTest {
     private val snapshotFactory = AgentProcessSnapshotFactory(blackboardSnapshotter)
     private val snapshotSerializer = JacksonAgentProcessStateSerializer(objectMapper)
     private val snapshotRestorer = AgentProcessSnapshotRestorer(blackboardSnapshotter)
+
+    @Nested
+    inner class ConcurrentProcessTest {
+
+        @Test
+        fun `interrupted concurrent action persists termination before publishing one event`() {
+            val snapshotStore = InMemoryAgentProcessSnapshotStore()
+            val repository = repository(snapshotStore = snapshotStore)
+            val persistedStatusesAtEvent = mutableListOf<AgentProcessStatusCode?>()
+            val listener = object : AgenticEventListener {
+                override fun onProcessEvent(event: AgentProcessEvent) {
+                    if (event is AgentProcessTerminatedEvent) {
+                        persistedStatusesAtEvent += snapshotStore.findLatestByProcessId(event.processId)?.status
+                    }
+                }
+            }
+            val workerInterrupted = AtomicBoolean()
+            val executor = Executors.newSingleThreadExecutor()
+            try {
+                val services = object : PlatformServices by dummyPlatformServices(eventListener = listener) {
+                    override val agentProcessRepository: AgentProcessRepository = repository
+                    override val asyncer = ExecutorAsyncer(executor)
+                    override val operationScheduler = object : OperationScheduler by OperationScheduler.PRONTO {
+                        override fun scheduleAction(event: ActionExecutionStartEvent): DelayedActionExecutionSchedule {
+                            assertEquals(AgentProcessStatusCode.RUNNING, event.agentProcess.status)
+                            // Interrupt the worker, not the thread awaiting the concurrent action result.
+                            Thread.currentThread().interrupt()
+                            return DelayedActionExecutionSchedule(Duration.ofMillis(1))
+                        }
+                    }
+                }
+                val process = ConcurrentAgentProcess(
+                    id = "interrupted-concurrent",
+                    parentId = null,
+                    agent = DslWaitingAgent,
+                    processOptions = ProcessOptions(),
+                    blackboard = InMemoryBlackboard().also { it += UserInput("Rod") },
+                    platformServices = services,
+                    plannerFactory = DefaultPlannerFactory,
+                    callbacks = listOf(object : AgentProcessCallback {
+                        override fun beforeActionLaunched(process: AgentProcess) {}
+                        override fun onActionLaunched(process: AgentProcess, action: Action) {}
+                        override fun onActionCompleted(process: AgentProcess, action: Action) {
+                            workerInterrupted.set(Thread.currentThread().isInterrupted)
+                        }
+                    }),
+                )
+                repository.save(process)
+
+                assertEquals(AgentProcessStatusCode.TERMINATED, process.run().status)
+                assertTrue(workerInterrupted.get(), "the interrupted worker must preserve its interrupt flag")
+                assertEquals(listOf(AgentProcessStatusCode.TERMINATED), persistedStatusesAtEvent)
+                assertEquals(1, snapshotStore.findLatestByProcessId(process.id)!!.version)
+            } finally {
+                executor.shutdownNow()
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(AgentProcessStatusCode::class, names = ["WAITING", "PAUSED", "STUCK", "COMPLETED"])
+    fun `supervisor terminates target and target restores as terminated after runtime loss`(status: AgentProcessStatusCode) {
+        val snapshotStore = InMemoryAgentProcessSnapshotStore()
+        val runtimeRepository = InMemoryAgentProcessRepository()
+        val repository = repository(runtimeRepository = runtimeRepository, snapshotStore = snapshotStore)
+        val terminationEvents = mutableListOf<AgentProcessTerminatedEvent>()
+        var persistedStatusAtEvent: AgentProcessStatusCode? = null
+        val listener = object : AgenticEventListener {
+            override fun onProcessEvent(event: AgentProcessEvent) {
+                if (event is AgentProcessTerminatedEvent) {
+                    terminationEvents += event
+                    persistedStatusAtEvent = snapshotStore.findLatestByProcessId(event.processId)?.status
+                }
+            }
+        }
+        val services = object : PlatformServices by dummyPlatformServices(eventListener = listener) {
+            override val agentProcessRepository: AgentProcessRepository = repository
+        }
+        // The target is an independent process, not a child of the supervisor.
+        val targetProcess = newProcess("p1", services)
+        repository.save(targetProcess)
+        // Exercise a real HITL wait before simulating the other immediate-termination states.
+        assertEquals(AgentProcessStatusCode.WAITING, targetProcess.run().status)
+        targetProcess.replaceRuntimeState(status = status, history = targetProcess.history)
+        repository.update(targetProcess)
+        val previousVersion = snapshotStore.findLatestByProcessId("p1")!!.version
+
+        val supervisorAgent = agent("supervisor", description = "Terminates another process by id") {
+            transformation<UserInput, Frog>(name = "terminate-target") {
+                val target = services.agentProcessRepository.findById(it.input.content)!!
+                target.terminateAgent("shutdown requested by supervisor")
+                Frog("supervisor completed")
+            }
+            goal(name = "done", description = "done", satisfiedBy = Frog::class)
+        }
+        val supervisor = SimpleAgentProcess(
+            id = "supervisor",
+            parentId = null,
+            agent = supervisorAgent,
+            processOptions = ProcessOptions(),
+            blackboard = InMemoryBlackboard().also { it += UserInput(targetProcess.id) },
+            platformServices = services,
+            plannerFactory = DefaultPlannerFactory,
+        )
+        repository.save(supervisor)
+
+        assertEquals(AgentProcessStatusCode.COMPLETED, supervisor.run().status)
+
+        val snapshot = snapshotStore.findLatestByProcessId("p1")!!
+        assertEquals(AgentProcessStatusCode.TERMINATED, snapshot.status)
+        assertEquals(previousVersion + 1, snapshot.version)
+        assertEquals(1, terminationEvents.size)
+        assertEquals(targetProcess.id, terminationEvents.single().processId)
+        assertEquals(AgentProcessStatusCode.TERMINATED, persistedStatusAtEvent)
+        assertEquals(AgentProcessStatusCode.COMPLETED, snapshotStore.findLatestByProcessId(supervisor.id)!!.status)
+        targetProcess.terminateAgent("repeat shutdown")
+        assertEquals(snapshot.version, snapshotStore.findLatestByProcessId("p1")!!.version)
+        assertEquals(1, terminationEvents.size)
+
+        // Simulate loss of the target runtime entry after the supervisor has completed.
+        // Restore the target directly from its snapshot, outside the supervisor execution.
+        runtimeRepository.delete(targetProcess)
+        val restored = repository.findById("p1")!!
+        assertEquals(AgentProcessStatusCode.TERMINATED, restored.status)
+        assertEquals(targetProcess.history, restored.history)
+        assertEquals(AgentProcessStatusCode.TERMINATED, restored.run().status)
+    }
 
     @Test
     fun `checkpoints waiting process on save`() {
@@ -233,7 +380,7 @@ class PersistentAgentProcessRepositoryTest {
             assertEquals(AgentProcessStatusCode.WAITING, it.run().status)
         }
 
-    private fun newProcess(id: String): SimpleAgentProcess {
+    private fun newProcess(id: String, platformServices: PlatformServices = dummyPlatformServices()): SimpleAgentProcess {
         val blackboard = InMemoryBlackboard()
         blackboard += UserInput("Rod")
         return SimpleAgentProcess(
@@ -242,7 +389,7 @@ class PersistentAgentProcessRepositoryTest {
             agent = DslWaitingAgent,
             processOptions = ProcessOptions(),
             blackboard = blackboard,
-            platformServices = dummyPlatformServices(),
+            platformServices = platformServices,
             plannerFactory = DefaultPlannerFactory,
         )
     }
