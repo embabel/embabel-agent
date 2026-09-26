@@ -1,0 +1,1 @@
+{"model":"resolved-test-v1","answers":{"q_yes":{"type":"noul","noul":0.75},"q_choice":{"type":"choice","choice":"s_a","confidence":0.5,"probabilities":{"s_a":0.5,"s_b":0.5}},"q_rating":{"type":"score","score":0.75,"confidence":0.75,"legend":{"0":"low","1":"high"},"probabilities":{"0":0.25,"1":0.75}}},"usage":{"input_tokens":7,"output_tokens":3}}

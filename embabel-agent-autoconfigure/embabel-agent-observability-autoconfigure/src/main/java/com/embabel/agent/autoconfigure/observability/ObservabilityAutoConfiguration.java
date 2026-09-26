@@ -29,6 +29,9 @@ import com.embabel.agent.observability.tracing.EmbabelSpanEventListener;
 import com.embabel.agent.observability.tracing.EmbabelToolLoopObservationConvention;
 import com.embabel.agent.api.event.observation.AgentInstrumentation;
 import com.embabel.agent.observability.metrics.EmbabelMetricsEventListener;
+import com.embabel.agent.observability.decision.DecisionMicrometerInstrumentation;
+import com.embabel.agent.decision.api.DecisionInstrumentation;
+import com.embabel.agent.decision.api.DecisionModel;
 import com.embabel.agent.observability.tracing.MicrometerAgentInstrumentation;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
@@ -36,6 +39,8 @@ import io.micrometer.observation.ObservationRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.micrometer.observation.autoconfigure.ObservationRegistryCustomizer;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -45,7 +50,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Role;
 
 /**
  * Auto-configuration for Embabel Agent observability.
@@ -165,6 +172,9 @@ public class ObservabilityAutoConfiguration {
             }
             if ("tool call".equals(name)) {
                 return false;
+            }
+            if ("embabel.decision".equals(name)) {
+                return properties.isTraceDecisions();
             }
             // The four core scoped spans (agent/action/tool_loop/llm) are opened by the core via the
             // by-name factory with a shared placeholder name; their semantic name (embabel.agent, …)
@@ -328,6 +338,45 @@ public class ObservabilityAutoConfiguration {
         log.info("Configuring Embabel Agent Micrometer metrics listener on {}",
                 meterRegistry.getClass().getSimpleName());
         return new EmbabelMetricsEventListener(meterRegistry, properties);
+    }
+
+    /** Supplies the optional decision adapter without making the decision starter depend on monitoring. */
+    @Bean
+    @Lazy
+    @ConditionalOnClass(name = "com.embabel.agent.decision.api.DecisionInstrumentation")
+    @ConditionalOnMissingBean(DecisionInstrumentation.class)
+    public DecisionInstrumentation decisionInstrumentation(
+            ObjectProvider<ObservationRegistry> observationRegistryProvider,
+            ObjectProvider<MeterRegistry> meterRegistryProvider,
+            ObservabilityProperties properties) {
+        ObservationRegistry observations = observationRegistryProvider.getIfAvailable(() -> ObservationRegistry.NOOP);
+        MeterRegistry meters = meterRegistryProvider.getIfUnique(CompositeMeterRegistry::new);
+        boolean traceDecisions = properties.isTracingEnabled() && properties.isTraceDecisions();
+        boolean metricsDecisions = properties.isMetricsEnabled() && properties.isMetricsDecisions();
+        log.info("Configuring typed decision telemetry tracing={} metrics={}", traceDecisions, metricsDecisions);
+        return new DecisionMicrometerInstrumentation(
+                observations,
+                meters,
+                traceDecisions,
+                metricsDecisions);
+    }
+
+    /** Installs the optional adapter on user-defined decision beans without replacing explicit choices. */
+    @Bean
+    @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
+    @ConditionalOnClass(name = "com.embabel.agent.decision.api.DecisionModel")
+    public static BeanPostProcessor decisionInstrumentationPostProcessor(
+            ObjectProvider<DecisionInstrumentation> instrumentationProvider) {
+        return new BeanPostProcessor() {
+            @Override
+            public Object postProcessAfterInitialization(Object bean, String beanName) {
+                if (bean instanceof DecisionModel model) {
+                    model.installDefaultInstrumentation(
+                            instrumentationProvider.getIfUnique(DecisionInstrumentation::noop));
+                }
+                return bean;
+            }
+        };
     }
 
 }

@@ -29,6 +29,8 @@ import com.embabel.agent.core.AgentProcessRepository
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.persistence.BlackboardEntrySerializer
+import com.embabel.agent.decision.api.DecisionModel
+import com.embabel.agent.decision.api.DecisionModelInitialization
 import com.embabel.agent.spi.*
 import com.embabel.agent.spi.logging.ColorPalette
 import com.embabel.agent.spi.logging.DefaultColorPalette
@@ -238,6 +240,7 @@ class AgentPlatformConfiguration(
         applicationContext: ApplicationContext,
         properties: ConfigurableModelProviderProperties,
         providerInitialization: List<ProviderInitialization>, // models ingested dynamically
+        decisionModelInitialization: List<DecisionModelInitialization>, // decision models ingested dynamically
     ): ModelProvider {
 
         return ConfigurableModelProvider(
@@ -261,6 +264,8 @@ class AgentPlatformConfiguration(
             // usable by name rather than only reachable through a role.
             localModelCatalogs = applicationContext.getBeanProvider(LocalModelCatalog::class.java)
                 .orderedStream().toList(),
+            decisionModels = applicationContext.getBeanNamesForType(DecisionModel::class.java)
+                .map { name -> applicationContext.getBean(name, DecisionModel::class.java) },
         )
     }
 

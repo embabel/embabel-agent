@@ -22,6 +22,11 @@
     <dependencies>
         <dependency>
             <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-decision</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-api</artifactId>
         </dependency>
 

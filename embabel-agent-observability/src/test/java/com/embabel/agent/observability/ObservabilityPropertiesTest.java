@@ -65,6 +65,8 @@ class ObservabilityPropertiesTest {
 
         assertThat(props.isTracingEnabled()).isTrue();
         assertThat(props.isMetricsEnabled()).isTrue();
+        assertThat(props.isTraceDecisions()).isTrue();
+        assertThat(props.isMetricsDecisions()).isTrue();
         assertThat(props.isMdcPropagation()).isTrue();
         assertThat(props.getDisabledTraces()).isEmpty();
     }
@@ -78,11 +80,15 @@ class ObservabilityPropertiesTest {
         props.setServiceName("custom-service");
         props.setMaxAttributeLength(1000);
         props.setTraceToolCalls(false);
+        props.setTraceDecisions(false);
+        props.setMetricsDecisions(false);
 
         assertThat(props.isEnabled()).isFalse();
         assertThat(props.getServiceName()).isEqualTo("custom-service");
         assertThat(props.getMaxAttributeLength()).isEqualTo(1000);
         assertThat(props.isTraceToolCalls()).isFalse();
+        assertThat(props.isTraceDecisions()).isFalse();
+        assertThat(props.isMetricsDecisions()).isFalse();
     }
 
     // Test all trace flag setters

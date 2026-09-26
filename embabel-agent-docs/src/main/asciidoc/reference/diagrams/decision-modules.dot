@@ -1,0 +1,24 @@
+digraph DecisionModules {
+  rankdir=LR;
+  node [shape=box, style="rounded"];
+  ai [label="embabel-agent-ai\nModelSelectionCriteria"];
+  api [label="embabel-agent-api\nConfigurableModelProvider\nAgentProcess + model-selection bridge"];
+  core [label="embabel-agent-decision\ncontracts + final facade\nDecisionInstrumentation SPI\nDecisionExecutionContext"];
+  jev [label="embabel-agent-decision-typesafe\nJev adapter"];
+  llm [label="embabel-agent-decision-llm\nprompted adapter"];
+  telemetry [label="embabel-agent-observability\noptional Micrometer adapter", style="rounded,dashed"];
+  auto [label="embabel-agent-decision-autoconfigure\nnamed DecisionModel beans"];
+  starter [label="embabel-agent-starter-decision\nthin dependency starter"];
+  platform [label="embabel-agent-starter-platform\nagent platform starter"];
+  api -> core;
+  api -> ai;
+  jev -> core;
+  jev -> ai;
+  llm -> core;
+  llm -> api;
+  telemetry -> core [style=dashed];
+  auto -> jev;
+  auto -> llm;
+  starter -> auto;
+  starter -> platform;
+}

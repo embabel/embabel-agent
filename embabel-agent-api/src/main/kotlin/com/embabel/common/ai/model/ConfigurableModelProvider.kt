@@ -15,10 +15,13 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.agent.decision.api.DecisionModel
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.PlaceholderLlmService
+import com.embabel.agent.spi.support.DecisionExecutionContextBridge
 import com.embabel.common.util.indent
 import com.embabel.common.util.loggerFor
+import org.jetbrains.annotations.ApiStatus
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.validation.annotation.Validated
 import java.nio.charset.StandardCharsets
@@ -36,7 +39,7 @@ import com.embabel.common.ai.model.local.LocalModelRoleResolver
  */
 @Validated
 @ConfigurationProperties("embabel.models")
-data class ConfigurableModelProviderProperties(
+data class ConfigurableModelProviderProperties @JvmOverloads constructor(
     /**
      *  Map of role to LLM name. Each entry will require an LLM to be registered with the same name. May not include the default LLM.
      */
@@ -129,6 +132,17 @@ data class ConfigurableModelProviderProperties(
      * renumber the existing parameters for anyone constructing this positionally.
      */
     var embeddingRoles: Map<String, Map<String, String>> = emptyMap(),
+    /**
+     * Map of role to registered decision model name.
+     */
+    @get:ApiStatus.Experimental
+    var decisions: Map<String, String> = emptyMap(),
+    /**
+     * Registered decision model used for automatic and default selection.
+     * A single registered decision model is also an implicit default.
+     */
+    @get:ApiStatus.Experimental
+    var defaultDecisionModel: String? = null,
 ) {
 
     /**
@@ -212,9 +226,11 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     embeddingRoleResolvers: List<EmbeddingRoleResolver> = emptyList(),
     private val credentialEmbeddingServiceFactories: List<CredentialEmbeddingServiceFactory> = emptyList(),
     private val localModelCatalogs: List<LocalModelCatalog> = emptyList(),
+    private val decisionModels: List<DecisionModel> = emptyList(),
 ) : ModelProvider {
 
     private val logger = loggerFor<ConfigurableModelProvider>()
+    private val decisionExecutionContext = DecisionExecutionContextBridge()
 
     private val configurableRoleResolver =
         ConfigurableRoleResolver(properties) { defaultLlm.provider }
@@ -304,6 +320,20 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 ?: throw IllegalArgumentException(unresolvableDefaultLlmMessage())
         else
             throw IllegalArgumentException("No models detected. Ensure that at least one Embabel Agent Starter (e.g. embabel-agent-starter-openai) is on the classpath and models are loaded into it.")
+
+    private val defaultDecisionModel: DecisionModel? =
+        properties.defaultDecisionModel?.let { configured ->
+            decisionModels.firstOrNull { it.name == configured }
+                ?: throw IllegalArgumentException(
+                    "Default decision model '$configured' not found in available models: ${decisionModels.map { it.name }}"
+                )
+        } ?: when (decisionModels.size) {
+            0 -> null
+            1 -> decisionModels.single()
+            else -> throw IllegalArgumentException(
+                "Multiple decision models are registered; set 'embabel.models.default-decision-model' to one of: ${decisionModels.map { it.name }}"
+            )
+        }
 
     /**
      * The registered service that `default-llm` names via the flat role map, if it names a role
@@ -765,6 +795,15 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 }
             }
         }
+        require(decisionModels.map { it.name }.distinct().size == decisionModels.size) {
+            "Decision model names must be unique: ${decisionModels.map { it.name }}"
+        }
+        properties.decisions.forEach { (role, model) ->
+            require(decisionModels.any { it.name == model }) {
+                "Decision model '$model' for role $role is not available: Choices are ${decisionModels.map { it.name }}"
+            }
+        }
+        decisionModels.forEach(::installDecisionExecutionContext)
     }
 
     /**
@@ -846,6 +885,12 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         return "name: ${model.name}, provider: ${model.provider}$maybeRoles"
     }
 
+    private fun showDecisionModel(model: DecisionModel): String {
+        val roles = properties.decisions.filter { it.value == model.name }.keys
+        val maybeRoles = if (roles.isNotEmpty()) " - Roles: ${roles.joinToString(", ")}" else ""
+        return "name: ${model.name}, provider: ${model.provider}$maybeRoles"
+    }
+
     override fun listModels(): List<ModelMetadata> =
         llms.map {
             LlmMetadata(
@@ -860,6 +905,8 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 provider = it.provider,
                 pricingModel = it.pricingModel,
             )
+        } + decisionModels.map {
+            DecisionModelMetadata(it.name, provider = it.provider)
         } + localModelMetadata()
 
     /**
@@ -898,7 +945,13 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                     .sortedBy { it.name }
                     .joinToString("\n\t") { showEmbeddingModel(it) }
             }"
-        return "Default LLM: ${properties.defaultLlm}\n$llmsInfo\nDefault embedding service: ${properties.defaultEmbeddingModel}\n$embeddingServicesInfo".indent(
+        val decisionModelsInfo =
+            "Available decision models:\n\t${
+                decisionModels
+                    .sortedBy { it.name }
+                    .joinToString("\n\t") { showDecisionModel(it) }
+            }"
+        return "Default LLM: ${properties.defaultLlm}\n$llmsInfo\nDefault embedding service: ${properties.defaultEmbeddingModel}\n$embeddingServicesInfo\nDefault decision model: ${defaultDecisionModel?.name}\n$decisionModelsInfo".indent(
             indent
         )
     }
@@ -1138,6 +1191,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             LlmService::class.java.isAssignableFrom(modelClass) ->
                 (properties.llms.keys + properties.roles.keys).toList()
             EmbeddingService::class.java.isAssignableFrom(modelClass) -> properties.embeddingServices.keys.toList()
+            DecisionModel::class.java.isAssignableFrom(modelClass) -> properties.decisions.keys.toList()
             else -> throw IllegalArgumentException("Unsupported model class: $modelClass")
         }
     }
@@ -1162,6 +1216,8 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             LlmService::class.java.isAssignableFrom(modelClass) -> listableLlmNames()
             EmbeddingService::class.java.isAssignableFrom(modelClass) ->
                 (embeddingServices.map { it.name } + locallyServedNames(LocalModelKind.EMBEDDING)).distinct()
+
+            DecisionModel::class.java.isAssignableFrom(modelClass) -> decisionModels.map { it.name }
 
             else -> throw IllegalArgumentException("Unsupported model class: $modelClass")
         }
@@ -1213,6 +1269,47 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 criteria.resolved as LlmService<*>
             }
         }
+
+    @ApiStatus.Experimental
+    override fun getDecisionModel(criteria: ModelSelectionCriteria): DecisionModel =
+        when (criteria) {
+            is ByRoleModelSelectionCriteria ->
+                properties.decisions[criteria.role]
+                    ?.let(::decisionNamed)
+                    ?: decisionFallback(criteria)
+
+            is ByNameModelSelectionCriteria ->
+                decisionNamed(criteria.name) ?: decisionFallback(criteria)
+
+            is RandomByNameModelSelectionCriteria ->
+                criteria.names.mapNotNull(::decisionNamed).randomOrNull() ?: decisionFallback(criteria)
+
+            is FallbackByNameModelSelectionCriteria ->
+                criteria.names.firstNotNullOfOrNull { name ->
+                    decisionNamed(name).also {
+                        if (it == null) logger.info("Requested decision model '{}' not available", name)
+                    }
+                } ?: decisionFallback(criteria)
+
+            is AutoModelSelectionCriteria, is DefaultModelSelectionCriteria ->
+                defaultDecisionModel ?: decisionFallback(criteria)
+
+            is PreResolvedModelSelectionCriteria<*> ->
+                (criteria.resolved as? DecisionModel)
+                    ?.let(::installDecisionExecutionContext)
+                    ?: decisionFallback(criteria)
+        }
+
+    private fun installDecisionExecutionContext(model: DecisionModel): DecisionModel {
+        model.installExecutionContext(decisionExecutionContext)
+        return model
+    }
+
+    private fun decisionNamed(name: String): DecisionModel? =
+        decisionModels.firstOrNull { it.name == name }
+
+    private fun decisionFallback(criteria: ModelSelectionCriteria): Nothing =
+        throw NoSuitableModelException(criteria, decisionModels.map { it.name })
 
     /**
      * EXHAUSTIVE over [ModelSelectionCriteria], deliberately and with no `else`, exactly as

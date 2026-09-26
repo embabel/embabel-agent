@@ -209,10 +209,18 @@
                                         <dir>${project.parent.basedir}/embabel-agent-mcp/embabel-agent-mcp-security/src/main/kotlin</dir>
                                         <dir>${project.parent.basedir}/embabel-agent-rag/embabel-agent-rag-lucene/src/main/kotlin</dir>
                                         <dir>${project.parent.basedir}/embabel-agent-shell/src/main/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-decisions/embabel-agent-decision/src/main/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-decisions/embabel-agent-decision/src/main/java</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-decisions/embabel-agent-decision-typesafe/src/main/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-decisions/embabel-agent-decision-llm/src/main/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-observability/src/main/java</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-autoconfigure/embabel-agent-decision-autoconfigure/src/main/java</dir>
                                     </sourceDirectories>
                                     <samples>
                                         <dir>${project.parent.basedir}/embabel-agent-api/src/test/kotlin</dir>
                                         <dir>${project.parent.basedir}/embabel-agent-test-support/embabel-agent-test/src/test/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-decisions/embabel-agent-decision-typesafe/src/test/java</dir>
                                     </samples>
                                     <!-- Platform settings -->
                                     <platform>jvm</platform>

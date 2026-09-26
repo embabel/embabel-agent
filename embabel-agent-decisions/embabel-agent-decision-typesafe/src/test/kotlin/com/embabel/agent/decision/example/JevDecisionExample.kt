@@ -1,0 +1,108 @@
+/*
+ * Copyright 2024-2026 Embabel Pty Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.embabel.agent.decision.example
+
+// tag::kotlin-consumer[]
+import com.embabel.agent.decision.api.DecisionModel
+import com.embabel.agent.decision.api.DecisionOption
+import com.embabel.agent.decision.api.DecisionOutcome
+import com.embabel.agent.decision.api.DecisionRequest
+import com.embabel.agent.decision.api.KeyOutcome
+import com.embabel.agent.decision.api.typesafe.TypeSafeDecisionModel
+import com.embabel.common.ai.model.ModelProvider
+import com.embabel.common.ai.model.ModelSelectionCriteria
+import java.time.Duration
+import java.util.function.Supplier
+
+enum class KotlinRoute { ACCEPT, REVIEW, REJECT }
+enum class KotlinUrgency { LOW, MEDIUM, HIGH }
+
+data class KotlinDecisionEvidence(
+    val eligible: Boolean,
+    val route: KotlinRoute,
+    val urgency: KotlinUrgency,
+    val routeDistribution: Map<KotlinRoute, Double>,
+    val provenance: com.embabel.agent.decision.api.DecisionProvenance,
+)
+
+fun runKotlinDecision(model: DecisionModel): KotlinDecisionEvidence =
+    runKotlinDecision(model, Duration.ofSeconds(20))
+
+// tag::kotlin-selection[]
+fun runKotlinDecision(models: ModelProvider): KotlinDecisionEvidence =
+    runKotlinDecision(models.getDecisionModel(ModelSelectionCriteria.PlatformDefault))
+
+fun runAutoKotlinDecision(models: ModelProvider): KotlinDecisionEvidence =
+    runKotlinDecision(models.getDecisionModel(ModelSelectionCriteria.Auto))
+
+fun runNamedKotlinDecision(models: ModelProvider, name: String): KotlinDecisionEvidence =
+    runKotlinDecision(models.getDecisionModel(ModelSelectionCriteria.byName(name)))
+
+fun runRoleKotlinDecision(models: ModelProvider, role: String): KotlinDecisionEvidence =
+    runKotlinDecision(models.getDecisionModel(ModelSelectionCriteria.byRole(role)))
+
+fun runFirstAvailableKotlinDecision(models: ModelProvider, vararg names: String): KotlinDecisionEvidence =
+    runKotlinDecision(models.getDecisionModel(ModelSelectionCriteria.firstOf(*names)))
+
+fun runRandomKotlinDecision(models: ModelProvider, vararg names: String): KotlinDecisionEvidence =
+    runKotlinDecision(models.getDecisionModel(ModelSelectionCriteria.randomOf(*names)))
+
+fun runPreResolvedKotlinDecision(models: ModelProvider, model: DecisionModel): KotlinDecisionEvidence =
+    runKotlinDecision(models.getDecisionModel(ModelSelectionCriteria.preResolved(model)))
+// end::kotlin-selection[]
+
+internal fun runKotlinDecision(model: DecisionModel, timeout: Duration): KotlinDecisionEvidence {
+    val builder = DecisionRequest.builder()
+        .state(mapOf("subject" to "synthetic public example"))
+        .timeout(timeout)
+    val eligible = builder.yesNo("eligible", "Is this item eligible?")
+    val route = builder.choice(
+        "route", "Which route should the host consider?", KotlinRoute.entries.map {
+            DecisionOption.of(it.name.lowercase(), it, it.name.lowercase())
+        },
+    )
+    val urgency = builder.rating(
+        "urgency", "How urgent is review?", KotlinUrgency.entries.map {
+            DecisionOption.of(it.name.lowercase(), it, it.name.lowercase())
+        },
+    )
+    return when (val outcome = model.ask(builder.build())) {
+        is DecisionOutcome.Failure -> error("Decision failed safely: ${outcome.safeCode}")
+        is DecisionOutcome.Success -> {
+            val yes = outcome.answer(eligible)
+            val routeAnswer = outcome.answer(route)
+            val urgencyAnswer = outcome.answer(urgency)
+            if (yes is KeyOutcome.Failure) error("Eligibility evidence failed safely: ${yes.safeCode}")
+            if (routeAnswer is KeyOutcome.Failure) error("Route evidence failed safely: ${routeAnswer.safeCode}")
+            if (urgencyAnswer is KeyOutcome.Failure) error("Urgency evidence failed safely: ${urgencyAnswer.safeCode}")
+            yes as KeyOutcome.Success
+            routeAnswer as KeyOutcome.Success
+            urgencyAnswer as KeyOutcome.Success
+            KotlinDecisionEvidence(yes.value, routeAnswer.value, urgencyAnswer.value, routeAnswer.distribution, outcome.provenance)
+        }
+    }
+}
+fun main() {
+    val key = System.getenv("TYPESAFE_API_KEY")?.takeIf(String::isNotBlank)
+        ?: error("TYPESAFE_API_KEY is required; no network request was made")
+    val requestedModel = System.getenv("TYPESAFE_MODEL")?.takeIf(String::isNotBlank)
+        ?: error("TYPESAFE_MODEL is required; no network request was made")
+    val model = TypeSafeDecisionModel.create(Supplier { key }, requestedModel)
+        .withDefaults(Duration.ofSeconds(20), com.embabel.agent.decision.api.DecisionRecordPolicy.metadata())
+    val evidence = runKotlinDecision(model)
+    println("Decision completed with ${evidence.provenance.evidenceKind} evidence from ${evidence.provenance.resolvedModel}")
+}
+// end::kotlin-consumer[]

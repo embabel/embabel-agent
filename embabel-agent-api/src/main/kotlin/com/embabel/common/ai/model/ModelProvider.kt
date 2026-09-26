@@ -15,8 +15,10 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.agent.decision.api.DecisionModel
 import com.embabel.agent.spi.LlmService
 import com.embabel.common.core.types.HasInfoString
+import org.jetbrains.annotations.ApiStatus
 
 /**
  * Provide AI models for requested roles, and expose data about available models.
@@ -28,6 +30,11 @@ interface ModelProvider : HasInfoString {
 
     @Throws(NoSuitableModelException::class)
     fun getEmbeddingService(criteria: ModelSelectionCriteria): EmbeddingService
+
+    @Throws(NoSuitableModelException::class)
+    @ApiStatus.Experimental
+    fun getDecisionModel(criteria: ModelSelectionCriteria): DecisionModel =
+        throw NoSuitableModelException(criteria, emptyList())
 
     /**
      * Resolve any role in these options to a concrete model, applying whatever hyperparameters are

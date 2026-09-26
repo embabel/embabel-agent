@@ -19,6 +19,7 @@ include::chatbots/page.adoc[]
 include::agent-process/page.adoc[]
 include::persistence/page.adoc[]
 include::cache/page.adoc[]
+include::decisions/page.adoc[]
 include::agent-platform/page.adoc[]
 
 include::invoking/page.adoc[]
@@ -71,4 +72,3 @@ include::migrating/page.adoc[]
 include::api-evolution/page.adoc[]
 
 include::asynch-mode/page.adoc[]
-

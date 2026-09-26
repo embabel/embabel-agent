@@ -112,6 +112,30 @@ The following are modules intended for direct use (versus supporting infrastruct
 | Enables agents to be defined in YML or otherwise persisted in a serialized format
 | Experimental
 
+| `embabel-agent-decision`
+| This repo
+| Typed decision contracts, validation, records, `NoDecisionModel`, and `StubDecisionModel`
+| Framework-neutral decision facade; registered instances are the third `ModelProvider` model type
+| Experimental
+
+| `embabel-agent-decision-typesafe`
+| This repo
+| Jev distribution-backed decisions
+| Depends directly on `embabel-agent-decision` and `embabel-agent-ai`
+| Experimental
+
+| `embabel-agent-decision-llm`
+| This repo
+| Prompted verbalized decisions
+| Depends on `embabel-agent-decision` and `embabel-agent-api`
+| Experimental
+
+| `embabel-agent-decision-autoconfigure`
+| This repo
+| Opt-in Spring Boot configuration for typed decisions
+| Registers one or more named decision models; an empty enabled declaration supplies Jev
+| Experimental
+
 
 |===
 
@@ -277,6 +301,12 @@ The following are modules intended for direct use (versus supporting infrastruct
 | Custom OpenAI starter
 | Quick start with OpenRouter, etc.
 | Stable
+
+| `embabel-agent-starter-decision`
+| This repo
+| Opt-in typed decision starter
+| Adds the platform and decision autoconfiguration; configuration remains disabled by default
+| Experimental
 |===
 
 ===== Test Support

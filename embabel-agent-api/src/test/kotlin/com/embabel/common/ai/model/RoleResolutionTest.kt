@@ -729,6 +729,13 @@ class RoleResolutionTest {
         fun `the default configuredOptionsForRole says it cannot say`() {
             assertNull(minimal.configuredOptionsForRole(CHEAPEST_ROLE))
         }
+
+        @Test
+        fun `the default decision resolver preserves source compatibility`() {
+            assertThrows<NoSuitableModelException> {
+                minimal.getDecisionModel(DefaultModelSelectionCriteria)
+            }
+        }
     }
 
     @Nested

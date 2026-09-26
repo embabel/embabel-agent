@@ -1,0 +1,30 @@
+digraph DecisionFlow {
+  rankdir=LR;
+  node [shape=box, style="rounded"];
+  host [label="Embabel workflow or Dice"];
+  criteria [label="ModelSelectionCriteria\ndefault / name / role\nfallback / random / pre-resolved"];
+  registry [label="ModelProvider\nregistry metadata + diagnostics"];
+  facade [label="final DecisionModel facade"];
+  context [label="DecisionExecutionContext\nAgentProcess + model selection"];
+  prepare [label="Copy bounded projection + absolute deadline"];
+  spi [label="Prepared DecisionProvider SPI"];
+  jev [label="Jev"];
+  prompted [label="Prompted LLM"];
+  validate [label="Validate + project safe record\nper-call provenance"];
+  events [label="finite provider events"];
+  log [label="structured terminal log"];
+  telemetry [label="optional telemetry adapter\nMicrometer context", style="rounded,dashed"];
+  policy [label="host-owned action or proposition revision"];
+  host -> criteria -> registry -> facade -> prepare -> context -> spi;
+  host -> facade [label="direct construction"];
+  spi -> jev;
+  spi -> prompted;
+  jev -> validate;
+  prompted -> validate;
+  spi -> events -> facade;
+  validate -> facade;
+  facade -> log;
+  facade -> telemetry [style=dashed];
+  facade -> host [label="typed evidence + provenance"];
+  host -> policy [label=" evidence + provenance"];
+}

@@ -1,0 +1,14 @@
+{
+  "properties": [
+    { "name": "embabel.agent.platform.decision.enabled", "type": "java.lang.Boolean", "defaultValue": false, "description": "Enable experimental typed decision models. With no declarations, registers the implicit jev model." },
+    { "name": "embabel.agent.platform.decision.default-timeout", "type": "java.time.Duration", "defaultValue": "30s", "description": "Default timeout shared by every configured decision model." },
+    { "name": "embabel.agent.platform.decision.record-mode", "type": "java.lang.String", "defaultValue": "metadata", "description": "Record mode shared by every configured decision model: none, metadata, or full." },
+    { "name": "embabel.agent.platform.decision.full-record-max-bytes", "type": "java.lang.Integer", "defaultValue": 65536, "description": "Maximum bytes retained by full records." },
+    { "name": "embabel.agent.platform.decision.record-allowlist", "type": "java.util.Set<java.lang.String>", "description": "Explicit fields allowed in full records." },
+    { "name": "embabel.agent.platform.decision.mapper-bean-name", "type": "java.lang.String", "description": "Exact EmbabelObjectMapperHolder bean name shared by configured models." },
+    { "name": "embabel.agent.platform.decision.models", "type": "java.util.Map<java.lang.String,com.embabel.agent.autoconfigure.decision.DecisionProperties$Model>", "description": "Named model declarations. Each lowercase alphanumeric or hyphenated map key, for example proposition-revision, is both the Spring bean and registry name; dots and underscores are unsupported. Values select provider typesafe, prompted, or none and its provider block. The TypeSafe model is the backend requested model, distinct from the registry name. A nonempty map replaces the implicit jev declaration, which requests jev-latest." }
+  ],
+  "hints": [
+    { "name": "embabel.agent.platform.decision.record-mode", "values": [{"value":"none"},{"value":"metadata"},{"value":"full"}] }
+  ]
+}
