@@ -1585,7 +1585,7 @@ Kotlin::
 [source,kotlin]
 ----
 val runner = ai.withLlm(
-    LlmOptions.fromCriteria(DefaultModelSelectionCriteria)
+    LlmOptions.withDefaultLlm()
         .withNativeStructuredOutput(NativeStructuredOutputMode.ENABLED)
 )
 
@@ -1593,24 +1593,23 @@ val result = runner.createObject<MonthItem>(prompt)
 ----
 ====
 
-In Java, call `applyTo` on the desired `NativeStructuredOutputMode`.
-Alternatively, use static imports to keep additional `LlmOptions` configuration in the same chain:
+In Java, use static imports to keep additional `LlmOptions` configuration in the same chain:
 
 [source,java]
 ----
 import static com.embabel.common.ai.model.NativeStructuredOutputMode.ENABLED;
 import static com.embabel.common.ai.model.NativeStructuredOutputModeKt.withNativeStructuredOutput;
 
-LlmOptions options = LlmOptions.withDefaultLlm();
+var options = LlmOptions.withDefaultLlm();
 options = withNativeStructuredOutput(options, ENABLED)
         .withTemperature(0.8);
 
 PromptRunner runner = ai.withLlm(options);
 ----
 
-- `NativeStructuredOutputMode.ENABLED`: Try the native path when model capability and schema compatibility allow it.
-- `NativeStructuredOutputMode.DISABLED`: Force Embabel's normal object construction path.
-- `NativeStructuredOutputMode.DEFAULT`: Let Embabel decide from model capability, API shape, and schema compatibility.
+- `NativeStructuredOutputMode.ENABLED`: Use the native path unconditionally when the provider supports it, bypassing the schema compatibility check.
+- `NativeStructuredOutputMode.DEFAULT`: Check schema compatibility first; fall back to prompt-based extraction with a WARN log if the schema is not compatible. Use `DISABLED` to suppress the warning.
+- `NativeStructuredOutputMode.DISABLED`: Always use prompt-based extraction; never use the native path.
 
 For Java objects, mark required reference fields explicitly:
 
