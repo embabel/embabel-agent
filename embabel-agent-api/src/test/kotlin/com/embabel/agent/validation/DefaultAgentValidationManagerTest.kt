@@ -15,18 +15,28 @@
  */
 package com.embabel.agent.validation
 
+import com.embabel.agent.api.dsl.agent
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
+import com.embabel.agent.api.dsl.splitGarden
+import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.spi.validation.DefaultAgentStructureValidator
 import com.embabel.agent.spi.validation.DefaultAgentValidationManager
 import com.embabel.agent.spi.validation.GoapPathToCompletionValidator
-import org.junit.jupiter.api.Assertions.assertTrue
+import com.embabel.common.core.validation.ValidationErrorCodes
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.context.support.GenericApplicationContext
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
+@ExtendWith(OutputCaptureExtension::class)
 class DefaultAgentValidationManagerTest {
 
     @Test
-    fun `evil wizard`() {
+    fun `even more evil wizard agent is valid`() {
         val ac = GenericApplicationContext()
         ac.refresh()
         val manager = DefaultAgentValidationManager(
@@ -35,10 +45,52 @@ class DefaultAgentValidationManagerTest {
                 GoapPathToCompletionValidator(),
             )
         )
-        val r = manager.validateWithDetails(evenMoreEvilWizard())
+        val r = manager.validate(evenMoreEvilWizard())
         assertTrue(
             r.isValid,
-            "Evil wizards are valid"
+            "Evil wizards are valid",
+        )
+    }
+
+    @Test
+    fun `split garden agent is valid`() {
+        val ac = GenericApplicationContext()
+        ac.refresh()
+        val manager = DefaultAgentValidationManager(
+            validators = listOf(
+                DefaultAgentStructureValidator(ac),
+                GoapPathToCompletionValidator(),
+            )
+        )
+        val r = manager.validate(splitGarden())
+        assertTrue(
+            r.isValid,
+            "Split garden is valid",
+        )
+    }
+
+    @Test
+    fun `goal without matching action is invalid and logged once`(output: CapturedOutput) {
+        val ac = GenericApplicationContext()
+        ac.refresh()
+        val manager = DefaultAgentValidationManager(
+            validators = listOf(
+                DefaultAgentStructureValidator(ac),
+                GoapPathToCompletionValidator(),
+            )
+        )
+        val agent = agent("invalidAgent", description = "Invalid agent") {
+            transformation<UserInput, String>(name = "transform") { "hello" }
+            goal(name = "unmappedGoal", description = "Unmapped goal")
+        }
+        val r = manager.validate(agent)
+        assertFalse(r.isValid)
+        assertTrue(
+            r.errors.any { it.code == ValidationErrorCodes.GOAL_ACTION_NOT_FOUND }
+        )
+        assertEquals(
+            1,
+            output.out.lines().count { it.contains(ValidationErrorCodes.GOAL_ACTION_NOT_FOUND) },
         )
     }
 
