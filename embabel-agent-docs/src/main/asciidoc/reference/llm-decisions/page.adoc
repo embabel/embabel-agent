@@ -22,30 +22,13 @@ Neither service is an `LlmService`.
 
 ==== Factory
 
-A Spring application gets a `LlmDecisionServiceFactory` bean from the agent platform.
-The bean uses the application's `ObservationRegistry` when there is exactly one, and the default retry settings.
+A Spring application gets an `LlmDecisionServiceFactory` bean from the agent platform.
+Applications inject that bean to build services in code.
+The bean uses the application's `ObservationRegistry` when there is exactly one or one is marked primary.
+Otherwise the services it builds record no observations.
+The bean uses the default retry settings, and each service declared in configuration uses the retry settings of its own entry.
 An application bean of the same type replaces it.
-Outside Spring, construct the factory directly.
-
-|===
-|Constructor parameter |Default |Purpose
-
-|`llmOperations`
-|none
-|Runs the model calls
-
-|`modelProvider`
-|none
-|Looks up models by name
-
-|`observationRegistry`
-|`ObservationRegistry.NOOP`
-|Records one observation for each call
-
-|`retry`
-|`LlmDecisionRetryProperties()`
-|Sets how often and how fast a failed model call is retried
-|===
+Replacing the bean does not change the services declared in configuration.
 
 |===
 |Method |Returns
@@ -67,7 +50,7 @@ Outside Spring, construct the factory directly.
 
 [source,java]
 ----
-include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/spi/decision/LlmDecisionServiceJavaExamples.java[tag=named,indent=0]
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/spi/decision/LlmDecisionServiceJavaTest.java[tag=named,indent=0]
 ----
 
 The factory looks up the named model once, when it builds the service.
@@ -79,7 +62,7 @@ A name the model provider does not know throws `NoSuitableModelException`.
 
 [source,java]
 ----
-include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/spi/decision/LlmDecisionServiceJavaExamples.java[tag=supplied,indent=0]
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/spi/decision/LlmDecisionServiceJavaTest.java[tag=supplied,indent=0]
 ----
 
 A supplied `LlmService` goes straight to the service.
@@ -256,21 +239,24 @@ Each call returns a contract result for every outcome except interruption.
 |No
 |`Failure(UNAVAILABLE)`
 
-|The thread is interrupted during the call
+|The thread is interrupted during the call or the wait between retries
 |No
 |The original `InterruptedException` is thrown
 |===
 
 The retry rules are the same ones the platform's other model calls use.
-Backoff waits follow the retry settings of the factory or the configured entry.
+Backoff waits follow the service's retry settings.
 The service sets no timeout of its own.
 
-An interruption anywhere in the exception's cause chain stops the retries.
-The service sets the thread's interrupt flag again and rethrows the original `InterruptedException`.
+An interruption during the call or the wait between retries ends the decision without a retry.
+An `InterruptedException` anywhere in the exception's cause chain counts as an interruption.
+The service sets the thread's interrupt flag and rethrows the original `InterruptedException`.
 
 A failure result carries only its reason.
-The exception behind it can hold the model's reply or provider response data, and either may repeat the input.
-The service drops that exception and never logs it.
+The service drops the exception behind it and does not log it.
+The retry template logs each failed attempt at INFO under `com.embabel.agent.spi.common.RetryProperties`, as it does for the platform's other model calls.
+Those log lines include the exception and its message.
+The exception can hold parts of the model's reply or provider response data, and either may repeat the input.
 
 ==== Observations
 
@@ -295,8 +281,9 @@ Each call records one logical observation and leaves the chat model call to reco
 When the chat model records observations, a decision that retries twice records one `embabel.ai.decision` observation and three chat model observations.
 The chat model observations start while the decision observation is current, so traces show them as its children.
 A `false` answer has the same `answered` outcome as `true`.
-An interrupted call records the `interrupted` outcome.
+An interruption during the call or the wait between retries records the `interrupted` outcome.
 
 Enable `com.embabel.agent.spi.support.decision` at DEBUG to log each decision's operation, model name and result type or failure reason.
 Enable `com.embabel.common.ai.model.observation` at DEBUG to log each call's operation and outcome.
-The decision services never log inputs, categories, propositions or model replies, and never attach them as tags.
+The DEBUG lines from these two packages never include inputs, categories, propositions or model replies.
+The observations never carry them as tags.
