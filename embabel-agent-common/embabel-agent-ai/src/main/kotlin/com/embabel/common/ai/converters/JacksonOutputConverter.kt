@@ -23,6 +23,7 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.json.JsonMapper
 import com.fasterxml.classmate.ResolvedType
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyDescription
 import com.github.victools.jsonschema.generator.*
 import com.github.victools.jsonschema.module.jackson.JacksonModule
@@ -128,9 +129,21 @@ internal class EnumConstantDescriptionProvider : CustomDefinitionProviderV2 {
         constants.forEach { constant ->
             val name = (constant as Enum<*>).name
             val entry = oneOfArray.addObject()
-            entry.put("const", name)
+            // Use @JsonProperty value as the serialized name if present,
+            // mirroring what Jackson and victools' CustomEnumDefinitionProvider do.
+            // Falls back to the raw enum constant name when no @JsonProperty is present.
+            val serializedName = runCatching {
+                val field = rawType.getDeclaredField(name)
+                val jsonProperty = field.getAnnotation(JsonProperty::class.java)
+                if (jsonProperty != null && jsonProperty.value != JsonProperty.USE_DEFAULT_NAME) {
+                    jsonProperty.value
+                } else {
+                    name
+                }
+            }.getOrDefault(name)
+            entry.put("const", serializedName)
             runCatching {
-                rawType.getField(name)
+                rawType.getDeclaredField(name)
                     .getAnnotation(JsonPropertyDescription::class.java)
                     ?.value
                     ?.let { entry.put("description", it) }
@@ -151,19 +164,31 @@ open class JacksonOutputConverter<T : Any> protected constructor(
     private val options: Set<JacksonOutputConverterOption> = emptySet(),
 ) : StructuredOutputConverter<T>, JsonSchemaProvider {
 
+    // Original binary-compatible constructors — unchanged signatures.
     constructor(
         clazz: Class<T>,
         objectMapper: ObjectMapper,
         requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
-        options: Set<JacksonOutputConverterOption> = emptySet(),
-    ) : this(clazz as Type, objectMapper, requiredFieldNormalization, options)
+    ) : this(clazz as Type, objectMapper, requiredFieldNormalization, emptySet())
 
     constructor(
         typeReference: ParameterizedTypeReference<T>,
         objectMapper: ObjectMapper,
         requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
-        options: Set<JacksonOutputConverterOption> = emptySet(),
-    ) : this(typeReference.type, objectMapper, requiredFieldNormalization, options)
+    ) : this(typeReference.type, objectMapper, requiredFieldNormalization, emptySet())
+
+    // Option-aware overloads — separate constructors to preserve JVM binary compatibility.
+    constructor(
+        clazz: Class<T>,
+        objectMapper: ObjectMapper,
+        options: Set<JacksonOutputConverterOption>,
+    ) : this(clazz as Type, objectMapper, RequiredFieldNormalization.ENABLED, options)
+
+    constructor(
+        typeReference: ParameterizedTypeReference<T>,
+        objectMapper: ObjectMapper,
+        options: Set<JacksonOutputConverterOption>,
+    ) : this(typeReference.type, objectMapper, RequiredFieldNormalization.ENABLED, options)
 
     protected val logger: Logger = LoggerFactory.getLogger(javaClass)
 

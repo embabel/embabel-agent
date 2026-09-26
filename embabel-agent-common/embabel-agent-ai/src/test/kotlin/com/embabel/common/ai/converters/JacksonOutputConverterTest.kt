@@ -20,6 +20,7 @@ import tools.jackson.databind.cfg.DateTimeFeature
 import tools.jackson.databind.json.JsonMapper
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import tools.jackson.module.kotlin.kotlinModule
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyDescription
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -98,9 +99,23 @@ class JacksonOutputConverterTest {
         OTHER,  // deliberately un-annotated
     }
 
+    // Enum with both @JsonProperty (serialized name) and @JsonPropertyDescription
+    enum class WireNamedPriority {
+        @JsonProperty("same-day")
+        @JsonPropertyDescription("Needs same-day response")
+        URGENT,
+
+        @JsonProperty("standard")
+        @JsonPropertyDescription("Standard turnaround")
+        NORMAL,
+
+        OTHER,
+    }
+
     enum class BareEnum { A, B, C }  // no annotations at all
 
     data class PriorityHolder(val priority: Priority)
+    data class WireNamedPriorityHolder(val priority: WireNamedPriority)
     data class BareEnumHolder(val value: BareEnum)
     data class ListPriorityHolder(val priorities: List<Priority>)
 
@@ -143,6 +158,27 @@ class JacksonOutputConverterTest {
             // un-annotated constant has const but no description
             val other = oneOf.first { it.path("const").asText() == "OTHER" }
             assertThat(other.has("description")).isFalse()
+        }
+
+        @Test
+        fun `with option enum with @JsonProperty uses wire name as const`() {
+            val converter = JacksonOutputConverter(
+                WireNamedPriorityHolder::class.java,
+                objectMapper,
+                options = setOf(JacksonOutputConverterOption.ENUM_CONSTANT_DESCRIPTIONS),
+            )
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+            val priorityNode = schema.path("properties").path("priority")
+
+            assertThat(priorityNode.has("oneOf")).isTrue()
+
+            val oneOf = priorityNode.path("oneOf")
+            // const values must be the @JsonProperty wire names, not the Java enum names
+            val urgent = oneOf.first { it.path("const").asText() == "same-day" }
+            assertThat(urgent.path("description").asText()).isEqualTo("Needs same-day response")
+
+            val normal = oneOf.first { it.path("const").asText() == "standard" }
+            assertThat(normal.path("description").asText()).isEqualTo("Standard turnaround")
         }
 
         @Test
