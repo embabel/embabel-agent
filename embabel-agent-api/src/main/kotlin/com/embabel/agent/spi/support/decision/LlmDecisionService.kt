@@ -97,9 +97,9 @@ internal class LlmDecisionService(
      * Runs one decision and maps whatever it throws to a failure result, except an interruption,
      * which it rethrows.
      *
-     * The failure keeps only the reason. This class logs the operation, the model name and the
-     * outcome, while the shared model-call path and the retry listener log failed attempts on their
-     * own terms.
+     * The failure keeps only the reason. This class logs only the operation, the model name and
+     * the outcome, while the shared model-call path and the retry listener log failed attempts on
+     * their own terms.
      */
     private fun <R : Any> decide(operation: String, failure: (FailureReason) -> R, work: () -> R): R {
         val result = try {
