@@ -247,13 +247,13 @@ class LlmDecisionServiceTest {
         }
 
         @Test
-        fun `interruption during the retry backoff is unavailable and keeps the flag set`() {
+        fun `interruption during the retry backoff is rethrown after one call with the flag set`() {
             whenAsked(PropositionAnswer::class.java) answers {
                 Thread.currentThread().interrupt()
                 throw TransientAiException("busy")
             }
             try {
-                assertEquals(PropositionResult.Failure(FailureReason.UNAVAILABLE), service.assess(proposition))
+                assertThrows<InterruptedException> { service.assess(proposition) }
                 assertTrue(Thread.currentThread().isInterrupted)
                 assertEquals(1, interactions.size)
             } finally {
