@@ -50,11 +50,14 @@ class PerGoalMcpAsyncExportToolCallbackPublisher(
     @Value("\${embabel.agent.application.name:agent-api}") applicationName: String,
 ) : McpExportToolCallbackPublisher {
 
-    private val perGoalToolFactory = PerGoalToolFactory(
-        autonomy = autonomy,
-        applicationName = applicationName,
-        textCommunicator = PromptedTextCommunicator,
-    )
+    private val perGoalToolFactory by lazy {
+        PerGoalToolFactory(
+            autonomy = autonomy,
+            applicationName = applicationName,
+            textCommunicator = PromptedTextCommunicator,
+            toolNamingStrategy = autonomy.agentPlatform.platformServices.toolNamingStrategy(),
+        )
+    }
 
     override val toolCallbacks: List<ToolCallback>
         get() {

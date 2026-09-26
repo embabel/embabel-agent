@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.config.spring
 
 import com.embabel.agent.core.ActionQos
+import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.common.textio.template.JinjaProperties
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.NestedConfigurationProperty
@@ -81,6 +82,9 @@ class AgentPlatformProperties {
     @field:NestedConfigurationProperty
     var threading: ThreadingProperties = ThreadingProperties()
 
+    @field:NestedConfigurationProperty
+    var tools: ToolsConfig = ToolsConfig()
+
     /**
      * Agent Process Type
      */
@@ -102,6 +106,16 @@ class AgentPlatformProperties {
          * Whether to auto register as agents Spring beans of type Agent
          */
         var bean: Boolean = false
+    }
+
+    /**
+     * Tool publication configuration.
+     */
+    class ToolsConfig {
+        /**
+         * Naming strategy for tools exposed to LLMs and generated tool endpoints.
+         */
+        var namingStrategy: ToolNamingStrategy = ToolNamingStrategy.LEGACY_NAME_ONLY
     }
 
     /**
