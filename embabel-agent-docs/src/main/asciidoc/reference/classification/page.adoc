@@ -1,0 +1,124 @@
+[[reference.classification]]
+=== Classification and Proposition Assessment
+
+Classification chooses from a closed set of categories that your application supplies.
+It can select a type such as `Dog`, `Cat`, or `Rabbit` without extracting fields or constructing an instance of that type.
+Use object extraction separately when you need a populated object.
+The application decides what to do with the result: route work, ask for more information, or revise a choice.
+
+[NOTE]
+====
+These contracts are experimental and live in `embabel-agent-ai`.
+They can be implemented and injected today, but this release supplies no production provider adapter or default classification model.
+Promotion requires a real adapter, provider contract tests covering every outcome and missing scores, and Java and Kotlin consumer examples verified against that adapter.
+The intended first default is Jev through a future TypeSafe integration.
+====
+
+.Application and model responsibilities
+[listing]
+----
+Application: input + canonical categories
+                    |
+                    v
+            ClassificationService
+                    |
+                    v
+   selected | no match | inconclusive | failure
+                    |
+                    v
+Application: map selected ID to enum or class token
+                    |
+                    v
+             Application policy
+----
+
+==== Define the Choices Once
+
+A `Category` has a stable `id` and a description of when it applies.
+`ClassificationRequest` carries input text and a nonempty list of categories with unique, nonblank IDs.
+For dog, cat, and rabbit, describe “bunny” as an alias in the rabbit description; it is not a fourth category.
+Descriptions guide the model, but do not create a separate alias registry or guarantee synonym recognition.
+
+`CategoryMapping<T>` pairs each category with an application value and supplies `request(input)` from those same categories.
+Values may be enum constants or class tokens such as `Rabbit.class`.
+Class tokens stay in the application; the provider receives category definitions, not authority to instantiate objects.
+`fromEnum` uses enum names as IDs, regardless of an overridden `toString()`.
+Requests and mappings copy their structural collections; mapped values themselves remain caller-owned references.
+
+The following repository tests use `AnimalKind` with `DOG`, `CAT`, and `RABBIT` constants, and `Dog`, `Cat`, and `Rabbit` classes implementing `Animal`.
+They create selected results locally to test mapping; they do not call a provider.
+
+[source,java]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/com/embabel/common/ai/classification/ClassificationJavaTest.java[tag=enum-mapping]
+----
+
+[source,java]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/com/embabel/common/ai/classification/ClassificationJavaTest.java[tag=class-mapping]
+----
+
+==== Interpret the Outcome
+
+[cols="1,3",options="header"]
+|===
+|Outcome |Meaning
+|`Selected` |One of the supplied category IDs was selected.
+|`NoMatch` |The assessment succeeded, but none of the categories fits.
+|`Inconclusive` |The service could not reach a judgment.
+|`Failure` |An operational failure prevented an assessment; a bounded reason describes the failure.
+|===
+
+`ClassificationRequest.selected(...)` creates a selection within the request's category set.
+Constructing `Selected` directly cannot check request membership.
+`validate(result)` and `CategoryMapping.map(result)` reject unknown selected IDs rather than converting them to no-match results.
+Mapping preserves no-match, inconclusive, and failure outcomes.
+
+A selection's optional confidence is reported by the provider, must be finite and between zero and one, and remains absent when unavailable.
+It is evidence from that provider, not a guarantee of correctness or calibration across models.
+`ModelProvenance` identifies the actual model and provider, with optional version and request ID.
+
+==== Assess a Proposition
+
+`DecisionService` extends `ClassificationService` and adds `assess(PropositionRequest)` for a nonblank proposition about input text; the input itself may be empty.
+An `Answered` result contains a boolean answer: both `true` and `false` are successful assessments.
+`Inconclusive` and `Failure` remain distinct from a negative answer.
+Optional `pTrue` is the provider's probability that the proposition is true, not confidence in whichever boolean answer was returned.
+It obeys the same finite zero-to-one validation and absence rules as classification confidence.
+
+This test implementation returns `false` successfully and leaves `pTrue` absent:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/com/embabel/common/ai/classification/ClassificationJavaTest.java[tag=proposition]
+----
+
+==== Describe and Inject a Service
+
+The service interface describes a capability; `ModelType` describes its model family.
+A `DecisionService` supports classification while continuing to report family `DECISION`, even through a `ClassificationService` reference.
+A classification-only service reports `CLASSIFICATION`.
+Applications with exhaustive `ModelType` switches must handle these additional families.
+
+Call `metadata()` to obtain a pure metadata snapshot before serializing a service description.
+Snapshots contain model metadata, not a live provider implementation, client, or credentials.
+Serializing arbitrary live service objects is not the snapshot contract.
+
+Use an ordinary constructor parameter in Java or Kotlin to depend on `ClassificationService` or `DecisionService`.
+In Spring, register your implementation with a user-defined `@Bean` and inject that interface normally.
+There is no automatic bean registration, `ModelProvider` lookup, role selection, default-model configuration, BYOK integration, or TypeSafe adapter for these contracts yet.
+
+==== Observe Calls
+
+The observation decorators live in `com.embabel.common.ai.model.observation`, separate from the
+service contracts. Wrap a service in `ObservedClassificationService` or `ObservedDecisionService`,
+passing your application's Micrometer `ObservationRegistry` after the delegate.
+The optional registry defaults to `ObservationRegistry.NOOP`.
+Each call creates one observation: `embabel.ai.classification` for `classify`, or `embabel.ai.decision` for `assess`, with fixed `operation` and `outcome` tags.
+A `false` answer has the same `answered` outcome as `true`.
+The decorators validate selected IDs and preserve the delegate's metadata and model family.
+Observations and debug logs exclude input, category IDs, model identifiers, and raw exceptions; failures use a fixed error marker without a cause or stack trace.
+Exceptions still reach the caller unchanged.
+If an observation convention, handler, or exporter throws a non-fatal exception, the decorator logs only the fixed operation and lifecycle phase, makes a best-effort close of any partially opened scope, restores the previous registry scope, and preserves the service result or original provider exception.
+Micrometer owns handler-specific scope state, so a handler that also throws from its close callback can prevent its own cleanup callbacks from completing.
+Diagnostic logging is also best-effort: a logging backend failure cannot replace the service result or exception.
