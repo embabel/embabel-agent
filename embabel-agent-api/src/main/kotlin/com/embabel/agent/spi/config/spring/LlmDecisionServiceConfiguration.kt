@@ -34,6 +34,7 @@ import org.springframework.boot.context.properties.bind.BindHandler
 import org.springframework.boot.context.properties.bind.Bindable
 import org.springframework.boot.context.properties.bind.Binder
 import org.springframework.boot.context.properties.bind.handler.NoUnboundElementsBindHandler
+import org.springframework.boot.context.properties.source.UnboundElementsSourceFilter
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
@@ -65,6 +66,8 @@ import org.springframework.core.env.Environment
  *
  * Startup fails if an entry names no LLM or one the model provider doesn't know, if an entry has a
  * key this class doesn't know, or if a retry setting is out of range. The error names the property.
+ * Unknown keys are only caught in configuration files and other property sources. Environment
+ * variables and system properties are not checked for them.
  */
 @Configuration(proxyBeanMethods = false)
 internal class LlmDecisionServiceConfiguration {
@@ -145,14 +148,16 @@ internal class LlmDecisionServiceConfiguration {
         ): BeanDefinitionRegistryPostProcessor = Registrar(bindServices(environment), bindRetry(environment), beanFactory)
 
         /**
-         * Binds the declared services. A key that no service field matches fails the binding.
+         * Binds the declared services. A key that no service field matches fails the binding,
+         * unless it comes from an environment variable or a system property.
          */
         fun bindServices(environment: Environment): Map<String, ServiceProperties> =
             Binder.get(environment)
                 .bind(
                     SERVICES_PREFIX,
                     Bindable.mapOf(String::class.java, ServiceProperties::class.java),
-                    NoUnboundElementsBindHandler(BindHandler.DEFAULT),
+                    // Unknown keys from environment variables and system properties are not checked, as in Spring Boot's own strict binding.
+                    NoUnboundElementsBindHandler(BindHandler.DEFAULT, UnboundElementsSourceFilter()),
                 )
                 .orElse(emptyMap())
 
