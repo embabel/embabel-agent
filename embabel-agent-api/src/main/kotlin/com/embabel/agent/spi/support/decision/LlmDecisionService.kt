@@ -38,9 +38,9 @@ import org.slf4j.LoggerFactory
  * Classifies text and assesses propositions by asking a chat model, retrying failed calls.
  *
  * Every outcome becomes a contract result: a reply that cannot be read or breaks the answer rules
- * is an invalid response, and anything else that goes wrong is unavailability. An interrupted model
- * call is the one exception that escapes, as the original [InterruptedException] with the thread's
- * interrupt flag set.
+ * is an invalid response, and anything else that goes wrong is unavailability. An interruption during
+ * the model call or the wait between retries is the one exception that escapes, as the original
+ * [InterruptedException] with the thread's interrupt flag set.
  *
  * @param llm the model to ask, already resolved; the service takes its name and provider from it
  * @param options the options for every call, which should select [llm] directly
@@ -91,7 +91,8 @@ internal class LlmDecisionService(
         }
 
     /**
-     * Runs one decision and maps whatever it throws to a failure result.
+     * Runs one decision and maps whatever it throws to a failure result, except an interruption,
+     * which it rethrows.
      *
      * The failure keeps only the reason. The exception can carry the model's reply or provider
      * response data, which may echo the input, so it is dropped here and never logged.
@@ -103,6 +104,13 @@ internal class LlmDecisionService(
             logger.debug("Decision {} with model {} was interrupted", operation, name)
             throw e.interrupted
         } catch (e: Exception) {
+            // The retry template reports an interrupted backoff wait as its own exception, with the
+            // InterruptedException as the cause.
+            interruptionIn(e)?.let { interrupted ->
+                Thread.currentThread().interrupt()
+                logger.debug("Decision {} with model {} was interrupted", operation, name)
+                throw interrupted
+            }
             val reason = when (e) {
                 is InvalidLlmReturnFormatException, is InvalidDecisionAnswerException -> FailureReason.INVALID_RESPONSE
                 else -> FailureReason.UNAVAILABLE
@@ -123,12 +131,13 @@ internal class LlmDecisionService(
         try {
             call()
         } catch (e: Exception) {
-            val interrupted = generateSequence<Throwable>(e) { it.cause }
-                .filterIsInstance<InterruptedException>()
-                .firstOrNull() ?: throw e
+            val interrupted = interruptionIn(e) ?: throw e
             Thread.currentThread().interrupt()
             throw DecisionInterrupted(interrupted)
         }
+
+    private fun interruptionIn(e: Throwable): InterruptedException? =
+        generateSequence(e) { it.cause }.filterIsInstance<InterruptedException>().firstOrNull()
 
     /** Carries an interrupted call out of the retry template, which never retries it. */
     private class DecisionInterrupted(val interrupted: InterruptedException) :
