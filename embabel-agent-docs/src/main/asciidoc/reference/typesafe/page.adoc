@@ -150,8 +150,8 @@ or validate credentials.
 
 The factory also implements `ByokFactory<DecisionService>`. `buildValidated()` checks the current
 credential with TypeSafe's model-listing endpoint and returns the configured default decision
-service. Provider failures are collapsed to `InvalidApiKeyException` without retaining response
-content or SDK exceptions:
+service. Provider validation failures become `InvalidApiKeyException` with the sanitized transport
+exception retained as the cause. Raw response content stays inside the guarded boundary:
 
 [source,java]
 ----
@@ -187,6 +187,18 @@ converted to model evidence, and the adapter never changes thread interruption s
 
 ==== Logging and observability
 
+Factory initialization and successful credential validation are logged at INFO. Initialization
+reports whether transport comes from the application or the fallback, and whether observations
+are active. DEBUG records service creation using the default or an explicit model selection,
+and credential-validation start and cancellation. Model names, endpoints and credentials are omitted.
+
+Enable `com.embabel.agent.typesafe` at DEBUG for factory and provider diagnostics, and
+`com.embabel.common.ai.model.observation` at DEBUG for classification and proposition outcomes.
+Provider completion logs include the operation, outcome and HTTP status family. Failed credential
+validation and failed decisions are logged at WARN. Provider validation failures retain and log
+the sanitized transport exception; credential-supplier failures log only the exception type because
+supplier messages and causes may contain secrets.
+
 Each call has three observable layers when the application supplies Micrometer handlers:
 
 |===
@@ -208,8 +220,8 @@ Each call has three observable layers when the application supplies Micrometer h
 The framework observation remains the parent of provider and HTTP observations. Debug completion
 logs and warning logs use fixed operation and failure categories. Inputs, category descriptions,
 propositions, responses, credentials and raw exceptions are never logged or attached as tags.
-Observation-handler and logging-backend failures cannot replace a provider result or leak an open
-scope. Registering an `ObservationRegistry` alone does not export metrics or traces; the application
+The framework observation decorators isolate observation-handler and completion-logging failures
+from the provider result and restore the caller’s observation scope. Registering an `ObservationRegistry` alone does not export metrics or traces; the application
 must install the relevant handlers and exporters.
 
 ==== Experimental status
