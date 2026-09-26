@@ -53,9 +53,9 @@ import org.springframework.core.env.Environment
  *           max-attempts: 5
  *           services:
  *             triage:
- *               llm: gpt-4.1-mini
+ *               llm: small-chat-model
  *             routing:
- *               llm: gpt-4.1-nano
+ *               llm: fast-chat-model
  *               kind: classification
  *               max-attempts: 3
  * ```
