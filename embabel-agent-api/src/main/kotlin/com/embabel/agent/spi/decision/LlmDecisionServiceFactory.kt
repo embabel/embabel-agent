@@ -39,13 +39,10 @@ import org.jetbrains.annotations.ApiStatus
  * call. A model named here is looked up once, when the service is built. To use a model the caller
  * already holds, such as one built for a user's own API key, pass the [LlmService] instead.
  *
- * @param llmOperations runs the model calls
- * @param modelProvider looks up models by name
- * @param observationRegistry where the services record their observations
- * @param retry how often and how fast a failed model call is retried
+ * Applications inject the `LlmDecisionServiceFactory` bean from the Spring context.
  */
 @ApiStatus.Experimental
-class LlmDecisionServiceFactory @JvmOverloads constructor(
+class LlmDecisionServiceFactory @JvmOverloads internal constructor(
     private val llmOperations: LlmOperations,
     private val modelProvider: ModelProvider,
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,

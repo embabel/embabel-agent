@@ -47,7 +47,7 @@ import static org.mockito.Mockito.when;
  * Java callers building decision services from a model they already hold or from a model name.
  * The tagged regions are included in the reference docs.
  */
-class LlmDecisionServiceJavaExamples {
+class LlmDecisionServiceJavaTest {
 
     private final LlmService<?> llm = new SpringAiLlmService("gpt-test", "TestProvider", mock(ChatModel.class));
 
