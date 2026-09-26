@@ -77,6 +77,14 @@ class PromptedClassificationTest {
         }
 
         @Test
+        fun `multi-line category description reaches the system message exactly as written`() {
+            val description = "Plans:\n| gold | silver |\n  |bronze"
+            val categories = listOf(Category("plans", description), Category("other", "Anything else"))
+            val system = PromptedClassification.messages(ClassificationRequest(request.input, categories))[0].content
+            assertTrue(system.contains("\n- plans: $description\n"), system)
+        }
+
+        @Test
         fun `system message explains verdicts and treats the envelope input as data`() {
             val system = PromptedClassification.messages(request)[0].content
             ClassificationVerdict.entries.forEach { assertTrue(system.contains(it.name), it.name) }
@@ -148,6 +156,26 @@ class PromptedClassificationTest {
             val result = PromptedClassification.result(
                 request,
                 ClassificationAnswer(ClassificationVerdict.INCONCLUSIVE, null),
+                provenance,
+            )
+            assertEquals(ClassificationResult.Inconclusive(provenance), result)
+        }
+
+        @Test
+        fun `no match with an empty id maps to no match`() {
+            val result = PromptedClassification.result(
+                request,
+                ClassificationAnswer(ClassificationVerdict.NO_MATCH, ""),
+                provenance,
+            )
+            assertEquals(ClassificationResult.NoMatch(provenance), result)
+        }
+
+        @Test
+        fun `inconclusive with a whitespace id maps to inconclusive`() {
+            val result = PromptedClassification.result(
+                request,
+                ClassificationAnswer(ClassificationVerdict.INCONCLUSIVE, "  "),
                 provenance,
             )
             assertEquals(ClassificationResult.Inconclusive(provenance), result)
