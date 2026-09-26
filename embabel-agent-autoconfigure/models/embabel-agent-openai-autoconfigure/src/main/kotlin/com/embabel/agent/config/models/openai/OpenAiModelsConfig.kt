@@ -18,6 +18,7 @@ package com.embabel.agent.config.models.openai
 import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.config.models.openai.OpenAiProperties.Companion.PREFIX
 import com.embabel.agent.openai.CapabilityAwareOpenAiOptionsConverter
+import com.embabel.agent.openai.OpenAiReasoningEffortOptionsConverter
 import com.embabel.agent.openai.Gpt5ChatOptionsConverter
 import com.embabel.agent.openai.ModelCapabilities
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
@@ -213,8 +214,11 @@ class OpenAiModelsConfig(
     private fun createOpenAiLlm(modelDef: OpenAiModelDefinition): LlmService<*> {
         // Capability-aware converter from YAML special_handling (warn-and-drop, never throw).
         // Canonical DEFAULT / GPT5_FAMILY map back to the shared object aliases so identity
-        // checks in tests and equals-based wiring stay stable.
-        val optionsConverter = optionsConverterFor(modelDef.specialHandling.toModelCapabilities())
+        // checks in tests and equals-based wiring stay stable. Only OpenAI's own models forward
+        // reasoning effort, so the wrapper sits here rather than in the shared converters.
+        val optionsConverter = OpenAiReasoningEffortOptionsConverter(
+            optionsConverterFor(modelDef.specialHandling.toModelCapabilities()),
+        )
 
         // Transport is declared per model, like the converter above: most models speak Chat
         // Completions, the *-pro family is served only over the Responses API.

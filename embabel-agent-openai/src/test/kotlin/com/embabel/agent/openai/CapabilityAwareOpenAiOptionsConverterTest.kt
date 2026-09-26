@@ -24,6 +24,23 @@ import org.springframework.ai.openai.OpenAiChatOptions
 
 class CapabilityAwareOpenAiOptionsConverterTest {
 
+    @Test
+    fun `reasoning effort is forwarded only by the OpenAI wrapper`() {
+        val converter = CapabilityAwareOpenAiOptionsConverter()
+        val openAi = OpenAiReasoningEffortOptionsConverter(converter)
+        val absent = LlmOptions()
+        assertNull(absent.getOpenAiReasoningEffort())
+        assertNull((openAi.convertOptions(absent, "test-model") as OpenAiChatOptions).reasoningEffort)
+
+        for (effort in listOf("none", "low", "medium")) {
+            val configured = absent.withOpenAiReasoningEffort(effort)
+            assertEquals(effort, configured.getOpenAiReasoningEffort())
+            assertNull(absent.getOpenAiReasoningEffort())
+            assertEquals(effort, (openAi.convertOptions(configured, "test-model") as OpenAiChatOptions).reasoningEffort)
+            assertNull((converter.convertOptions(configured, "test-model") as OpenAiChatOptions).reasoningEffort)
+        }
+    }
+
     @Nested
     inner class DefaultCapabilities {
 

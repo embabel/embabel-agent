@@ -15,10 +15,14 @@
  */
 package com.embabel.agent.config.models.openai
 
+import com.embabel.agent.openai.CapabilityAwareOpenAiOptionsConverter
+import com.embabel.agent.openai.OpenAiReasoningEffortOptionsConverter
+import com.embabel.agent.openai.withOpenAiReasoningEffort
 import com.embabel.agent.spi.loop.StructuredOutputRequest
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.support.streaming.InternalStreamingApi
 import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
+import com.embabel.common.ai.model.LlmOptions
 import com.openai.client.OpenAIClient
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseCreateParams
@@ -105,6 +109,19 @@ class OpenAiResponsesChatModelTest {
 
     @Nested
     inner class RequestMapping {
+
+        @Test
+        fun `reasoning is omitted by default and forwarded for configured efforts`() {
+            val converter = OpenAiReasoningEffortOptionsConverter(CapabilityAwareOpenAiOptionsConverter())
+            val absent = converter.convertOptions(LlmOptions(), "gpt-5-pro")
+            assertTrue(capture(Prompt(listOf(UserMessage("Hi")), absent)).reasoning().isEmpty)
+
+            for (effort in listOf("none", "low", "medium")) {
+                val options = converter.convertOptions(LlmOptions().withOpenAiReasoningEffort(effort), "gpt-5-pro")
+                val params = capture(Prompt(listOf(UserMessage("Hi")), options))
+                assertEquals(effort, params.reasoning().orElseThrow().effort().orElseThrow().asString())
+            }
+        }
 
         /**
          * The Responses API has no system role: a system message carried as an input item is

@@ -16,7 +16,10 @@
 package com.embabel.agent.config.models.openai
 
 import com.embabel.agent.openai.Gpt5ChatOptionsConverter
+import com.embabel.agent.openai.OpenAiReasoningEffortOptionsConverter
 import com.embabel.agent.openai.StandardOpenAiOptionsConverter
+import com.embabel.agent.openai.withOpenAiReasoningEffort
+import com.embabel.common.ai.model.LlmOptions
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.LlmOptionsProperties
 import com.embabel.common.util.ObjectProviders
@@ -27,6 +30,7 @@ import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.openai.OpenAiChatModel
+import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.core.io.ByteArrayResource
 import org.springframework.core.io.ResourceLoader
@@ -82,8 +86,18 @@ class OpenAiModelsConfigRoutingTest {
     fun `special handling still selects the options converter independently of transport`() {
         val llms = registeredLlms()
 
-        assertEquals(Gpt5ChatOptionsConverter, llms["proModel"]?.optionsConverter)
-        assertEquals(StandardOpenAiOptionsConverter, llms["chatModel"]?.optionsConverter)
+        assertEquals(OpenAiReasoningEffortOptionsConverter(Gpt5ChatOptionsConverter), llms["proModel"]?.optionsConverter)
+        assertEquals(OpenAiReasoningEffortOptionsConverter(StandardOpenAiOptionsConverter), llms["chatModel"]?.optionsConverter)
+    }
+
+    @Test
+    fun `OpenAI models forward a configured reasoning effort`() {
+        val options = LlmOptions().withOpenAiReasoningEffort("low")
+
+        registeredLlms().values.forEach { llm ->
+            val converted = llm.optionsConverter.convertOptions(options, llm.name) as OpenAiChatOptions
+            assertEquals("low", converted.reasoningEffort, llm.name)
+        }
     }
 
     @Test

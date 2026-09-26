@@ -455,7 +455,11 @@ open class OpenAiCompatibleModelFactory(
             name = model,
             chatModel = chatModelOf(model),
             provider = provider,
-            optionsConverter = optionsConverter,
+            optionsConverter = if (provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) {
+                OpenAiReasoningEffortOptionsConverter(optionsConverter)
+            } else {
+                optionsConverter
+            },
             pricingModel = pricingModel,
             knowledgeCutoffDate = knowledgeCutoffDate,
         )
