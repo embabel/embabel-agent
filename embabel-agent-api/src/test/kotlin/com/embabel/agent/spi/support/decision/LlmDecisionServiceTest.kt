@@ -326,6 +326,34 @@ class LlmDecisionServiceTest {
                 Thread.interrupted()
             }
         }
+
+        @Test
+        fun `flag already set before an answer that breaks the rules gives an invalid response and keeps the flag`() {
+            whenAsked(ClassificationAnswer::class.java) returns ClassificationAnswer(ClassificationVerdict.NO_MATCH, "billing")
+            Thread.currentThread().interrupt()
+            try {
+                assertEquals(ClassificationResult.Failure(FailureReason.INVALID_RESPONSE), service.classify(classification))
+                assertTrue(Thread.currentThread().isInterrupted)
+                assertEquals(1, interactions.size)
+            } finally {
+                Thread.interrupted()
+            }
+        }
+
+        @Test
+        fun `flag already set before a failing call is rethrown as an interruption caused by the failure`() {
+            val busy = TransientAiException("busy")
+            whenAsked(ClassificationAnswer::class.java) throws busy
+            Thread.currentThread().interrupt()
+            try {
+                val thrown = assertThrows<InterruptedException> { service.classify(classification) }
+                assertSame(busy, thrown.cause)
+                assertTrue(Thread.currentThread().isInterrupted)
+                assertEquals(1, interactions.size)
+            } finally {
+                Thread.interrupted()
+            }
+        }
     }
 
     @Nested
