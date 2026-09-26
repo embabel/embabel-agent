@@ -20,6 +20,7 @@
     </scm>
     
     <modules>
+        <module>models/embabel-agent-typesafe-autoconfigure</module>
         <module>embabel-agent-platform-autoconfigure</module>
         <module>embabel-agent-a2a-autoconfigure</module>
         <module>embabel-agent-shell-autoconfigure</module>
