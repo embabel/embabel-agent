@@ -44,7 +44,7 @@ import org.slf4j.LoggerFactory
  * failure carries it, and otherwise a new one caused by the failure.
  *
  * A failed model call counts as interrupted when an [InterruptedException] is in its cause chain
- * or the thread's interrupt flag is set. Once the model has answered, the flag no longer matters.
+ * or the thread's interrupt flag is set. Once the model call has returned, the flag no longer matters.
  * An answer that breaks the rules is an invalid response even when the caller's flag was already
  * set, and the service leaves the flag as the caller set it.
  *
