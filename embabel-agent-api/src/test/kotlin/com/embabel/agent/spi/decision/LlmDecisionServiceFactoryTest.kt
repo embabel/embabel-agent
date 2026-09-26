@@ -66,6 +66,13 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertDoesNotThrow
 import org.junit.jupiter.api.assertThrows
+import org.springframework.ai.chat.messages.AssistantMessage
+import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
+import org.springframework.ai.chat.prompt.ChatOptions
+import org.springframework.ai.chat.prompt.Prompt
+import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.ai.retry.TransientAiException
 import java.util.concurrent.Executors
 
@@ -76,6 +83,33 @@ class LlmDecisionServiceFactoryTest {
         override fun supportsContext(context: Observation.Context) = true
         override fun onStop(context: Observation.Context) {
             stopped += context
+        }
+    }
+
+    /**
+     * A chat model that behaves like an instrumented one. Each call records its own observation
+     * and the observation that was current when it started. The first calls fail with a
+     * transient error and the call after them answers.
+     */
+    private class ObservedFlakyChatModel(
+        private val registry: ObservationRegistry,
+        private val failures: Int,
+        private val answer: String,
+    ) : ChatModel {
+        val parents = mutableListOf<Observation?>()
+        private var calls = 0
+
+        override fun getOptions(): ChatOptions = ToolCallingChatOptions.builder().build()
+
+        override fun call(prompt: Prompt): ChatResponse {
+            parents += registry.currentObservation
+            val observation = Observation.start("test.chat.model", registry)
+            try {
+                if (++calls <= failures) throw TransientAiException("provider busy")
+                return ChatResponse(listOf(Generation(AssistantMessage(answer))))
+            } finally {
+                observation.stop()
+            }
         }
     }
 
@@ -247,6 +281,30 @@ class LlmDecisionServiceFactoryTest {
             val service = factory.classificationService("gpt-test")
             assertEquals(ClassificationResult.Selected("billing", provenance), service.classify(classification))
             assertEquals(listOf("embabel.ai.classification"), observationNames())
+        }
+
+        @Test
+        fun `a decision that retries twice records one decision observation and three child chat model observations`() {
+            val chatModel = ObservedFlakyChatModel(registry, failures = 2, answer = """{"verdict":"TRUE"}""")
+            val fake = SpringAiLlmService("fake", "provider", chatModel, DefaultOptionsConverter)
+            val operations = ChatClientLlmOperations(
+                modelProvider = modelProvider,
+                toolDecorator = DefaultToolDecorator(),
+                validator = Validation.buildDefaultValidatorFactory().validator,
+                templateRenderer = JinjavaTemplateRenderer(),
+                asyncer = ExecutorAsyncer(Executors.newCachedThreadPool()),
+            )
+            val retry = LlmDecisionRetryProperties(maxAttempts = 3, backoffMillis = 1L, backoffMaxInterval = 2L)
+            val service = LlmDecisionServiceFactory(operations, modelProvider, registry, retry).decisionService(fake)
+
+            assertEquals(PropositionResult.Answered(true, ModelProvenance("fake", "provider")), service.assess(proposition))
+
+            val decision = recorder.stopped.single { it.name == "embabel.ai.decision" }
+            val chatObservations = recorder.stopped.filter { it.name == "test.chat.model" }
+            assertEquals(3, chatObservations.size)
+            assertEquals(3, chatModel.parents.size)
+            chatModel.parents.forEach { assertSame(decision, it?.contextView) }
+            chatObservations.forEach { assertSame(decision, it.parentObservation?.contextView) }
         }
 
         @Test
