@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+@file:JvmName("OpenAiReasoningEffort")
+
 package com.embabel.agent.openai
 
 import com.embabel.common.ai.model.LlmOptions
