@@ -59,6 +59,10 @@ class LlmDecisionServiceJavaTest {
 
     private final ObservationRegistry observationRegistry = ObservationRegistry.create();
 
+    // Applications inject this bean from the Spring context rather than constructing it themselves.
+    private final LlmDecisionServiceFactory factory =
+            new LlmDecisionServiceFactory(llmOperations, modelProvider, observationRegistry);
+
     /** Stands in for the platform's operations by reading one canned model reply into the answer type asked for. */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private void modelReplies(String json) {
@@ -72,7 +76,6 @@ class LlmDecisionServiceJavaTest {
         modelReplies("{\"verdict\":\"TRUE\"}");
 
         // tag::supplied[]
-        var factory = new LlmDecisionServiceFactory(llmOperations, modelProvider);
         var decisions = factory.decisionService(llm);
         var result = decisions.assess(
                 new PropositionRequest("My card was charged twice", "The customer wants a refund"));
@@ -87,7 +90,6 @@ class LlmDecisionServiceJavaTest {
         modelReplies("{\"verdict\":\"SELECTED\",\"categoryId\":\"billing\"}");
 
         // tag::named[]
-        var factory = new LlmDecisionServiceFactory(llmOperations, modelProvider, observationRegistry);
         var classifier = factory.classificationService("gpt-test");
         var result = classifier.classify(new ClassificationRequest(
                 "My card was charged twice",
