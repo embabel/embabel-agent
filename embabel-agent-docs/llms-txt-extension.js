@@ -42,7 +42,7 @@ asciidoctor.Extensions.register(function () {
 
       // Append Cookbook Section
       llmsContent += `\n## Cookbook\n\n`;
-      llmsContent += `- [Embabel Cookbook](https://github.com/embabel/embabel-cookbook): Practical recipes, patterns, and code snippets for building agentic workflows.\n`;
+      llmsContent += `- [Embabel Cookbook](https://github.com/embabel/embabel-cookbook/blob/main/README.md): Practical recipes, patterns, and code snippets for building agentic workflows.\n`;
 
       // Write to target folder where Maven packages static site assets
       const outputDir = path.resolve(__dirname, 'target', 'llms');
