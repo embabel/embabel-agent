@@ -22,13 +22,9 @@ Neither service is an `LlmService`.
 
 ==== Factory
 
-A Spring application gets an `LlmDecisionServiceFactory` bean from the agent platform.
+A Spring application gets an `LlmDecisionServiceFactory` bean from the agent platform's `LlmDecisionServiceConfiguration`.
 Applications inject that bean to build services in code.
-The bean uses the application's `ObservationRegistry` when there is exactly one or one is marked primary.
-Otherwise the services it builds record no observations.
-The bean uses the default retry settings, and each service declared in configuration uses the retry settings of its own entry.
-An application bean of the same type replaces it.
-Replacing the bean does not change the services declared in configuration.
+The four methods in this table are the factory's public API.
 
 |===
 |Method |Returns
@@ -45,6 +41,14 @@ Replacing the bean does not change the services declared in configuration.
 |`classificationService(LlmService<?> llm)`
 |A classification service for a model the caller already holds
 |===
+
+The bean uses the application's `ObservationRegistry` when there is exactly one or one is marked primary.
+Otherwise the services it builds record no observations.
+Services built in code use the top-level retry settings described under <<reference.llm-decisions.configuration>>.
+
+The bean is declared with `@ConditionalOnMissingBean`.
+An application bean of the same type replaces it.
+The factory bean also builds every service declared in configuration, so a replacement bean builds those services too.
 
 ==== Named model
 
@@ -75,9 +79,12 @@ The credential stays inside that `LlmService`, so the application needs no globa
 
 The service takes its name and provider from the `LlmService`.
 
+[[reference.llm-decisions.configuration]]
 ==== Configuration
 
-Declare LLM decision services under `embabel.agent.platform.decisions.llm.services`.
+LLM decision settings live under `embabel.agent.platform.decisions.llm`.
+The retry settings at that level apply to services built in code.
+Services declared under `services` take each retry setting they leave unset from the same level.
 This example keeps the TypeSafe default and adds two LLM services:
 
 [source,yaml]
@@ -91,15 +98,21 @@ embabel:
           model: jev-latest
       decisions:
         llm:
+          max-attempts: 4
+          backoff-millis: 200
+          backoff-multiplier: 2.0
+          backoff-max-interval: 10000
           services:
             triage:
               llm: small-chat-model
             routing:
               llm: fast-chat-model
               kind: classification
-              max-attempts: 3
+              max-attempts: 2
 ----
 
+`triage` uses all four top-level retry settings.
+`routing` makes at most 2 calls and takes the other three settings from the top level.
 The context then holds three services:
 
 |===
@@ -118,20 +131,10 @@ The context then holds three services:
 |The LLM named `fast-chat-model`
 |===
 
-Each entry registers one bean, and the entry's key is the bean name.
-Replace the `llm` values with names the application's model provider knows.
-Each entry accepts these properties:
+These are the top-level retry settings:
 
 |===
 |Property |Default |Purpose
-
-|`llm`
-|none
-|Name of the LLM that answers. Required.
-
-|`kind`
-|`decision`
-|`decision` registers a `DecisionService`. `classification` registers a `ClassificationService`.
 
 |`max-attempts`
 |`5`
@@ -150,12 +153,63 @@ Each entry accepts these properties:
 |Longest wait between retries, in milliseconds
 |===
 
-Startup fails when an entry has no `llm` or names an LLM the model provider does not know.
-The error message names the property.
-The beans are created eagerly, so the check runs at startup even when the application makes beans lazy by default.
+Each entry under `services` registers one bean, and the entry's key is the bean name.
+The factory bean builds each of these services.
+Replace the `llm` values with names the application's model provider knows.
+Each entry accepts these properties:
+
+|===
+|Property |Default |Purpose
+
+|`llm`
+|none
+|Name of the LLM that answers. Required.
+
+|`kind`
+|`decision`
+|`decision` registers a `DecisionService`. `classification` registers a `ClassificationService`.
+
+|`max-attempts`, `backoff-millis`, `backoff-multiplier`, `backoff-max-interval`
+|The top-level value
+|The same meaning as the top-level setting
+|===
 
 Several beans share the `DecisionService` and `ClassificationService` types.
 Inject a specific service by its bean name, for example with the constructor parameter `@Qualifier("triage") DecisionService triage`.
+
+==== Startup checks
+
+Startup fails when any setting breaks a rule in this table.
+Each message starts with the property path of the settings it checks.
+For top-level settings the path is `embabel.agent.platform.decisions.llm`.
+For an entry the path is `embabel.agent.platform.decisions.llm.services.<key>`.
+
+|===
+|Rule |Message after the path
+
+|`max-attempts` is at least 1
+|`: max-attempts must be at least 1`
+
+|`backoff-millis` is at least 1
+|`: backoff-millis must be at least 1`
+
+|`backoff-multiplier` is greater than 1
+|`: backoff-multiplier must be greater than 1`
+
+|`backoff-max-interval` is greater than `backoff-millis`
+|`: backoff-max-interval must be greater than backoff-millis`
+
+|An entry has an `llm`
+|`.llm must name an LLM`
+
+|The model provider knows the entry's `llm`
+|`.llm names unknown LLM '<name>'`
+|===
+
+An entry's retry settings are checked after the unset ones are filled from the top level.
+A key under an entry that matches no property also fails startup, and the failure names that key.
+Keys that come from environment variables or system properties are not checked this way.
+The service beans are created eagerly, so an unknown `llm` fails startup even when the application makes beans lazy by default.
 
 ==== Input
 
@@ -235,28 +289,67 @@ Each call returns a contract result for every outcome except interruption.
 |Yes, up to `max-attempts`
 |`Failure(UNAVAILABLE)` when the attempts run out
 
+|The model call times out while the thread's interrupt flag is clear
+|Yes, up to `max-attempts`
+|`Failure(UNAVAILABLE)` when the attempts run out
+
 |The model call fails with an error those rules do not retry
 |No
 |`Failure(UNAVAILABLE)`
 
-|The thread is interrupted during the call or the wait between retries
+|The call fails while the thread's interrupt flag is set
 |No
-|The original `InterruptedException` is thrown
+|`InterruptedException` is thrown
+
+|The failure has an `InterruptedException` in its cause chain
+|No
+|That `InterruptedException` is thrown
 |===
 
 The retry rules are the same ones the platform's other model calls use.
 Backoff waits follow the service's retry settings.
 The service sets no timeout of its own.
 
-An interruption during the call or the wait between retries ends the decision without a retry.
-An `InterruptedException` anywhere in the exception's cause chain counts as an interruption.
-The service sets the thread's interrupt flag and rethrows the original `InterruptedException`.
+==== Interruption
+
+The service leaves the thread's interrupt flag set whenever it throws `InterruptedException`.
+When the flag is set and the cause chain holds no `InterruptedException`, the service throws a new one whose cause is the failure.
+An interrupted wait between retries fails with the `InterruptedException` as its cause, so the service throws that original exception.
+A call that succeeds returns its result even when the interrupt flag is set.
+
+==== Logs
 
 A failure result carries only its reason.
-The service drops the exception behind it and does not log it.
-The retry template logs each failed attempt at INFO under `com.embabel.agent.spi.common.RetryProperties`, as it does for the platform's other model calls.
-Those log lines include the exception and its message.
+The service does not log the exception behind it.
+The platform's shared model-call path and the retry listener log failed attempts on their own terms.
+Those log lines include exception messages.
 The exception can hold parts of the model's reply or provider response data, and either may repeat the input.
+
+The retry listener logs each failed attempt at INFO under `com.embabel.agent.spi.common.RetryProperties`, as it does for the platform's other model calls.
+When a decision uses all its attempts, the listener logs one WARN under the same logger.
+Each line carries the service's retry log name, and the WARN names the property that sets the ceiling.
+
+|===
+|Service |Retry log name |Property named in the WARN
+
+|An entry with key `<key>` and kind `decision`
+|`decision-<key>`
+|`embabel.agent.platform.decisions.llm.services.<key>.max-attempts`
+
+|An entry with key `<key>` and kind `classification`
+|`classification-<key>`
+|`embabel.agent.platform.decisions.llm.services.<key>.max-attempts`
+
+|Built in code with `decisionService`
+|`decision-<llm>`
+|`embabel.agent.platform.decisions.llm.max-attempts`
+
+|Built in code with `classificationService`
+|`classification-<llm>`
+|`embabel.agent.platform.decisions.llm.max-attempts`
+|===
+
+For a service built in code, `<llm>` is the model's name.
 
 ==== Observations
 
@@ -281,9 +374,9 @@ Each call records one logical observation and leaves the chat model call to reco
 When the chat model records observations, a decision that retries twice records one `embabel.ai.decision` observation and three chat model observations.
 The chat model observations start while the decision observation is current, so traces show them as its children.
 A `false` answer has the same `answered` outcome as `true`.
-An interruption during the call or the wait between retries records the `interrupted` outcome.
+An interruption records the `interrupted` outcome.
 
-Enable `com.embabel.agent.spi.support.decision` at DEBUG to log each decision's operation, model name and result type or failure reason.
+Enable `com.embabel.agent.spi.support.decision` at DEBUG to log each decision's operation, model name and outcome.
 Enable `com.embabel.common.ai.model.observation` at DEBUG to log each call's operation and outcome.
 The DEBUG lines from these two packages never include inputs, categories, propositions or model replies.
 The observations never carry them as tags.
