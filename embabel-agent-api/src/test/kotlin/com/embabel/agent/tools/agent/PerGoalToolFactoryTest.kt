@@ -23,11 +23,11 @@ import com.embabel.agent.api.dsl.evenMoreEvilWizardWithStructuredInput
 import com.embabel.agent.api.dsl.exportedEvenMoreEvilWizard
 import com.embabel.agent.api.dsl.MagicVictim
 import com.embabel.agent.api.dsl.userInputToFrogOrPersonBranch
+import com.embabel.agent.api.tool.ToolNamingStrategy
 import com.embabel.agent.test.integration.IntegrationTestUtils
 import com.embabel.agent.test.integration.RandomRanker
 import com.embabel.agent.test.integration.forAutonomyTesting
 import com.embabel.agent.core.Export
-import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.domain.io.UserInput
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
@@ -239,6 +239,32 @@ class PerGoalToolFactoryTest {
     }
 
     @Test
+    fun `fully qualified naming uses the last segment of a dotted goal name`() {
+        fun namesFor(startingInputTypes: Set<Class<*>>): Set<String> {
+            val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
+            agentPlatform.deploy(
+                agentWithExportedGoal(
+                    agentName = "Wizard",
+                    description = "done",
+                    startingInputTypes = startingInputTypes,
+                    goalName = "com.acme.Wizard.done",
+                )
+            )
+            val autonomy = Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting())
+            return PerGoalToolFactory(autonomy, "testApp", toolNamingStrategy = ToolNamingStrategy.FULLY_QUALIFIED)
+                .goalTools(remoteOnly = true, listeners = emptyList())
+                .map { it.definition.name }
+                .toSet()
+        }
+
+        assertEquals(setOf("Wizard-done"), namesFor(setOf(UserInput::class.java)))
+        assertEquals(
+            setOf("Wizard-done-UserInput", "Wizard-done-MagicVictim"),
+            namesFor(setOf(UserInput::class.java, MagicVictim::class.java)),
+        )
+    }
+
+    @Test
     fun `preserves explicit export name without rewriting`() {
         val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
         agentPlatform.deploy(
@@ -386,12 +412,13 @@ class PerGoalToolFactoryTest {
         description: String,
         startingInputTypes: Set<Class<*>> = setOf(UserInput::class.java),
         exportName: String? = null,
+        goalName: String = "done",
     ) = agent(agentName, description = description) {
         transformation<UserInput, MagicVictim>(name = "$agentName-action") {
             MagicVictim(agentName)
         }
         goal(
-            name = "done",
+            name = goalName,
             description = description,
             satisfiedBy = MagicVictim::class,
             export = Export(

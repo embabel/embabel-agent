@@ -22,6 +22,7 @@ import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.event.ObjectAddedEvent
 import com.embabel.agent.api.event.ObjectBoundEvent
 import com.embabel.agent.mcpserver.McpExportToolCallbackPublisher
+import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import com.embabel.agent.spi.support.springai.toSpringToolCallback
 import com.embabel.agent.tools.agent.GoalTool
 import com.embabel.agent.tools.agent.PerGoalToolFactory
@@ -48,16 +49,15 @@ class PerGoalMcpExportToolCallbackPublisher(
     autonomy: Autonomy,
     private val mcpSyncServer: McpSyncServer,
     @Value("\${embabel.agent.application.name:agent-api}") applicationName: String,
+    agentPlatformProperties: AgentPlatformProperties = AgentPlatformProperties(),
 ) : McpExportToolCallbackPublisher {
 
-    private val perGoalToolFactory by lazy {
-        PerGoalToolFactory(
-            autonomy = autonomy,
-            applicationName = applicationName,
-            textCommunicator = PromptedTextCommunicator,
-            toolNamingStrategy = autonomy.agentPlatform.platformServices.toolNamingStrategy(),
-        )
-    }
+    private val perGoalToolFactory = PerGoalToolFactory(
+        autonomy = autonomy,
+        applicationName = applicationName,
+        textCommunicator = PromptedTextCommunicator,
+        toolNamingStrategy = agentPlatformProperties.tools.namingStrategy,
+    )
 
     override val toolCallbacks: List<ToolCallback>
         get() {

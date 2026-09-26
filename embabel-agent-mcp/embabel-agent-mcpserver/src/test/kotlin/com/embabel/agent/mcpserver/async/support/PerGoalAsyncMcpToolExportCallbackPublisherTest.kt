@@ -15,14 +15,13 @@
  */
 package com.embabel.agent.mcpserver.async.support
 
-import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.dsl.agent
 import com.embabel.agent.api.dsl.aggregate
-import com.embabel.agent.core.AgentPlatform
+import com.embabel.agent.api.tool.ToolNamingStrategy
 import com.embabel.agent.core.Export
-import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.domain.io.UserInput
+import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import com.embabel.agent.test.domain.Frog
 import com.embabel.agent.test.domain.MagicVictim
 import com.embabel.agent.test.dsl.SnakeMeal
@@ -87,9 +86,12 @@ class PerGoalAsyncMcpToolExportCallbackPublisherTest {
     @Test
     fun `toolCallbacks publishes goal tools under the platform naming strategy`() {
         val publisher = PerGoalMcpAsyncExportToolCallbackPublisher(
-            autonomy = fullyQualifiedAutonomy(),
+            autonomy = remoteExportedAutonomy(),
             mcpAsyncServer = mcpAsyncServer,
             applicationName = "testApp",
+            agentPlatformProperties = AgentPlatformProperties().apply {
+                tools.namingStrategy = ToolNamingStrategy.FULLY_QUALIFIED
+            },
         )
 
         val toolNames = publisher.toolCallbacks.map { it.toolDefinition.name() }
@@ -120,16 +122,10 @@ class PerGoalAsyncMcpToolExportCallbackPublisherTest {
         )
     }
 
-    private fun fullyQualifiedAutonomy(): Autonomy {
+    private fun remoteExportedAutonomy(): Autonomy {
         val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
         agentPlatform.deploy(remoteExportedAgent())
-        val platformServices = object : PlatformServices by agentPlatform.platformServices {
-            override fun toolNamingStrategy() = ToolNamingStrategy.FULLY_QUALIFIED
-        }
-        val namedPlatform = object : AgentPlatform by agentPlatform {
-            override val platformServices = platformServices
-        }
-        return Autonomy(namedPlatform, RandomRanker(), forAutonomyTesting())
+        return Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting())
     }
 
     companion object {

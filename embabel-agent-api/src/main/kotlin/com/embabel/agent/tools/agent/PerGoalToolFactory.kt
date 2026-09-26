@@ -20,9 +20,9 @@ import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.autonomy.ProcessWaitingException
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolNamingStrategy
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.Goal
-import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.common.core.types.NamedAndDescribed
 import org.slf4j.LoggerFactory
@@ -169,6 +169,10 @@ class PerGoalToolFactory(
         }
     }
 
+    /**
+     * Preserve explicit exports, adding input-type suffixes for multi-input goals; otherwise use the
+     * configured strategy.
+     */
     private fun publishedName(
         goal: Goal,
         ownerName: String?,
@@ -179,16 +183,20 @@ class PerGoalToolFactory(
             discriminator == null && exportName != null -> validateExportName(exportName)
             discriminator == null -> when (toolNamingStrategy) {
                 ToolNamingStrategy.LEGACY_NAME_ONLY -> goalToolNamingStrategy.nameForGoal(goal)
-                ToolNamingStrategy.FULLY_QUALIFIED -> toolNamingStrategy.nameFor(ownerName, goal.name)
+                ToolNamingStrategy.FULLY_QUALIFIED -> toolNamingStrategy.nameFor(ownerName, goal.shortName())
             }
             exportName != null -> validateExportName("$exportName-$discriminator")
             else -> {
-                val toolName = "${goal.name}-$discriminator"
+                val toolName = "${goal.shortName()}-$discriminator"
                 toolNamingStrategy.nameFor(ownerName, toolName)
             }
         }
     }
 
+    /** The owner already qualifies the name, so `com.acme.Wizard.done` publishes as `done`. */
+    private fun Goal.shortName(): String = name.substringAfterLast('.')
+
+    /** Enforce the MCP length limit without rewriting the explicitly configured export name. */
     private fun validateExportName(name: String): String {
         require(name.length <= ToolNamingStrategy.MAX_NAME_LENGTH) {
             "Published tool name '$name' exceeds maximum length of ${ToolNamingStrategy.MAX_NAME_LENGTH} characters"

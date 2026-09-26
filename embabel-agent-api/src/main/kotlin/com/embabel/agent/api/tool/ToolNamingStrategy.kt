@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.core
+package com.embabel.agent.api.tool
 
 /**
  * Controls the names published for tools.
@@ -21,6 +21,8 @@ package com.embabel.agent.core
  * [LEGACY_NAME_ONLY] preserves `search`.
  * [FULLY_QUALIFIED] qualifies the tool name with its owning agent, so `AgentA` and `search`
  * become `AgentA-search`.
+ * For a dotted owner, `com.acme.SearchAgent` and `search` become
+ * `com_2e_acme_2e_SearchAgent-search`.
  */
 enum class ToolNamingStrategy {
     /** Preserve the existing tool name. */
@@ -48,9 +50,6 @@ enum class ToolNamingStrategy {
             "Invalid tool name '$toolName': must match [a-zA-Z0-9_-]"
         }
         val prefix = ownerName?.takeIf { it.isNotBlank() }?.let { sanitizeOwner(it) }
-        if (prefix != null && toolName.startsWith("$prefix-")) {
-            return toolName
-        }
         val published = when (this) {
             LEGACY_NAME_ONLY -> toolName
             FULLY_QUALIFIED -> {
@@ -63,18 +62,16 @@ enum class ToolNamingStrategy {
         return published
     }
 
+    /** Hex-escape owner chars outside ASCII letters/digits (e.g. `.` becomes `_2e_`) to keep owners distinct. */
     private fun sanitizeOwner(owner: String): String = buildString {
         owner.forEach { character ->
-            if (character.isAsciiLetterOrDigit()) {
+            if (character.isLetterOrDigit() && character.code < 128) {
                 append(character)
             } else {
                 append('_').append(character.code.toString(16)).append('_')
             }
         }
     }
-
-    private fun Char.isAsciiLetterOrDigit(): Boolean =
-        this in 'a'..'z' || this in 'A'..'Z' || this in '0'..'9'
 
     companion object {
         const val MAX_NAME_LENGTH = 64

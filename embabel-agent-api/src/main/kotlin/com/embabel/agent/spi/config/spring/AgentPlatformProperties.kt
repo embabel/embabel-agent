@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.spi.config.spring
 
+import com.embabel.agent.api.tool.ToolNamingStrategy
 import com.embabel.agent.core.ActionQos
-import com.embabel.agent.core.ToolNamingStrategy
 import com.embabel.common.textio.template.JinjaProperties
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.NestedConfigurationProperty
@@ -113,7 +113,7 @@ class AgentPlatformProperties {
      */
     class ToolsConfig {
         /**
-         * Naming strategy for tools exposed to LLMs and generated tool endpoints.
+         * Naming strategy for goal tools exported through MCP.
          */
         var namingStrategy: ToolNamingStrategy = ToolNamingStrategy.LEGACY_NAME_ONLY
     }

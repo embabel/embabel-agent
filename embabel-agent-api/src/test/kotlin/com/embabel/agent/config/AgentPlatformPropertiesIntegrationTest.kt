@@ -16,7 +16,7 @@
 package com.embabel.agent.config
 
 import com.embabel.agent.api.common.autonomy.AutonomyProperties
-import com.embabel.agent.core.ToolNamingStrategy
+import com.embabel.agent.api.tool.ToolNamingStrategy
 import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import com.embabel.agent.spi.support.DefaultProcessIdGeneratorProperties
 import org.assertj.core.api.Assertions.assertThat
