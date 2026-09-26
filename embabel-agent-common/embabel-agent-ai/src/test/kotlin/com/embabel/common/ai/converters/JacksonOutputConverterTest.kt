@@ -20,6 +20,7 @@ import tools.jackson.databind.cfg.DateTimeFeature
 import tools.jackson.databind.json.JsonMapper
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import tools.jackson.module.kotlin.kotlinModule
+import com.fasterxml.jackson.annotation.JsonPropertyDescription
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -88,6 +89,90 @@ class JacksonOutputConverterTest {
         val title: String,
         val optional: String?,
     )
+
+    // --- fixtures for ENUM_CONSTANT_DESCRIPTIONS tests ---
+
+    enum class Priority {
+        @JsonPropertyDescription("Needs same-day response") URGENT,
+        @JsonPropertyDescription("Standard turnaround")    NORMAL,
+        OTHER,  // deliberately un-annotated
+    }
+
+    enum class BareEnum { A, B, C }  // no annotations at all
+
+    data class PriorityHolder(val priority: Priority)
+    data class BareEnumHolder(val value: BareEnum)
+    data class ListPriorityHolder(val priorities: List<Priority>)
+
+    @Nested
+    inner class EnumConstantDescriptionTests {
+
+        @Test
+        fun `without option enum is a bare array`() {
+            val converter = JacksonOutputConverter(PriorityHolder::class.java, objectMapper)
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+            val priorityNode = schema.path("properties").path("priority")
+
+            assertThat(priorityNode.has("enum")).isTrue()
+            assertThat(priorityNode.has("oneOf")).isFalse()
+        }
+
+        @Test
+        fun `with option annotated enum becomes oneOf const description`() {
+            val converter = JacksonOutputConverter(
+                PriorityHolder::class.java,
+                objectMapper,
+                options = setOf(JacksonOutputConverterOption.ENUM_CONSTANT_DESCRIPTIONS),
+            )
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+            val priorityNode = schema.path("properties").path("priority")
+
+            assertThat(priorityNode.has("oneOf")).isTrue()
+            assertThat(priorityNode.has("enum")).isFalse()
+
+            val oneOf = priorityNode.path("oneOf")
+            assertThat(oneOf.isArray).isTrue()
+            assertThat(oneOf.size()).isEqualTo(3)
+
+            val urgent = oneOf.first { it.path("const").asText() == "URGENT" }
+            assertThat(urgent.path("description").asText()).isEqualTo("Needs same-day response")
+
+            val normal = oneOf.first { it.path("const").asText() == "NORMAL" }
+            assertThat(normal.path("description").asText()).isEqualTo("Standard turnaround")
+
+            // un-annotated constant has const but no description
+            val other = oneOf.first { it.path("const").asText() == "OTHER" }
+            assertThat(other.has("description")).isFalse()
+        }
+
+        @Test
+        fun `with option enum inside a list also becomes oneOf`() {
+            val converter = JacksonOutputConverter(
+                ListPriorityHolder::class.java,
+                objectMapper,
+                options = setOf(JacksonOutputConverterOption.ENUM_CONSTANT_DESCRIPTIONS),
+            )
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+            val itemsNode = schema.path("properties").path("priorities").path("items")
+
+            assertThat(itemsNode.has("oneOf")).isTrue()
+        }
+
+        @Test
+        fun `bare enum without any annotation is unaffected even with option enabled`() {
+            val converter = JacksonOutputConverter(
+                BareEnumHolder::class.java,
+                objectMapper,
+                options = setOf(JacksonOutputConverterOption.ENUM_CONSTANT_DESCRIPTIONS),
+            )
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+            val valueNode = schema.path("properties").path("value")
+
+            // should still be a plain enum array, not oneOf
+            assertThat(valueNode.has("enum")).isTrue()
+            assertThat(valueNode.has("oneOf")).isFalse()
+        }
+    }
 
     @Nested
     inner class SchemaNormalizationTests {
