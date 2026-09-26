@@ -270,7 +270,8 @@ The service passes category IDs and descriptions to the model exactly as written
 
 The prompt tells the model not to report a confidence.
 A selection has no confidence and an answer has no `pTrue`.
-Each result carries a `ModelProvenance` with the model name and provider of the `LlmService`.
+Every result except `Failure` carries a `ModelProvenance` with the model name and provider of the `LlmService`.
+A `Failure` carries only its reason.
 The provenance has no version or request ID.
 
 ==== Failures
@@ -317,6 +318,7 @@ The service sets no timeout of its own.
 
 The service leaves the thread's interrupt flag set whenever it throws `InterruptedException`.
 When a model call fails while the flag is set and the cause chain holds no `InterruptedException`, the service throws a new one whose cause is the failure.
+A reply that cannot be read is part of the model call, so with the flag set it also throws `InterruptedException`.
 An interrupted wait between retries fails with the `InterruptedException` as its cause, so the service throws that original exception.
 A call that succeeds returns its result even when the interrupt flag is set.
 A verdict that breaks a rule returns `Failure(INVALID_RESPONSE)` even when the interrupt flag is set.
