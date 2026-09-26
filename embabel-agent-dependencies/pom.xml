@@ -25,12 +25,6 @@
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>org.springaicommunity</groupId>
-                <artifactId>typesafe-java-sdk</artifactId>
-                <version>0.2.0</version>
-            </dependency>
-
-            <dependency>
                 <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-typesafe</artifactId>
                 <version>${project.version}</version>
