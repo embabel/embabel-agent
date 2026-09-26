@@ -38,8 +38,9 @@ import org.slf4j.LoggerFactory
  * Classifies text and assesses propositions by asking a chat model, retrying failed calls.
  *
  * Every outcome becomes a contract result: a reply that cannot be read or breaks the answer rules
- * is an invalid response, and anything else that goes wrong is unavailability. Interruption is the
- * one exception that escapes, with the thread's interrupt flag set.
+ * is an invalid response, and anything else that goes wrong is unavailability. An interrupted model
+ * call is the one exception that escapes, as the original [InterruptedException] with the thread's
+ * interrupt flag set.
  *
  * @param llm the model to ask, already resolved; the service takes its name and provider from it
  * @param options the options for every call, which should select [llm] directly
@@ -98,13 +99,10 @@ internal class LlmDecisionService(
     private fun <R : Any> decide(operation: String, failure: (FailureReason) -> R, work: () -> R): R {
         val result = try {
             work()
+        } catch (e: DecisionInterrupted) {
+            logger.debug("Decision {} with model {} was interrupted", operation, name)
+            throw e.interrupted
         } catch (e: Exception) {
-            val interrupted = interruptionIn(e)
-            if (interrupted != null) {
-                logger.debug("Decision {} with model {} was interrupted", operation, name)
-                Thread.currentThread().interrupt()
-                throw interrupted
-            }
             val reason = when (e) {
                 is InvalidLlmReturnFormatException, is InvalidDecisionAnswerException -> FailureReason.INVALID_RESPONSE
                 else -> FailureReason.UNAVAILABLE
@@ -118,25 +116,23 @@ internal class LlmDecisionService(
 
     /**
      * Stops the retry template from retrying an interrupted call. The template would otherwise
-     * retry it like any other failure and lose the interrupt flag along the way.
+     * retry it like any other failure and lose the interrupt flag along the way. The interruption
+     * can sit anywhere in the cause chain, since the operations often wrap it.
      */
     private inline fun <T> guarded(call: () -> T): T =
         try {
             call()
         } catch (e: Exception) {
-            val interrupted = interruptionIn(e) ?: throw e
+            val interrupted = generateSequence<Throwable>(e) { it.cause }
+                .filterIsInstance<InterruptedException>()
+                .firstOrNull() ?: throw e
             Thread.currentThread().interrupt()
             throw DecisionInterrupted(interrupted)
         }
 
-    /**
-     * Finds an interruption anywhere in the cause chain. Besides the one [guarded] wraps, the
-     * template's backoff wait reports an interrupt that arrives between attempts this way.
-     */
-    private fun interruptionIn(e: Throwable): InterruptedException? =
-        generateSequence(e) { it.cause }.filterIsInstance<InterruptedException>().firstOrNull()
-
-    private class DecisionInterrupted(interrupted: InterruptedException) : RuntimeException(interrupted), NonRetryable
+    /** Carries an interrupted call out of the retry template, which never retries it. */
+    private class DecisionInterrupted(val interrupted: InterruptedException) :
+        RuntimeException(interrupted), NonRetryable
 
     private companion object {
         const val CLASSIFY = "classify"
