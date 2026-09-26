@@ -21,6 +21,7 @@ import com.embabel.agent.api.event.observation.InternalObservabilityApi
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.DefaultToolDecorator
 import com.embabel.agent.spi.support.ExecutorAsyncer
 import com.embabel.agent.spi.support.FakeChatModel
@@ -63,6 +64,7 @@ import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertDoesNotThrow
 import org.junit.jupiter.api.assertThrows
 import org.springframework.ai.retry.TransientAiException
 import java.util.concurrent.Executors
@@ -277,6 +279,123 @@ class LlmDecisionServiceFactoryTest {
             val service = LlmDecisionServiceFactory(llmOperations, modelProvider, registry, retry).decisionService(llm)
             assertEquals(PropositionResult.Failure(FailureReason.UNAVAILABLE), service.assess(proposition))
             verify(exactly = 2) { llmOperations.doTransform(any<List<Message>>(), any(), PropositionAnswer::class.java, null) }
+        }
+    }
+
+    @Nested
+    inner class RetryValidation {
+
+        @Test
+        fun `max attempts below one is rejected`() {
+            val e = assertThrows<IllegalArgumentException> { LlmDecisionRetryProperties(maxAttempts = 0) }
+            assertEquals("max-attempts must be at least 1", e.message)
+        }
+
+        @Test
+        fun `backoff below one millisecond is rejected`() {
+            val e = assertThrows<IllegalArgumentException> { LlmDecisionRetryProperties(backoffMillis = 0L) }
+            assertEquals("backoff-millis must be at least 1", e.message)
+        }
+
+        @Test
+        fun `backoff multiplier of one or less is rejected`() {
+            listOf(1.0, 0.5).forEach { multiplier ->
+                val e = assertThrows<IllegalArgumentException> { LlmDecisionRetryProperties(backoffMultiplier = multiplier) }
+                assertEquals("backoff-multiplier must be greater than 1", e.message)
+            }
+        }
+
+        @Test
+        fun `max interval no longer than the first wait is rejected`() {
+            listOf(100L, 99L).forEach { maxInterval ->
+                val e = assertThrows<IllegalArgumentException> {
+                    LlmDecisionRetryProperties(backoffMillis = 100L, backoffMaxInterval = maxInterval)
+                }
+                assertEquals("backoff-max-interval must be greater than backoff-millis", e.message)
+            }
+        }
+
+        @Test
+        fun `the smallest valid settings build a retry template`() {
+            val retry = LlmDecisionRetryProperties(maxAttempts = 1, backoffMillis = 1L, backoffMultiplier = 1.01, backoffMaxInterval = 2L)
+            assertDoesNotThrow { retry.retryTemplate("decision-test") }
+        }
+    }
+
+    @Nested
+    inner class RetryNames {
+
+        private val retry = object : RetryProperties {
+            override val maxAttempts = 1
+            override val backoffMillis = 1L
+            override val backoffMultiplier = 2.0
+            override val backoffMaxInterval = 2L
+            override val propertyPrefix = "embabel.agent.platform.decisions.test"
+            val names = mutableListOf<String>()
+
+            override fun retryTemplate(name: String) = super.retryTemplate(name).also { names += name }
+        }
+
+        private val named = LlmDecisionServiceFactory(llmOperations, modelProvider, registry, retry)
+
+        @Test
+        fun `decision services carry a decision retry name`() {
+            named.decisionService("gpt-test")
+            named.decisionService(llm)
+            assertEquals(listOf("decision-gpt-test", "decision-gpt-test"), retry.names)
+        }
+
+        @Test
+        fun `classification services carry a classification retry name`() {
+            named.classificationService("gpt-test")
+            named.classificationService(llm)
+            assertEquals(listOf("classification-gpt-test", "classification-gpt-test"), retry.names)
+        }
+    }
+
+    @Nested
+    inner class SuppliedRetry {
+
+        private val twoCalls = LlmDecisionRetryProperties(maxAttempts = 2, backoffMillis = 1L, backoffMaxInterval = 2L)
+
+        @Test
+        fun `a decision service built with its own retry makes that many calls`() {
+            every {
+                llmOperations.doTransform(any<List<Message>>(), any(), PropositionAnswer::class.java, null)
+            } throws TransientAiException("provider busy")
+            val service = factory.decisionService("gpt-test", twoCalls, "decision-triage")
+            assertTrue(service is ObservedDecisionService)
+            assertEquals("gpt-test", service.name)
+            assertEquals(PropositionResult.Failure(FailureReason.UNAVAILABLE), service.assess(proposition))
+            verify(exactly = 2) { llmOperations.doTransform(any<List<Message>>(), any(), PropositionAnswer::class.java, null) }
+            assertEquals(listOf("embabel.ai.decision"), observationNames())
+        }
+
+        @Test
+        fun `a classification service built with its own retry makes that many calls`() {
+            every {
+                llmOperations.doTransform(any<List<Message>>(), any(), ClassificationAnswer::class.java, null)
+            } throws TransientAiException("provider busy")
+            val service = factory.classificationService("gpt-test", twoCalls, "classification-routing")
+            assertTrue(service is ObservedClassificationService)
+            assertFalse(service is DecisionService)
+            assertEquals(ClassificationResult.Failure(FailureReason.UNAVAILABLE), service.classify(classification))
+            verify(exactly = 2) { llmOperations.doTransform(any<List<Message>>(), any(), ClassificationAnswer::class.java, null) }
+        }
+
+        @Test
+        fun `a named model built with its own retry is looked up once`() {
+            factory.decisionService("gpt-test", twoCalls, "decision-triage")
+            factory.classificationService("gpt-test", twoCalls, "classification-routing")
+            verify(exactly = 2) { modelProvider.getLlm(byName("gpt-test")) }
+            confirmVerified(modelProvider)
+        }
+
+        @Test
+        fun `a blank model name is rejected before any lookup`() {
+            assertThrows<IllegalArgumentException> { factory.decisionService(" ", twoCalls, "decision-triage") }
+            assertThrows<IllegalArgumentException> { factory.classificationService(" ", twoCalls, "classification-routing") }
+            verify { modelProvider wasNot Called }
         }
     }
 }

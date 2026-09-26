@@ -30,7 +30,6 @@ import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.persistence.BlackboardEntrySerializer
 import com.embabel.agent.spi.*
-import com.embabel.agent.spi.decision.LlmDecisionServiceFactory
 import com.embabel.agent.spi.logging.ColorPalette
 import com.embabel.agent.spi.logging.DefaultColorPalette
 import com.embabel.agent.spi.logging.LoggingAgenticEventListener
@@ -149,18 +148,6 @@ class AgentPlatformConfiguration(
     ): Ranker = LlmRanker(
         llmOperations = llmOperations,
         rankingProperties = rankingProperties,
-    )
-
-    @Bean
-    @ConditionalOnMissingBean
-    fun llmDecisionServiceFactory(
-        llmOperations: LlmOperations,
-        modelProvider: ModelProvider,
-        observationRegistry: ObjectProvider<ObservationRegistry>,
-    ): LlmDecisionServiceFactory = LlmDecisionServiceFactory(
-        llmOperations = llmOperations,
-        modelProvider = modelProvider,
-        observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
     )
 
     /**

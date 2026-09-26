@@ -60,7 +60,7 @@ class LlmDecisionServiceFactory @ApiStatus.Internal @JvmOverloads internal const
 
     /** Builds a decision service for a model the caller already holds. */
     fun decisionService(llm: LlmService<*>): DecisionService =
-        ObservedDecisionService(llmDecisionService(llm), observationRegistry)
+        observedDecisionService(llmDecisionService(llm, retry, "decision-${llm.name}"))
 
     /**
      * Builds a classification service for the model with this name.
@@ -73,33 +73,74 @@ class LlmDecisionServiceFactory @ApiStatus.Internal @JvmOverloads internal const
 
     /** Builds a classification service for a model the caller already holds. */
     fun classificationService(llm: LlmService<*>): ClassificationService =
-        ObservedClassificationService(LlmClassificationService(llmDecisionService(llm)), observationRegistry)
+        observedClassificationService(llmDecisionService(llm, retry, "classification-${llm.name}"))
+
+    /**
+     * Builds a decision service for the model with this name, using its own retry settings and
+     * retry log name. Configured services use this.
+     *
+     * @throws IllegalArgumentException if the name is blank
+     * @throws NoSuitableModelException if no model has this name
+     */
+    internal fun decisionService(
+        llmName: String,
+        retry: LlmDecisionRetryProperties,
+        retryName: String,
+    ): DecisionService = observedDecisionService(llmDecisionService(llmNamed(llmName), retry, retryName))
+
+    /**
+     * Builds a classification service for the model with this name, using its own retry settings
+     * and retry log name. Configured services use this.
+     *
+     * @throws IllegalArgumentException if the name is blank
+     * @throws NoSuitableModelException if no model has this name
+     */
+    internal fun classificationService(
+        llmName: String,
+        retry: LlmDecisionRetryProperties,
+        retryName: String,
+    ): ClassificationService = observedClassificationService(llmDecisionService(llmNamed(llmName), retry, retryName))
 
     private fun llmNamed(llmName: String): LlmService<*> {
         require(llmName.isNotBlank()) { "LLM name must not be blank" }
         return modelProvider.getLlm(ModelSelectionCriteria.byName(llmName))
     }
 
+    private fun observedDecisionService(service: LlmDecisionService): DecisionService =
+        ObservedDecisionService(service, observationRegistry)
+
+    private fun observedClassificationService(service: LlmDecisionService): ClassificationService =
+        ObservedClassificationService(LlmClassificationService(service), observationRegistry)
+
     // Every call selects this exact model, so the model provider is never asked again.
-    private fun llmDecisionService(llm: LlmService<*>) =
-        LlmDecisionService(llmOperations, llm, LlmOptions(PreResolvedModelSelectionCriteria(llm)), retry)
+    private fun llmDecisionService(llm: LlmService<*>, retry: RetryProperties, retryName: String) =
+        LlmDecisionService(llmOperations, llm, LlmOptions(PreResolvedModelSelectionCriteria(llm)), retry, retryName)
 }
 
 /**
  * Retry settings for LLM-backed decision services. The defaults match the other platform services
- * that call a model.
+ * that call a model. Construction fails on any value spring-retry would reject, and on fewer than
+ * one attempt, which would fail every call without asking the model.
  *
- * @property maxAttempts most calls made for one decision, counting the first
- * @property backoffMillis wait before the first retry, in milliseconds
- * @property backoffMultiplier how much each wait grows over the last
- * @property backoffMaxInterval longest wait between retries, in milliseconds
+ * @property maxAttempts most calls made for one decision, counting the first; at least 1
+ * @property backoffMillis wait before the first retry, in milliseconds; at least 1
+ * @property backoffMultiplier how much each wait grows over the last; greater than 1
+ * @property backoffMaxInterval longest wait between retries, in milliseconds; greater than [backoffMillis]
  * @property propertyPrefix where these settings live in configuration
+ * @throws IllegalArgumentException if a setting is out of range, with a message naming the property
  */
-@ApiStatus.Experimental
-data class LlmDecisionRetryProperties @JvmOverloads constructor(
+internal data class LlmDecisionRetryProperties @JvmOverloads constructor(
     override val maxAttempts: Int = 5,
     override val backoffMillis: Long = 100L,
     override val backoffMultiplier: Double = 5.0,
     override val backoffMaxInterval: Long = 180000L,
     override val propertyPrefix: String = "embabel.agent.platform.decisions.llm",
-) : RetryProperties
+) : RetryProperties {
+
+    init {
+        require(maxAttempts >= 1) { "max-attempts must be at least 1" }
+        require(backoffMillis >= 1) { "backoff-millis must be at least 1" }
+        require(backoffMultiplier > 1.0) { "backoff-multiplier must be greater than 1" }
+        require(backoffMaxInterval > backoffMillis) { "backoff-max-interval must be greater than backoff-millis" }
+    }
+}
