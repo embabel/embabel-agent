@@ -667,4 +667,44 @@ class FileWriteToolsTest {
         }
 
     }
+
+    @Nested
+    inner class FileToolStatsTest {
+
+        @Test
+        fun `should report changes and bytes received for this instance`() {
+            val fileTools = FileTools.readWrite(rootPath)
+            val content = "Hello, 世界"
+            fileTools.createFile("first.txt", content)
+            fileTools.createFile("second.txt", "another file")
+
+            fileTools.readFile("first.txt")
+            fileTools.readFile("first.txt")
+
+            assertEquals(2, fileTools.fileToolStats.numberOfChanges)
+            assertEquals(content.toByteArray(Charsets.UTF_8).size.toLong() * 2, fileTools.fileToolStats.bytesReceived)
+        }
+
+        @Test
+        fun `should report stats independently for each instance`() {
+            val first = FileTools.readWrite(rootPath)
+            val second = FileTools.readWrite(rootPath)
+            first.createFile("first.txt", "content")
+
+            assertEquals(FileToolStats(numberOfChanges = 1, bytesReceived = 0), first.fileToolStats)
+            assertEquals(FileToolStats(numberOfChanges = 0, bytesReceived = 0), second.fileToolStats)
+        }
+
+        @Test
+        fun `should reflect flushed logs`() {
+            val fileTools = FileTools.readWrite(rootPath)
+            fileTools.createFile("first.txt", "content")
+            fileTools.readFile("first.txt")
+
+            fileTools.flushChanges()
+            fileTools.flushReads()
+
+            assertEquals(FileToolStats(numberOfChanges = 0, bytesReceived = 0), fileTools.fileToolStats)
+        }
+    }
 }
