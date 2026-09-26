@@ -46,11 +46,11 @@ class TypeSafeModelsConfig(
     builders: ObjectProvider<RestClient.Builder>,
     registries: ObjectProvider<ObservationRegistry>,
 ) : TypeSafeModelFactory(
-    options = options(properties),
-    keySupplier = Supplier { requireApiKey(properties, environment) },
-    restClientBuilder = selectedBuilder(platformBuilders, builders, registries),
-    observationRegistry = registries.getIfUnique { ObservationRegistry.NOOP },
-    defaultModel = properties.model(),
+    options(properties),
+    Supplier { requireApiKey(properties, environment) },
+    selectedBuilder(platformBuilders, builders, registries),
+    registries.getIfUnique { ObservationRegistry.NOOP },
+    properties.model(),
 ) {
 
     init {

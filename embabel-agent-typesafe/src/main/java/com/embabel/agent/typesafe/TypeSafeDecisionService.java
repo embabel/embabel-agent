@@ -81,8 +81,10 @@ final class TypeSafeDecisionService implements DecisionService {
             }
             return request.selected(answer.value(), provenance, answer.confidence());
         } catch (TypeSafeException failure) {
+            // The service returns typed failures; the helper logs the bounded reason.
             return classificationFailure(failureReason(failure));
         } catch (IllegalArgumentException failure) {
+            // Validation errors can contain response data; return and log only the failure reason.
             return classificationFailure(FailureReason.INVALID_RESPONSE);
         }
     }
@@ -103,8 +105,10 @@ final class TypeSafeDecisionService implements DecisionService {
             return new PropositionResult.Answered(
                     probability > UNDECIDED_PROBABILITY, provenance, probability);
         } catch (TypeSafeException failure) {
+            // The service returns typed failures; the helper logs the bounded reason.
             return propositionFailure(failureReason(failure));
         } catch (IllegalArgumentException failure) {
+            // Validation errors can contain response data; return and log only the failure reason.
             return propositionFailure(FailureReason.INVALID_RESPONSE);
         }
     }

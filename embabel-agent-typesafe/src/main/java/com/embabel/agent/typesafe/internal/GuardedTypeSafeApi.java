@@ -247,12 +247,15 @@ public final class GuardedTypeSafeApi extends TypeSafeApi {
             family = failure.status() / 100 + "xx";
             throw failure;
         } catch (ResourceAccessException failure) {
+            // Transport causes can contain credentials; retain only the safe failure classification.
             throw safeFailure(failure);
         } catch (RestClientException failure) {
+            // Decoder causes can contain response content; do not retain the raw exception.
             throw safeFailure(failure);
         } catch (CancellationException cancelled) {
             throw cancelled;
         } catch (RuntimeException ignored) {
+            // Request or response errors can contain credentials; do not wrap the raw exception.
             throw new TypeSafeException("TypeSafe request or response invalid");
         } finally {
             observation
@@ -358,6 +361,7 @@ public final class GuardedTypeSafeApi extends TypeSafeApi {
             try {
                 response.close();
             } catch (RuntimeException ignored) {
+                // Cleanup must not replace the result, and its exception may contain response content.
                 logger.debug("TypeSafe response cleanup failed");
             }
         }
@@ -374,6 +378,7 @@ public final class GuardedTypeSafeApi extends TypeSafeApi {
                 }
                 body.close();
             } catch (IOException | RuntimeException ignored) {
+                // Keep the original decoding failure; cleanup exceptions may contain response content.
                 logger.debug("TypeSafe response body cleanup failed");
             }
         }

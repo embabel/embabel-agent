@@ -23,6 +23,11 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+
 import com.embabel.common.ai.classification.Category;
 import com.embabel.common.ai.classification.ClassificationRequest;
 import com.embabel.common.ai.classification.ClassificationResult;
@@ -34,12 +39,14 @@ import com.embabel.common.byok.ByokFactory;
 import com.embabel.common.byok.InvalidApiKeyException;
 
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
+import java.util.concurrent.CancellationException;
 
 class TypeSafeModelFactoryTest {
     private static final String SYSTEM_ONE_URI = "https://api.typesafe.ai/v1/systemone";
@@ -50,6 +57,86 @@ class TypeSafeModelFactoryTest {
                     List.of(
                             new Category("dog", "A domestic dog"),
                             new Category("cat", "A domestic cat")));
+
+    @Test
+    void lifecycleLogsDescribeWorkWithoutPrivateValues() {
+        var logger = (Logger) LoggerFactory.getLogger(TypeSafeModelFactory.class);
+        var oldLevel = logger.getLevel();
+        var appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        logger.setLevel(Level.DEBUG);
+        try {
+            var builder = RestClient.builder();
+            var server = MockRestServiceServer.bindTo(builder).build();
+            var factory = new TypeSafeModelFactory(TypeSafeClientOptions.defaults(),
+                    () -> "PRIVATE_KEY", builder,
+                    io.micrometer.observation.ObservationRegistry.NOOP, "PRIVATE_MODEL");
+            factory.build();
+            server.expect(requestTo(MODELS_URI)).andRespond(withSuccess(
+                    "{\"models\":[{\"name\":\"PRIVATE_MODEL\"}]}", MediaType.APPLICATION_JSON));
+            factory.buildValidated();
+            server.verify();
+
+            assertThat(appender.list).anySatisfy(event -> {
+                assertThat(event.getLevel()).isEqualTo(Level.INFO);
+                assertThat(event.getFormattedMessage()).contains("TypeSafe model factory initialized");
+            }).anySatisfy(event -> {
+                assertThat(event.getLevel()).isEqualTo(Level.DEBUG);
+                assertThat(event.getFormattedMessage()).contains("TypeSafe decision service built");
+            }).anySatisfy(event -> {
+                assertThat(event.getLevel()).isEqualTo(Level.DEBUG);
+                assertThat(event.getFormattedMessage()).contains("TypeSafe credential validation started");
+            }).anySatisfy(event -> {
+                assertThat(event.getLevel()).isEqualTo(Level.INFO);
+                assertThat(event.getFormattedMessage()).contains("TypeSafe credential validation succeeded");
+            }).allSatisfy(event -> {
+                assertThat(event.getFormattedMessage()).doesNotContain("PRIVATE", "https://");
+                assertThat(event.getThrowableProxy()).isNull();
+            });
+        } finally {
+            logger.detachAppender(appender);
+            logger.setLevel(oldLevel);
+            appender.stop();
+        }
+    }
+
+    @Test
+    void buildingDoesNotResolveCredentialsAndValidationPreservesCancellation() {
+        var cancelled = new CancellationException("PRIVATE_CANCELLATION");
+        var factory = new TypeSafeModelFactory(() -> { throw cancelled; });
+        assertThat(factory.build().getName()).isEqualTo(TypeSafeModelFactory.DEFAULT_MODEL);
+        assertThatThrownBy(factory::buildValidated).isSameAs(cancelled);
+    }
+
+    @Test
+    void credentialSupplierFailureIsDiagnosedWithoutRetainingSecrets() {
+        var logger = (Logger) LoggerFactory.getLogger(TypeSafeModelFactory.class);
+        var oldLevel = logger.getLevel();
+        var appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        logger.setLevel(Level.DEBUG);
+        try {
+            var factory = new TypeSafeModelFactory(() -> {
+                throw new IllegalStateException("PRIVATE_CREDENTIAL", new RuntimeException("PRIVATE_CAUSE"));
+            });
+            assertThatThrownBy(factory::buildValidated)
+                    .isInstanceOf(InvalidApiKeyException.class).hasNoCause();
+            assertThat(appender.list).anySatisfy(event -> {
+                assertThat(event.getLevel()).isEqualTo(Level.WARN);
+                assertThat(event.getFormattedMessage()).contains(
+                        "credential resolution failed", "java.lang.IllegalStateException");
+            }).allSatisfy(event -> {
+                assertThat(event.getFormattedMessage()).doesNotContain("PRIVATE");
+                assertThat(event.getThrowableProxy()).isNull();
+            });
+        } finally {
+            logger.detachAppender(appender);
+            logger.setLevel(oldLevel);
+            appender.stop();
+        }
+    }
 
     @Test
     void oneFactoryBuildsIndependentDecisionModels() {
@@ -92,7 +179,11 @@ class TypeSafeModelFactoryTest {
         assertThatThrownBy(fixture.factory()::buildValidated)
                 .isInstanceOf(InvalidApiKeyException.class)
                 .hasMessage("TypeSafe credential could not be validated")
-                .hasMessageNotContaining("private provider detail");
+                .hasMessageNotContaining("private provider detail")
+                .cause()
+                .isInstanceOf(org.springaicommunity.typesafe.exception.TypeSafeApiException.class)
+                .hasMessage("TypeSafe HTTP request failed")
+                .hasNoCause();
         fixture.server().verify();
     }
 
