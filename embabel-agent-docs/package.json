@@ -1,0 +1,8 @@
+{
+  "name": "embabel-docs-llms-builder",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@asciidoctor/core": "~3.0.4"
+  }
+}
