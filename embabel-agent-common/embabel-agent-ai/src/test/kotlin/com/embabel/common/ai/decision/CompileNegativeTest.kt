@@ -45,11 +45,15 @@ private fun compileJava(source: Path): CompileOutcome {
     }
     val diagnostics = javax.tools.DiagnosticCollector<JavaFileObject>()
     val outDir = Files.createTempDirectory("compile-negative-java")
-    val success = compiler.getStandardFileManager(diagnostics, null, null).use { fileManager ->
-        fileManager.setLocation(StandardLocation.CLASS_OUTPUT, listOf(outDir.toFile()))
-        val units = fileManager.getJavaFileObjectsFromFiles(listOf(source.toFile()))
-        val options = listOf("-classpath", CompileNegativeTest.classpath)
-        compiler.getTask(null, fileManager, diagnostics, options, null, units).call()
+    val success = try {
+        compiler.getStandardFileManager(diagnostics, null, null).use { fileManager ->
+            fileManager.setLocation(StandardLocation.CLASS_OUTPUT, listOf(outDir.toFile()))
+            val units = fileManager.getJavaFileObjectsFromFiles(listOf(source.toFile()))
+            val options = listOf("-classpath", CompileNegativeTest.classpath)
+            compiler.getTask(null, fileManager, diagnostics, options, null, units).call()
+        }
+    } finally {
+        outDir.toFile().deleteRecursively()
     }
     val errors = diagnostics.diagnostics
         .filter { it.kind == Diagnostic.Kind.ERROR }
@@ -88,7 +92,11 @@ private fun compileKotlin(source: Path): CompileOutcome {
         ),
         arguments,
     )
-    val exitCode = compiler.exec(collector, Services.EMPTY, arguments)
+    val exitCode = try {
+        compiler.exec(collector, Services.EMPTY, arguments)
+    } finally {
+        outDir.toFile().deleteRecursively()
+    }
     return CompileOutcome(exitCode == ExitCode.OK, errors)
 }
 
@@ -198,7 +206,7 @@ class CompileNegativeTest {
 
         @Test
         fun `a builder's internal factory is hidden from Java`() {
-            assertFailsWith("create(java.lang.String)", compileJava(negative("java", "MangledFactoryCall.java")))
+            assertFailsWith("create\$embabel_agent_ai(java.lang.String)", compileJava(negative("java", "MangledFactoryCall.java")))
         }
 
         @Test
@@ -224,7 +232,7 @@ class CompileNegativeTest {
 
         @Test
         fun `option is not in scope inside a proposition block`() {
-            assertFailsWith("Unresolved reference", compileKotlin(negative("kotlin", "OptionInsidePropositionBlock.kt")))
+            assertFailsWith("Unresolved reference 'option'", compileKotlin(negative("kotlin", "OptionInsidePropositionBlock.kt")))
         }
     }
 }
