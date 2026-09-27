@@ -60,14 +60,13 @@ internal object OpenAiNativeStructuredOutputConfigurer : SpringAiNativeStructure
         val responseFormat = ResponseFormat.builder()
             .type(ResponseFormat.Type.JSON_SCHEMA)
             .jsonSchema(structuredOutput.schema)
+            .strict(structuredOutput.strict)
             .build()
 
         logger.debug("Applying OpenAI response_format: strict={} schema={}", structuredOutput.strict, structuredOutput.schema)
 
         return options.mutate()
             .responseFormat(responseFormat)
-            .strict(structuredOutput.strict)
-            .outputSchema(structuredOutput.schema)
             .build()
     }
 }

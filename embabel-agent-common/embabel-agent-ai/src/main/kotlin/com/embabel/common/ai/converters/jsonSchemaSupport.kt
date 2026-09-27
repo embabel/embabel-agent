@@ -264,7 +264,9 @@ private fun BeanPropertyDefinition.toSchemaPropertyMetadata(
 
     return SchemaPropertyMetadata(
         required = required,
-        childType = primaryMember?.type,
+        childType = primaryMember?.type?.let { type ->
+            if (type.isReferenceType) type.referencedType ?: type.containedType(0) else type
+        },
     )
 }
 
@@ -273,9 +275,10 @@ private fun Field.toSchemaPropertyMetadata(objectMapper: ObjectMapper): SchemaPr
         getAnnotation(JsonProperty::class.java)?.required == true ||
         isAnnotationPresent(NotNull::class.java)
 
+    val javaType = objectMapper.typeFactory.constructType(genericType)
     return SchemaPropertyMetadata(
         required = required,
-        childType = objectMapper.typeFactory.constructType(genericType),
+        childType = if (javaType.isReferenceType) javaType.referencedType ?: javaType.containedType(0) else javaType,
     )
 }
 

@@ -46,4 +46,12 @@ public class JavaStructuredOutputFixtures {
 
         public List<Child> children;
     }
+
+    /** Tests that Optional<Child> unwraps correctly so Child's required fields are normalized. */
+    public static class ParentWithOptionalChild {
+        @JsonProperty(required = true)
+        public String requiredName;
+
+        public Optional<Child> optionalChild;
+    }
 }

@@ -462,6 +462,66 @@ class NativeStructuredOutputSupportTest {
                 """.trimIndent()
             ))).isFalse()
         }
+
+        @Test
+        fun `does not crash on double-null union type`() {
+            // ["null","null"] — isValidNullableUnion used singleOrNull to avoid NoSuchElementException
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "value": { "type": ["null", "null"] }
+                      },
+                      "required": ["value"],
+                      "additionalProperties": false
+                    }
+                """.trimIndent()
+            ))).isFalse()
+        }
+    }
+
+    @Nested
+    inner class ArrayItemsUnionCompatibilityTests {
+
+        @Test
+        fun `rejects array whose items have a non-nullable union type`() {
+            // items with "type": ["string","integer"] must be rejected, not silently accepted
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "values": {
+                          "type": "array",
+                          "items": { "type": ["string", "integer"] }
+                        }
+                      },
+                      "required": ["values"],
+                      "additionalProperties": false
+                    }
+                """.trimIndent()
+            ))).isFalse()
+        }
+
+        @Test
+        fun `accepts array whose items have a valid nullable union type`() {
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tags": {
+                          "type": "array",
+                          "items": { "type": ["string", "null"] }
+                        }
+                      },
+                      "required": ["tags"],
+                      "additionalProperties": false
+                    }
+                """.trimIndent()
+            ))).isTrue()
+        }
     }
 
     private fun nativeSupport(supported: Boolean): NativeSupport =

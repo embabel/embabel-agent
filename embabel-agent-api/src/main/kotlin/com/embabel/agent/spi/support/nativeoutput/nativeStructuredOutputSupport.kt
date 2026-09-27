@@ -41,7 +41,8 @@ private val logger = LoggerFactory.getLogger("com.embabel.agent.spi.support.nati
  *    [withNativeStructuredOutput] or equivalent
  * 3. the caller must not disable native output explicitly ([NativeStructuredOutputMode.DISABLED])
  * 4. the schema must fit the conservative native-output shape policy
- *    ([NativeStructuredOutputMode.DEFAULT] only; [NativeStructuredOutputMode.ENABLED] bypasses this check)
+ *    ([NativeStructuredOutputMode.DEFAULT] only; [NativeStructuredOutputMode.ENABLED] bypasses this check;
+ *    incompatible schemas in DEFAULT mode log at DEBUG level and fall back to prompt-based extraction)
  *
  * This helper intentionally does not encode provider-specific payload rules such as
  * OpenAI `response_format` details or DeepSeek/OpenAI-compatible transport quirks.
@@ -62,9 +63,9 @@ internal fun NativeSupport?.shouldUseNativeStructuredOutput(request: LlmMessageR
             val compatible = nativeStructuredOutputRequest.structuredOutputRequest.schema
                 .isConservativelyCompatibleWithNativeOutput()
             if (!compatible) {
-                logger.warn(
-                    "Native structured output requested but schema is not compatible; falling back to prompt-based extraction. " +
-                        "Use NativeStructuredOutputMode.DISABLED to suppress this warning."
+                logger.debug(
+                    "Native structured output not used: schema is not compatible with native output; using prompt-based extraction. " +
+                        "Use NativeStructuredOutputMode.ENABLED to force native output, or DISABLED to silence this log."
                 )
             }
             compatible
@@ -148,10 +149,9 @@ private fun JsonNode.isValidNullableUnion(): Boolean {
     val typeNode = get("type") ?: return false
     if (typeNode.size() != 2) return false
     // collect text values, discarding any non-text nodes (defensive — schema nodes are always text)
-    val types = typeNode.mapNotNull { if (it.isTextual) it.asText() else null }.toSet()
+    val types = typeNode.mapNotNull { if (it.isString) it.asString() else null }.toSet()
     if ("null" !in types) return false
-    // exactly one non-null type is guaranteed: size == 2 and "null" is present
-    val nonNull = types.single { it != "null" }
+    val nonNull = types.singleOrNull { it != "null" } ?: return false
     return when (nonNull) {
         "string", "integer", "number", "boolean" -> true
         "object" -> isConservativelyCompatibleWithNativeOutput()
@@ -163,6 +163,10 @@ private fun JsonNode.isConservativelyCompatibleArray(): Boolean {
     val items = itemsNode() ?: return false
     if (!items.isObject || items.hasUnsupportedJsonSchemaKeywords()) {
         return false
+    }
+
+    if (items.get("type")?.isArray == true) {
+        return items.isValidNullableUnion()
     }
 
     val itemType = items.schemaType()

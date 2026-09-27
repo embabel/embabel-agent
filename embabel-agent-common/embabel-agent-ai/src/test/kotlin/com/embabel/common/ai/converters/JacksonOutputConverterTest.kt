@@ -89,7 +89,7 @@ class JacksonOutputConverterTest {
         val optional: String?,
     )
 
-    // nullable child produces a union type ["object","null"] in the schema
+    // Kotlin T? emits scalar "type":"object" — NOT a union type
     data class KotlinNullableChildParent(
         val requiredName: String,
         val optionalChild: KotlinRequiredChild?,
@@ -136,17 +136,31 @@ class JacksonOutputConverterTest {
         }
 
         @Test
-        fun `normalizes required fields inside nullable object union type without crashing`() {
+        fun `normalizes required fields inside Kotlin nullable child without crashing`() {
             val converter = JacksonOutputConverter(KotlinNullableChildParent::class.java, objectMapper)
             val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
 
-            // parent: requiredName is non-null → required; optionalChild is nullable → not required
+            // requiredName is non-null → required; optionalChild is Kotlin T? → not required
+            assertThat(schema.requiredFieldNames()).containsExactlyInAnyOrder("requiredName")
+        }
+
+        @Test
+        fun `normalizes required fields inside Java Optional child — Java path`() {
+            @Suppress("UNCHECKED_CAST")
+            val javaClass = Class.forName(
+                "com.embabel.common.ai.converters.JavaStructuredOutputFixtures\$ParentWithOptionalChild"
+            ) as Class<Any>
+            val converter = JacksonOutputConverter(javaClass, objectMapper)
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+
+            // optionalChild is Optional<Child> — not marked @JsonProperty(required) → not in outer required
             assertThat(schema.requiredFieldNames()).containsExactlyInAnyOrder("requiredName")
 
-            // the nullable child property has a union type ["object","null"] in the schema;
-            // normalizeRequiredFields must recurse into it and still mark name (non-null) as required
+            // Optional<Child> produces a nullable union schema; after unwrapping Optional in
+            // resolveJavaSchemaPropertyMetadata, normalizeRequiredFields recurses into Child
+            // and marks count (primitive) as required
             val optionalChildSchema = schema.path("properties").path("optionalChild")
-            assertThat(optionalChildSchema.requiredFieldNames()).containsExactlyInAnyOrder("name")
+            assertThat(optionalChildSchema.requiredFieldNames()).containsExactlyInAnyOrder("count")
         }
 
         @Test

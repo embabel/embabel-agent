@@ -67,8 +67,9 @@ class OpenAiNativeStructuredOutputConfigurerTest {
             val configuredOptions = configured as OpenAiChatOptions
             assertThat(configuredOptions.responseFormat?.type).isEqualTo(ResponseFormat.Type.JSON_SCHEMA)
             assertThat(configuredOptions.responseFormat?.jsonSchema).isEqualTo(request.schema)
-            assertThat(configuredOptions.strict).isTrue()
-            assertThat(configuredOptions.outputSchema).isEqualTo(request.schema)
+            // strict must be carried by ResponseFormat (read by OpenAiChatModel.createRequest),
+            // not by options.strict (never read by createRequest for response_format)
+            assertThat(configuredOptions.responseFormat?.strict).isTrue()
         }
 
         @Test
@@ -90,7 +91,8 @@ class OpenAiNativeStructuredOutputConfigurerTest {
                 llm = null,
             ) as OpenAiChatOptions
 
-            assertThat(configured.strict).isFalse()
+            // strict=false must be encoded in ResponseFormat, not in options.strict
+            assertThat(configured.responseFormat?.strict).isFalse()
         }
     }
 

@@ -1608,7 +1608,7 @@ PromptRunner runner = ai.withLlm(options);
 ----
 
 - `NativeStructuredOutputMode.ENABLED`: Use the native path unconditionally when the provider supports it, bypassing the schema compatibility check.
-- `NativeStructuredOutputMode.DEFAULT`: Check schema compatibility first; fall back to prompt-based extraction with a WARN log if the schema is not compatible. Use `DISABLED` to suppress the warning.
+- `NativeStructuredOutputMode.DEFAULT`: Check schema compatibility first; fall back to prompt-based extraction with a DEBUG log if the schema is not compatible. Use `ENABLED` to force the native path regardless, or `DISABLED` to silence the log.
 - `NativeStructuredOutputMode.DISABLED`: Always use prompt-based extraction; never use the native path.
 
 For Java objects, mark required reference fields explicitly:
