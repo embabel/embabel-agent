@@ -161,8 +161,8 @@ Each returns the result unchanged or throws `IllegalArgumentException`.
 |===
 
 An `Answered` result reports a selected level, a distribution, a score, or a combination of these.
-It holds only what the provider reported.
-It never carries a selected level derived from a score, and it never invents a distribution.
+Each part comes from the provider's response as reported.
+A selected level is present only when the provider selected one, and a distribution only when the provider reported one.
 
 A `RatingScore` pairs a value with a `RatingStatistic`.
 The one statistic is `EXPECTED_LEVEL_INDEX`, the probability-weighted mean of the zero-based level positions.
