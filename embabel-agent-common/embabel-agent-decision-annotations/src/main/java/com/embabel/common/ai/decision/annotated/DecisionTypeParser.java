@@ -33,7 +33,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.introspect.AccessorNamingStrategy;
 import tools.jackson.databind.introspect.AnnotatedClass;
-import tools.jackson.databind.introspect.AnnotatedConstructor;
 import tools.jackson.databind.introspect.AnnotatedField;
 import tools.jackson.databind.introspect.AnnotatedMember;
 import tools.jackson.databind.introspect.AnnotatedMethod;
@@ -89,15 +88,17 @@ final class DecisionTypeParser {
     private static final String COLLISION_FIX =
         "Give each Java member its own property name, or correct the definition the message names.";
 
+    private static final String CARRIES = ": carries ";
+
     // The Kotlin compiler marks every class it emits with kotlin.Metadata. The annotation type is
     // loaded by name so the module has no Kotlin dependency. It is null when Kotlin is absent.
     private static final @Nullable Class<? extends Annotation> KOTLIN_METADATA = kotlinMetadata();
 
     /** The three question annotations, in the order problems name them. */
     private enum Kind {
-        PROPOSITION(PropositionQuestion.class, annotation -> ((PropositionQuestion) annotation).asking()),
-        CHOICE(ChoiceQuestion.class, annotation -> ((ChoiceQuestion) annotation).asking()),
-        RATING(RatingQuestion.class, annotation -> ((RatingQuestion) annotation).asking());
+        PROPOSITION(PropositionQuestion.class, question -> ((PropositionQuestion) question).asking()),
+        CHOICE(ChoiceQuestion.class, question -> ((ChoiceQuestion) question).asking()),
+        RATING(RatingQuestion.class, question -> ((RatingQuestion) question).asking());
 
         final Class<? extends Annotation> annotation;
 
@@ -128,6 +129,19 @@ final class DecisionTypeParser {
     private final List<String> problems = new ArrayList<>();
 
     private final List<Throwable> causes = new ArrayList<>();
+
+    private final Map<String, String> questionNames = new LinkedHashMap<>();
+
+    private final List<Question<?>> questions = new ArrayList<>();
+
+    private final List<String> settableNames = new ArrayList<>();
+
+    private final Coverage coverage = new Coverage();
+
+    // Internal names of properties already reported as ignored.
+    private final Set<String> reportedIgnored = new HashSet<>();
+
+    private final Map<String, BeanPropertyDefinition> byInternalName = new LinkedHashMap<>();
 
     private DecisionTypeParser(Class<?> type, ObjectMapper mapper) {
         this.type = type;
@@ -179,81 +193,11 @@ final class DecisionTypeParser {
             : config.getAccessorNaming().forPOJO(config, classInfo);
         Ignorals ignorals = new Ignorals(description, classInfo);
 
-        Map<String, String> questionNames = new LinkedHashMap<>();
-        List<Question<?>> questions = new ArrayList<>();
-        List<String> settableNames = new ArrayList<>();
-        Coverage coverage = new Coverage();
-        Set<String> reportedIgnored = new HashSet<>();
-        Map<String, BeanPropertyDefinition> byInternalName = new LinkedHashMap<>();
-
         for (BeanPropertyDefinition property : properties) {
-            String member = type.getSimpleName() + "." + property.getInternalName();
-            List<AnnotatedMember> members;
-            try {
-                members = membersOf(property);
-            } catch (IllegalArgumentException e) {
-                problem(member + ": Jackson cannot read the property \"" + property.getName() + "\" (" + messageOf(e)
-                    + "). " + COLLISION_FIX, e);
-                continue;
-            }
-            members.forEach(coverage::add);
-            byInternalName.put(property.getInternalName(), property);
-            // Projection supplies a value for each of these, from an answer or from otherProperties.
-            if (property.getMutator() != null && !ignorals.ignores(property)) {
-                settableNames.add(property.getName());
-            }
-
-            Map<Kind, Set<String>> declared = questionAnnotations(members);
-            if (declared.isEmpty()) {
-                continue;
-            }
-            if (declared.size() > 1) {
-                problem(member + ": carries " + labels(declared.keySet()) + ". Keep one question annotation on the property.");
-                continue;
-            }
-            Kind kind = declared.keySet().iterator().next();
-            Set<String> askings = declared.get(kind);
-            if (askings.size() > 1) {
-                problem(member + ": members of the property carry " + kind.label() + " with different asking values ("
-                    + String.join(", ", askings.stream().map(value -> "\"" + value + "\"").toList())
-                    + "). Use one asking value on every annotated member of the property.");
-                continue;
-            }
-            if (ignorals.ignores(property)) {
-                problem(member + ": carries " + kind.label() + IGNORED);
-                reportedIgnored.add(property.getInternalName());
-                continue;
-            }
-            List<String> merged = mergedMembers(property, naming);
-            if (!merged.isEmpty()) {
-                problem(member + ": Jackson merges " + joined(merged) + " into the property \"" + property.getName()
-                    + "\". Rename the members so they share one Java name, or give each its own property name.");
-                continue;
-            }
-            if (property.getMutator() == null) {
-                problem(member + ": carries " + kind.label() + " but Jackson has no creator parameter, setter or field "
-                    + "to set it. Add one of these members for the property.");
-                continue;
-            }
-
-            int before = problems.size();
-            String asking = askings.iterator().next();
-            if (asking.isBlank()) {
-                problem(member + ": " + kind.label() + " has a blank asking value. "
-                    + "Set asking to the instructions the model receives.");
-            }
-            List<Entry> entries = checkType(member, kind, property);
-            if (problems.size() > before) {
-                continue;
-            }
-            Question<?> question = build(member, kind, property.getName(), asking, entries);
-            if (question != null) {
-                questions.add(question);
-                questionNames.put(property.getInternalName(), property.getName());
-            }
+            readProperty(property, naming, ignorals);
         }
 
-        scanForOrphans(coverage, ignorals, reportedIgnored, classInfo, naming, byInternalName);
+        scanForOrphans(ignorals, classInfo, naming);
 
         if (problems.isEmpty() && questions.isEmpty()) {
             problem(type.getSimpleName() + ": declares no questions. "
@@ -263,6 +207,86 @@ final class DecisionTypeParser {
             throw failure();
         }
         return new Parsed(DecisionSpec.of(questions), questionNames, settableNames);
+    }
+
+    // Records the members of one property and whether projection sets it, then reads its question
+    // when it carries one.
+    private void readProperty(BeanPropertyDefinition property, AccessorNamingStrategy naming, Ignorals ignorals) {
+        String member = type.getSimpleName() + "." + property.getInternalName();
+        List<AnnotatedMember> members;
+        try {
+            members = membersOf(property);
+        } catch (IllegalArgumentException e) {
+            problem(member + ": Jackson cannot read the property \"" + property.getName() + "\" (" + messageOf(e)
+                + "). " + COLLISION_FIX, e);
+            return;
+        }
+        members.forEach(coverage::add);
+        byInternalName.put(property.getInternalName(), property);
+        // Projection supplies a value for each of these, from an answer or from otherProperties.
+        if (property.getMutator() != null && !ignorals.ignores(property)) {
+            settableNames.add(property.getName());
+        }
+
+        Map<Kind, Set<String>> declared = questionAnnotations(members);
+        if (!declared.isEmpty() && holdsOneQuestion(member, property, declared, naming, ignorals)) {
+            Kind kind = declared.keySet().iterator().next();
+            addQuestion(member, kind, property, declared.get(kind).iterator().next());
+        }
+    }
+
+    // Checks that the property carries one question annotation with one asking value, and that
+    // Jackson reads it as one settable property. Reports the first problem found.
+    private boolean holdsOneQuestion(
+        String member, BeanPropertyDefinition property, Map<Kind, Set<String>> declared,
+        AccessorNamingStrategy naming, Ignorals ignorals) {
+        if (declared.size() > 1) {
+            problem(member + CARRIES + labels(declared.keySet()) + ". Keep one question annotation on the property.");
+            return false;
+        }
+        Kind kind = declared.keySet().iterator().next();
+        Set<String> askings = declared.get(kind);
+        if (askings.size() > 1) {
+            problem(member + ": members of the property carry " + kind.label() + " with different asking values ("
+                + String.join(", ", askings.stream().map(value -> "\"" + value + "\"").toList())
+                + "). Use one asking value on every annotated member of the property.");
+            return false;
+        }
+        if (ignorals.ignores(property)) {
+            problem(member + CARRIES + kind.label() + IGNORED);
+            reportedIgnored.add(property.getInternalName());
+            return false;
+        }
+        List<String> merged = mergedMembers(property, naming);
+        if (!merged.isEmpty()) {
+            problem(member + ": Jackson merges " + joined(merged) + " into the property \"" + property.getName()
+                + "\". Rename the members so they share one Java name, or give each its own property name.");
+            return false;
+        }
+        if (property.getMutator() == null) {
+            problem(member + CARRIES + kind.label() + " but Jackson has no creator parameter, setter or field "
+                + "to set it. Add one of these members for the property.");
+            return false;
+        }
+        return true;
+    }
+
+    // Checks the asking value and the property type, then builds the question.
+    private void addQuestion(String member, Kind kind, BeanPropertyDefinition property, String asking) {
+        int before = problems.size();
+        if (asking.isBlank()) {
+            problem(member + ": " + kind.label() + " has a blank asking value. "
+                + "Set asking to the instructions the model receives.");
+        }
+        List<Entry> entries = checkType(member, kind, property);
+        if (problems.size() > before) {
+            return;
+        }
+        Question<?> question = build(member, kind, property.getName(), asking, entries);
+        if (question != null) {
+            questions.add(question);
+            questionNames.put(property.getInternalName(), property.getName());
+        }
     }
 
     // Field, getter, setter and creator parameters of one property. The getters throw when two
@@ -347,58 +371,70 @@ final class DecisionTypeParser {
     // serialized form of each constant, and each id must read back as the same constant.
     private List<Entry> entries(String member, Kind kind, Class<?> enumType) {
         Object[] constants = enumType.getEnumConstants();
-        String enumName = enumType.getSimpleName();
-        String entry = kind == Kind.CHOICE ? "option" : "level";
-        if (kind == Kind.CHOICE && constants.length == 0) {
+        checkConstantCount(member, kind, enumType.getSimpleName(), constants.length);
+        List<Entry> entries = new ArrayList<>();
+        for (Object constant : constants) {
+            Entry entry = entryOf(member, kind, enumType, (Enum<?>) constant);
+            if (entry != null) {
+                entries.add(entry);
+            }
+        }
+        return entries;
+    }
+
+    private void checkConstantCount(String member, Kind kind, String enumName, int count) {
+        if (kind == Kind.CHOICE && count == 0) {
             problem(member + ": " + enumName + " has no constants, so the choice has no options. "
                 + "Add one constant per option to " + enumName + ".");
         }
-        if (kind == Kind.RATING && constants.length < 2) {
-            problem(member + ": " + enumName + " has " + constants.length + (constants.length == 1 ? " constant" : " constants")
+        if (kind == Kind.RATING && count < 2) {
+            problem(member + ": " + enumName + " has " + count + (count == 1 ? " constant" : " constants")
                 + ", and a rating needs at least two levels. Add the levels to " + enumName + ", lowest first.");
         }
-        List<Entry> entries = new ArrayList<>();
-        for (Object constant : constants) {
-            String constantName = enumName + "." + ((Enum<?>) constant).name();
-            JsonNode node;
-            try {
-                node = mapper.valueToTree(constant);
-            } catch (JacksonException e) {
-                problem(member + ": " + constantName + " cannot be written under this mapper (" + messageOf(e) + "). "
-                    + "Make each constant of " + enumName + " writable as a JSON string.", e);
-                continue;
-            }
-            if (node == null || !node.isString()) {
-                problem(member + ": " + constantName + " serializes as " + node + " under this mapper, and an " + entry
-                    + " id must be a JSON string. Use a mapper that writes " + enumName + " constants as strings, "
-                    + "for example with EnumFeature.WRITE_ENUMS_USING_INDEX disabled.");
-                continue;
-            }
-            String id = node.stringValue();
-            Object readBack;
-            try {
-                readBack = mapper.treeToValue(node, enumType);
-            } catch (JacksonException e) {
-                problem(member + ": " + entry + " id \"" + id + "\" of " + constantName + " does not read back under this "
-                    + "mapper (" + messageOf(e) + "). Make each constant of " + enumName + " readable from its serialized form.", e);
-                continue;
-            }
-            if (readBack != constant) {
-                String other = readBack == null ? "null" : enumName + "." + ((Enum<?>) readBack).name();
-                problem(member + ": " + entry + " id \"" + id + "\" of " + constantName + " reads back as " + other
-                    + " under this mapper. Give each constant of " + enumName
-                    + " a distinct serialized form that the mapper reads back as the same constant.");
-                continue;
-            }
-            Described described = describedOf((Enum<?>) constant);
-            if (kind == Kind.CHOICE && described == null) {
-                problem(member + ": choice option " + constantName + " has no @Described. "
-                    + "Add @Described with the option's description to " + constantName + ".");
-                continue;
-            }
-            entries.add(new Entry(id, described == null ? null : described.value()));
+    }
+
+    // Reads the option or level of one enum constant. Returns null after reporting a problem with it.
+    private @Nullable Entry entryOf(String member, Kind kind, Class<?> enumType, Enum<?> constant) {
+        String enumName = enumType.getSimpleName();
+        String entry = kind == Kind.CHOICE ? "option" : "level";
+        String constantName = enumName + "." + constant.name();
+        JsonNode node;
+        try {
+            node = mapper.valueToTree(constant);
+        } catch (JacksonException e) {
+            problem(member + ": " + constantName + " cannot be written under this mapper (" + messageOf(e) + "). "
+                + "Make each constant of " + enumName + " writable as a JSON string.", e);
+            return null;
         }
-        return entries;
+        if (node == null || !node.isString()) {
+            problem(member + ": " + constantName + " serializes as " + node + " under this mapper, and an " + entry
+                + " id must be a JSON string. Use a mapper that writes " + enumName + " constants as strings, "
+                + "for example with EnumFeature.WRITE_ENUMS_USING_INDEX disabled.");
+            return null;
+        }
+        String id = node.stringValue();
+        Object readBack;
+        try {
+            readBack = mapper.treeToValue(node, enumType);
+        } catch (JacksonException e) {
+            problem(member + ": " + entry + " id \"" + id + "\" of " + constantName + " does not read back under this "
+                + "mapper (" + messageOf(e) + "). Make each constant of " + enumName + " readable from its serialized form.", e);
+            return null;
+        }
+        if (readBack != constant) {
+            String other = readBack == null ? "null" : enumName + "." + ((Enum<?>) readBack).name();
+            problem(member + ": " + entry + " id \"" + id + "\" of " + constantName + " reads back as " + other
+                + " under this mapper. Give each constant of " + enumName
+                + " a distinct serialized form that the mapper reads back as the same constant.");
+            return null;
+        }
+        Described described = describedOf(constant);
+        if (kind == Kind.CHOICE && described == null) {
+            problem(member + ": choice option " + constantName + " has no @Described. "
+                + "Add @Described with the option's description to " + constantName + ".");
+            return null;
+        }
+        return new Entry(id, described == null ? null : described.value());
     }
 
     private static @Nullable Described describedOf(Enum<?> constant) {
@@ -442,42 +478,52 @@ final class DecisionTypeParser {
     // declared fields, methods and parameters of the type, its superclasses and every interface
     // they implement. Reflection does not copy method annotations from an interface onto the
     // implementing method, so each interface is scanned on its own.
-    private void scanForOrphans(
-        Coverage coverage, Ignorals ignorals, Set<String> reportedIgnored, AnnotatedClass classInfo,
-        AccessorNamingStrategy naming, Map<String, BeanPropertyDefinition> byInternalName) {
-        Orphans orphans = new Orphans(ignorals, reportedIgnored, naming, byInternalName);
+    private void scanForOrphans(Ignorals ignorals, AnnotatedClass classInfo, AccessorNamingStrategy naming) {
+        Orphans orphans = new Orphans(ignorals, naming);
         for (Class<?> current : supertypes(type)) {
-            Set<String> componentFields = new HashSet<>();
-            if (current.isRecord()) {
-                // A record component annotation also lands on the private field, which Jackson does not use.
-                // The same annotation on the accessor and the canonical constructor parameter is what counts.
-                for (RecordComponent component : current.getRecordComponents()) {
-                    componentFields.add(component.getName());
-                }
-            }
-            for (Field field : current.getDeclaredFields()) {
-                if (field.isSynthetic() || componentFields.contains(field.getName()) || coverage.covers(field)
-                    || isKotlinBackingField(current, field, byInternalName)) {
-                    continue;
-                }
-                orphans.report(current, field.getName(), field, find(classInfo.fields(), field));
-            }
-            for (Method method : current.getDeclaredMethods()) {
-                if (method.isSynthetic() || method.isBridge()) {
-                    continue;
-                }
-                if (!coverage.covers(method)) {
-                    orphans.report(current, method.getName() + "()", method, find(classInfo.memberMethods(), method));
-                }
-                Constructor<?> copied = kotlinDataClassCopySource(current, method);
-                scanParameters(current, method, "parameter of " + method.getName() + "()", coverage, classInfo,
-                    orphans, copied);
-            }
+            scanFields(current, classInfo, orphans);
+            scanMethods(current, classInfo, orphans);
             for (Constructor<?> constructor : current.getDeclaredConstructors()) {
                 if (!constructor.isSynthetic()) {
-                    scanParameters(current, constructor, "constructor parameter", coverage, classInfo, orphans, null);
+                    scanParameters(current, constructor, "constructor parameter", classInfo, orphans, null);
                 }
             }
+        }
+    }
+
+    private void scanFields(Class<?> current, AnnotatedClass classInfo, Orphans orphans) {
+        Set<String> componentFields = recordComponentNames(current);
+        for (Field field : current.getDeclaredFields()) {
+            if (field.isSynthetic() || componentFields.contains(field.getName()) || coverage.covers(field)
+                || isKotlinBackingField(current, field)) {
+                continue;
+            }
+            orphans.report(current, field.getName(), field, find(classInfo.fields(), field));
+        }
+    }
+
+    // A record component annotation also lands on the private field, which Jackson does not use.
+    // The same annotation on the accessor and the canonical constructor parameter is what counts.
+    private static Set<String> recordComponentNames(Class<?> current) {
+        Set<String> names = new HashSet<>();
+        if (current.isRecord()) {
+            for (RecordComponent component : current.getRecordComponents()) {
+                names.add(component.getName());
+            }
+        }
+        return names;
+    }
+
+    private void scanMethods(Class<?> current, AnnotatedClass classInfo, Orphans orphans) {
+        for (Method method : current.getDeclaredMethods()) {
+            if (method.isSynthetic() || method.isBridge()) {
+                continue;
+            }
+            if (!coverage.covers(method)) {
+                orphans.report(current, method.getName() + "()", method, find(classInfo.memberMethods(), method));
+            }
+            Constructor<?> copied = kotlinDataClassCopySource(current, method);
+            scanParameters(current, method, "parameter of " + method.getName() + "()", classInfo, orphans, copied);
         }
     }
 
@@ -506,27 +552,26 @@ final class DecisionTypeParser {
     // Parameters of a data class copy() are skipped when they carry the same question annotations
     // as the matching constructor parameter, because the constructor scan reports that declaration.
     private void scanParameters(
-        Class<?> declaringClass, Executable executable, String role, Coverage coverage, AnnotatedClass classInfo,
+        Class<?> declaringClass, Executable executable, String role, AnnotatedClass classInfo,
         Orphans orphans, @Nullable Constructor<?> copied) {
         Parameter[] parameters = executable.getParameters();
         for (int index = 0; index < parameters.length; index++) {
-            if (coverage.covers(executable, index)) {
-                continue;
+            if (!coverage.covers(executable, index) && !repeatsCopySource(parameters[index], copied, index)) {
+                orphans.report(declaringClass, parameters[index].getName() + " (" + role + ")", parameters[index],
+                    parameterOf(classInfo, executable, index));
             }
-            if (copied != null
-                && questionAnnotationsOn(parameters[index]).equals(questionAnnotationsOn(copied.getParameters()[index]))) {
-                continue;
-            }
-            orphans.report(declaringClass, parameters[index].getName() + " (" + role + ")", parameters[index],
-                parameterOf(classInfo, executable, index));
         }
+    }
+
+    private static boolean repeatsCopySource(Parameter parameter, @Nullable Constructor<?> copied, int index) {
+        return copied != null
+            && questionAnnotationsOn(parameter).equals(questionAnnotationsOn(copied.getParameters()[index]));
     }
 
     // Kotlin's later default site repeats a constructor parameter annotation on the private backing
     // field. Jackson leaves that field out, but it is the same declaration, so it is skipped when its
     // question annotations match the parameter's.
-    private static boolean isKotlinBackingField(
-        Class<?> owner, Field field, Map<String, BeanPropertyDefinition> byInternalName) {
+    private boolean isKotlinBackingField(Class<?> owner, Field field) {
         BeanPropertyDefinition property = byInternalName.get(field.getName());
         if (property == null || !Modifier.isPrivate(field.getModifiers()) || !isKotlinClass(owner)) {
             return false;
@@ -596,18 +641,11 @@ final class DecisionTypeParser {
 
         private final Ignorals ignorals;
 
-        private final Set<String> reportedIgnored;
-
         private final AccessorNamingStrategy naming;
 
-        private final Map<String, BeanPropertyDefinition> byInternalName;
-
-        Orphans(Ignorals ignorals, Set<String> reportedIgnored, AccessorNamingStrategy naming,
-                Map<String, BeanPropertyDefinition> byInternalName) {
+        Orphans(Ignorals ignorals, AccessorNamingStrategy naming) {
             this.ignorals = ignorals;
-            this.reportedIgnored = reportedIgnored;
             this.naming = naming;
-            this.byInternalName = byInternalName;
         }
 
         void report(Class<?> declaringClass, String memberLabel, AnnotatedElement element,
@@ -617,14 +655,12 @@ final class DecisionTypeParser {
                 return;
             }
             String implicit = jacksonMember == null ? null : implicitName(jacksonMember, naming);
-            boolean ignored = jacksonMember == null
-                ? element.isAnnotationPresent(JsonIgnore.class) && element.getAnnotation(JsonIgnore.class).value()
-                : introspector.hasIgnoreMarker(config, jacksonMember) || ignorals.ignoresName(implicit);
+            boolean ignored = isIgnored(element, jacksonMember, implicit);
             if (ignored && implicit != null && reportedIgnored.contains(implicit)) {
                 // The property itself was already reported as ignored.
                 return;
             }
-            String prefix = declaringClass.getSimpleName() + "." + memberLabel + ": carries " + labels(kinds);
+            String prefix = declaringClass.getSimpleName() + "." + memberLabel + CARRIES + labels(kinds);
             if (ignored) {
                 problem(prefix + IGNORED);
                 return;
@@ -640,6 +676,15 @@ final class DecisionTypeParser {
                 return;
             }
             problem(prefix + NOT_A_PROPERTY);
+        }
+
+        // Without a Jackson member, the check reads an explicit @JsonIgnore on the element.
+        private boolean isIgnored(AnnotatedElement element, @Nullable AnnotatedMember jacksonMember,
+                                  @Nullable String implicit) {
+            if (jacksonMember == null) {
+                return element.isAnnotationPresent(JsonIgnore.class) && element.getAnnotation(JsonIgnore.class).value();
+            }
+            return introspector.hasIgnoreMarker(config, jacksonMember) || ignorals.ignoresName(implicit);
         }
     }
 
