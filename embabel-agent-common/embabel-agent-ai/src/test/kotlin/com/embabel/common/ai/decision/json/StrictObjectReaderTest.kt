@@ -39,7 +39,6 @@ private data class Sample(
     val nested: Nested? = null,
     val tags: List<String>? = null,
     val others: List<Nested>? = null,
-    val extras: Map<String, String>? = null,
 )
 
 private data class Nested(val label: String)
@@ -47,12 +46,10 @@ private data class Nested(val label: String)
 private val SAMPLE_READER = StrictObjectReader(
     Sample::class.java,
     required = listOf("name"),
-    optional = listOf("flag", "score", "count", "nested", "tags", "others", "extras", "forgotten"),
+    optional = listOf("flag", "score", "count", "nested", "tags", "others", "forgotten"),
 )
 
 private val NESTED_READER = StrictObjectReader(Nested::class.java, required = listOf("label"))
-
-private val EXTRAS_READER = StrictObjectReader.anyMembers(Map::class.java)
 
 private fun readNested(read: ((String, StrictObjectReader.MemberValue) -> Unit) -> Unit): Nested {
     var label: String? = null
@@ -80,9 +77,6 @@ private class SampleDeserializer : ValueDeserializer<Sample>() {
                 "others" -> sample = sample.copy(
                     others = buildList { value.readArray { add(it.readValue(Nested::class.java)) } },
                 )
-                "extras" -> sample = sample.copy(
-                    extras = buildMap { value.readObject(EXTRAS_READER) { key, entry -> put(key, entry.string()) } },
-                )
             }
         }
         return sample
@@ -107,7 +101,7 @@ class StrictObjectReaderTest {
     @Test
     fun `reads every member kind in any order`() {
         val json = """
-            {"extras":{"a":"1","b":"2"},"others":[{"label":"o1"},{"label":"o2"}],"tags":["x","y"],
+            {"others":[{"label":"o1"},{"label":"o2"}],"tags":["x","y"],
              "nested":{"label":"n"},"count":3,"score":0.25,"flag":true,"name":"sample"}
         """.trimIndent()
         assertEquals(
@@ -119,7 +113,6 @@ class StrictObjectReaderTest {
                 nested = Nested("n"),
                 tags = listOf("x", "y"),
                 others = listOf(Nested("o1"), Nested("o2")),
-                extras = mapOf("a" to "1", "b" to "2"),
             ),
             read(json),
         )
@@ -151,11 +144,6 @@ class StrictObjectReaderTest {
             """{"name":"a","others":[{"label":"x","label":"y"}]}""",
             "Duplicate member 'label' in Nested",
         )
-    }
-
-    @Test
-    fun `duplicate key in an object with open member names is rejected`() {
-        assertRejects("""{"name":"a","extras":{"k":"1","k":"2"}}""", "Duplicate member 'k' in Map")
     }
 
     @Test

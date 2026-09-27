@@ -43,7 +43,7 @@ import tools.jackson.databind.DeserializationContext
 internal class StrictObjectReader private constructor(
     val target: Class<*>,
     private val required: Set<String>,
-    private val allowed: Set<String>?,
+    private val allowed: Set<String>,
 ) {
 
     /**
@@ -85,7 +85,7 @@ internal class StrictObjectReader private constructor(
         var name = parser.nextName()
         while (name != null) {
             if (!seen.add(name)) duplicateMember(context, name)
-            if (allowed != null && name !in allowed) unknownMember(context, name)
+            if (name !in allowed) unknownMember(context, name)
             parser.nextToken()
             val value = MemberValue(name, this, parser, context)
             handler(name, value)
@@ -265,15 +265,5 @@ internal class StrictObjectReader private constructor(
             check(!read) { "Member '$name' in ${owner.typeName} was read twice" }
             read = true
         }
-    }
-
-    companion object {
-        /**
-         * Creates a reader for an object used as a map, where any member name is allowed and
-         * none is required. Repeated names are still rejected.
-         *
-         * @param target the type named in messages
-         */
-        fun anyMembers(target: Class<*>): StrictObjectReader = StrictObjectReader(target = target, required = emptySet(), allowed = null)
     }
 }
