@@ -92,6 +92,7 @@ internal class StrictObjectReader private constructor(
             value.checkRead()
             name = parser.nextName()
         }
+        // A text parser fails on truncated input by itself; a token buffer can simply run out.
         if (parser.currentToken() != JsonToken.END_OBJECT) {
             fail(context, "Unexpected end of input in %s", typeName)
         }
@@ -170,7 +171,7 @@ internal class StrictObjectReader private constructor(
          */
         fun double(): Double {
             markRead()
-            if (!parser.currentToken().isNumeric) invalid("a number")
+            if (parser.currentToken()?.isNumeric != true) invalid("a number")
             val number = parser.getDoubleValue()
             if (!number.isFinite()) invalid("a finite number")
             return number
@@ -226,6 +227,7 @@ internal class StrictObjectReader private constructor(
             while (true) {
                 when (parser.nextToken()) {
                     JsonToken.END_ARRAY -> return
+                    // Reached only from a token buffer that runs out; a text parser fails first.
                     null -> owner.fail(context, "Unexpected end of input in %s", owner.typeName)
                     else -> {
                         val element = MemberValue("$name[$index]", owner, parser, context)
