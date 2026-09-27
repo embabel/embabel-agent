@@ -115,7 +115,7 @@ class DecisionCapabilities private constructor(
             "maxQuestions=$maxQuestions, maxInputCharacters=$maxInputCharacters)"
 
     @JsonAnySetter
-    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionCapabilities", name)
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionCapabilities", name, value)
 
     /**
      * Creates decision capabilities.

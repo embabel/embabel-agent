@@ -42,7 +42,7 @@ data class RatingLevel @JvmOverloads constructor(val id: String, val description
     }
 
     @JsonAnySetter
-    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingLevel", name)
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingLevel", name, value)
 
     private companion object {
         // JSON always carries both members.
@@ -84,7 +84,7 @@ data class RatingScore @JsonCreator constructor(
     }
 
     @JsonAnySetter
-    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingScore", name)
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingScore", name, value)
 }
 
 /**
@@ -105,7 +105,7 @@ data class LevelProbability @JsonCreator constructor(
     }
 
     @JsonAnySetter
-    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("LevelProbability", name)
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("LevelProbability", name, value)
 }
 
 /**
@@ -201,7 +201,7 @@ sealed interface RatingResult {
         private fun provenanceJson(): ProvenanceJson = ProvenanceJson(provenance)
 
         @JsonAnySetter
-        private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingResult", name)
+        private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingResult", name, value)
 
         private companion object {
             // An explicit null distribution reads the same as an absent one.
@@ -226,7 +226,7 @@ sealed interface RatingResult {
         private fun provenanceJson(): ProvenanceJson = ProvenanceJson(provenance)
 
         @JsonAnySetter
-        private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingResult", name)
+        private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingResult", name, value)
 
         private companion object {
             @JvmStatic
@@ -245,7 +245,7 @@ sealed interface RatingResult {
         private fun reasonJson(): FailureReasonJson = FailureReasonJson.of(reason)
 
         @JsonAnySetter
-        private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingResult", name)
+        private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingResult", name, value)
 
         private companion object {
             @JvmStatic

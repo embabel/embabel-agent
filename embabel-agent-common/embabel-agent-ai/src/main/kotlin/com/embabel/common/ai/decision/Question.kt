@@ -119,7 +119,7 @@ class PropositionQuestionSpec private constructor(
     override fun toString(): String = "PropositionQuestionSpec(name=$name, kind=$kind)"
 
     @JsonAnySetter
-    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("PropositionQuestionSpec", name)
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("PropositionQuestionSpec", name, value)
 
     private companion object {
         // Reads a question from JSON through its builder, which runs the same checks.
@@ -209,7 +209,7 @@ class ChoiceQuestionSpec private constructor(
     private fun optionsJson(): List<OptionJson> = options.map(::OptionJson)
 
     @JsonAnySetter
-    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("ChoiceQuestionSpec", name)
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("ChoiceQuestionSpec", name, value)
 
     private companion object {
         // Reads a question from JSON through its builder, which runs the same checks.
@@ -315,7 +315,7 @@ class RatingQuestionSpec private constructor(
     override fun toString(): String = "RatingQuestionSpec(name=$name, kind=$kind)"
 
     @JsonAnySetter
-    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingQuestionSpec", name)
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingQuestionSpec", name, value)
 
     private companion object {
         // Reads a question from JSON through its builder, which runs the same checks.
