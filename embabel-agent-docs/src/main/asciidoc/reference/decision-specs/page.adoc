@@ -4,7 +4,7 @@
 A decision spec is an ordered set of named questions that a model answers in one decision.
 A decision response holds the model's answer to each question.
 The types are in `embabel-agent-ai`, in the package `com.embabel.common.ai.decision`.
-The JSON bindings are in the package `com.embabel.common.ai.decision.json`.
+They carry their own Jackson annotations.
 
 This page covers building, serializing and reading specs and responses.
 It does not cover running a spec against a decision service.
@@ -465,59 +465,31 @@ The response from the typed lookup example writes this JSON, shown here with lin
 Spec and request JSON include each question's instructions.
 Response JSON holds no instructions and no input.
 
-==== Jackson registration
+==== Reading and writing with Jackson
+
+Any Jackson 3 mapper reads and writes the decision types, with no module or other registration:
 
 [source,java]
 ----
 include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/com/embabel/common/ai/decision/json/DecisionJsonJavaTest.java[tag=jackson,indent=0]
 ----
 
-`DecisionJacksonModule` reads and writes `Question` and its three classes, `DecisionSpec`, `DecisionRequest`, `DecisionOptions`, `DecisionCapabilities`, `DecisionResponse`, `DecisionAnswer` and its three classes, and `RatingResult` and its three classes.
-It registers no binding for any other type.
-`PropositionResult`, `ClassificationResult` and `ModelProvenance` keep their existing JSON everywhere outside a decision response.
-Writers use the fixed member names in a fixed order and ignore the mapper's naming strategy.
+A Spring Boot application's auto-configured mapper and the platform's mapper from `EmbabelObjectMapperHolder.createDefault()` work the same way.
+The member names are fixed, so the mapper's naming strategy changes neither the written nor the accepted names.
+`PropositionResult`, `ClassificationResult`, `ModelProvenance` and `Category` keep their own JSON outside decision JSON.
 
-The module is listed for Java's `ServiceLoader`, so `JsonMapper.builder().findAndAddModules()` adds it.
-Spring Boot's Jackson auto-configuration finds modules the same way.
-A Spring Boot application's auto-configured mapper reads and writes decision types with no bean or other setup.
-The platform's own mapper from `EmbabelObjectMapperHolder.createDefault()` also adds the module.
+Reading applies these rules:
 
-==== Strict parsing
-
-Every decision deserializer fails with `MismatchedInputException` on input the types do not allow:
-
-|===
-|Input |Message
-
-|A repeated member
-|`Duplicate member '<name>' in <Type>`
-
-|An unknown member
-|`Unknown member '<name>' in <Type>`
-
-|A missing required member
-|`Missing required member '<name>' in <Type>`
-
-|A value of the wrong JSON type, or an unknown kind, mode, status, reason or statistic
-|`Member '<name>' in <Type> must be <expected>`
-
-|A value a builder or factory refuses
-|The builder's message, with the `IllegalArgumentException` as the cause
-|===
-
-`<Type>` is the simple class name of the type being read.
-These checks run on the token stream, so they hold whatever the mapper's duplicate and unknown-property settings are.
-A kind or mode that appears twice in one array also fails.
+* An unknown member fails, whatever the mapper's `FAIL_ON_UNKNOWN_PROPERTIES` setting is.
 A member that a later version adds fails in a reader that does not know it.
-An answer name that appears twice in `answers` also fails.
-A response whose answers are out of spec order fails the `s1-` id check.
+* A missing required member, an unknown kind, mode, status, reason or statistic, and `answers` written as an object or a single value all fail.
+* Every value goes through the same builders and factories as Java code, so a value they refuse fails with the builder's message and the `IllegalArgumentException` as the cause.
+* Definition ids are checked on read.
+A question's `d1-` id and a spec's `s1-` id are computed from their definitions.
+A response's `s1-` id must match the ids of its answers in order, so a dropped, extra or reordered answer fails.
+* A member that appears twice in one object follows Jackson's default, where the last value wins.
 
-===== Parsed trees
-
-`readTree` keeps only the last value of a repeated member.
-A decision type read from that tree with `treeToValue` cannot detect the duplicate.
-Every other check still runs on a tree.
-Read decision JSON with `readValue` from text, bytes or a stream to detect duplicate members.
+Each failure is a Jackson `DatabindException`.
 
 ==== Projection
 
