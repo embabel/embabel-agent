@@ -15,11 +15,13 @@
  */
 package com.embabel.common.ai.decision.annotated;
 
+import com.embabel.common.ai.decision.Question;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.util.List;
 
@@ -50,38 +52,43 @@ class AnnotatedDecisionsCacheTest {
     void defaultsDoesNotHoldTheClassLoaderOfATypeItRead() throws Exception {
         AnnotatedDecisions decisions = AnnotatedDecisions.defaults();
 
-        WeakReference<ClassLoader> loader = readInThrowawayLoader(decisions);
+        ReferenceQueue<ClassLoader> queue = new ReferenceQueue<>();
+        WeakReference<ClassLoader> loader = readInThrowawayLoader(decisions, queue);
         // The mapper's own type and deserializer caches also hold the class. They are Jackson's and are
         // cleared here so the check covers the decision cache only.
         decisions.mapper().clearCaches();
 
-        assertCollected(loader);
+        assertCollected(loader, queue);
     }
 
     @Test
     void aRetainedInstanceDoesNotHoldTheClassLoaderOfATypeItRead() throws Exception {
         AnnotatedDecisions decisions = AnnotatedDecisions.using(JsonMapper.builder().build());
 
-        WeakReference<ClassLoader> loader = readInThrowawayLoader(decisions);
+        ReferenceQueue<ClassLoader> queue = new ReferenceQueue<>();
+        WeakReference<ClassLoader> loader = readInThrowawayLoader(decisions, queue);
         decisions.mapper().clearCaches();
 
-        assertCollected(loader);
+        assertCollected(loader, queue);
         assertEquals(List.of("urgent"), decisions.of(UnloadableTriage.class).spec().getQuestions().stream()
-            .map(question -> question.getName()).toList());
+            .map(Question::getName).toList());
     }
 
-    private static WeakReference<ClassLoader> readInThrowawayLoader(AnnotatedDecisions decisions) throws Exception {
+    private static WeakReference<ClassLoader> readInThrowawayLoader(
+        AnnotatedDecisions decisions, ReferenceQueue<ClassLoader> queue) throws Exception {
         ClassLoader loader = new SingleClassLoader(UnloadableTriage.class);
         Class<?> copy = loader.loadClass(UnloadableTriage.class.getName());
         assertNotSame(UnloadableTriage.class, copy);
         assertSame(decisions.of(copy), decisions.of(copy));
-        return new WeakReference<>(loader);
+        return new WeakReference<>(loader, queue);
     }
 
-    private static void assertCollected(WeakReference<ClassLoader> loader) throws InterruptedException {
+    // Requests a collection and waits up to 20 ms for the reference to be enqueued, up to 50 times.
+    private static void assertCollected(WeakReference<ClassLoader> loader, ReferenceQueue<ClassLoader> queue)
+        throws InterruptedException {
         for (int attempt = 0; attempt < 50 && loader.get() != null; attempt++) {
             System.gc();
-            Thread.sleep(20);
+            queue.remove(20);
         }
         assertNull(loader.get(), "The class loader of a type read by the cache is still reachable");
     }

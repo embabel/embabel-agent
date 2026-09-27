@@ -197,10 +197,12 @@ class AnnotatedProjectionTest {
         AnnotatedDecision<SourcedTriage> sourced = AnnotatedDecisions.defaults().of(SourcedTriage.class);
         DecisionResponse response = answeredStub().build().ask(INPUT, sourced.spec());
 
+        Map<String, Object> others = Map.of("sourceId", "ticket-42");
+
         DecisionProjectionException withoutMap =
             assertThrows(DecisionProjectionException.class, () -> sourced.project(response));
         DecisionProjectionException partial = assertThrows(DecisionProjectionException.class,
-            () -> sourced.project(response, Map.of("sourceId", "ticket-42")));
+            () -> sourced.project(response, others));
 
         assertEquals("SourcedTriage needs values for [sourceId, revision]. Pass them in otherProperties.",
             withoutMap.getMessage());
@@ -213,9 +215,10 @@ class AnnotatedProjectionTest {
     void unknownOtherPropertiesAreRejected() {
         AnnotatedDecision<SourcedTriage> sourced = AnnotatedDecisions.defaults().of(SourcedTriage.class);
         DecisionResponse response = answeredStub().build().ask(INPUT, sourced.spec());
+        Map<String, Object> others = Map.of("sourceId", "ticket-42", "revision", 3, "source_id", "x");
 
         DecisionProjectionException e = assertThrows(DecisionProjectionException.class,
-            () -> sourced.project(response, Map.of("sourceId", "ticket-42", "revision", 3, "source_id", "x")));
+            () -> sourced.project(response, others));
 
         assertEquals("SourcedTriage has no property [source_id] to set from otherProperties. "
             + "Use only the keys [sourceId, revision].", e.getMessage());
@@ -225,9 +228,10 @@ class AnnotatedProjectionTest {
     void questionNamedOtherPropertiesAreRejected() {
         AnnotatedDecision<SourcedTriage> sourced = AnnotatedDecisions.defaults().of(SourcedTriage.class);
         DecisionResponse response = answeredStub().build().ask(INPUT, sourced.spec());
+        Map<String, Object> others = Map.of("sourceId", "ticket-42", "revision", 3, "urgent", false);
 
         DecisionProjectionException e = assertThrows(DecisionProjectionException.class,
-            () -> sourced.project(response, Map.of("sourceId", "ticket-42", "revision", 3, "urgent", false)));
+            () -> sourced.project(response, others));
 
         assertEquals("SourcedTriage takes [urgent] from the response answers. "
             + "Remove them from otherProperties.", e.getMessage());
@@ -237,13 +241,15 @@ class AnnotatedProjectionTest {
     void everyOtherPropertyProblemIsReportedAtOnce() {
         AnnotatedDecision<SourcedTriage> sourced = AnnotatedDecisions.defaults().of(SourcedTriage.class);
         DecisionResponse response = answeredStub().build().ask(INPUT, sourced.spec());
+        Map<String, Object> others = Map.of("urgent", false, "extra", 1);
 
         DecisionProjectionException e = assertThrows(DecisionProjectionException.class,
-            () -> sourced.project(response, Map.of("urgent", false, "extra", 1)));
+            () -> sourced.project(response, others));
 
-        assertEquals("SourcedTriage needs values for [sourceId, revision]. Pass them in otherProperties.\n"
-            + "SourcedTriage has no property [extra] to set from otherProperties. Use only the keys [sourceId, revision].\n"
-            + "SourcedTriage takes [urgent] from the response answers. Remove them from otherProperties.",
+        assertEquals("""
+            SourcedTriage needs values for [sourceId, revision]. Pass them in otherProperties.
+            SourcedTriage has no property [extra] to set from otherProperties. Use only the keys [sourceId, revision].
+            SourcedTriage takes [urgent] from the response answers. Remove them from otherProperties.""",
             e.getMessage());
     }
 
@@ -264,9 +270,10 @@ class AnnotatedProjectionTest {
     void ignoredPropertiesAreNotOtherPropertyKeys() {
         AnnotatedDecision<TriageWithIgnored> decision = AnnotatedDecisions.defaults().of(TriageWithIgnored.class);
         DecisionResponse response = answeredStub().build().ask(INPUT, decision.spec());
+        Map<String, Object> others = Map.of("internalNote", "x");
 
         DecisionProjectionException e = assertThrows(DecisionProjectionException.class,
-            () -> decision.project(response, Map.of("internalNote", "x")));
+            () -> decision.project(response, others));
 
         assertEquals("TriageWithIgnored has no property [internalNote] to set from otherProperties. "
             + "Use only the keys [].", e.getMessage());
@@ -295,9 +302,10 @@ class AnnotatedProjectionTest {
     void valuesThatDoNotFitTheTypeKeepTheJacksonCause() {
         AnnotatedDecision<SourcedTriage> sourced = AnnotatedDecisions.defaults().of(SourcedTriage.class);
         DecisionResponse response = answeredStub().build().ask(INPUT, sourced.spec());
+        Map<String, Object> others = Map.of("sourceId", "ticket-42", "revision", "not a number");
 
         DecisionProjectionException e = assertThrows(DecisionProjectionException.class,
-            () -> sourced.project(response, Map.of("sourceId", "ticket-42", "revision", "not a number")));
+            () -> sourced.project(response, others));
 
         assertEquals("Cannot map the answered values and otherProperties to " + SourcedTriage.class.getName(),
             e.getMessage());
@@ -306,8 +314,10 @@ class AnnotatedProjectionTest {
 
     @Test
     void genericRecordIsRejectedWhenRead() {
+        AnnotatedDecisions defaults = AnnotatedDecisions.defaults();
+
         AnnotatedDecisionException e = assertThrows(AnnotatedDecisionException.class,
-            () -> AnnotatedDecisions.defaults().of(Picked.class));
+            () -> defaults.of(Picked.class));
 
         assertSame(Picked.class, e.type());
         assertEquals(
