@@ -15,7 +15,6 @@
  */
 package com.embabel.common.ai.decision.json
 
-import com.embabel.common.ai.classification.Category
 import com.embabel.common.ai.decision.ChoiceQuestionSpec
 import com.embabel.common.ai.decision.DecisionCapabilities
 import com.embabel.common.ai.decision.DecisionOptions
@@ -26,7 +25,6 @@ import com.embabel.common.ai.decision.PropositionQuestionSpec
 import com.embabel.common.ai.decision.Question
 import com.embabel.common.ai.decision.QuestionKind
 import com.embabel.common.ai.decision.Questions
-import com.embabel.common.ai.decision.RatingLevel
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.json.StrictObjectReader.MemberValue
 import org.jetbrains.annotations.ApiStatus
@@ -36,10 +34,8 @@ import tools.jackson.databind.DeserializationContext
 import tools.jackson.databind.SerializationContext
 import tools.jackson.databind.ValueDeserializer
 import tools.jackson.databind.ValueSerializer
-import tools.jackson.databind.exc.MismatchedInputException
 import tools.jackson.databind.module.SimpleDeserializers
 import tools.jackson.databind.module.SimpleSerializers
-import java.util.Locale
 
 /**
  * The JSON bindings for the spec side of the decision types: the three question classes and
@@ -88,16 +84,6 @@ internal object SpecJson {
     }
 }
 
-// Wire names. Question kinds take theirs from QuestionKind; execution modes use the lower-case
-// constant name, which is already snake case.
-private fun ExecutionMode.wireName(): String = name.lowercase(Locale.ROOT)
-
-// Reverse lookups from wire name to constant, in declaration order so messages list them that way.
-private val KINDS_BY_WIRE_NAME: Map<String, QuestionKind> = QuestionKind.entries.associateBy { it.wireName }
-private val MODES_BY_WIRE_NAME: Map<String, ExecutionMode> = ExecutionMode.entries.associateBy { it.wireName() }
-
-private val KIND_EXPECTED = "one of " + KINDS_BY_WIRE_NAME.keys.joinToString(", ")
-
 private val QUESTION_MEMBERS = listOf("kind", "name", "instructions")
 
 // Reads a question whose kind is not known in advance. The kind-specific members are optional
@@ -112,8 +98,6 @@ private val KIND_READERS: Map<QuestionKind, StrictObjectReader> = mapOf(
     QuestionKind.RATING to StrictObjectReader(RatingQuestionSpec::class.java, QUESTION_MEMBERS + "levels"),
 )
 
-private val OPTION_READER = StrictObjectReader(Category::class.java, listOf("id", "description"))
-private val LEVEL_READER = StrictObjectReader(RatingLevel::class.java, listOf("id", "description"))
 private val SPEC_READER = StrictObjectReader(DecisionSpec::class.java, listOf("questions"))
 private val REQUEST_READER = StrictObjectReader(DecisionRequest::class.java, listOf("input", "spec"))
 private val OPTIONS_READER = StrictObjectReader(DecisionOptions::class.java, listOf("executionModes"))
@@ -122,37 +106,6 @@ private val CAPABILITIES_READER = StrictObjectReader(
     required = listOf("questionKinds", "executionModes"),
     optional = listOf("maxQuestions", "maxInputCharacters"),
 )
-
-// Starts reading one object with the given reader and passes each member to the handler. It is
-// either a top-level read on the parser or a nested read through a MemberValue.
-private typealias ObjectRead = (StrictObjectReader, (String, MemberValue) -> Unit) -> Unit
-
-private fun topLevel(parser: JsonParser, context: DeserializationContext): ObjectRead =
-    { reader, handler -> reader.read(parser, context, handler) }
-
-private fun nested(value: MemberValue): ObjectRead =
-    { reader, handler -> value.readObject(reader, handler) }
-
-// Runs a public builder or factory and turns its validation failure into an input mismatch that
-// keeps the message. The message is passed unformatted, so a '%' in it is harmless.
-private inline fun <T> construct(context: DeserializationContext, target: Class<*>, make: () -> T): T =
-    try {
-        make()
-    } catch (e: IllegalArgumentException) {
-        throw MismatchedInputException.from(context.parser, target, e.message ?: "Invalid ${target.simpleName}")
-            .withCause(e)
-    }
-
-private fun writeEntries(generator: JsonGenerator, member: String, entries: List<Pair<String, String>>) {
-    generator.writeArrayPropertyStart(member)
-    for ((id, description) in entries) {
-        generator.writeStartObject()
-        generator.writeStringProperty("id", id)
-        generator.writeStringProperty("description", description)
-        generator.writeEndObject()
-    }
-    generator.writeEndArray()
-}
 
 private fun writeQuestion(generator: JsonGenerator, question: Question<*>) {
     generator.writeStartObject()
@@ -181,23 +134,6 @@ private fun writeWireNames(generator: JsonGenerator, member: String, wireNames: 
     generator.writeEndArray()
 }
 
-private fun readEntries(value: MemberValue, reader: StrictObjectReader): List<Pair<String, String>> {
-    val entries = ArrayList<Pair<String, String>>()
-    value.readArray { element ->
-        var id: String? = null
-        var description: String? = null
-        element.readObject(reader) { member, entry ->
-            when (member) {
-                "id" -> id = entry.string()
-                "description" -> description = entry.string()
-            }
-        }
-        // Both members are required, so the reader has already rejected an entry missing either.
-        entries += id!! to description!!
-    }
-    return entries
-}
-
 // Reads a JSON array of wire names into a set. Unknown names and repeats are both rejected, so
 // the set always has one constant per element.
 private fun <E : Enum<E>> readWireNames(value: MemberValue, byWireName: Map<String, E>): Set<E> {
@@ -211,7 +147,7 @@ private fun <E : Enum<E>> readWireNames(value: MemberValue, byWireName: Map<Stri
 }
 
 // Collects the members of one question in document order, then builds it once the object is closed.
-private class QuestionParts(private val expected: QuestionKind?) {
+private class QuestionParts(private val context: DeserializationContext, private val expected: QuestionKind?) {
     var kind: QuestionKind? = null
     var name: String? = null
     var instructions: String? = null
@@ -222,28 +158,19 @@ private class QuestionParts(private val expected: QuestionKind?) {
 
     fun accept(member: String, value: MemberValue) {
         when (member) {
-            "kind" -> kind = readKind(value)
+            "kind" -> kind = readKind(value, expected)
             "name" -> name = value.string()
             "instructions" -> instructions = value.string()
-            "options" -> options = readEntries(value, OPTION_READER)
-            "levels" -> levels = readEntries(value, LEVEL_READER)
+            "options" -> options = readEntries(context, value, OPTION_READER) { id, description -> id to description }
+            "levels" -> levels = readEntries(context, value, LEVEL_READER) { id, description -> id to description }
         }
     }
 
-    private fun readKind(value: MemberValue): QuestionKind {
-        val wireName = value.string()
-        if (expected != null && wireName != expected.wireName) value.invalid(expected.wireName)
-        return KINDS_BY_WIRE_NAME[wireName] ?: value.invalid(KIND_EXPECTED)
-    }
-
-    fun build(context: DeserializationContext): Question<*> {
+    fun build(): Question<*> {
         // The reader has already required kind, name and instructions.
         val kind = kind!!
         val kindReader = KIND_READERS.getValue(kind)
-        if (kind != QuestionKind.CHOICE && options != null) kindReader.unknownMember(context, "options")
-        if (kind != QuestionKind.RATING && levels != null) kindReader.unknownMember(context, "levels")
-        if (kind == QuestionKind.CHOICE && options == null) kindReader.missingMember(context, "options")
-        if (kind == QuestionKind.RATING && levels == null) kindReader.missingMember(context, "levels")
+        checkOptionsAndLevels(context, kindReader, kind, options, levels)
         return construct(context, kindReader.target) {
             val named = Questions.named(name!!)
             when (kind) {
@@ -260,9 +187,9 @@ private class QuestionParts(private val expected: QuestionKind?) {
 }
 
 private fun readQuestion(context: DeserializationContext, expected: QuestionKind?, read: ObjectRead): Question<*> {
-    val parts = QuestionParts(expected)
+    val parts = QuestionParts(context, expected)
     read(parts.reader, parts::accept)
-    return parts.build(context)
+    return parts.build()
 }
 
 private fun readSpec(context: DeserializationContext, read: ObjectRead): DecisionSpec {
@@ -300,7 +227,7 @@ private object DecisionRequestSerializer : ValueSerializer<DecisionRequest>() {
 private object DecisionOptionsSerializer : ValueSerializer<DecisionOptions>() {
     override fun serialize(value: DecisionOptions, generator: JsonGenerator, context: SerializationContext) {
         generator.writeStartObject()
-        writeWireNames(generator, "executionModes", value.executionModes.map { it.wireName() })
+        writeWireNames(generator, "executionModes", value.executionModes.map { it.snakeName })
         generator.writeEndObject()
     }
 }
@@ -309,7 +236,7 @@ private object DecisionCapabilitiesSerializer : ValueSerializer<DecisionCapabili
     override fun serialize(value: DecisionCapabilities, generator: JsonGenerator, context: SerializationContext) {
         generator.writeStartObject()
         writeWireNames(generator, "questionKinds", value.questionKinds.map { it.wireName })
-        writeWireNames(generator, "executionModes", value.executionModes.map { it.wireName() })
+        writeWireNames(generator, "executionModes", value.executionModes.map { it.snakeName })
         value.maxQuestions?.let { generator.writeNumberProperty("maxQuestions", it) }
         value.maxInputCharacters?.let { generator.writeNumberProperty("maxInputCharacters", it) }
         generator.writeEndObject()

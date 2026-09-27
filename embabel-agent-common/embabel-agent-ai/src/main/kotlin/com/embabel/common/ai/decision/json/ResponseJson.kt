@@ -37,10 +37,8 @@ import tools.jackson.databind.DeserializationContext
 import tools.jackson.databind.SerializationContext
 import tools.jackson.databind.ValueDeserializer
 import tools.jackson.databind.ValueSerializer
-import tools.jackson.databind.exc.MismatchedInputException
 import tools.jackson.databind.module.SimpleDeserializers
 import tools.jackson.databind.module.SimpleSerializers
-import java.util.Locale
 
 /**
  * The JSON bindings for the response side of the decision types: [DecisionResponse],
@@ -111,14 +109,10 @@ private const val NO_MATCH = "no_match"
 private const val INCONCLUSIVE = "inconclusive"
 private const val FAILURE = "failure"
 
-// Execution modes, failure reasons and rating statistics use the lower-case constant name, which
-// is already snake case. Question kinds take theirs from QuestionKind.
-private val Enum<*>.snakeName: String get() = name.lowercase(Locale.ROOT)
-
+// Failure reasons and rating statistics use the lower-case constant name, which is already snake
+// case, the same as execution modes. Question kinds take theirs from QuestionKind.
 private fun <E : Enum<E>> bySnakeName(entries: List<E>): Map<String, E> = entries.associateBy { it.snakeName }
 
-private val KINDS_BY_WIRE_NAME: Map<String, QuestionKind> = QuestionKind.entries.associateBy { it.wireName }
-private val MODES_BY_WIRE_NAME: Map<String, ExecutionMode> = bySnakeName(ExecutionMode.entries)
 private val REASONS_BY_WIRE_NAME: Map<String, FailureReason> = bySnakeName(FailureReason.entries)
 private val STATISTICS_BY_WIRE_NAME: Map<String, RatingStatistic> = bySnakeName(RatingStatistic.entries)
 
@@ -180,8 +174,6 @@ private val PROVENANCE_READER = StrictObjectReader(
 )
 private val PROBABILITY_READER = StrictObjectReader(LevelProbability::class.java, listOf("levelId", "probability"))
 private val SCORE_READER = StrictObjectReader(RatingScore::class.java, listOf("value", "statistic"))
-private val OPTION_READER = StrictObjectReader(Category::class.java, listOf("id", "description"))
-private val LEVEL_READER = StrictObjectReader(RatingLevel::class.java, listOf("id", "description"))
 
 private val RESPONSE_READER = StrictObjectReader(
     DecisionResponse::class.java,
@@ -199,35 +191,8 @@ private val ANSWER_IN_RESPONSE_READER =
 private val ANSWER_READER =
     StrictObjectReader(DecisionAnswer::class.java, listOf("kind", "name", "definitionId", "outcome"), listOf("options", "levels"))
 
-private val KIND_EXPECTED = "one of " + KINDS_BY_WIRE_NAME.keys.joinToString(", ")
-
-// Starts reading one object with the given reader: either a top-level read on the parser or a
-// nested read through a MemberValue.
-private typealias ObjectReadStart = (StrictObjectReader, (String, MemberValue) -> Unit) -> Unit
-
-// Runs a validating constructor or factory and turns its failure into an input mismatch that
-// keeps the message. The message is passed unformatted, so a '%' in it is harmless.
-private inline fun <T> construct(context: DeserializationContext, target: Class<*>, make: () -> T): T =
-    try {
-        make()
-    } catch (e: IllegalArgumentException) {
-        throw MismatchedInputException.from(context.parser, target, e.message ?: "Invalid ${target.simpleName}")
-            .withCause(e)
-    }
-
 private fun <E> readWireName(value: MemberValue, byWireName: Map<String, E>): E =
     byWireName[value.string()] ?: value.invalid("one of " + byWireName.keys.joinToString(", "))
-
-private fun writeEntries(generator: JsonGenerator, member: String, entries: List<Pair<String, String>>) {
-    generator.writeArrayPropertyStart(member)
-    for ((id, description) in entries) {
-        generator.writeStartObject()
-        generator.writeStringProperty("id", id)
-        generator.writeStringProperty("description", description)
-        generator.writeEndObject()
-    }
-    generator.writeEndArray()
-}
 
 private fun writeProvenance(generator: JsonGenerator, provenance: ModelProvenance) {
     generator.writeObjectPropertyStart("provenance")
@@ -359,28 +324,6 @@ private object DecisionAnswerSerializer : ValueSerializer<DecisionAnswer>() {
 private object RatingResultSerializer : ValueSerializer<RatingResult>() {
     override fun serialize(value: RatingResult, generator: JsonGenerator, context: SerializationContext) =
         writeRatingOutcome(generator, value)
-}
-
-private fun <T> readEntries(
-    context: DeserializationContext,
-    value: MemberValue,
-    reader: StrictObjectReader,
-    make: (String, String) -> T,
-): List<T> {
-    val entries = ArrayList<T>()
-    value.readArray { element ->
-        var id: String? = null
-        var description: String? = null
-        element.readObject(reader) { member, entry ->
-            when (member) {
-                "id" -> id = entry.string()
-                "description" -> description = entry.string()
-            }
-        }
-        // Both members are required, so the reader has already rejected an entry missing either.
-        entries += construct(context, reader.target) { make(id!!, description!!) }
-    }
-    return entries
 }
 
 private fun readProvenance(context: DeserializationContext, value: MemberValue): ModelProvenance {
@@ -517,7 +460,7 @@ private class AnswerParts(
 
     fun accept(member: String, value: MemberValue) {
         when (member) {
-            "kind" -> kind = readKind(value)
+            "kind" -> kind = readKind(value, expected)
             "name" -> name = value.string()
             "definitionId" -> definitionId = value.string()
             "options" -> options = readEntries(context, value, OPTION_READER, ::Category)
@@ -533,19 +476,10 @@ private class AnswerParts(
         }
     }
 
-    private fun readKind(value: MemberValue): QuestionKind {
-        val wireName = value.string()
-        if (expected != null && wireName != expected.wireName) value.invalid(expected.wireName)
-        return KINDS_BY_WIRE_NAME[wireName] ?: value.invalid(KIND_EXPECTED)
-    }
-
     fun build(): DecisionAnswer {
         // The reader has already required kind, name, definitionId and outcome.
         val kind = kind!!
-        if (kind != QuestionKind.CHOICE && options != null) reader.unknownMember(context, "options")
-        if (kind != QuestionKind.RATING && levels != null) reader.unknownMember(context, "levels")
-        if (kind == QuestionKind.CHOICE && options == null) reader.missingMember(context, "options")
-        if (kind == QuestionKind.RATING && levels == null) reader.missingMember(context, "levels")
+        checkOptionsAndLevels(context, reader, kind, options, levels)
         val outcome = outcome!!
         val name = name!!
         val definitionId = definitionId!!
@@ -567,7 +501,7 @@ private fun readAnswer(
     context: DeserializationContext,
     expected: QuestionKind?,
     name: String?,
-    start: ObjectReadStart,
+    start: ObjectRead,
 ): DecisionAnswer {
     val parts = AnswerParts(context, expected, name)
     start(parts.reader, parts::accept)
@@ -592,7 +526,7 @@ private object DecisionResponseDeserializer : ValueDeserializer<DecisionResponse
                     // Answers stay in document order. The factory's spec id check rejects any other order.
                     val list = ArrayList<DecisionAnswer>()
                     value.readObject(ANSWERS_READER) { name, answer ->
-                        list += readAnswer(context, null, name) { reader, handler -> answer.readObject(reader, handler) }
+                        list += readAnswer(context, null, name, nested(answer))
                     }
                     answers = list
                 }
@@ -612,7 +546,7 @@ private class AnswerDeserializer<A : DecisionAnswer>(
     override fun handledType(): Class<*> = type
 
     override fun deserialize(parser: JsonParser, context: DeserializationContext): A =
-        type.cast(readAnswer(context, kind, null) { reader, handler -> reader.read(parser, context, handler) })
+        type.cast(readAnswer(context, kind, null, topLevel(parser, context)))
 }
 
 // One class serves RatingResult and each result class. With a status, the JSON must carry that status.

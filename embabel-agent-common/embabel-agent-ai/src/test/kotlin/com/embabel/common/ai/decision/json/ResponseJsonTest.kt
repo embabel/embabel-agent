@@ -28,7 +28,6 @@ import com.embabel.common.ai.decision.LevelProbability
 import com.embabel.common.ai.decision.PropositionQuestionSpec
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.Questions
-import com.embabel.common.ai.decision.RatingLevel
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
 import com.embabel.common.ai.decision.RatingScore
@@ -330,7 +329,6 @@ class ResponseJsonTest {
                 ClassificationResult.NoMatch(jev),
                 jevFull,
                 Category("billing", "Payments"),
-                RatingLevel("Calm"),
             )
             val plain = JsonMapper.builder().build()
             val kotlinPlain = jacksonObjectMapper()
