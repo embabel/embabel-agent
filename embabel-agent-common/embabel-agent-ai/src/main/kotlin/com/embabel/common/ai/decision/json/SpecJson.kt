@@ -205,7 +205,7 @@ private fun <E : Enum<E>> readWireNames(value: MemberValue, byWireName: Map<Stri
     value.readArray { element ->
         val wireName = element.string()
         val constant = byWireName[wireName] ?: element.invalid("one of " + byWireName.keys.joinToString(", "))
-        if (!result.add(constant)) element.invalid("a value not listed earlier")
+        if (!result.add(constant)) element.invalid("a value that appears once")
     }
     return result
 }
