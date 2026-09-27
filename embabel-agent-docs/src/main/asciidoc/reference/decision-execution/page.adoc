@@ -1,0 +1,498 @@
+[[reference.decision-execution]]
+=== Running decision specs (experimental)
+
+This page covers running a decision spec on a decision service.
+<<reference.decision-specs>> covers building specs and reading responses.
+<<reference.typesafe>> and <<reference.llm-decisions>> cover the two provider families.
+
+The types are in `embabel-agent-ai`.
+`DecisionService` and `ObservedDecisionService` are in `com.embabel.common.ai.model` and its `observation` package.
+Execution hooks, the response assembler and the content-capture switch are in `com.embabel.common.ai.decision.spi`.
+The no-op and stub services are in `com.embabel.common.ai.decision.support`.
+
+[source,mermaid]
+----
+flowchart TD
+    Caller[caller] --> Obs[ObservedDecisionService]
+    Obs -->|ask: embabel.ai.ask| Exec[preflight and execution]
+    Exec -->|native service| Hook[askNative: embabel.ai.decision ask_native]
+    Exec -->|any other service| Split[assess / choose / rate]
+    Hook --> Jev[TypeSafeDecisionService]
+    Hook --> Llm[LlmDecisionService]
+    Hook --> Fix[NoOpDecisionService / StubDecisionService]
+    Jev --> Asm[DecisionResponseAssembler]
+    Llm --> Asm
+----
+
+==== Asking
+
+`DecisionService` has two `ask` overloads: `ask(input, spec)` and `ask(request)`.
+Both return a `DecisionResponse` with one answer per question in spec order.
+Provider failures come back as typed failure outcomes.
+
+A service that implements `NativeQuestionSetExecution` answers the whole spec in one `askNative` call.
+Any other service answers each question in its own call, in spec order.
+
+`ask` declares no checked exception, as `assess` and `classify` do.
+An interruption propagates as `InterruptedException` with the thread's interrupt flag set.
+Java code cannot name `InterruptedException` in a `catch` clause around `ask`, because the method does not declare it.
+Catch `Exception` and test for `InterruptedException`, or check `Thread.currentThread().isInterrupted()` after a failure:
+
+[source,java]
+----
+try {
+    response = service.ask(request);
+} catch (Exception e) {
+    if (e instanceof InterruptedException) {
+        // The interrupt flag is still set.
+        return;
+    }
+    throw e;
+}
+----
+
+===== Capabilities and hooks
+
+`DecisionService.capabilities()` returns the `DecisionCapabilities` the service reports.
+The default derives from the hook interfaces the service implements:
+
+|===
+|Hook |Enables
+
+|None
+|Proposition questions, one `assess` call each
+
+|`PropositionAssessment.assess(input, question)`
+|Proposition questions, one call each with the question's name and instructions
+
+|`ChoiceAssessment.choose(input, question)`
+|Choice questions, one call each
+
+|`RatingAssessment.rate(input, question)`
+|Rating questions, one call each
+
+|`NativeQuestionSetExecution.askNative(request)`
+|The whole spec in one call. The service overrides `capabilities()` to list the kinds it answers this way.
+|===
+
+The default always includes proposition questions and reports no limits.
+A service declares other kinds, `maxQuestions` or `maxInputCharacters` by overriding `capabilities()`.
+The hook interfaces declare no default methods, so a class can implement all four.
+
+A service that implements none of the hooks answers proposition questions through `ask`, one `assess` call per proposition, with the question's instructions as the proposition.
+A choice question on such a service fails the preflight.
+Its `classify` and `assess` methods stay directly usable.
+
+===== Routing
+
+A service that implements `NativeQuestionSetExecution` answers the whole spec in one `askNative` call.
+Any other service answers each question in spec order:
+
+|===
+|Kind |Provider call
+
+|Proposition
+|`PropositionAssessment.assess(input, question)` when the service implements it, otherwise `assess(request)`
+
+|Choice
+|`ChoiceAssessment.choose(input, question)`
+
+|Rating
+|`RatingAssessment.rate(input, question)`
+|===
+
+A typed failure is recorded and the next question is asked.
+An `IllegalArgumentException` from `choose` or `rate`, or from checking its answer against the question, becomes that question's `INVALID_RESPONSE` failure.
+Any other exception stops the request and propagates unchanged.
+The thread's interrupt flag is checked before each question, and a set flag stops the request with `InterruptedException`.
+
+===== Preflight
+
+The whole request is checked before any provider call.
+The checks run in this order: every question kind is in the capabilities, the request is within `maxQuestions` and `maxInputCharacters`, every question has a hook, then a decorator implements every hook the request is routed through.
+
+A request that fails a kind or limit check throws `UnsupportedDecisionException`, an `UnsupportedOperationException`.
+Its message names the service, each question concerned with its kind, what is missing or exceeded, the service's capabilities and a remedy.
+A kind missing from the capabilities gets one of two explanations:
+
+* The service lacks the hook for the kind. The message says the question needs that hook, with the remedy `Use a service that implements ChoiceAssessment, or remove these questions.`
+* The service has the hook, or answers questions natively, and its capabilities leave the kind out. For a per-question service the message names the method that backs the question. The remedy is `Report CHOICE in the service's capabilities(), use a service whose capabilities include CHOICE, or remove these questions.`
+
+The message holds question names and kinds only.
+The input, instructions, options and levels stay out of it.
+
+Capabilities that claim a kind the service backs with neither its hook nor `NativeQuestionSetExecution` throw `IllegalStateException` before any provider call:
+
+* choice questions without `ChoiceAssessment`
+* rating questions without `RatingAssessment`
+
+The message names the service and the missing hook interface.
+
+===== Decorators
+
+`ObservedDecisionService` forwards `capabilities()` and every hook to their delegate.
+A decorator adds no kind.
+It implements `DelegatingDecisionService`, so preflight inspects the hooks of the innermost service that does the work.
+Routing follows the hooks of that innermost service, and execution calls those hooks on the decorator.
+A decorator that reports a hook source implements every hook interface the hook source implements.
+When a request is routed through a hook the decorator lacks, preflight throws `IllegalStateException` before any provider call.
+The message names the decorator, its class, the hook source and the missing hook, and asks for the hook to be implemented on the decorator.
+`ObservedDecisionService.ask` runs the shared preflight and execution with the delegate's hooks, so each provider call is observed once.
+A delegate's own override of `ask` is therefore not called through `ObservedDecisionService`.
+A service customizes execution through `capabilities()` and the hook interfaces.
+
+==== Answer rules
+
+A native provider hands its answers to `DecisionResponseAssembler`, which applies one set of rules for every provider:
+
+|===
+|Situation |Result
+
+|An answer names a question twice, in any form
+|The whole request fails with `INVALID_RESPONSE`
+
+|The response envelope cannot be matched to questions
+|The whole request fails with `INVALID_RESPONSE`
+
+|An answer names no spec question
+|The answer is ignored and counted
+
+|A question has no answer
+|That question fails with `INVALID_RESPONSE`
+
+|An answer has the wrong kind
+|That question fails with `INVALID_RESPONSE`
+
+|An answer is unreadable
+|That question fails with `INVALID_RESPONSE`
+
+|A selected option or level is outside the question
+|That question fails with `INVALID_RESPONSE`
+
+|A number is out of range, or a distribution does not cover the options or levels or does not sum to 1
+|That question fails with `INVALID_RESPONSE`
+
+|Answers arrive in another order
+|The response follows spec order
+|===
+
+A failed question leaves the answers to the other questions intact.
+An answer with an unknown name is ignored because it cannot change which answer a spec question receives.
+A repeated name can, so it fails the request.
+
+Each anomaly is logged once per response at WARN with the service name, the spec question names and a fixed `DecisionResponseAssembler.Anomaly` kind: `MISSING`, `WRONG_KIND`, `UNREADABLE`, `OUT_OF_DOMAIN`, `OUT_OF_RANGE`, `BAD_DISTRIBUTION`, `DUPLICATE`, `UNEXPECTED` or `UNSAFE_ENVELOPE`.
+The line counts unknown answers and holds none of the keys, ids or outcomes received.
+
+Both providers send questions under the keys `q1` to `qN` in spec order.
+Question names stay with the caller, so no name character can break a provider's format.
+
+==== Service families
+
+`DecisionService` has four implementations:
+
+|===
+|Family |Service |Outcomes |Evidence |Confidence
+
+|Jev
+|`TypeSafeDecisionService`
+|Every outcome of each kind
+|`pTrue` for propositions. A score and a distribution for ratings.
+|Reported for choices and ratings
+
+|Prompted LLM
+|`LlmDecisionService`
+|Every outcome of each kind
+|A verdict, a category id or a level id
+|None
+
+|No-op
+|`NoOpDecisionService`
+|`Failure(UNAVAILABLE)` for every question
+|None
+|None
+
+|Stub
+|`StubDecisionService`
+|The scripted outcomes
+|As scripted
+|As scripted
+|===
+
+Jev and prompted services support every kind, answer a whole spec in one native call and report no limits.
+They also implement every one-question hook for direct calls.
+
+`NoOpDecisionService(name)` serves disabled configuration.
+Its provider is `none`, and it makes no provider call.
+It supports every kind and answers a whole spec in one native call, so a request reaches it and returns a request failure.
+Construction logs one INFO line, and each request logs the usual WARN line for a failed request.
+
+`StubDecisionService.builder(name)` builds a service for tests.
+Its provider is `stub`.
+Outcomes for `ask`, `choose`, `rate` and question `assess` calls are scripted by question name, for `assess(request)` calls by proposition text, and for `classify` by the set of category ids.
+A call with no scripted outcome throws `IllegalStateException` naming the question.
+By default the stub answers a whole spec in one native call.
+Scripted native answers go through the same question checks as provider answers.
+After `perQuestion()` the builder builds a stub that answers each question through `PropositionAssessment`, `ChoiceAssessment` and `RatingAssessment`.
+The stub supports every kind unless the builder's `capabilities(...)` sets others.
+`calls()` returns the calls made, in order.
+
+===== TypeSafe evidence
+
+|===
+|Question |Jev question |Mapping
+
+|Proposition
+|Noul
+|The value becomes `pTrue`. Exactly `0.5` is `Inconclusive`. Above it is `Answered(true)` and below it `Answered(false)`.
+
+|Choice
+|Choice
+|The probabilities must cover exactly the options and sum to 1 within `1e-6`. A confidence of 0 is `Inconclusive`. Otherwise the answer is `Selected` with the reported confidence.
+
+|Rating
+|Score
+|The value becomes `RatingScore(value, EXPECTED_LEVEL_INDEX)`. The probabilities, keyed by level index, must cover exactly the levels and sum to 1 within `1e-6`. They become the distribution. The confidence is kept as reported.
+|===
+
+The Score value is the probability-weighted mean of the zero-based level positions.
+In typesafe-java-sdk 0.2.0, `Score` makes level 0 the first criteria entry, and `ScoreAnswer` keys its legend and probabilities by level index.
+The value 1.6 on the levels Calm, Frustrated and Very angry lies between the second and third level.
+A rated answer from Jev has no selected level.
+The confidence of a Score describes how concentrated the distribution is.
+
+An unknown answer type is an unreadable answer.
+A value outside its range, or a distribution that fails its checks, fails only that question.
+
+===== Prompted evidence
+
+A prompted service asks the whole spec in one chat model call and reads a JSON array of answers.
+A proposition answer is `TRUE`, `FALSE` or `INCONCLUSIVE`.
+A choice answer is `SELECTED` with a category id, `NO_MATCH` or `INCONCLUSIVE`.
+A rating answer is `RATED` with a level id, or `INCONCLUSIVE`.
+Prompted outcomes carry no confidence, distribution or score.
+
+The service's retry settings apply to the model call.
+Parsing runs after the call returns, so a reply that cannot be read makes one call and returns `INVALID_RESPONSE`.
+
+==== Observations
+
+`ObservedDecisionService` records one logical observation per ask and one observation per provider call.
+The TypeSafe and LLM factories return observed services.
+Wrap a service you build in `ObservedDecisionService(service, observationRegistry)` to observe it.
+
+
+|===
+|Observation |When |Tag keys |Events
+
+|`embabel.ai.ask`
+|Each `ask`
+|`operation`, `outcome`, `service`, `provider`, `question_count`
+|One `answer.<kind>.<outcome>` per question
+
+|`embabel.ai.decision`
+|Each `askNative`, `assess`, `choose` and `rate` call
+|`operation`, `outcome`
+|None
+
+|`embabel.ai.classification`
+|Each `classify` call
+|`operation`, `outcome`
+|None
+|===
+
+Provider-call observations are children of the ask observation.
+A native ask records one ask and one `ask_native` observation.
+A per-question ask of three questions records one ask and three provider observations.
+A request rejected by the preflight records one ask with `outcome=unsupported` and no provider observation.
+
+|===
+|Tag |Values
+
+|`operation`
+|`ask` on `embabel.ai.ask`. `ask_native`, `assess`, `choose`, `rate` or `classify` on provider calls.
+
+|`outcome` on `embabel.ai.ask`
+|`complete`, `partial`, `request_failure`, `unsupported`, `exception`, `interrupted`, `cancelled`
+
+|`outcome` on provider calls
+|The result kind, such as `answered`, `selected`, `no_match`, `inconclusive` or `failure`. `invalid_response` when a `choose` or `classify` answer falls outside the question's options. `exception`, `interrupted` or `cancelled` when the call throws.
+
+|`question_count`
+|`1`, `2-4`, `5-16`, `17+`
+
+|`service`
+|The answering service's own `name`
+
+|`provider`
+|The answering service's `provider`, such as `TypeSafe`, the LLM's provider, `none` or `stub`
+|===
+
+`partial` means at least one question failed.
+`request_failure` and every thrown outcome mark the observation with a fixed error marker that carries no exception text.
+
+Each answer event is named `answer.<kind>.<outcome>`, with the kind `proposition`, `choice` or `rating` and the outcome `answered`, `selected`, `no_match`, `inconclusive` or `failure`.
+A meter handler counts it as `embabel.ai.ask.answer.<kind>.<outcome>` with the ask's tags.
+A tracing handler records its contextual name, `<question name> <kind> <outcome>`, as a span event.
+
+`service` and `provider` come from configuration and code.
+Name services from configuration only.
+A service name taken from request or user data makes the tag unbounded.
+Question names, input and model output never become tag values.
+
+[[reference.decision-execution.diagnosing]]
+==== Diagnosing problems
+
+|===
+|Symptom |Where to look |Likely cause |Fix
+
+|`UnsupportedDecisionException`
+|The exception message and `outcome=unsupported` on `embabel.ai.ask`
+|The service lacks a kind or the hook for a kind, or a limit is exceeded
+|Apply the remedy in the message, such as using a service that implements the named hook
+
+|`IllegalStateException` naming a hook interface
+|The exception message
+|The service's capabilities claim choice or rating without the hook
+|Implement the hook, or remove the claim from `capabilities()`
+
+|Every answer is `Failure(UNAVAILABLE)`
+|The provider WARN line with cause `connection`, `http_4xx`, `http_5xx` or `rate_limited`. A native ask has `outcome=request_failure`. A per-question ask has `outcome=partial`, and every answer event has the outcome `failure`.
+|The provider is unreachable or rejected the call
+|Check the endpoint, credential and provider status
+
+|Every answer is `Failure(UNAVAILABLE)` with cause `timeout`
+|The provider WARN line
+|The call exceeded the HTTP read timeout
+|Raise the timeout of the application's HTTP client, or shorten the input
+
+|Every answer is `Failure(INVALID_RESPONSE)`
+|The assembler WARN line with `DUPLICATE` or `UNSAFE_ENVELOPE`, and the provider WARN line with cause `invalid_response`
+|The provider's reply could not be matched to questions
+|Turn on content capture locally and inspect the reply
+
+|Some answers are `Failure(INVALID_RESPONSE)`
+|The assembler WARN line naming each question with its anomaly, and `outcome=partial`
+|The provider left a question out or answered it outside its options, levels or ranges
+|Check the question's options or levels, or the provider's mapping for that kind
+
+|Every answer is `Failure(UNAVAILABLE)` with provider `none`
+|The INFO line at construction and the WARN line for a failed request with `provider=none`
+|The service is a `NoOpDecisionService`
+|Use a provider service
+|===
+
+===== Loggers
+
+Loggers are named after their classes.
+Setting a package level reaches every class under it.
+
+|===
+|Logger |Level |Shows
+
+|`com.embabel.common.ai.decision.spi.DecisionExecution`
+|WARN
+|A failed request, a partial response, and an answer outside its question in per-question execution
+
+|
+|DEBUG
+|Start of each ask: service, provider, question count. Completion: each question's name, kind and outcome, and elapsed milliseconds.
+
+|
+|TRACE
+|The request and response content, when content capture is on
+
+|`com.embabel.common.ai.decision.spi.DecisionResponseAssembler`
+|WARN
+|Answer anomalies from native execution
+
+|`com.embabel.common.ai.decision.support`
+|INFO, DEBUG
+|No-op construction, and each no-op or stub call
+
+|`com.embabel.common.ai.model.observation`
+|DEBUG
+|Each observed call's operation and outcome
+
+|`com.embabel.agent.typesafe`
+|WARN, TRACE
+|A failed Jev call. With content capture, the response received.
+
+|`com.embabel.agent.spi.support.decision`
+|WARN, TRACE
+|A failed prompted call. With content capture, the raw model reply.
+|===
+
+A provider WARN line holds the service name, provider, operation, failure reason, cause category, HTTP status class or `none`, attempts, elapsed milliseconds and the exception's simple class name.
+The cause category is one of `timeout`, `connection`, `rate_limited`, `http_4xx`, `http_5xx`, `invalid_response` and `other`.
+The Jev line starts with `TypeSafe <operation label> failed with reason <reason>`, makes one attempt, and ends with the provider request id or `none`.
+The prompted line starts with `Decision call failed`, counts the attempts made by its retry settings, and ends with a remedy that names the retry property prefix.
+A one-question call logs its operation: `assess`, `choose` or `rate`.
+Lines up to DEBUG hold no input, instructions, option or level text, received category ids, credentials or provider text.
+Question names and service names appear in logs, exception messages and span events.
+
+===== Sample lines
+
+Routing and completion at DEBUG:
+
+[source,text]
+----
+Decision ask started: service=log-service, provider=log-provider, questions=3
+Decision ask completed: service=log-service, provider=log-provider, answers=['urgent' PROPOSITION answered, 'team' CHOICE selected, 'anger' RATING answered], elapsedMs=4
+----
+
+A failed request and a partial response at WARN:
+
+[source,text]
+----
+Decision ask failed: service=native-service, provider=native-provider, requestFailure=UNAVAILABLE, elapsedMs=2. The provider's own log lines give the cause.
+Decision ask partially failed: service=log-service, provider=log-provider, failedQuestions=['urgent' UNAVAILABLE], elapsedMs=3. The other answers are usable. The provider's own log lines give the cause.
+----
+
+Failed provider calls at WARN, from Jev and from a prompted service:
+
+[source,text]
+----
+TypeSafe question set failed with reason UNAVAILABLE: service=jev-latest, provider=TypeSafe, operation=ask_native, cause=http_5xx, status=5xx, attempts=1, elapsedMs=7, exception=SafeHttpFailure, requestId=none
+Decision call failed: service=gpt-test, provider=TestProvider, operation=ask, reason=UNAVAILABLE, cause=timeout, httpStatus=none, attempts=3, elapsedMs=12, exception=SocketTimeoutException. Check the model's availability, credentials and retry settings under embabel.agent.platform.decisions.test.
+----
+
+Answer anomalies at WARN, from native and per-question execution:
+
+[source,text]
+----
+Decision service 'jev-latest' returned answers it could not use: is_urgent=WRONG_KIND, department=OUT_OF_DOMAIN, frustration=OUT_OF_RANGE, channel=MISSING; unexpected answers: 1
+Decision answer anomaly: service=log-service, question='team', anomaly=OUT_OF_DOMAIN. The answer does not fit the question's options or levels and is recorded as INVALID_RESPONSE. Check the service's mapping of provider output to the question.
+----
+
+[[reference.decision-execution.capture]]
+===== Content capture
+
+Content capture logs the request and response content at TRACE.
+It needs two settings together:
+
+* `DecisionContentCapture.enable()`
+* TRACE on the logger concerned
+
+The switch alone logs nothing, and TRACE alone logs no content.
+With both, `DecisionExecution` logs the input, each question's instructions, options or levels, and each answer with its evidence.
+The Jev service logs the response it received, and the prompted service logs the raw model reply.
+
+WARNING: Captured lines hold the decision input and provider output, which can contain personal or confidential text.
+Turn content capture on only for local diagnosis.
+`DecisionContentCapture` is a process-wide switch.
+
+[[reference.decision-execution.experimental]]
+==== Experimental status
+
+Every type on this page carries `@ApiStatus.Experimental`.
+The owner is James Dunnam (GitHub `@jimador`).
+Promotion to stable needs all of these:
+
+* Use of `DecisionService.ask` by a consumer application
+* Interoperation of the Jev, prompted, no-op and stub families through `DecisionService`
+* A compatibility review of `DecisionService`
+* Privacy checks on logs, tags and exception messages
+* A runnable consumer proof
+* A recorded run against the hosted Jev service
+
+Promotion is revisited at the next release review after the consumer proof.
