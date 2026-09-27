@@ -28,7 +28,8 @@ import java.util.Objects
  *
  * An answer can be read without the question that produced it. It holds the question's name,
  * kind and definition id, the public options or levels, and the typed outcome. It never holds
- * the question's instructions or the decision input.
+ * the question's instructions or the decision input. An answer read from JSON holds its options
+ * or levels as written. Only the typed lookup on a response compares them with a question.
  *
  * ```java
  * String route = switch (response.answer("department")) {
@@ -183,7 +184,9 @@ sealed interface DecisionAnswer {
  * A response can be read without the spec. Look an answer up by name with [answer], or pass a
  * question to the typed [answer] to get its outcome with the right result type. The typed lookup
  * checks the question's full definition, so a question rebuilt with the same definition works and
- * a question whose definition has changed since the response was made is rejected.
+ * a question whose definition has changed since the response was made is rejected. It also
+ * compares the answer's options or levels with the question's, because a response cannot prove
+ * them from its ids.
  *
  * ```java
  * PropositionResult urgency = response.answer(urgent);
@@ -257,6 +260,11 @@ class DecisionResponse private constructor(
      * definition id as the answer, so any change to its instructions, options or levels is
      * rejected.
      *
+     * The lookup also checks that a choice answer's options, or a rating answer's levels, equal
+     * the question's, ids and descriptions both. A definition id cannot be recomputed from a
+     * response, because a response leaves out the instructions. So the ids alone cannot prove
+     * that the options or levels in a response read from JSON are the ones the question has.
+     *
      * Each question class fixes its result type: a `PropositionQuestionSpec` is a
      * `Question<PropositionResult>`, a `ChoiceQuestionSpec` is a `Question<ClassificationResult>`
      * and a `RatingQuestionSpec` is a `Question<RatingResult>`. The lookup only returns an outcome
@@ -265,7 +273,8 @@ class DecisionResponse private constructor(
      * @param question the question whose answer to read
      * @return the outcome of that question
      * @throws IllegalArgumentException if this response has no answer with the question's name, the
-     * answer is of another kind, or the answer was given for a different definition of the question
+     * answer is of another kind, the answer was given for a different definition of the question,
+     * or the answer's options or levels differ from the question's
      */
     @Suppress("UNCHECKED_CAST")
     fun <R : Any> answer(question: Question<R>): R {
@@ -282,6 +291,16 @@ class DecisionResponse private constructor(
         require(found.definitionId == question.definitionId) {
             "Answer '${question.name}' was given for a different definition of the question. " +
                 "The response holds definition id '${found.definitionId}' and the question has '${question.definitionId}'."
+        }
+        // The kind check above makes these casts safe.
+        when (question) {
+            is PropositionQuestionSpec -> Unit
+            is ChoiceQuestionSpec -> require((found as DecisionAnswer.Choice).options == question.options) {
+                "Question '${question.name}': the answer's options differ from the question's options"
+            }
+            is RatingQuestionSpec -> require((found as DecisionAnswer.Rating).levels == question.levels) {
+                "Question '${question.name}': the answer's levels differ from the question's levels"
+            }
         }
         return outcome as R
     }

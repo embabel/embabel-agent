@@ -112,22 +112,22 @@ class ResponseJsonTest {
         """"score":{"value":0.9,"statistic":"expected_level_index"},"confidence":0.6,"provenance":$jevFullJson}"""
 
     private fun urgentAnswer(outcome: String = urgentOutcome) =
-        """{"kind":"proposition","definitionId":"${urgent.definitionId}","outcome":$outcome}"""
+        """{"name":"is_urgent","kind":"proposition","definitionId":"${urgent.definitionId}","outcome":$outcome}"""
 
     private fun departmentAnswer(outcome: String = departmentOutcome) =
-        """{"kind":"choice","definitionId":"${department.definitionId}",$optionsJson,"outcome":$outcome}"""
+        """{"name":"department","kind":"choice","definitionId":"${department.definitionId}",$optionsJson,"outcome":$outcome}"""
 
     private fun frustrationAnswer(outcome: String = angerOutcome) =
-        """{"kind":"rating","definitionId":"${frustration.definitionId}",$levelsJson,"outcome":$outcome}"""
+        """{"name":"frustration","kind":"rating","definitionId":"${frustration.definitionId}",$levelsJson,"outcome":$outcome}"""
 
-    private fun response(vararg answers: Pair<String, String>, extra: String = ""): String =
-        """{"definitionId":"${triage.definitionId}","executionMode":"native",$extra"answers":{""" +
-            answers.joinToString(",") { (name, json) -> "\"$name\":$json" } + "}}"
+    private fun response(vararg answers: String, extra: String = ""): String =
+        """{"definitionId":"${triage.definitionId}","executionMode":"native",$extra"answers":[""" +
+            answers.joinToString(",") + "]}"
 
     private val answeredJson = response(
-        "is_urgent" to urgentAnswer(),
-        "department" to departmentAnswer(),
-        "frustration" to frustrationAnswer(),
+        urgentAnswer(),
+        departmentAnswer(),
+        frustrationAnswer(),
     )
 
     private fun assertRejects(
@@ -183,14 +183,14 @@ class ResponseJsonTest {
                 .build()
 
             fun p(q: PropositionQuestionSpec, outcome: String) =
-                """"${q.name}":{"kind":"proposition","definitionId":"${q.definitionId}","outcome":$outcome}"""
+                """{"name":"${q.name}","kind":"proposition","definitionId":"${q.definitionId}","outcome":$outcome}"""
             val ab = """"options":[{"id":"a","description":"A"},{"id":"b","description":"B"}]"""
             fun c(q: ChoiceQuestionSpec, outcome: String) =
-                """"${q.name}":{"kind":"choice","definitionId":"${q.definitionId}",$ab,"outcome":$outcome}"""
+                """{"name":"${q.name}","kind":"choice","definitionId":"${q.definitionId}",$ab,"outcome":$outcome}"""
             val lh = """"levels":[{"id":"low","description":"low"},{"id":"high","description":"high"}]"""
             fun r(q: RatingQuestionSpec, outcome: String) =
-                """"${q.name}":{"kind":"rating","definitionId":"${q.definitionId}",$lh,"outcome":$outcome}"""
-            val expected = """{"definitionId":"${spec.definitionId}","executionMode":"sequential","answers":{""" + listOf(
+                """{"name":"${q.name}","kind":"rating","definitionId":"${q.definitionId}",$lh,"outcome":$outcome}"""
+            val expected = """{"definitionId":"${spec.definitionId}","executionMode":"sequential","answers":[""" + listOf(
                 p(p1, """{"status":"answered","answer":false,"provenance":$jevFullJson}"""),
                 p(p2, """{"status":"inconclusive","provenance":$jevJson}"""),
                 p(p3, """{"status":"failure","reason":"invalid_response"}"""),
@@ -201,7 +201,7 @@ class ResponseJsonTest {
                 r(r1, """{"status":"answered","score":{"value":1.0,"statistic":"expected_level_index"},"provenance":$jevJson}"""),
                 r(r2, """{"status":"inconclusive","provenance":$jevJson}"""),
                 r(r3, """{"status":"failure","reason":"invalid_response"}"""),
-            ).joinToString(",") + "}}"
+            ).joinToString(",") + "]}"
 
             assertEquals(expected, mapper.writeValueAsString(response))
             assertEquals(response, mapper.readValue(expected, DecisionResponse::class.java))
@@ -213,8 +213,8 @@ class ResponseJsonTest {
             val failed = DecisionResponse.failed(triage, ExecutionMode.SINGLE_QUESTION, FailureReason.UNAVAILABLE)
             val failure = """{"status":"failure","reason":"unavailable"}"""
             val json = """{"definitionId":"${triage.definitionId}","executionMode":"single_question",""" +
-                """"requestFailure":"unavailable","answers":{"is_urgent":${urgentAnswer(failure)},""" +
-                """"department":${departmentAnswer(failure)},"frustration":${frustrationAnswer(failure)}}}"""
+                """"requestFailure":"unavailable","answers":[${urgentAnswer(failure)},""" +
+                """${departmentAnswer(failure)},${frustrationAnswer(failure)}]}"""
             assertEquals(json, mapper.writeValueAsString(failed))
             assertEquals(failed, mapper.readValue(json, DecisionResponse::class.java))
         }
@@ -255,8 +255,8 @@ class ResponseJsonTest {
         @Test
         fun `an answer written alone carries its name and reads back through DecisionAnswer and its own class`() {
             val choice = answered().answer("department")
-            val json = """{"kind":"choice","name":"department","definitionId":"${department.definitionId}",""" +
-                """$optionsJson,"outcome":$departmentOutcome}"""
+            // The same object appears as an element of a response's answers array.
+            val json = departmentAnswer()
             assertEquals(json, mapper.writeValueAsString(choice))
             assertEquals(choice, mapper.readValue(json, DecisionAnswer::class.java))
             assertEquals(choice, mapper.readValue(json, DecisionAnswer.Choice::class.java))
@@ -283,10 +283,10 @@ class ResponseJsonTest {
 
         @Test
         fun `members may come in any order, including the outcome before the kind`() {
-            val reordered = """{"answers":{"is_urgent":{"outcome":{"provenance":$jevJson,"pTrue":0.93,"answer":true,""" +
-                """"status":"answered"},"definitionId":"${urgent.definitionId}","kind":"proposition"},""" +
-                """"department":{"outcome":$departmentOutcome,$optionsJson,"kind":"choice",""" +
-                """"definitionId":"${department.definitionId}"},"frustration":${frustrationAnswer()}},""" +
+            val reordered = """{"answers":[{"outcome":{"provenance":$jevJson,"pTrue":0.93,"answer":true,""" +
+                """"status":"answered"},"definitionId":"${urgent.definitionId}","kind":"proposition","name":"is_urgent"},""" +
+                """{"outcome":$departmentOutcome,$optionsJson,"name":"department","kind":"choice",""" +
+                """"definitionId":"${department.definitionId}"},${frustrationAnswer()}],""" +
                 """"executionMode":"native","definitionId":"${triage.definitionId}"}"""
             assertEquals(answered(), mapper.readValue(reordered, DecisionResponse::class.java))
         }
@@ -296,9 +296,9 @@ class ResponseJsonTest {
             val outcome = """{"status":"answered","answer":true,"pTrue":null,""" +
                 """"provenance":{"modelName":"jev-latest","provider":"typesafe","version":null,"requestId":null}}"""
             val read = mapper.readValue(response(
-                "is_urgent" to urgentAnswer(outcome),
-                "department" to departmentAnswer(),
-                "frustration" to frustrationAnswer(),
+                urgentAnswer(outcome),
+                departmentAnswer(),
+                frustrationAnswer(),
                 extra = """"requestFailure":null,""",
             ), DecisionResponse::class.java)
             assertEquals(PropositionResult.Answered(true, jev), read.answer(urgent))
@@ -349,10 +349,10 @@ class ResponseJsonTest {
         @Test
         fun `a duplicate answer name is rejected, whatever the mapper's duplicate settings`() {
             val json = response(
-                "is_urgent" to urgentAnswer(),
-                "is_urgent" to urgentAnswer(),
-                "department" to departmentAnswer(),
-                "frustration" to frustrationAnswer(),
+                urgentAnswer(),
+                urgentAnswer(),
+                departmentAnswer(),
+                frustrationAnswer(),
             )
             val lenient = JsonMapper.builder()
                 .addModule(DecisionJacksonModule())
@@ -361,13 +361,17 @@ class ResponseJsonTest {
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .build()
             for (m in listOf(mapper, lenient)) {
-                assertRejects(json, DecisionResponse::class.java, "Duplicate member 'is_urgent' in DecisionResponse", using = m)
+                assertRejects(
+                    json, DecisionResponse::class.java,
+                    "Member 'answers[1]' in DecisionResponse must be an answer with a unique name. Repeated: 'is_urgent'",
+                    using = m,
+                )
             }
         }
 
         @Test
         fun `a dropped answer is rejected by the spec id check`() {
-            val json = response("is_urgent" to urgentAnswer(), "department" to departmentAnswer())
+            val json = response(urgentAnswer(), departmentAnswer())
             assertRejects(
                 json, DecisionResponse::class.java,
                 "The answers do not match the response's spec", "Expected spec id '${triage.definitionId}'",
@@ -378,10 +382,10 @@ class ResponseJsonTest {
         fun `an extra answer is rejected by the spec id check`() {
             val extra = Questions.named("tone").proposition("Is it polite?").build()
             val json = response(
-                "is_urgent" to urgentAnswer(),
-                "department" to departmentAnswer(),
-                "frustration" to frustrationAnswer(),
-                "tone" to """{"kind":"proposition","definitionId":"${extra.definitionId}","outcome":$urgentOutcome}""",
+                urgentAnswer(),
+                departmentAnswer(),
+                frustrationAnswer(),
+                """{"name":"tone","kind":"proposition","definitionId":"${extra.definitionId}","outcome":$urgentOutcome}""",
             )
             assertRejects(json, DecisionResponse::class.java, "The answers do not match the response's spec")
         }
@@ -389,9 +393,9 @@ class ResponseJsonTest {
         @Test
         fun `swapped answers are rejected by the spec id check`() {
             val json = response(
-                "department" to departmentAnswer(),
-                "is_urgent" to urgentAnswer(),
-                "frustration" to frustrationAnswer(),
+                departmentAnswer(),
+                urgentAnswer(),
+                frustrationAnswer(),
             )
             val error = assertRejects(json, DecisionResponse::class.java, "The answers do not match the response's spec")
             assertInstanceOf(IllegalArgumentException::class.java, error.cause)
@@ -400,9 +404,9 @@ class ResponseJsonTest {
         @Test
         fun `an unknown status is rejected`() {
             val json = response(
-                "is_urgent" to urgentAnswer("""{"status":"yes","answer":true,"provenance":$jevJson}"""),
-                "department" to departmentAnswer(),
-                "frustration" to frustrationAnswer(),
+                urgentAnswer("""{"status":"yes","answer":true,"provenance":$jevJson}"""),
+                departmentAnswer(),
+                frustrationAnswer(),
             )
             assertRejects(
                 json, DecisionResponse::class.java,
@@ -413,9 +417,9 @@ class ResponseJsonTest {
         @Test
         fun `a status that belongs to another kind is rejected`() {
             val json = response(
-                "is_urgent" to urgentAnswer("""{"status":"no_match","provenance":$jevJson}"""),
-                "department" to departmentAnswer(),
-                "frustration" to frustrationAnswer(),
+                urgentAnswer("""{"status":"no_match","provenance":$jevJson}"""),
+                departmentAnswer(),
+                frustrationAnswer(),
             )
             assertRejects(json, DecisionResponse::class.java, "Member 'status' in PropositionResult must be one of")
         }
@@ -423,9 +427,9 @@ class ResponseJsonTest {
         @Test
         fun `a selection outside the embedded options is rejected`() {
             val json = response(
-                "is_urgent" to urgentAnswer(),
-                "department" to departmentAnswer("""{"status":"selected","categoryId":"legal","provenance":$jevJson}"""),
-                "frustration" to frustrationAnswer(),
+                urgentAnswer(),
+                departmentAnswer("""{"status":"selected","categoryId":"legal","provenance":$jevJson}"""),
+                frustrationAnswer(),
             )
             assertRejects(json, DecisionResponse::class.java, "Question 'department': the selected category id is not one of its options")
         }
@@ -435,9 +439,9 @@ class ResponseJsonTest {
             val outcome = """{"status":"answered","distribution":[{"levelId":"Calm","probability":0.3},""" +
                 """{"levelId":"Frustrated","probability":0.7}],"provenance":$jevJson}"""
             val json = response(
-                "is_urgent" to urgentAnswer(),
-                "department" to departmentAnswer(),
-                "frustration" to frustrationAnswer(outcome),
+                urgentAnswer(),
+                departmentAnswer(),
+                frustrationAnswer(outcome),
             )
             assertRejects(json, DecisionResponse::class.java, "Question 'frustration': the distribution must cover exactly its levels")
         }
@@ -446,9 +450,9 @@ class ResponseJsonTest {
         fun `a rating score above the top level is rejected`() {
             val outcome = """{"status":"answered","score":{"value":2.5,"statistic":"expected_level_index"},"provenance":$jevJson}"""
             val json = response(
-                "is_urgent" to urgentAnswer(),
-                "department" to departmentAnswer(),
-                "frustration" to frustrationAnswer(outcome),
+                urgentAnswer(),
+                departmentAnswer(),
+                frustrationAnswer(outcome),
             )
             assertRejects(json, DecisionResponse::class.java, "Question 'frustration': the score 2.5 is above the last level index 2")
         }
@@ -456,9 +460,9 @@ class ResponseJsonTest {
         @Test
         fun `a failure without a reason is rejected`() {
             val json = response(
-                "is_urgent" to urgentAnswer("""{"status":"failure"}"""),
-                "department" to departmentAnswer(),
-                "frustration" to frustrationAnswer(),
+                urgentAnswer("""{"status":"failure"}"""),
+                departmentAnswer(),
+                frustrationAnswer(),
             )
             assertRejects(json, DecisionResponse::class.java, "Missing required member 'reason' in PropositionResult")
         }
@@ -466,9 +470,9 @@ class ResponseJsonTest {
         @Test
         fun `an unknown failure reason is rejected`() {
             val json = response(
-                "is_urgent" to urgentAnswer(),
-                "department" to departmentAnswer("""{"status":"failure","reason":"timeout"}"""),
-                "frustration" to frustrationAnswer(),
+                urgentAnswer(),
+                departmentAnswer("""{"status":"failure","reason":"timeout"}"""),
+                frustrationAnswer(),
             )
             assertRejects(
                 json, DecisionResponse::class.java,
@@ -479,9 +483,9 @@ class ResponseJsonTest {
         @Test
         fun `a member of another status is rejected`() {
             val json = response(
-                "is_urgent" to urgentAnswer("""{"status":"answered","answer":true,"reason":"unavailable","provenance":$jevJson}"""),
-                "department" to departmentAnswer(),
-                "frustration" to frustrationAnswer(),
+                urgentAnswer("""{"status":"answered","answer":true,"reason":"unavailable","provenance":$jevJson}"""),
+                departmentAnswer(),
+                frustrationAnswer(),
             )
             assertRejects(json, DecisionResponse::class.java, "Unknown member 'reason' in PropositionResult")
         }
@@ -489,9 +493,9 @@ class ResponseJsonTest {
         @Test
         fun `requestFailure alongside a non-failure outcome is rejected`() {
             val json = response(
-                "is_urgent" to urgentAnswer(),
-                "department" to departmentAnswer("""{"status":"failure","reason":"unavailable"}"""),
-                "frustration" to frustrationAnswer("""{"status":"failure","reason":"unavailable"}"""),
+                urgentAnswer(),
+                departmentAnswer("""{"status":"failure","reason":"unavailable"}"""),
+                frustrationAnswer("""{"status":"failure","reason":"unavailable"}"""),
                 extra = """"requestFailure":"unavailable",""",
             )
             assertRejects(
@@ -503,9 +507,9 @@ class ResponseJsonTest {
         @Test
         fun `an unknown member in an outcome is rejected`() {
             val json = response(
-                "is_urgent" to urgentAnswer(),
-                "department" to departmentAnswer("""{"status":"no_match","why":"none fit","provenance":$jevJson}"""),
-                "frustration" to frustrationAnswer(),
+                urgentAnswer(),
+                departmentAnswer("""{"status":"no_match","why":"none fit","provenance":$jevJson}"""),
+                frustrationAnswer(),
             )
             assertRejects(json, DecisionResponse::class.java, "Unknown member 'why' in ClassificationResult")
         }
@@ -513,11 +517,11 @@ class ResponseJsonTest {
         @Test
         fun `a duplicate member inside an outcome or provenance is rejected`() {
             val json = response(
-                "is_urgent" to urgentAnswer(
+                urgentAnswer(
                     """{"status":"answered","answer":true,"answer":false,"provenance":$jevJson}""",
                 ),
-                "department" to departmentAnswer(),
-                "frustration" to frustrationAnswer(),
+                departmentAnswer(),
+                frustrationAnswer(),
             )
             assertRejects(json, DecisionResponse::class.java, "Duplicate member 'answer' in PropositionResult")
             val provenance = """{"status":"inconclusive","provenance":{"modelName":"a","modelName":"b","provider":"p"}}"""
@@ -527,19 +531,20 @@ class ResponseJsonTest {
         @Test
         fun `unknown members at response and answer level are rejected`() {
             assertRejects(
-                response("is_urgent" to urgentAnswer(), extra = """"spec":{},"""),
+                response(urgentAnswer(), extra = """"spec":{},"""),
                 DecisionResponse::class.java,
                 "Unknown member 'spec' in DecisionResponse",
             )
-            val named = """{"kind":"proposition","name":"is_urgent","definitionId":"${urgent.definitionId}","outcome":$urgentOutcome}"""
+            val withInstructions = """{"name":"is_urgent","kind":"proposition","instructions":"Is it?",""" +
+                """"definitionId":"${urgent.definitionId}","outcome":$urgentOutcome}"""
             assertRejects(
-                response("is_urgent" to named, "department" to departmentAnswer(), "frustration" to frustrationAnswer()),
+                response(withInstructions, departmentAnswer(), frustrationAnswer()),
                 DecisionResponse::class.java,
-                "Unknown member 'name' in DecisionAnswer",
+                "Unknown member 'instructions' in DecisionAnswer",
             )
-            val withLevels = """{"kind":"proposition","definitionId":"${urgent.definitionId}",$levelsJson,"outcome":$urgentOutcome}"""
+            val withLevels = """{"name":"is_urgent","kind":"proposition","definitionId":"${urgent.definitionId}",$levelsJson,"outcome":$urgentOutcome}"""
             assertRejects(
-                response("is_urgent" to withLevels, "department" to departmentAnswer(), "frustration" to frustrationAnswer()),
+                response(withLevels, departmentAnswer(), frustrationAnswer()),
                 DecisionResponse::class.java,
                 "Unknown member 'levels' in DecisionAnswer",
             )
@@ -548,13 +553,13 @@ class ResponseJsonTest {
         @Test
         fun `a missing required member is rejected`() {
             assertRejects(
-                """{"definitionId":"${triage.definitionId}","answers":{}}""",
+                """{"definitionId":"${triage.definitionId}","answers":[]}""",
                 DecisionResponse::class.java,
                 "Missing required member 'executionMode' in DecisionResponse",
             )
-            val noOptions = """{"kind":"choice","definitionId":"${department.definitionId}","outcome":$departmentOutcome}"""
+            val noOptions = """{"name":"department","kind":"choice","definitionId":"${department.definitionId}","outcome":$departmentOutcome}"""
             assertRejects(
-                response("is_urgent" to urgentAnswer(), "department" to noOptions, "frustration" to frustrationAnswer()),
+                response(urgentAnswer(), noOptions, frustrationAnswer()),
                 DecisionResponse::class.java,
                 "Missing required member 'options' in DecisionAnswer",
             )
@@ -572,9 +577,9 @@ class ResponseJsonTest {
 
         @Test
         fun `an unknown kind or execution mode is rejected`() {
-            val poll = """{"kind":"poll","definitionId":"${urgent.definitionId}","outcome":$urgentOutcome}"""
+            val poll = """{"name":"is_urgent","kind":"poll","definitionId":"${urgent.definitionId}","outcome":$urgentOutcome}"""
             assertRejects(
-                response("is_urgent" to poll, "department" to departmentAnswer(), "frustration" to frustrationAnswer()),
+                response(poll, departmentAnswer(), frustrationAnswer()),
                 DecisionResponse::class.java,
                 "Member 'kind' in DecisionAnswer must be one of proposition, choice, rating",
             )
@@ -596,9 +601,9 @@ class ResponseJsonTest {
         @Test
         fun `a value the result constructors refuse is rejected with the constructor message as the cause`() {
             val json = response(
-                "is_urgent" to urgentAnswer("""{"status":"answered","answer":true,"pTrue":1.5,"provenance":$jevJson}"""),
-                "department" to departmentAnswer(),
-                "frustration" to frustrationAnswer(),
+                urgentAnswer("""{"status":"answered","answer":true,"pTrue":1.5,"provenance":$jevJson}"""),
+                departmentAnswer(),
+                frustrationAnswer(),
             )
             val error = assertRejects(json, DecisionResponse::class.java, "Probability of truth must be finite and between 0 and 1")
             assertInstanceOf(IllegalArgumentException::class.java, error.cause)
@@ -617,9 +622,9 @@ class ResponseJsonTest {
         @Test
         fun `a malformed answer definition id is rejected`() {
             val json = response(
-                "is_urgent" to urgentAnswer().replace(urgent.definitionId, "d1-short"),
-                "department" to departmentAnswer(),
-                "frustration" to frustrationAnswer(),
+                urgentAnswer().replace(urgent.definitionId, "d1-short"),
+                departmentAnswer(),
+                frustrationAnswer(),
             )
             assertRejects(json, DecisionResponse::class.java, "definition id 'd1-short' is not a question id")
         }
@@ -627,29 +632,156 @@ class ResponseJsonTest {
         @Test
         fun `a wrong JSON type is rejected`() {
             assertRejects(
-                response("is_urgent" to urgentAnswer("""{"status":"answered","answer":"true","provenance":$jevJson}""")),
+                response(urgentAnswer("""{"status":"answered","answer":"true","provenance":$jevJson}""")),
                 DecisionResponse::class.java,
                 "Member 'answer' in PropositionResult must be a boolean",
             )
             assertRejects("[]", DecisionResponse::class.java, "DecisionResponse must be an object")
             assertRejects(
-                """{"definitionId":"${triage.definitionId}","executionMode":"native","answers":[]}""",
+                """{"definitionId":"${triage.definitionId}","executionMode":"native","answers":{}}""",
                 DecisionResponse::class.java,
-                "Member 'answers' in DecisionResponse must be an object",
+                "Member 'answers' in DecisionResponse must be an array",
             )
         }
 
         @Test
         fun `a tree with swapped answers is rejected`() {
             val swapped = response(
-                "department" to departmentAnswer(),
-                "is_urgent" to urgentAnswer(),
-                "frustration" to frustrationAnswer(),
+                departmentAnswer(),
+                urgentAnswer(),
+                frustrationAnswer(),
             )
             val error = assertThrows(MismatchedInputException::class.java) {
                 mapper.treeToValue(mapper.readTree(swapped), DecisionResponse::class.java)
             }
             assertTrue(error.message!!.contains("The answers do not match the response's spec"))
+        }
+    }
+
+    @Nested
+    inner class AnswersArray {
+
+        @Test
+        fun `answers are written as an array in spec order with the name first in each element`() {
+            val tree = mapper.readTree(mapper.writeValueAsString(answered()))
+            val answers = tree.get("answers")
+            assertTrue(answers.isArray)
+            // JsonNode has its own map, which maps the node itself, so go through the elements explicitly.
+            val elements = answers.iterator().asSequence().toList()
+            assertEquals(listOf("is_urgent", "department", "frustration"), elements.map { it.get("name").asString() })
+            elements.forEach { assertEquals("name", it.propertyNames().first()) }
+        }
+
+        @Test
+        fun `answers written as an object keyed by name are rejected`() {
+            val keyed = """{"definitionId":"${triage.definitionId}","executionMode":"native","answers":{""" +
+                """"is_urgent":{"kind":"proposition","definitionId":"${urgent.definitionId}","outcome":$urgentOutcome}}}"""
+            assertRejects(keyed, DecisionResponse::class.java, "Member 'answers' in DecisionResponse must be an array")
+        }
+
+        @Test
+        fun `an element without a name is rejected`() {
+            val unnamed = """{"kind":"proposition","definitionId":"${urgent.definitionId}","outcome":$urgentOutcome}"""
+            assertRejects(
+                response(unnamed, departmentAnswer(), frustrationAnswer()),
+                DecisionResponse::class.java,
+                "Missing required member 'name' in DecisionAnswer",
+            )
+        }
+
+        @Test
+        fun `an element that is not an object is rejected`() {
+            assertRejects(
+                response("\"is_urgent\"", departmentAnswer(), frustrationAnswer()),
+                DecisionResponse::class.java,
+                "Member 'answers[0]' in DecisionResponse must be an object",
+            )
+        }
+
+        @Test
+        fun `a repeated name is rejected, as an element or as a member`() {
+            assertRejects(
+                response(urgentAnswer(), departmentAnswer(), departmentAnswer(), frustrationAnswer()),
+                DecisionResponse::class.java,
+                "Member 'answers[2]' in DecisionResponse must be an answer with a unique name. Repeated: 'department'",
+            )
+            val twice = urgentAnswer().replaceFirst("{", """{"name":"is_urgent",""")
+            assertRejects(
+                response(twice, departmentAnswer(), frustrationAnswer()),
+                DecisionResponse::class.java,
+                "Duplicate member 'name' in DecisionAnswer",
+            )
+        }
+
+        @Test
+        fun `an array in another order fails the spec id check`() {
+            val reordered = response(frustrationAnswer(), urgentAnswer(), departmentAnswer())
+            assertRejects(
+                reordered, DecisionResponse::class.java,
+                "The answers do not match the response's spec", "Expected spec id '${triage.definitionId}'",
+            )
+        }
+    }
+
+    @Nested
+    inner class TamperedDefinitions {
+
+        // Each edit keeps every definition id, so the response still reads. Only the typed lookup
+        // can tell that the embedded options or levels no longer match the question.
+        private fun readTampered(vararg edits: Pair<String, String>): DecisionResponse {
+            var json = answeredJson
+            for ((from, to) in edits) {
+                assertTrue(json.contains(from)) { "Expected '$from' in the written JSON" }
+                json = json.replace(from, to)
+            }
+            return mapper.readValue(json, DecisionResponse::class.java)
+        }
+
+        @Test
+        fun `a renamed option with a matching selection reads but fails the typed lookup`() {
+            val read = readTampered(
+                "\"id\":\"technical\"" to "\"id\":\"hacked\"",
+                "\"categoryId\":\"billing\"" to "\"categoryId\":\"hacked\"",
+            )
+            val choice = assertInstanceOf(DecisionAnswer.Choice::class.java, read.answer("department"))
+            assertEquals(department.definitionId, choice.definitionId)
+            val error = assertThrows(IllegalArgumentException::class.java) { read.answer(department) }
+            assertTrue(error.message!!.contains("'department'")) { error.message }
+            assertTrue(error.message!!.contains("options differ from the question's")) { error.message }
+        }
+
+        @Test
+        fun `a changed option description reads but fails the typed lookup`() {
+            val read = readTampered("Bugs, outages, integrations" to "Anything at all")
+            val error = assertThrows(IllegalArgumentException::class.java) { read.answer(department) }
+            assertTrue(error.message!!.contains("options differ from the question's")) { error.message }
+        }
+
+        @Test
+        fun `a renamed level with a matching selection and distribution reads but fails the typed lookup`() {
+            val read = readTampered(
+                "\"Very angry\"" to "\"Furious\"",
+                "\"selectedLevelId\":\"Frustrated\"" to "\"selectedLevelId\":\"Furious\"",
+            )
+            val rating = assertInstanceOf(DecisionAnswer.Rating::class.java, read.answer("frustration"))
+            assertEquals(frustration.definitionId, rating.definitionId)
+            val error = assertThrows(IllegalArgumentException::class.java) { read.answer(frustration) }
+            assertTrue(error.message!!.contains("'frustration'")) { error.message }
+            assertTrue(error.message!!.contains("levels differ from the question's")) { error.message }
+        }
+
+        @Test
+        fun `a changed level description reads but fails the typed lookup`() {
+            val read = readTampered("{\"id\":\"Calm\",\"description\":\"Calm\"}" to "{\"id\":\"Calm\",\"description\":\"Relaxed\"}")
+            val error = assertThrows(IllegalArgumentException::class.java) { read.answer(frustration) }
+            assertTrue(error.message!!.contains("levels differ from the question's")) { error.message }
+        }
+
+        @Test
+        fun `an untouched response still passes the typed lookup for every question`() {
+            val read = readTampered()
+            assertEquals(ClassificationResult.Selected("billing", jev, 0.91), read.answer(department))
+            assertEquals(anger, read.answer(frustration))
         }
     }
 }

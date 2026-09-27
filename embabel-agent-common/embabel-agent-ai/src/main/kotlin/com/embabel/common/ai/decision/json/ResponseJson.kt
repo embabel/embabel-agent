@@ -45,9 +45,9 @@ import tools.jackson.databind.module.SimpleSerializers
  * [DecisionAnswer] and its three classes, and [RatingResult] and its three classes.
  *
  * A response is written as its spec id, its execution mode, its request failure when there is
- * one, and an `answers` object that maps each question name to its answer in spec order. An
- * answer carries its kind, definition id, options or levels, and outcome. Each outcome has a
- * `status` member that says which result class it is.
+ * one, and an `answers` array that holds its answers in spec order. An answer carries its name,
+ * kind, definition id, options or levels, and outcome, and has the same shape inside a response
+ * and on its own. Each outcome has a `status` member that says which result class it is.
  *
  * Proposition and choice outcomes use the existing result classes. This file writes and reads
  * those outcomes, and their provenance, itself, so the module adds no binding for any existing
@@ -181,15 +181,9 @@ private val RESPONSE_READER = StrictObjectReader(
     optional = listOf("requestFailure"),
 )
 
-// The answers object maps names to answers, so any name is allowed. A repeated name is still a
-// duplicate member and fails.
-private val ANSWERS_READER = StrictObjectReader.anyMembers(DecisionResponse::class.java)
-
-// An answer inside a response takes its name from its key. An answer on its own carries a name member.
-private val ANSWER_IN_RESPONSE_READER =
-    StrictObjectReader(DecisionAnswer::class.java, listOf("kind", "definitionId", "outcome"), listOf("options", "levels"))
+// An answer has the same members inside a response's answers array and on its own.
 private val ANSWER_READER =
-    StrictObjectReader(DecisionAnswer::class.java, listOf("kind", "name", "definitionId", "outcome"), listOf("options", "levels"))
+    StrictObjectReader(DecisionAnswer::class.java, listOf("name", "kind", "definitionId", "outcome"), listOf("options", "levels"))
 
 private fun <E> readWireName(value: MemberValue, byWireName: Map<String, E>): E =
     byWireName[value.string()] ?: value.invalid("one of " + byWireName.keys.joinToString(", "))
@@ -276,10 +270,10 @@ private fun writeRatingOutcome(generator: JsonGenerator, result: RatingResult) {
     generator.writeEndObject()
 }
 
-private fun writeAnswer(generator: JsonGenerator, answer: DecisionAnswer, withName: Boolean) {
+private fun writeAnswer(generator: JsonGenerator, answer: DecisionAnswer) {
     generator.writeStartObject()
+    generator.writeStringProperty("name", answer.name)
     generator.writeStringProperty("kind", answer.kind.wireName)
-    if (withName) generator.writeStringProperty("name", answer.name)
     generator.writeStringProperty("definitionId", answer.definitionId)
     when (answer) {
         is DecisionAnswer.Proposition -> {
@@ -306,19 +300,16 @@ private object DecisionResponseSerializer : ValueSerializer<DecisionResponse>() 
         generator.writeStringProperty("definitionId", value.definitionId)
         generator.writeStringProperty("executionMode", value.executionMode.snakeName)
         value.requestFailure?.let { generator.writeStringProperty("requestFailure", it.snakeName) }
-        generator.writeObjectPropertyStart("answers")
-        for (answer in value.answers) {
-            generator.writeName(answer.name)
-            writeAnswer(generator, answer, withName = false)
-        }
-        generator.writeEndObject()
+        generator.writeArrayPropertyStart("answers")
+        for (answer in value.answers) writeAnswer(generator, answer)
+        generator.writeEndArray()
         generator.writeEndObject()
     }
 }
 
 private object DecisionAnswerSerializer : ValueSerializer<DecisionAnswer>() {
     override fun serialize(value: DecisionAnswer, generator: JsonGenerator, context: SerializationContext) =
-        writeAnswer(generator, value, withName = true)
+        writeAnswer(generator, value)
 }
 
 private object RatingResultSerializer : ValueSerializer<RatingResult>() {
@@ -447,11 +438,8 @@ private class OutcomeParts(private val context: DeserializationContext) {
 private class AnswerParts(
     private val context: DeserializationContext,
     private val expected: QuestionKind?,
-    private var name: String?,
 ) {
-    // A name known in advance comes from the answers object, so the answer itself has no name member.
-    val reader: StrictObjectReader = if (name == null) ANSWER_READER else ANSWER_IN_RESPONSE_READER
-
+    private var name: String? = null
     private var kind: QuestionKind? = null
     private var definitionId: String? = null
     private var options: List<Category>? = null
@@ -479,7 +467,7 @@ private class AnswerParts(
     fun build(): DecisionAnswer {
         // The reader has already required kind, name, definitionId and outcome.
         val kind = kind!!
-        checkOptionsAndLevels(context, reader, kind, options, levels)
+        checkOptionsAndLevels(context, ANSWER_READER, kind, options, levels)
         val outcome = outcome!!
         val name = name!!
         val definitionId = definitionId!!
@@ -497,14 +485,9 @@ private class AnswerParts(
     }
 }
 
-private fun readAnswer(
-    context: DeserializationContext,
-    expected: QuestionKind?,
-    name: String?,
-    start: ObjectRead,
-): DecisionAnswer {
-    val parts = AnswerParts(context, expected, name)
-    start(parts.reader, parts::accept)
+private fun readAnswer(context: DeserializationContext, expected: QuestionKind?, start: ObjectRead): DecisionAnswer {
+    val parts = AnswerParts(context, expected)
+    start(ANSWER_READER, parts::accept)
     return parts.build()
 }
 
@@ -523,10 +506,17 @@ private object DecisionResponseDeserializer : ValueDeserializer<DecisionResponse
                 // An explicit null reads the same as an absent member: the request did not fail.
                 "requestFailure" -> requestFailure = value.orNull { readWireName(it, REASONS_BY_WIRE_NAME) }
                 "answers" -> {
-                    // Answers stay in document order. The factory's spec id check rejects any other order.
+                    // Array order is the spec order. The factory's spec id check rejects any other order.
                     val list = ArrayList<DecisionAnswer>()
-                    value.readObject(ANSWERS_READER) { name, answer ->
-                        list += readAnswer(context, null, name, nested(answer))
+                    val names = HashSet<String>()
+                    value.readArray { element ->
+                        val answer = readAnswer(context, null, nested(element))
+                        if (!names.add(answer.name)) {
+                            RESPONSE_READER.invalidMember(
+                                context, element.name, "an answer with a unique name. Repeated: '${answer.name}'",
+                            )
+                        }
+                        list += answer
                     }
                     answers = list
                 }
@@ -546,7 +536,7 @@ private class AnswerDeserializer<A : DecisionAnswer>(
     override fun handledType(): Class<*> = type
 
     override fun deserialize(parser: JsonParser, context: DeserializationContext): A =
-        type.cast(readAnswer(context, kind, null, topLevel(parser, context)))
+        type.cast(readAnswer(context, kind, topLevel(parser, context)))
 }
 
 // One class serves RatingResult and each result class. With a status, the JSON must carry that status.
