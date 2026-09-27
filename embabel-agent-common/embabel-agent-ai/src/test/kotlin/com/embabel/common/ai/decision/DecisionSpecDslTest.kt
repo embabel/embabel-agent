@@ -63,6 +63,8 @@ class DecisionSpecDslTest {
         val expected = javaTriage()
         assertEquals(expected, triage)
         assertEquals(expected.definitionId, triage.definitionId)
+        // Pinned so a change to either construction path, or to the identity algorithm, fails here.
+        assertEquals("s1-CZ2UfjbN5c9QqHynKmSBQzKTouzrERG_PPxv8PfF42A", triage.definitionId)
     }
 
     @Nested
