@@ -292,7 +292,7 @@ class DecisionObservationTest {
                     ClassificationResult.Selected(secret, provenance)
                 }), telemetry.registry).classify(request)
             }
-            assertEquals("exception", telemetry.recorder.stopped.single().getLowCardinalityKeyValue("outcome")!!.value)
+            assertEquals("invalid_response", telemetry.recorder.stopped.single().getLowCardinalityKeyValue("outcome")!!.value)
             assertNull(telemetry.registry.currentObservation)
         }
 
