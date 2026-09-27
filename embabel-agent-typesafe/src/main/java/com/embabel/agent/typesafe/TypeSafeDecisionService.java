@@ -19,33 +19,89 @@ import com.embabel.common.ai.classification.ClassificationRequest;
 import com.embabel.common.ai.classification.ClassificationResult;
 import com.embabel.common.ai.classification.FailureReason;
 import com.embabel.common.ai.classification.ModelProvenance;
+import com.embabel.common.ai.decision.ChoiceQuestionSpec;
+import com.embabel.common.ai.decision.DecisionCapabilities;
+import com.embabel.common.ai.decision.DecisionRequest;
+import com.embabel.common.ai.decision.DecisionResponse;
 import com.embabel.common.ai.decision.DecisionService;
+import com.embabel.common.ai.decision.PropositionQuestionSpec;
 import com.embabel.common.ai.decision.PropositionRequest;
 import com.embabel.common.ai.decision.PropositionResult;
+import com.embabel.common.ai.decision.QuestionKind;
+import com.embabel.common.ai.decision.RatingQuestionSpec;
+import com.embabel.common.ai.decision.RatingResult;
+import com.embabel.common.ai.decision.spi.ChoiceAssessment;
+import com.embabel.common.ai.decision.spi.DecisionContentCapture;
+import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution;
+import com.embabel.common.ai.decision.spi.PropositionAssessment;
+import com.embabel.common.ai.decision.spi.RatingAssessment;
 
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springaicommunity.typesafe.TypeSafeClient;
 import org.springaicommunity.typesafe.exception.TypeSafeApiConnectionException;
 import org.springaicommunity.typesafe.exception.TypeSafeApiException;
 import org.springaicommunity.typesafe.exception.TypeSafeApiResponseValidationException;
+import org.springaicommunity.typesafe.exception.TypeSafeApiTimeoutException;
 import org.springaicommunity.typesafe.exception.TypeSafeException;
+import org.springaicommunity.typesafe.exception.TypeSafeRateLimitException;
 import org.springaicommunity.typesafe.question.Choice;
 import org.springaicommunity.typesafe.question.Noul;
+import org.springaicommunity.typesafe.question.Question;
 import org.springaicommunity.typesafe.response.ChoiceAnswer;
 import org.springaicommunity.typesafe.response.SystemOneResponse;
 
+import java.net.SocketTimeoutException;
+import java.net.http.HttpTimeoutException;
+import java.nio.channels.ClosedByInterruptException;
+import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeoutException;
 
-/** Maps TypeSafe's native primitives into Embabel decision evidence without adding policy. */
-final class TypeSafeDecisionService implements DecisionService {
+/**
+ * Maps TypeSafe's native primitives into Embabel decision evidence without adding policy.
+ *
+ * <p>A whole decision spec runs as one {@code systemOne} call. Proposition, choice and rating
+ * questions asked on their own run as a one-question call each. Every failed provider call logs one
+ * WARN line with bounded fields: service, provider, operation, reason, cause category, HTTP status class,
+ * attempts, elapsed time, exception class and provider request id. Exception messages, bodies,
+ * headers and endpoints are left out, because they can echo the input or carry credentials.
+ *
+ * <p>A failed provider call made while the thread is interrupted, or failing with an
+ * {@link InterruptedException} or {@link ClosedByInterruptException} in its cause chain, throws an
+ * {@link InterruptedException} with the interrupt flag set. It is the original one when the chain
+ * holds it, and otherwise a new one caused by the failure. The methods declare no checked
+ * exception, so Java code cannot name {@code InterruptedException} in a {@code catch} clause around
+ * them. Java callers catch {@code Exception} and test for {@code InterruptedException}, or check
+ * {@code Thread.currentThread().isInterrupted()} after a failure.
+ */
+final class TypeSafeDecisionService
+        implements DecisionService,
+                NativeQuestionSetExecution,
+                PropositionAssessment,
+                ChoiceAssessment,
+                RatingAssessment {
     private static final Logger logger = LoggerFactory.getLogger(TypeSafeDecisionService.class);
     private static final String CLASSIFICATION_QUESTION = "classification";
     private static final String PROPOSITION_QUESTION = "proposition";
+    private static final String PROPOSITION_LABEL = "proposition assessment";
+    private static final String QUESTION = "question";
+    private static final String CLASSIFY_OPERATION = "classify";
+    private static final String ASSESS_OPERATION = "assess";
+    private static final String REQUEST_ARGUMENT = "request";
+    private static final String INVALID_RESPONSE_CAUSE = "invalid_response";
     private static final double UNDECIDED_PROBABILITY = 0.5d;
     private static final double DISTRIBUTION_TOLERANCE = 1.0e-6d;
+
+    // The SDK declares no question or input limits, so none are reported.
+    private static final DecisionCapabilities CAPABILITIES =
+            DecisionCapabilities.of(EnumSet.allOf(QuestionKind.class));
+
+    // The factory builds every client with RetryPolicy.noRetry(), so each call is one attempt.
+    private static final int ATTEMPTS = 1;
 
     private final TypeSafeClient client;
 
@@ -64,13 +120,45 @@ final class TypeSafeDecisionService implements DecisionService {
     }
 
     @Override
+    public DecisionCapabilities capabilities() {
+        return CAPABILITIES;
+    }
+
+    @Override
+    public DecisionResponse askNative(DecisionRequest request) {
+        Objects.requireNonNull(request, REQUEST_ARGUMENT);
+        return runQuestionSet(request, "ask_native", "question set");
+    }
+
+    @Override
+    public ClassificationResult choose(String input, ChoiceQuestionSpec question) {
+        Objects.requireNonNull(question, QUESTION);
+        return runQuestionSet(DecisionRequest.of(input, question), "choose", "choice")
+                .answer(question);
+    }
+
+    @Override
+    public RatingResult rate(String input, RatingQuestionSpec question) {
+        Objects.requireNonNull(question, QUESTION);
+        return runQuestionSet(DecisionRequest.of(input, question), "rate", "rating")
+                .answer(question);
+    }
+
+    /** Assesses one proposition question through the proposition call, with the question's instructions. */
+    @Override
+    public PropositionResult assess(String input, PropositionQuestionSpec question) {
+        Objects.requireNonNull(question, QUESTION);
+        return assess(new PropositionRequest(input, question.getInstructions()));
+    }
+
+    @Override
     public ClassificationResult classify(ClassificationRequest request) {
-        Objects.requireNonNull(request, "request");
+        Objects.requireNonNull(request, REQUEST_ARGUMENT);
+        var started = System.nanoTime();
         try {
             var response =
-                    client.systemOne(
-                            request.getInput(),
-                            Map.of(CLASSIFICATION_QUESTION, choiceFor(request)));
+                    systemOne(request.getInput(), Map.of(CLASSIFICATION_QUESTION, choiceFor(request)));
+            traceResponse(CLASSIFY_OPERATION, response);
             var answer = response.choice(CLASSIFICATION_QUESTION);
             validateDistribution(request, answer);
             var provenance = provenance(response);
@@ -79,22 +167,32 @@ final class TypeSafeDecisionService implements DecisionService {
             }
             return request.getSpec().selected(answer.value(), provenance, answer.confidence());
         } catch (TypeSafeException failure) {
-            // The service returns typed failures; the helper logs the bounded reason.
-            return classificationFailure(failureReason(failure));
+            rethrowIfInterrupted(failure, CLASSIFY_OPERATION);
+            var reason = failureReason(failure);
+            logFailure(CLASSIFICATION_QUESTION, CLASSIFY_OPERATION, reason, failure, started);
+            return new ClassificationResult.Failure(reason);
         } catch (IllegalArgumentException failure) {
-            // Validation errors can contain response data; return and log only the failure reason.
-            return classificationFailure(FailureReason.INVALID_RESPONSE);
+            // Validation errors can contain response data; log only bounded fields.
+            logFailure(
+                    CLASSIFICATION_QUESTION,
+                    CLASSIFY_OPERATION,
+                    FailureReason.INVALID_RESPONSE,
+                    failure,
+                    started);
+            return new ClassificationResult.Failure(FailureReason.INVALID_RESPONSE);
         }
     }
 
     @Override
     public PropositionResult assess(PropositionRequest request) {
-        Objects.requireNonNull(request, "request");
+        Objects.requireNonNull(request, REQUEST_ARGUMENT);
+        var started = System.nanoTime();
         try {
             var response =
-                    client.systemOne(
+                    systemOne(
                             request.getInput(),
                             Map.of(PROPOSITION_QUESTION, Noul.of(request.getProposition())));
+            traceResponse(ASSESS_OPERATION, response);
             var probability = response.noulValue(PROPOSITION_QUESTION);
             var provenance = provenance(response);
             if (probability == UNDECIDED_PROBABILITY) {
@@ -103,12 +201,56 @@ final class TypeSafeDecisionService implements DecisionService {
             return new PropositionResult.Answered(
                     probability > UNDECIDED_PROBABILITY, provenance, probability);
         } catch (TypeSafeException failure) {
-            // The service returns typed failures; the helper logs the bounded reason.
-            return propositionFailure(failureReason(failure));
+            rethrowIfInterrupted(failure, ASSESS_OPERATION);
+            var reason = failureReason(failure);
+            logFailure(PROPOSITION_LABEL, ASSESS_OPERATION, reason, failure, started);
+            return new PropositionResult.Failure(reason);
         } catch (IllegalArgumentException failure) {
-            // Validation errors can contain response data; return and log only the failure reason.
-            return propositionFailure(FailureReason.INVALID_RESPONSE);
+            // Validation errors can contain response data; log only bounded fields.
+            logFailure(
+                    PROPOSITION_LABEL,
+                    ASSESS_OPERATION,
+                    FailureReason.INVALID_RESPONSE,
+                    failure,
+                    started);
+            return new PropositionResult.Failure(FailureReason.INVALID_RESPONSE);
         }
+    }
+
+    /**
+     * Sends every question of the request in one call and maps the answers onto the spec. A failed
+     * call fails the whole request with its reason.
+     */
+    private DecisionResponse runQuestionSet(
+            DecisionRequest request, String operation, String label) {
+        var spec = request.getSpec();
+        var started = System.nanoTime();
+        try {
+            var response = systemOne(request.getInput(), TypeSafeQuestionSets.questions(spec));
+            traceResponse(operation, response);
+            return TypeSafeQuestionSets.response(spec, response, provenance(response), getName());
+        } catch (TypeSafeException failure) {
+            rethrowIfInterrupted(failure, operation);
+            var reason = failureReason(failure);
+            logFailure(label, operation, reason, failure, started);
+            return DecisionResponse.failed(spec, reason);
+        } catch (IllegalArgumentException failure) {
+            // Mapping errors can contain response data; log only bounded fields.
+            logFailure(label, operation, FailureReason.INVALID_RESPONSE, failure, started);
+            return DecisionResponse.failed(spec, FailureReason.INVALID_RESPONSE);
+        }
+    }
+
+    /**
+     * Sends one {@code systemOne} call. A missing response throws an
+     * {@link IllegalArgumentException}, which the caller reports as an invalid response.
+     */
+    private SystemOneResponse systemOne(String input, Map<String, ? extends Question> questions) {
+        @Nullable SystemOneResponse response = client.systemOne(input, questions);
+        if (response == null) {
+            throw new IllegalArgumentException("TypeSafe returned no response");
+        }
+        return response;
     }
 
     /**
@@ -159,6 +301,52 @@ final class TypeSafeDecisionService implements DecisionService {
     }
 
     /**
+     * Throws an {@link InterruptedException} when a failed provider call was interrupted. The SDK
+     * reports an interrupted transport read as a {@link TypeSafeException} and restores the flag,
+     * so a set flag counts as an interruption along with an interruption in the cause chain. The
+     * flag stays set.
+     */
+    private void rethrowIfInterrupted(TypeSafeException failure, String operation) {
+        InterruptedException interrupted = null;
+        for (Throwable current = failure; current != null; current = current.getCause()) {
+            if (current instanceof InterruptedException found) {
+                interrupted = found;
+                break;
+            }
+        }
+        var closedByInterrupt = hasCause(failure, ClosedByInterruptException.class);
+        if (interrupted == null && !closedByInterrupt && !Thread.currentThread().isInterrupted()) {
+            return;
+        }
+        Thread.currentThread().interrupt();
+        if (interrupted == null) {
+            interrupted = new InterruptedException("TypeSafe " + operation + " call was interrupted");
+            interrupted.initCause(failure);
+        }
+        logger.debug(
+                "TypeSafe call interrupted: service={}, provider={}, operation={}",
+                getName(),
+                TypeSafeModelFactory.PROVIDER,
+                operation);
+        throw TypeSafeDecisionService.<RuntimeException>sneakyThrow(interrupted);
+    }
+
+    private static boolean hasCause(Throwable failure, Class<? extends Throwable> type) {
+        for (Throwable current = failure; current != null; current = current.getCause()) {
+            if (type.isInstance(current)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Throws a checked exception from a method that declares none, as Kotlin callers expect.
+    @SuppressWarnings("unchecked")
+    private static <T extends Throwable> RuntimeException sneakyThrow(Throwable failure) throws T {
+        throw (T) failure;
+    }
+
+    /**
      * Picks the failure reason, keeping an unavailable provider apart from a response that failed validation.
      *
      * @param failure the TypeSafe exception
@@ -174,24 +362,93 @@ final class TypeSafeDecisionService implements DecisionService {
     }
 
     /**
-     * Logs the reason and returns a classification failure. No provider exception or payload is logged.
-     *
-     * @param reason why the call failed
-     * @return the failure result
+     * Logs one failed provider call. The message keeps the prefix "TypeSafe <label> failed with
+     * reason <reason>" and appends bounded fields. The exception is not attached and its message is
+     * not logged, because provider text can echo the input and transport errors can carry
+     * credentials or endpoints.
      */
-    private static ClassificationResult.Failure classificationFailure(FailureReason reason) {
-        logger.warn("TypeSafe classification failed with reason {}", reason);
-        return new ClassificationResult.Failure(reason);
+    private void logFailure(
+            String label,
+            String operation,
+            FailureReason reason,
+            RuntimeException failure,
+            long started) {
+        var elapsedMs = (System.nanoTime() - started) / 1_000_000L;
+        logger.warn(
+                "TypeSafe {} failed with reason {}: service={}, provider={}, operation={},"
+                        + " cause={}, status={}, attempts={}, elapsedMs={}, exception={},"
+                        + " requestId={}",
+                label,
+                reason,
+                getName(),
+                TypeSafeModelFactory.PROVIDER,
+                operation,
+                causeCategory(failure),
+                statusClass(failure),
+                ATTEMPTS,
+                elapsedMs,
+                failure.getClass().getSimpleName(),
+                requestId(failure));
+    }
+
+    /** Names the kind of failure from a fixed set, so operators can tell transport from content. */
+    private static String causeCategory(Throwable failure) {
+        if (hasTimeout(failure)) {
+            return "timeout";
+        }
+        return switch (failure) {
+            case TypeSafeApiResponseValidationException ignored -> INVALID_RESPONSE_CAUSE;
+            case TypeSafeRateLimitException ignored -> "rate_limited";
+            case TypeSafeApiException api when api.status() == 429 -> "rate_limited";
+            case TypeSafeApiException api when api.status() >= 400 && api.status() < 500 ->
+                    "http_4xx";
+            case TypeSafeApiException api when api.status() >= 500 && api.status() < 600 ->
+                    "http_5xx";
+            case TypeSafeApiConnectionException ignored -> "connection";
+            case TypeSafeApiException ignored -> "other";
+            case TypeSafeException ignored -> INVALID_RESPONSE_CAUSE;
+            case IllegalArgumentException ignored -> INVALID_RESPONSE_CAUSE;
+            default -> "other";
+        };
+    }
+
+    private static boolean hasTimeout(Throwable failure) {
+        for (Throwable current = failure; current != null; current = current.getCause()) {
+            if (current instanceof TypeSafeApiTimeoutException
+                    || current instanceof SocketTimeoutException
+                    || current instanceof HttpTimeoutException
+                    || current instanceof TimeoutException) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String statusClass(Throwable failure) {
+        if (failure instanceof TypeSafeApiException api && api.status() >= 100 && api.status() < 600) {
+            return (api.status() / 100) + "xx";
+        }
+        return "none";
+    }
+
+    private static String requestId(Throwable failure) {
+        if (failure instanceof TypeSafeApiException api && api.requestId() != null) {
+            return api.requestId();
+        }
+        return "none";
     }
 
     /**
-     * Logs the reason and returns a proposition failure. No provider exception or payload is logged.
-     *
-     * @param reason why the call failed
-     * @return the failure result
+     * Logs the SDK response at TRACE when content capture is on. The line holds provider output,
+     * which can echo the input.
      */
-    private static PropositionResult.Failure propositionFailure(FailureReason reason) {
-        logger.warn("TypeSafe proposition assessment failed with reason {}", reason);
-        return new PropositionResult.Failure(reason);
+    private void traceResponse(String operation, SystemOneResponse response) {
+        if (DecisionContentCapture.isEnabled() && logger.isTraceEnabled()) {
+            logger.trace(
+                    "TypeSafe response content: service={}, operation={}, response={}",
+                    getName(),
+                    operation,
+                    response);
+        }
     }
 }

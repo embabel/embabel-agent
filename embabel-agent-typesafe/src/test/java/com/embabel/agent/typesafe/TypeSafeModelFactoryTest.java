@@ -177,6 +177,18 @@ class TypeSafeModelFactoryTest {
     }
 
     @Test
+    void optionsKeyAndRegistryConstructorBuildsTheDefaultModel() {
+        var factory =
+                new TypeSafeModelFactory(
+                        TypeSafeClientOptions.defaults(),
+                        () -> "test-key",
+                        io.micrometer.observation.ObservationRegistry.create());
+        assertThat(factory.build().getName()).isEqualTo(TypeSafeModelFactory.DEFAULT_MODEL);
+        assertThat(factory.build())
+                .isInstanceOf(com.embabel.common.ai.model.observation.ObservedDecisionService.class);
+    }
+
+    @Test
     void oneFactoryBuildsIndependentDecisionModels() {
         var factory = new TypeSafeModelFactory(() -> "test-key");
 

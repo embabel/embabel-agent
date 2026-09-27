@@ -96,7 +96,22 @@ public class TypeSafeModelFactory implements ByokFactory<DecisionService> {
      * @param keySupplier credential source evaluated for each request
      */
     public TypeSafeModelFactory(TypeSafeClientOptions options, Supplier<String> keySupplier) {
-        this(options, keySupplier, null);
+        this(options, keySupplier, ObservationRegistry.NOOP);
+    }
+
+    /**
+     * Uses configured transport bounds, the fallback transport and the default model, with the given
+     * observation registry.
+     *
+     * @param options non-secret provider settings
+     * @param keySupplier credential source evaluated for each request
+     * @param observationRegistry registry for framework, provider and fallback HTTP observations
+     */
+    public TypeSafeModelFactory(
+            TypeSafeClientOptions options,
+            Supplier<String> keySupplier,
+            ObservationRegistry observationRegistry) {
+        this(options, keySupplier, null, observationRegistry, DEFAULT_MODEL);
     }
 
     /**
