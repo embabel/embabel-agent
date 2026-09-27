@@ -94,7 +94,7 @@ private data class GetterSiteTriage(
 // end::annotated-kotlin[]
 
 // Kotlin 2.2 warns that a later default site also annotates the backing field. Writing both targets
-// reproduces that placement.
+// gives that placement today.
 private data class ParamAndFieldSiteTriage(
     @param:PropositionQuestion(asking = URGENT) @field:PropositionQuestion(asking = URGENT) val urgent: Boolean,
     @param:ChoiceQuestion(asking = TEAM) @field:ChoiceQuestion(asking = TEAM) val department: Department,
@@ -191,16 +191,6 @@ class AnnotatedKotlinTest {
         assertEquals(fieldProblems(FieldSiteTriage::class.java), problemsOf(decisions, FieldSiteTriage::class.java))
     }
 
-    @Test
-    fun `param and field site together fail on the field`() {
-        val decisions = AnnotatedDecisions.using(kotlinMapper)
-
-        assertEquals(
-            fieldProblems(ParamAndFieldSiteTriage::class.java),
-            problemsOf(decisions, ParamAndFieldSiteTriage::class.java),
-        )
-    }
-
     private fun fieldProblems(type: Class<*>): List<String> {
         val name = type.simpleName
         val fix = " In Kotlin, write the annotation with @get: or with no use-site target."
@@ -215,12 +205,13 @@ class AnnotatedKotlinTest {
     }
 
     @Test
-    fun `default site, param site, getter site and a plain class read to the Java record spec`() {
+    fun `default, param, param and field, and getter sites and a plain class read to the Java record spec`() {
         val decisions = AnnotatedDecisions.using(kotlinMapper)
 
         for (type in listOf(
             DefaultSiteTriage::class.java,
             ParamSiteTriage::class.java,
+            ParamAndFieldSiteTriage::class.java,
             GetterSiteTriage::class.java,
             PlainClassTriage::class.java,
         )) {
