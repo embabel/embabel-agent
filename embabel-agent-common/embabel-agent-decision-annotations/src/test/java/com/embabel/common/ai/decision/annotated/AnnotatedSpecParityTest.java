@@ -16,6 +16,7 @@
 package com.embabel.common.ai.decision.annotated;
 
 import com.embabel.common.ai.decision.DecisionSpec;
+import com.embabel.common.ai.decision.Question;
 import com.embabel.common.ai.decision.RatingLevel;
 import com.embabel.common.ai.decision.RatingQuestionSpec;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
@@ -120,7 +121,8 @@ class AnnotatedSpecParityTest {
         assertEquals(expected, decision.questionNames());
         assertEquals(List.copyOf(expected.values()), List.copyOf(decision.questionNames().values()));
         assertSame(Triage.class, decision.type());
-        assertThrows(UnsupportedOperationException.class, () -> decision.questionNames().put("x", "y"));
+        Map<String, String> questionNames = decision.questionNames();
+        assertThrows(UnsupportedOperationException.class, () -> questionNames.put("x", "y"));
     }
 
     @Test
@@ -130,7 +132,7 @@ class AnnotatedSpecParityTest {
 
         assertEquals(
             List.of("severity", "urgent", "department"),
-            reordered.getQuestions().stream().map(question -> question.getName()).toList());
+            reordered.getQuestions().stream().map(Question::getName).toList());
         assertNotEquals(original.getDefinitionId(), reordered.getDefinitionId());
         assertNotEquals(original, reordered);
     }
@@ -139,7 +141,7 @@ class AnnotatedSpecParityTest {
     void propertiesWithoutQuestionAnnotationsAreNotQuestions() {
         AnnotatedDecision<TriageWithSource> decision = AnnotatedDecisions.defaults().of(TriageWithSource.class);
 
-        assertEquals(List.of("urgent"), decision.spec().getQuestions().stream().map(question -> question.getName()).toList());
+        assertEquals(List.of("urgent"), decision.spec().getQuestions().stream().map(Question::getName).toList());
         assertEquals(Map.of("urgent", "urgent"), decision.questionNames());
     }
 }

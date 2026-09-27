@@ -22,6 +22,7 @@ import com.embabel.common.ai.decision.DecisionProjectionException;
 import com.embabel.common.ai.decision.DecisionResponse;
 import com.embabel.common.ai.decision.PropositionQuestionSpec;
 import com.embabel.common.ai.decision.PropositionResult;
+import com.embabel.common.ai.decision.Question;
 import com.embabel.common.ai.decision.RatingResult;
 import com.embabel.common.ai.decision.annotated.AnnotatedDecision;
 import com.embabel.common.ai.decision.annotated.AnnotatedDecisions;
@@ -175,7 +176,7 @@ class DiceRevisionAnnotatedExampleTest {
             review.project(response, Map.of("propositionId", "prop-381", "sourceRevision", 12L));
 
         assertEquals(List.of("supported", "action", "confidence"),
-            review.spec().getQuestions().stream().map(question -> question.getName()).toList());
+            review.spec().getQuestions().stream().map(Question::getName).toList());
         assertEquals("prop-381", entity.getPropositionId());
         assertEquals(12L, entity.getSourceRevision());
         assertEquals(false, entity.isSupported());
@@ -211,9 +212,10 @@ class DiceRevisionAnnotatedExampleTest {
             .proposition("supported", new PropositionResult.Inconclusive(PROVENANCE))
             .build()
             .ask(EVIDENCE, review.spec());
+        Map<String, Object> identity = Map.of("propositionId", "prop-381", "sourceRevision", 12L);
 
         DecisionProjectionException e = assertThrows(DecisionProjectionException.class,
-            () -> review.project(response, Map.of("propositionId", "prop-381", "sourceRevision", 12L)));
+            () -> review.project(response, identity));
         assertEquals(List.of("supported"), e.getQuestions());
 
         Disposition disposition = new RevisionPolicy().dispose(response, "prop-381", 12L);
@@ -226,9 +228,10 @@ class DiceRevisionAnnotatedExampleTest {
     void identityFieldsAreRequired() {
         AnnotatedDecision<PropositionReview> review = AnnotatedDecisions.defaults().of(PropositionReview.class);
         DecisionResponse response = reviewStub().build().ask(EVIDENCE, review.spec());
+        Map<String, Object> identity = Map.of("propositionId", "prop-381");
 
         DecisionProjectionException e = assertThrows(DecisionProjectionException.class,
-            () -> review.project(response, Map.of("propositionId", "prop-381")));
+            () -> review.project(response, identity));
 
         assertEquals("PropositionReview needs values for [sourceRevision]. Pass them in otherProperties.",
             e.getMessage());
