@@ -56,23 +56,23 @@ enum class RequiredFieldNormalization {
  * Optional behaviours for [JacksonOutputConverter] schema generation.
  *
  * Pass one or more values to the converter constructor to enable the corresponding behaviour.
+ * For the platform path, prefer placing [@ForceOneOfEnum][ForceOneOfEnum] directly on the enum class.
  */
 enum class JacksonOutputConverterOption {
     /**
      * Emit per-constant descriptions from [@JsonPropertyDescription][JsonPropertyDescription] on enum constants.
      *
      * When enabled, an enum whose constants carry `@JsonPropertyDescription` is emitted as
-     * `oneOf [ { const, description }, … ]` instead of a bare `enum` array, so the model
-     * receives the prose that was written for each option.
+     * `{ "type": "string", "oneOf": [ { "const": "…", "description": "…" }, … ] }` instead of a
+     * bare `enum` array, so the model receives the prose written for each option.
      *
-     * **Trade-off**: the `oneOf` keyword is not supported by OpenAI's native structured-output
-     * strict mode, so any schema that contains such an enum will fall back to the prompt-based
-     * path on that provider. Enable this option only when you are on a provider that supports
-     * `oneOf` (e.g. Google GenAI, Anthropic), or when you are not relying on native
-     * structured output.
+     * **Trade-off**: `oneOf` causes Embabel's own [hasUnsupportedJsonSchemaKeywords] gate to skip
+     * the native structured-output path and fall back to injecting the schema via the prompt
+     * ([JacksonOutputConverter.getFormat]). The descriptions still reach the model on all providers
+     * through that prompt path — this is not an OpenAI-only limitation.
      *
-     * Enums whose constants carry no `@JsonPropertyDescription` are unaffected regardless of
-     * this option.
+     * Enums whose constants carry no `@JsonPropertyDescription` are unaffected regardless of this option.
+     * Prefer [@ForceOneOfEnum][ForceOneOfEnum] on the enum class for the Embabel platform path.
      */
     ENUM_CONSTANT_DESCRIPTIONS,
 }
@@ -83,6 +83,7 @@ enum class JacksonOutputConverterOption {
  *
  * For an enum like:
  * ```kotlin
+ * @ForceOneOfEnum
  * enum class Priority {
  *     @JsonPropertyDescription("Needs same-day response") URGENT,
  *     @JsonPropertyDescription("Standard turnaround")    NORMAL,
@@ -104,7 +105,8 @@ enum class JacksonOutputConverterOption {
  * matching exactly what [WithExampleConverter] serialises in the prompt example.
  *
  * Returns `null` (deferring to the default victools behaviour) when:
- * - the type is not an enum, or
+ * - the type is not an enum,
+ * - the enum class does not carry [@ForceOneOfEnum][ForceOneOfEnum] (when activated via that path), or
  * - no constant on the enum carries `@JsonPropertyDescription`.
  */
 internal class EnumConstantDescriptionProvider(
@@ -118,41 +120,55 @@ internal class EnumConstantDescriptionProvider(
         val rawType: Class<*> = javaType.erasedType
         if (!rawType.isEnum) return null
 
-        // Only activate when at least one constant carries the annotation.
+        // Pre-compute field metadata once per enum type to avoid repeated reflection per constant.
         val constants: Array<out Any> = rawType.enumConstants ?: return null
-        val hasAnyDescription = constants.any { constant ->
-            runCatching {
-                rawType.getDeclaredField((constant as Enum<*>).name)
-                    .isAnnotationPresent(JsonPropertyDescription::class.java)
-            }.getOrDefault(false)
+        data class ConstantMeta(val serializedName: JsonNode, val description: String?)
+        val meta: Map<String, ConstantMeta> = constants.associate { constant ->
+            val name = (constant as Enum<*>).name
+            val description = runCatching {
+                rawType.getDeclaredField(name)
+                    .getAnnotation(JsonPropertyDescription::class.java)
+                    ?.value
+                    ?.takeIf { it.isNotEmpty() }
+            }.getOrNull()
+            // Derive wire value via ObjectMapper — honours @JsonValue, @JsonProperty, custom serialisers.
+            val serializedName = runCatching {
+                objectMapper.valueToTree<JsonNode>(constant)
+            }.getOrElse { objectMapper.nodeFactory.textNode(name) }
+            name to ConstantMeta(serializedName, description)
         }
-        if (!hasAnyDescription) return null
 
-        // Build: { "type": "string", "oneOf": [ { "const": "NAME", "description": "…" }, … ] }
-        // "type": "string" is included so that provider schema bridges (e.g. Gemini responseSchema)
-        // can interpret the node — victools' own enum output always carries it.
+        // Only activate when at least one constant carries a non-empty description.
+        if (meta.values.none { it.description != null }) return null
+
+        // Build: { "type": "string", "oneOf": [ { "const": <value>, "description": "…" }, … ] }
+        // "type": "string" is required — a custom definition replaces the standard one wholesale,
+        // so the type field must be added explicitly. Victools' own enum output always carries it,
+        // and provider schema bridges (e.g. Gemini responseSchema) require it.
         val node = context.generatorConfig.createObjectNode()
         node.put("type", "string")
         val oneOfArray = node.putArray("oneOf")
         constants.forEach { constant ->
             val name = (constant as Enum<*>).name
+            val (serializedName, description) = meta[name] ?: return@forEach
             val entry = oneOfArray.addObject()
-            // Derive the wire value from the ObjectMapper rather than raw .name().
-            // This honours @JsonValue, @JsonProperty, and custom serialisers — matching
-            // exactly what WithExampleConverter serialises in the prompt example.
-            val serializedName = runCatching {
-                objectMapper.convertValue(constant, String::class.java)
-            }.getOrDefault(name)
-            entry.put("const", serializedName)
-            runCatching {
-                rawType.getDeclaredField(name)
-                    .getAnnotation(JsonPropertyDescription::class.java)
-                    ?.value
-                    ?.let { entry.put("description", it) }
-            }
+            entry.set("const", serializedName)
+            description?.let { entry.put("description", it) }
         }
         return CustomDefinition(node)
     }
+}
+
+/**
+ * Returns `true` when the given [outputClass] has any field whose enum type carries
+ * [@ForceOneOfEnum][ForceOneOfEnum], indicating that the platform should enable
+ * [JacksonOutputConverterOption.ENUM_CONSTANT_DESCRIPTIONS] for this converter.
+ */
+internal fun resolveConverterOptions(outputClass: Class<*>): Set<JacksonOutputConverterOption> {
+    val hasForceOneOfEnum = outputClass.declaredFields.any { field ->
+        field.type.isEnum && field.type.isAnnotationPresent(ForceOneOfEnum::class.java)
+    }
+    return if (hasForceOneOfEnum) setOf(JacksonOutputConverterOption.ENUM_CONSTANT_DESCRIPTIONS) else emptySet()
 }
 
 /**
@@ -199,6 +215,21 @@ open class JacksonOutputConverter<T : Any> protected constructor(
         objectMapper: ObjectMapper,
         options: Set<JacksonOutputConverterOption>,
     ) : this(typeReference.type, objectMapper, RequiredFieldNormalization.ENABLED, options)
+
+    // Full overloads combining normalization and options.
+    constructor(
+        clazz: Class<T>,
+        objectMapper: ObjectMapper,
+        requiredFieldNormalization: RequiredFieldNormalization,
+        options: Set<JacksonOutputConverterOption>,
+    ) : this(clazz as Type, objectMapper, requiredFieldNormalization, options)
+
+    constructor(
+        typeReference: ParameterizedTypeReference<T>,
+        objectMapper: ObjectMapper,
+        requiredFieldNormalization: RequiredFieldNormalization,
+        options: Set<JacksonOutputConverterOption>,
+    ) : this(typeReference.type, objectMapper, requiredFieldNormalization, options)
 
     protected val logger: Logger = LoggerFactory.getLogger(javaClass)
 

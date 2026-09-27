@@ -115,12 +115,24 @@ class JacksonOutputConverterTest {
 
     // Enum with @JsonValue method — wire value comes from the method, not the name
     enum class JsonValuePriority(private val wire: String) {
+        @JsonPropertyDescription("Needs same-day response")
         URGENT("urgent-wire"),
+
+        @JsonPropertyDescription("Standard turnaround")
         NORMAL("normal-wire"),
+
         OTHER("other-wire");
 
         @JsonValue
         fun toWire(): String = wire
+    }
+
+    // Enum annotated with @ForceOneOfEnum — activates the platform path
+    @ForceOneOfEnum
+    enum class ForcedPriority {
+        @JsonPropertyDescription("Needs same-day response") URGENT,
+        @JsonPropertyDescription("Standard turnaround")    NORMAL,
+        OTHER,
     }
 
     enum class BareEnum { A, B, C }  // no annotations at all
@@ -128,6 +140,7 @@ class JacksonOutputConverterTest {
     data class PriorityHolder(val priority: Priority)
     data class WireNamedPriorityHolder(val priority: WireNamedPriority)
     data class JsonValuePriorityHolder(val priority: JsonValuePriority)
+    data class ForcedPriorityHolder(val priority: ForcedPriority)
     data class BareEnumHolder(val value: BareEnum)
     data class ListPriorityHolder(val priorities: List<Priority>)
 
@@ -199,8 +212,6 @@ class JacksonOutputConverterTest {
 
         @Test
         fun `with option enum with @JsonValue uses wire value from method as const`() {
-            // @JsonValue takes precedence over @JsonProperty and raw .name()
-            // The wire values come from the toWire() method, not the enum constant names
             val converter = JacksonOutputConverter(
                 JsonValuePriorityHolder::class.java,
                 objectMapper,
@@ -209,10 +220,35 @@ class JacksonOutputConverterTest {
             val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
             val priorityNode = schema.path("properties").path("priority")
 
-            // JsonValuePriority has no @JsonPropertyDescription so provider returns null
-            // and falls back to default bare enum behaviour — unaffected by the option
-            assertThat(priorityNode.has("enum")).isTrue()
-            assertThat(priorityNode.has("oneOf")).isFalse()
+            assertThat(priorityNode.has("oneOf")).isTrue()
+            assertThat(priorityNode.path("type").asText()).isEqualTo("string")
+
+            val oneOf = priorityNode.path("oneOf")
+            // @JsonValue takes precedence — const values are the wire strings from toWire(), not .name()
+            val urgent = oneOf.first { it.path("const").asText() == "urgent-wire" }
+            assertThat(urgent.path("description").asText()).isEqualTo("Needs same-day response")
+
+            val normal = oneOf.first { it.path("const").asText() == "normal-wire" }
+            assertThat(normal.path("description").asText()).isEqualTo("Standard turnaround")
+
+            // OTHER has no @JsonPropertyDescription — present in oneOf with wire value, no description
+            val other = oneOf.first { it.path("const").asText() == "other-wire" }
+            assertThat(other.has("description")).isFalse()
+        }
+
+        @Test
+        fun `ForceOneOfEnum annotation activates oneOf without explicit options`() {
+            // @ForceOneOfEnum on the enum class is the platform path — no options set needed
+            val converter = JacksonOutputConverter(
+                ForcedPriorityHolder::class.java,
+                objectMapper,
+                options = resolveConverterOptions(ForcedPriorityHolder::class.java),
+            )
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+            val priorityNode = schema.path("properties").path("priority")
+
+            assertThat(priorityNode.has("oneOf")).isTrue()
+            assertThat(priorityNode.path("type").asText()).isEqualTo("string")
         }
 
         @Test
