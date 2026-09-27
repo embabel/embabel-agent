@@ -89,6 +89,10 @@ final class DecisionTypeParser {
     private static final String COLLISION_FIX =
         "Give each Java member its own property name, or correct the definition the message names.";
 
+    // The Kotlin compiler marks every class it emits with kotlin.Metadata. The annotation type is
+    // loaded by name so the module has no Kotlin dependency. It is null when Kotlin is absent.
+    private static final @Nullable Class<? extends Annotation> KOTLIN_METADATA = kotlinMetadata();
+
     /** The three question annotations, in the order problems name them. */
     private enum Kind {
         PROPOSITION(PropositionQuestion.class, annotation -> ((PropositionQuestion) annotation).asking()),
@@ -553,15 +557,17 @@ final class DecisionTypeParser {
         return null;
     }
 
-    // The Kotlin compiler marks every class it emits with kotlin.Metadata. The check reads the name so
-    // the module has no Kotlin dependency.
     private static boolean isKotlinClass(Class<?> type) {
-        for (Annotation annotation : type.getDeclaredAnnotations()) {
-            if (annotation.annotationType().getName().equals("kotlin.Metadata")) {
-                return true;
-            }
+        return KOTLIN_METADATA != null && type.isAnnotationPresent(KOTLIN_METADATA);
+    }
+
+    private static @Nullable Class<? extends Annotation> kotlinMetadata() {
+        try {
+            return Class.forName("kotlin.Metadata", false, DecisionTypeParser.class.getClassLoader())
+                .asSubclass(Annotation.class);
+        } catch (ClassNotFoundException | LinkageError e) {
+            return null;
         }
-        return false;
     }
 
     private static Set<Kind> kindsOn(AnnotatedElement element) {
