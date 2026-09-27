@@ -512,9 +512,7 @@ private object DecisionResponseDeserializer : ValueDeserializer<DecisionResponse
                     value.readArray { element ->
                         val answer = readAnswer(context, null, nested(element))
                         if (!names.add(answer.name)) {
-                            RESPONSE_READER.invalidMember(
-                                context, element.name, "an answer with a unique name. Repeated: '${answer.name}'",
-                            )
+                            element.invalid("an answer with a unique name. Repeated: '${answer.name}'")
                         }
                         list += answer
                     }

@@ -286,7 +286,8 @@ include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/c
 It throws `IllegalArgumentException` when the response has no answer with that name.
 `DecisionAnswer` is sealed, with the classes `DecisionAnswer.Proposition`, `DecisionAnswer.Choice` and `DecisionAnswer.Rating`.
 A Java `switch` or a Kotlin `when` over an answer covers every case.
-`DecisionAnswer.Choice` also holds the question's options, and `DecisionAnswer.Rating` holds its levels.
+`DecisionAnswer.Choice` also holds the options it was answered with, and `DecisionAnswer.Rating` holds its levels.
+An answer read from JSON holds them as written, and only the typed lookup checks them against a question.
 
 ==== Requests and options
 
