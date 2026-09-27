@@ -165,6 +165,22 @@ In Spring, declare additional named `DecisionService` beans from the configured
 `TypeSafeModelFactory` and inject them with `@Qualifier`. This follows the same multi-model pattern as
 other Embabel providers while preserving the distinct decision-service contract.
 
+==== Decision specs
+
+A TypeSafe service runs a whole decision spec in one Jev `systemOne` call. It supports proposition,
+choice and rating questions. The SDK reports no limits, so the service reports none. Questions go
+to Jev under the keys `q1` to `qN` in spec order. A question `assess`, `choose` and `rate` each make
+one call for one question.
+
+A proposition becomes a Jev `noul`, a choice a `choice` and a rating a `score`. The score value is
+an expected level index, and the answer carries a distribution over the levels and no selected level.
+<<reference.decision-execution>> gives the full evidence mapping, the answer rules and the
+diagnostics.
+
+A provider failure fails the whole request with `UNAVAILABLE`, and a response that cannot be read
+fails it with `INVALID_RESPONSE`. Each failed call logs one WARN under `com.embabel.agent.typesafe`
+with the cause category and HTTP status class. SDK retries stay off, so each question set is one call.
+
 ==== Transport and failure boundaries
 
 `TypeSafeModelFactory` accepts an optional `RestClient.Builder` and `ObservationRegistry`. Spring
