@@ -28,7 +28,7 @@ Promotion is decided at the first release after all three are in place.
 |A kind, a name, instructions, the options or levels for its kind, and a `d1-` definition id
 
 |`DecisionResponse`
-|The spec's `s1-` id, the execution mode, an optional request failure, and one `DecisionAnswer` per question in spec order
+|The spec's `s1-` id, an optional request failure, and one `DecisionAnswer` per question in spec order
 
 |`DecisionAnswer`
 |The question's name, kind and `d1-` id, its options or levels, and a typed outcome
@@ -243,10 +243,10 @@ A change to the recipe gets a new prefix.
 
 ==== Responses
 
-`DecisionResponse.builder(spec, executionMode)` starts a response to a spec.
+`DecisionResponse.builder(spec)` starts a response to a spec.
 Its `answer(question, outcome)` overloads take a question of each kind with the matching result type.
 Answers can be added in any order, and the response lists them in spec order.
-`DecisionResponse.failed(spec, executionMode, reason)` records a request that failed as a whole.
+`DecisionResponse.failed(spec, reason)` records a request that failed as a whole.
 Every answer in a failed response is a failure with that reason, and `getRequestFailure()` returns it.
 
 The builder's `answer` method throws `IllegalArgumentException` in these cases:
@@ -289,49 +289,15 @@ A Java `switch` or a Kotlin `when` over an answer covers every case.
 `DecisionAnswer.Choice` also holds the options it was answered with, and `DecisionAnswer.Rating` holds its levels.
 An answer read from JSON holds them as written, and only the typed lookup checks them against a question.
 
-==== Requests and options
+==== Requests and capabilities
 
 `DecisionRequest.of(input, spec)` pairs an input with a spec.
 `DecisionRequest.of(input, questions...)` builds the spec from the questions in order.
 The input may be empty.
 A request's `toString()` shows the spec and leaves the input out.
 
-`ExecutionMode` names the ways a spec can run:
-
-|===
-|Mode |Meaning
-
-|`NATIVE`
-|The whole spec is evaluated in one provider operation, so every answer shares one model evaluation.
-
-|`SINGLE_QUESTION`
-|A spec with one proposition or choice question is answered through the matching existing service method. A single rating question has no such method.
-
-|`SEQUENTIAL`
-|Each question is asked in its own call.
-|===
-
-`DecisionOptions` holds the modes a caller allows.
-Its `executionModes` set holds at least one mode and iterates in enum declaration order.
-
-|===
-|Factory |Allowed modes
-
-|`DecisionOptions.defaults()`
-|`NATIVE` and `SINGLE_QUESTION`
-
-|`DecisionOptions.nativeOnly()`
-|`NATIVE`
-
-|`DecisionOptions.allowingSequential()`
-|All three
-
-|`DecisionOptions.of(executionModes)` and `DecisionOptions.of(first, rest...)`
-|Exactly the given modes
-|===
-
 `DecisionCapabilities` describes what a service accepts.
-`DecisionCapabilities.of(questionKinds, executionModes)` sets the supported kinds and modes.
+`DecisionCapabilities.of(questionKinds)` sets the supported kinds.
 `withMaxQuestions` and `withMaxInputCharacters` each return a copy with that limit set.
 A `null` limit means the service does not report that limit.
 
@@ -351,14 +317,11 @@ Each decision type has fixed member names:
 |`DecisionRequest`
 |`input` and `spec`
 
-|`DecisionOptions`
-|`executionModes`
-
 |`DecisionCapabilities`
-|`questionKinds`, `executionModes`, and the optional `maxQuestions` and `maxInputCharacters`
+|`questionKinds`, and the optional `maxQuestions` and `maxInputCharacters`
 
 |`DecisionResponse`
-|`definitionId`, `executionMode`, the optional `requestFailure`, and `answers`
+|`definitionId`, the optional `requestFailure`, and `answers`
 
 |`DecisionAnswer`
 |`name`, `kind`, `definitionId`, `options` or `levels` for its kind, and `outcome`
@@ -370,7 +333,7 @@ Each decision type has fixed member names:
 The `answers` member is an array of answers in spec order.
 Each answer carries its `name`.
 An answer written on its own has the same members.
-Execution modes, failure reasons and rating statistics use the lower-case constant name, such as `single_question`, `invalid_response` and `expected_level_index`.
+Failure reasons and rating statistics use the lower-case constant name, such as `invalid_response` and `expected_level_index`.
 Question kinds use the wire names from the question kinds table.
 
 Each outcome has a `status` member that names its result class:
@@ -414,7 +377,6 @@ The response from the typed lookup example writes this JSON, shown here with lin
 ----
 {
   "definitionId": "s1-CZ2UfjbN5c9QqHynKmSBQzKTouzrERG_PPxv8PfF42A",
-  "executionMode": "native",
   "answers": [
     {
       "name": "is_urgent",
@@ -482,7 +444,7 @@ Reading applies these rules:
 
 * An unknown member fails, whatever the mapper's `FAIL_ON_UNKNOWN_PROPERTIES` setting is.
 A member that a later version adds fails in a reader that does not know it.
-* A missing required member, an unknown kind, mode, status, reason or statistic, and `answers` written as an object or a single value all fail.
+* A missing required member, an unknown kind, status, reason or statistic, and `answers` written as an object or a single value all fail.
 * Every value goes through the same builders and factories as Java code, so a value they refuse fails with the builder's message and the `IllegalArgumentException` as the cause.
 * Definition ids are checked on read.
 A question's `d1-` id and a spec's `s1-` id are computed from their definitions.

@@ -263,18 +263,16 @@ sealed interface DecisionAnswer {
  * ```
  *
  * Build a response with [builder], or record a failed request with [failed]. Two responses are
- * equal when their spec ids, modes, request failures and answers are equal.
+ * equal when their spec ids, request failures and answers are equal.
  *
  * Reading a response from JSON runs the same checks, so the answers' definition ids must give the
  * response's spec id.
  */
 @ApiStatus.Experimental
-@JsonPropertyOrder("definitionId", "executionMode", "requestFailure", "answers")
+@JsonPropertyOrder("definitionId", "requestFailure", "answers")
 class DecisionResponse private constructor(
     /** The `s1-` definition id of the spec this response answers. */
     @get:JsonProperty("definitionId") val definitionId: String,
-    /** How the spec was run. */
-    @get:JsonProperty("executionMode") val executionMode: ExecutionMode,
     /**
      * Why the whole request failed, or null when it did not. When it is set, every answer's outcome
      * is a failure with this same reason.
@@ -380,13 +378,12 @@ class DecisionResponse private constructor(
 
     override fun equals(other: Any?): Boolean =
         this === other || other is DecisionResponse && definitionId == other.definitionId &&
-            executionMode == other.executionMode && requestFailure == other.requestFailure && answers == other.answers
+            requestFailure == other.requestFailure && answers == other.answers
 
-    override fun hashCode(): Int = Objects.hash(definitionId, executionMode, requestFailure, answers)
+    override fun hashCode(): Int = Objects.hash(definitionId, requestFailure, answers)
 
     override fun toString(): String =
-        "DecisionResponse(definitionId=$definitionId, executionMode=$executionMode, " +
-            "requestFailure=$requestFailure, answers=$answers)"
+        "DecisionResponse(definitionId=$definitionId, requestFailure=$requestFailure, answers=$answers)"
 
     @JsonProperty("requestFailure")
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -401,10 +398,7 @@ class DecisionResponse private constructor(
      * A builder is not safe for use from several threads at once.
      */
     @ApiStatus.Experimental
-    class Builder private constructor(
-        private val spec: DecisionSpec,
-        private val executionMode: ExecutionMode,
-    ) {
+    class Builder private constructor(private val spec: DecisionSpec) {
 
         private val answers = HashMap<String, DecisionAnswer>()
 
@@ -462,7 +456,7 @@ class DecisionResponse private constructor(
             require(missing.isEmpty()) {
                 "Every question in the spec needs an answer. Missing: ${missing.joinToString { "'$it'" }}"
             }
-            return DecisionResponse(spec.definitionId, executionMode, null, spec.questions.map { answers.getValue(it.name) })
+            return DecisionResponse(spec.definitionId, null, spec.questions.map { answers.getValue(it.name) })
         }
 
         // Runs the checks every answer method shares, then stores the answer that make builds.
@@ -480,7 +474,7 @@ class DecisionResponse private constructor(
         internal companion object {
             // Used by DecisionResponse.builder. Hidden from Java so a builder can only come from there.
             @JvmSynthetic
-            internal fun create(spec: DecisionSpec, executionMode: ExecutionMode): Builder = Builder(spec, executionMode)
+            internal fun create(spec: DecisionSpec): Builder = Builder(spec)
         }
     }
 
@@ -493,34 +487,31 @@ class DecisionResponse private constructor(
          * Starts a builder for a response to the given spec.
          *
          * @param spec the spec being answered
-         * @param executionMode how the spec was run
          * @return a new builder with no answers
          */
         @JvmStatic
-        fun builder(spec: DecisionSpec, executionMode: ExecutionMode): Builder = Builder.create(spec, executionMode)
+        fun builder(spec: DecisionSpec): Builder = Builder.create(spec)
 
         /**
          * Returns a response for a request that failed as a whole. Every question gets the failure
          * outcome of its kind with the given reason, and [requestFailure] is set to that reason.
          *
          * @param spec the spec that was being answered
-         * @param executionMode how the spec was run
          * @param reason why the request failed
          * @return a response whose outcomes are all failures
          */
         @JvmStatic
-        fun failed(spec: DecisionSpec, executionMode: ExecutionMode, reason: FailureReason): DecisionResponse =
-            DecisionResponse(spec.definitionId, executionMode, reason, spec.questions.map { AnswerRules.failure(it, reason) })
+        fun failed(spec: DecisionSpec, reason: FailureReason): DecisionResponse =
+            DecisionResponse(spec.definitionId, reason, spec.questions.map { AnswerRules.failure(it, reason) })
 
         // Rebuilds a response without its spec. The constructor checks every invariant, including
         // that the answers' definition ids give the stated spec id. Hidden from Java.
         @JvmSynthetic
         internal fun create(
             definitionId: String,
-            executionMode: ExecutionMode,
             requestFailure: FailureReason?,
             answers: List<DecisionAnswer>,
-        ): DecisionResponse = DecisionResponse(definitionId, executionMode, requestFailure, answers)
+        ): DecisionResponse = DecisionResponse(definitionId, requestFailure, answers)
 
         // Reads a response from JSON through the same constructor. An explicit null request failure
         // reads the same as an absent one.
@@ -528,12 +519,11 @@ class DecisionResponse private constructor(
         @JsonCreator
         private fun fromJson(
             @JsonProperty("definitionId", required = true) definitionId: String,
-            @JsonProperty("executionMode", required = true) executionMode: ExecutionMode,
             @JsonProperty("requestFailure") requestFailure: FailureReasonJson?,
             @JsonProperty("answers", required = true)
             @JsonFormat(without = [JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY])
             answers: List<DecisionAnswer>,
-        ): DecisionResponse = DecisionResponse(definitionId, executionMode, requestFailure?.reason, answers)
+        ): DecisionResponse = DecisionResponse(definitionId, requestFailure?.reason, answers)
     }
 }
 

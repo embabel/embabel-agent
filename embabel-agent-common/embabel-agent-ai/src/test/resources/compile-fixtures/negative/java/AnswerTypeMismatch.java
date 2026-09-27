@@ -7,12 +7,11 @@ import com.embabel.common.ai.classification.ClassificationResult;
 import com.embabel.common.ai.classification.FailureReason;
 import com.embabel.common.ai.decision.DecisionResponse;
 import com.embabel.common.ai.decision.DecisionSpec;
-import com.embabel.common.ai.decision.ExecutionMode;
 import com.embabel.common.ai.decision.PropositionQuestionSpec;
 
 public class AnswerTypeMismatch {
     static ClassificationResult wrong(PropositionQuestionSpec urgent, DecisionSpec spec) {
-        DecisionResponse response = DecisionResponse.failed(spec, ExecutionMode.NATIVE, FailureReason.UNAVAILABLE);
+        DecisionResponse response = DecisionResponse.failed(spec, FailureReason.UNAVAILABLE);
         ClassificationResult mismatched = response.answer(urgent);
         return mismatched;
     }

@@ -26,15 +26,14 @@ import java.util.EnumSet
 import java.util.Objects
 
 /**
- * What a decision service can accept and how it can run a request. This is information a service
- * reports about itself; it does not run anything on its own.
+ * What a decision service can accept, as the service reports it.
  *
- * Start from [of] with the supported question kinds and execution modes, then add any known limits
- * with [withMaxQuestions] and [withMaxInputCharacters]. Each call returns new capabilities.
+ * Start from [of] with the supported question kinds, then add any known limits with
+ * [withMaxQuestions] and [withMaxInputCharacters]. Each call returns new capabilities.
  *
  * A null limit means the service does not report that limit. The service may still have one.
  *
- * The kinds and modes always iterate in the order their enums declare them, so `toString` and any
+ * The kinds always iterate in the order [QuestionKind] declares them, so `toString` and any
  * serialized form come out the same on every run.
  *
  * @property maxQuestions the largest number of questions a request may hold, or null when the
@@ -43,11 +42,10 @@ import java.util.Objects
  * does not report a limit
  */
 @ApiStatus.Experimental
-@JsonPropertyOrder("questionKinds", "executionModes", "maxQuestions", "maxInputCharacters")
+@JsonPropertyOrder("questionKinds", "maxQuestions", "maxInputCharacters")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 class DecisionCapabilities private constructor(
     questionKinds: Set<QuestionKind>,
-    executionModes: Set<ExecutionMode>,
     @get:JsonProperty("maxQuestions") val maxQuestions: Int?,
     @get:JsonProperty("maxInputCharacters") val maxInputCharacters: Int?,
 ) {
@@ -61,16 +59,6 @@ class DecisionCapabilities private constructor(
         // EnumSet.copyOf cannot copy an empty plain set, so the emptiness check has to come first.
         require(questionKinds.isNotEmpty()) { "At least one question kind must be supported" }
         Collections.unmodifiableSet(EnumSet.copyOf(questionKinds))
-    }
-
-    /**
-     * The execution modes the service supports. The set cannot be modified, holds at least one
-     * mode and iterates in declaration order.
-     */
-    @get:JsonProperty("executionModes")
-    val executionModes: Set<ExecutionMode> = run {
-        require(executionModes.isNotEmpty()) { "At least one execution mode must be supported" }
-        Collections.unmodifiableSet(EnumSet.copyOf(executionModes))
     }
 
     init {
@@ -87,7 +75,7 @@ class DecisionCapabilities private constructor(
      * @throws IllegalArgumentException if the limit is below 1
      */
     fun withMaxQuestions(maxQuestions: Int): DecisionCapabilities =
-        DecisionCapabilities(questionKinds, executionModes, maxQuestions, maxInputCharacters)
+        DecisionCapabilities(questionKinds, maxQuestions, maxInputCharacters)
 
     /**
      * Returns a copy of these capabilities with the given input length limit. Everything else
@@ -98,20 +86,19 @@ class DecisionCapabilities private constructor(
      * @throws IllegalArgumentException if the limit is below 1
      */
     fun withMaxInputCharacters(maxInputCharacters: Int): DecisionCapabilities =
-        DecisionCapabilities(questionKinds, executionModes, maxQuestions, maxInputCharacters)
+        DecisionCapabilities(questionKinds, maxQuestions, maxInputCharacters)
 
     override fun equals(other: Any?): Boolean =
         this === other || other is DecisionCapabilities &&
             questionKinds == other.questionKinds &&
-            executionModes == other.executionModes &&
             maxQuestions == other.maxQuestions &&
             maxInputCharacters == other.maxInputCharacters
 
     override fun hashCode(): Int =
-        Objects.hash(questionKinds, executionModes, maxQuestions, maxInputCharacters)
+        Objects.hash(questionKinds, maxQuestions, maxInputCharacters)
 
     override fun toString(): String =
-        "DecisionCapabilities(questionKinds=$questionKinds, executionModes=$executionModes, " +
+        "DecisionCapabilities(questionKinds=$questionKinds, " +
             "maxQuestions=$maxQuestions, maxInputCharacters=$maxInputCharacters)"
 
     @JsonAnySetter
@@ -123,25 +110,22 @@ class DecisionCapabilities private constructor(
     companion object {
 
         /**
-         * Returns capabilities with the given question kinds and execution modes and no reported
-         * limits.
+         * Returns capabilities with the given question kinds and no reported limits.
          *
          * @param questionKinds the question kinds the service accepts, which must not be empty
-         * @param executionModes the execution modes the service supports, which must not be empty
          * @return capabilities with both limits null
-         * @throws IllegalArgumentException if either set is empty
+         * @throws IllegalArgumentException if the set is empty
          */
         @JvmStatic
-        fun of(questionKinds: Set<QuestionKind>, executionModes: Set<ExecutionMode>): DecisionCapabilities =
-            DecisionCapabilities(questionKinds, executionModes, null, null)
+        fun of(questionKinds: Set<QuestionKind>): DecisionCapabilities =
+            DecisionCapabilities(questionKinds, null, null)
 
         @JvmStatic
         @JsonCreator
         private fun fromJson(
             @JsonProperty("questionKinds", required = true) questionKinds: Set<QuestionKind>,
-            @JsonProperty("executionModes", required = true) executionModes: Set<ExecutionMode>,
             @JsonProperty("maxQuestions") maxQuestions: Int?,
             @JsonProperty("maxInputCharacters") maxInputCharacters: Int?,
-        ): DecisionCapabilities = DecisionCapabilities(questionKinds, executionModes, maxQuestions, maxInputCharacters)
+        ): DecisionCapabilities = DecisionCapabilities(questionKinds, maxQuestions, maxInputCharacters)
     }
 }

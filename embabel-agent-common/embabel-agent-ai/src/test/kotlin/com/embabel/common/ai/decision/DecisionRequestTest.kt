@@ -105,132 +105,16 @@ class DecisionRequestTest {
     }
 
     @Nested
-    inner class Options {
-
-        @Test
-        fun `defaults allow native and single question`() {
-            assertEquals(setOf(ExecutionMode.NATIVE, ExecutionMode.SINGLE_QUESTION), DecisionOptions.defaults().executionModes)
-        }
-
-        @Test
-        fun `nativeOnly allows only native`() {
-            assertEquals(setOf(ExecutionMode.NATIVE), DecisionOptions.nativeOnly().executionModes)
-        }
-
-        @Test
-        fun `allowingSequential allows every mode`() {
-            assertEquals(ExecutionMode.entries.toSet(), DecisionOptions.allowingSequential().executionModes)
-        }
-
-        @Test
-        fun `of holds the given modes`() {
-            assertEquals(setOf(ExecutionMode.SEQUENTIAL), DecisionOptions.of(setOf(ExecutionMode.SEQUENTIAL)).executionModes)
-        }
-
-        @Test
-        fun `of with modes holds exactly those modes`() {
-            assertEquals(
-                setOf(ExecutionMode.NATIVE, ExecutionMode.SEQUENTIAL),
-                DecisionOptions.of(ExecutionMode.SEQUENTIAL, ExecutionMode.NATIVE).executionModes,
-            )
-        }
-
-        @Test
-        fun `of with one mode equals the options built from a set`() {
-            assertEquals(DecisionOptions.nativeOnly(), DecisionOptions.of(ExecutionMode.NATIVE))
-            assertEquals(DecisionOptions.of(setOf(ExecutionMode.SEQUENTIAL)), DecisionOptions.of(ExecutionMode.SEQUENTIAL))
-        }
-
-        @Test
-        fun `of with a repeated mode holds it once`() {
-            assertEquals(
-                setOf(ExecutionMode.NATIVE),
-                DecisionOptions.of(ExecutionMode.NATIVE, ExecutionMode.NATIVE).executionModes,
-            )
-        }
-
-        @Test
-        fun `of rejects an empty set`() {
-            assertRejected("At least one execution mode") { DecisionOptions.of(emptySet()) }
-        }
-
-        @Test
-        fun `executionModes cannot be modified`() {
-            @Suppress("UNCHECKED_CAST")
-            val modes = DecisionOptions.defaults().executionModes as MutableSet<ExecutionMode>
-            assertThrows(UnsupportedOperationException::class.java) { modes.add(ExecutionMode.SEQUENTIAL) }
-        }
-
-        @Test
-        fun `changing the set given to of does not change the options`() {
-            val modes = mutableSetOf(ExecutionMode.NATIVE)
-            val options = DecisionOptions.of(modes)
-            modes += ExecutionMode.SEQUENTIAL
-            assertEquals(setOf(ExecutionMode.NATIVE), options.executionModes)
-        }
-
-        @Test
-        fun `options with the same modes are equal`() {
-            assertEquals(DecisionOptions.of(setOf(ExecutionMode.NATIVE)), DecisionOptions.of(setOf(ExecutionMode.NATIVE)))
-            assertEquals(
-                DecisionOptions.of(setOf(ExecutionMode.NATIVE)).hashCode(),
-                DecisionOptions.of(setOf(ExecutionMode.NATIVE)).hashCode(),
-            )
-        }
-
-        @Test
-        fun `toString shows the modes`() {
-            assertTrue(DecisionOptions.nativeOnly().toString().contains("NATIVE"))
-        }
-
-        @Test
-        fun `options with different modes are not equal`() {
-            assertNotEquals(DecisionOptions.nativeOnly(), DecisionOptions.defaults())
-            assertNotEquals(DecisionOptions.defaults(), DecisionOptions.allowingSequential())
-        }
-
-        @Test
-        fun `modes iterate in declaration order whatever order they were given in`() {
-            val given = linkedSetOf(ExecutionMode.SEQUENTIAL, ExecutionMode.SINGLE_QUESTION, ExecutionMode.NATIVE)
-            assertEquals(ExecutionMode.entries, DecisionOptions.of(given).executionModes.toList())
-            assertEquals(ExecutionMode.entries, DecisionOptions.allowingSequential().executionModes.toList())
-            assertEquals(
-                listOf(ExecutionMode.NATIVE, ExecutionMode.SINGLE_QUESTION),
-                DecisionOptions.defaults().executionModes.toList(),
-            )
-        }
-
-        @Test
-        fun `toString lists the modes in declaration order`() {
-            val given = linkedSetOf(ExecutionMode.SEQUENTIAL, ExecutionMode.SINGLE_QUESTION, ExecutionMode.NATIVE)
-            assertEquals(
-                "DecisionOptions(executionModes=[NATIVE, SINGLE_QUESTION, SEQUENTIAL])",
-                DecisionOptions.of(given).toString(),
-            )
-        }
-
-        @Test
-        fun `has no public constructor`() {
-            assertTrue(DecisionOptions::class.java.constructors.none { !it.isSynthetic })
-        }
-    }
-
-    @Nested
     inner class Capabilities {
 
         private fun capabilities(
             kinds: Set<QuestionKind> = setOf(QuestionKind.PROPOSITION),
-            modes: Set<ExecutionMode> = setOf(ExecutionMode.NATIVE),
-        ): DecisionCapabilities = DecisionCapabilities.of(kinds, modes)
+        ): DecisionCapabilities = DecisionCapabilities.of(kinds)
 
         @Test
-        fun `of holds the given kinds and modes`() {
-            val capabilities = DecisionCapabilities.of(
-                setOf(QuestionKind.PROPOSITION, QuestionKind.CHOICE),
-                setOf(ExecutionMode.NATIVE, ExecutionMode.SINGLE_QUESTION),
-            )
+        fun `of holds the given kinds`() {
+            val capabilities = DecisionCapabilities.of(setOf(QuestionKind.PROPOSITION, QuestionKind.CHOICE))
             assertEquals(setOf(QuestionKind.PROPOSITION, QuestionKind.CHOICE), capabilities.questionKinds)
-            assertEquals(setOf(ExecutionMode.NATIVE, ExecutionMode.SINGLE_QUESTION), capabilities.executionModes)
         }
 
         @Test
@@ -255,7 +139,6 @@ class DecisionRequestTest {
             assertEquals(8, limited.maxQuestions)
             assertEquals(4000, limited.maxInputCharacters)
             assertEquals(original.questionKinds, limited.questionKinds)
-            assertEquals(original.executionModes, limited.executionModes)
         }
 
         @Test
@@ -266,7 +149,6 @@ class DecisionRequestTest {
             assertEquals(4000, limited.maxInputCharacters)
             assertEquals(8, limited.maxQuestions)
             assertEquals(original.questionKinds, limited.questionKinds)
-            assertEquals(original.executionModes, limited.executionModes)
         }
 
         @Test
@@ -276,12 +158,7 @@ class DecisionRequestTest {
 
         @Test
         fun `empty question kinds are rejected`() {
-            assertRejected("question kind") { DecisionCapabilities.of(emptySet(), setOf(ExecutionMode.NATIVE)) }
-        }
-
-        @Test
-        fun `empty execution modes are rejected`() {
-            assertRejected("execution mode") { DecisionCapabilities.of(setOf(QuestionKind.PROPOSITION), emptySet()) }
+            assertRejected("question kind") { DecisionCapabilities.of(emptySet()) }
         }
 
         @Test
@@ -302,25 +179,19 @@ class DecisionRequestTest {
         }
 
         @Test
-        fun `questionKinds and executionModes cannot be modified`() {
+        fun `questionKinds cannot be modified`() {
             val capabilities = capabilities().withMaxQuestions(8)
             @Suppress("UNCHECKED_CAST")
             val kinds = capabilities.questionKinds as MutableSet<QuestionKind>
             assertThrows(UnsupportedOperationException::class.java) { kinds.add(QuestionKind.CHOICE) }
-            @Suppress("UNCHECKED_CAST")
-            val modes = capabilities.executionModes as MutableSet<ExecutionMode>
-            assertThrows(UnsupportedOperationException::class.java) { modes.add(ExecutionMode.SEQUENTIAL) }
         }
 
         @Test
-        fun `changing the sets given to of does not change the capabilities`() {
+        fun `changing the set given to of does not change the capabilities`() {
             val kinds = mutableSetOf(QuestionKind.PROPOSITION)
-            val modes = mutableSetOf(ExecutionMode.NATIVE)
-            val capabilities = DecisionCapabilities.of(kinds, modes)
+            val capabilities = DecisionCapabilities.of(kinds)
             kinds += QuestionKind.CHOICE
-            modes += ExecutionMode.SEQUENTIAL
             assertEquals(setOf(QuestionKind.PROPOSITION), capabilities.questionKinds)
-            assertEquals(setOf(ExecutionMode.NATIVE), capabilities.executionModes)
         }
 
         @Test
@@ -337,14 +208,6 @@ class DecisionRequestTest {
         }
 
         @Test
-        fun `capabilities with different execution modes are not equal`() {
-            assertNotEquals(
-                capabilities(modes = setOf(ExecutionMode.NATIVE)),
-                capabilities(modes = setOf(ExecutionMode.NATIVE, ExecutionMode.SEQUENTIAL)),
-            )
-        }
-
-        @Test
         fun `capabilities with different question kinds are not equal`() {
             assertNotEquals(
                 capabilities(kinds = setOf(QuestionKind.PROPOSITION)),
@@ -353,24 +216,21 @@ class DecisionRequestTest {
         }
 
         @Test
-        fun `kinds and modes iterate in declaration order whatever order they were given in`() {
+        fun `kinds iterate in declaration order whatever order they were given in`() {
             val capabilities = capabilities(
                 kinds = linkedSetOf(QuestionKind.RATING, QuestionKind.CHOICE, QuestionKind.PROPOSITION),
-                modes = linkedSetOf(ExecutionMode.SEQUENTIAL, ExecutionMode.SINGLE_QUESTION, ExecutionMode.NATIVE),
             ).withMaxQuestions(8)
             assertEquals(QuestionKind.entries, capabilities.questionKinds.toList())
-            assertEquals(ExecutionMode.entries, capabilities.executionModes.toList())
         }
 
         @Test
-        fun `toString lists kinds and modes in declaration order with the limits`() {
+        fun `toString lists kinds in declaration order with the limits`() {
             val shown = capabilities(
                 kinds = linkedSetOf(QuestionKind.RATING, QuestionKind.CHOICE, QuestionKind.PROPOSITION),
-                modes = linkedSetOf(ExecutionMode.SEQUENTIAL, ExecutionMode.SINGLE_QUESTION, ExecutionMode.NATIVE),
             ).withMaxQuestions(8).toString()
             assertEquals(
                 "DecisionCapabilities(questionKinds=[PROPOSITION, CHOICE, RATING], " +
-                    "executionModes=[NATIVE, SINGLE_QUESTION, SEQUENTIAL], maxQuestions=8, maxInputCharacters=null)",
+                    "maxQuestions=8, maxInputCharacters=null)",
                 shown,
             )
         }

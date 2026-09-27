@@ -5,13 +5,12 @@ package com.embabel.common.ai.decision.fixtures;
 
 import com.embabel.common.ai.decision.DecisionResponse;
 import com.embabel.common.ai.decision.DecisionSpec;
-import com.embabel.common.ai.decision.ExecutionMode;
 import com.embabel.common.ai.decision.PropositionQuestionSpec;
 import com.embabel.common.ai.decision.RatingResult;
 
 public class TypedOverloadMismatch {
     static DecisionResponse.Builder wrong(
             DecisionSpec spec, PropositionQuestionSpec urgentProposition, RatingResult ratingResult) {
-        return DecisionResponse.builder(spec, ExecutionMode.NATIVE).answer(urgentProposition, ratingResult);
+        return DecisionResponse.builder(spec).answer(urgentProposition, ratingResult);
     }
 }

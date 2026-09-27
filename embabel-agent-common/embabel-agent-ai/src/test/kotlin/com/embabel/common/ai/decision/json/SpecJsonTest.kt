@@ -17,10 +17,8 @@ package com.embabel.common.ai.decision.json
 
 import com.embabel.common.ai.decision.ChoiceQuestionSpec
 import com.embabel.common.ai.decision.DecisionCapabilities
-import com.embabel.common.ai.decision.DecisionOptions
 import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionSpec
-import com.embabel.common.ai.decision.ExecutionMode
 import com.embabel.common.ai.decision.PropositionQuestionSpec
 import com.embabel.common.ai.decision.Question
 import com.embabel.common.ai.decision.QuestionKind
@@ -149,27 +147,15 @@ class SpecJsonTest {
         }
 
         @Test
-        fun `options write the golden JSON and read back equal`() {
-            val json = """{"executionModes":["native","single_question"]}"""
-            assertEquals(json, mapper.writeValueAsString(DecisionOptions.defaults()))
-            assertEquals(DecisionOptions.defaults(), mapper.readValue(json, DecisionOptions::class.java))
-            val all = """{"executionModes":["native","single_question","sequential"]}"""
-            assertEquals(all, discovered.writeValueAsString(DecisionOptions.allowingSequential()))
-            assertEquals(DecisionOptions.allowingSequential(), discovered.readValue(all, DecisionOptions::class.java))
-        }
-
-        @Test
         fun `capabilities omit null limits and read back equal`() {
-            val capabilities = DecisionCapabilities.of(
-                setOf(QuestionKind.CHOICE, QuestionKind.PROPOSITION),
-                setOf(ExecutionMode.SEQUENTIAL),
-            ).withMaxQuestions(8)
-            val json = """{"questionKinds":["proposition","choice"],"executionModes":["sequential"],"maxQuestions":8}"""
+            val capabilities = DecisionCapabilities.of(setOf(QuestionKind.CHOICE, QuestionKind.PROPOSITION))
+                .withMaxQuestions(8)
+            val json = """{"questionKinds":["proposition","choice"],"maxQuestions":8}"""
             assertEquals(json, mapper.writeValueAsString(capabilities))
             assertEquals(capabilities, mapper.readValue(json, DecisionCapabilities::class.java))
 
             val both = capabilities.withMaxInputCharacters(20000)
-            val bothJson = """{"questionKinds":["proposition","choice"],"executionModes":["sequential"],""" +
+            val bothJson = """{"questionKinds":["proposition","choice"],""" +
                 """"maxQuestions":8,"maxInputCharacters":20000}"""
             assertEquals(bothJson, discovered.writeValueAsString(both))
             assertEquals(both, discovered.readValue(bothJson, DecisionCapabilities::class.java))
@@ -177,8 +163,8 @@ class SpecJsonTest {
 
         @Test
         fun `an explicit null limit reads as an unreported limit`() {
-            val json = """{"questionKinds":["rating"],"executionModes":["native"],"maxQuestions":null}"""
-            val expected = DecisionCapabilities.of(setOf(QuestionKind.RATING), setOf(ExecutionMode.NATIVE))
+            val json = """{"questionKinds":["rating"],"maxQuestions":null}"""
+            val expected = DecisionCapabilities.of(setOf(QuestionKind.RATING))
             assertEquals(expected, mapper.readValue(json, DecisionCapabilities::class.java))
         }
 
@@ -190,9 +176,9 @@ class SpecJsonTest {
                     .build()
                 assertEquals(requestJson, renaming.writeValueAsString(request()))
                 assertEquals(request(), renaming.readValue(requestJson, DecisionRequest::class.java))
-                val capabilities = DecisionCapabilities.of(setOf(QuestionKind.RATING), setOf(ExecutionMode.NATIVE))
+                val capabilities = DecisionCapabilities.of(setOf(QuestionKind.RATING))
                     .withMaxInputCharacters(100)
-                val json = """{"questionKinds":["rating"],"executionModes":["native"],"maxInputCharacters":100}"""
+                val json = """{"questionKinds":["rating"],"maxInputCharacters":100}"""
                 assertEquals(json, renaming.writeValueAsString(capabilities))
                 assertEquals(capabilities, renaming.readValue(json, DecisionCapabilities::class.java))
             }
@@ -233,13 +219,7 @@ class SpecJsonTest {
                     using = m,
                 )
                 assertRejects(
-                    """{"executionModes":["native"],"parallel":true}""",
-                    DecisionOptions::class.java,
-                    "Unknown member 'parallel' in DecisionOptions",
-                    using = m,
-                )
-                assertRejects(
-                    """{"questionKinds":["rating"],"executionModes":["native"],"maxTokens":5}""",
+                    """{"questionKinds":["rating"],"maxTokens":5}""",
                     DecisionCapabilities::class.java,
                     "Unknown member 'maxTokens' in DecisionCapabilities",
                     using = m,
@@ -324,7 +304,7 @@ class SpecJsonTest {
             assertRejects("""{"spec":$triageJson}""", DecisionRequest::class.java, "'input'")
             assertRejects("""{"input":"x"}""", DecisionRequest::class.java, "'spec'")
             assertRejects("""{}""", DecisionSpec::class.java, "'questions'")
-            assertRejects("""{"questionKinds":["rating"]}""", DecisionCapabilities::class.java, "'executionModes'")
+            assertRejects("""{"maxQuestions":8}""", DecisionCapabilities::class.java, "'questionKinds'")
         }
 
         @Test
@@ -359,26 +339,28 @@ class SpecJsonTest {
 
         @Test
         fun `unknown and empty enum values are rejected`() {
-            assertRejects("""{"executionModes":["native","parallel"]}""", DecisionOptions::class.java, "\"parallel\"")
-            assertRejects("""{"executionModes":["NATIVE"]}""", DecisionOptions::class.java, "\"NATIVE\"")
-            assertRejects("""{"executionModes":[]}""", DecisionOptions::class.java, "At least one execution mode must be allowed")
-            assertRejects("""{"questionKinds":["essay"],"executionModes":["native"]}""", DecisionCapabilities::class.java, "\"essay\"")
+            assertRejects("""{"questionKinds":["rating","essay"]}""", DecisionCapabilities::class.java, "\"essay\"")
+            assertRejects("""{"questionKinds":["RATING"]}""", DecisionCapabilities::class.java, "\"RATING\"")
+            assertRejects("""{"questionKinds":[]}""", DecisionCapabilities::class.java, "At least one question kind must be supported")
         }
 
         @Test
-        fun `a mode listed twice reads as one`() {
-            assertEquals(DecisionOptions.nativeOnly(), mapper.readValue("""{"executionModes":["native","native"]}""", DecisionOptions::class.java))
+        fun `a question kind listed twice reads as one`() {
+            assertEquals(
+                DecisionCapabilities.of(setOf(QuestionKind.RATING)),
+                mapper.readValue("""{"questionKinds":["rating","rating"]}""", DecisionCapabilities::class.java),
+            )
         }
 
         @Test
         fun `capability limits below one are rejected`() {
             assertRejects(
-                """{"questionKinds":["rating"],"executionModes":["native"],"maxQuestions":0}""",
+                """{"questionKinds":["rating"],"maxQuestions":0}""",
                 DecisionCapabilities::class.java,
                 "maxQuestions must be at least 1 when present",
             )
             assertRejects(
-                """{"questionKinds":["rating"],"executionModes":["native"],"maxInputCharacters":-3}""",
+                """{"questionKinds":["rating"],"maxInputCharacters":-3}""",
                 DecisionCapabilities::class.java,
                 "maxInputCharacters must be at least 1 when present",
             )
