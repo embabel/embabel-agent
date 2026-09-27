@@ -22,6 +22,8 @@ import tools.jackson.core.util.DefaultPrettyPrinter
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.json.JsonMapper
+import com.fasterxml.classmate.ResolvedType
+import com.fasterxml.jackson.annotation.JsonPropertyDescription
 import com.github.victools.jsonschema.generator.*
 import com.github.victools.jsonschema.module.jackson.JacksonModule
 import com.github.victools.jsonschema.module.jackson.JacksonOption
@@ -51,6 +53,109 @@ enum class RequiredFieldNormalization {
 }
 
 /**
+ * Optional behaviours for [JacksonOutputConverter] schema generation.
+ *
+ * Pass one or more values to the converter constructor to enable the corresponding behaviour.
+ */
+enum class JacksonOutputConverterOption {
+    /**
+     * Emit per-constant descriptions from [@JsonPropertyDescription][JsonPropertyDescription] on enum constants.
+     *
+     * When enabled, an enum whose constants carry `@JsonPropertyDescription` is emitted as
+     * `oneOf [ { const, description }, … ]` instead of a bare `enum` array, so the model
+     * receives the prose that was written for each option.
+     *
+     * **Trade-off**: the `oneOf` keyword is not supported by OpenAI's native structured-output
+     * strict mode, so any schema that contains such an enum will fall back to the prompt-based
+     * path on that provider. Enable this option only when you are on a provider that supports
+     * `oneOf` (e.g. Google GenAI, Anthropic), or when you are not relying on native
+     * structured output.
+     *
+     * Enums whose constants carry no `@JsonPropertyDescription` are unaffected regardless of
+     * this option.
+     */
+    ENUM_CONSTANT_DESCRIPTIONS,
+}
+
+/**
+ * A victools [CustomDefinitionProviderV2] that emits per-constant descriptions from
+ * [@JsonPropertyDescription][JsonPropertyDescription] annotations on enum constants.
+ *
+ * For an enum like:
+ * ```kotlin
+ * enum class Priority {
+ *     @JsonPropertyDescription("Needs same-day response") URGENT,
+ *     @JsonPropertyDescription("Standard turnaround")    NORMAL,
+ *     OTHER
+ * }
+ * ```
+ * the generated schema becomes:
+ * ```json
+ * { "type": "string", "oneOf": [
+ *     { "const": "URGENT", "description": "Needs same-day response" },
+ *     { "const": "NORMAL", "description": "Standard turnaround" },
+ *     { "const": "OTHER" }
+ * ]}
+ * ```
+ * instead of the default `{ "type": "string", "enum": ["URGENT", "NORMAL", "OTHER"] }`.
+ *
+ * The serialised constant value is derived from the configured [ObjectMapper] so that
+ * `@JsonValue`, `@JsonProperty`, and any custom serialiser are honoured automatically —
+ * matching exactly what [WithExampleConverter] serialises in the prompt example.
+ *
+ * Returns `null` (deferring to the default victools behaviour) when:
+ * - the type is not an enum, or
+ * - no constant on the enum carries `@JsonPropertyDescription`.
+ */
+internal class EnumConstantDescriptionProvider(
+    private val objectMapper: ObjectMapper,
+) : CustomDefinitionProviderV2 {
+
+    override fun provideCustomSchemaDefinition(
+        javaType: ResolvedType,
+        context: SchemaGenerationContext,
+    ): CustomDefinition? {
+        val rawType: Class<*> = javaType.erasedType
+        if (!rawType.isEnum) return null
+
+        // Only activate when at least one constant carries the annotation.
+        val constants: Array<out Any> = rawType.enumConstants ?: return null
+        val hasAnyDescription = constants.any { constant ->
+            runCatching {
+                rawType.getDeclaredField((constant as Enum<*>).name)
+                    .isAnnotationPresent(JsonPropertyDescription::class.java)
+            }.getOrDefault(false)
+        }
+        if (!hasAnyDescription) return null
+
+        // Build: { "type": "string", "oneOf": [ { "const": "NAME", "description": "…" }, … ] }
+        // "type": "string" is included so that provider schema bridges (e.g. Gemini responseSchema)
+        // can interpret the node — victools' own enum output always carries it.
+        val node = context.generatorConfig.createObjectNode()
+        node.put("type", "string")
+        val oneOfArray = node.putArray("oneOf")
+        constants.forEach { constant ->
+            val name = (constant as Enum<*>).name
+            val entry = oneOfArray.addObject()
+            // Derive the wire value from the ObjectMapper rather than raw .name().
+            // This honours @JsonValue, @JsonProperty, and custom serialisers — matching
+            // exactly what WithExampleConverter serialises in the prompt example.
+            val serializedName = runCatching {
+                objectMapper.convertValue(constant, String::class.java)
+            }.getOrDefault(name)
+            entry.put("const", serializedName)
+            runCatching {
+                rawType.getDeclaredField(name)
+                    .getAnnotation(JsonPropertyDescription::class.java)
+                    ?.value
+                    ?.let { entry.put("description", it) }
+            }
+        }
+        return CustomDefinition(node)
+    }
+}
+
+/**
  * A Kotlin version of [org.springframework.ai.converter.BeanOutputConverter] that allows for customization
  * of the used schema via [postProcessSchema]
  */
@@ -58,19 +163,42 @@ open class JacksonOutputConverter<T : Any> protected constructor(
     private val type: Type,
     val objectMapper: ObjectMapper,
     private val requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
+    private val options: Set<JacksonOutputConverterOption> = emptySet(),
 ) : StructuredOutputConverter<T>, JsonSchemaProvider {
 
+    // Original binary-compatible constructors — unchanged signatures.
     constructor(
         clazz: Class<T>,
         objectMapper: ObjectMapper,
         requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
-    ) : this(clazz as Type, objectMapper, requiredFieldNormalization)
+    ) : this(clazz as Type, objectMapper, requiredFieldNormalization, emptySet())
 
     constructor(
         typeReference: ParameterizedTypeReference<T>,
         objectMapper: ObjectMapper,
         requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
-    ) : this(typeReference.type, objectMapper, requiredFieldNormalization)
+    ) : this(typeReference.type, objectMapper, requiredFieldNormalization, emptySet())
+
+    // Protected Type constructor retained for subclass binary compatibility.
+    // Subclasses compiled against the pre-options ABI call super(Type, ObjectMapper, RequiredFieldNormalization).
+    protected constructor(
+        type: Type,
+        objectMapper: ObjectMapper,
+        requiredFieldNormalization: RequiredFieldNormalization,
+    ) : this(type, objectMapper, requiredFieldNormalization, emptySet())
+
+    // Option-aware overloads — separate constructors to preserve JVM binary compatibility.
+    constructor(
+        clazz: Class<T>,
+        objectMapper: ObjectMapper,
+        options: Set<JacksonOutputConverterOption>,
+    ) : this(clazz as Type, objectMapper, RequiredFieldNormalization.ENABLED, options)
+
+    constructor(
+        typeReference: ParameterizedTypeReference<T>,
+        objectMapper: ObjectMapper,
+        options: Set<JacksonOutputConverterOption>,
+    ) : this(typeReference.type, objectMapper, RequiredFieldNormalization.ENABLED, options)
 
     protected val logger: Logger = LoggerFactory.getLogger(javaClass)
 
@@ -125,7 +253,7 @@ open class JacksonOutputConverter<T : Any> protected constructor(
      * of the specification, with the [JacksonModule] enabled.
      */
     protected open fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder {
-        return SchemaGeneratorConfigBuilder(
+        val builder = SchemaGeneratorConfigBuilder(
             SchemaVersion.DRAFT_2020_12,
             OptionPreset.PLAIN_JSON
         )
@@ -135,7 +263,13 @@ open class JacksonOutputConverter<T : Any> protected constructor(
                     JacksonOption.RESPECT_JSONPROPERTY_ORDER
                 )
             )
-            .with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
+            .with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT)
+
+        if (JacksonOutputConverterOption.ENUM_CONSTANT_DESCRIPTIONS in options) {
+            builder.with(EnumConstantDescriptionProvider(objectMapper))
+        }
+
+        return builder
     }
 
     /**
