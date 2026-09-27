@@ -161,6 +161,84 @@ class AnnotatedSpecErrorsTest {
         }
     }
 
+    interface UrgencyFlag {
+        @PropositionQuestion(asking = URGENT)
+        boolean urgent();
+    }
+
+    interface EscalationFlag {
+        @PropositionQuestion(asking = URGENT)
+        default boolean looksUrgent() {
+            return false;
+        }
+    }
+
+    interface InheritedEscalationFlag extends EscalationFlag {
+    }
+
+    // The record accessor overrides the annotated interface method, and Jackson merges the two.
+    record InterfaceCovered(boolean urgent, @ChoiceQuestion(asking = TEAM) Department department) implements UrgencyFlag {
+    }
+
+    // Under bean naming urgent() is not a getter, so the interface annotation belongs to no property.
+    static final class InterfaceNotAProperty implements UrgencyFlag {
+        private final boolean urgent;
+
+        private final Department team;
+
+        @JsonCreator
+        InterfaceNotAProperty(
+            @JsonProperty("urgent") boolean urgent,
+            @JsonProperty("team") @ChoiceQuestion(asking = TEAM) Department team) {
+            this.urgent = urgent;
+            this.team = team;
+        }
+
+        @Override
+        public boolean urgent() {
+            return urgent;
+        }
+
+        public Department getTeam() {
+            return team;
+        }
+    }
+
+    record DefaultMethodNotAProperty(@ChoiceQuestion(asking = TEAM) Department department)
+        implements InheritedEscalationFlag, EscalationFlag {
+    }
+
+    interface UrgentGetter {
+        @PropositionQuestion(asking = URGENT)
+        boolean isUrgent();
+    }
+
+    static class UrgentBase {
+        private boolean urgent;
+
+        public boolean isUrgent() {
+            return urgent;
+        }
+
+        public void setUrgent(boolean urgent) {
+            this.urgent = urgent;
+        }
+    }
+
+    // The getter comes from a superclass that does not implement the annotated interface.
+    static final class InterfaceCoveredBySuperclass extends UrgentBase implements UrgentGetter {
+        @ChoiceQuestion(asking = TEAM)
+        public Department department;
+    }
+
+    static class FlaggedBase implements EscalationFlag {
+        @ChoiceQuestion(asking = TEAM)
+        public Department department;
+    }
+
+    static final class FlaggedSub extends FlaggedBase implements EscalationFlag {
+    }
+
     static final class SetterParameter {
         private boolean urgent;
 
@@ -339,6 +417,29 @@ class AnnotatedSpecErrorsTest {
         assertOnlyProblem(NotAProperty.class,
             "NotAProperty.looksUrgent(): carries @PropositionQuestion but is not a Jackson property. "
                 + "Move the annotation to a record component, field, getter or creator parameter.");
+    }
+
+    @Test
+    void interfaceMethodOverriddenByAPropertyGetterParses() {
+        assertEquals(Map.of("urgent", "urgent", "department", "department"),
+            AnnotatedDecisions.defaults().of(InterfaceCovered.class).questionNames());
+        assertEquals(Map.of("urgent", "urgent", "department", "department"),
+            AnnotatedDecisions.defaults().of(InterfaceCoveredBySuperclass.class).questionNames());
+    }
+
+    @Test
+    void annotatedInterfaceMethodThatIsNotAPropertyIsRejected() {
+        assertOnlyProblem(InterfaceNotAProperty.class,
+            "UrgencyFlag.urgent(): carries @PropositionQuestion but is not a Jackson property. "
+                + "Move the annotation to a record component, field, getter or creator parameter.");
+    }
+
+    @Test
+    void annotatedDefaultMethodIsReportedOnceForEachInterface() {
+        String problem = "EscalationFlag.looksUrgent(): carries @PropositionQuestion but is not a Jackson property. "
+            + "Move the annotation to a record component, field, getter or creator parameter.";
+        assertOnlyProblem(DefaultMethodNotAProperty.class, problem);
+        assertOnlyProblem(FlaggedSub.class, problem);
     }
 
     @Test

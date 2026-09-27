@@ -53,8 +53,10 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -433,12 +435,14 @@ final class DecisionTypeParser {
     }
 
     // Reports question annotations on members that belong to no Jackson property. Walks the
-    // declared fields, methods and parameters of the type and its superclasses.
+    // declared fields, methods and parameters of the type, its superclasses and every interface
+    // they implement. Reflection does not copy method annotations from an interface onto the
+    // implementing method, so each interface is scanned on its own.
     private void scanForOrphans(
         Coverage coverage, Ignorals ignorals, Set<String> reportedIgnored, AnnotatedClass classInfo,
         AccessorNamingStrategy naming, Map<String, BeanPropertyDefinition> byInternalName) {
         Orphans orphans = new Orphans(ignorals, reportedIgnored, naming, byInternalName);
-        for (Class<?> current = type; current != null && current != Object.class; current = current.getSuperclass()) {
+        for (Class<?> current : supertypes(type)) {
             Set<String> componentFields = new HashSet<>();
             if (current.isRecord()) {
                 // A record component annotation also lands on the private field, which Jackson does not use.
@@ -471,6 +475,28 @@ final class DecisionTypeParser {
                 }
             }
         }
+    }
+
+    // The type and its superclasses up to Object, then each interface they implement, directly or
+    // through another interface. Every interface appears once.
+    private static List<Class<?>> supertypes(Class<?> type) {
+        List<Class<?>> classes = new ArrayList<>();
+        for (Class<?> current = type; current != null && current != Object.class; current = current.getSuperclass()) {
+            classes.add(current);
+        }
+        Set<Class<?>> interfaces = new LinkedHashSet<>();
+        Deque<Class<?>> pending = new ArrayDeque<>();
+        for (Class<?> owner : classes) {
+            pending.addAll(Arrays.asList(owner.getInterfaces()));
+        }
+        while (!pending.isEmpty()) {
+            Class<?> next = pending.removeFirst();
+            if (interfaces.add(next)) {
+                pending.addAll(Arrays.asList(next.getInterfaces()));
+            }
+        }
+        classes.addAll(interfaces);
+        return classes;
     }
 
     // Parameters of a data class copy() are skipped when they carry the same question annotations
@@ -749,15 +775,20 @@ final class DecisionTypeParser {
         }
 
         // A superclass method counts when a property method overrides it, because Jackson merges
-        // the annotations of overridden methods into the overriding one.
+        // the annotations of overridden methods into the overriding one. An interface method of the
+        // type counts when a property method has its signature. The property method may come from a
+        // superclass that does not implement the interface, and Jackson still merges the two.
         boolean covers(Method method) {
             if (members.contains(method)) {
                 return true;
             }
+            Class<?> owner = method.getDeclaringClass();
+            boolean inheritable = owner.isInterface()
+                && !Modifier.isStatic(method.getModifiers()) && !Modifier.isPrivate(method.getModifiers());
             for (Method covered : methods) {
                 if (covered.getName().equals(method.getName())
                     && Arrays.equals(covered.getParameterTypes(), method.getParameterTypes())
-                    && method.getDeclaringClass().isAssignableFrom(covered.getDeclaringClass())) {
+                    && (inheritable || owner.isAssignableFrom(covered.getDeclaringClass()))) {
                     return true;
                 }
             }
