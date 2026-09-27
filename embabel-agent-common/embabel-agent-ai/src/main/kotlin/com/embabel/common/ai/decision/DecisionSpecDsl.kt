@@ -38,6 +38,7 @@ class DecisionSpecScope private constructor(private val builder: DecisionSpec.Bu
      * @param block sets the question's definition
      * @throws IllegalArgumentException if the name is blank or already used, or the definition is invalid
      */
+    @JvmSynthetic
     fun proposition(name: String, block: PropositionQuestionSpec.Builder.() -> Unit) {
         builder.proposition(name) { it.block() }
     }
@@ -51,6 +52,7 @@ class DecisionSpecScope private constructor(private val builder: DecisionSpec.Bu
      * @param block sets the question's definition
      * @throws IllegalArgumentException if the name is blank or already used, or the definition is invalid
      */
+    @JvmSynthetic
     fun choice(name: String, block: ChoiceQuestionSpec.Builder.() -> Unit) {
         builder.choice(name) { it.block() }
     }
@@ -64,6 +66,7 @@ class DecisionSpecScope private constructor(private val builder: DecisionSpec.Bu
      * @param block sets the question's definition
      * @throws IllegalArgumentException if the name is blank or already used, or the definition is invalid
      */
+    @JvmSynthetic
     fun rating(name: String, block: RatingQuestionSpec.Builder.() -> Unit) {
         builder.rating(name) { it.block() }
     }
@@ -74,6 +77,7 @@ class DecisionSpecScope private constructor(private val builder: DecisionSpec.Bu
      * @param question the question to add, whose name must not be used by an earlier question
      * @throws IllegalArgumentException if the name is already used
      */
+    @JvmSynthetic
     fun question(question: Question<*>) {
         builder.question(question)
     }
@@ -109,6 +113,7 @@ class DecisionSpecScope private constructor(private val builder: DecisionSpec.Bu
  * declared question's definition is invalid
  */
 @ApiStatus.Experimental
+@JvmSynthetic
 fun decisionSpec(block: DecisionSpecScope.() -> Unit): DecisionSpec {
     val builder = DecisionSpec.builder()
     DecisionSpecScope.create(builder).block()
