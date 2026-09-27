@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 class AnnotatedSpecParityTest {
 
+    // tag::annotated-equivalent-record[]
     enum Department {
         @Described("Payments, invoicing, refunds")
         BILLING,
@@ -55,6 +56,7 @@ class AnnotatedSpecParityTest {
         @ChoiceQuestion(asking = "Which team should handle this?") Department department,
         @RatingQuestion(asking = "How severe is the impact?") Severity severity) {
     }
+    // end::annotated-equivalent-record[]
 
     @JsonPropertyOrder({"severity", "urgent", "department"})
     record ReorderedTriage(
@@ -69,6 +71,7 @@ class AnnotatedSpecParityTest {
     }
 
     private static DecisionSpec builderTriage() {
+        // tag::annotated-equivalent-builder[]
         return DecisionSpec.builder()
             .proposition("urgent", question -> question
                 .asking("Does this ticket convey urgency?"))
@@ -82,6 +85,7 @@ class AnnotatedSpecParityTest {
                 .level("HIGH", "Work is blocked for one customer")
                 .level("CRITICAL", "Work is blocked for many customers"))
             .build();
+        // end::annotated-equivalent-builder[]
     }
 
     @Test

@@ -39,6 +39,8 @@ include::llm-decisions/page.adoc[]
 
 include::decision-specs/page.adoc[]
 
+include::decision-specs/annotated-prototype.adoc[]
+
 include::decision-execution/page.adoc[]
 
 include::bedrock/page.adoc[]
