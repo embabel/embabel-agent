@@ -272,6 +272,7 @@ include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/c
 The question can be a different object from the one that built the response.
 It must have the same name, kind and definition id as the answer.
 A question whose instructions, options or levels have changed throws `IllegalArgumentException`.
+The lookup also compares the answer's options or levels with the question's, because a response read from JSON cannot prove them from its ids.
 A name with no answer, or an answer of another kind, also throws `IllegalArgumentException`.
 
 ===== Lookup by name
@@ -359,15 +360,15 @@ Each decision type has fixed member names:
 |`definitionId`, `executionMode`, the optional `requestFailure`, and `answers`
 
 |`DecisionAnswer`
-|`kind`, `definitionId`, `options` or `levels` for its kind, and `outcome`
+|`name`, `kind`, `definitionId`, `options` or `levels` for its kind, and `outcome`
 
 |Option or level
 |`id` and `description`
 |===
 
-The `answers` member is an object that maps each question name to its answer, in spec order.
-An answer inside a response takes its name from its key.
-An answer written on its own also has a `name` member after `kind`.
+The `answers` member is an array of answers in spec order.
+Each answer carries its `name`.
+An answer written on its own has the same members.
 Execution modes, failure reasons and rating statistics use the lower-case constant name, such as `single_question`, `invalid_response` and `expected_level_index`.
 Question kinds use the wire names from the question kinds table.
 
@@ -413,8 +414,9 @@ The response from the typed lookup example writes this JSON, shown here with lin
 {
   "definitionId": "s1-CZ2UfjbN5c9QqHynKmSBQzKTouzrERG_PPxv8PfF42A",
   "executionMode": "native",
-  "answers": {
-    "is_urgent": {
+  "answers": [
+    {
+      "name": "is_urgent",
       "kind": "proposition",
       "definitionId": "d1-jtLpNQmCV34EQ_jAGrUs0cQMyeb9i2aIcWTUKIM3crI",
       "outcome": {
@@ -424,7 +426,8 @@ The response from the typed lookup example writes this JSON, shown here with lin
         "provenance": { "modelName": "jev-latest", "provider": "typesafe" }
       }
     },
-    "department": {
+    {
+      "name": "department",
       "kind": "choice",
       "definitionId": "d1-r1GJdFFSUuEhBE7rVReD4Tc5x8GyUdNymd_di8Mfq8Y",
       "options": [
@@ -439,7 +442,8 @@ The response from the typed lookup example writes this JSON, shown here with lin
         "provenance": { "modelName": "jev-latest", "provider": "typesafe" }
       }
     },
-    "frustration": {
+    {
+      "name": "frustration",
       "kind": "rating",
       "definitionId": "d1-SqKOYhPj7qR7j2mwZJz2COEozfmP7Dfr4hirlvhDfOg",
       "levels": [
@@ -453,7 +457,7 @@ The response from the typed lookup example writes this JSON, shown here with lin
         "provenance": { "modelName": "jev-latest", "provider": "typesafe" }
       }
     }
-  }
+  ]
 }
 ----
 
@@ -504,6 +508,7 @@ Every decision deserializer fails with `MismatchedInputException` on input the t
 These checks run on the token stream, so they hold whatever the mapper's duplicate and unknown-property settings are.
 A kind or mode that appears twice in one array also fails.
 A member that a later version adds fails in a reader that does not know it.
+An answer name that appears twice in `answers` also fails.
 A response whose answers are out of spec order fails the `s1-` id check.
 
 ===== Parsed trees
