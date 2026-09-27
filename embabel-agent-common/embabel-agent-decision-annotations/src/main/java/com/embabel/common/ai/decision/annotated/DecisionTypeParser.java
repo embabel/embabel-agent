@@ -140,10 +140,10 @@ final class DecisionTypeParser {
     static <T> AnnotatedDecision<T> parse(Class<T> type, ObjectMapper mapper) {
         DecisionTypeParser parser = new DecisionTypeParser(type, mapper);
         Parsed parsed = parser.read();
-        return new AnnotatedDecision<>(type, parsed.spec, parsed.questionNames, parsed.propertyNames, mapper);
+        return new AnnotatedDecision<>(type, parsed.spec, parsed.questionNames, parsed.settableNames, mapper);
     }
 
-    private record Parsed(DecisionSpec spec, Map<String, String> questionNames, List<String> propertyNames) {
+    private record Parsed(DecisionSpec spec, Map<String, String> questionNames, List<String> settableNames) {
     }
 
     private Parsed read() {
@@ -171,12 +171,11 @@ final class DecisionTypeParser {
 
         Map<String, String> questionNames = new LinkedHashMap<>();
         List<Question<?>> questions = new ArrayList<>();
-        List<String> propertyNames = new ArrayList<>();
+        List<String> settableNames = new ArrayList<>();
         Coverage coverage = new Coverage();
         Set<String> reportedIgnored = new HashSet<>();
 
         for (BeanPropertyDefinition property : properties) {
-            propertyNames.add(property.getName());
             String member = type.getSimpleName() + "." + property.getInternalName();
             List<AnnotatedMember> members;
             try {
@@ -187,6 +186,10 @@ final class DecisionTypeParser {
                 continue;
             }
             members.forEach(coverage::add);
+            // Projection supplies a value for each of these, from an answer or from otherProperties.
+            if (property.getMutator() != null && !ignorals.ignores(property)) {
+                settableNames.add(property.getName());
+            }
 
             Map<Kind, Set<String>> declared = questionAnnotations(members);
             if (declared.isEmpty()) {
@@ -247,7 +250,7 @@ final class DecisionTypeParser {
         if (!problems.isEmpty()) {
             throw failure();
         }
-        return new Parsed(DecisionSpec.of(questions), questionNames, propertyNames);
+        return new Parsed(DecisionSpec.of(questions), questionNames, settableNames);
     }
 
     // Field, getter, setter and creator parameters of one property. The getters throw when two
