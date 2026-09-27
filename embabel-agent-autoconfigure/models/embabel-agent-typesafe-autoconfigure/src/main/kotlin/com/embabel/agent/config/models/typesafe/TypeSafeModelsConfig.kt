@@ -18,9 +18,13 @@ package com.embabel.agent.config.models.typesafe
 import com.embabel.agent.typesafe.TypeSafeClientOptions
 import com.embabel.agent.typesafe.TypeSafeModelFactory
 import com.embabel.common.ai.decision.DecisionService
+import com.embabel.common.ai.model.DecisionServiceRegistry
 import io.micrometer.observation.ObservationRegistry
+import org.springframework.beans.factory.BeanFactory
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -34,7 +38,8 @@ import java.util.function.Supplier
  *
  * Extends [TypeSafeModelFactory] so native provider construction is shared with the BYOK path,
  * matching the Anthropic and OpenAI provider pattern. This class adds property resolution,
- * application transport selection and the default named decision-service bean.
+ * application transport selection, the default named decision-service bean, its default
+ * candidate and the named services configured under `services`.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(TypeSafeProperties::class)
@@ -58,11 +63,43 @@ class TypeSafeModelsConfig(
         logger.info("TypeSafe models are available: {}", properties)
     }
 
-    /** The configured default remains replaceable without suppressing other decision providers. */
-    @Bean("typeSafeDecisionService")
-    fun typeSafeDecisionService(): DecisionService = build()
+    /**
+     * Defines the default TypeSafe decision service and offers it as the decision and
+     * classification family default. An application bean named `typeSafeDecisionService` replaces
+     * both. The named services under `services` still register.
+     */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnMissingBean(name = [DEFAULT_SERVICE])
+    class DefaultServiceConfiguration {
+
+        /** Builds the default service from the configured model. */
+        @Bean(DEFAULT_SERVICE)
+        fun typeSafeDecisionService(factory: TypeSafeModelsConfig): DecisionService = factory.build()
+
+        /** Offers `typeSafeDecisionService` as the decision and classification family default. */
+        @Bean
+        fun typeSafeDefaultCandidate(): DecisionServiceRegistry.DefaultCandidate =
+            DecisionServiceRegistry.DefaultCandidate(DEFAULT_SERVICE)
+    }
 
     companion object {
+
+        /**
+         * Registers the services configured under `embabel.agent.platform.models.typesafe.services`.
+         * Static, so Spring creates it before ordinary beans and the service definitions exist before
+         * anything that injects them by name.
+         */
+        @JvmStatic
+        @Bean
+        fun typeSafeServicesRegistrar(
+            environment: Environment,
+            beanFactory: BeanFactory,
+        ): BeanDefinitionRegistryPostProcessor =
+            TypeSafeServicesRegistrar(TypeSafeServicesRegistrar.bind(environment), beanFactory)
+
+        /** Bean name of the default TypeSafe decision service. */
+        const val DEFAULT_SERVICE = "typeSafeDecisionService"
+
         private const val API_KEY_ENVIRONMENT_VARIABLE = "TYPESAFE_API_KEY"
         private const val AI_MODEL_REST_CLIENT_BUILDER = "aiModelRestClientBuilder"
 

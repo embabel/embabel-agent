@@ -15,5 +15,11 @@
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-typesafe-autoconfigure</artifactId>
         </dependency>
+        <!-- The assembled decision-service examples boot the agent platform next to TypeSafe. -->
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-api</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>

@@ -1,0 +1,28 @@
+# Decision services configuration shown on the decision execution reference page.
+# tag::yaml[]
+embabel:
+  agent:
+    platform:
+      models:
+        typesafe:
+          api-key: ${TYPESAFE_API_KEY}
+          services:
+            jev:
+              model: jev-latest
+            jev-fast:
+              model: jev-fast
+      decisions:
+        llm:
+          services:
+            llm-review:
+              llm: gpt-4.1-mini
+        capture-content: false
+  models:
+    decision:
+      roles:
+        support-triage: jev
+        dice-revision-review: llm-review
+    classification:
+      roles:
+        dice-revision: llm-review
+# end::yaml[]
