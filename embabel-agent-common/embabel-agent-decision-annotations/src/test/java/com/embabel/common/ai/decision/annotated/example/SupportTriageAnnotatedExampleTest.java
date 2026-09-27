@@ -21,6 +21,7 @@ import com.embabel.common.ai.decision.DecisionProjection;
 import com.embabel.common.ai.decision.DecisionResponse;
 import com.embabel.common.ai.decision.DecisionSpec;
 import com.embabel.common.ai.decision.PropositionResult;
+import com.embabel.common.ai.decision.Question;
 import com.embabel.common.ai.decision.RatingResult;
 import com.embabel.common.ai.decision.annotated.AnnotatedDecision;
 import com.embabel.common.ai.decision.annotated.AnnotatedDecisions;
@@ -158,7 +159,7 @@ class SupportTriageAnnotatedExampleTest {
     }
 
     private static List<String> questionNames(DecisionSpec spec) {
-        return spec.getQuestions().stream().map(question -> question.getName()).toList();
+        return spec.getQuestions().stream().map(Question::getName).toList();
     }
 
     private static void assertNoClassNames(String json) {

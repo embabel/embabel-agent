@@ -31,6 +31,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -382,9 +383,10 @@ class AnnotatedSpecErrorsTest {
     @Test
     void exceptionIsAnIllegalArgumentExceptionWithAnUnmodifiableProblemList() {
         AnnotatedDecisionException failure = failure(NoQuestions.class);
+        List<String> problems = failure.problems();
 
         assertInstanceOf(IllegalArgumentException.class, failure);
-        assertThrows(UnsupportedOperationException.class, () -> failure.problems().add("x"));
+        assertThrows(UnsupportedOperationException.class, () -> problems.add("x"));
         assertNull(failure.getCause());
     }
 
@@ -623,6 +625,6 @@ class AnnotatedSpecErrorsTest {
         AnnotatedDecisionException second = assertThrows(AnnotatedDecisionException.class, () -> decisions.of(StringChoice.class));
 
         assertEquals(first.problems(), second.problems());
-        assertTrue(first != second);
+        assertNotSame(first, second);
     }
 }

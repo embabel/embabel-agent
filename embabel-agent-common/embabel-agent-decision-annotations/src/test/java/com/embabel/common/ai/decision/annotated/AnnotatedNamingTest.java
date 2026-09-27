@@ -18,6 +18,7 @@ package com.embabel.common.ai.decision.annotated;
 import com.embabel.common.ai.classification.Category;
 import com.embabel.common.ai.decision.ChoiceQuestionSpec;
 import com.embabel.common.ai.decision.DecisionSpec;
+import com.embabel.common.ai.decision.Question;
 import com.embabel.common.ai.decision.RatingLevel;
 import com.embabel.common.ai.decision.RatingQuestionSpec;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -75,7 +76,7 @@ class AnnotatedNamingTest {
     private static final ObjectMapper CAMEL = JsonMapper.builder().build();
 
     private static List<String> names(DecisionSpec spec) {
-        return spec.getQuestions().stream().map(question -> question.getName()).toList();
+        return spec.getQuestions().stream().map(Question::getName).toList();
     }
 
     @Test
