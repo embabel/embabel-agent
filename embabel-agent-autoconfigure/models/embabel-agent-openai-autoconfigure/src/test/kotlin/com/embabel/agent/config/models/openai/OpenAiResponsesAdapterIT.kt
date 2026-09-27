@@ -19,12 +19,17 @@ import com.embabel.agent.api.common.Ai
 import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.autoconfigure.models.openai.AgentOpenAiAutoConfiguration
 import com.embabel.agent.config.models.openai.OpenAiIntegrationSupport.isModelAccessError
+import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.LlmOptions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.opentest4j.TestAbortedException
+import org.springframework.ai.chat.messages.UserMessage
+import org.springframework.ai.chat.prompt.Prompt
+import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan
@@ -34,6 +39,7 @@ import org.springframework.context.annotation.Import
 import org.springframework.context.annotation.Profile
 import org.springframework.test.context.ActiveProfiles
 import java.time.Duration
+import java.util.UUID
 
 @Profile("openai-responses-adapter-test")
 @ConfigurationPropertiesScan(basePackages = ["com.embabel.agent"])
@@ -90,6 +96,7 @@ class VaultCodeTool {
 )
 class OpenAiResponsesAdapterIT(
     @param:Autowired private val ai: Ai,
+    @param:Autowired private val llms: List<LlmService<*>>,
 ) {
 
     /**
@@ -152,6 +159,40 @@ class OpenAiResponsesAdapterIT(
         assertTrue(
             answer.contains("ZX-9917"),
             "The tool result never made it back into the answer, got: $answer",
+        )
+    }
+
+    /** A real round trip proves OpenAI accepts the id and restores the stored conversation. */
+    @Test
+    fun `previous response id continues a stored conversation`() {
+        val marker = "continuation-${UUID.randomUUID()}"
+        val chatModel = (llms.single { it.name == OpenAiModels.GPT_5_PRO } as SpringAiLlmService).chatModel
+
+        val firstResponse = call {
+            chatModel.call(
+                Prompt("Remember the exact marker '$marker', then reply READY.")
+            )
+        }
+        val responseId = firstResponse.metadata.id
+        assertTrue(responseId.isNotBlank(), "OpenAI did not return a response id")
+
+        val continuationOptions = OpenAiChatOptions.builder()
+            .model(OpenAiModels.GPT_5_PRO)
+            .extraBody(mapOf(OpenAiResponsesOptions.PREVIOUS_RESPONSE_ID to responseId))
+            .build()
+        val continuedResponse = call {
+            chatModel.call(
+                Prompt(
+                    listOf(UserMessage("What exact marker did I ask you to remember? Reply with only the marker.")),
+                    continuationOptions,
+                )
+            )
+        }
+
+        assertEquals(
+            marker,
+            continuedResponse.result.output.text.trim(),
+            "The continued response did not return the exact marker",
         )
     }
 
