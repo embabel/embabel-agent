@@ -24,8 +24,6 @@ import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
 import com.embabel.common.ai.decision.decisionSpec
 import com.embabel.common.ai.decision.support.StubDecisionService
-import com.embabel.common.ai.decision.annotated.AnnotatedSpecParityTest.Department
-import com.embabel.common.ai.decision.annotated.AnnotatedSpecParityTest.Severity
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -36,6 +34,25 @@ import tools.jackson.module.kotlin.kotlinModule
 private const val URGENT = "Does this ticket convey urgency?"
 private const val TEAM = "Which team should handle this?"
 private const val SEVERITY = "How severe is the impact?"
+
+// The same constants and descriptions as the enums of the Java record in AnnotatedSpecParityTest.
+private enum class Department {
+    @Described("Payments, invoicing, refunds")
+    BILLING,
+
+    @Described("Bugs, outages, integrations")
+    TECHNICAL,
+}
+
+private enum class Severity {
+    LOW,
+
+    @Described("Work is blocked for one customer")
+    HIGH,
+
+    @Described("Work is blocked for many customers")
+    CRITICAL,
+}
 
 // Observed with Kotlin 2.2.21 and jackson-module-kotlin 3.1.x, with no -Xannotation-default-target flag.
 // The question annotations target FIELD, METHOD and PARAMETER and have no Kotlin PROPERTY target, so
@@ -50,6 +67,7 @@ private const val SEVERITY = "How severe is the impact?"
 // - @get: puts the annotation on the getter, which is part of the property.
 // Every placement that reads gives the spec read from the Java record.
 
+// tag::annotated-kotlin[]
 private data class DefaultSiteTriage(
     @PropositionQuestion(asking = URGENT) val urgent: Boolean,
     @ChoiceQuestion(asking = TEAM) val department: Department,
@@ -72,6 +90,15 @@ private data class GetterSiteTriage(
     @get:PropositionQuestion(asking = URGENT) val urgent: Boolean,
     @get:ChoiceQuestion(asking = TEAM) val department: Department,
     @get:RatingQuestion(asking = SEVERITY) val severity: Severity,
+)
+// end::annotated-kotlin[]
+
+// Kotlin 2.2 warns that a later default site also annotates the backing field. Writing both targets
+// reproduces that placement.
+private data class ParamAndFieldSiteTriage(
+    @param:PropositionQuestion(asking = URGENT) @field:PropositionQuestion(asking = URGENT) val urgent: Boolean,
+    @param:ChoiceQuestion(asking = TEAM) @field:ChoiceQuestion(asking = TEAM) val department: Department,
+    @param:RatingQuestion(asking = SEVERITY) @field:RatingQuestion(asking = SEVERITY) val severity: Severity,
 )
 
 private class PlainClassTriage(
@@ -99,7 +126,10 @@ class AnnotatedKotlinTest {
 
     private val kotlinMapper = JsonMapper.builder().addModule(kotlinModule()).build()
 
-    private val javaTriage: DecisionSpec = AnnotatedDecisions.defaults().of(AnnotatedSpecParityTest.Triage::class.java).spec()
+    // Kotlin test sources compile before Java test sources, so the Java record is loaded by name.
+    private val javaTriage: DecisionSpec = AnnotatedDecisions.defaults()
+        .of(Class.forName("com.embabel.common.ai.decision.annotated.AnnotatedSpecParityTest\$Triage"))
+        .spec()
 
     @Test
     fun `DSL spec equals the annotated Java record spec`() {
@@ -157,19 +187,30 @@ class AnnotatedKotlinTest {
     @Test
     fun `field site fails on a data class and names the members Jackson reads`() {
         val decisions = AnnotatedDecisions.using(kotlinMapper)
-        val name = FieldSiteTriage::class.java.simpleName
-        val fix = " In Kotlin, write the annotation with @get: or with no use-site target."
+
+        assertEquals(fieldProblems(FieldSiteTriage::class.java), problemsOf(decisions, FieldSiteTriage::class.java))
+    }
+
+    @Test
+    fun `param and field site together fail on the field`() {
+        val decisions = AnnotatedDecisions.using(kotlinMapper)
 
         assertEquals(
-            listOf(
-                "$name.urgent: carries @PropositionQuestion but Jackson leaves this field out of the property \"urgent\". " +
-                    "Move the annotation to creator parameter urgent or getter getUrgent().$fix",
-                "$name.department: carries @ChoiceQuestion but Jackson leaves this field out of the property \"department\". " +
-                    "Move the annotation to creator parameter department or getter getDepartment().$fix",
-                "$name.severity: carries @RatingQuestion but Jackson leaves this field out of the property \"severity\". " +
-                    "Move the annotation to creator parameter severity or getter getSeverity().$fix",
-            ),
-            problemsOf(decisions, FieldSiteTriage::class.java),
+            fieldProblems(ParamAndFieldSiteTriage::class.java),
+            problemsOf(decisions, ParamAndFieldSiteTriage::class.java),
+        )
+    }
+
+    private fun fieldProblems(type: Class<*>): List<String> {
+        val name = type.simpleName
+        val fix = " In Kotlin, write the annotation with @get: or with no use-site target."
+        return listOf(
+            "$name.urgent: carries @PropositionQuestion but Jackson leaves this field out of the property \"urgent\". " +
+                "Move the annotation to creator parameter urgent or getter getUrgent().$fix",
+            "$name.department: carries @ChoiceQuestion but Jackson leaves this field out of the property \"department\". " +
+                "Move the annotation to creator parameter department or getter getDepartment().$fix",
+            "$name.severity: carries @RatingQuestion but Jackson leaves this field out of the property \"severity\". " +
+                "Move the annotation to creator parameter severity or getter getSeverity().$fix",
         )
     }
 
