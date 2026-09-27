@@ -22,17 +22,19 @@ import tools.jackson.databind.module.SimpleDeserializers
 import tools.jackson.databind.module.SimpleSerializers
 
 /**
- * The Jackson module that reads and writes decision specs, questions, requests, options and
- * capabilities.
+ * The Jackson module that reads and writes decision specs, questions, requests, options,
+ * capabilities, responses, answers and rating results.
  *
  * Field names are fixed. The mapper's naming strategy does not change them, so every application
  * reads and writes the same JSON. Reading is strict: a repeated member, an unknown member, an
- * unknown question kind or execution mode, a value of the wrong JSON type and any definition the
- * public builders refuse all fail with a `MismatchedInputException`. These checks run on the token
- * stream, so they hold whatever the mapper's own duplicate and unknown-property settings are.
+ * unknown question kind, execution mode, outcome status or failure reason, a value of the wrong
+ * JSON type and any value the public builders and factories refuse all fail with a
+ * `MismatchedInputException`. These checks run on the token stream, so they hold whatever the
+ * mapper's own duplicate and unknown-property settings are.
  *
  * The module registers bindings only for the decision types. Every other type keeps the JSON it
- * had before.
+ * had before, including the proposition and classification results and model provenance that
+ * appear inside a response.
  *
  * Register it on a plain mapper:
  *
@@ -74,6 +76,7 @@ class DecisionJacksonModule : JacksonModule() {
         val serializers = SimpleSerializers()
         val deserializers = SimpleDeserializers()
         SpecJson.register(serializers, deserializers)
+        ResponseJson.register(serializers, deserializers)
         context.addSerializers(serializers)
         context.addDeserializers(deserializers)
     }
