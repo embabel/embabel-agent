@@ -76,10 +76,12 @@ class AnnotatedProjectionTest {
         @PropositionQuestion(asking = "Does this ticket convey urgency?") boolean urgent) {
     }
 
+    // tag::annotated-ignored-record[]
     record TriageWithIgnored(
         @JsonIgnore String internalNote,
         @PropositionQuestion(asking = "Does this ticket convey urgency?") boolean urgent) {
     }
+    // end::annotated-ignored-record[]
 
     record Picked<E extends Enum<E>>(@ChoiceQuestion(asking = "Which team should handle this?") E pick) {
     }
@@ -274,6 +276,7 @@ class AnnotatedProjectionTest {
     void ignoredRecordComponentProjectsOnlyWithoutMissingCreatorPropertyChecks() {
         // Jackson keeps an ignored record component as a creator parameter. The default mapper fails
         // on a missing creator property, so it reports the ignored component as missing.
+        // tag::annotated-ignored-component[]
         AnnotatedDecision<TriageWithIgnored> strict = AnnotatedDecisions.defaults().of(TriageWithIgnored.class);
         DecisionResponse strictResponse = answeredStub().build().ask(INPUT, strict.spec());
         DecisionProjectionException e =
@@ -285,6 +288,7 @@ class AnnotatedProjectionTest {
             AnnotatedDecisions.using(JsonMapper.builder().build()).of(TriageWithIgnored.class);
         DecisionResponse lenientResponse = answeredStub().build().ask(INPUT, lenient.spec());
         assertEquals(new TriageWithIgnored(null, true), lenient.project(lenientResponse).getValue());
+        // end::annotated-ignored-component[]
     }
 
     @Test
