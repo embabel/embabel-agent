@@ -21,8 +21,6 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  * Reads decision specs from annotated types under one Jackson mapper, and caches each result.
@@ -36,18 +34,27 @@ import java.util.concurrent.ConcurrentMap;
  * DecisionSpec spec = triage.spec();
  * }</pre>
  * <p>
- * Instances are safe to share between threads.
+ * Instances are safe to share between threads. The cache stores each result with its type and
+ * keeps no class or class loader reachable. The mapper's own Jackson caches hold types separately.
  */
 @ApiStatus.Experimental
 public final class AnnotatedDecisions {
 
     private final ObjectMapper mapper;
 
-    // Holds successful parses only. A type that fails is read again on the next call.
-    private final ConcurrentMap<Class<?>, AnnotatedDecision<?>> decisions = new ConcurrentHashMap<>();
+    // Holds successful parses only. A parse failure throws out of computeValue, which stores nothing,
+    // so a type that fails is read again on the next call. ClassValue stores each value with its
+    // class, so an entry is collected together with the class and its loader.
+    private final ClassValue<AnnotatedDecision<?>> decisions;
 
     private AnnotatedDecisions(ObjectMapper mapper) {
         this.mapper = mapper;
+        this.decisions = new ClassValue<>() {
+            @Override
+            protected AnnotatedDecision<?> computeValue(Class<?> type) {
+                return DecisionTypeParser.parse(type, mapper);
+            }
+        };
     }
 
     /**
@@ -83,13 +90,7 @@ public final class AnnotatedDecisions {
     @SuppressWarnings("unchecked")
     public <T> AnnotatedDecision<T> of(Class<T> type) {
         Objects.requireNonNull(type, "type");
-        AnnotatedDecision<?> cached = decisions.get(type);
-        if (cached != null) {
-            return (AnnotatedDecision<T>) cached;
-        }
-        AnnotatedDecision<T> parsed = DecisionTypeParser.parse(type, mapper);
-        AnnotatedDecision<?> raced = decisions.putIfAbsent(type, parsed);
-        return raced == null ? parsed : (AnnotatedDecision<T>) raced;
+        return (AnnotatedDecision<T>) decisions.get(type);
     }
 
     /**
