@@ -104,11 +104,8 @@ sealed interface DecisionAnswer {
 
         init {
             AnswerRules.requireIdentity(name, definitionId)
-            require(this.options.isNotEmpty()) { "Question '$name': at least one option is required" }
-            AnswerRules.requireUniqueIds(name, "option", this.options.map { it.id })
-            require(outcome !is ClassificationResult.Selected || this.options.any { it.id == outcome.categoryId }) {
-                "Question '$name': the selected category id is not one of its options"
-            }
+            OutcomeRules.requireOptionIds(name, this.options.map { it.id })
+            OutcomeRules.fitChoice(name, this.options, outcome)
         }
 
         override val kind: QuestionKind get() = QuestionKind.CHOICE
@@ -153,22 +150,8 @@ sealed interface DecisionAnswer {
 
         init {
             AnswerRules.requireIdentity(name, definitionId)
-            require(this.levels.size >= 2) { "Question '$name': at least two levels are required" }
-            val levelIds = this.levels.map { it.id }
-            AnswerRules.requireUniqueIds(name, "level", levelIds)
-            if (outcome is RatingResult.Answered) {
-                // The same checks, with the same messages, as RatingQuestionSpec.validate.
-                require(outcome.selectedLevelId == null || outcome.selectedLevelId in levelIds) {
-                    "Question '$name': the selected level id is not one of its levels"
-                }
-                require(outcome.distribution.isEmpty() || outcome.distribution.map { it.levelId }.toSet() == levelIds.toSet()) {
-                    "Question '$name': the distribution must cover exactly its levels"
-                }
-                val score = outcome.score
-                require(score == null || score.value <= this.levels.size - 1) {
-                    "Question '$name': the score ${score?.value} is above the last level index ${this.levels.size - 1}"
-                }
-            }
+            OutcomeRules.requireLevelIds(name, this.levels.map { it.id })
+            OutcomeRules.fitRating(name, this.levels, outcome)
         }
 
         override val kind: QuestionKind get() = QuestionKind.RATING
@@ -219,7 +202,7 @@ class DecisionResponse private constructor(
     val executionMode: ExecutionMode,
     /**
      * Why the whole request failed, or null when it did not. When it is set, every answer's outcome
-     * is a failure.
+     * is a failure with this same reason.
      */
     val requestFailure: FailureReason?,
     answers: List<DecisionAnswer>,
@@ -231,6 +214,9 @@ class DecisionResponse private constructor(
     private val answersByName: Map<String, DecisionAnswer>
 
     init {
+        require(DefinitionIds.isSpecId(definitionId)) {
+            "Response definition id '$definitionId' is not a spec id. It must be 's1-' followed by 43 base64url characters."
+        }
         require(this.answers.isNotEmpty()) { "A decision response needs at least one answer" }
         val seen = HashSet<String>()
         val repeated = this.answers.map { it.name }.filterNot(seen::add).distinct()
@@ -238,10 +224,10 @@ class DecisionResponse private constructor(
             "Answer names must be unique within a decision response. Repeated: ${repeated.joinToString { "'$it'" }}"
         }
         if (requestFailure != null) {
-            val notFailed = this.answers.filterNot(AnswerRules::isFailure).map { it.name }
-            require(notFailed.isEmpty()) {
-                "A response with a request failure can only hold failure outcomes. " +
-                    "Not failed: ${notFailed.joinToString { "'$it'" }}"
+            val mismatched = this.answers.filter { AnswerRules.failureReason(it) != requestFailure }
+            require(mismatched.isEmpty()) {
+                "A response with request failure $requestFailure can only hold failure outcomes with that reason. " +
+                    "Mismatched: " + mismatched.joinToString { "'${it.name}' (${AnswerRules.failureReason(it) ?: "not a failure"})" }
             }
         }
         // The spec id covers every question id in order, so this catches a dropped, extra or reordered answer.
@@ -307,7 +293,8 @@ class DecisionResponse private constructor(
     override fun hashCode(): Int = Objects.hash(definitionId, executionMode, requestFailure, answers)
 
     override fun toString(): String =
-        "DecisionResponse(executionMode=$executionMode, requestFailure=$requestFailure, answers=$answers)"
+        "DecisionResponse(definitionId=$definitionId, executionMode=$executionMode, " +
+            "requestFailure=$requestFailure, answers=$answers)"
 
     /**
      * Collects one answer per question of a spec. Get one from [DecisionResponse.builder].
@@ -323,41 +310,47 @@ class DecisionResponse private constructor(
         private val answers = HashMap<String, DecisionAnswer>()
 
         /**
-         * Adds the answer to one question of the spec. A rejected answer leaves the builder as it was.
+         * Adds the answer to one proposition question of the spec. A rejected answer leaves the
+         * builder as it was.
          *
          * @param question a question of the spec, or a question with the same definition
-         * @param outcome the outcome for that question, which must fit its options or levels
+         * @param outcome what the model concluded about the proposition
          * @return this builder
          * @throws IllegalArgumentException if the spec has no question with this name, the spec's
-         * question has a different definition, the question already has an answer, the outcome is
-         * of another kind, or the outcome does not fit the question
+         * question has a different definition, or the question already has an answer
          */
-        fun <R : Any> answer(question: Question<R>, outcome: R): Builder {
-            val declared = spec.question(question.name)
-            require(declared != null) { "The spec has no question named '${question.name}'" }
-            require(declared.definitionId == question.definitionId) {
-                "Question '${question.name}' has a different definition from the one in the spec"
-            }
-            require(question.name !in answers) { "Question '${question.name}' already has an answer" }
-            answers[question.name] = when (question) {
-                is PropositionQuestionSpec -> {
-                    require(outcome is PropositionResult) { outcomeTypeMessage(question, "PropositionResult") }
-                    DecisionAnswer.Proposition.create(question.name, question.definitionId, outcome)
-                }
-                is ChoiceQuestionSpec -> {
-                    require(outcome is ClassificationResult) { outcomeTypeMessage(question, "ClassificationResult") }
-                    DecisionAnswer.Choice.create(
-                        question.name, question.definitionId, question.options, question.validate(outcome),
-                    )
-                }
-                is RatingQuestionSpec -> {
-                    require(outcome is RatingResult) { outcomeTypeMessage(question, "RatingResult") }
-                    DecisionAnswer.Rating.create(
-                        question.name, question.definitionId, question.levels, question.validate(outcome),
-                    )
-                }
-            }
-            return this
+        fun answer(question: PropositionQuestionSpec, outcome: PropositionResult): Builder = add(question) {
+            DecisionAnswer.Proposition.create(question.name, question.definitionId, outcome)
+        }
+
+        /**
+         * Adds the answer to one choice question of the spec. A rejected answer leaves the builder
+         * as it was.
+         *
+         * @param question a question of the spec, or a question with the same definition
+         * @param outcome the option the model picked, or why it picked none
+         * @return this builder
+         * @throws IllegalArgumentException if the spec has no question with this name, the spec's
+         * question has a different definition, the question already has an answer, or the
+         * selection is not one of the question's options
+         */
+        fun answer(question: ChoiceQuestionSpec, outcome: ClassificationResult): Builder = add(question) {
+            DecisionAnswer.Choice.create(question.name, question.definitionId, question.options, question.validate(outcome))
+        }
+
+        /**
+         * Adds the answer to one rating question of the spec. A rejected answer leaves the builder
+         * as it was.
+         *
+         * @param question a question of the spec, or a question with the same definition
+         * @param outcome the rating evidence the model reported, or why it reported none
+         * @return this builder
+         * @throws IllegalArgumentException if the spec has no question with this name, the spec's
+         * question has a different definition, the question already has an answer, or the evidence
+         * does not fit the question's levels
+         */
+        fun answer(question: RatingQuestionSpec, outcome: RatingResult): Builder = add(question) {
+            DecisionAnswer.Rating.create(question.name, question.definitionId, question.levels, question.validate(outcome))
         }
 
         /**
@@ -373,8 +366,17 @@ class DecisionResponse private constructor(
             return DecisionResponse(spec.definitionId, executionMode, null, spec.questions.map { answers.getValue(it.name) })
         }
 
-        private fun outcomeTypeMessage(question: Question<*>, resultType: String): String =
-            "Question '${question.name}' is a ${question.kind.wireName} question, so its outcome must be a $resultType"
+        // Runs the checks every answer method shares, then stores the answer that make builds.
+        private fun add(question: Question<*>, make: () -> DecisionAnswer): Builder {
+            val declared = spec.question(question.name)
+            require(declared != null) { "The spec has no question named '${question.name}'" }
+            require(declared.definitionId == question.definitionId) {
+                "Question '${question.name}' has a different definition from the one in the spec"
+            }
+            require(question.name !in answers) { "Question '${question.name}' already has an answer" }
+            answers[question.name] = make()
+            return this
+        }
 
         internal companion object {
             // Used by DecisionResponse.builder. Hidden from Java so a builder can only come from there.
@@ -428,21 +430,16 @@ private object AnswerRules {
 
     fun requireIdentity(name: String, definitionId: String) {
         require(name.isNotBlank()) { "Answer name must not be blank" }
-        require(definitionId.isNotBlank()) { "Answer '$name': definition id must not be blank" }
-    }
-
-    fun requireUniqueIds(name: String, entry: String, ids: List<String>) {
-        val seen = HashSet<String>()
-        val repeated = ids.filterNot(seen::add).distinct()
-        require(repeated.isEmpty()) {
-            "Question '$name': $entry ids must be unique. Repeated: ${repeated.joinToString { "'$it'" }}"
+        require(DefinitionIds.isQuestionId(definitionId)) {
+            "Answer '$name': definition id '$definitionId' is not a question id. " +
+                "It must be 'd1-' followed by 43 base64url characters."
         }
     }
 
-    fun isFailure(answer: DecisionAnswer): Boolean = when (answer) {
-        is DecisionAnswer.Proposition -> answer.outcome is PropositionResult.Failure
-        is DecisionAnswer.Choice -> answer.outcome is ClassificationResult.Failure
-        is DecisionAnswer.Rating -> answer.outcome is RatingResult.Failure
+    fun failureReason(answer: DecisionAnswer): FailureReason? = when (answer) {
+        is DecisionAnswer.Proposition -> answer.outcome.let { if (it is PropositionResult.Failure) it.reason else null }
+        is DecisionAnswer.Choice -> answer.outcome.let { if (it is ClassificationResult.Failure) it.reason else null }
+        is DecisionAnswer.Rating -> answer.outcome.let { if (it is RatingResult.Failure) it.reason else null }
     }
 
     fun failure(question: Question<*>, reason: FailureReason): DecisionAnswer = when (question) {

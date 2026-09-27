@@ -157,12 +157,7 @@ class ChoiceQuestionSpec private constructor(
      *
      * @throws IllegalArgumentException if the selected category id is not one of the options
      */
-    fun validate(result: ClassificationResult): ClassificationResult {
-        require(result !is ClassificationResult.Selected || options.any { it.id == result.categoryId }) {
-            "Question '$name': the selected category id is not one of its options"
-        }
-        return result
-    }
+    fun validate(result: ClassificationResult): ClassificationResult = OutcomeRules.fitChoice(name, options, result)
 
     override fun equals(other: Any?): Boolean =
         this === other || other is ChoiceQuestionSpec &&
@@ -213,8 +208,7 @@ class ChoiceQuestionSpec private constructor(
          */
         fun build(): ChoiceQuestionSpec {
             val text = QuestionRules.requireInstructions(name, instructions)
-            require(options.isNotEmpty()) { "Question '$name': at least one option is required" }
-            QuestionRules.requireEntryIds(name, "option", options)
+            OutcomeRules.requireOptionIds(name, options.map { it.first })
             return ChoiceQuestionSpec(name, text, options.map { (id, description) -> Category(id, description) })
         }
 
@@ -252,22 +246,7 @@ class RatingQuestionSpec private constructor(
      *
      * @throws IllegalArgumentException if the evidence does not fit the scale
      */
-    fun validate(result: RatingResult): RatingResult {
-        if (result is RatingResult.Answered) {
-            val levelIds = levels.map { it.id }.toSet()
-            require(result.selectedLevelId == null || result.selectedLevelId in levelIds) {
-                "Question '$name': the selected level id is not one of its levels"
-            }
-            require(result.distribution.isEmpty() || result.distribution.map { it.levelId }.toSet() == levelIds) {
-                "Question '$name': the distribution must cover exactly its levels"
-            }
-            val score = result.score
-            require(score == null || score.value <= levels.size - 1) {
-                "Question '$name': the score ${score?.value} is above the last level index ${levels.size - 1}"
-            }
-        }
-        return result
-    }
+    fun validate(result: RatingResult): RatingResult = OutcomeRules.fitRating(name, levels, result)
 
     override fun equals(other: Any?): Boolean =
         this === other || other is RatingQuestionSpec &&
@@ -326,8 +305,7 @@ class RatingQuestionSpec private constructor(
          */
         fun build(): RatingQuestionSpec {
             val text = QuestionRules.requireInstructions(name, instructions)
-            require(levels.size >= 2) { "Question '$name': at least two levels are required" }
-            QuestionRules.requireEntryIds(name, "level", levels)
+            OutcomeRules.requireLevelIds(name, levels.map { it.first })
             return RatingQuestionSpec(name, text, levels.map { (id, description) -> RatingLevel(id, description) })
         }
 
@@ -351,11 +329,57 @@ private object QuestionRules {
         require(instructions.isNotBlank()) { "Question '$name': instructions must not be blank" }
         return instructions
     }
+}
 
-    fun requireEntryIds(name: String, entry: String, entries: List<Pair<String, String>>) {
-        require(entries.none { it.first.isBlank() }) { "Question '$name': $entry id must not be blank" }
+// The one copy of the option, level and outcome rules. Question builders, the question validators
+// and the answers in a decision response all call these, so every path gives the same messages.
+internal object OutcomeRules {
+
+    /** Requires at least one option, and option ids that are nonblank and unique. */
+    fun requireOptionIds(name: String, ids: List<String>) {
+        require(ids.isNotEmpty()) { "Question '$name': at least one option is required" }
+        requireEntryIds(name, "option", ids)
+    }
+
+    /** Requires at least two levels, and level ids that are nonblank and unique. */
+    fun requireLevelIds(name: String, ids: List<String>) {
+        require(ids.size >= 2) { "Question '$name': at least two levels are required" }
+        requireEntryIds(name, "level", ids)
+    }
+
+    /** Returns the result unchanged if any selection names one of the options. */
+    fun fitChoice(name: String, options: List<Category>, result: ClassificationResult): ClassificationResult {
+        require(result !is ClassificationResult.Selected || options.any { it.id == result.categoryId }) {
+            "Question '$name': the selected category id is not one of its options"
+        }
+        return result
+    }
+
+    /**
+     * Returns the result unchanged if its evidence fits the levels: a selected level is one of
+     * them, a distribution covers exactly them, and a score is at most the last level index.
+     */
+    fun fitRating(name: String, levels: List<RatingLevel>, result: RatingResult): RatingResult {
+        if (result is RatingResult.Answered) {
+            val levelIds = levels.map { it.id }.toSet()
+            require(result.selectedLevelId == null || result.selectedLevelId in levelIds) {
+                "Question '$name': the selected level id is not one of its levels"
+            }
+            require(result.distribution.isEmpty() || result.distribution.map { it.levelId }.toSet() == levelIds) {
+                "Question '$name': the distribution must cover exactly its levels"
+            }
+            val score = result.score
+            require(score == null || score.value <= levels.size - 1) {
+                "Question '$name': the score ${score?.value} is above the last level index ${levels.size - 1}"
+            }
+        }
+        return result
+    }
+
+    private fun requireEntryIds(name: String, entry: String, ids: List<String>) {
+        require(ids.none { it.isBlank() }) { "Question '$name': $entry id must not be blank" }
         val seen = HashSet<String>()
-        val repeated = entries.map { it.first }.filterNot(seen::add).distinct()
+        val repeated = ids.filterNot(seen::add).distinct()
         require(repeated.isEmpty()) {
             "Question '$name': $entry ids must be unique. Repeated: ${repeated.joinToString { "'$it'" }}"
         }
