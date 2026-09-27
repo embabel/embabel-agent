@@ -17,6 +17,14 @@ package com.embabel.common.ai.decision
 
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
+import com.fasterxml.jackson.annotation.JsonAnySetter
+import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.annotation.JsonPropertyOrder
+import com.fasterxml.jackson.annotation.JsonSubTypes
+import com.fasterxml.jackson.annotation.JsonTypeInfo
 import org.jetbrains.annotations.ApiStatus
 import kotlin.math.abs
 
@@ -27,9 +35,23 @@ import kotlin.math.abs
  * identity and its label.
  */
 @ApiStatus.Experimental
+@JsonPropertyOrder("id", "description")
 data class RatingLevel @JvmOverloads constructor(val id: String, val description: String = id) {
     init {
         require(id.isNotBlank()) { "Rating level id must not be blank" }
+    }
+
+    @JsonAnySetter
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingLevel", name)
+
+    private companion object {
+        // JSON always carries both members.
+        @JvmStatic
+        @JsonCreator
+        private fun fromJson(
+            @JsonProperty("id", required = true) id: String,
+            @JsonProperty("description", required = true) description: String,
+        ): RatingLevel = RatingLevel(id, description)
     }
 }
 
@@ -43,6 +65,7 @@ enum class RatingStatistic {
      * It is one continuous number over the level range. The probability of each level is
      * reported separately, in the distribution.
      */
+    @JsonProperty("expected_level_index")
     EXPECTED_LEVEL_INDEX,
 }
 
@@ -51,10 +74,17 @@ enum class RatingStatistic {
  * The value is finite and at least zero.
  */
 @ApiStatus.Experimental
-data class RatingScore(val value: Double, val statistic: RatingStatistic) {
+@JsonPropertyOrder("value", "statistic")
+data class RatingScore @JsonCreator constructor(
+    @JsonProperty("value", required = true) val value: Double,
+    @JsonProperty("statistic", required = true) val statistic: RatingStatistic,
+) {
     init {
         require(value.isFinite() && value >= 0.0) { "Rating score value must be finite and at least 0" }
     }
+
+    @JsonAnySetter
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingScore", name)
 }
 
 /**
@@ -62,13 +92,20 @@ data class RatingScore(val value: Double, val statistic: RatingStatistic) {
  * and the probability is finite and between 0 and 1 inclusive.
  */
 @ApiStatus.Experimental
-data class LevelProbability(val levelId: String, val probability: Double) {
+@JsonPropertyOrder("levelId", "probability")
+data class LevelProbability @JsonCreator constructor(
+    @JsonProperty("levelId", required = true) val levelId: String,
+    @JsonProperty("probability", required = true) val probability: Double,
+) {
     init {
         require(levelId.isNotBlank()) { "Level id must not be blank" }
         require(probability.isFinite() && probability in 0.0..1.0) {
             "Probability must be finite and between 0 and 1"
         }
     }
+
+    @JsonAnySetter
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("LevelProbability", name)
 }
 
 /**
@@ -78,8 +115,17 @@ data class LevelProbability(val levelId: String, val probability: Double) {
  * and a distribution only when the provider reported one. Validation against a
  * `RatingQuestionSpec` checks that a selected level and a distribution belong to the
  * question's scale.
+ *
+ * In JSON a rating result is an object whose `status` member names its class: `answered`,
+ * `inconclusive` or `failure`.
  */
 @ApiStatus.Experimental
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "status")
+@JsonSubTypes(
+    JsonSubTypes.Type(RatingResult.Answered::class, name = "answered"),
+    JsonSubTypes.Type(RatingResult.Inconclusive::class, name = "inconclusive"),
+    JsonSubTypes.Type(RatingResult.Failure::class, name = "failure"),
+)
 sealed interface RatingResult {
 
     /**
@@ -93,18 +139,23 @@ sealed interface RatingResult {
      * @property score the provider's score and the statistic it represents, when reported
      * @property confidence the provider's concentration measure, in 0..1, when reported
      */
+    @JsonPropertyOrder("selectedLevelId", "distribution", "score", "confidence", "provenance")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     class Answered @JvmOverloads constructor(
-        val provenance: ModelProvenance,
-        val selectedLevelId: String? = null,
+        @get:JsonIgnore val provenance: ModelProvenance,
+        @get:JsonProperty("selectedLevelId") val selectedLevelId: String? = null,
         distribution: List<LevelProbability> = emptyList(),
-        val score: RatingScore? = null,
-        val confidence: Double? = null,
+        @get:JsonProperty("score") val score: RatingScore? = null,
+        @get:JsonProperty("confidence") val confidence: Double? = null,
     ) : RatingResult {
 
         /**
          * The per-level probabilities the provider reported, in the order given. The list is
          * an unmodifiable copy, so changes to the list the caller passed in do not appear here.
+         * JSON leaves out an empty distribution.
          */
+        @get:JsonProperty("distribution")
+        @get:JsonInclude(JsonInclude.Include.NON_EMPTY)
         val distribution: List<LevelProbability> = java.util.List.copyOf(distribution)
 
         init {
@@ -145,15 +196,62 @@ sealed interface RatingResult {
         override fun toString(): String =
             "RatingResult.Answered(provenance=$provenance, selectedLevelId=$selectedLevelId, " +
                 "distribution=$distribution, score=$score, confidence=$confidence)"
+
+        @JsonProperty("provenance")
+        private fun provenanceJson(): ProvenanceJson = ProvenanceJson(provenance)
+
+        @JsonAnySetter
+        private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingResult", name)
+
+        private companion object {
+            // An explicit null distribution reads the same as an absent one.
+            @JvmStatic
+            @JsonCreator
+            private fun fromJson(
+                @JsonProperty("provenance", required = true) provenance: ProvenanceJson,
+                @JsonProperty("selectedLevelId") selectedLevelId: String?,
+                @JsonProperty("distribution") distribution: List<LevelProbability>?,
+                @JsonProperty("score") score: RatingScore?,
+                @JsonProperty("confidence") confidence: Double?,
+            ): Answered = Answered(provenance.toProvenance(), selectedLevelId, distribution ?: emptyList(), score, confidence)
+        }
     }
 
     /**
      * Insufficient evidence to answer the rating.
      */
-    data class Inconclusive(val provenance: ModelProvenance) : RatingResult
+    data class Inconclusive(@get:JsonIgnore val provenance: ModelProvenance) : RatingResult {
+
+        @JsonProperty("provenance")
+        private fun provenanceJson(): ProvenanceJson = ProvenanceJson(provenance)
+
+        @JsonAnySetter
+        private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingResult", name)
+
+        private companion object {
+            @JvmStatic
+            @JsonCreator
+            private fun fromJson(@JsonProperty("provenance", required = true) provenance: ProvenanceJson): Inconclusive =
+                Inconclusive(provenance.toProvenance())
+        }
+    }
 
     /**
      * An operational failure with no raw provider error or throwable retained.
      */
-    data class Failure(val reason: FailureReason) : RatingResult
+    data class Failure(@get:JsonIgnore val reason: FailureReason) : RatingResult {
+
+        @JsonProperty("reason")
+        private fun reasonJson(): FailureReasonJson = FailureReasonJson.of(reason)
+
+        @JsonAnySetter
+        private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingResult", name)
+
+        private companion object {
+            @JvmStatic
+            @JsonCreator
+            private fun fromJson(@JsonProperty("reason", required = true) reason: FailureReasonJson): Failure =
+                Failure(reason.reason)
+        }
+    }
 }

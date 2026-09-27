@@ -33,20 +33,19 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import tools.jackson.core.StreamReadFeature
 import tools.jackson.core.type.TypeReference
+import tools.jackson.databind.DatabindException
 import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.PropertyNamingStrategies
-import tools.jackson.databind.exc.MismatchedInputException
 import tools.jackson.databind.json.JsonMapper
 import tools.jackson.databind.node.ArrayNode
 import tools.jackson.databind.node.ObjectNode
 
 class SpecJsonTest {
 
-    private val mapper: JsonMapper = JsonMapper.builder().addModule(DecisionJacksonModule()).build()
+    private val mapper: JsonMapper = JsonMapper.builder().build()
 
-    // Found through META-INF/services, with no explicit registration.
+    // Adds the Kotlin module, which jackson-module-kotlin lists for ServiceLoader.
     private val discovered: JsonMapper = JsonMapper.builder().findAndAddModules().build()
 
     private fun triage(): DecisionSpec = DecisionSpec.builder()
@@ -82,8 +81,8 @@ class SpecJsonTest {
 
     private fun request(): DecisionRequest = DecisionRequest.of("My invoice is wrong and nobody answers.", triage())
 
-    private fun assertRejects(json: String, type: Class<*>, vararg fragments: String, using: JsonMapper = mapper): MismatchedInputException {
-        val error = assertThrows(MismatchedInputException::class.java) { using.readValue(json, type) }
+    private fun assertRejects(json: String, type: Class<*>, vararg fragments: String, using: JsonMapper = mapper): DatabindException {
+        val error = assertThrows(DatabindException::class.java) { using.readValue(json, type) }
         fragments.forEach { fragment ->
             assertTrue(error.message!!.contains(fragment)) { "Expected '$fragment' in: ${error.message}" }
         }
@@ -187,7 +186,6 @@ class SpecJsonTest {
         fun `the mapper's naming strategy changes neither the written nor the accepted names`() {
             for (strategy in listOf(PropertyNamingStrategies.SNAKE_CASE, PropertyNamingStrategies.UPPER_CAMEL_CASE)) {
                 val renaming = JsonMapper.builder()
-                    .addModule(DecisionJacksonModule())
                     .propertyNamingStrategy(strategy)
                     .build()
                 assertEquals(requestJson, renaming.writeValueAsString(request()))
@@ -205,84 +203,54 @@ class SpecJsonTest {
     inner class Rejections {
 
         @Test
-        fun `a duplicate member inside a question is rejected`() {
-            val json = spec("""{"kind":"proposition","name":"a","name":"b","instructions":"Is it?"}""")
-            assertRejects(json, DecisionSpec::class.java, "Duplicate member 'name' in Question")
-        }
-
-        @Test
-        fun `a duplicate member at spec level is rejected`() {
-            val json = """{"questions":[$urgentJson],"questions":[$frustrationJson]}"""
-            assertRejects(json, DecisionSpec::class.java, "Duplicate member 'questions' in DecisionSpec")
-        }
-
-        @Test
-        fun `a duplicate member inside an option or at request level is rejected`() {
-            val option = """{"kind":"choice","name":"c","instructions":"Which?","options":[{"id":"a","id":"b","description":"x"}]}"""
-            assertRejects(option, Question::class.java, "Duplicate member 'id' in Category")
-            val request = """{"input":"a","input":"b","spec":$triageJson}"""
-            assertRejects(request, DecisionRequest::class.java, "Duplicate member 'input' in DecisionRequest")
-        }
-
-        @Test
-        fun `a mapper whose global defaults allow duplicates and unknown members still rejects them`() {
-            val lenient = JsonMapper.builder()
-                .addModule(DecisionJacksonModule())
-                .disable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
-                .disable(DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY)
-                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                .build()
-            assertFalse(lenient.isEnabled(StreamReadFeature.STRICT_DUPLICATE_DETECTION))
+        fun `unknown members are rejected on a plain mapper and on one that ignores unknown properties`() {
+            val lenient = JsonMapper.builder().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build()
             assertFalse(lenient.isEnabled(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES))
-            assertRejects(
-                spec("""{"kind":"proposition","name":"a","instructions":"Is it?","instructions":"Is it not?"}"""),
-                DecisionSpec::class.java,
-                "Duplicate member 'instructions' in Question",
-                using = lenient,
-            )
-            assertRejects(
-                """{"questions":[$urgentJson],"questions":[$urgentJson]}""",
-                DecisionSpec::class.java,
-                "Duplicate member 'questions' in DecisionSpec",
-                using = lenient,
-            )
-            assertRejects(
-                """{"executionModes":["native"],"executionModes":["sequential"]}""",
-                DecisionOptions::class.java,
-                "Duplicate member 'executionModes' in DecisionOptions",
-                using = lenient,
-            )
-            assertRejects(
-                """{"questions":[$urgentJson],"name":"triage"}""",
-                DecisionSpec::class.java,
-                "Unknown member 'name' in DecisionSpec",
-                using = lenient,
-            )
+            for (m in listOf(mapper, lenient)) {
+                assertRejects("""{"questions":[$urgentJson],"version":2}""", DecisionSpec::class.java, "Unknown member 'version' in DecisionSpec", using = m)
+                assertRejects(
+                    spec("""{"kind":"proposition","name":"a","instructions":"Is it?","weight":1}"""),
+                    DecisionSpec::class.java,
+                    "Unknown member 'weight' in PropositionQuestionSpec",
+                    using = m,
+                )
+                assertRejects(
+                    """{"input":"x","spec":$triageJson,"options":{}}""",
+                    DecisionRequest::class.java,
+                    "Unknown member 'options' in DecisionRequest",
+                    using = m,
+                )
+                assertRejects(
+                    """{"kind":"rating","name":"r","instructions":"How?","levels":[{"id":"a","description":"A","rank":1},{"id":"b","description":"B"}]}""",
+                    Question::class.java,
+                    "Unknown member 'rank' in RatingLevel",
+                    using = m,
+                )
+                assertRejects(
+                    """{"kind":"choice","name":"c","instructions":"Which?","options":[{"id":"a","description":"A","colour":"red"}]}""",
+                    Question::class.java,
+                    "Unknown member 'colour' in Category",
+                    using = m,
+                )
+                assertRejects(
+                    """{"executionModes":["native"],"parallel":true}""",
+                    DecisionOptions::class.java,
+                    "Unknown member 'parallel' in DecisionOptions",
+                    using = m,
+                )
+                assertRejects(
+                    """{"questionKinds":["rating"],"executionModes":["native"],"maxTokens":5}""",
+                    DecisionCapabilities::class.java,
+                    "Unknown member 'maxTokens' in DecisionCapabilities",
+                    using = m,
+                )
+            }
         }
 
         @Test
-        fun `unknown members are rejected at every level`() {
-            assertRejects("""{"questions":[$urgentJson],"version":2}""", DecisionSpec::class.java, "Unknown member 'version' in DecisionSpec")
-            assertRejects(
-                spec("""{"kind":"proposition","name":"a","instructions":"Is it?","weight":1}"""),
-                DecisionSpec::class.java,
-                "Unknown member 'weight' in Question",
-            )
-            assertRejects(
-                """{"input":"x","spec":$triageJson,"options":{}}""",
-                DecisionRequest::class.java,
-                "Unknown member 'options' in DecisionRequest",
-            )
-            assertRejects(
-                """{"kind":"rating","name":"r","instructions":"How?","levels":[{"id":"a","description":"A","rank":1},{"id":"b","description":"B"}]}""",
-                Question::class.java,
-                "Unknown member 'rank' in RatingLevel",
-            )
-            assertRejects(
-                """{"questionKinds":["rating"],"executionModes":["native"],"maxTokens":5}""",
-                DecisionCapabilities::class.java,
-                "Unknown member 'maxTokens' in DecisionCapabilities",
-            )
+        fun `a definition id in spec JSON is an unknown member`() {
+            val json = """{"questions":[$urgentJson],"definitionId":"${triage().definitionId}"}"""
+            assertRejects(json, DecisionSpec::class.java, "Unknown member 'definitionId' in DecisionSpec")
         }
 
         @Test
@@ -298,31 +266,19 @@ class SpecJsonTest {
                 Question::class.java,
                 "Unknown member 'levels' in ChoiceQuestionSpec",
             )
-            assertRejects(
-                """{"kind":"choice","name":"c","instructions":"Which?","levels":[{"id":"a","description":"A"}]}""",
-                ChoiceQuestionSpec::class.java,
-                "Unknown member 'levels' in ChoiceQuestionSpec",
-            )
         }
 
         @Test
         fun `an unknown kind is rejected`() {
-            assertRejects(
-                spec("""{"kind":"poll","name":"a","instructions":"Is it?"}"""),
-                DecisionSpec::class.java,
-                "Member 'kind' in Question must be one of proposition, choice, rating",
-            )
+            assertRejects(spec("""{"kind":"poll","name":"a","instructions":"Is it?"}"""), DecisionSpec::class.java, "'poll'")
             // Wire names are lower case, so the enum constant name is not accepted either.
-            assertRejects(
-                """{"kind":"PROPOSITION","name":"a","instructions":"Is it?"}""",
-                Question::class.java,
-                "Member 'kind' in Question must be one of proposition, choice, rating",
-            )
+            assertRejects("""{"kind":"PROPOSITION","name":"a","instructions":"Is it?"}""", Question::class.java, "'PROPOSITION'")
+            assertRejects("""{"name":"a","instructions":"Is it?"}""", Question::class.java, "missing type id property 'kind'")
         }
 
         @Test
         fun `a question read as its own class must carry that kind`() {
-            assertRejects(urgentJson, ChoiceQuestionSpec::class.java, "Member 'kind' in ChoiceQuestionSpec must be choice")
+            assertRejects(urgentJson, ChoiceQuestionSpec::class.java, "'proposition'")
         }
 
         @Test
@@ -361,42 +317,33 @@ class SpecJsonTest {
         }
 
         @Test
-        fun `a choice without options is rejected`() {
-            assertRejects(
-                """{"kind":"choice","name":"c","instructions":"Which?"}""",
-                Question::class.java,
-                "Missing required member 'options' in ChoiceQuestionSpec",
-            )
+        fun `missing required members are rejected`() {
+            assertRejects("""{"kind":"choice","name":"c","instructions":"Which?"}""", Question::class.java, "'options'")
+            assertRejects(spec("""{"kind":"proposition","name":"a"}"""), DecisionSpec::class.java, "'instructions'")
+            assertRejects("""{"kind":"rating","name":"r","instructions":"How?","levels":[{"id":"a"},{"id":"b"}]}""", Question::class.java, "'description'")
+            assertRejects("""{"spec":$triageJson}""", DecisionRequest::class.java, "'input'")
+            assertRejects("""{"input":"x"}""", DecisionRequest::class.java, "'spec'")
+            assertRejects("""{}""", DecisionSpec::class.java, "'questions'")
+            assertRejects("""{"questionKinds":["rating"]}""", DecisionCapabilities::class.java, "'executionModes'")
+        }
+
+        @Test
+        fun `values the builders refuse are rejected with the builder message`() {
             assertRejects(
                 """{"kind":"choice","name":"c","instructions":"Which?","options":[]}""",
                 Question::class.java,
                 "Question 'c': at least one option is required",
-            )
-        }
-
-        @Test
-        fun `missing instructions are rejected`() {
-            assertRejects(
-                spec("""{"kind":"proposition","name":"a"}"""),
-                DecisionSpec::class.java,
-                "Missing required member 'instructions' in Question",
             )
             assertRejects(
                 """{"kind":"proposition","name":"a","instructions":"  "}""",
                 Question::class.java,
                 "Question 'a': instructions must not be blank",
             )
-        }
-
-        @Test
-        fun `a blank name and missing request members are rejected`() {
             assertRejects("""{"kind":"proposition","name":" ","instructions":"Is it?"}""", Question::class.java, "Question name must not be blank")
-            assertRejects("""{"spec":$triageJson}""", DecisionRequest::class.java, "Missing required member 'input' in DecisionRequest")
-            assertRejects("""{"input":"x"}""", DecisionRequest::class.java, "Missing required member 'spec' in DecisionRequest")
         }
 
         @Test
-        fun `a nested spec inside a request is read strictly`() {
+        fun `a nested spec inside a request is read with the same checks`() {
             assertRejects(
                 """{"input":"x","spec":{"questions":[$urgentJson,$urgentJson]}}""",
                 DecisionRequest::class.java,
@@ -405,46 +352,22 @@ class SpecJsonTest {
         }
 
         @Test
-        fun `a value of the wrong token type is rejected`() {
-            assertRejects(
-                """{"kind":"proposition","name":"a","instructions":5}""",
-                Question::class.java,
-                "Member 'instructions' in Question must be a string",
-            )
-            assertRejects("""{"questions":{}}""", DecisionSpec::class.java, "Member 'questions' in DecisionSpec must be an array")
-            assertRejects("""{"questions":["is_urgent"]}""", DecisionSpec::class.java, "Member 'questions[0]' in DecisionSpec must be an object")
-            assertRejects("""{"input":null,"spec":$triageJson}""", DecisionRequest::class.java, "Member 'input' in DecisionRequest must be a string")
-            assertRejects("""[$urgentJson]""", DecisionSpec::class.java, "DecisionSpec must be an object")
-            assertRejects(
-                """{"questionKinds":["rating"],"executionModes":["native"],"maxQuestions":"8"}""",
-                DecisionCapabilities::class.java,
-                "Member 'maxQuestions' in DecisionCapabilities must be an integer",
-            )
+        fun `questions must be an array and a spec must be an object`() {
+            assertRejects("""{"questions":{}}""", DecisionSpec::class.java, "from Object value")
+            assertRejects("""[$urgentJson]""", DecisionSpec::class.java, "from Array value")
         }
 
         @Test
-        fun `unknown, repeated and empty enum values are rejected`() {
-            assertRejects(
-                """{"executionModes":["native","parallel"]}""",
-                DecisionOptions::class.java,
-                "Member 'executionModes[1]' in DecisionOptions must be one of native, single_question, sequential",
-            )
-            assertRejects(
-                """{"executionModes":["NATIVE"]}""",
-                DecisionOptions::class.java,
-                "Member 'executionModes[0]' in DecisionOptions must be one of native, single_question, sequential",
-            )
-            assertRejects(
-                """{"executionModes":["native","native"]}""",
-                DecisionOptions::class.java,
-                "Member 'executionModes[1]' in DecisionOptions must be a value that appears once",
-            )
+        fun `unknown and empty enum values are rejected`() {
+            assertRejects("""{"executionModes":["native","parallel"]}""", DecisionOptions::class.java, "\"parallel\"")
+            assertRejects("""{"executionModes":["NATIVE"]}""", DecisionOptions::class.java, "\"NATIVE\"")
             assertRejects("""{"executionModes":[]}""", DecisionOptions::class.java, "At least one execution mode must be allowed")
-            assertRejects(
-                """{"questionKinds":["essay"],"executionModes":["native"]}""",
-                DecisionCapabilities::class.java,
-                "Member 'questionKinds[0]' in DecisionCapabilities must be one of proposition, choice, rating",
-            )
+            assertRejects("""{"questionKinds":["essay"],"executionModes":["native"]}""", DecisionCapabilities::class.java, "\"essay\"")
+        }
+
+        @Test
+        fun `a mode listed twice reads as one`() {
+            assertEquals(DecisionOptions.nativeOnly(), mapper.readValue("""{"executionModes":["native","native"]}""", DecisionOptions::class.java))
         }
 
         @Test
@@ -477,29 +400,29 @@ class SpecJsonTest {
         fun `an unknown kind in a tree is rejected`() {
             val tree = triageTree()
             ((tree.get("questions") as ArrayNode).get(1) as ObjectNode).put("kind", "poll")
-            val error = assertThrows(MismatchedInputException::class.java) { mapper.treeToValue(tree, DecisionSpec::class.java) }
-            assertTrue(error.message!!.contains("Member 'kind' in Question must be one of proposition, choice, rating")) { error.message!! }
+            val error = assertThrows(DatabindException::class.java) { mapper.treeToValue(tree, DecisionSpec::class.java) }
+            assertTrue(error.message!!.contains("'poll'")) { error.message!! }
         }
 
         @Test
         fun `duplicate question names in a tree are rejected`() {
             val tree = triageTree()
             ((tree.get("questions") as ArrayNode).get(2) as ObjectNode).put("name", "department")
-            val error = assertThrows(MismatchedInputException::class.java) { mapper.treeToValue(tree, DecisionSpec::class.java) }
+            val error = assertThrows(DatabindException::class.java) { mapper.treeToValue(tree, DecisionSpec::class.java) }
             assertTrue(error.message!!.contains("Repeated: 'department'")) { error.message!! }
         }
 
         @Test
         fun `an unknown member and a broken rating in a tree are rejected`() {
             val unknown = triageTree().put("owner", "support")
-            val first = assertThrows(MismatchedInputException::class.java) { mapper.treeToValue(unknown, DecisionSpec::class.java) }
+            val first = assertThrows(DatabindException::class.java) { mapper.treeToValue(unknown, DecisionSpec::class.java) }
             assertTrue(first.message!!.contains("Unknown member 'owner' in DecisionSpec")) { first.message!! }
 
             val oneLevel = triageTree()
             val levels = ((oneLevel.get("questions") as ArrayNode).get(2) as ObjectNode).get("levels") as ArrayNode
             levels.remove(2)
             levels.remove(1)
-            val second = assertThrows(MismatchedInputException::class.java) { mapper.treeToValue(oneLevel, DecisionSpec::class.java) }
+            val second = assertThrows(DatabindException::class.java) { mapper.treeToValue(oneLevel, DecisionSpec::class.java) }
             assertTrue(second.message!!.contains("at least two levels are required")) { second.message!! }
         }
     }

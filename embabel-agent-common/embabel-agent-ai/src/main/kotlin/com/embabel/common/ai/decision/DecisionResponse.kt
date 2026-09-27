@@ -18,6 +18,15 @@ package com.embabel.common.ai.decision
 import com.embabel.common.ai.classification.Category
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.FailureReason
+import com.fasterxml.jackson.annotation.JsonAnySetter
+import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonFormat
+import com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.annotation.JsonPropertyOrder
+import com.fasterxml.jackson.annotation.JsonSubTypes
+import com.fasterxml.jackson.annotation.JsonTypeInfo
 import org.jetbrains.annotations.ApiStatus
 import java.util.Objects
 
@@ -40,17 +49,30 @@ import java.util.Objects
  *     case DecisionAnswer.Rating rating -> "not a choice";
  * };
  * ```
+ *
+ * In JSON an answer is an object whose `kind` member names its class. It has the same form inside
+ * a response and on its own.
  */
 @ApiStatus.Experimental
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "kind")
+@JsonSubTypes(
+    JsonSubTypes.Type(DecisionAnswer.Proposition::class, name = "proposition"),
+    JsonSubTypes.Type(DecisionAnswer.Choice::class, name = "choice"),
+    JsonSubTypes.Type(DecisionAnswer.Rating::class, name = "rating"),
+)
+@JsonPropertyOrder("name", "kind", "definitionId", "options", "levels", "outcome")
 sealed interface DecisionAnswer {
 
     /** The name of the question this answers. It is unique within a response. */
+    @get:JsonProperty("name")
     val name: String
 
     /** The kind of the question this answers. */
+    @get:JsonProperty("kind")
     val kind: QuestionKind
 
     /** The `d1-` definition id of the question this answers. */
+    @get:JsonProperty("definitionId")
     val definitionId: String
 
     /**
@@ -62,7 +84,7 @@ sealed interface DecisionAnswer {
     class Proposition private constructor(
         override val name: String,
         override val definitionId: String,
-        val outcome: PropositionResult,
+        @get:JsonIgnore val outcome: PropositionResult,
     ) : DecisionAnswer {
 
         init {
@@ -79,11 +101,25 @@ sealed interface DecisionAnswer {
 
         override fun toString(): String = "DecisionAnswer.Proposition(name=$name, outcome=$outcome)"
 
+        @JsonProperty("outcome")
+        private fun outcomeJson(): PropositionOutcomeJson = PropositionOutcomeJson.of(outcome)
+
+        @JsonAnySetter
+        private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionAnswer", name)
+
         internal companion object {
-            // Used by DecisionResponse and the JSON bindings. Hidden from Java so answers only come from a response.
+            // Used by DecisionResponse. Hidden from Java so answers only come from a response.
             @JvmSynthetic
             internal fun create(name: String, definitionId: String, outcome: PropositionResult): Proposition =
                 Proposition(name, definitionId, outcome)
+
+            @JvmStatic
+            @JsonCreator
+            private fun fromJson(
+                @JsonProperty("name", required = true) name: String,
+                @JsonProperty("definitionId", required = true) definitionId: String,
+                @JsonProperty("outcome", required = true) outcome: PropositionOutcomeJson,
+            ): Proposition = Proposition(name, definitionId, outcome.toProposition())
         }
     }
 
@@ -97,10 +133,11 @@ sealed interface DecisionAnswer {
         override val name: String,
         override val definitionId: String,
         options: List<Category>,
-        val outcome: ClassificationResult,
+        @get:JsonIgnore val outcome: ClassificationResult,
     ) : DecisionAnswer {
 
         /** The question's options in declared order. The list cannot be modified. Option ids are unique. */
+        @get:JsonIgnore
         val options: List<Category> = java.util.List.copyOf(options)
 
         init {
@@ -119,8 +156,17 @@ sealed interface DecisionAnswer {
 
         override fun toString(): String = "DecisionAnswer.Choice(name=$name, outcome=$outcome)"
 
+        @JsonProperty("options")
+        private fun optionsJson(): List<OptionJson> = options.map(::OptionJson)
+
+        @JsonProperty("outcome")
+        private fun outcomeJson(): ChoiceOutcomeJson = ChoiceOutcomeJson.of(outcome)
+
+        @JsonAnySetter
+        private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionAnswer", name)
+
         internal companion object {
-            // Used by DecisionResponse and the JSON bindings. Hidden from Java so answers only come from a response.
+            // Used by DecisionResponse. Hidden from Java so answers only come from a response.
             @JvmSynthetic
             internal fun create(
                 name: String,
@@ -128,6 +174,15 @@ sealed interface DecisionAnswer {
                 options: List<Category>,
                 outcome: ClassificationResult,
             ): Choice = Choice(name, definitionId, options, outcome)
+
+            @JvmStatic
+            @JsonCreator
+            private fun fromJson(
+                @JsonProperty("name", required = true) name: String,
+                @JsonProperty("definitionId", required = true) definitionId: String,
+                @JsonProperty("options", required = true) options: List<OptionJson>,
+                @JsonProperty("outcome", required = true) outcome: ChoiceOutcomeJson,
+            ): Choice = Choice(name, definitionId, options.map { it.toCategory() }, outcome.toClassification())
         }
     }
 
@@ -143,10 +198,11 @@ sealed interface DecisionAnswer {
         override val name: String,
         override val definitionId: String,
         levels: List<RatingLevel>,
-        val outcome: RatingResult,
+        @get:JsonProperty("outcome") val outcome: RatingResult,
     ) : DecisionAnswer {
 
         /** The question's levels from lowest to highest. The list cannot be modified. Level ids are unique. */
+        @get:JsonProperty("levels")
         val levels: List<RatingLevel> = java.util.List.copyOf(levels)
 
         init {
@@ -165,14 +221,26 @@ sealed interface DecisionAnswer {
 
         override fun toString(): String = "DecisionAnswer.Rating(name=$name, outcome=$outcome)"
 
+        @JsonAnySetter
+        private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionAnswer", name)
+
         internal companion object {
-            // Used by DecisionResponse and the JSON bindings. Hidden from Java so answers only come from a response.
+            // Used by DecisionResponse. Hidden from Java so answers only come from a response.
             @JvmSynthetic
             internal fun create(
                 name: String,
                 definitionId: String,
                 levels: List<RatingLevel>,
                 outcome: RatingResult,
+            ): Rating = Rating(name, definitionId, levels, outcome)
+
+            @JvmStatic
+            @JsonCreator
+            private fun fromJson(
+                @JsonProperty("name", required = true) name: String,
+                @JsonProperty("definitionId", required = true) definitionId: String,
+                @JsonProperty("levels", required = true) levels: List<RatingLevel>,
+                @JsonProperty("outcome", required = true) outcome: RatingResult,
             ): Rating = Rating(name, definitionId, levels, outcome)
         }
     }
@@ -196,22 +264,27 @@ sealed interface DecisionAnswer {
  *
  * Build a response with [builder], or record a failed request with [failed]. Two responses are
  * equal when their spec ids, modes, request failures and answers are equal.
+ *
+ * Reading a response from JSON runs the same checks, so the answers' definition ids must give the
+ * response's spec id.
  */
 @ApiStatus.Experimental
+@JsonPropertyOrder("definitionId", "executionMode", "requestFailure", "answers")
 class DecisionResponse private constructor(
     /** The `s1-` definition id of the spec this response answers. */
-    val definitionId: String,
+    @get:JsonProperty("definitionId") val definitionId: String,
     /** How the spec was run. */
-    val executionMode: ExecutionMode,
+    @get:JsonProperty("executionMode") val executionMode: ExecutionMode,
     /**
      * Why the whole request failed, or null when it did not. When it is set, every answer's outcome
      * is a failure with this same reason.
      */
-    val requestFailure: FailureReason?,
+    @get:JsonIgnore val requestFailure: FailureReason?,
     answers: List<DecisionAnswer>,
 ) {
 
     /** The answers in spec order, one per question. The list cannot be modified. */
+    @get:JsonProperty("answers")
     val answers: List<DecisionAnswer> = java.util.List.copyOf(answers)
 
     private val answersByName: Map<String, DecisionAnswer>
@@ -314,6 +387,13 @@ class DecisionResponse private constructor(
     override fun toString(): String =
         "DecisionResponse(definitionId=$definitionId, executionMode=$executionMode, " +
             "requestFailure=$requestFailure, answers=$answers)"
+
+    @JsonProperty("requestFailure")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private fun requestFailureJson(): FailureReasonJson? = requestFailure?.let(FailureReasonJson::of)
+
+    @JsonAnySetter
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionResponse", name)
 
     /**
      * Collects one answer per question of a spec. Get one from [DecisionResponse.builder].
@@ -432,8 +512,8 @@ class DecisionResponse private constructor(
         fun failed(spec: DecisionSpec, executionMode: ExecutionMode, reason: FailureReason): DecisionResponse =
             DecisionResponse(spec.definitionId, executionMode, reason, spec.questions.map { AnswerRules.failure(it, reason) })
 
-        // Rebuilds a response without its spec, for the JSON bindings. The constructor checks every
-        // invariant, including that the answers' definition ids give the stated spec id. Hidden from Java.
+        // Rebuilds a response without its spec. The constructor checks every invariant, including
+        // that the answers' definition ids give the stated spec id. Hidden from Java.
         @JvmSynthetic
         internal fun create(
             definitionId: String,
@@ -441,6 +521,19 @@ class DecisionResponse private constructor(
             requestFailure: FailureReason?,
             answers: List<DecisionAnswer>,
         ): DecisionResponse = DecisionResponse(definitionId, executionMode, requestFailure, answers)
+
+        // Reads a response from JSON through the same constructor. An explicit null request failure
+        // reads the same as an absent one.
+        @JvmStatic
+        @JsonCreator
+        private fun fromJson(
+            @JsonProperty("definitionId", required = true) definitionId: String,
+            @JsonProperty("executionMode", required = true) executionMode: ExecutionMode,
+            @JsonProperty("requestFailure") requestFailure: FailureReasonJson?,
+            @JsonProperty("answers", required = true)
+            @JsonFormat(without = [JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY])
+            answers: List<DecisionAnswer>,
+        ): DecisionResponse = DecisionResponse(definitionId, executionMode, requestFailure?.reason, answers)
     }
 }
 

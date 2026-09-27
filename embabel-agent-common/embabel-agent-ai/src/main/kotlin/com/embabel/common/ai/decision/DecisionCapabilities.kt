@@ -15,6 +15,11 @@
  */
 package com.embabel.common.ai.decision
 
+import com.fasterxml.jackson.annotation.JsonAnySetter
+import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.annotation.JsonPropertyOrder
 import org.jetbrains.annotations.ApiStatus
 import java.util.Collections
 import java.util.EnumSet
@@ -38,17 +43,20 @@ import java.util.Objects
  * does not report a limit
  */
 @ApiStatus.Experimental
+@JsonPropertyOrder("questionKinds", "executionModes", "maxQuestions", "maxInputCharacters")
+@JsonInclude(JsonInclude.Include.NON_NULL)
 class DecisionCapabilities private constructor(
     questionKinds: Set<QuestionKind>,
     executionModes: Set<ExecutionMode>,
-    val maxQuestions: Int?,
-    val maxInputCharacters: Int?,
+    @get:JsonProperty("maxQuestions") val maxQuestions: Int?,
+    @get:JsonProperty("maxInputCharacters") val maxInputCharacters: Int?,
 ) {
 
     /**
      * The question kinds the service accepts. The set cannot be modified, holds at least one kind
      * and iterates in declaration order.
      */
+    @get:JsonProperty("questionKinds")
     val questionKinds: Set<QuestionKind> = run {
         // EnumSet.copyOf cannot copy an empty plain set, so the emptiness check has to come first.
         require(questionKinds.isNotEmpty()) { "At least one question kind must be supported" }
@@ -59,6 +67,7 @@ class DecisionCapabilities private constructor(
      * The execution modes the service supports. The set cannot be modified, holds at least one
      * mode and iterates in declaration order.
      */
+    @get:JsonProperty("executionModes")
     val executionModes: Set<ExecutionMode> = run {
         require(executionModes.isNotEmpty()) { "At least one execution mode must be supported" }
         Collections.unmodifiableSet(EnumSet.copyOf(executionModes))
@@ -105,6 +114,9 @@ class DecisionCapabilities private constructor(
         "DecisionCapabilities(questionKinds=$questionKinds, executionModes=$executionModes, " +
             "maxQuestions=$maxQuestions, maxInputCharacters=$maxInputCharacters)"
 
+    @JsonAnySetter
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionCapabilities", name)
+
     /**
      * Creates decision capabilities.
      */
@@ -122,5 +134,14 @@ class DecisionCapabilities private constructor(
         @JvmStatic
         fun of(questionKinds: Set<QuestionKind>, executionModes: Set<ExecutionMode>): DecisionCapabilities =
             DecisionCapabilities(questionKinds, executionModes, null, null)
+
+        @JvmStatic
+        @JsonCreator
+        private fun fromJson(
+            @JsonProperty("questionKinds", required = true) questionKinds: Set<QuestionKind>,
+            @JsonProperty("executionModes", required = true) executionModes: Set<ExecutionMode>,
+            @JsonProperty("maxQuestions") maxQuestions: Int?,
+            @JsonProperty("maxInputCharacters") maxInputCharacters: Int?,
+        ): DecisionCapabilities = DecisionCapabilities(questionKinds, executionModes, maxQuestions, maxInputCharacters)
     }
 }

@@ -15,6 +15,10 @@
  */
 package com.embabel.common.ai.decision
 
+import com.fasterxml.jackson.annotation.JsonAnySetter
+import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.annotation.JsonPropertyOrder
 import org.jetbrains.annotations.ApiStatus
 import java.util.Objects
 
@@ -26,7 +30,11 @@ import java.util.Objects
  * @property spec the questions to answer
  */
 @ApiStatus.Experimental
-class DecisionRequest private constructor(val input: String, val spec: DecisionSpec) {
+@JsonPropertyOrder("input", "spec")
+class DecisionRequest private constructor(
+    @get:JsonProperty("input") val input: String,
+    @get:JsonProperty("spec") val spec: DecisionSpec,
+) {
 
     override fun equals(other: Any?): Boolean =
         this === other || other is DecisionRequest && input == other.input && spec == other.spec
@@ -35,6 +43,9 @@ class DecisionRequest private constructor(val input: String, val spec: DecisionS
 
     /** Shows the spec only. The input is left out because it can be long or hold private text. */
     override fun toString(): String = "DecisionRequest(spec=$spec)"
+
+    @JsonAnySetter
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionRequest", name)
 
     /**
      * Creates decision requests.
@@ -62,5 +73,12 @@ class DecisionRequest private constructor(val input: String, val spec: DecisionS
         @JvmStatic
         fun of(input: String, vararg questions: Question<*>): DecisionRequest =
             DecisionRequest(input, DecisionSpec.of(*questions))
+
+        @JvmStatic
+        @JsonCreator
+        private fun fromJson(
+            @JsonProperty("input", required = true) input: String,
+            @JsonProperty("spec", required = true) spec: DecisionSpec,
+        ): DecisionRequest = DecisionRequest(input, spec)
     }
 }
