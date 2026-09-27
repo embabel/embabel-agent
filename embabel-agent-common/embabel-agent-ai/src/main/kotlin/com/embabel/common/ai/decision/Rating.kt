@@ -40,8 +40,8 @@ data class RatingLevel @JvmOverloads constructor(val id: String, val description
 enum class RatingStatistic {
     /**
      * The probability-weighted mean of the zero-based positions of the scale's levels.
-     * It is a single continuous number over the level range, and it is not the probability
-     * of any one level.
+     * It is one continuous number over the level range. The probability of each level is
+     * reported separately, in the distribution.
      */
     EXPECTED_LEVEL_INDEX,
 }
@@ -72,12 +72,12 @@ data class LevelProbability(val levelId: String, val probability: Double) {
 }
 
 /**
- * The evidence a provider returned for a rating question. It holds only what the provider
- * actually reported: a selected level, a per-level distribution, a score, or any combination
- * of these. It never carries a selected level that was derived from a score, and it never
- * invents a distribution or a nearest-level conversion. Whether a selected level or a
- * distribution actually belongs to the question's scale is checked later, when the result
- * is validated against a `RatingQuestionSpec`.
+ * The evidence a provider returned for a rating question: a selected level, a per-level
+ * distribution, a score, or any combination of these. Each part comes from the provider's
+ * response as reported. A selected level is present only when the provider selected one,
+ * and a distribution only when the provider reported one. Validation against a
+ * `RatingQuestionSpec` checks that a selected level and a distribution belong to the
+ * question's scale.
  */
 @ApiStatus.Experimental
 sealed interface RatingResult {
