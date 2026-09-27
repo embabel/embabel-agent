@@ -32,7 +32,7 @@ enum class NativeStructuredOutputMode {
     /**
      * Check schema compatibility before using the native path.
      * If the schema is not conservatively compatible, fall back to prompt-based extraction
-     * and log a WARN. Use [DISABLED] to opt out of native output entirely (also suppresses the warning).
+     * and log at DEBUG. Use [ENABLED] to force the native path regardless, or [DISABLED] to opt out entirely.
      */
     DEFAULT,
 

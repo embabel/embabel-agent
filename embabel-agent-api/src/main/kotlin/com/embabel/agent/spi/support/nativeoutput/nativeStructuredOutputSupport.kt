@@ -93,11 +93,11 @@ private fun JsonNode.isConservativelyCompatibleWithNativeOutput(): Boolean {
     }
 
     val properties = propertiesNode()
-    if (schemaType() == null && properties == null) {
+    if (properties == null) {
         return false
     }
 
-    if (properties != null && !hasCompatibleObjectProperties(properties)) {
+    if (!hasCompatibleObjectProperties(properties)) {
         return false
     }
 

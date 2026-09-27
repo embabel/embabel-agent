@@ -64,7 +64,7 @@ class SpringAiLlmMessageSenderTest {
             }
             val structuredOutputRequest = StructuredOutputRequest(
                 name = "Answer",
-                schema = """{"type":"object"}""",
+                schema = """{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"],"additionalProperties":false}""",
             )
             var configurerSawStructuredOutput: StructuredOutputRequest? = null
             var configurerSawNativeSupport: NativeSupport? = null
@@ -193,6 +193,50 @@ class SpringAiLlmMessageSenderTest {
                         structuredOutputRequest = StructuredOutputRequest(
                             name = "MonthItem",
                             schema = """{"type":"object","properties":{"name":{"type":"string"},"temperature":{"type":"integer"}},"additionalProperties":false}""",
+                        ),
+                        nativeStructuredOutputMode = NativeStructuredOutputMode.DEFAULT,
+                    ),
+                )
+            )
+
+            assertThat(configurerSawStructuredOutput).isNull()
+            assertThat(capturedPrompt.captured.options).isSameAs(originalOptions)
+        }
+
+        @Test
+        fun `DEFAULT mode disables native structured output when schema has no properties — Map or untyped object`() {
+            val originalOptions = testChatOptions()
+            val capturedPrompt = slot<Prompt>()
+            val generation = Generation(SpringAiAssistantMessage("done"))
+            val mockMetadata = mockk<ChatResponseMetadata> { every { usage } returns null }
+            val chatResponse = mockk<ChatResponse> {
+                every { result } returns generation
+                every { results } returns listOf(generation)
+                every { metadata } returns mockMetadata
+            }
+            val chatModel = mockk<ChatModel> { every { call(capture(capturedPrompt)) } returns chatResponse }
+            var configurerSawStructuredOutput: StructuredOutputRequest? = null
+            val sender = SpringAiLlmMessageSender(
+                chatModel = chatModel,
+                chatOptions = originalOptions,
+                nativeStructuredOutputConfigurer = SpringAiNativeStructuredOutputConfigurer { options, request, _, _ ->
+                    configurerSawStructuredOutput = request
+                    if (request == null) options else testChatOptions()
+                },
+                nativeSupport = NativeSupport(
+                    structuredOutput = NativeStructuredOutputCapability(supported = true, strategy = "response_format")
+                ),
+            )
+
+            sender.call(
+                LlmMessageRequest(
+                    messages = listOf(UserMessage("Create answer")),
+                    tools = emptyList(),
+                    nativeStructuredOutputRequest = NativeStructuredOutputRequest(
+                        structuredOutputRequest = StructuredOutputRequest(
+                            name = "Answer",
+                            // Map<K,V>-style schema: type=object but no properties — rejected before configurer
+                            schema = """{"type":"object","additionalProperties":false}""",
                         ),
                         nativeStructuredOutputMode = NativeStructuredOutputMode.DEFAULT,
                     ),

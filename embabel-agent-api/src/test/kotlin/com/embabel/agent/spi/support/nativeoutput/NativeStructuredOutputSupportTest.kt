@@ -524,6 +524,27 @@ class NativeStructuredOutputSupportTest {
         }
     }
 
+    @Nested
+    inner class MapAndUntypedCompatibilityTests {
+
+        @Test
+        fun `rejects Map schema — type object with no properties`() {
+            // Map<K,V> via Victools produces {"type":"object","additionalProperties":false}
+            // OpenAI strict mode requires a non-empty properties field; fall back to prompt-based
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(nativeRequest(
+                """{"type":"object","additionalProperties":false}"""
+            ))).isFalse()
+        }
+
+        @Test
+        fun `rejects empty schema — untyped Any or Object`() {
+            // Any/Object with no schema annotation produces {} — no type, no properties
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(nativeRequest(
+                """{}"""
+            ))).isFalse()
+        }
+    }
+
     private fun nativeSupport(supported: Boolean): NativeSupport =
         NativeSupport(
             structuredOutput = NativeStructuredOutputCapability(
