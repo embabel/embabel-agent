@@ -66,6 +66,7 @@ internal object DefinitionIds {
 
     private const val QUESTION_PREFIX = "d1-"
     private const val SPEC_PREFIX = "s1-"
+    private const val DIGEST_LENGTH = 43
     private const val PROPOSITION = "proposition"
     private val kinds = setOf(PROPOSITION, "choice", "rating")
 
@@ -119,6 +120,26 @@ internal object DefinitionIds {
         for (id in questionIds) generator.writeString(id)
         generator.writeEndArray()
     }
+
+    /**
+     * Tells whether a string has the shape of a question id: `d1-` followed by 43 base64url
+     * characters. It checks the shape only. Any string of that shape passes, whether or not some
+     * question hashes to it.
+     */
+    fun isQuestionId(id: String): Boolean = id.startsWith(QUESTION_PREFIX) && isDigest(id, QUESTION_PREFIX.length)
+
+    /**
+     * Tells whether a string has the shape of a spec id: `s1-` followed by 43 base64url
+     * characters. It checks the shape only.
+     */
+    fun isSpecId(id: String): Boolean = id.startsWith(SPEC_PREFIX) && isDigest(id, SPEC_PREFIX.length)
+
+    // An unpadded base64url SHA-256 digest is 43 characters from A-Z, a-z, 0-9, '-' and '_'.
+    private fun isDigest(id: String, start: Int): Boolean =
+        id.length == start + DIGEST_LENGTH && id.substring(start).all(::isBase64UrlChar)
+
+    private fun isBase64UrlChar(c: Char): Boolean =
+        c in 'A'..'Z' || c in 'a'..'z' || c in '0'..'9' || c == '-' || c == '_'
 
     private inline fun digest(write: (JsonGenerator) -> Unit): String {
         val bytes = ByteArrayOutputStream()

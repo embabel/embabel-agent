@@ -155,11 +155,35 @@ class DecisionResponseTest {
         }
 
         @Test
-        fun `an outcome of another kind is rejected`() {
-            // Question is covariant, so Kotlin accepts this call with R inferred as Any.
-            assertRejected("'is_urgent'", "PropositionResult") {
-                DecisionResponse.builder(triage(), ExecutionMode.NATIVE).answer(urgent(), billing)
+        fun `the builder has one answer method per question class`() {
+            val firstParameters = DecisionResponse.Builder::class.java.methods
+                .filter { it.name == "answer" }
+                .map { it.parameterTypes.toList() }
+                .toSet()
+            assertEquals(
+                setOf(
+                    listOf(PropositionQuestionSpec::class.java, PropositionResult::class.java),
+                    listOf(ChoiceQuestionSpec::class.java, ClassificationResult::class.java),
+                    listOf(RatingQuestionSpec::class.java, RatingResult::class.java),
+                ),
+                firstParameters,
+            )
+        }
+
+        @Test
+        fun `a holder of any question dispatches to the typed answer methods with a sealed when`() {
+            val spec = triage()
+            val outcomes: Map<String, Any> = mapOf("is_urgent" to urgentYes, "department" to billing, "frustration" to frustrated)
+            val builder = DecisionResponse.builder(spec, ExecutionMode.NATIVE)
+            for (question: Question<*> in spec.questions) {
+                val outcome = outcomes.getValue(question.name)
+                when (question) {
+                    is PropositionQuestionSpec -> builder.answer(question, outcome as PropositionResult)
+                    is ChoiceQuestionSpec -> builder.answer(question, outcome as ClassificationResult)
+                    is RatingQuestionSpec -> builder.answer(question, outcome as RatingResult)
+                }
             }
+            assertEquals(answered(), builder.build())
         }
 
         @Test
@@ -370,6 +394,18 @@ class DecisionResponseTest {
         }
 
         @Test
+        fun `a request failure with a failure of another reason is rejected`() {
+            val unavailable = DecisionResponse.failed(triage(), ExecutionMode.NATIVE, FailureReason.UNAVAILABLE).answers
+            val invalid = DecisionResponse.failed(triage(), ExecutionMode.NATIVE, FailureReason.INVALID_RESPONSE).answers
+            val mixed = listOf(unavailable[0], invalid[1], unavailable[2])
+            val error = assertRejected("'department'", "INVALID_RESPONSE", "UNAVAILABLE") {
+                rebuild(mixed, requestFailure = FailureReason.UNAVAILABLE)
+            }
+            assertFalse(error.message!!.contains("'is_urgent'"), error.message)
+            assertFalse(error.message!!.contains("'frustration'"), error.message)
+        }
+
+        @Test
         fun `failure outcomes without a request failure are allowed`() {
             val failed = DecisionResponse.failed(triage(), ExecutionMode.NATIVE, FailureReason.INVALID_RESPONSE)
             val rebuilt = rebuild(failed.answers)
@@ -396,6 +432,27 @@ class DecisionResponseTest {
             val repeated = listOf(Category("billing", "One"), Category("billing", "Two"))
             assertRejected("'department'", "'billing'") {
                 DecisionAnswer.Choice.create("department", department().definitionId, repeated, billing)
+            }
+        }
+
+        @Test
+        fun `a blank option or level id cannot reach an answer`() {
+            // Category and RatingLevel reject a blank id when they are made, before an answer sees them.
+            assertRejected("must not be blank") {
+                DecisionAnswer.Choice.create(
+                    "department",
+                    department().definitionId,
+                    listOf(Category(" ", "Unnamed"), Category("billing", "Payments")),
+                    ClassificationResult.NoMatch(jev),
+                )
+            }
+            assertRejected("must not be blank") {
+                DecisionAnswer.Rating.create(
+                    "frustration",
+                    frustration().definitionId,
+                    listOf(RatingLevel("", "Unnamed"), RatingLevel("Calm")),
+                    RatingResult.Inconclusive(jev),
+                )
             }
         }
 
@@ -445,6 +502,22 @@ class DecisionResponseTest {
             assertRejected("name") { DecisionAnswer.Proposition.create(" ", urgent().definitionId, urgentYes) }
             assertRejected("'is_urgent'", "definition id") { DecisionAnswer.Proposition.create("is_urgent", "", urgentYes) }
         }
+
+        @Test
+        fun `an answer definition id must have the question id shape`() {
+            for (id in listOf("garbage", "d1-short", triage().definitionId, urgent().definitionId + "x")) {
+                assertRejected("'is_urgent'", "not a question id") {
+                    DecisionAnswer.Proposition.create("is_urgent", id, urgentYes)
+                }
+            }
+        }
+
+        @Test
+        fun `a response definition id must have the spec id shape`() {
+            for (id in listOf("garbage", urgent().definitionId)) {
+                assertRejected("'$id'", "not a spec id") { rebuild(answered().answers, definitionId = id) }
+            }
+        }
     }
 
     @Nested
@@ -473,9 +546,11 @@ class DecisionResponseTest {
         }
 
         @Test
-        fun `toString names the answers`() {
+        fun `toString names the spec id, the mode, the request failure and the answers`() {
             val text = answered().toString()
             assertTrue(text.contains("is_urgent") && text.contains("department") && text.contains("frustration"), text)
+            assertTrue(text.contains(triage().definitionId), text)
+            assertTrue(text.contains("NATIVE") && text.contains("requestFailure=null"), text)
         }
     }
 }

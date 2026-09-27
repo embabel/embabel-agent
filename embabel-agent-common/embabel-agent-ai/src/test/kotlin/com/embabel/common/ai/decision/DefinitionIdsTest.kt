@@ -109,6 +109,34 @@ class DefinitionIdsTest {
     }
 
     @Test
+    fun `isQuestionId and isSpecId accept only their own prefix and 43 base64url characters`() {
+        val question = proposition()
+        val spec = DefinitionIds.spec(listOf(question))
+        assertTrue(DefinitionIds.isQuestionId(question))
+        assertTrue(DefinitionIds.isQuestionId(choice()))
+        assertTrue(DefinitionIds.isSpecId(spec))
+        assertFalse(DefinitionIds.isQuestionId(spec))
+        assertFalse(DefinitionIds.isSpecId(question))
+        val body = question.removePrefix("d1-")
+        val malformed = listOf(
+            "",
+            "d1-",
+            "d1-" + body.dropLast(1),
+            question + "A",
+            "D1-" + body,
+            "d2-" + body,
+            "d1-" + body.dropLast(1) + "+",
+            "d1-" + body.dropLast(1) + "=",
+            " $question",
+            question + "\n",
+        )
+        for (id in malformed) {
+            assertFalse(DefinitionIds.isQuestionId(id), id)
+            assertFalse(DefinitionIds.isSpecId(id.replaceFirst("d1-", "s1-")), id)
+        }
+    }
+
+    @Test
     fun `equal inputs give equal ids`() {
         assertEquals(choice(), choice(choiceEntries.map { (id, description) -> String(id.toCharArray()) to description }))
         assertEquals(proposition(), proposition())
