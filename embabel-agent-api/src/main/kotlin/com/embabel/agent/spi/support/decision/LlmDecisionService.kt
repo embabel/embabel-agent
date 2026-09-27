@@ -181,6 +181,8 @@ internal class LlmDecisionService(
  * Classification only, backed by a decision service. It reports the classification model family,
  * so it can be registered where a decision service would be the wrong kind.
  */
+// Members are forwarded by hand: interface delegation would forward `type` and report the decision family.
+@Suppress("kotlin:S6514")
 internal class LlmClassificationService(private val delegate: LlmDecisionService) : ClassificationService {
 
     override val name: String get() = delegate.name
