@@ -60,8 +60,8 @@ class DecisionResponseTest {
         score = RatingScore(0.9, RatingStatistic.EXPECTED_LEVEL_INDEX),
     )
 
-    private fun answered(mode: ExecutionMode = ExecutionMode.NATIVE): DecisionResponse =
-        DecisionResponse.builder(triage(), mode)
+    private fun answered(): DecisionResponse =
+        DecisionResponse.builder(triage())
             .answer(urgent(), urgentYes)
             .answer(department(), billing)
             .answer(frustration(), frustrated)
@@ -79,15 +79,14 @@ class DecisionResponseTest {
     inner class Building {
 
         @Test
-        fun `a built response carries the spec id, the mode and one answer per question in spec order`() {
+        fun `a built response carries the spec id and one answer per question in spec order`() {
             val spec = triage()
-            val response = DecisionResponse.builder(spec, ExecutionMode.SEQUENTIAL)
+            val response = DecisionResponse.builder(spec)
                 .answer(frustration(), frustrated)
                 .answer(urgent(), urgentYes)
                 .answer(department(), billing)
                 .build()
             assertEquals(spec.definitionId, response.definitionId)
-            assertEquals(ExecutionMode.SEQUENTIAL, response.executionMode)
             assertNull(response.requestFailure)
             assertEquals(listOf("is_urgent", "department", "frustration"), response.answers.map { it.name })
             assertEquals(spec.questions.map { it.definitionId }, response.answers.map { it.definitionId })
@@ -114,7 +113,7 @@ class DecisionResponseTest {
 
         @Test
         fun `outcomes without a selection are accepted`() {
-            val response = DecisionResponse.builder(triage(), ExecutionMode.NATIVE)
+            val response = DecisionResponse.builder(triage())
                 .answer(urgent(), PropositionResult.Inconclusive(jev))
                 .answer(department(), ClassificationResult.NoMatch(jev))
                 .answer(frustration(), RatingResult.Inconclusive(jev))
@@ -126,21 +125,21 @@ class DecisionResponseTest {
         fun `a question outside the spec is rejected`() {
             val other = Questions.named("tone").proposition("Is the tone polite?").build()
             assertRejected("'tone'") {
-                DecisionResponse.builder(triage(), ExecutionMode.NATIVE).answer(other, urgentYes)
+                DecisionResponse.builder(triage()).answer(other, urgentYes)
             }
         }
 
         @Test
         fun `a question with the spec's name and a changed definition is rejected`() {
             assertRejected("'is_urgent'", "different definition") {
-                DecisionResponse.builder(triage(), ExecutionMode.NATIVE)
+                DecisionResponse.builder(triage())
                     .answer(urgent("Is this urgent?"), urgentYes)
             }
         }
 
         @Test
         fun `a second answer for a question is rejected and the first one stays`() {
-            val builder = DecisionResponse.builder(triage(), ExecutionMode.NATIVE).answer(urgent(), urgentYes)
+            val builder = DecisionResponse.builder(triage()).answer(urgent(), urgentYes)
             assertRejected("'is_urgent'", "already has an answer") {
                 builder.answer(urgent(), PropositionResult.Answered(false, jev))
             }
@@ -150,7 +149,7 @@ class DecisionResponseTest {
 
         @Test
         fun `build requires an answer for every question`() {
-            val builder = DecisionResponse.builder(triage(), ExecutionMode.NATIVE).answer(department(), billing)
+            val builder = DecisionResponse.builder(triage()).answer(department(), billing)
             assertRejected("Missing", "'is_urgent'", "'frustration'") { builder.build() }
         }
 
@@ -174,7 +173,7 @@ class DecisionResponseTest {
         fun `a holder of any question dispatches to the typed answer methods with a sealed when`() {
             val spec = triage()
             val outcomes: Map<String, Any> = mapOf("is_urgent" to urgentYes, "department" to billing, "frustration" to frustrated)
-            val builder = DecisionResponse.builder(spec, ExecutionMode.NATIVE)
+            val builder = DecisionResponse.builder(spec)
             for (question: Question<*> in spec.questions) {
                 val outcome = outcomes.getValue(question.name)
                 when (question) {
@@ -189,7 +188,7 @@ class DecisionResponseTest {
         @Test
         fun `a choice outcome with an unknown option id is rejected`() {
             assertRejected("'department'", "not one of its options") {
-                DecisionResponse.builder(triage(), ExecutionMode.NATIVE)
+                DecisionResponse.builder(triage())
                     .answer(department(), ClassificationResult.Selected("sales", jev))
             }
         }
@@ -197,7 +196,7 @@ class DecisionResponseTest {
         @Test
         fun `a rating level outside the scale is rejected`() {
             assertRejected("'frustration'", "not one of its levels") {
-                DecisionResponse.builder(triage(), ExecutionMode.NATIVE)
+                DecisionResponse.builder(triage())
                     .answer(frustration(), RatingResult.Answered(jev, selectedLevelId = "Furious"))
             }
         }
@@ -205,7 +204,7 @@ class DecisionResponseTest {
         @Test
         fun `a score above the top level is rejected`() {
             assertRejected("'frustration'", "2.5", "last level index 2") {
-                DecisionResponse.builder(triage(), ExecutionMode.NATIVE).answer(
+                DecisionResponse.builder(triage()).answer(
                     frustration(),
                     RatingResult.Answered(jev, score = RatingScore(2.5, RatingStatistic.EXPECTED_LEVEL_INDEX)),
                 )
@@ -215,7 +214,7 @@ class DecisionResponseTest {
         @Test
         fun `a score at the top level is accepted`() {
             val top = RatingResult.Answered(jev, score = RatingScore(2.0, RatingStatistic.EXPECTED_LEVEL_INDEX))
-            val response = DecisionResponse.builder(DecisionSpec.of(frustration()), ExecutionMode.NATIVE)
+            val response = DecisionResponse.builder(DecisionSpec.of(frustration()))
                 .answer(frustration(), top)
                 .build()
             assertSame(top, response.answer(frustration()))
@@ -224,7 +223,7 @@ class DecisionResponseTest {
         @Test
         fun `a distribution missing a level is rejected`() {
             assertRejected("'frustration'", "distribution") {
-                DecisionResponse.builder(triage(), ExecutionMode.NATIVE).answer(
+                DecisionResponse.builder(triage()).answer(
                     frustration(),
                     RatingResult.Answered(
                         jev,
@@ -270,7 +269,7 @@ class DecisionResponseTest {
         @Test
         fun `lookup returns the outcome for the question that built the response`() {
             val department = department()
-            val response = DecisionResponse.builder(DecisionSpec.of(department), ExecutionMode.NATIVE)
+            val response = DecisionResponse.builder(DecisionSpec.of(department))
                 .answer(department, billing)
                 .build()
             val team: ClassificationResult = response.answer(department)
@@ -322,9 +321,8 @@ class DecisionResponseTest {
         @Test
         fun `failed gives every question a failure of its kind and records the request failure`() {
             val spec = triage()
-            val response = DecisionResponse.failed(spec, ExecutionMode.NATIVE, FailureReason.UNAVAILABLE)
+            val response = DecisionResponse.failed(spec, FailureReason.UNAVAILABLE)
             assertEquals(spec.definitionId, response.definitionId)
-            assertEquals(ExecutionMode.NATIVE, response.executionMode)
             assertEquals(FailureReason.UNAVAILABLE, response.requestFailure)
             assertEquals(listOf("is_urgent", "department", "frustration"), response.answers.map { it.name })
             assertEquals(PropositionResult.Failure(FailureReason.UNAVAILABLE), response.answer(urgent()))
@@ -342,7 +340,7 @@ class DecisionResponseTest {
             answers: List<DecisionAnswer>,
             definitionId: String = triage().definitionId,
             requestFailure: FailureReason? = null,
-        ): DecisionResponse = DecisionResponse.create(definitionId, ExecutionMode.NATIVE, requestFailure, answers)
+        ): DecisionResponse = DecisionResponse.create(definitionId, requestFailure, answers)
 
         @Test
         fun `the internal factory rebuilds an equal response from its parts`() {
@@ -415,7 +413,7 @@ class DecisionResponseTest {
 
         @Test
         fun `a request failure with a non-failure outcome is rejected`() {
-            val failed = DecisionResponse.failed(triage(), ExecutionMode.NATIVE, FailureReason.UNAVAILABLE).answers
+            val failed = DecisionResponse.failed(triage(), FailureReason.UNAVAILABLE).answers
             val mixed = listOf(failed[0], answered().answers[1], failed[2])
             assertRejected("request failure", "'department'") {
                 rebuild(mixed, requestFailure = FailureReason.UNAVAILABLE)
@@ -424,8 +422,8 @@ class DecisionResponseTest {
 
         @Test
         fun `a request failure with a failure of another reason is rejected`() {
-            val unavailable = DecisionResponse.failed(triage(), ExecutionMode.NATIVE, FailureReason.UNAVAILABLE).answers
-            val invalid = DecisionResponse.failed(triage(), ExecutionMode.NATIVE, FailureReason.INVALID_RESPONSE).answers
+            val unavailable = DecisionResponse.failed(triage(), FailureReason.UNAVAILABLE).answers
+            val invalid = DecisionResponse.failed(triage(), FailureReason.INVALID_RESPONSE).answers
             val mixed = listOf(unavailable[0], invalid[1], unavailable[2])
             val error = assertRejected("'department'", "INVALID_RESPONSE", "UNAVAILABLE") {
                 rebuild(mixed, requestFailure = FailureReason.UNAVAILABLE)
@@ -436,7 +434,7 @@ class DecisionResponseTest {
 
         @Test
         fun `failure outcomes without a request failure are allowed`() {
-            val failed = DecisionResponse.failed(triage(), ExecutionMode.NATIVE, FailureReason.INVALID_RESPONSE)
+            val failed = DecisionResponse.failed(triage(), FailureReason.INVALID_RESPONSE)
             val rebuilt = rebuild(failed.answers)
             assertNull(rebuilt.requestFailure)
         }
@@ -560,26 +558,25 @@ class DecisionResponseTest {
         }
 
         @Test
-        fun `responses differ by mode, outcome and request failure`() {
-            assertNotEquals(answered(ExecutionMode.NATIVE), answered(ExecutionMode.SEQUENTIAL))
-            val other = DecisionResponse.builder(triage(), ExecutionMode.NATIVE)
+        fun `responses differ by outcome and request failure`() {
+            val other = DecisionResponse.builder(triage())
                 .answer(urgent(), PropositionResult.Answered(false, jev))
                 .answer(department(), billing)
                 .answer(frustration(), frustrated)
                 .build()
             assertNotEquals(answered(), other)
-            val unavailable = DecisionResponse.failed(triage(), ExecutionMode.NATIVE, FailureReason.UNAVAILABLE)
+            val unavailable = DecisionResponse.failed(triage(), FailureReason.UNAVAILABLE)
             assertNotEquals(unavailable, DecisionResponse.create(
-                unavailable.definitionId, ExecutionMode.NATIVE, null, unavailable.answers,
+                unavailable.definitionId, null, unavailable.answers,
             ))
         }
 
         @Test
-        fun `toString names the spec id, the mode, the request failure and the answers`() {
+        fun `toString names the spec id, the request failure and the answers`() {
             val text = answered().toString()
             assertTrue(text.contains("is_urgent") && text.contains("department") && text.contains("frustration"), text)
             assertTrue(text.contains(triage().definitionId), text)
-            assertTrue(text.contains("NATIVE") && text.contains("requestFailure=null"), text)
+            assertTrue(text.contains("requestFailure=null"), text)
         }
     }
 }

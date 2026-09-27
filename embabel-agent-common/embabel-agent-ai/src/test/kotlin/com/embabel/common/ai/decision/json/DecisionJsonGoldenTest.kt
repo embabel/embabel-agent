@@ -19,11 +19,9 @@ import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
 import com.embabel.common.ai.decision.DecisionCapabilities
-import com.embabel.common.ai.decision.DecisionOptions
 import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionResponse
 import com.embabel.common.ai.decision.DecisionSpec
-import com.embabel.common.ai.decision.ExecutionMode
 import com.embabel.common.ai.decision.LevelProbability
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.QuestionKind
@@ -101,7 +99,7 @@ class DecisionJsonGoldenTest {
         LevelProbability("high", 0.25),
     )
 
-    private val response: DecisionResponse = DecisionResponse.builder(everyOutcome, ExecutionMode.SEQUENTIAL)
+    private val response: DecisionResponse = DecisionResponse.builder(everyOutcome)
         .answer(pAnswered, PropositionResult.Answered(true, jev, 0.93))
         .answer(pAnsweredBare, PropositionResult.Answered(false, jevFull))
         .answer(pInconclusive, PropositionResult.Inconclusive(jev))
@@ -128,11 +126,11 @@ class DecisionJsonGoldenTest {
         .answer(rFailure, RatingResult.Failure(FailureReason.INVALID_RESPONSE))
         .build()
 
-    private val failed = DecisionResponse.failed(triage, ExecutionMode.SINGLE_QUESTION, FailureReason.UNAVAILABLE)
+    private val failed = DecisionResponse.failed(triage, FailureReason.UNAVAILABLE)
 
     private val request = DecisionRequest.of("My invoice is wrong and nobody answers.", triage)
 
-    private val capabilities = DecisionCapabilities.of(QuestionKind.entries.toSet(), ExecutionMode.entries.toSet())
+    private val capabilities = DecisionCapabilities.of(QuestionKind.entries.toSet())
         .withMaxQuestions(8)
         .withMaxInputCharacters(20000)
 
@@ -154,9 +152,6 @@ class DecisionJsonGoldenTest {
 
     @Test
     fun `a request`() = assertGolden("request", request, DecisionRequest::class.java)
-
-    @Test
-    fun `options`() = assertGolden("options", DecisionOptions.allowingSequential(), DecisionOptions::class.java)
 
     @Test
     fun `capabilities with both limits`() = assertGolden("capabilities", capabilities, DecisionCapabilities::class.java)

@@ -57,7 +57,7 @@ class DecisionProjectionJavaTest {
     }
 
     private DecisionResponse answered() {
-        return DecisionResponse.builder(spec, ExecutionMode.NATIVE)
+        return DecisionResponse.builder(spec)
             .answer(urgent, new PropositionResult.Answered(true, JEV, 0.93))
             .answer(department, new ClassificationResult.Selected("billing", JEV, 0.91))
             .answer(frustration, new RatingResult.Answered(JEV, "Frustrated"))
@@ -85,7 +85,7 @@ class DecisionProjectionJavaTest {
 
     @Test
     void inconclusivePropositionIsRejectedByName() {
-        var response = DecisionResponse.builder(spec, ExecutionMode.NATIVE)
+        var response = DecisionResponse.builder(spec)
             .answer(urgent, new PropositionResult.Inconclusive(JEV))
             .answer(department, new ClassificationResult.Selected("billing", JEV))
             .answer(frustration, new RatingResult.Answered(JEV, "Frustrated"))
@@ -98,7 +98,7 @@ class DecisionProjectionJavaTest {
 
     @Test
     void noMatchChoiceIsRejectedByName() {
-        var response = DecisionResponse.builder(spec, ExecutionMode.NATIVE)
+        var response = DecisionResponse.builder(spec)
             .answer(urgent, new PropositionResult.Answered(true, JEV))
             .answer(department, new ClassificationResult.NoMatch(JEV))
             .answer(frustration, new RatingResult.Answered(JEV, "Frustrated"))
@@ -111,7 +111,7 @@ class DecisionProjectionJavaTest {
 
     @Test
     void failureOutcomesAreRejectedByName() {
-        var response = DecisionResponse.failed(spec, ExecutionMode.NATIVE, FailureReason.UNAVAILABLE);
+        var response = DecisionResponse.failed(spec, FailureReason.UNAVAILABLE);
 
         var ex = assertThrows(DecisionProjectionException.class, () -> DecisionProjection.answeredValues(response));
         assertEquals(List.of("is_urgent", "department", "frustration"), ex.getQuestions());
@@ -119,7 +119,7 @@ class DecisionProjectionJavaTest {
 
     @Test
     void scalarOnlyRatingIsRejectedByName() {
-        var response = DecisionResponse.builder(spec, ExecutionMode.NATIVE)
+        var response = DecisionResponse.builder(spec)
             .answer(urgent, new PropositionResult.Answered(true, JEV))
             .answer(department, new ClassificationResult.Selected("billing", JEV))
             .answer(frustration, new RatingResult.Answered(
@@ -186,14 +186,14 @@ class DecisionProjectionJavaTest {
         var converter = new SupportRouteConverter(urgent, department);
         assertEquals(new SupportRoute(true, "billing"), converter.convert(answered()));
 
-        var notSelected = DecisionResponse.builder(spec, ExecutionMode.NATIVE)
+        var notSelected = DecisionResponse.builder(spec)
             .answer(urgent, new PropositionResult.Answered(false, JEV))
             .answer(department, new ClassificationResult.NoMatch(JEV))
             .answer(frustration, new RatingResult.Answered(JEV, "Calm"))
             .build();
         assertEquals(new SupportRoute(false, "general"), converter.convert(notSelected));
 
-        var unanswered = DecisionResponse.builder(spec, ExecutionMode.NATIVE)
+        var unanswered = DecisionResponse.builder(spec)
             .answer(urgent, new PropositionResult.Inconclusive(JEV))
             .answer(department, new ClassificationResult.Failure(FailureReason.UNAVAILABLE))
             .answer(frustration, new RatingResult.Answered(JEV, "Calm"))

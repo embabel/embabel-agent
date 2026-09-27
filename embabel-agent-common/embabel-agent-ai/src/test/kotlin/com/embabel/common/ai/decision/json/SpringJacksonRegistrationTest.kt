@@ -18,7 +18,6 @@ package com.embabel.common.ai.decision.json
 import com.embabel.common.ai.classification.ModelProvenance
 import com.embabel.common.ai.decision.DecisionResponse
 import com.embabel.common.ai.decision.DecisionSpec
-import com.embabel.common.ai.decision.ExecutionMode
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.Questions
 import com.embabel.common.util.EmbabelObjectMapperHolder
@@ -44,7 +43,7 @@ class SpringJacksonRegistrationTest {
     private val spec = DecisionSpec.of(urgent)
     private val jev = ModelProvenance("jev-latest", "typesafe")
 
-    private fun answered(): DecisionResponse = DecisionResponse.builder(spec, ExecutionMode.NATIVE)
+    private fun answered(): DecisionResponse = DecisionResponse.builder(spec)
         .answer(urgent, PropositionResult.Answered(true, jev, 0.93))
         .build()
 

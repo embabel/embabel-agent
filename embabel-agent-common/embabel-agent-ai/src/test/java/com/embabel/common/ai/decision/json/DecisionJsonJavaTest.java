@@ -22,7 +22,6 @@ import com.embabel.common.ai.classification.ModelProvenance;
 import com.embabel.common.ai.decision.ChoiceQuestionSpec;
 import com.embabel.common.ai.decision.DecisionResponse;
 import com.embabel.common.ai.decision.DecisionSpec;
-import com.embabel.common.ai.decision.ExecutionMode;
 import com.embabel.common.ai.decision.PropositionQuestionSpec;
 import com.embabel.common.ai.decision.PropositionResult;
 import com.embabel.common.ai.decision.Questions;
@@ -58,7 +57,7 @@ class DecisionJsonJavaTest {
     private final DecisionSpec spec = DecisionSpec.of(urgent, department, frustration);
 
     private DecisionResponse answered() {
-        return DecisionResponse.builder(spec, ExecutionMode.NATIVE)
+        return DecisionResponse.builder(spec)
             .answer(urgent, new PropositionResult.Answered(true, JEV, 0.93))
             .answer(department, new ClassificationResult.Selected("billing", JEV, 0.91))
             .answer(frustration, new RatingResult.Answered(JEV, "Frustrated"))

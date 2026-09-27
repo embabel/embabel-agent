@@ -22,7 +22,6 @@ import com.embabel.common.ai.decision.ChoiceQuestionSpec
 import com.embabel.common.ai.decision.DecisionAnswer
 import com.embabel.common.ai.decision.DecisionResponse
 import com.embabel.common.ai.decision.DecisionSpec
-import com.embabel.common.ai.decision.ExecutionMode
 import com.embabel.common.ai.decision.LevelProbability
 import com.embabel.common.ai.decision.PropositionQuestionSpec
 import com.embabel.common.ai.decision.PropositionResult
@@ -86,7 +85,7 @@ class ResponseJsonTest {
         confidence = 0.6,
     )
 
-    private fun answered(): DecisionResponse = DecisionResponse.builder(triage, ExecutionMode.NATIVE)
+    private fun answered(): DecisionResponse = DecisionResponse.builder(triage)
         .answer(urgent, PropositionResult.Answered(true, jev, 0.93))
         .answer(department, ClassificationResult.Selected("billing", jev, 0.91))
         .answer(frustration, anger)
@@ -116,7 +115,7 @@ class ResponseJsonTest {
         """{"name":"frustration","kind":"rating","definitionId":"${frustration.definitionId}",$levelsJson,"outcome":$outcome}"""
 
     private fun response(vararg answers: String, extra: String = ""): String =
-        """{"definitionId":"${triage.definitionId}","executionMode":"native",$extra"answers":[""" +
+        """{"definitionId":"${triage.definitionId}",$extra"answers":[""" +
             answers.joinToString(",") + "]}"
 
     private val answeredJson = response(
@@ -164,7 +163,7 @@ class ResponseJsonTest {
             val r2 = rating("r_inconclusive")
             val r3 = rating("r_failure")
             val spec = DecisionSpec.of(p1, p2, p3, c1, c2, c3, c4, r1, r2, r3)
-            val response = DecisionResponse.builder(spec, ExecutionMode.SEQUENTIAL)
+            val response = DecisionResponse.builder(spec)
                 .answer(p1, PropositionResult.Answered(false, jevFull))
                 .answer(p2, PropositionResult.Inconclusive(jev))
                 .answer(p3, PropositionResult.Failure(FailureReason.INVALID_RESPONSE))
@@ -185,7 +184,7 @@ class ResponseJsonTest {
             val lh = """"levels":[{"id":"low","description":"low"},{"id":"high","description":"high"}]"""
             fun r(q: RatingQuestionSpec, outcome: String) =
                 """{"name":"${q.name}","kind":"rating","definitionId":"${q.definitionId}",$lh,"outcome":$outcome}"""
-            val expected = """{"definitionId":"${spec.definitionId}","executionMode":"sequential","answers":[""" + listOf(
+            val expected = """{"definitionId":"${spec.definitionId}","answers":[""" + listOf(
                 p(p1, """{"status":"answered","answer":false,"provenance":$jevFullJson}"""),
                 p(p2, """{"status":"inconclusive","provenance":$jevJson}"""),
                 p(p3, """{"status":"failure","reason":"invalid_response"}"""),
@@ -205,9 +204,9 @@ class ResponseJsonTest {
 
         @Test
         fun `a failed response writes requestFailure and reads back equal`() {
-            val failed = DecisionResponse.failed(triage, ExecutionMode.SINGLE_QUESTION, FailureReason.UNAVAILABLE)
+            val failed = DecisionResponse.failed(triage, FailureReason.UNAVAILABLE)
             val failure = """{"status":"failure","reason":"unavailable"}"""
-            val json = """{"definitionId":"${triage.definitionId}","executionMode":"single_question",""" +
+            val json = """{"definitionId":"${triage.definitionId}",""" +
                 """"requestFailure":"unavailable","answers":[${urgentAnswer(failure)},""" +
                 """${departmentAnswer(failure)},${frustrationAnswer(failure)}]}"""
             assertEquals(json, mapper.writeValueAsString(failed))
@@ -282,7 +281,7 @@ class ResponseJsonTest {
                 """"status":"answered"},"definitionId":"${urgent.definitionId}","kind":"proposition","name":"is_urgent"},""" +
                 """{"outcome":$departmentOutcome,$optionsJson,"name":"department","kind":"choice",""" +
                 """"definitionId":"${department.definitionId}"},${frustrationAnswer()}],""" +
-                """"executionMode":"native","definitionId":"${triage.definitionId}"}"""
+                """"definitionId":"${triage.definitionId}"}"""
             assertEquals(answered(), mapper.readValue(reordered, DecisionResponse::class.java))
         }
 
@@ -518,9 +517,9 @@ class ResponseJsonTest {
         @Test
         fun `a missing required member is rejected`() {
             assertRejects(
-                """{"definitionId":"${triage.definitionId}","answers":[]}""",
+                """{"answers":[${urgentAnswer()}]}""",
                 DecisionResponse::class.java,
-                "'executionMode'",
+                "'definitionId'",
             )
             val noOptions = """{"name":"department","kind":"choice","definitionId":"${department.definitionId}","outcome":$departmentOutcome}"""
             assertRejects(
@@ -541,17 +540,12 @@ class ResponseJsonTest {
         }
 
         @Test
-        fun `an unknown kind or execution mode is rejected`() {
+        fun `an unknown kind is rejected`() {
             val poll = """{"name":"is_urgent","kind":"poll","definitionId":"${urgent.definitionId}","outcome":$urgentOutcome}"""
             assertRejects(
                 response(poll, departmentAnswer(), frustrationAnswer()),
                 DecisionResponse::class.java,
                 "'poll'",
-            )
-            assertRejects(
-                answeredJson.replace("\"executionMode\":\"native\"", "\"executionMode\":\"NATIVE\""),
-                DecisionResponse::class.java,
-                "\"NATIVE\"",
             )
         }
 
@@ -648,7 +642,7 @@ class ResponseJsonTest {
 
         @Test
         fun `answers written as an object keyed by name are rejected, even when single values may read as arrays`() {
-            val keyed = """{"definitionId":"${triage.definitionId}","executionMode":"native","answers":{""" +
+            val keyed = """{"definitionId":"${triage.definitionId}","answers":{""" +
                 """"is_urgent":{"kind":"proposition","definitionId":"${urgent.definitionId}","outcome":$urgentOutcome}}}"""
             val singleAsArray = JsonMapper.builder().enable(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY).build()
             for (m in listOf(mapper, singleAsArray)) {

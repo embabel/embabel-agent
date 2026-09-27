@@ -48,7 +48,7 @@ class DecisionResponseJavaTest {
         .build();
 
     private DecisionResponse answered() {
-        return DecisionResponse.builder(DecisionSpec.of(urgent, department, frustration), ExecutionMode.NATIVE)
+        return DecisionResponse.builder(DecisionSpec.of(urgent, department, frustration))
             .answer(urgent, new PropositionResult.Answered(true, JEV, 0.93))
             .answer(department, new ClassificationResult.Selected("billing", JEV, 0.91))
             .answer(frustration, new RatingResult.Answered(JEV, "Frustrated"))
@@ -125,7 +125,7 @@ class DecisionResponseJavaTest {
     @Test
     void aFailedResponseHoldsAFailureForEveryQuestion() {
         var spec = DecisionSpec.of(urgent, department, frustration);
-        var response = DecisionResponse.failed(spec, ExecutionMode.NATIVE, FailureReason.UNAVAILABLE);
+        var response = DecisionResponse.failed(spec, FailureReason.UNAVAILABLE);
 
         assertEquals(FailureReason.UNAVAILABLE, response.getRequestFailure());
         assertEquals(spec.getDefinitionId(), response.getDefinitionId());
