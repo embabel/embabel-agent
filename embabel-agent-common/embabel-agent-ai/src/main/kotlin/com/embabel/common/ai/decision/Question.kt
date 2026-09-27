@@ -213,7 +213,7 @@ class ChoiceQuestionSpec private constructor(
          */
         fun build(): ChoiceQuestionSpec {
             val text = QuestionRules.requireInstructions(name, instructions)
-            require(options.isNotEmpty()) { "Question '$name' needs at least one option" }
+            require(options.isNotEmpty()) { "Question '$name': at least one option is required" }
             QuestionRules.requireEntryIds(name, "option", options)
             return ChoiceQuestionSpec(name, text, options.map { (id, description) -> Category(id, description) })
         }
@@ -326,7 +326,7 @@ class RatingQuestionSpec private constructor(
          */
         fun build(): RatingQuestionSpec {
             val text = QuestionRules.requireInstructions(name, instructions)
-            require(levels.size >= 2) { "Question '$name' needs at least two levels" }
+            require(levels.size >= 2) { "Question '$name': at least two levels are required" }
             QuestionRules.requireEntryIds(name, "level", levels)
             return RatingQuestionSpec(name, text, levels.map { (id, description) -> RatingLevel(id, description) })
         }
@@ -347,7 +347,7 @@ private object QuestionRules {
     }
 
     fun requireInstructions(name: String, instructions: String?): String {
-        require(instructions != null) { "Question '$name' has no instructions. Call asking(...) before build()." }
+        require(instructions != null) { "Question '$name': instructions are missing. Call asking(...) before build()." }
         require(instructions.isNotBlank()) { "Question '$name': instructions must not be blank" }
         return instructions
     }
@@ -357,7 +357,7 @@ private object QuestionRules {
         val seen = HashSet<String>()
         val repeated = entries.map { it.first }.filterNot(seen::add).distinct()
         require(repeated.isEmpty()) {
-            "Question '$name': $entry ids must be unique, but ${repeated.joinToString { "'$it'" }} repeat"
+            "Question '$name': $entry ids must be unique. Repeated: ${repeated.joinToString { "'$it'" }}"
         }
     }
 }
