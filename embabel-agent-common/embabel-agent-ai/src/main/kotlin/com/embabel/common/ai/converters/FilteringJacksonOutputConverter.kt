@@ -33,20 +33,51 @@ open class FilteringJacksonOutputConverter<T : Any> internal constructor(
     options: Set<JacksonOutputConverterOption> = emptySet(),
 ) : JacksonOutputConverter<T>(type, objectMapper, requiredFieldNormalization, options) {
 
+    // Original binary-compatible constructors — unchanged signatures.
     constructor(
         clazz: Class<T>,
         objectMapper: ObjectMapper,
         fieldFilter: Predicate<Field>,
         requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
-        options: Set<JacksonOutputConverterOption> = emptySet(),
-    ) : this(clazz as Type, objectMapper, fieldFilter, requiredFieldNormalization, options)
+    ) : this(clazz as Type, objectMapper, fieldFilter, requiredFieldNormalization, emptySet())
 
     constructor(
         typeReference: ParameterizedTypeReference<T>,
         objectMapper: ObjectMapper,
         fieldFilter: Predicate<Field>,
         requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
-        options: Set<JacksonOutputConverterOption> = emptySet(),
+    ) : this(typeReference.type, objectMapper, fieldFilter, requiredFieldNormalization, emptySet())
+
+    // Option-aware overloads — separate constructors to preserve JVM binary compatibility.
+    constructor(
+        clazz: Class<T>,
+        objectMapper: ObjectMapper,
+        fieldFilter: Predicate<Field>,
+        options: Set<JacksonOutputConverterOption>,
+    ) : this(clazz as Type, objectMapper, fieldFilter, RequiredFieldNormalization.ENABLED, options)
+
+    constructor(
+        typeReference: ParameterizedTypeReference<T>,
+        objectMapper: ObjectMapper,
+        fieldFilter: Predicate<Field>,
+        options: Set<JacksonOutputConverterOption>,
+    ) : this(typeReference.type, objectMapper, fieldFilter, RequiredFieldNormalization.ENABLED, options)
+
+    // Full overloads combining normalization and options.
+    constructor(
+        clazz: Class<T>,
+        objectMapper: ObjectMapper,
+        fieldFilter: Predicate<Field>,
+        requiredFieldNormalization: RequiredFieldNormalization,
+        options: Set<JacksonOutputConverterOption>,
+    ) : this(clazz as Type, objectMapper, fieldFilter, requiredFieldNormalization, options)
+
+    constructor(
+        typeReference: ParameterizedTypeReference<T>,
+        objectMapper: ObjectMapper,
+        fieldFilter: Predicate<Field>,
+        requiredFieldNormalization: RequiredFieldNormalization,
+        options: Set<JacksonOutputConverterOption>,
     ) : this(typeReference.type, objectMapper, fieldFilter, requiredFieldNormalization, options)
 
     override fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder {
