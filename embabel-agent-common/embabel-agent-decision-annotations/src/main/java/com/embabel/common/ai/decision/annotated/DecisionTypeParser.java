@@ -80,6 +80,9 @@ final class DecisionTypeParser {
     private static final String NOT_A_PROPERTY =
         " but is not a Jackson property. Move the annotation to a record component, field, getter or creator parameter.";
 
+    private static final String KOTLIN_PLACEMENT =
+        " In Kotlin, write the annotation with @get: or with no use-site target.";
+
     private static final String COLLISION_FIX =
         "Give each Java member its own property name, or correct the definition the message names.";
 
@@ -174,6 +177,7 @@ final class DecisionTypeParser {
         List<String> settableNames = new ArrayList<>();
         Coverage coverage = new Coverage();
         Set<String> reportedIgnored = new HashSet<>();
+        Map<String, BeanPropertyDefinition> byInternalName = new LinkedHashMap<>();
 
         for (BeanPropertyDefinition property : properties) {
             String member = type.getSimpleName() + "." + property.getInternalName();
@@ -186,6 +190,7 @@ final class DecisionTypeParser {
                 continue;
             }
             members.forEach(coverage::add);
+            byInternalName.put(property.getInternalName(), property);
             // Projection supplies a value for each of these, from an answer or from otherProperties.
             if (property.getMutator() != null && !ignorals.ignores(property)) {
                 settableNames.add(property.getName());
@@ -241,7 +246,7 @@ final class DecisionTypeParser {
             }
         }
 
-        scanForOrphans(coverage, ignorals, reportedIgnored, classInfo, naming);
+        scanForOrphans(coverage, ignorals, reportedIgnored, classInfo, naming, byInternalName);
 
         if (problems.isEmpty() && questions.isEmpty()) {
             problem(type.getSimpleName() + ": declares no questions. "
@@ -430,7 +435,8 @@ final class DecisionTypeParser {
     // declared fields, methods and parameters of the type and its superclasses.
     private void scanForOrphans(
         Coverage coverage, Ignorals ignorals, Set<String> reportedIgnored, AnnotatedClass classInfo,
-        AccessorNamingStrategy naming) {
+        AccessorNamingStrategy naming, Map<String, BeanPropertyDefinition> byInternalName) {
+        Orphans orphans = new Orphans(ignorals, reportedIgnored, naming, byInternalName);
         for (Class<?> current = type; current != null && current != Object.class; current = current.getSuperclass()) {
             Set<String> componentFields = new HashSet<>();
             if (current.isRecord()) {
@@ -444,63 +450,162 @@ final class DecisionTypeParser {
                 if (field.isSynthetic() || componentFields.contains(field.getName()) || coverage.covers(field)) {
                     continue;
                 }
-                orphan(current, field.getName(), field, find(classInfo.fields(), field), ignorals, reportedIgnored, naming);
+                orphans.report(current, field.getName(), field, find(classInfo.fields(), field));
             }
             for (Method method : current.getDeclaredMethods()) {
                 if (method.isSynthetic() || method.isBridge()) {
                     continue;
                 }
                 if (!coverage.covers(method)) {
-                    orphan(current, method.getName() + "()", method, find(classInfo.memberMethods(), method),
-                        ignorals, reportedIgnored, naming);
+                    orphans.report(current, method.getName() + "()", method, find(classInfo.memberMethods(), method));
                 }
-                scanParameters(current, method, "parameter of " + method.getName() + "()", coverage, ignorals,
-                    reportedIgnored, classInfo, naming);
+                Constructor<?> copied = kotlinDataClassCopySource(current, method);
+                scanParameters(current, method, "parameter of " + method.getName() + "()", coverage, classInfo,
+                    orphans, copied);
             }
             for (Constructor<?> constructor : current.getDeclaredConstructors()) {
                 if (!constructor.isSynthetic()) {
-                    scanParameters(current, constructor, "constructor parameter", coverage, ignorals, reportedIgnored,
-                        classInfo, naming);
+                    scanParameters(current, constructor, "constructor parameter", coverage, classInfo, orphans, null);
                 }
             }
         }
     }
 
+    // Parameters of a data class copy() are skipped when they carry the same question annotations
+    // as the matching constructor parameter, because the constructor scan reports that declaration.
     private void scanParameters(
-        Class<?> declaringClass, Executable executable, String role, Coverage coverage, Ignorals ignorals,
-        Set<String> reportedIgnored, AnnotatedClass classInfo, AccessorNamingStrategy naming) {
+        Class<?> declaringClass, Executable executable, String role, Coverage coverage, AnnotatedClass classInfo,
+        Orphans orphans, @Nullable Constructor<?> copied) {
         Parameter[] parameters = executable.getParameters();
         for (int index = 0; index < parameters.length; index++) {
             if (coverage.covers(executable, index)) {
                 continue;
             }
-            orphan(declaringClass, parameters[index].getName() + " (" + role + ")", parameters[index],
-                parameterOf(classInfo, executable, index), ignorals, reportedIgnored, naming);
+            if (copied != null
+                && questionAnnotationsOn(parameters[index]).equals(questionAnnotationsOn(copied.getParameters()[index]))) {
+                continue;
+            }
+            orphans.report(declaringClass, parameters[index].getName() + " (" + role + ")", parameters[index],
+                parameterOf(classInfo, executable, index));
         }
     }
 
-    private void orphan(
-        Class<?> declaringClass, String memberLabel, AnnotatedElement element, @Nullable AnnotatedMember jacksonMember,
-        Ignorals ignorals, Set<String> reportedIgnored, AccessorNamingStrategy naming) {
+    // A Kotlin data class generates copy() with the primary constructor's parameters and repeats each
+    // constructor parameter annotation on it. Returns that constructor when the method has this shape.
+    private static @Nullable Constructor<?> kotlinDataClassCopySource(Class<?> owner, Method method) {
+        if (!method.getName().equals("copy") || method.getReturnType() != owner || !isKotlinClass(owner)) {
+            return null;
+        }
+        for (Constructor<?> constructor : owner.getDeclaredConstructors()) {
+            if (!constructor.isSynthetic()
+                && Arrays.equals(constructor.getGenericParameterTypes(), method.getGenericParameterTypes())) {
+                return constructor;
+            }
+        }
+        return null;
+    }
+
+    // The Kotlin compiler marks every class it emits with kotlin.Metadata. The check reads the name so
+    // the module has no Kotlin dependency.
+    private static boolean isKotlinClass(Class<?> type) {
+        for (Annotation annotation : type.getDeclaredAnnotations()) {
+            if (annotation.annotationType().getName().equals("kotlin.Metadata")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Set<Kind> kindsOn(AnnotatedElement element) {
         Set<Kind> kinds = new LinkedHashSet<>();
         for (Kind kind : Kind.values()) {
             if (element.isAnnotationPresent(kind.annotation)) {
                 kinds.add(kind);
             }
         }
-        if (kinds.isEmpty()) {
-            return;
+        return kinds;
+    }
+
+    private static List<Annotation> questionAnnotationsOn(AnnotatedElement element) {
+        List<Annotation> annotations = new ArrayList<>();
+        for (Kind kind : Kind.values()) {
+            Annotation annotation = element.getAnnotation(kind.annotation);
+            if (annotation != null) {
+                annotations.add(annotation);
+            }
         }
-        String implicit = jacksonMember == null ? null : implicitName(jacksonMember, naming);
-        boolean ignored = jacksonMember == null
-            ? element.isAnnotationPresent(JsonIgnore.class) && element.getAnnotation(JsonIgnore.class).value()
-            : introspector.hasIgnoreMarker(config, jacksonMember) || ignorals.ignoresName(implicit);
-        if (ignored && implicit != null && reportedIgnored.contains(implicit)) {
-            // The property itself was already reported as ignored.
-            return;
+        return annotations;
+    }
+
+    /** Reports question annotations on members that belong to no Jackson property. */
+    private final class Orphans {
+
+        private final Ignorals ignorals;
+
+        private final Set<String> reportedIgnored;
+
+        private final AccessorNamingStrategy naming;
+
+        private final Map<String, BeanPropertyDefinition> byInternalName;
+
+        Orphans(Ignorals ignorals, Set<String> reportedIgnored, AccessorNamingStrategy naming,
+                Map<String, BeanPropertyDefinition> byInternalName) {
+            this.ignorals = ignorals;
+            this.reportedIgnored = reportedIgnored;
+            this.naming = naming;
+            this.byInternalName = byInternalName;
         }
-        problem(declaringClass.getSimpleName() + "." + memberLabel + ": carries " + labels(kinds)
-            + (ignored ? IGNORED : NOT_A_PROPERTY));
+
+        void report(Class<?> declaringClass, String memberLabel, AnnotatedElement element,
+                    @Nullable AnnotatedMember jacksonMember) {
+            Set<Kind> kinds = kindsOn(element);
+            if (kinds.isEmpty()) {
+                return;
+            }
+            String implicit = jacksonMember == null ? null : implicitName(jacksonMember, naming);
+            boolean ignored = jacksonMember == null
+                ? element.isAnnotationPresent(JsonIgnore.class) && element.getAnnotation(JsonIgnore.class).value()
+                : introspector.hasIgnoreMarker(config, jacksonMember) || ignorals.ignoresName(implicit);
+            if (ignored && implicit != null && reportedIgnored.contains(implicit)) {
+                // The property itself was already reported as ignored.
+                return;
+            }
+            String prefix = declaringClass.getSimpleName() + "." + memberLabel + ": carries " + labels(kinds);
+            if (ignored) {
+                problem(prefix + IGNORED);
+                return;
+            }
+            // A field or method whose own name matches a property that Jackson built from other members,
+            // such as a private field next to a creator parameter.
+            BeanPropertyDefinition property = implicit == null ? null : byInternalName.get(implicit);
+            if (property != null && (jacksonMember instanceof AnnotatedField || jacksonMember instanceof AnnotatedMethod)) {
+                problem(prefix + " but Jackson leaves this " + (jacksonMember instanceof AnnotatedField ? "field" : "method")
+                    + " out of the property \"" + property.getName() + "\". Move the annotation to "
+                    + String.join(" or ", membersOf(property).stream().map(DecisionTypeParser::describe).toList()) + "."
+                    + (isKotlinClass(declaringClass) ? KOTLIN_PLACEMENT : ""));
+                return;
+            }
+            problem(prefix + NOT_A_PROPERTY);
+        }
+    }
+
+    private static String describe(AnnotatedMember member) {
+        if (member instanceof AnnotatedParameter parameter) {
+            return "creator parameter " + implicitParameterName(parameter);
+        }
+        if (member instanceof AnnotatedField) {
+            return "field " + member.getName();
+        }
+        AnnotatedMethod method = (AnnotatedMethod) member;
+        return (method.getParameterCount() == 0 ? "getter " : "setter ") + method.getName() + "()";
+    }
+
+    private static String implicitParameterName(AnnotatedParameter parameter) {
+        if (parameter.getOwner().getAnnotated() instanceof Executable executable
+            && parameter.getIndex() < executable.getParameterCount()) {
+            return executable.getParameters()[parameter.getIndex()].getName();
+        }
+        return "#" + parameter.getIndex();
     }
 
     // Jackson's own name for a member before renaming: the annotation introspector first, then the
