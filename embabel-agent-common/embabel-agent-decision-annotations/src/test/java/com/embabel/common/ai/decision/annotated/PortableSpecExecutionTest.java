@@ -50,6 +50,7 @@ class PortableSpecExecutionTest {
 
     @Test
     void specReadFromJsonExecutesWithoutTheAnnotatedType() throws IOException {
+        // tag::annotated-portable[]
         DecisionSpec spec = JsonMapper.builder().build().readValue(resourceText(), DecisionSpec.class);
         StubDecisionService stub = StubDecisionService.builder("portable-stub")
             .proposition("urgent", new PropositionResult.Answered(false, PROVENANCE))
@@ -58,6 +59,7 @@ class PortableSpecExecutionTest {
             .build();
 
         DecisionResponse response = stub.ask("I cannot sign in since my password reset.", spec);
+        // end::annotated-portable[]
 
         assertEquals(spec.getDefinitionId(), response.getDefinitionId());
         assertEquals(

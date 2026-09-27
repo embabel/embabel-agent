@@ -90,9 +90,11 @@ class SupportTriageAnnotatedExampleTest {
         DecisionProjection<TicketTriage> projection = triage.project(response);
         // end::annotated-plain[]
 
+        // tag::annotated-plain-names[]
         assertEquals(
             List.of("needsUrgentReply", "assignedDepartment", "customerSeverity"),
             questionNames(triage.spec()));
+        // end::annotated-plain-names[]
         assertEquals(new TicketTriage(true, Department.TECHNICAL, Severity.CRITICAL), projection.getValue());
         assertEquals(triage.spec().getDefinitionId(), projection.getResponse().getDefinitionId());
     }
@@ -111,9 +113,11 @@ class SupportTriageAnnotatedExampleTest {
                 AnnotatedDecision<TicketTriage> triage = decisions.of(TicketTriage.class);
                 // end::annotated-spring[]
 
+                // tag::annotated-spring-names[]
                 assertEquals(
                     List.of("needs_urgent_reply", "assigned_department", "customer_severity"),
                     questionNames(triage.spec()));
+                // end::annotated-spring-names[]
                 assertEquals(
                     Map.of(
                         "needsUrgentReply", "needs_urgent_reply",
