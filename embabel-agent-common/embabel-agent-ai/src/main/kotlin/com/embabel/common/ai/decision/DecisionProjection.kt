@@ -19,13 +19,16 @@ import com.embabel.common.ai.classification.ClassificationResult
 import org.jetbrains.annotations.ApiStatus
 import tools.jackson.core.JacksonException
 import tools.jackson.core.type.TypeReference
+import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.json.JsonMapper
 
 /**
  * A caller-owned value read out of a decision response, kept together with the response it came
  * from. Build one with one of the [of] overloads, which read the response's answered values and
- * convert them to the target type with Jackson.
+ * convert them to the target type with Jackson. The default mapper fails when a constructor
+ * parameter of the target has no answered value, so a record component with no matching question is
+ * an error. A mapper passed in keeps its own settings.
  *
  * @param T the caller's target type
  * @property value the projected value
@@ -36,7 +39,9 @@ class DecisionProjection<T : Any> private constructor(val value: T, val response
 
     companion object {
 
-        private val defaultMapper: ObjectMapper by lazy { JsonMapper.builder().build() }
+        private val defaultMapper: ObjectMapper by lazy {
+            JsonMapper.builder().enable(DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES).build()
+        }
 
         /**
          * Projects the response's answered values onto [type], using a default JSON mapper to do
@@ -58,7 +63,7 @@ class DecisionProjection<T : Any> private constructor(val value: T, val response
         @JvmStatic
         fun <T : Any> of(response: DecisionResponse, type: Class<T>, mapper: ObjectMapper): DecisionProjection<T> {
             val values = answeredValues(response)
-            return DecisionProjection(convert { mapper.convertValue(values, type) }, response)
+            return DecisionProjection(convert(type.name) { mapper.convertValue(values, type) }, response)
         }
 
         /**
@@ -86,7 +91,7 @@ class DecisionProjection<T : Any> private constructor(val value: T, val response
             mapper: ObjectMapper,
         ): DecisionProjection<T> {
             val values = answeredValues(response)
-            return DecisionProjection(convert { mapper.convertValue(values, type) }, response)
+            return DecisionProjection(convert(type.type.typeName) { mapper.convertValue(values, type) }, response)
         }
 
         /**
@@ -153,17 +158,15 @@ class DecisionProjection<T : Any> private constructor(val value: T, val response
         }
 
         // Runs a Jackson conversion, turning a mapping failure into a DecisionProjectionException.
-        private fun <T> convert(block: () -> T): T =
+        private fun <T> convert(typeName: String, block: () -> T): T =
             try {
                 block()
             } catch (e: JacksonException) {
-                throw DecisionProjectionException(
-                    "Cannot map the answered values to the target type: ${e.message}",
-                    emptyList(),
-                    e,
-                )
+                throw DecisionProjectionException("Cannot map the answered values to $typeName", emptyList(), e)
             }
     }
+
+    override fun toString(): String = "DecisionProjection(value=$value)"
 }
 
 /**
@@ -175,8 +178,10 @@ class DecisionProjection<T : Any> private constructor(val value: T, val response
  * the failure happened instead while mapping the collected values to the target type.
  */
 @ApiStatus.Experimental
-class DecisionProjectionException(
+class DecisionProjectionException @JvmOverloads constructor(
     message: String,
-    val questions: List<String>,
-    cause: Throwable?,
-) : RuntimeException(message, cause)
+    questions: List<String>,
+    cause: Throwable? = null,
+) : RuntimeException(message, cause) {
+    val questions: List<String> = java.util.List.copyOf(questions)
+}
