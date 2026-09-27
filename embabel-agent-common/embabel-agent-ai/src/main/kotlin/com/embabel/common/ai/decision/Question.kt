@@ -17,6 +17,13 @@ package com.embabel.common.ai.decision
 
 import com.embabel.common.ai.classification.Category
 import com.embabel.common.ai.classification.ClassificationResult
+import com.fasterxml.jackson.annotation.JsonAnySetter
+import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.annotation.JsonPropertyOrder
+import com.fasterxml.jackson.annotation.JsonSubTypes
+import com.fasterxml.jackson.annotation.JsonTypeInfo
 import org.jetbrains.annotations.ApiStatus
 import java.util.Objects
 
@@ -39,12 +46,15 @@ enum class QuestionKind(
     @get:JvmSynthetic internal val wireName: String,
 ) {
     /** A true-or-false question, answered with a [PropositionResult]. */
+    @JsonProperty("proposition")
     PROPOSITION("proposition"),
 
     /** A pick-one question over a closed set of options, answered with a [ClassificationResult]. */
+    @JsonProperty("choice")
     CHOICE("choice"),
 
     /** A question over an ordered scale of levels, answered with a [RatingResult]. */
+    @JsonProperty("rating")
     RATING("rating"),
 }
 
@@ -54,23 +64,37 @@ enum class QuestionKind(
  * implementation can exist.
  *
  * Build a question with `Questions.named(...)`, or declare it inside a decision spec.
+ *
+ * In JSON a question is an object whose `kind` member names its class.
  */
 @ApiStatus.Experimental
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "kind")
+@JsonSubTypes(
+    JsonSubTypes.Type(PropositionQuestionSpec::class, name = "proposition"),
+    JsonSubTypes.Type(ChoiceQuestionSpec::class, name = "choice"),
+    JsonSubTypes.Type(RatingQuestionSpec::class, name = "rating"),
+)
+@JsonPropertyOrder("kind", "name", "instructions", "options", "levels")
 sealed interface Question<out R : Any> {
 
     /** The caller-owned name of the question. It is unique within a spec and names the answer in a response. */
+    @get:JsonProperty("name")
     val name: String
 
     /** The text that tells the model what to decide. */
+    @get:JsonProperty("instructions")
     val instructions: String
 
     /** The kind of the question, which matches its result type. */
+    @get:JsonProperty("kind")
     val kind: QuestionKind
 
     /**
      * The stable `d1-` id of this definition. It changes whenever the kind, name, instructions or
      * any option or level changes, including their order. Equal definitions have equal ids.
+     * It is left out of JSON and computed again on read.
      */
+    @get:JsonIgnore
     val definitionId: String
 }
 
@@ -93,6 +117,19 @@ class PropositionQuestionSpec private constructor(
     override fun hashCode(): Int = Objects.hash(kind, name, instructions)
 
     override fun toString(): String = "PropositionQuestionSpec(name=$name, kind=$kind)"
+
+    @JsonAnySetter
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("PropositionQuestionSpec", name)
+
+    private companion object {
+        // Reads a question from JSON through its builder, which runs the same checks.
+        @JvmStatic
+        @JsonCreator
+        private fun fromJson(
+            @JsonProperty("name", required = true) name: String,
+            @JsonProperty("instructions", required = true) instructions: String,
+        ): PropositionQuestionSpec = Builder.create(name).asking(instructions).build()
+    }
 
     /**
      * Collects the definition of one proposition question. Each call to [build] returns a new
@@ -144,6 +181,7 @@ class ChoiceQuestionSpec private constructor(
 ) : Question<ClassificationResult> {
 
     /** The options in declared order. The list cannot be modified. Option ids are unique. */
+    @get:JsonIgnore
     val options: List<Category> = java.util.List.copyOf(options)
 
     override val kind: QuestionKind get() = QuestionKind.CHOICE
@@ -166,6 +204,25 @@ class ChoiceQuestionSpec private constructor(
     override fun hashCode(): Int = Objects.hash(kind, name, instructions, options)
 
     override fun toString(): String = "ChoiceQuestionSpec(name=$name, kind=$kind)"
+
+    @JsonProperty("options")
+    private fun optionsJson(): List<OptionJson> = options.map(::OptionJson)
+
+    @JsonAnySetter
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("ChoiceQuestionSpec", name)
+
+    private companion object {
+        // Reads a question from JSON through its builder, which runs the same checks.
+        @JvmStatic
+        @JsonCreator
+        private fun fromJson(
+            @JsonProperty("name", required = true) name: String,
+            @JsonProperty("instructions", required = true) instructions: String,
+            @JsonProperty("options", required = true) options: List<OptionJson>,
+        ): ChoiceQuestionSpec = Builder.create(name).asking(instructions)
+            .apply { options.forEach { option(it.id, it.description) } }
+            .build()
+    }
 
     /**
      * Collects the definition of one choice question. Each call to [build] returns a new question,
@@ -232,6 +289,7 @@ class RatingQuestionSpec private constructor(
 ) : Question<RatingResult> {
 
     /** The levels from lowest to highest. The list cannot be modified. Level ids are unique. */
+    @get:JsonProperty("levels")
     val levels: List<RatingLevel> = java.util.List.copyOf(levels)
 
     override val kind: QuestionKind get() = QuestionKind.RATING
@@ -255,6 +313,22 @@ class RatingQuestionSpec private constructor(
     override fun hashCode(): Int = Objects.hash(kind, name, instructions, levels)
 
     override fun toString(): String = "RatingQuestionSpec(name=$name, kind=$kind)"
+
+    @JsonAnySetter
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingQuestionSpec", name)
+
+    private companion object {
+        // Reads a question from JSON through its builder, which runs the same checks.
+        @JvmStatic
+        @JsonCreator
+        private fun fromJson(
+            @JsonProperty("name", required = true) name: String,
+            @JsonProperty("instructions", required = true) instructions: String,
+            @JsonProperty("levels", required = true) levels: List<RatingLevel>,
+        ): RatingQuestionSpec = Builder.create(name).asking(instructions)
+            .apply { levels.forEach { level(it.id, it.description) } }
+            .build()
+    }
 
     /**
      * Collects the definition of one rating question. Levels are added from lowest to highest.

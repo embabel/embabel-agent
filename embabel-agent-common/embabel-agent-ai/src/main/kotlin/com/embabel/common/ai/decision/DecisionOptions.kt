@@ -15,6 +15,9 @@
  */
 package com.embabel.common.ai.decision
 
+import com.fasterxml.jackson.annotation.JsonAnySetter
+import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonProperty
 import org.jetbrains.annotations.ApiStatus
 import java.util.Collections
 import java.util.EnumSet
@@ -29,17 +32,20 @@ enum class ExecutionMode {
      * The whole spec is evaluated in one provider operation, so every answer shares one model
      * evaluation.
      */
+    @JsonProperty("native")
     NATIVE,
 
     /**
      * A spec holding one proposition or choice question is answered through the matching existing
      * service method. A single rating question has no such method, so this mode does not cover it.
      */
+    @JsonProperty("single_question")
     SINGLE_QUESTION,
 
     /**
      * Each question is asked in its own call, so the answers are not one shared evaluation.
      */
+    @JsonProperty("sequential")
     SEQUENTIAL,
 }
 
@@ -57,6 +63,7 @@ class DecisionOptions private constructor(executionModes: Set<ExecutionMode>) {
      * The modes this caller allows. The set cannot be modified, holds at least one mode and
      * iterates in declaration order.
      */
+    @get:JsonProperty("executionModes")
     val executionModes: Set<ExecutionMode> = run {
         // EnumSet.copyOf cannot copy an empty plain set, so the emptiness check has to come first.
         require(executionModes.isNotEmpty()) { "At least one execution mode must be allowed" }
@@ -69,6 +76,9 @@ class DecisionOptions private constructor(executionModes: Set<ExecutionMode>) {
     override fun hashCode(): Int = executionModes.hashCode()
 
     override fun toString(): String = "DecisionOptions(executionModes=$executionModes)"
+
+    @JsonAnySetter
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionOptions", name)
 
     /**
      * Creates decision options.
@@ -122,5 +132,12 @@ class DecisionOptions private constructor(executionModes: Set<ExecutionMode>) {
         @JvmStatic
         fun of(first: ExecutionMode, vararg rest: ExecutionMode): DecisionOptions =
             DecisionOptions(EnumSet.of(first, *rest))
+
+        // A mode listed twice in JSON reads as one.
+        @JvmStatic
+        @JsonCreator
+        private fun fromJson(
+            @JsonProperty("executionModes", required = true) executionModes: Set<ExecutionMode>,
+        ): DecisionOptions = DecisionOptions(executionModes)
     }
 }

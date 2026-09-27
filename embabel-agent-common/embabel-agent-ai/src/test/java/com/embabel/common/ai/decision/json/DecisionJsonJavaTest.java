@@ -30,7 +30,7 @@ import com.embabel.common.ai.decision.RatingQuestionSpec;
 import com.embabel.common.ai.decision.RatingResult;
 
 import org.junit.jupiter.api.Test;
-import tools.jackson.databind.exc.MismatchedInputException;
+import tools.jackson.databind.DatabindException;
 import tools.jackson.databind.json.JsonMapper;
 
 class DecisionJsonJavaTest {
@@ -66,13 +66,11 @@ class DecisionJsonJavaTest {
     }
 
     @Test
-    void aPlainMapperWithTheModuleRoundTripsSpecAndResponse() {
+    void aPlainMapperRoundTripsSpecAndResponse() {
         var response = answered();
 
         // tag::jackson[]
-        JsonMapper mapper = JsonMapper.builder()
-            .addModule(new DecisionJacksonModule())
-            .build();
+        JsonMapper mapper = JsonMapper.builder().build();
 
         String specJson = mapper.writeValueAsString(spec);
         DecisionSpec specRead = mapper.readValue(specJson, DecisionSpec.class);
@@ -91,7 +89,7 @@ class DecisionJsonJavaTest {
 
     @Test
     void aResponseReadWithoutTheSpecWorksWithAnEquivalentQuestion() {
-        JsonMapper mapper = JsonMapper.builder().addModule(new DecisionJacksonModule()).build();
+        JsonMapper mapper = JsonMapper.builder().build();
         String json = mapper.writeValueAsString(answered());
 
         DecisionResponse read = JsonMapper.builder().findAndAddModules().build().readValue(json, DecisionResponse.class);
@@ -107,13 +105,13 @@ class DecisionJsonJavaTest {
 
     @Test
     void aResponseWithADroppedAnswerIsRejected() {
-        JsonMapper mapper = JsonMapper.builder().addModule(new DecisionJacksonModule()).build();
+        JsonMapper mapper = JsonMapper.builder().build();
         String json = mapper.writeValueAsString(answered());
         int start = json.indexOf(",{\"name\":\"frustration\"");
         assertTrue(start > 0, json);
         String dropped = json.substring(0, start) + "]}";
 
-        var error = assertThrows(MismatchedInputException.class, () -> mapper.readValue(dropped, DecisionResponse.class));
+        var error = assertThrows(DatabindException.class, () -> mapper.readValue(dropped, DecisionResponse.class));
         assertTrue(error.getMessage().contains("The answers do not match the response's spec"), error.getMessage());
     }
 }

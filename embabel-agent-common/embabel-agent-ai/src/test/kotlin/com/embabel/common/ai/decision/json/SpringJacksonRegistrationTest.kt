@@ -23,16 +23,20 @@ import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.Questions
 import com.embabel.common.util.EmbabelObjectMapperHolder
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import tools.jackson.databind.DatabindException
+import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.json.JsonMapper
-import tools.jackson.module.kotlin.jacksonObjectMapper
 
 /**
- * Checks that the decision module reaches a Jackson mapper the way a real application would get
- * one: through Spring Boot's auto-configuration, and through the platform's own mapper holder.
+ * Checks that the mappers a real application gets read and write the decision types with no
+ * module or other setup: Spring Boot's auto-configured mapper and the platform's own mapper.
  */
 class SpringJacksonRegistrationTest {
 
@@ -48,7 +52,7 @@ class SpringJacksonRegistrationTest {
         .withConfiguration(AutoConfigurations.of(JacksonAutoConfiguration::class.java))
 
     @Test
-    fun `Spring Boot's auto-configured mapper round-trips a spec and a response with no application code`() {
+    fun `Spring Boot's auto-configured mapper round-trips a spec and a response`() {
         contextRunner.run { context ->
             val mapper = context.getBean(JsonMapper::class.java)
 
@@ -62,6 +66,18 @@ class SpringJacksonRegistrationTest {
     }
 
     @Test
+    fun `Spring Boot's mapper ignores unknown properties and still rejects an unknown member`() {
+        contextRunner.run { context ->
+            val mapper = context.getBean(JsonMapper::class.java)
+            assertFalse(mapper.isEnabled(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES))
+
+            val json = mapper.writeValueAsString(spec).replaceFirst("{", """{"owner":"support",""")
+            val error = assertThrows(DatabindException::class.java) { mapper.readValue(json, DecisionSpec::class.java) }
+            assertTrue(error.message!!.contains("Unknown member 'owner' in DecisionSpec")) { error.message!! }
+        }
+    }
+
+    @Test
     fun `the platform holder's default mapper round-trips a spec and a response`() {
         val mapper = EmbabelObjectMapperHolder.createDefault().get()
 
@@ -71,15 +87,5 @@ class SpringJacksonRegistrationTest {
         val response = answered()
         val responseJson = mapper.writeValueAsString(response)
         assertEquals(response, mapper.readValue(responseJson, DecisionResponse::class.java))
-    }
-
-    @Test
-    fun `the platform holder's default mapper serializes an existing type exactly as jacksonObjectMapper does`() {
-        val holderMapper = EmbabelObjectMapperHolder.createDefault().get()
-        val plainMapper = jacksonObjectMapper()
-
-        val full = ModelProvenance("jev-latest", "typesafe", "2026-09", "req-42")
-        assertEquals(plainMapper.writeValueAsString(full), holderMapper.writeValueAsString(full))
-        assertEquals(plainMapper.writeValueAsString(jev), holderMapper.writeValueAsString(jev))
     }
 }

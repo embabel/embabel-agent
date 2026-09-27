@@ -15,10 +15,8 @@
  */
 package com.embabel.common.util
 
-import com.embabel.common.ai.decision.json.DecisionJacksonModule
 import tools.jackson.databind.ObjectMapper
-import tools.jackson.module.kotlin.jsonMapper
-import tools.jackson.module.kotlin.kotlinModule
+import tools.jackson.module.kotlin.jacksonObjectMapper
 
 /**
  * Immutable wrapper around the Jackson [tools.jackson.databind.ObjectMapper] used by the Embabel platform.
@@ -32,11 +30,7 @@ class EmbabelObjectMapperHolder(private val objectMapper: ObjectMapper) {
     override fun toString(): String = "EmbabelObjectMapper($objectMapper)"
 
     companion object {
-        /**
-         * Builds the platform's default mapper, which understands Kotlin data classes and decision specs and responses.
-         */
         @JvmStatic
-        fun createDefault(): EmbabelObjectMapperHolder =
-            EmbabelObjectMapperHolder(jsonMapper { addModule(kotlinModule()); addModule(DecisionJacksonModule()) })
+        fun createDefault(): EmbabelObjectMapperHolder = EmbabelObjectMapperHolder(jacksonObjectMapper())
     }
 }

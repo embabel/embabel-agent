@@ -15,6 +15,10 @@
  */
 package com.embabel.common.ai.decision
 
+import com.fasterxml.jackson.annotation.JsonAnySetter
+import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.annotation.JsonProperty
 import org.jetbrains.annotations.ApiStatus
 import java.util.function.Consumer
 
@@ -42,12 +46,15 @@ import java.util.function.Consumer
 class DecisionSpec private constructor(questions: List<Question<*>>) {
 
     /** The questions in declared order. The list cannot be modified. */
+    @get:JsonProperty("questions")
     val questions: List<Question<*>> = java.util.List.copyOf(questions)
 
     /**
      * The stable `s1-` id of this spec. It is computed from the questions' definition ids in order,
      * so it changes when any question changes, or when questions are added, removed or reordered.
+     * It is left out of JSON and computed again on read.
      */
+    @get:JsonIgnore
     val definitionId: String
 
     init {
@@ -74,6 +81,9 @@ class DecisionSpec private constructor(questions: List<Question<*>>) {
     override fun hashCode(): Int = questions.hashCode()
 
     override fun toString(): String = "DecisionSpec(questions=${questions.map { it.name }})"
+
+    @JsonAnySetter
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionSpec", name)
 
     /**
      * Collects the questions of a decision spec in declared order. Get one from
@@ -215,5 +225,10 @@ class DecisionSpec private constructor(questions: List<Question<*>>) {
          */
         @JvmStatic
         fun of(questions: List<Question<*>>): DecisionSpec = DecisionSpec(questions)
+
+        @JvmStatic
+        @JsonCreator
+        private fun fromJson(@JsonProperty("questions", required = true) questions: List<Question<*>>): DecisionSpec =
+            DecisionSpec(questions)
     }
 }

@@ -39,11 +39,15 @@ import tools.jackson.databind.json.JsonMapper
  * Pins the exact JSON bytes of the decision types. The files under `decision/golden` hold the
  * compact JSON the writer produces for a spec with every question kind, a request, options,
  * capabilities, a response with every outcome kind, and a response with a request failure.
- * Each value must write those bytes and read back equal.
+ * Each value must write those bytes and read back equal, through a plain mapper and through a
+ * mapper with the Kotlin module.
  */
 class DecisionJsonGoldenTest {
 
-    private val mapper: JsonMapper = JsonMapper.builder().findAndAddModules().build()
+    private val mappers: List<JsonMapper> = listOf(
+        JsonMapper.builder().build(),
+        JsonMapper.builder().findAndAddModules().build(),
+    )
 
     private val jev = ModelProvenance("jev-latest", "typesafe")
     private val jevFull = ModelProvenance("jev-latest", "typesafe", "2026-09", "req-42")
@@ -139,8 +143,10 @@ class DecisionJsonGoldenTest {
 
     private fun <T : Any> assertGolden(name: String, value: T, type: Class<T>) {
         val expected = golden(name)
-        assertEquals(expected, mapper.writeValueAsString(value)) { "Written bytes differ from $name.json" }
-        assertEquals(value, mapper.readValue(expected, type)) { "$name.json does not read back equal" }
+        for (mapper in mappers) {
+            assertEquals(expected, mapper.writeValueAsString(value)) { "Written bytes differ from $name.json" }
+            assertEquals(value, mapper.readValue(expected, type)) { "$name.json does not read back equal" }
+        }
     }
 
     @Test
