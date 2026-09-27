@@ -45,7 +45,7 @@ class DecisionRequest private constructor(
     override fun toString(): String = "DecisionRequest(spec=$spec)"
 
     @JsonAnySetter
-    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionRequest", name)
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionRequest", name, value)
 
     /**
      * Creates decision requests.

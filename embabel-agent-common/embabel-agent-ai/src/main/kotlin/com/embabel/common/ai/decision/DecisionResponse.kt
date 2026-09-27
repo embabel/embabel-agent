@@ -105,7 +105,7 @@ sealed interface DecisionAnswer {
         private fun outcomeJson(): PropositionOutcomeJson = PropositionOutcomeJson.of(outcome)
 
         @JsonAnySetter
-        private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionAnswer", name)
+        private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionAnswer", name, value)
 
         internal companion object {
             // Used by DecisionResponse. Hidden from Java so answers only come from a response.
@@ -163,7 +163,7 @@ sealed interface DecisionAnswer {
         private fun outcomeJson(): ChoiceOutcomeJson = ChoiceOutcomeJson.of(outcome)
 
         @JsonAnySetter
-        private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionAnswer", name)
+        private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionAnswer", name, value)
 
         internal companion object {
             // Used by DecisionResponse. Hidden from Java so answers only come from a response.
@@ -222,7 +222,7 @@ sealed interface DecisionAnswer {
         override fun toString(): String = "DecisionAnswer.Rating(name=$name, outcome=$outcome)"
 
         @JsonAnySetter
-        private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionAnswer", name)
+        private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionAnswer", name, value)
 
         internal companion object {
             // Used by DecisionResponse. Hidden from Java so answers only come from a response.
@@ -393,7 +393,7 @@ class DecisionResponse private constructor(
     private fun requestFailureJson(): FailureReasonJson? = requestFailure?.let(FailureReasonJson::of)
 
     @JsonAnySetter
-    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionResponse", name)
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionResponse", name, value)
 
     /**
      * Collects one answer per question of a spec. Get one from [DecisionResponse.builder].

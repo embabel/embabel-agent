@@ -74,6 +74,8 @@ class SpringJacksonRegistrationTest {
             val json = mapper.writeValueAsString(spec).replaceFirst("{", """{"owner":"support",""")
             val error = assertThrows(DatabindException::class.java) { mapper.readValue(json, DecisionSpec::class.java) }
             assertTrue(error.message!!.contains("Unknown member 'owner' in DecisionSpec")) { error.message!! }
+            assertTrue(error.message!!.contains("(a string)")) { error.message!! }
+            assertFalse(error.message!!.contains("support")) { error.message!! }
         }
     }
 

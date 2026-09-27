@@ -33,8 +33,19 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo
 
 // Every decision type and JSON form has a private any-setter that calls this. Jackson passes an
 // unknown member to the any-setter whatever the mapper's FAIL_ON_UNKNOWN_PROPERTIES setting is.
-internal fun rejectUnknownMember(type: String, name: String): Nothing =
-    throw IllegalArgumentException("Unknown member '$name' in $type")
+internal fun rejectUnknownMember(type: String, name: String, value: Any?): Nothing =
+    throw IllegalArgumentException("Unknown member '$name' in $type (${jsonKind(value)})")
+
+// Names the JSON kind of a rejected member. The value itself stays out of the message.
+private fun jsonKind(value: Any?): String = when (value) {
+    null -> "null"
+    is String -> "a string"
+    is Number -> "a number"
+    is Boolean -> "a boolean"
+    is Map<*, *> -> "an object"
+    is Collection<*> -> "an array"
+    else -> "a value"
+}
 
 /** A choice option as JSON. */
 @JsonPropertyOrder("id", "description")
@@ -47,7 +58,7 @@ internal class OptionJson @JsonCreator constructor(
     fun toCategory(): Category = Category(id, description)
 
     @JsonAnySetter
-    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("Category", name)
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("Category", name, value)
 }
 
 /** Model provenance as JSON. Absent version and request id are left out. */
@@ -65,7 +76,7 @@ internal class ProvenanceJson @JsonCreator constructor(
     fun toProvenance(): ModelProvenance = ModelProvenance(modelName, provider, version, requestId)
 
     @JsonAnySetter
-    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("ModelProvenance", name)
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("ModelProvenance", name, value)
 }
 
 /** A failure reason as its snake case JSON value. */
@@ -144,7 +155,7 @@ internal class PropositionAnsweredJson @JsonCreator constructor(
     @JsonProperty("provenance", required = true) val provenance: ProvenanceJson,
 ) : PropositionOutcomeJson {
     @JsonAnySetter
-    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("PropositionResult", name)
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("PropositionResult", name, value)
 }
 
 @JsonPropertyOrder("categoryId", "confidence", "provenance")
@@ -155,26 +166,26 @@ internal class SelectedJson @JsonCreator constructor(
     @JsonProperty("provenance", required = true) val provenance: ProvenanceJson,
 ) : ChoiceOutcomeJson {
     @JsonAnySetter
-    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("ClassificationResult", name)
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("ClassificationResult", name, value)
 }
 
 internal class NoMatchJson @JsonCreator constructor(
     @JsonProperty("provenance", required = true) val provenance: ProvenanceJson,
 ) : ChoiceOutcomeJson {
     @JsonAnySetter
-    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("ClassificationResult", name)
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("ClassificationResult", name, value)
 }
 
 internal class InconclusiveJson @JsonCreator constructor(
     @JsonProperty("provenance", required = true) val provenance: ProvenanceJson,
 ) : PropositionOutcomeJson, ChoiceOutcomeJson {
     @JsonAnySetter
-    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("an inconclusive outcome", name)
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("an inconclusive outcome", name, value)
 }
 
 internal class FailureJson @JsonCreator constructor(
     @JsonProperty("reason", required = true) val reason: FailureReasonJson,
 ) : PropositionOutcomeJson, ChoiceOutcomeJson {
     @JsonAnySetter
-    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("a failure outcome", name)
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("a failure outcome", name, value)
 }

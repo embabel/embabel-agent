@@ -83,7 +83,7 @@ class DecisionSpec private constructor(questions: List<Question<*>>) {
     override fun toString(): String = "DecisionSpec(questions=${questions.map { it.name }})"
 
     @JsonAnySetter
-    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionSpec", name)
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionSpec", name, value)
 
     /**
      * Collects the questions of a decision spec in declared order. Get one from

@@ -78,7 +78,7 @@ class DecisionOptions private constructor(executionModes: Set<ExecutionMode>) {
     override fun toString(): String = "DecisionOptions(executionModes=$executionModes)"
 
     @JsonAnySetter
-    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionOptions", name)
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionOptions", name, value)
 
     /**
      * Creates decision options.
