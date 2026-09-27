@@ -437,7 +437,7 @@ class SpecJsonTest {
             assertRejects(
                 """{"executionModes":["native","native"]}""",
                 DecisionOptions::class.java,
-                "Member 'executionModes[1]' in DecisionOptions must be a value not listed earlier",
+                "Member 'executionModes[1]' in DecisionOptions must be a value that appears once",
             )
             assertRejects("""{"executionModes":[]}""", DecisionOptions::class.java, "At least one execution mode must be allowed")
             assertRejects(
