@@ -249,10 +249,10 @@ class DecisionSpecTest {
         fun `a repeated identical declaration is a duplicate`() {
             val builder = builderWithUrgent()
             val before = builder.build()
-            assertRejected("'is_urgent'", "already") {
+            assertRejected("'is_urgent'", "unique") {
                 builder.proposition("is_urgent") { it.asking("Does this convey urgency?") }
             }
-            assertRejected("'is_urgent'", "already") { builder.question(urgent()) }
+            assertRejected("'is_urgent'", "unique") { builder.question(urgent()) }
             assertEquals(before, builder.build())
         }
 
