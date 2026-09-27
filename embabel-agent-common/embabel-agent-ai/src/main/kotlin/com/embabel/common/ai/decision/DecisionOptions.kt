@@ -16,6 +16,8 @@
 package com.embabel.common.ai.decision
 
 import org.jetbrains.annotations.ApiStatus
+import java.util.Collections
+import java.util.EnumSet
 
 /**
  * How a decision spec can be run against a model.
@@ -30,8 +32,8 @@ enum class ExecutionMode {
     NATIVE,
 
     /**
-     * A one-question spec is answered with the matching existing service method, without going
-     * through the multi-question native path.
+     * A spec holding one proposition or choice question is answered through the matching existing
+     * service method. A single rating question has no such method, so this mode does not cover it.
      */
     SINGLE_QUESTION,
 
@@ -44,15 +46,21 @@ enum class ExecutionMode {
 /**
  * The execution modes a caller allows when a decision spec is run. A service that supports more
  * than one of the allowed modes chooses which one to use.
+ *
+ * The modes always iterate in the order [ExecutionMode] declares them, so `toString` and any
+ * serialized form come out the same on every run.
  */
 @ApiStatus.Experimental
 class DecisionOptions private constructor(executionModes: Set<ExecutionMode>) {
 
-    /** The modes this caller allows. The set cannot be modified and holds at least one mode. */
-    val executionModes: Set<ExecutionMode> = java.util.Set.copyOf(executionModes)
-
-    init {
-        require(this.executionModes.isNotEmpty()) { "At least one execution mode must be allowed" }
+    /**
+     * The modes this caller allows. The set cannot be modified, holds at least one mode and
+     * iterates in declaration order.
+     */
+    val executionModes: Set<ExecutionMode> = run {
+        // EnumSet.copyOf cannot copy an empty plain set, so the emptiness check has to come first.
+        require(executionModes.isNotEmpty()) { "At least one execution mode must be allowed" }
+        Collections.unmodifiableSet(EnumSet.copyOf(executionModes))
     }
 
     override fun equals(other: Any?): Boolean =
@@ -102,5 +110,17 @@ class DecisionOptions private constructor(executionModes: Set<ExecutionMode>) {
          */
         @JvmStatic
         fun of(executionModes: Set<ExecutionMode>): DecisionOptions = DecisionOptions(executionModes)
+
+        /**
+         * Returns options that allow exactly the given modes. A mode given more than once is
+         * allowed once.
+         *
+         * @param first a mode to allow
+         * @param rest any further modes to allow
+         * @return options allowing the given modes
+         */
+        @JvmStatic
+        fun of(first: ExecutionMode, vararg rest: ExecutionMode): DecisionOptions =
+            DecisionOptions(EnumSet.of(first, *rest))
     }
 }

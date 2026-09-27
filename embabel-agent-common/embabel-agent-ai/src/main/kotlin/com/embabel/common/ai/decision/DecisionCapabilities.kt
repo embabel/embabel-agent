@@ -16,13 +16,21 @@
 package com.embabel.common.ai.decision
 
 import org.jetbrains.annotations.ApiStatus
+import java.util.Collections
+import java.util.EnumSet
 import java.util.Objects
 
 /**
  * What a decision service can accept and how it can run a request. This is information a service
  * reports about itself; it does not run anything on its own.
  *
- * A null limit means the service does not report that limit, not that there is none.
+ * Start from [of] with the supported question kinds and execution modes, then add any known limits
+ * with [withMaxQuestions] and [withMaxInputCharacters]. Each call returns new capabilities.
+ *
+ * A null limit means the service does not report that limit. The service may still have one.
+ *
+ * The kinds and modes always iterate in the order their enums declare them, so `toString` and any
+ * serialized form come out the same on every run.
  *
  * @property maxQuestions the largest number of questions a request may hold, or null when the
  * service does not report a limit
@@ -30,25 +38,58 @@ import java.util.Objects
  * does not report a limit
  */
 @ApiStatus.Experimental
-class DecisionCapabilities @JvmOverloads constructor(
+class DecisionCapabilities private constructor(
     questionKinds: Set<QuestionKind>,
     executionModes: Set<ExecutionMode>,
-    val maxQuestions: Int? = null,
-    val maxInputCharacters: Int? = null,
+    val maxQuestions: Int?,
+    val maxInputCharacters: Int?,
 ) {
 
-    /** The question kinds the service accepts. The set cannot be modified and holds at least one kind. */
-    val questionKinds: Set<QuestionKind> = java.util.Set.copyOf(questionKinds)
+    /**
+     * The question kinds the service accepts. The set cannot be modified, holds at least one kind
+     * and iterates in declaration order.
+     */
+    val questionKinds: Set<QuestionKind> = run {
+        // EnumSet.copyOf cannot copy an empty plain set, so the emptiness check has to come first.
+        require(questionKinds.isNotEmpty()) { "At least one question kind must be supported" }
+        Collections.unmodifiableSet(EnumSet.copyOf(questionKinds))
+    }
 
-    /** The execution modes the service supports. The set cannot be modified and holds at least one mode. */
-    val executionModes: Set<ExecutionMode> = java.util.Set.copyOf(executionModes)
+    /**
+     * The execution modes the service supports. The set cannot be modified, holds at least one
+     * mode and iterates in declaration order.
+     */
+    val executionModes: Set<ExecutionMode> = run {
+        require(executionModes.isNotEmpty()) { "At least one execution mode must be supported" }
+        Collections.unmodifiableSet(EnumSet.copyOf(executionModes))
+    }
 
     init {
-        require(this.questionKinds.isNotEmpty()) { "At least one question kind must be supported" }
-        require(this.executionModes.isNotEmpty()) { "At least one execution mode must be supported" }
         require(maxQuestions == null || maxQuestions >= 1) { "maxQuestions must be at least 1 when present" }
         require(maxInputCharacters == null || maxInputCharacters >= 1) { "maxInputCharacters must be at least 1 when present" }
     }
+
+    /**
+     * Returns a copy of these capabilities with the given question limit. Everything else stays
+     * the same.
+     *
+     * @param maxQuestions the largest number of questions a request may hold, at least 1
+     * @return new capabilities with the limit set
+     * @throws IllegalArgumentException if the limit is below 1
+     */
+    fun withMaxQuestions(maxQuestions: Int): DecisionCapabilities =
+        DecisionCapabilities(questionKinds, executionModes, maxQuestions, maxInputCharacters)
+
+    /**
+     * Returns a copy of these capabilities with the given input length limit. Everything else
+     * stays the same.
+     *
+     * @param maxInputCharacters the largest input length in characters, at least 1
+     * @return new capabilities with the limit set
+     * @throws IllegalArgumentException if the limit is below 1
+     */
+    fun withMaxInputCharacters(maxInputCharacters: Int): DecisionCapabilities =
+        DecisionCapabilities(questionKinds, executionModes, maxQuestions, maxInputCharacters)
 
     override fun equals(other: Any?): Boolean =
         this === other || other is DecisionCapabilities &&
@@ -63,4 +104,23 @@ class DecisionCapabilities @JvmOverloads constructor(
     override fun toString(): String =
         "DecisionCapabilities(questionKinds=$questionKinds, executionModes=$executionModes, " +
             "maxQuestions=$maxQuestions, maxInputCharacters=$maxInputCharacters)"
+
+    /**
+     * Creates decision capabilities.
+     */
+    companion object {
+
+        /**
+         * Returns capabilities with the given question kinds and execution modes and no reported
+         * limits.
+         *
+         * @param questionKinds the question kinds the service accepts, which must not be empty
+         * @param executionModes the execution modes the service supports, which must not be empty
+         * @return capabilities with both limits null
+         * @throws IllegalArgumentException if either set is empty
+         */
+        @JvmStatic
+        fun of(questionKinds: Set<QuestionKind>, executionModes: Set<ExecutionMode>): DecisionCapabilities =
+            DecisionCapabilities(questionKinds, executionModes, null, null)
+    }
 }
