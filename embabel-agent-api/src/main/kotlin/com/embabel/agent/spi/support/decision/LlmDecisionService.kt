@@ -21,6 +21,7 @@ import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.InvalidLlmReturnFormatException
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.common.LlmRetryDecision
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.chat.Message
 import com.embabel.common.ai.classification.ClassificationRequest
@@ -28,15 +29,46 @@ import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.ClassificationService
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
+import com.embabel.common.ai.decision.ChoiceQuestionSpec
+import com.embabel.common.ai.decision.DecisionCapabilities
+import com.embabel.common.ai.decision.DecisionRequest
+import com.embabel.common.ai.decision.DecisionResponse
 import com.embabel.common.ai.decision.DecisionService
+import com.embabel.common.ai.decision.PropositionQuestionSpec
 import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
+import com.embabel.common.ai.decision.QuestionKind
+import com.embabel.common.ai.decision.RatingQuestionSpec
+import com.embabel.common.ai.decision.RatingResult
+import com.embabel.common.ai.decision.spi.ChoiceAssessment
+import com.embabel.common.ai.decision.spi.DecisionContentCapture
+import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
+import com.embabel.common.ai.decision.spi.PropositionAssessment
+import com.embabel.common.ai.decision.spi.RatingAssessment
 import com.embabel.common.ai.model.LlmOptions
 import org.slf4j.LoggerFactory
+import org.springframework.web.client.RestClientResponseException
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+import java.net.http.HttpConnectTimeoutException
+import java.net.http.HttpTimeoutException
+import java.util.EnumSet
 import java.util.concurrent.CancellationException
+import java.util.concurrent.TimeoutException
 
 /**
- * Classifies text and assesses propositions by asking a chat model, retrying failed calls.
+ * Answers decision questions by asking a chat model, retrying failed calls.
+ *
+ * The service classifies text, assesses propositions, and answers a whole decision request of
+ * proposition, choice and rating questions in one model call through [askNative]. A single choice
+ * or rating question goes through the same prompt as a one-question request. A single proposition
+ * question goes through the proposition prompt with the question's instructions. The model reports
+ * verdicts and ids only, so no outcome carries a confidence, distribution or score.
+ *
+ * A question set reply is read after the retry template returns, so a reply that cannot be read
+ * makes one model call and is never retried.
  *
  * Every outcome becomes a contract result: a reply that cannot be read or breaks the answer rules
  * is an invalid response, and anything else that goes wrong is unavailability. An interruption during
@@ -60,7 +92,7 @@ internal class LlmDecisionService(
     private val options: LlmOptions,
     retry: RetryProperties,
     retryName: String = "decision-${llm.name}",
-) : DecisionService {
+) : DecisionService, NativeQuestionSetExecution, PropositionAssessment, ChoiceAssessment, RatingAssessment {
 
     private val logger = LoggerFactory.getLogger(LlmDecisionService::class.java)
 
@@ -68,21 +100,57 @@ internal class LlmDecisionService(
 
     private val retryTemplate = retry.retryTemplate(retryName)
 
+    private val retryPrefix = retry.propertyPrefix
+
     override val name: String get() = llm.name
 
     override val provider: String get() = llm.provider
 
+    /** Returns every question kind. */
+    override fun capabilities(): DecisionCapabilities = CAPABILITIES
+
     override fun classify(request: ClassificationRequest): ClassificationResult =
-        decide(CLASSIFY, { ClassificationResult.Failure(it) }) {
-            val answer = ask(CLASSIFY, PromptedClassification.messages(request), ClassificationAnswer::class.java)
+        decide(CLASSIFY, { ClassificationResult.Failure(it) }) { attempts ->
+            val answer = ask(CLASSIFY, PromptedClassification.messages(request), ClassificationAnswer::class.java, attempts)
             PromptedClassification.result(request, answer, provenance)
         }
 
     override fun assess(request: PropositionRequest): PropositionResult =
-        decide(ASSESS, { PropositionResult.Failure(it) }) {
-            val answer = ask(ASSESS, PromptedProposition.messages(request), PropositionAnswer::class.java)
+        decide(ASSESS, { PropositionResult.Failure(it) }) { attempts ->
+            val answer = ask(ASSESS, PromptedProposition.messages(request), PropositionAnswer::class.java, attempts)
             PromptedProposition.result(answer, provenance)
         }
+
+    /**
+     * Answers every question of the request in one model call. A reply that cannot be matched to
+     * the questions fails the whole request with [FailureReason.INVALID_RESPONSE]. An answer that
+     * breaks its question's rules fails only that question.
+     */
+    override fun askNative(request: DecisionRequest): DecisionResponse =
+        askQuestionSet(ASK, request)
+
+    /** Answers one proposition question through the proposition prompt, with the question's instructions. */
+    override fun assess(input: String, question: PropositionQuestionSpec): PropositionResult =
+        assess(PropositionRequest(input, question.instructions))
+
+    /** Answers one choice question through the question set prompt, in its own model call. */
+    override fun choose(input: String, question: ChoiceQuestionSpec): ClassificationResult =
+        askQuestionSet(CHOOSE, DecisionRequest.of(input, question)).answer(question)
+
+    /** Rates the input against one rating question through the question set prompt, in its own model call. */
+    override fun rate(input: String, question: RatingQuestionSpec): RatingResult =
+        askQuestionSet(RATE, DecisionRequest.of(input, question)).answer(question)
+
+    private fun askQuestionSet(operation: String, request: DecisionRequest): DecisionResponse {
+        val spec = request.spec
+        return decide(operation, { DecisionResponse.failed(spec, it) }) { attempts ->
+            val raw = ask(operation, PromptedQuestionSet.messages(request), String::class.java, attempts)
+            if (DecisionContentCapture.isEnabled() && logger.isTraceEnabled) {
+                logger.trace("Decision {} with model {} received model text: {}", operation, name, raw)
+            }
+            PromptedQuestionSet.response(spec, withoutCodeFence(raw), provenance, name)
+        }
+    }
 
     /**
      * Sends one prompt to the model and reads back the typed answer, retrying on failure.
@@ -90,10 +158,12 @@ internal class LlmDecisionService(
      * @param operation the name used in retry and log lines
      * @param messages the prompt to send
      * @param answerType the class the reply parses into
+     * @param attempts counts the calls made, for the failure log line
      * @return the parsed answer
      */
-    private fun <A : Any> ask(operation: String, messages: List<Message>, answerType: Class<A>): A =
+    private fun <A : Any> ask(operation: String, messages: List<Message>, answerType: Class<A>, attempts: Attempts): A =
         retryTemplate.execute<A, Exception> {
+            attempts.count++
             guarded {
                 llmOperations.doTransform(
                     messages = messages,
@@ -117,8 +187,10 @@ internal class LlmDecisionService(
      * between retries. The interrupt flag alone never turns a failure into an interruption here, so
      * an answer that breaks the rules stays an invalid response when the caller's flag was set.
      *
-     * The failure keeps only the reason. This class logs only the operation, the model name and
-     * the outcome, while the shared model-call path and the retry listener log failed attempts on
+     * The failure keeps only the reason. A failure is logged at WARN with the service, provider,
+     * operation, reason, cause category, HTTP status class, attempt count, elapsed time and
+     * the exception's class name. The exception's message is left out because provider errors can
+     * echo the request. The shared model-call path and the retry listener log failed attempts on
      * their own terms.
      *
      * @param operation the operation name used in log lines
@@ -126,9 +198,15 @@ internal class LlmDecisionService(
      * @param work runs the decision
      * @return the decision's result, or the failure result when it fails
      */
-    private fun <R : Any> decide(operation: String, failure: (FailureReason) -> R, work: () -> R): R {
+    private fun <R : Any> decide(
+        operation: String,
+        failure: (FailureReason) -> R,
+        work: (Attempts) -> R,
+    ): R {
+        val attempts = Attempts()
+        val started = System.nanoTime()
         val result = try {
-            work()
+            work(attempts)
         } catch (e: DecisionInterrupted) {
             logger.debug("Decision {} with model {} was interrupted", operation, name)
             throw cancelled(e.interrupted)
@@ -143,12 +221,44 @@ internal class LlmDecisionService(
                 is InvalidLlmReturnFormatException, is InvalidDecisionAnswerException -> FailureReason.INVALID_RESPONSE
                 else -> FailureReason.UNAVAILABLE
             }
-            logger.debug("Decision {} with model {} failed: {}", operation, name, reason)
+            val status = httpStatus(e)
+            logger.warn(
+                "Decision call failed: service={}, provider={}, operation={}, reason={}, cause={}, " +
+                    "httpStatus={}, attempts={}, elapsedMs={}, exception={}. {}",
+                name, provider, operation, reason, causeCategory(e, status),
+                status?.let { "${it / 100}xx" } ?: "none", attempts.count, (System.nanoTime() - started) / 1_000_000,
+                e.javaClass.simpleName, remedy(reason),
+            )
             return failure(reason)
         }
         logger.debug("Decision {} with model {} returned {}", operation, name, result.javaClass.simpleName)
         return result
     }
+
+    private fun remedy(reason: FailureReason): String =
+        if (reason == FailureReason.INVALID_RESPONSE) {
+            "The model's reply did not follow the answer format. Check that the model can produce JSON output."
+        } else {
+            "Check the model's availability, credentials and retry settings under $retryPrefix."
+        }
+
+    // Names the kind of failure from its cause chain. The category never holds provider text.
+    private fun causeCategory(e: Exception, status: Int?): String {
+        val chain = generateSequence<Throwable>(e) { it.cause }.toList()
+        return when {
+            chain.any { it is InvalidLlmReturnFormatException || it is InvalidDecisionAnswerException } -> "invalid_response"
+            status == TOO_MANY_REQUESTS || chain.any { LlmRetryDecision.isRateLimit(it) } -> "rate_limited"
+            status != null && status in 400..499 -> "http_4xx"
+            status != null && status in 500..599 -> "http_5xx"
+            chain.any { it is HttpConnectTimeoutException } -> "connection"
+            chain.any { it is SocketTimeoutException || it is HttpTimeoutException || it is TimeoutException } -> "timeout"
+            chain.any { it is ConnectException || it is UnknownHostException || it is NoRouteToHostException } -> "connection"
+            else -> "other"
+        }
+    }
+
+    private fun httpStatus(e: Throwable): Int? =
+        generateSequence(e) { it.cause }.filterIsInstance<RestClientResponseException>().firstOrNull()?.statusCode?.value()
 
     /**
      * Stops the retry template from retrying an interrupted call. The template would otherwise
@@ -201,9 +311,35 @@ internal class LlmDecisionService(
     private class DecisionInterrupted(val interrupted: InterruptedException) :
         RuntimeException(interrupted), NonRetryable
 
+    /** Counts the model calls made for one decision, including retries. */
+    private class Attempts {
+        var count = 0
+    }
+
     private companion object {
         const val CLASSIFY = "classify"
         const val ASSESS = "assess"
+        const val ASK = "ask"
+        const val CHOOSE = "choose"
+        const val RATE = "rate"
+
+        const val TOO_MANY_REQUESTS = 429
+
+        val CAPABILITIES: DecisionCapabilities = DecisionCapabilities.of(EnumSet.allOf(QuestionKind::class.java))
+
+        // One fenced block and nothing else around it: an opening fence with an optional json tag,
+        // a line break, the content, and a closing fence. Content holding another fence is left
+        // alone, so two fenced blocks stay an unreadable reply.
+        val CODE_FENCE = Regex("""\A\s*```(?:json)?[ \t]*\r?\n(.*?)\r?\n?```\s*\z""", RegexOption.DOT_MATCHES_ALL)
+
+        /**
+         * Returns the content of one Markdown code fence that wraps the whole reply, or the reply
+         * unchanged. Models often fence JSON even when told not to.
+         */
+        fun withoutCodeFence(raw: String): String {
+            val content = CODE_FENCE.matchEntire(raw)?.groupValues?.get(1) ?: return raw
+            return if (content.contains("```")) raw else content
+        }
     }
 }
 
