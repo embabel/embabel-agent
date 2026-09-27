@@ -164,11 +164,18 @@ class DecisionProjectionJavaTest {
 
         @Override
         public SupportRoute convert(DecisionResponse response) {
-            boolean isUrgent = response.answer(urgent) instanceof PropositionResult.Answered answered
-                && answered.getAnswer();
-            String team = response.answer(department) instanceof ClassificationResult.Selected selected
-                ? selected.getCategoryId()
-                : "triage-queue";
+            boolean isUrgent = switch (response.answer(urgent)) {
+                case PropositionResult.Answered answered -> answered.getAnswer();
+                // Without an answer, a person should look at the ticket soon.
+                case PropositionResult.Inconclusive inconclusive -> true;
+                case PropositionResult.Failure failure -> true;
+            };
+            String team = switch (response.answer(department)) {
+                case ClassificationResult.Selected selected -> selected.getCategoryId();
+                case ClassificationResult.NoMatch noMatch -> "general";
+                case ClassificationResult.Inconclusive inconclusive -> "triage-queue";
+                case ClassificationResult.Failure failure -> "triage-queue";
+            };
             return new SupportRoute(isUrgent, team);
         }
     }
@@ -184,6 +191,25 @@ class DecisionProjectionJavaTest {
             .answer(department, new ClassificationResult.NoMatch(JEV))
             .answer(frustration, new RatingResult.Answered(JEV, "Calm"))
             .build();
-        assertEquals(new SupportRoute(false, "triage-queue"), converter.convert(notSelected));
+        assertEquals(new SupportRoute(false, "general"), converter.convert(notSelected));
+
+        var unanswered = DecisionResponse.builder(spec, ExecutionMode.NATIVE)
+            .answer(urgent, new PropositionResult.Inconclusive(JEV))
+            .answer(department, new ClassificationResult.Failure(FailureReason.UNAVAILABLE))
+            .answer(frustration, new RatingResult.Answered(JEV, "Calm"))
+            .build();
+        assertEquals(new SupportRoute(true, "triage-queue"), converter.convert(unanswered));
+    }
+
+    record WithUnansweredComponent(boolean is_urgent, String department, String priority) {
+    }
+
+    @Test
+    void theDefaultMapperRejectsARecordComponentWithNoAnsweredValue() {
+        var response = answered();
+        var ex = assertThrows(DecisionProjectionException.class,
+            () -> DecisionProjection.of(response, WithUnansweredComponent.class));
+        assertTrue(ex.getMessage().contains("WithUnansweredComponent"));
+        assertNotNull(ex.getCause());
     }
 }
