@@ -174,7 +174,7 @@ class DecisionSpec private constructor(questions: List<Question<*>>) {
         }
 
         private fun requireUnused(name: String) {
-            require(questions.none { it.name == name }) { "Question '$name' is already declared in this spec" }
+            require(questions.none { it.name == name }) { "Question names must be unique within a decision spec. Repeated: '$name'" }
         }
 
         internal companion object {
