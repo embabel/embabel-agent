@@ -9,7 +9,7 @@ The JSON bindings are in the package `com.embabel.common.ai.decision.json`.
 This page covers building, serializing and reading specs and responses.
 It does not cover running a spec against a decision service.
 
-Every type on this page carries `@ApiStatus.Experimental`.
+Every decision type on this page carries `@ApiStatus.Experimental`.
 The types become stable once they have a named owner, a consumer application that uses them, and a compatibility assessment.
 Promotion is decided at the first release after all three are in place.
 
