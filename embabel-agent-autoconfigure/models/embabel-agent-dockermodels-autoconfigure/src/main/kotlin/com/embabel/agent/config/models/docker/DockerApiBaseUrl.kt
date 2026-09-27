@@ -16,18 +16,16 @@
 package com.embabel.agent.config.models.docker
 
 /**
- * The base URL the openai-java SDK needs, which is NOT the one [DockerConnectionProperties] holds.
+ * Converts `embabel.agent.models.docker.base-url` into the base URL the openai-java SDK expects.
  *
- * The SDK appends the bare path — `/embeddings`, `/chat/completions` — so its base has to end at
- * the API version, the way its own default `https://api.openai.com/v1` does.
- * `embabel.agent.models.docker.base-url` does not: its default is `http://localhost:12434/engines`,
- * and the model listing appends `/v1/models` to it. Two conventions in one property, and handing it
- * straight to the SDK meant discovery listed a runner's models and then EVERY call to one 404'd on
- * `/engines/embeddings` — chat as well as embedding. Verified against Docker Model Runner:
- * `/engines/embeddings` 404, `/engines/v1/embeddings` 200.
+ * The SDK appends paths such as `/embeddings` directly, so its base must end in `/v1`.
+ * The Docker property does not, because model listing appends `/v1/models` itself.
  *
- * Tolerant of a base that already ends at the version, because that is what LM Studio's property
- * holds and somebody setting this one by hand will reasonably copy it.
+ * - `http://localhost:12434/engines`     -> `http://localhost:12434/engines/v1`
+ * - `http://localhost:12434/engines/`    -> `http://localhost:12434/engines/v1`
+ * - `http://localhost:12434/engines/v1`  -> `http://localhost:12434/engines/v1` (unchanged)
+ *
+ * Internal rather than private: [DockerLocalModelsConfig] calls it from another file.
  */
 internal fun dockerApiBaseUrl(baseUrl: String): String {
     val trimmed = baseUrl.trimEnd('/')
