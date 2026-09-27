@@ -15,16 +15,27 @@
  */
 package com.embabel.agent.autoconfigure.platform;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.embabel.agent.spi.decision.LlmDecisionServiceFactory;
+import com.embabel.common.ai.classification.ClassificationService;
 import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.model.NoSuitableModelException;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.support.BeanDefinitionBuilder;
+import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.boot.LazyInitializationBeanFactoryPostProcessor;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.context.properties.bind.UnboundConfigurationPropertiesException;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.env.SystemEnvironmentPropertySource;
 
@@ -151,6 +162,126 @@ class LlmDecisionServicesAutoConfigurationTest {
                     assertThat(context).hasNotFailed();
                     assertThat(context.getBean("triage", DecisionService.class)).isSameAs(triage);
                 });
+    }
+
+    @Nested
+    class ApplicationBeans {
+
+        private final String[] reviewAndTriage = {
+                "embabel.agent.platform.decisions.llm.services.llm-review.llm=missing",
+                "embabel.agent.platform.decisions.llm.services.triage.llm=small-model",
+        };
+
+        @Test
+        void anApplicationBeanWithAConfiguredKeyReplacesThatDefinition() {
+            runner.withUserConfiguration(ApplicationReviewService.class)
+                    .withPropertyValues(reviewAndTriage)
+                    .run(context -> {
+                        assertThat(context).hasNotFailed();
+                        assertThat(context.getBean("llm-review")).isSameAs(ApplicationReviewService.REVIEW);
+                    });
+        }
+
+        @Test
+        void aConfiguredKeyWithoutAnApplicationBeanIsStillBuilt() {
+            runner.withUserConfiguration(ApplicationReviewService.class)
+                    .withPropertyValues(reviewAndTriage)
+                    .run(context -> {
+                        assertThat(context).hasNotFailed();
+                        assertThat(context.getBean("triage", DecisionService.class)).isSameAs(triage);
+                    });
+        }
+
+        @Test
+        void aSkippedDefinitionIsLoggedOnceAtInfo() {
+            var logger = (Logger) LoggerFactory.getLogger(LlmDecisionServicesRegistrar.class);
+            var appender = new ListAppender<ILoggingEvent>();
+            appender.start();
+            logger.addAppender(appender);
+            try {
+                runner.withUserConfiguration(ApplicationReviewService.class)
+                        .withPropertyValues(reviewAndTriage)
+                        .run(context -> assertThat(context).hasNotFailed());
+            } finally {
+                logger.detachAppender(appender);
+                appender.stop();
+            }
+            assertThat(appender.list)
+                    .filteredOn(event -> event.getLevel() == Level.INFO)
+                    .extracting(ILoggingEvent::getFormattedMessage)
+                    .containsExactly(
+                            "Decision service 'llm-review' is defined by the application; its configured definition is skipped");
+        }
+
+        @Test
+        void aKeyAlsoConfiguredAsATypeSafeServiceFailsStartupNamingBothProperties() {
+            var typeSafe = "embabel.agent.platform.models.typesafe.services.llm-review";
+            runner.withInitializer(context -> {
+                        var definition = BeanDefinitionBuilder
+                                .genericBeanDefinition(DecisionService.class, () -> mock(DecisionService.class))
+                                .getBeanDefinition();
+                        definition.setAttribute(LlmDecisionServicesRegistrar.CONFIGURED_SERVICE_ATTRIBUTE, typeSafe);
+                        ((BeanDefinitionRegistry) context).registerBeanDefinition("llm-review", definition);
+                    })
+                    .withPropertyValues(reviewAndTriage)
+                    .run(context -> assertThat(illegalState(context).getMessage())
+                            .contains("embabel.agent.platform.decisions.llm.services.llm-review", typeSafe, "Rename one of the keys"));
+        }
+
+        @Test
+        void aKeyNamingABeanThatIsNotAServiceFailsStartupNamingTheBean() {
+            runner.withBean("llm-review", StringBuilder.class, StringBuilder::new)
+                    .withPropertyValues(reviewAndTriage)
+                    .run(context -> assertThat(illegalState(context).getMessage())
+                            .contains(
+                                    "embabel.agent.platform.decisions.llm.services.llm-review",
+                                    "'llm-review' of type java.lang.StringBuilder",
+                                    "Rename the key"));
+        }
+
+        @Test
+        void aKeyNamingAnApplicationBeanMethodReturningAServiceIsSkippedWithoutCreatingIt() {
+            LazyReviewService.created = false;
+            runner.withUserConfiguration(LazyReviewService.class)
+                    .withPropertyValues(reviewAndTriage)
+                    .run(context -> {
+                        assertThat(context).hasNotFailed();
+                        assertThat(LazyReviewService.created).isFalse();
+                        assertThat(context.getBean("triage", DecisionService.class)).isSameAs(triage);
+                    });
+        }
+
+        @Test
+        void configuredDefinitionsCarryTheirPropertyPath() {
+            runner.withPropertyValues("embabel.agent.platform.decisions.llm.services.triage.llm=small-model")
+                    .run(context -> assertThat(context.getBeanFactory().getBeanDefinition("triage")
+                            .getAttribute(LlmDecisionServicesRegistrar.CONFIGURED_SERVICE_ATTRIBUTE))
+                            .isEqualTo("embabel.agent.platform.decisions.llm.services.triage"));
+        }
+    }
+
+    /** Supplies an application decision service under a key that is also configured. */
+    static class ApplicationReviewService {
+
+        static final DecisionService REVIEW = mock(DecisionService.class);
+
+        @Bean("llm-review")
+        DecisionService review() {
+            return REVIEW;
+        }
+    }
+
+    /** Declares a lazy classification service under a configured key and records its creation. */
+    static class LazyReviewService {
+
+        static volatile boolean created;
+
+        @Bean("llm-review")
+        @Lazy
+        ClassificationService review() {
+            created = true;
+            return mock(ClassificationService.class);
+        }
     }
 
     private static List<Throwable> failures(AssertableApplicationContext context) {
