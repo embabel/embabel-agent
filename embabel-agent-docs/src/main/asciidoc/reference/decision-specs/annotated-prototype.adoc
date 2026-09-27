@@ -272,7 +272,7 @@ The table records the placements on a `data class` constructor `val`, read with 
 
 |`@param:` and `@field:` together
 |Constructor parameter, `copy()` parameter and private backing field
-|Rejected on the field, as for `@field:`.
+|Reads. The parser skips the field because it carries the same question annotations as the constructor parameter.
 
 |`@property:`
 |None
@@ -290,7 +290,7 @@ include::../../../../../../embabel-agent-common/embabel-agent-decision-annotatio
 ----
 
 Kotlin 2.2 warns that a later default will apply an annotation without a use-site target to the backing field as well.
-That placement matches the `@param:` and `@field:` row and is rejected.
+That placement matches the `@param:` and `@field:` row and reads.
 
 [[reference.decision-specs-annotated.evaluation]]
 ==== Evaluation
@@ -321,8 +321,8 @@ Each rule has a diagnostic that names the member and the fix.
 
 ===== Complexity
 
-The main code is 1,382 lines in nine Java files, 863 of them non-blank and outside comments.
-`DecisionTypeParser` holds 777 of the lines.
+The main code is 1,404 lines in nine Java files, 881 of them non-blank and outside comments.
+`DecisionTypeParser` holds 799 of the lines.
 `AnnotatedDecision` holds 200, `AnnotatedDecisions` 109, `AnnotatedDecisionException` 73, and the four annotations and `package-info` 223 together.
 The tests are 2,171 lines, most of them diagnostic cases.
 
@@ -345,7 +345,7 @@ The Kotlin data class rule reads the `kotlin.Metadata` annotation by name, so th
 * The merged-name check is strict. A property whose field, getter and setter have different Java names is rejected even where Jackson accepts it, for example `@JsonProperty("urgent") boolean urgentFlag` with `isUrgent()`. Creator parameters are left out of the check.
 * The parser depends on the Jackson introspection calls listed under Complexity. A Jackson upgrade needs the module tests to pass before release.
 * `project(response, otherProperties)` returns `T` alone. A public factory on `DecisionProjection` that takes a value would let it return `DecisionProjection<T>`. That change belongs to `embabel-agent-ai`.
-* Kotlin support depends on use-site targets and on the `copy()` rule. The parser rejects the placement of the later Kotlin default site, which adds the backing field.
+* Kotlin support depends on use-site targets and on two rules that skip Kotlin's repeated annotations: one for `copy()` parameters and one for the backing field.
 
 ===== Removal
 
@@ -362,7 +362,6 @@ The conditions for accepting it are:
 . Exclude the module from Maven Central publication and confirm the exclusion in a release dry run. The module sets `maven.deploy.skip`.
 . Review the Jackson introspection calls against the Jackson version the release uses.
 . Add a public factory to `DecisionProjection` so that `project(response, otherProperties)` returns `DecisionProjection<T>`.
-. Read a private backing field that carries the same annotation as the constructor parameter as part of the property, as the parser does for a record's private field. The later Kotlin default site then reads.
 . Name an owner and a consumer application, as the decision types require for promotion.
 
 Drop the module if no consumer application adopts it by the release that promotes the decision types.

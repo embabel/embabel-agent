@@ -48,6 +48,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
@@ -447,7 +448,8 @@ final class DecisionTypeParser {
                 }
             }
             for (Field field : current.getDeclaredFields()) {
-                if (field.isSynthetic() || componentFields.contains(field.getName()) || coverage.covers(field)) {
+                if (field.isSynthetic() || componentFields.contains(field.getName()) || coverage.covers(field)
+                    || isKotlinBackingField(current, field, byInternalName)) {
                     continue;
                 }
                 orphans.report(current, field.getName(), field, find(classInfo.fields(), field));
@@ -488,6 +490,26 @@ final class DecisionTypeParser {
             orphans.report(declaringClass, parameters[index].getName() + " (" + role + ")", parameters[index],
                 parameterOf(classInfo, executable, index));
         }
+    }
+
+    // Kotlin's later default site repeats a constructor parameter annotation on the private backing
+    // field. Jackson leaves that field out, but it is the same declaration, so it is skipped when its
+    // question annotations match the parameter's.
+    private static boolean isKotlinBackingField(
+        Class<?> owner, Field field, Map<String, BeanPropertyDefinition> byInternalName) {
+        BeanPropertyDefinition property = byInternalName.get(field.getName());
+        if (property == null || !Modifier.isPrivate(field.getModifiers()) || !isKotlinClass(owner)) {
+            return false;
+        }
+        List<Annotation> onField = questionAnnotationsOn(field);
+        for (Iterator<AnnotatedParameter> parameters = property.getConstructorParameters(); parameters.hasNext(); ) {
+            AnnotatedParameter parameter = parameters.next();
+            Executable creator = (Executable) parameter.getOwner().getAnnotated();
+            if (onField.equals(questionAnnotationsOn(creator.getParameters()[parameter.getIndex()]))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // A Kotlin data class generates copy() with the primary constructor's parameters and repeats each
