@@ -361,6 +361,35 @@ class DecisionResponseTest {
         }
 
         @Test
+        fun `the typed lookup rejects embedded options that differ from the question's under the same definition id`() {
+            val answers = answered().answers
+            val tampered = DecisionAnswer.Choice.create(
+                "department",
+                department().definitionId,
+                listOf(Category("billing", "Payments, invoicing, refunds"), Category("hacked", "Bugs, outages, integrations")),
+                ClassificationResult.Selected("hacked", jev),
+            )
+            val response = rebuild(listOf(answers[0], tampered, answers[2]))
+            assertSame(tampered, response.answer("department"))
+            assertRejected("'department'", "options differ from the question's") { response.answer(department()) }
+            assertSame(urgentYes, response.answer(urgent()))
+        }
+
+        @Test
+        fun `the typed lookup rejects embedded levels that differ from the question's under the same definition id`() {
+            val answers = answered().answers
+            val tampered = DecisionAnswer.Rating.create(
+                "frustration",
+                frustration().definitionId,
+                listOf(RatingLevel("Calm"), RatingLevel("Frustrated"), RatingLevel("Furious")),
+                RatingResult.Answered(jev, selectedLevelId = "Furious"),
+            )
+            val response = rebuild(listOf(answers[0], answers[1], tampered))
+            assertRejected("'frustration'", "levels differ from the question's") { response.answer(frustration()) }
+            assertSame(billing, response.answer(department()))
+        }
+
+        @Test
         fun `a dropped answer fails the spec id check with the expected and actual ids`() {
             val kept = answered().answers.drop(1)
             val actual = DefinitionIds.spec(kept.map { it.definitionId })

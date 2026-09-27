@@ -109,8 +109,9 @@ class DecisionJsonJavaTest {
     void aResponseWithADroppedAnswerIsRejected() {
         JsonMapper mapper = JsonMapper.builder().addModule(new DecisionJacksonModule()).build();
         String json = mapper.writeValueAsString(answered());
-        int start = json.indexOf(",\"frustration\":");
-        String dropped = json.substring(0, start) + "}}";
+        int start = json.indexOf(",{\"name\":\"frustration\"");
+        assertTrue(start > 0, json);
+        String dropped = json.substring(0, start) + "]}";
 
         var error = assertThrows(MismatchedInputException.class, () -> mapper.readValue(dropped, DecisionResponse.class));
         assertTrue(error.getMessage().contains("The answers do not match the response's spec"), error.getMessage());
