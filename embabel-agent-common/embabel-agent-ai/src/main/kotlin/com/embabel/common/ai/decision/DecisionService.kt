@@ -17,6 +17,7 @@ package com.embabel.common.ai.decision
 
 import com.embabel.common.ai.classification.ClassificationService
 import com.embabel.common.ai.classification.ClassificationServiceMetadata
+import com.embabel.common.ai.decision.spi.DecisionExecution
 import com.embabel.common.ai.model.ModelType
 import org.jetbrains.annotations.ApiStatus
 import tools.jackson.databind.annotation.JsonDeserialize
@@ -45,6 +46,56 @@ interface DecisionService : ClassificationService, DecisionServiceMetadata {
 
     /** Pure DECISION metadata snapshot; never serialize a live service in place of this value. */
     override fun metadata(): DecisionServiceMetadata = DecisionServiceMetadata.create(name, provider)
+
+    /**
+     * Returns what this service can accept.
+     *
+     * The default derives from the hook interfaces the service implements. Every service accepts
+     * proposition questions. `ChoiceAssessment` adds choice questions and `RatingAssessment` adds
+     * rating questions. The default declares no limits. Override this method to list the kinds a
+     * `NativeQuestionSetExecution` service answers, or to declare limits. Capabilities that claim a
+     * kind the service backs with neither its hook nor native execution make every affected request
+     * fail with an [IllegalStateException] before any provider call.
+     *
+     * @return this service's capabilities
+     */
+    fun capabilities(): DecisionCapabilities = DecisionExecution.defaultCapabilities(this)
+
+    /**
+     * Answers the questions of a spec against the given input. It behaves as [ask] with a request.
+     *
+     * @param input the text the model reasons over, which may be empty
+     * @param spec the questions to answer
+     * @return one answer per question, in spec order
+     * @throws com.embabel.common.ai.decision.UnsupportedDecisionException if this service cannot
+     * answer the spec. No provider call has been made.
+     */
+    fun ask(input: String, spec: DecisionSpec): DecisionResponse = ask(DecisionRequest.of(input, spec))
+
+    /**
+     * Answers a request.
+     *
+     * The whole request is checked against [capabilities] before any provider call. A service that
+     * implements `NativeQuestionSetExecution` answers the whole request in one call. Any other
+     * service answers each question in spec order: a proposition through `PropositionAssessment`
+     * when implemented and through [assess] otherwise, a choice through `ChoiceAssessment` and a
+     * rating through `RatingAssessment`. Provider failures come back as typed failure outcomes, and
+     * the remaining questions are still asked. A decorator routes this call through the shared
+     * execution path, so a delegate's own override of this method is not called through a
+     * decorator. A service customizes execution through [capabilities] and the hook interfaces.
+     *
+     * An interruption surfaces as an [InterruptedException] with the thread's interrupt flag set.
+     * The method declares no checked exception, so Java code cannot name `InterruptedException`
+     * in a `catch` clause around this call. Java callers catch `Exception` and test for
+     * `InterruptedException`, or check `Thread.currentThread().isInterrupted()` after a failure.
+     *
+     * @param request the input and the questions to answer
+     * @return one answer per question, in spec order
+     * @throws com.embabel.common.ai.decision.UnsupportedDecisionException if this service cannot
+     * answer the request. No provider call has been made.
+     * @throws InterruptedException if the thread is interrupted during the ask
+     */
+    fun ask(request: DecisionRequest): DecisionResponse = DecisionExecution.execute(this, request)
 }
 
 private data class DecisionServiceMetadataImpl(

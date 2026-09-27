@@ -17,27 +17,56 @@ package com.embabel.common.ai.model.observation
 
 import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
+import com.embabel.common.ai.decision.ChoiceQuestionSpec
+import com.embabel.common.ai.decision.DecisionAnswer
+import com.embabel.common.ai.decision.DecisionRequest
+import com.embabel.common.ai.decision.DecisionResponse
 import com.embabel.common.ai.decision.PropositionResult
+import com.embabel.common.ai.decision.RatingResult
+import com.embabel.common.ai.decision.UnsupportedDecisionException
+import io.micrometer.common.KeyValues
 import io.micrometer.observation.Observation
 import io.micrometer.observation.ObservationRegistry
 import org.jetbrains.annotations.ApiStatus
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CancellationException
 
-/** Shared call lifecycle for both service decorators, without retaining requests or results in telemetry. */
+// The observation name of every decision provider call except classify.
+private const val DECISION_OBSERVATION = "embabel.ai.decision"
+
+/**
+ * Shared call lifecycle for the service decorators, without retaining requests or results in telemetry.
+ *
+ * Provider calls emit `embabel.ai.classification` or `embabel.ai.decision` with the tag keys `operation`
+ * and `outcome` for every operation, so all meters under one name share one key set. A logical ask emits
+ * `embabel.ai.ask` with the keys `operation`, `outcome`, `service`, `provider` and `question_count`,
+ * all set on every ask. Every tag value comes from a fixed label set except `service`
+ * and `provider`. `service` is the answering service's own name and `provider` its provider. Both are
+ * bounded by configuration, so a service must not take its name from request or user data.
+ */
 @ApiStatus.Internal
 internal class ServiceCallObservation(private val registry: ObservationRegistry) {
     private enum class Operation(val observationName: String, val tag: String) {
         CLASSIFY("embabel.ai.classification", "classify"),
-        ASSESS("embabel.ai.decision", "assess"),
+        ASSESS(DECISION_OBSERVATION, "assess"),
+        ASK("embabel.ai.ask", "ask"),
+        ASK_NATIVE(DECISION_OBSERVATION, "ask_native"),
+        CHOOSE(DECISION_OBSERVATION, "choose"),
+        RATE(DECISION_OBSERVATION, "rate"),
     }
 
-    private enum class Outcome(val tag: String) {
+    // Outcomes that mark the observation with the stackless error marker although the call returned.
+    private enum class Outcome(val tag: String, val marksError: Boolean = false) {
         SELECTED("selected"),
         NO_MATCH("no_match"),
         INCONCLUSIVE("inconclusive"),
-        FAILURE("failure"),
+        FAILURE("failure", marksError = true),
+        INVALID_RESPONSE("invalid_response", marksError = true),
         ANSWERED("answered"),
+        COMPLETE("complete"),
+        PARTIAL("partial"),
+        REQUEST_FAILURE("request_failure", marksError = true),
+        UNSUPPORTED("unsupported"),
         EXCEPTION("exception"),
         CANCELLED("cancelled"),
         INTERRUPTED("interrupted"),
@@ -48,6 +77,7 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         OPEN_SCOPE("open_scope"),
         RECORD_OUTCOME("record_outcome"),
         RECORD_ERROR("record_error"),
+        RECORD_EVENT("record_event"),
         CLOSE_SCOPE("close_scope"),
         RESTORE_SCOPE("restore_scope"),
         STOP("stop"),
@@ -56,37 +86,86 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
     private class SafeFailure(outcome: Outcome) : RuntimeException(outcome.tag, null, false, false)
 
     fun classify(request: ClassificationRequest, work: () -> ClassificationResult): ClassificationResult =
-        observe(Operation.CLASSIFY, ::classificationOutcome) { request.spec.validate(work()) }
+        observe(Operation.CLASSIFY, ::classificationOutcome, validate = request.spec::validate, work = work)
 
-    fun assess(work: () -> PropositionResult): PropositionResult = observe(Operation.ASSESS, ::propositionOutcome, work)
+    fun assess(work: () -> PropositionResult): PropositionResult = observe(Operation.ASSESS, ::propositionOutcome, work = work)
 
     /**
-     * Runs the work inside the call scope and records only bounded diagnostics, however the call ends.
+     * Observes one logical ask as `embabel.ai.ask`. Provider calls made inside [work] become child
+     * observations. An [UnsupportedDecisionException] records the outcome `unsupported`. After every tag is
+     * final, each answer records one event named `answer.<kind>.<outcome>` whose contextual name is
+     * `<question name> <kind> <outcome>`. The meter handler counts it as
+     * `embabel.ai.ask.answer.<kind>.<outcome>` with the ask's tags, and tracing records the contextual
+     * name as a span event. Question names appear in contextual names only.
      *
-     * @param operation the call being observed
-     * @param outcomeOf turns the work's result into an outcome label
-     * @param work the service call
-     * @return the work's result
+     * @param service the answering service's own name
+     * @param provider the answering service's provider
+     * @param request the request, read only for its question count and spec id
+     * @param work the execution that produces the response
+     * @return the response [work] returned, unchanged
      */
-    private fun <T> observe(operation: Operation, outcomeOf: (T) -> Outcome, work: () -> T): T {
-        val observation = startObservation(operation)
+    fun ask(service: String, provider: String, request: DecisionRequest, work: () -> DecisionResponse): DecisionResponse {
+        val startTags = KeyValues.of(
+            SERVICE, service,
+            PROVIDER, provider,
+            QUESTION_COUNT, questionCountBucket(request.spec.questions.size),
+        )
+        return observe(
+            Operation.ASK,
+            ::responseOutcome,
+            startTags = startTags,
+            resultEvents = { answerEvents(request, it) },
+            work = work,
+        )
+    }
+
+    /** Observes one native question-set call as `embabel.ai.decision` with the operation `ask_native`. */
+    fun native(work: () -> DecisionResponse): DecisionResponse = observe(Operation.ASK_NATIVE, ::responseOutcome, work = work)
+
+    /**
+     * Observes one choice call as `embabel.ai.decision` with the operation `choose`. The selection is
+     * validated against [question], as `classify` validates against its request. A selection outside
+     * the question's options records the outcome `invalid_response`.
+     */
+    fun choose(question: ChoiceQuestionSpec, work: () -> ClassificationResult): ClassificationResult =
+        observe(Operation.CHOOSE, ::classificationOutcome, validate = question::validate, work = work)
+
+    /** Observes one rating call as `embabel.ai.decision` with the operation `rate`. */
+    fun rate(work: () -> RatingResult): RatingResult = observe(Operation.RATE, ::ratingOutcome, work = work)
+
+    /**
+     * Executes and validates inside the call scope, recording only bounded diagnostics on every
+     * completion. An [IllegalArgumentException] from [validate] means the provider's answer does not
+     * fit the request, and records the outcome `invalid_response`.
+     */
+    private fun <T> observe(
+        operation: Operation,
+        outcomeOf: (T) -> Outcome,
+        startTags: KeyValues = KeyValues.empty(),
+        resultEvents: (T) -> List<Observation.Event> = { emptyList() },
+        validate: (T) -> T = { it },
+        work: () -> T,
+    ): T {
+        val observation = startObservation(operation, startTags)
         val scope = observation?.let { openScope(it, operation) }
         var outcome = Outcome.EXCEPTION
+        var validating = false
         try {
-            return work().also {
+            val result = work()
+            validating = true
+            return validate(result).also {
+                validating = false
                 outcome = outcomeOf(it)
                 observation?.let { current ->
                     recordOutcome(current, operation, outcome)
-                    if (outcome == Outcome.FAILURE) recordError(current, operation, outcome)
+                    if (outcome.marksError) recordError(current, operation, outcome)
+                    resultEvents(it).forEach { event -> recordEvent(current, operation, event) }
                 }
             }
         } catch (failure: Throwable) {
-            outcome = when (failure) {
-                is InterruptedException -> Outcome.INTERRUPTED
-                // Providers report an interruption as a cancellation caused by it.
-                is CancellationException ->
-                    if (failure.cause is InterruptedException) Outcome.INTERRUPTED else Outcome.CANCELLED
-                else -> Outcome.EXCEPTION
+            outcome = when {
+                validating && failure is IllegalArgumentException -> Outcome.INVALID_RESPONSE
+                else -> thrownOutcome(operation, failure)
             }
             observation?.let {
                 recordOutcome(it, operation, outcome)
@@ -103,17 +182,21 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         }
     }
 
-    /**
-     * Starts the observation. A broken convention or handler cannot stop the provider call.
-     *
-     * @param operation the call being observed
-     * @return the started observation, or null if starting failed
-     */
-    private fun startObservation(operation: Operation): Observation? {
+    private fun thrownOutcome(operation: Operation, failure: Throwable): Outcome = when (failure) {
+        is UnsupportedDecisionException -> if (operation == Operation.ASK) Outcome.UNSUPPORTED else Outcome.EXCEPTION
+        is InterruptedException -> Outcome.INTERRUPTED
+        // Providers report an interruption as a cancellation caused by it.
+        is CancellationException -> if (failure.cause is InterruptedException) Outcome.INTERRUPTED else Outcome.CANCELLED
+        else -> Outcome.EXCEPTION
+    }
+
+    /** Start telemetry without allowing a broken convention or handler to prevent the provider call. */
+    private fun startObservation(operation: Operation, startTags: KeyValues): Observation? {
         var observation: Observation? = null
         return try {
             observation = Observation.createNotStarted(operation.observationName, registry)
                 .lowCardinalityKeyValue(OPERATION, operation.tag)
+                .lowCardinalityKeyValues(startTags)
             observation.start()
         } catch (_: Exception) {
             observation?.let { stop(it, operation) }
@@ -194,13 +277,16 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         }
     }
 
-    /**
-     * Tells handlers about an error with a stackless marker. The provider failure itself stays hidden and unchanged.
-     *
-     * @param observation the observation to mark
-     * @param operation the call being observed
-     * @param outcome the outcome the marker names
-     */
+    /** Record one answer event. A failing handler loses that event and leaves the call result unchanged. */
+    private fun recordEvent(observation: Observation, operation: Operation, event: Observation.Event) {
+        try {
+            observation.event(event)
+        } catch (_: Exception) {
+            logTelemetryFailure(operation, TelemetryPhase.RECORD_EVENT)
+        }
+    }
+
+    /** Notify handlers with a stackless marker without exposing or replacing the provider failure. */
     private fun recordError(observation: Observation, operation: Operation, outcome: Outcome) {
         try {
             observation.error(SafeFailure(outcome))
@@ -276,9 +362,57 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         is PropositionResult.Failure -> Outcome.FAILURE
     }
 
+    /** Map rating result variants to labels without inspecting provider evidence. */
+    private fun ratingOutcome(result: RatingResult): Outcome = when (result) {
+        is RatingResult.Answered -> Outcome.ANSWERED
+        is RatingResult.Inconclusive -> Outcome.INCONCLUSIVE
+        is RatingResult.Failure -> Outcome.FAILURE
+    }
+
+    /** A request failure outranks per-question failures. Any failed answer makes the response partial. */
+    private fun responseOutcome(response: DecisionResponse): Outcome = when {
+        response.requestFailure != null -> Outcome.REQUEST_FAILURE
+        response.answers.any { answerOutcome(it) == Outcome.FAILURE } -> Outcome.PARTIAL
+        else -> Outcome.COMPLETE
+    }
+
+    private fun answerOutcome(answer: DecisionAnswer): Outcome = when (answer) {
+        is DecisionAnswer.Proposition -> propositionOutcome(answer.outcome)
+        is DecisionAnswer.Choice -> classificationOutcome(answer.outcome)
+        is DecisionAnswer.Rating -> ratingOutcome(answer.outcome)
+    }
+
+    /**
+     * One event per answer, in spec order. Events are recorded only for a response to the request's
+     * spec, whose answer names are then the spec's question names.
+     */
+    private fun answerEvents(request: DecisionRequest, response: DecisionResponse): List<Observation.Event> {
+        if (response.definitionId != request.spec.definitionId) return emptyList()
+        return response.answers.map { answer ->
+            val kind = when (answer) {
+                is DecisionAnswer.Proposition -> "proposition"
+                is DecisionAnswer.Choice -> "choice"
+                is DecisionAnswer.Rating -> "rating"
+            }
+            val outcome = answerOutcome(answer).tag
+            Observation.Event.of("answer.$kind.$outcome", "${answer.name} $kind $outcome")
+        }
+    }
+
+    // Fixed buckets keep the tag bounded for any spec size.
+    private fun questionCountBucket(count: Int): String = when {
+        count <= 1 -> "1"
+        count <= 4 -> "2-4"
+        count <= 16 -> "5-16"
+        else -> "17+"
+    }
+
     private companion object {
         const val OPERATION = "operation"
         const val OUTCOME = "outcome"
+        const val SERVICE = "service"
+        const val PROVIDER = "provider"
+        const val QUESTION_COUNT = "question_count"
         val logger = LoggerFactory.getLogger(ServiceCallObservation::class.java)
     }
 }
