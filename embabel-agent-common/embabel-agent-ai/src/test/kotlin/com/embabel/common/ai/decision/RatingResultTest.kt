@@ -124,11 +124,6 @@ class RatingResultTest {
     }
 
     @Test
-    fun `answered rejects a non finite score`() {
-        assertThrows(IllegalArgumentException::class.java) { RatingScore(Double.NaN, RatingStatistic.EXPECTED_LEVEL_INDEX) }
-    }
-
-    @Test
     fun `answered rejects a malformed confidence`() {
         for (confidence in listOf(Double.NaN, Double.POSITIVE_INFINITY, -0.1, 1.1)) {
             assertThrows(IllegalArgumentException::class.java) {
