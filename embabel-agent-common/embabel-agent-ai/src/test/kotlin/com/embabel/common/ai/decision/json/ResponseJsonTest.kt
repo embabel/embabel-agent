@@ -585,6 +585,25 @@ class ResponseJsonTest {
         }
 
         @Test
+        fun `an explicit null in a required boolean or number is rejected`() {
+            assertRejects(
+                response(urgentAnswer("""{"status":"answered","answer":null,"provenance":$jevJson}"""), departmentAnswer(), frustrationAnswer()),
+                DecisionResponse::class.java,
+                "Cannot map `null`",
+            )
+            assertRejects(
+                """{"status":"answered","score":{"value":null,"statistic":"expected_level_index"},"provenance":$jevJson}""",
+                RatingResult::class.java,
+                "Cannot map `null`",
+            )
+            assertRejects(
+                """{"status":"answered","distribution":[{"levelId":"a","probability":null},{"levelId":"b","probability":1.0}],"provenance":$jevJson}""",
+                RatingResult::class.java,
+                "Cannot map `null`",
+            )
+        }
+
+        @Test
         fun `a malformed answer definition id is rejected`() {
             val json = response(
                 urgentAnswer().replace(urgent.definitionId, "d1-short"),
