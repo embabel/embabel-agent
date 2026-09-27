@@ -335,7 +335,7 @@ class DecisionResponse private constructor(
          * selection is not one of the question's options
          */
         fun answer(question: ChoiceQuestionSpec, outcome: ClassificationResult): Builder = add(question) {
-            DecisionAnswer.Choice.create(question.name, question.definitionId, question.options, question.validate(outcome))
+            DecisionAnswer.Choice.create(question.name, question.definitionId, question.options, outcome)
         }
 
         /**
@@ -350,7 +350,7 @@ class DecisionResponse private constructor(
          * does not fit the question's levels
          */
         fun answer(question: RatingQuestionSpec, outcome: RatingResult): Builder = add(question) {
-            DecisionAnswer.Rating.create(question.name, question.definitionId, question.levels, question.validate(outcome))
+            DecisionAnswer.Rating.create(question.name, question.definitionId, question.levels, outcome)
         }
 
         /**
