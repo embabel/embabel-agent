@@ -117,7 +117,8 @@ class LegacyDecisionServiceJavaTest {
         var service = new LegacyJavaService();
         var anger = Questions.named("anger").rating("How angry?").level("calm", "Calm").level("angry", "Angry").build();
 
-        assertThrows(UnsupportedOperationException.class, () -> service.ask("A customer email.", DecisionSpec.of(anger)));
+        var spec = DecisionSpec.of(anger);
+        assertThrows(UnsupportedOperationException.class, () -> service.ask("A customer email.", spec));
         assertEquals(0, service.assessCalls);
     }
 }
