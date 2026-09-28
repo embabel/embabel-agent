@@ -44,6 +44,7 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -57,6 +58,7 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.web.client.HttpServerErrorException
 import java.net.SocketTimeoutException
+import java.util.concurrent.CancellationException
 
 class LlmDecisionServiceAskTest {
 
@@ -172,12 +174,12 @@ class LlmDecisionServiceAskTest {
         }
 
         @Test
-        fun `an interruption is rethrown with the flag set and no further attempt`() {
+        fun `an interruption is thrown as a cancellation with the flag set and no further attempt`() {
             val interrupted = InterruptedException("stop")
             modelReplies() throws RuntimeException(interrupted)
             try {
-                val thrown = assertThrows<InterruptedException> { service.askNative(request) }
-                assertEquals(interrupted, thrown)
+                val thrown = assertThrows<CancellationException> { service.askNative(request) }
+                assertSame(interrupted, thrown.cause)
                 assertTrue(Thread.currentThread().isInterrupted)
                 assertEquals(1, interactions.size)
             } finally {

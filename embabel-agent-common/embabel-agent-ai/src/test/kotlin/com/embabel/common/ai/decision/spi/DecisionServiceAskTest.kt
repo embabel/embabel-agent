@@ -18,9 +18,9 @@ package com.embabel.common.ai.decision.spi
 import com.embabel.common.ai.classification.Category
 import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
-import com.embabel.common.ai.classification.classificationSpec
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
+import com.embabel.common.ai.classification.classificationSpec
 import com.embabel.common.ai.decision.ChoiceQuestionSpec
 import com.embabel.common.ai.decision.DecisionCapabilities
 import com.embabel.common.ai.decision.DecisionRequest
@@ -43,6 +43,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.util.EnumSet
+import java.util.concurrent.CancellationException
 
 class DecisionServiceAskTest {
 
@@ -363,10 +364,11 @@ class DecisionServiceAskTest {
                 ClassificationResult.Failure(FailureReason.UNAVAILABLE)
             })
             try {
-                val error = assertThrows(InterruptedException::class.java) {
+                val error = assertThrows(CancellationException::class.java) {
                     service.ask(DecisionRequest.of("An email.", team, anger, urgent))
                 }
                 assertTrue(error.message!!.contains("'anger'"))
+                assertTrue(error.cause is InterruptedException)
                 assertTrue(Thread.currentThread().isInterrupted)
                 assertEquals(listOf("classify"), service.calls)
             } finally {
