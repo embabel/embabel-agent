@@ -42,10 +42,10 @@ internal fun inputEnvelope(input: String): String = envelopeMapper.writeValueAsS
  */
 internal object PromptedClassification {
 
-    private val instructionsBeforeCategories = """
+    private val instructionsBeforeQuestion = """
         |Classify the text in the user message into exactly one of the categories below.
         |
-        |Categories:
+        |Question:
         """.trimMargin()
 
     private val instructionsAfterCategories = """
@@ -93,15 +93,15 @@ internal object PromptedClassification {
         }
 
     /**
-     * Builds the full instructions text for one classification request, joining the categories in
-     * after trimMargin so a line in a description that starts with '|' stays as written.
+     * Builds the full instructions text for one classification request. The question and the
+     * categories are joined in after trimMargin so a line in them that starts with '|' stays as written.
      *
-     * @param request the classification request with the categories to list
+     * @param request the classification request with the question and the categories to list
      * @return the system message text
      */
     private fun instructions(request: ClassificationRequest): String {
         val categories = request.categories.joinToString("\n") { "- ${it.id}: ${it.description}" }
-        return "$instructionsBeforeCategories\n$categories\n\n$instructionsAfterCategories"
+        return "$instructionsBeforeQuestion\n${request.instructions}\n\nCategories:\n$categories\n\n$instructionsAfterCategories"
     }
 
     /**

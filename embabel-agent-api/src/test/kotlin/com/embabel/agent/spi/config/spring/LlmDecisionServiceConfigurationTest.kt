@@ -89,6 +89,7 @@ class LlmDecisionServiceConfigurationTest {
 
     private val classification = ClassificationRequest(
         "My card was charged twice",
+        "Which team should handle this?",
         listOf(Category("billing", "Payments, invoices and refunds"), Category("technical", "Errors and outages")),
     )
 
