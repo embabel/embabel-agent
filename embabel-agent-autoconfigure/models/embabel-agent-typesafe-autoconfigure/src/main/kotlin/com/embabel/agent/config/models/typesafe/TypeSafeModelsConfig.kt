@@ -17,7 +17,7 @@ package com.embabel.agent.config.models.typesafe
 
 import com.embabel.agent.typesafe.TypeSafeClientOptions
 import com.embabel.agent.typesafe.TypeSafeModelFactory
-import com.embabel.common.ai.model.DecisionService
+import com.embabel.common.ai.decision.DecisionService
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier

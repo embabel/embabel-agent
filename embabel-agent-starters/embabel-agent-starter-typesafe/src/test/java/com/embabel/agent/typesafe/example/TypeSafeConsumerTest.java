@@ -22,9 +22,9 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.embabel.common.ai.classification.Category;
 import com.embabel.common.ai.classification.ClassificationRequest;
 import com.embabel.common.ai.classification.ClassificationResult;
+import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.decision.PropositionRequest;
 import com.embabel.common.ai.decision.PropositionResult;
-import com.embabel.common.ai.model.DecisionService;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
