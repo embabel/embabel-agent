@@ -17,12 +17,12 @@ package com.embabel.common.ai.decision.annotated.example;
 
 import com.embabel.common.ai.classification.ClassificationRequest;
 import com.embabel.common.ai.classification.ClassificationResult;
+import com.embabel.common.ai.classification.ClassificationService;
 import com.embabel.common.ai.classification.MappedClassificationResult;
 import com.embabel.common.ai.classification.ModelProvenance;
 import com.embabel.common.ai.decision.annotated.AnnotatedDecisions;
 import com.embabel.common.ai.decision.annotated.Classification;
 import com.embabel.common.ai.decision.annotated.Described;
-import com.embabel.common.ai.model.ClassificationService;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
