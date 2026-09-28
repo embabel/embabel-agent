@@ -170,8 +170,14 @@ class DecisionServiceRegistryConfiguration {
 
         private val logger = LoggerFactory.getLogger(DecisionServiceRegistryConfiguration::class.java)
 
-        // The unique or primary observation registry. With several and none primary, bindings
-        // cannot pick one, so one WARN names them and the registry observes on NOOP.
+        /**
+         * Picks the unique or primary observation registry. With several and none primary,
+         * bindings cannot pick one, so one WARN names them and the registry observes on NOOP.
+         *
+         * @param beanFactory bean factory to look up ObservationRegistry beans in
+         * @param registries the ObservationRegistry beans in the context
+         * @return the registry to use for decision observations
+         */
         private fun observationRegistry(
             beanFactory: ListableBeanFactory,
             registries: ObjectProvider<ObservationRegistry>,
@@ -189,8 +195,13 @@ class DecisionServiceRegistryConfiguration {
             return ObservationRegistry.NOOP
         }
 
-        // Service beans in definition order. Lazy and non-singleton beans are left uncreated unless
-        // something has already created them.
+        /**
+         * Collects the classification service beans in definition order. Lazy and non-singleton
+         * beans are left uncreated unless something has already created them.
+         *
+         * @param beanFactory bean factory to look up ClassificationService beans in
+         * @return each eligible bean name mapped to its service instance
+         */
         private fun serviceBeans(beanFactory: ListableBeanFactory): Map<String, ClassificationService> {
             val services = LinkedHashMap<String, ClassificationService>()
             beanFactory.getBeanNamesForType(ClassificationService::class.java)
@@ -211,7 +222,13 @@ class DecisionServiceRegistryConfiguration {
             return services
         }
 
-        // Why the bean must not be created now, or null when it can be.
+        /**
+         * Says why the bean must not be created now, or null when it can be.
+         *
+         * @param beanFactory bean factory holding the bean definition
+         * @param name the bean name to check
+         * @return the reason it must stay uncreated, or null if it can be created
+         */
         private fun deferral(beanFactory: ConfigurableListableBeanFactory, name: String): String? {
             if (!beanFactory.containsBeanDefinition(name) || beanFactory.containsSingleton(name)) return null
             val merged = beanFactory.getMergedBeanDefinition(name)
@@ -227,8 +244,14 @@ class DecisionServiceRegistryConfiguration {
             return if (merged.isLazyInit && lazyAnnotated) "marked @Lazy" else null
         }
 
-        // Maps every bean name to the name its instance registers under. An instance with several
-        // bean names takes its @Primary name, or else its first name.
+        /**
+         * Maps every bean name to the name its instance registers under. An instance with several
+         * bean names takes its @Primary name, or else its first name.
+         *
+         * @param beanFactory bean factory to check for @Primary bean definitions
+         * @param services each bean name mapped to its service instance
+         * @return every bean name mapped to its chosen registration name
+         */
         private fun registrationNames(
             beanFactory: ListableBeanFactory,
             services: Map<String, ClassificationService>,
@@ -255,6 +278,13 @@ class DecisionServiceRegistryConfiguration {
             return registrationNames
         }
 
+        /**
+         * Binds the default and role properties for one service family.
+         *
+         * @param binder the property binder for the environment
+         * @param prefix the family's configuration prefix
+         * @return the bound properties, or empty defaults if none are set
+         */
         private fun bindFamily(binder: Binder, prefix: String): FamilyProperties =
             binder.bind(prefix, Bindable.of(FamilyProperties::class.java)).orElse(FamilyProperties())
     }

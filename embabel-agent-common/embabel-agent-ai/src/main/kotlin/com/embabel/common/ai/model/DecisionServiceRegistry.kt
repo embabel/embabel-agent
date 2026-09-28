@@ -231,6 +231,13 @@ class DecisionServiceRegistry private constructor(
             return registry
         }
 
+        /**
+         * Reads `capabilities()` once for each decision service, for the registry's summary log.
+         *
+         * @param services the validated registrations to read capabilities from
+         * @return each decision service's registration name mapped to its capabilities
+         * @throws IllegalStateException when a decision service's capabilities() throws
+         */
         private fun capabilitiesOf(services: Map<String, ClassificationService>): Map<String, DecisionCapabilities> {
             val capabilities = LinkedHashMap<String, DecisionCapabilities>()
             services.forEach { (name, service) ->
@@ -250,6 +257,13 @@ class DecisionServiceRegistry private constructor(
             return Collections.unmodifiableMap(capabilities)
         }
 
+        /**
+         * Validates the registrations and turns them into a name-to-service map.
+         *
+         * @return the registered services, keyed by registration name
+         * @throws IllegalArgumentException when a name is blank, repeated, or the same instance is
+         * registered under two names
+         */
         private fun validatedServices(): Map<String, ClassificationService> {
             val services = LinkedHashMap<String, ClassificationService>()
             val namesByInstance = IdentityHashMap<ClassificationService, String>()
@@ -268,6 +282,18 @@ class DecisionServiceRegistry private constructor(
             return services
         }
 
+        /**
+         * Builds one family's eligible services, default and role bindings from the collected
+         * registrations.
+         *
+         * @param spec fixed text and property names for the family
+         * @param type the service type the family requires
+         * @param services the validated registrations
+         * @param eligible registration names eligible for this family
+         * @param defaults the family's default candidates from the builder
+         * @param roleBindings the family's role-to-name bindings from the builder
+         * @return the family, with its default left unresolved
+         */
         private fun <S : ClassificationService> family(
             spec: FamilySpec,
             type: Class<S>,
@@ -309,6 +335,17 @@ class DecisionServiceRegistry private constructor(
             )
         }
 
+        /**
+         * Fails unless the named service is registered and matches the family's required type.
+         *
+         * @param binding what is being bound, for the error message
+         * @param property the configuration property, for the error message
+         * @param name the registration name to check
+         * @param spec fixed text and property names for the family
+         * @param type the service type the family requires
+         * @param services the validated registrations
+         * @param registered every registration name, for the error message
+         */
         private fun requireEligible(
             binding: String,
             property: String,
@@ -338,6 +375,13 @@ class DecisionServiceRegistry private constructor(
     ) {
         val title: String = label.replaceFirstChar { it.uppercase() }
         val defaultProperty: String = "embabel.models.$label.default"
+
+        /**
+         * Builds the configuration property for one role of this family.
+         *
+         * @param role the role name
+         * @return the property path for that role
+         */
         fun roleProperty(role: String): String = "embabel.models.$label.roles.$role"
     }
 
@@ -356,6 +400,14 @@ class DecisionServiceRegistry private constructor(
         val defaultState: DefaultState,
         val candidates: List<String> = emptyList(),
     ) {
+        /**
+         * Resolves the family's default from the explicit default, then the eligible default
+         * candidates, then the eligible services, and returns a copy of this family with that
+         * resolution recorded.
+         *
+         * @param candidates the default candidate names offered to the registry
+         * @return a copy of this family with its default resolved
+         */
         fun withDefault(candidates: List<String>): Family<S> {
             val eligibleCandidates = candidates.filter { it in eligible }
             val state = when {
@@ -381,6 +433,12 @@ class DecisionServiceRegistry private constructor(
             return Family(spec, type, eligible, roles, explicitDefault, state, candidates)
         }
 
+        /**
+         * Describes how the family's default was resolved, or why it wasn't, for diagnostic
+         * messages.
+         *
+         * @return the description
+         */
         fun describeDefault(): String = when (val state = defaultState) {
             is DefaultState.Resolved -> "'${state.name}' (${state.source})"
             is DefaultState.Unresolved -> "none set; candidates considered: $candidates"
@@ -396,6 +454,12 @@ class DecisionServiceRegistry private constructor(
     ) : ServiceSelector<S> {
         private val spec = family.spec
 
+        /**
+         * Returns the family's resolved default service.
+         *
+         * @return the default service
+         * @throws ServiceSelectionException if no default could be resolved
+         */
         override fun defaultService(): S = when (val state = family.defaultState) {
             is DefaultState.Resolved -> lookup(state.name)
             is DefaultState.Unresolved -> throw ServiceSelectionException(
@@ -405,6 +469,14 @@ class DecisionServiceRegistry private constructor(
             )
         }
 
+        /**
+         * Returns the service registered under the given name.
+         *
+         * @param name the registration name to look up
+         * @return the named service
+         * @throws ServiceSelectionException if no service is registered under that name, or it
+         * doesn't belong to this family
+         */
         override fun named(name: String): S {
             val service = services[name] ?: throw ServiceSelectionException(
                 Reason.UNKNOWN_NAME,
@@ -423,6 +495,13 @@ class DecisionServiceRegistry private constructor(
             return family.type.cast(service)
         }
 
+        /**
+         * Returns the service bound to the given role in this family.
+         *
+         * @param role the role to resolve
+         * @return the bound service
+         * @throws ServiceSelectionException if no service is bound to that role
+         */
         override fun byRole(role: String): S {
             val name = family.roles[role] ?: throw ServiceSelectionException(
                 Reason.UNKNOWN_ROLE,
@@ -433,11 +512,27 @@ class DecisionServiceRegistry private constructor(
             return lookup(name)
         }
 
+        /**
+         * Returns the given service unchanged.
+         *
+         * @param service the service to use directly
+         * @return the same service
+         */
         override fun using(service: S): S = service
 
+        /**
+         * Casts the named registered service to this family's type.
+         *
+         * @param name the registration name to look up
+         * @return the service, cast to the family's type
+         */
         private fun lookup(name: String): S = family.type.cast(services.getValue(name))
     }
 
+    /**
+     * Logs one INFO summary of the built registry: its services, defaults, roles and candidates.
+     * Does nothing when INFO logging is disabled.
+     */
     private fun logSummary() {
         if (!logger.isInfoEnabled) return
         val entries = services.entries.joinToString(", ") { (name, service) ->
@@ -457,6 +552,12 @@ class DecisionServiceRegistry private constructor(
         )
     }
 
+    /**
+     * Formats a decision service's capabilities for the summary log.
+     *
+     * @param capabilities the capabilities to describe
+     * @return the description
+     */
     private fun describe(capabilities: DecisionCapabilities): String =
         "kinds ${capabilities.questionKinds}, " +
             "max questions ${capabilities.maxQuestions ?: "none"}, " +
