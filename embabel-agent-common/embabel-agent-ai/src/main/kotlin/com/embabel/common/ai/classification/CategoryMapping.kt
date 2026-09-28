@@ -23,17 +23,26 @@ import java.util.function.Function
  * value references are retained and may themselves be mutable. Values, including Class tokens,
  * never enter provider requests and are never instantiated or populated from model output.
  * Categories follow the supplied map's iteration order; pass an ordered map for stable provider order.
+ *
+ * @param instructions what the model is asked, for example "Which kind of animal is this?"
+ * @param values the categories and the value each one maps to
  */
 @ApiStatus.Experimental
-class CategoryMapping<T : Any>(values: Map<Category, T>) {
-    private val definition = ClassificationRequest("", values.keys.toList())
+class CategoryMapping<T : Any>(instructions: String, values: Map<Category, T>) {
+    private val definition = ClassificationRequest("", instructions, values.keys.toList())
     private val valuesById: Map<String, T> = java.util.Map.copyOf(values.mapKeys { it.key.id })
 
     /** The single source of category IDs and descriptions for requests and result mapping. */
     val categories: List<Category> get() = definition.categories
 
-    /** Create a provider-neutral request from this mapping's category domain. */
-    fun request(input: String): ClassificationRequest = ClassificationRequest(input, categories)
+    /**
+     * Returns a request that classifies the input with this mapping's instructions and categories.
+     *
+     * @param input the text to classify, which may be empty
+     * @return the request
+     */
+    fun request(input: String): ClassificationRequest =
+        ClassificationRequest(input, definition.instructions, categories)
 
     /** Resolve a valid selection, retaining non-selection variants and their evidence unchanged. */
     fun map(result: ClassificationResult): MappedClassificationResult<T> = when (result) {
@@ -50,9 +59,18 @@ class CategoryMapping<T : Any>(values: Map<Category, T>) {
         /**
          * Define categories from enum names in declaration order, never ordinal or toString.
          * Use an explicit mapping instead when IDs must survive enum constant renames.
+         *
+         * @param enumType the enum whose constants are the categories
+         * @param instructions what the model is asked
+         * @param description describes when each constant applies
+         * @return the mapping
          */
         @JvmStatic
-        fun <E : Enum<E>> fromEnum(enumType: Class<E>, description: Function<E, String>): CategoryMapping<E> =
-            CategoryMapping(enumType.enumConstants.associateBy { Category(it.name, description.apply(it)) })
+        fun <E : Enum<E>> fromEnum(
+            enumType: Class<E>,
+            instructions: String,
+            description: Function<E, String>,
+        ): CategoryMapping<E> =
+            CategoryMapping(instructions, enumType.enumConstants.associateBy { Category(it.name, description.apply(it)) })
     }
 }

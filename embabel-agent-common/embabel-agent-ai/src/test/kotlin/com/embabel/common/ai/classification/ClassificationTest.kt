@@ -33,7 +33,7 @@ class ClassificationTest {
         fun `request string excludes input and category descriptions`() {
             val input = "sensitive-input-sentinel"
             val description = "sensitive-category-description-sentinel"
-            val request = ClassificationRequest(input, listOf(Category("dog", description)))
+            val request = ClassificationRequest(input, QUESTION, listOf(Category("dog", description)))
             assertFalse(request.toString().contains(input))
             assertFalse(request.toString().contains(description))
         }
@@ -41,27 +41,47 @@ class ClassificationTest {
         @Test
         fun `reject malformed category domains`() {
             assertThrows(IllegalArgumentException::class.java) { Category(" ", "description") }
-            assertThrows(IllegalArgumentException::class.java) { ClassificationRequest("input", emptyList()) }
+            assertThrows(IllegalArgumentException::class.java) { ClassificationRequest("input", QUESTION, emptyList()) }
             assertThrows(IllegalArgumentException::class.java) {
-                ClassificationRequest("input", listOf(Category("dog", "first"), Category("dog", "second")))
+                ClassificationRequest("input", QUESTION, listOf(Category("dog", "first"), Category("dog", "second")))
             }
-            assertThrows(IllegalArgumentException::class.java) { CategoryMapping<Animal>(emptyMap()) }
+            assertThrows(IllegalArgumentException::class.java) { CategoryMapping<Animal>(QUESTION, emptyMap()) }
             assertThrows(IllegalArgumentException::class.java) {
-                CategoryMapping(mapOf(Category("dog", "first") to Animal.DOG, Category("dog", "second") to Animal.CAT))
+                CategoryMapping(QUESTION, mapOf(Category("dog", "first") to Animal.DOG, Category("dog", "second") to Animal.CAT))
             }
+        }
+
+        @Test
+        fun `blank instructions are rejected`() {
+            val categories = listOf(Category("dog", "Canine"))
+            for (blank in listOf("", "   ")) {
+                assertThrows(IllegalArgumentException::class.java) { ClassificationRequest("input", blank, categories) }
+                assertThrows(IllegalArgumentException::class.java) {
+                    CategoryMapping(blank, mapOf(Category("dog", "Canine") to Animal.DOG))
+                }
+            }
+        }
+
+        @Test
+        fun `mapping carries its instructions into every request`() {
+            val mapping = CategoryMapping.fromEnum(Animal::class.java, QUESTION) { "Description of ${it.name}" }
+            val request = mapping.request("woof")
+            assertEquals(QUESTION, request.instructions)
+            assertEquals("woof", request.input)
+            assertEquals(mapping.categories, request.categories)
         }
 
         @Test
         fun `collections are copied and cannot be mutated through exposed views`() {
             val categories = mutableListOf(Category("dog", "Canine"))
-            val request = ClassificationRequest("input", categories)
+            val request = ClassificationRequest("input", QUESTION, categories)
             categories.clear()
             assertEquals(1, request.categories.size)
             assertThrows(UnsupportedOperationException::class.java) {
                 (request.categories as MutableList<Category>).clear()
             }
             val entries = mutableMapOf(Category("dog", "Canine") to Animal.DOG)
-            val mapping = CategoryMapping(entries)
+            val mapping = CategoryMapping(QUESTION, entries)
             entries.clear()
             assertEquals(1, mapping.categories.size)
             assertThrows(UnsupportedOperationException::class.java) {
@@ -73,7 +93,7 @@ class ClassificationTest {
 
         @Test
         fun `enum mapping uses names and shares category definitions with requests`() {
-            val mapping = CategoryMapping.fromEnum(Animal::class.java) { "Description of ${it.name}" }
+            val mapping = CategoryMapping.fromEnum(Animal::class.java, QUESTION) { "Description of ${it.name}" }
             assertEquals(listOf("DOG", "CAT", "RABBIT"), mapping.categories.map { it.id })
             assertEquals(mapping.categories, mapping.request("woof").categories)
             val selected = mapping.request("woof").selected("DOG", provenance, 0.8)
@@ -87,7 +107,7 @@ class ClassificationTest {
     inner class Outcomes {
         @Test
         fun `unknown provider id fails at request and mapping boundaries`() {
-            val mapping = CategoryMapping(mapOf(Category("dog", "Canine") to Animal.DOG))
+            val mapping = CategoryMapping(QUESTION, mapOf(Category("dog", "Canine") to Animal.DOG))
             val request = mapping.request("woof")
             val invalid = ClassificationResult.Selected("cat", provenance)
             assertThrows(IllegalArgumentException::class.java) { request.selected("cat", provenance) }
@@ -111,7 +131,7 @@ class ClassificationTest {
 
         @Test
         fun `mapping retains distinct nonselection evidence unchanged`() {
-            val mapping = CategoryMapping(mapOf(Category("dog", "Canine") to Animal.DOG))
+            val mapping = CategoryMapping(QUESTION, mapOf(Category("dog", "Canine") to Animal.DOG))
             val outcomes = listOf(
                 ClassificationResult.NoMatch(provenance),
                 ClassificationResult.Inconclusive(provenance),
@@ -124,3 +144,5 @@ class ClassificationTest {
         }
     }
 }
+
+private const val QUESTION = "Which animal is this?"

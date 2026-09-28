@@ -28,13 +28,17 @@ data class Category(val id: String, val description: String) {
 /**
  * Text to classify against a closed, nonempty set of categories. The category list is copied
  * and immutable; it contains no application values or class tokens. Input may be empty.
+ *
+ * @property input the text to classify, which may be empty
+ * @property instructions what the model is asked, for example "Which kind of animal is this?"
  */
 @ApiStatus.Experimental
-class ClassificationRequest(val input: String, categories: List<Category>) {
+class ClassificationRequest(val input: String, val instructions: String, categories: List<Category>) {
     /** Canonical categories in caller order. IDs are unique within this request. */
     val categories: List<Category> = java.util.List.copyOf(categories)
 
     init {
+        require(instructions.isNotBlank()) { "Classification instructions must not be blank" }
         require(this.categories.isNotEmpty()) { "At least one category is required" }
         require(this.categories.map { it.id }.distinct().size == this.categories.size) { "Category IDs must be unique" }
     }

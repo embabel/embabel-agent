@@ -51,7 +51,7 @@ class DecisionObservationTest {
     private val telemetryFailureMessage = "telemetry failed"
     private val observationLoggerName = "com.embabel.common.ai.model.observation.ServiceCallObservation"
     private val provenance = ModelProvenance(secret, secret, secret, secret)
-    private val request = ClassificationRequest(secret, listOf(Category("dog", secret)))
+    private val request = ClassificationRequest(secret, secret, listOf(Category("dog", secret)))
     private val proposition = PropositionRequest(secret, secret)
 
     private class Recorder : ObservationHandler<Observation.Context> {
