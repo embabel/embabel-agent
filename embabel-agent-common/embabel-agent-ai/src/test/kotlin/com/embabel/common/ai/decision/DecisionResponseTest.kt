@@ -79,17 +79,15 @@ class DecisionResponseTest {
     inner class Building {
 
         @Test
-        fun `a built response carries the spec id and one answer per question in spec order`() {
+        fun `a built response carries one answer per question in spec order`() {
             val spec = triage()
             val response = DecisionResponse.builder(spec)
                 .answer(frustration(), frustrated)
                 .answer(urgent(), urgentYes)
                 .answer(department(), billing)
                 .build()
-            assertEquals(spec.definitionId, response.definitionId)
             assertNull(response.requestFailure)
             assertEquals(listOf("is_urgent", "department", "frustration"), response.answers.map { it.name })
-            assertEquals(spec.questions.map { it.definitionId }, response.answers.map { it.definitionId })
             assertEquals(spec.questions.map { it.kind }, response.answers.map { it.kind })
         }
 
@@ -288,24 +286,64 @@ class DecisionResponseTest {
         }
 
         @Test
-        fun `changed instructions are rejected as definition drift`() {
-            val drifted = urgent("Is this urgent?")
-            val error = assertRejected("'is_urgent'", "different definition") { answered().answer(drifted) }
-            assertTrue(error.message!!.contains(urgent().definitionId))
-            assertTrue(error.message!!.contains(drifted.definitionId))
+        fun `reworded instructions still match because an answer holds no instructions`() {
+            assertSame(urgentYes, answered().answer(urgent("Is this urgent?")))
         }
 
         @Test
-        fun `a changed option description is rejected as definition drift`() {
-            assertRejected("'department'", "different definition") {
+        fun `a changed option description is rejected with the option named`() {
+            val error = assertRejected("Answer 'department' does not fit the question", "different descriptions", "'billing'") {
                 answered().answer(department(billing = "Money matters"))
+            }
+            assertFalse(error.message!!.contains("'technical'"), error.message)
+        }
+
+        @Test
+        fun `a changed option list is rejected with both lists of ids`() {
+            val sales = Questions.named("department")
+                .choice("Which team should handle this?")
+                .option("billing", "Payments, invoicing, refunds")
+                .option("sales", "New business")
+                .build()
+            assertRejected(
+                "Answer 'department' does not fit the question",
+                "its options are 'billing', 'technical' and the question's are 'billing', 'sales'",
+            ) { answered().answer(sales) }
+        }
+
+        @Test
+        fun `a changed level list is rejected with both lists of ids`() {
+            val shorter = Questions.named("frustration")
+                .rating("How frustrated is the customer?")
+                .level("Calm")
+                .level("Very angry")
+                .build()
+            assertRejected(
+                "Answer 'frustration' does not fit the question",
+                "its levels are 'Calm', 'Frustrated', 'Very angry' and the question's are 'Calm', 'Very angry'",
+            ) { answered().answer(shorter) }
+        }
+
+        @Test
+        fun `a changed level description is rejected with the level named`() {
+            val described = Questions.named("frustration")
+                .rating("How frustrated is the customer?")
+                .level("Calm")
+                .level("Frustrated", "Clearly annoyed")
+                .level("Very angry")
+                .build()
+            assertRejected("Answer 'frustration' does not fit the question", "different descriptions", "'Frustrated'") {
+                answered().answer(described)
             }
         }
 
         @Test
         fun `a question of another kind is rejected`() {
             val wrongKind = Questions.named("department").proposition("Is this for a department?").build()
-            assertRejected("'department'", "choice", "proposition") { answered().answer(wrongKind) }
+            assertRejected(
+                "Answer 'department' does not fit the question",
+                "it is a choice answer and the question is a proposition question",
+            ) { answered().answer(wrongKind) }
         }
 
         @Test
@@ -322,7 +360,6 @@ class DecisionResponseTest {
         fun `failed gives every question a failure of its kind and records the request failure`() {
             val spec = triage()
             val response = DecisionResponse.failed(spec, FailureReason.UNAVAILABLE)
-            assertEquals(spec.definitionId, response.definitionId)
             assertEquals(FailureReason.UNAVAILABLE, response.requestFailure)
             assertEquals(listOf("is_urgent", "department", "frustration"), response.answers.map { it.name })
             assertEquals(PropositionResult.Failure(FailureReason.UNAVAILABLE), response.answer(urgent()))
@@ -338,18 +375,17 @@ class DecisionResponseTest {
 
         private fun rebuild(
             answers: List<DecisionAnswer>,
-            definitionId: String = triage().definitionId,
             requestFailure: FailureReason? = null,
-        ): DecisionResponse = DecisionResponse.create(definitionId, requestFailure, answers)
+        ): DecisionResponse = DecisionResponse.create(requestFailure, answers)
 
         @Test
         fun `the internal factory rebuilds an equal response from its parts`() {
             val original = answered()
             val parts = original.answers.map {
                 when (it) {
-                    is DecisionAnswer.Proposition -> DecisionAnswer.Proposition.create(it.name, it.definitionId, it.outcome)
-                    is DecisionAnswer.Choice -> DecisionAnswer.Choice.create(it.name, it.definitionId, it.options, it.outcome)
-                    is DecisionAnswer.Rating -> DecisionAnswer.Rating.create(it.name, it.definitionId, it.levels, it.outcome)
+                    is DecisionAnswer.Proposition -> DecisionAnswer.Proposition.create(it.name, it.outcome)
+                    is DecisionAnswer.Choice -> DecisionAnswer.Choice.create(it.name, it.options, it.outcome)
+                    is DecisionAnswer.Rating -> DecisionAnswer.Rating.create(it.name, it.levels, it.outcome)
                 }
             }
             val rebuilt = rebuild(parts)
@@ -359,45 +395,37 @@ class DecisionResponseTest {
         }
 
         @Test
-        fun `the typed lookup rejects embedded options that differ from the question's under the same definition id`() {
+        fun `the typed lookup rejects embedded options that differ from the question's`() {
             val answers = answered().answers
             val tampered = DecisionAnswer.Choice.create(
                 "department",
-                department().definitionId,
                 listOf(Category("billing", "Payments, invoicing, refunds"), Category("hacked", "Bugs, outages, integrations")),
                 ClassificationResult.Selected("hacked", jev),
             )
             val response = rebuild(listOf(answers[0], tampered, answers[2]))
             assertSame(tampered, response.answer("department"))
-            assertRejected("'department'", "options differ from the question's") { response.answer(department()) }
+            assertRejected("'department'", "its options are 'billing', 'hacked'") { response.answer(department()) }
             assertSame(urgentYes, response.answer(urgent()))
         }
 
         @Test
-        fun `the typed lookup rejects embedded levels that differ from the question's under the same definition id`() {
+        fun `the typed lookup rejects embedded levels that differ from the question's`() {
             val answers = answered().answers
             val tampered = DecisionAnswer.Rating.create(
                 "frustration",
-                frustration().definitionId,
                 listOf(RatingLevel("Calm"), RatingLevel("Frustrated"), RatingLevel("Furious")),
                 RatingResult.Answered(jev, selectedLevelId = "Furious"),
             )
             val response = rebuild(listOf(answers[0], answers[1], tampered))
-            assertRejected("'frustration'", "levels differ from the question's") { response.answer(frustration()) }
+            assertRejected("'frustration'", "its levels are 'Calm', 'Frustrated', 'Furious'") { response.answer(frustration()) }
             assertSame(billing, response.answer(department()))
         }
 
         @Test
-        fun `a dropped answer fails the spec id check with the expected and actual ids`() {
-            val kept = answered().answers.drop(1)
-            val actual = DefinitionIds.spec(kept.map { it.definitionId })
-            assertRejected(triage().definitionId, actual) { rebuild(kept) }
-        }
-
-        @Test
-        fun `a swapped pair fails the spec id check`() {
+        fun `answers are checked one by one and a partial or reordered response still builds`() {
             val (first, second, third) = answered().answers
-            assertRejected(triage().definitionId) { rebuild(listOf(second, first, third)) }
+            assertEquals(listOf("department", "frustration"), rebuild(listOf(second, third)).answers.map { it.name })
+            assertEquals(listOf("department", "is_urgent", "frustration"), rebuild(listOf(second, first, third)).answers.map { it.name })
         }
 
         @Test
@@ -408,7 +436,7 @@ class DecisionResponseTest {
 
         @Test
         fun `a response needs at least one answer`() {
-            assertRejected("at least one answer") { rebuild(emptyList(), DefinitionIds.spec(emptyList())) }
+            assertRejected("at least one answer") { rebuild(emptyList()) }
         }
 
         @Test
@@ -444,7 +472,6 @@ class DecisionResponseTest {
             assertRejected("'department'", "not one of its options") {
                 DecisionAnswer.Choice.create(
                     "department",
-                    department().definitionId,
                     department().options,
                     ClassificationResult.Selected("sales", jev),
                 )
@@ -454,11 +481,11 @@ class DecisionResponseTest {
         @Test
         fun `a choice answer needs unique options`() {
             assertRejected("'department'", "at least one option") {
-                DecisionAnswer.Choice.create("department", department().definitionId, emptyList(), billing)
+                DecisionAnswer.Choice.create("department", emptyList(), billing)
             }
             val repeated = listOf(Category("billing", "One"), Category("billing", "Two"))
             assertRejected("'department'", "'billing'") {
-                DecisionAnswer.Choice.create("department", department().definitionId, repeated, billing)
+                DecisionAnswer.Choice.create("department", repeated, billing)
             }
         }
 
@@ -468,7 +495,6 @@ class DecisionResponseTest {
             assertRejected("must not be blank") {
                 DecisionAnswer.Choice.create(
                     "department",
-                    department().definitionId,
                     listOf(Category(" ", "Unnamed"), Category("billing", "Payments")),
                     ClassificationResult.NoMatch(jev),
                 )
@@ -476,7 +502,6 @@ class DecisionResponseTest {
             assertRejected("must not be blank") {
                 DecisionAnswer.Rating.create(
                     "frustration",
-                    frustration().definitionId,
                     listOf(RatingLevel("", "Unnamed"), RatingLevel("Calm")),
                     RatingResult.Inconclusive(jev),
                 )
@@ -488,7 +513,6 @@ class DecisionResponseTest {
             assertRejected("'frustration'", "not one of its levels") {
                 DecisionAnswer.Rating.create(
                     "frustration",
-                    frustration().definitionId,
                     frustration().levels,
                     RatingResult.Answered(jev, selectedLevelId = "Furious"),
                 )
@@ -500,7 +524,6 @@ class DecisionResponseTest {
             assertRejected("'frustration'", "last level index 1") {
                 DecisionAnswer.Rating.create(
                     "frustration",
-                    frustration().definitionId,
                     listOf(RatingLevel("Calm"), RatingLevel("Angry")),
                     RatingResult.Answered(jev, score = RatingScore(1.5, RatingStatistic.EXPECTED_LEVEL_INDEX)),
                 )
@@ -511,13 +534,12 @@ class DecisionResponseTest {
         fun `a rating answer needs at least two unique levels`() {
             assertRejected("'frustration'", "at least two levels") {
                 DecisionAnswer.Rating.create(
-                    "frustration", frustration().definitionId, listOf(RatingLevel("Calm")), frustrated,
+                    "frustration", listOf(RatingLevel("Calm")), frustrated,
                 )
             }
             assertRejected("'frustration'", "'Calm'") {
                 DecisionAnswer.Rating.create(
                     "frustration",
-                    frustration().definitionId,
                     listOf(RatingLevel("Calm"), RatingLevel("Calm", "Relaxed")),
                     RatingResult.Inconclusive(jev),
                 )
@@ -525,25 +547,102 @@ class DecisionResponseTest {
         }
 
         @Test
-        fun `an answer needs a name and a definition id`() {
-            assertRejected("name") { DecisionAnswer.Proposition.create(" ", urgent().definitionId, urgentYes) }
-            assertRejected("'is_urgent'", "definition id") { DecisionAnswer.Proposition.create("is_urgent", "", urgentYes) }
+        fun `an answer needs a name`() {
+            assertRejected("name") { DecisionAnswer.Proposition.create(" ", urgentYes) }
+        }
+    }
+
+    @Nested
+    inner class SpecMatch {
+
+        private fun rebuild(answers: List<DecisionAnswer>): DecisionResponse = DecisionResponse.create(null, answers)
+
+        private val salesDepartment: ChoiceQuestionSpec = Questions.named("department")
+            .choice("Which team should handle this?")
+            .option("billing", "Payments, invoicing, refunds")
+            .option("sales", "New business")
+            .build()
+
+        @Test
+        fun `a response matches the spec that built it and an equal rebuilt spec`() {
+            answered().requireMatches(triage())
+            DecisionResponse.failed(triage(), FailureReason.UNAVAILABLE).requireMatches(triage())
         }
 
         @Test
-        fun `an answer definition id must have the question id shape`() {
-            for (id in listOf("garbage", "d1-short", triage().definitionId, urgent().definitionId + "x")) {
-                assertRejected("'is_urgent'", "not a question id") {
-                    DecisionAnswer.Proposition.create("is_urgent", id, urgentYes)
-                }
+        fun `a missing answer is named`() {
+            val response = rebuild(answered().answers.drop(1))
+            val error = assertRejected("does not match the spec", "Missing: 'is_urgent'.") { response.requireMatches(triage()) }
+            assertFalse(error.message!!.contains("Extra"), error.message)
+        }
+
+        @Test
+        fun `an extra answer is named`() {
+            val response = answered()
+            assertRejected("does not match the spec", "Extra: 'frustration'.") {
+                response.requireMatches(DecisionSpec.of(urgent(), department()))
             }
         }
 
         @Test
-        fun `a response definition id must have the spec id shape`() {
-            for (id in listOf("garbage", urgent().definitionId)) {
-                assertRejected("'$id'", "not a spec id") { rebuild(answered().answers, definitionId = id) }
+        fun `a missing and an extra answer are both named`() {
+            val tone = Questions.named("tone").proposition("Is the tone polite?").build()
+            assertRejected("Missing: 'tone'.", "Extra: 'frustration'.") {
+                answered().requireMatches(DecisionSpec.of(urgent(), department(), tone))
             }
+        }
+
+        @Test
+        fun `reordered answers are rejected with both orders`() {
+            val (first, second, third) = answered().answers
+            val response = rebuild(listOf(second, first, third))
+            assertRejected(
+                "different order",
+                "Answers: 'department', 'is_urgent', 'frustration'.",
+                "Questions: 'is_urgent', 'department', 'frustration'.",
+            ) { response.requireMatches(triage()) }
+        }
+
+        @Test
+        fun `changed options are rejected with the answer named`() {
+            assertRejected("does not match the spec", "Answer 'department':", "the question's are 'billing', 'sales'") {
+                answered().requireMatches(DecisionSpec.of(urgent(), salesDepartment, frustration()))
+            }
+        }
+
+        @Test
+        fun `changed levels are rejected with the answer named`() {
+            val scale = Questions.named("frustration")
+                .rating("How frustrated is the customer?")
+                .level("Calm")
+                .level("Frustrated")
+                .level("Furious")
+                .build()
+            assertRejected("Answer 'frustration':", "the question's are 'Calm', 'Frustrated', 'Furious'") {
+                answered().requireMatches(DecisionSpec.of(urgent(), department(), scale))
+            }
+        }
+
+        @Test
+        fun `an answer of the wrong kind is rejected`() {
+            val asProposition = Questions.named("department").proposition("Is this for a department?").build()
+            assertRejected("Answer 'department':", "it is a choice answer and the question is a proposition question") {
+                answered().requireMatches(DecisionSpec.of(urgent(), asProposition, frustration()))
+            }
+        }
+
+        @Test
+        fun `every mismatched answer is reported`() {
+            val asRating = Questions.named("is_urgent").rating("How urgent is it?").level("Low").level("High").build()
+            val error = assertRejected("Answer 'is_urgent':", "Answer 'department':") {
+                answered().requireMatches(DecisionSpec.of(asRating, salesDepartment, frustration()))
+            }
+            assertFalse(error.message!!.contains("'frustration'"), error.message)
+        }
+
+        @Test
+        fun `reworded instructions are not detected`() {
+            answered().requireMatches(DecisionSpec.of(urgent("Is this urgent?"), department(), frustration()))
         }
     }
 
@@ -566,16 +665,13 @@ class DecisionResponseTest {
                 .build()
             assertNotEquals(answered(), other)
             val unavailable = DecisionResponse.failed(triage(), FailureReason.UNAVAILABLE)
-            assertNotEquals(unavailable, DecisionResponse.create(
-                unavailable.definitionId, null, unavailable.answers,
-            ))
+            assertNotEquals(unavailable, DecisionResponse.create(null, unavailable.answers))
         }
 
         @Test
-        fun `toString names the spec id, the request failure and the answers`() {
+        fun `toString names the request failure and the answers`() {
             val text = answered().toString()
             assertTrue(text.contains("is_urgent") && text.contains("department") && text.contains("frustration"), text)
-            assertTrue(text.contains(triage().definitionId), text)
             assertTrue(text.contains("requestFailure=null"), text)
         }
     }

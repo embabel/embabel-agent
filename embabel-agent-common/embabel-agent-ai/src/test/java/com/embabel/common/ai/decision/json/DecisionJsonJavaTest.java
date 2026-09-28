@@ -29,7 +29,6 @@ import com.embabel.common.ai.decision.RatingQuestionSpec;
 import com.embabel.common.ai.decision.RatingResult;
 
 import org.junit.jupiter.api.Test;
-import tools.jackson.databind.DatabindException;
 import tools.jackson.databind.json.JsonMapper;
 
 class DecisionJsonJavaTest {
@@ -80,7 +79,6 @@ class DecisionJsonJavaTest {
         // end::jackson[]
 
         assertEquals(spec, specRead);
-        assertEquals(spec.getDefinitionId(), specRead.getDefinitionId());
         assertEquals(response, responseRead);
         assertEquals(new ClassificationResult.Selected("billing", JEV, 0.91), team);
         assertFalse(responseJson.contains("instructions"));
@@ -103,14 +101,15 @@ class DecisionJsonJavaTest {
     }
 
     @Test
-    void aResponseWithADroppedAnswerIsRejected() {
+    void aResponseWithADroppedAnswerReadsButFailsTheSpecCheck() {
         JsonMapper mapper = JsonMapper.builder().build();
         String json = mapper.writeValueAsString(answered());
         int start = json.indexOf(",{\"name\":\"frustration\"");
         assertTrue(start > 0, json);
         String dropped = json.substring(0, start) + "]}";
 
-        var error = assertThrows(DatabindException.class, () -> mapper.readValue(dropped, DecisionResponse.class));
-        assertTrue(error.getMessage().contains("The answers do not match the response's spec"), error.getMessage());
+        DecisionResponse read = mapper.readValue(dropped, DecisionResponse.class);
+        var error = assertThrows(IllegalArgumentException.class, () -> read.requireMatches(spec));
+        assertTrue(error.getMessage().contains("Missing: 'frustration'"), error.getMessage());
     }
 }

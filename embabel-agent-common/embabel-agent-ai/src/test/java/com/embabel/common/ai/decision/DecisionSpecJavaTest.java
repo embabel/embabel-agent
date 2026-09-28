@@ -61,7 +61,6 @@ class DecisionSpecJavaTest {
         var frustration = assertInstanceOf(RatingQuestionSpec.class, triage.question("frustration"));
         assertEquals(3, frustration.getLevels().size());
         assertNull(triage.question("missing"));
-        assertTrue(triage.getDefinitionId().startsWith("s1-"));
     }
 
     @Test
@@ -91,7 +90,6 @@ class DecisionSpecJavaTest {
             .build();
 
         assertEquals(triage, declared);
-        assertEquals(triage.getDefinitionId(), declared.getDefinitionId());
         assertEquals(triage, DecisionSpec.of(List.of(urgent, department)));
         assertEquals(triage, DecisionSpec.builder().question(urgent).question(department).build());
         assertSame(urgent, triage.question("is_urgent"));

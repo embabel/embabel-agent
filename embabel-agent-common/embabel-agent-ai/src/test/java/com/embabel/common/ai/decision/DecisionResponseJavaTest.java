@@ -104,7 +104,6 @@ class DecisionResponseJavaTest {
         assertEquals("billing", route);
         if (response.answer("department") instanceof DecisionAnswer.Choice choice) {
             assertEquals(department.getOptions(), choice.getOptions());
-            assertEquals(department.getDefinitionId(), choice.getDefinitionId());
             assertEquals(QuestionKind.CHOICE, choice.getKind());
         } else {
             fail("department should be a choice answer");
@@ -117,9 +116,23 @@ class DecisionResponseJavaTest {
         var unknown = assertThrows(IllegalArgumentException.class, () -> response.answer("tone"));
         assertTrue(unknown.getMessage().contains("'tone'"));
 
-        var drifted = Questions.named("is_urgent").proposition("Is this urgent?").build();
+        var drifted = Questions.named("department")
+            .choice("Which team should handle this?")
+            .option("billing", "Payments, invoicing, refunds")
+            .option("sales", "New business")
+            .build();
         var drift = assertThrows(IllegalArgumentException.class, () -> response.answer(drifted));
-        assertTrue(drift.getMessage().contains("'is_urgent'"));
+        assertTrue(drift.getMessage().contains("'department'"));
+    }
+
+    @Test
+    void aResponseIsCheckedAgainstASpec() {
+        var response = answered();
+        response.requireMatches(DecisionSpec.of(urgent, department, frustration));
+
+        var mismatch = assertThrows(IllegalArgumentException.class,
+            () -> response.requireMatches(DecisionSpec.of(urgent, department)));
+        assertTrue(mismatch.getMessage().contains("Extra: 'frustration'"));
     }
 
     @Test
@@ -128,7 +141,6 @@ class DecisionResponseJavaTest {
         var response = DecisionResponse.failed(spec, FailureReason.UNAVAILABLE);
 
         assertEquals(FailureReason.UNAVAILABLE, response.getRequestFailure());
-        assertEquals(spec.getDefinitionId(), response.getDefinitionId());
         assertEquals(List.of("is_urgent", "department", "frustration"),
             response.getAnswers().stream().map(DecisionAnswer::getName).toList());
         assertEquals(new ClassificationResult.Failure(FailureReason.UNAVAILABLE), response.answer(department));

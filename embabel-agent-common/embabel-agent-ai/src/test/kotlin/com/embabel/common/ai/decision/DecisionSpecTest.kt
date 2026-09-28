@@ -88,13 +88,6 @@ class DecisionSpecTest {
         }
 
         @Test
-        fun `the spec id is computed from the question ids in order`() {
-            val spec = DecisionSpec.of(urgent(), department())
-            assertEquals(DefinitionIds.spec(listOf(urgent().definitionId, department().definitionId)), spec.definitionId)
-            assertTrue(spec.definitionId.startsWith("s1-"))
-        }
-
-        @Test
         fun `question finds a question by name`() {
             val spec = DecisionSpec.of(urgent(), department())
             assertEquals(department(), spec.question("department"))
@@ -345,7 +338,7 @@ class DecisionSpecTest {
             val second = builder.build()
             assertEquals(listOf("is_urgent"), first.questions.map { it.name })
             assertEquals(listOf("is_urgent", "department"), second.questions.map { it.name })
-            assertNotEquals(first.definitionId, second.definitionId)
+            assertNotEquals(first, second)
         }
 
         @Test
@@ -390,7 +383,6 @@ class DecisionSpecTest {
             val listed = DecisionSpec.of(urgent(), department())
             assertEquals(listed, built)
             assertEquals(listed.hashCode(), built.hashCode())
-            assertEquals(listed.definitionId, built.definitionId)
             assertEquals(listed, DecisionSpec.of(listOf(urgent(), department())))
         }
 
@@ -425,7 +417,6 @@ class DecisionSpecTest {
             val forward = DecisionSpec.of(urgent(), department())
             val backward = DecisionSpec.of(department(), urgent())
             assertNotEquals(forward, backward)
-            assertNotEquals(forward.definitionId, backward.definitionId)
         }
 
         @Test

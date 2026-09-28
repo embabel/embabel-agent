@@ -17,7 +17,6 @@ package com.embabel.common.ai.decision
 
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonCreator
-import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonProperty
 import org.jetbrains.annotations.ApiStatus
 import java.util.function.Consumer
@@ -49,14 +48,6 @@ class DecisionSpec private constructor(questions: List<Question<*>>) {
     @get:JsonProperty("questions")
     val questions: List<Question<*>> = java.util.List.copyOf(questions)
 
-    /**
-     * The stable `s1-` id of this spec. It is computed from the questions' definition ids in order,
-     * so it changes when any question changes, or when questions are added, removed or reordered.
-     * It is left out of JSON and computed again on read.
-     */
-    @get:JsonIgnore
-    val definitionId: String
-
     init {
         require(this.questions.isNotEmpty()) { "A decision spec needs at least one question" }
         val seen = HashSet<String>()
@@ -64,7 +55,6 @@ class DecisionSpec private constructor(questions: List<Question<*>>) {
         require(repeated.isEmpty()) {
             "Question names must be unique within a decision spec. Repeated: ${repeated.joinToString { "'$it'" }}"
         }
-        definitionId = DefinitionIds.spec(this.questions.map { it.definitionId })
     }
 
     /**

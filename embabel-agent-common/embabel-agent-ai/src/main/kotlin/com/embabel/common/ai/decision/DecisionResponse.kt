@@ -35,10 +35,10 @@ import java.util.Objects
  * kind and no other implementation can exist, so a Kotlin `when` or a Java `switch` over an
  * answer covers every case.
  *
- * An answer can be read without the question that produced it. It holds the question's name,
- * kind and definition id, the public options or levels, and the typed outcome. It never holds
- * the question's instructions or the decision input. An answer read from JSON holds its options
- * or levels as written. Only the typed lookup on a response compares them with a question.
+ * An answer can be read without the question that produced it. It holds the question's name and
+ * kind, the public options or levels, and the typed outcome. It never holds the question's
+ * instructions or the decision input. An answer read from JSON holds its options or levels as
+ * written. The typed lookup on a response compares them with a question.
  *
  * ```java
  * String route = switch (response.answer("department")) {
@@ -60,7 +60,7 @@ import java.util.Objects
     JsonSubTypes.Type(DecisionAnswer.Choice::class, name = "choice"),
     JsonSubTypes.Type(DecisionAnswer.Rating::class, name = "rating"),
 )
-@JsonPropertyOrder("name", "kind", "definitionId", "options", "levels", "outcome")
+@JsonPropertyOrder("name", "kind", "options", "levels", "outcome")
 sealed interface DecisionAnswer {
 
     /** The name of the question this answers. It is unique within a response. */
@@ -71,10 +71,6 @@ sealed interface DecisionAnswer {
     @get:JsonProperty("kind")
     val kind: QuestionKind
 
-    /** The `d1-` definition id of the question this answers. */
-    @get:JsonProperty("definitionId")
-    val definitionId: String
-
     /**
      * The answer to a proposition question.
      *
@@ -83,21 +79,20 @@ sealed interface DecisionAnswer {
     @ApiStatus.Experimental
     class Proposition private constructor(
         override val name: String,
-        override val definitionId: String,
         @get:JsonIgnore val outcome: PropositionResult,
     ) : DecisionAnswer {
 
         init {
-            AnswerRules.requireIdentity(name, definitionId)
+            AnswerRules.requireName(name)
         }
 
         override val kind: QuestionKind get() = QuestionKind.PROPOSITION
 
         override fun equals(other: Any?): Boolean =
             this === other || other is Proposition &&
-                name == other.name && definitionId == other.definitionId && outcome == other.outcome
+                name == other.name && outcome == other.outcome
 
-        override fun hashCode(): Int = Objects.hash(kind, name, definitionId, outcome)
+        override fun hashCode(): Int = Objects.hash(kind, name, outcome)
 
         override fun toString(): String = "DecisionAnswer.Proposition(name=$name, outcome=$outcome)"
 
@@ -110,16 +105,14 @@ sealed interface DecisionAnswer {
         internal companion object {
             // Used by DecisionResponse. Hidden from Java so answers only come from a response.
             @JvmSynthetic
-            internal fun create(name: String, definitionId: String, outcome: PropositionResult): Proposition =
-                Proposition(name, definitionId, outcome)
+            internal fun create(name: String, outcome: PropositionResult): Proposition = Proposition(name, outcome)
 
             @JvmStatic
             @JsonCreator
             private fun fromJson(
                 @JsonProperty("name", required = true) name: String,
-                @JsonProperty("definitionId", required = true) definitionId: String,
                 @JsonProperty("outcome", required = true) outcome: PropositionOutcomeJson,
-            ): Proposition = Proposition(name, definitionId, outcome.toProposition())
+            ): Proposition = Proposition(name, outcome.toProposition())
         }
     }
 
@@ -131,7 +124,6 @@ sealed interface DecisionAnswer {
     @ApiStatus.Experimental
     class Choice private constructor(
         override val name: String,
-        override val definitionId: String,
         options: List<Category>,
         @get:JsonIgnore val outcome: ClassificationResult,
     ) : DecisionAnswer {
@@ -141,7 +133,7 @@ sealed interface DecisionAnswer {
         val options: List<Category> = java.util.List.copyOf(options)
 
         init {
-            AnswerRules.requireIdentity(name, definitionId)
+            AnswerRules.requireName(name)
             OutcomeRules.requireOptionIds(name, this.options.map { it.id })
             OutcomeRules.fitChoice(name, this.options, outcome)
         }
@@ -149,10 +141,9 @@ sealed interface DecisionAnswer {
         override val kind: QuestionKind get() = QuestionKind.CHOICE
 
         override fun equals(other: Any?): Boolean =
-            this === other || other is Choice && name == other.name && definitionId == other.definitionId &&
-                options == other.options && outcome == other.outcome
+            this === other || other is Choice && name == other.name && options == other.options && outcome == other.outcome
 
-        override fun hashCode(): Int = Objects.hash(kind, name, definitionId, options, outcome)
+        override fun hashCode(): Int = Objects.hash(kind, name, options, outcome)
 
         override fun toString(): String = "DecisionAnswer.Choice(name=$name, outcome=$outcome)"
 
@@ -170,19 +161,17 @@ sealed interface DecisionAnswer {
             @JvmSynthetic
             internal fun create(
                 name: String,
-                definitionId: String,
                 options: List<Category>,
                 outcome: ClassificationResult,
-            ): Choice = Choice(name, definitionId, options, outcome)
+            ): Choice = Choice(name, options, outcome)
 
             @JvmStatic
             @JsonCreator
             private fun fromJson(
                 @JsonProperty("name", required = true) name: String,
-                @JsonProperty("definitionId", required = true) definitionId: String,
                 @JsonProperty("options", required = true) options: List<OptionJson>,
                 @JsonProperty("outcome", required = true) outcome: ChoiceOutcomeJson,
-            ): Choice = Choice(name, definitionId, options.map { it.toCategory() }, outcome.toClassification())
+            ): Choice = Choice(name, options.map { it.toCategory() }, outcome.toClassification())
         }
     }
 
@@ -196,7 +185,6 @@ sealed interface DecisionAnswer {
     @ApiStatus.Experimental
     class Rating private constructor(
         override val name: String,
-        override val definitionId: String,
         levels: List<RatingLevel>,
         @get:JsonProperty("outcome") val outcome: RatingResult,
     ) : DecisionAnswer {
@@ -206,7 +194,7 @@ sealed interface DecisionAnswer {
         val levels: List<RatingLevel> = java.util.List.copyOf(levels)
 
         init {
-            AnswerRules.requireIdentity(name, definitionId)
+            AnswerRules.requireName(name)
             OutcomeRules.requireLevelIds(name, this.levels.map { it.id })
             OutcomeRules.fitRating(name, this.levels, outcome)
         }
@@ -214,10 +202,9 @@ sealed interface DecisionAnswer {
         override val kind: QuestionKind get() = QuestionKind.RATING
 
         override fun equals(other: Any?): Boolean =
-            this === other || other is Rating && name == other.name && definitionId == other.definitionId &&
-                levels == other.levels && outcome == other.outcome
+            this === other || other is Rating && name == other.name && levels == other.levels && outcome == other.outcome
 
-        override fun hashCode(): Int = Objects.hash(kind, name, definitionId, levels, outcome)
+        override fun hashCode(): Int = Objects.hash(kind, name, levels, outcome)
 
         override fun toString(): String = "DecisionAnswer.Rating(name=$name, outcome=$outcome)"
 
@@ -229,19 +216,17 @@ sealed interface DecisionAnswer {
             @JvmSynthetic
             internal fun create(
                 name: String,
-                definitionId: String,
                 levels: List<RatingLevel>,
                 outcome: RatingResult,
-            ): Rating = Rating(name, definitionId, levels, outcome)
+            ): Rating = Rating(name, levels, outcome)
 
             @JvmStatic
             @JsonCreator
             private fun fromJson(
                 @JsonProperty("name", required = true) name: String,
-                @JsonProperty("definitionId", required = true) definitionId: String,
                 @JsonProperty("levels", required = true) levels: List<RatingLevel>,
                 @JsonProperty("outcome", required = true) outcome: RatingResult,
-            ): Rating = Rating(name, definitionId, levels, outcome)
+            ): Rating = Rating(name, levels, outcome)
         }
     }
 }
@@ -251,10 +236,9 @@ sealed interface DecisionAnswer {
  *
  * A response can be read without the spec. Look an answer up by name with [answer], or pass a
  * question to the typed [answer] to get its outcome with the right result type. The typed lookup
- * checks the question's full definition, so a question rebuilt with the same definition works and
- * a question whose definition has changed since the response was made is rejected. It also
- * compares the answer's options or levels with the question's, because a response cannot prove
- * them from its ids.
+ * checks that the answer has the question's name and kind, and that its options or levels equal
+ * the question's. A question rebuilt with the same definition works. To check a whole response
+ * against a spec, for example one read back from storage, call [requireMatches].
  *
  * ```java
  * PropositionResult urgency = response.answer(urgent);
@@ -263,16 +247,14 @@ sealed interface DecisionAnswer {
  * ```
  *
  * Build a response with [builder], or record a failed request with [failed]. Two responses are
- * equal when their spec ids, request failures and answers are equal.
+ * equal when their request failures and answers are equal.
  *
- * Reading a response from JSON runs the same checks, so the answers' definition ids must give the
- * response's spec id.
+ * Reading a response from JSON runs the same checks as building one, answer by answer. It does not
+ * compare the response with any spec.
  */
 @ApiStatus.Experimental
-@JsonPropertyOrder("definitionId", "requestFailure", "answers")
+@JsonPropertyOrder("requestFailure", "answers")
 class DecisionResponse private constructor(
-    /** The `s1-` definition id of the spec this response answers. */
-    @get:JsonProperty("definitionId") val definitionId: String,
     /**
      * Why the whole request failed, or null when it did not. When it is set, every answer's outcome
      * is a failure with this same reason.
@@ -288,9 +270,6 @@ class DecisionResponse private constructor(
     private val answersByName: Map<String, DecisionAnswer>
 
     init {
-        require(DefinitionIds.isSpecId(definitionId)) {
-            "Response definition id '$definitionId' is not a spec id. It must be 's1-' followed by 43 base64url characters."
-        }
         require(this.answers.isNotEmpty()) { "A decision response needs at least one answer" }
         val seen = HashSet<String>()
         val repeated = this.answers.map { it.name }.filterNot(seen::add).distinct()
@@ -303,12 +282,6 @@ class DecisionResponse private constructor(
                 "A response with request failure $requestFailure can only hold failure outcomes with that reason. " +
                     "Mismatched: " + mismatched.joinToString { "'${it.name}' (${AnswerRules.failureReason(it) ?: "not a failure"})" }
             }
-        }
-        // The spec id covers every question id in order, so this catches a dropped, extra or reordered answer.
-        val actual = DefinitionIds.spec(this.answers.map { it.definitionId })
-        require(actual == definitionId) {
-            "The answers do not match the response's spec. Expected spec id '$definitionId', " +
-                "but the answers give '$actual'."
         }
         answersByName = this.answers.associateBy { it.name }
     }
@@ -327,14 +300,12 @@ class DecisionResponse private constructor(
 
     /**
      * Returns the outcome for the given question, typed by the question. The question does not
-     * have to be the same object that built the response. It must have the same name, kind and
-     * definition id as the answer, so any change to its instructions, options or levels is
-     * rejected.
+     * have to be the same object that built the response. The answer must have the question's
+     * name and kind, and a choice answer's options or a rating answer's levels must equal the
+     * question's, ids and descriptions both.
      *
-     * The lookup also checks that a choice answer's options, or a rating answer's levels, equal
-     * the question's, ids and descriptions both. A definition id cannot be recomputed from a
-     * response, because a response leaves out the instructions. So the ids alone cannot prove
-     * that the options or levels in a response read from JSON are the ones the question has.
+     * An answer holds no instructions, so a question whose instructions were reworded still
+     * matches. For a proposition that means only the name and kind are checked.
      *
      * Each question class fixes its result type: a `PropositionQuestionSpec` is a
      * `Question<PropositionResult>`, a `ChoiceQuestionSpec` is a `Question<ClassificationResult>`
@@ -344,46 +315,63 @@ class DecisionResponse private constructor(
      * @param question the question whose answer to read
      * @return the outcome of that question
      * @throws IllegalArgumentException if this response has no answer with the question's name, the
-     * answer is of another kind, the answer was given for a different definition of the question,
-     * or the answer's options or levels differ from the question's
+     * answer is of another kind, or the answer's options or levels differ from the question's
      */
     @Suppress("UNCHECKED_CAST")
     fun <R : Any> answer(question: Question<R>): R {
         val found = answer(question.name)
-        val outcome: Any? = when (question) {
-            is PropositionQuestionSpec -> if (found is DecisionAnswer.Proposition) found.outcome else null
-            is ChoiceQuestionSpec -> if (found is DecisionAnswer.Choice) found.outcome else null
-            is RatingQuestionSpec -> if (found is DecisionAnswer.Rating) found.outcome else null
-        }
-        require(outcome != null) {
-            "Answer '${question.name}' is a ${found.kind.wireName} answer, " +
-                "but the question is a ${question.kind.wireName} question"
-        }
-        require(found.definitionId == question.definitionId) {
-            "Answer '${question.name}' was given for a different definition of the question. " +
-                "The response holds definition id '${found.definitionId}' and the question has '${question.definitionId}'."
-        }
-        // The kind check above makes these casts safe.
-        when (question) {
-            is PropositionQuestionSpec -> Unit
-            is ChoiceQuestionSpec -> require((found as DecisionAnswer.Choice).options == question.options) {
-                "Question '${question.name}': the answer's options differ from the question's options"
-            }
-            is RatingQuestionSpec -> require((found as DecisionAnswer.Rating).levels == question.levels) {
-                "Question '${question.name}': the answer's levels differ from the question's levels"
-            }
+        val mismatch = AnswerRules.mismatch(found, question)
+        require(mismatch == null) { "Answer '${question.name}' does not fit the question: $mismatch" }
+        // mismatch is null only when the answer's kind equals the question's, so these casts are safe.
+        val outcome: Any = when (question) {
+            is PropositionQuestionSpec -> (found as DecisionAnswer.Proposition).outcome
+            is ChoiceQuestionSpec -> (found as DecisionAnswer.Choice).outcome
+            is RatingQuestionSpec -> (found as DecisionAnswer.Rating).outcome
         }
         return outcome as R
     }
 
+    /**
+     * Checks that this response answers the given spec. There must be one answer per question, in
+     * the spec's order, and each answer must fit its question the way the typed [answer] lookup
+     * requires: same name and kind, and equal options or levels.
+     *
+     * Use it on a response that did not come from this spec's builder, such as one read from JSON.
+     * As with the typed lookup, a change to a question's instructions is not detected.
+     *
+     * @param spec the spec this response should answer
+     * @throws IllegalArgumentException if an answer is missing, extra or out of order, or an answer
+     * does not fit its question
+     */
+    @ApiStatus.Experimental
+    fun requireMatches(spec: DecisionSpec) {
+        val names = answers.map { it.name }
+        val expected = spec.questions.map { it.name }
+        if (names != expected) {
+            val missing = expected - names.toSet()
+            val extra = names - expected.toSet()
+            val details = buildList {
+                if (missing.isNotEmpty()) add("Missing: ${missing.joinToString { "'$it'" }}.")
+                if (extra.isNotEmpty()) add("Extra: ${extra.joinToString { "'$it'" }}.")
+                if (isEmpty()) {
+                    add("The answers are in a different order. Answers: ${names.joinToString { "'$it'" }}. " +
+                        "Questions: ${expected.joinToString { "'$it'" }}.")
+                }
+            }
+            throw IllegalArgumentException("The response does not match the spec. ${details.joinToString(" ")}")
+        }
+        val mismatches = spec.questions.zip(answers).mapNotNull { (question, answer) ->
+            AnswerRules.mismatch(answer, question)?.let { "Answer '${question.name}': $it." }
+        }
+        require(mismatches.isEmpty()) { "The response does not match the spec. ${mismatches.joinToString(" ")}" }
+    }
+
     override fun equals(other: Any?): Boolean =
-        this === other || other is DecisionResponse && definitionId == other.definitionId &&
-            requestFailure == other.requestFailure && answers == other.answers
+        this === other || other is DecisionResponse && requestFailure == other.requestFailure && answers == other.answers
 
-    override fun hashCode(): Int = Objects.hash(definitionId, requestFailure, answers)
+    override fun hashCode(): Int = Objects.hash(requestFailure, answers)
 
-    override fun toString(): String =
-        "DecisionResponse(definitionId=$definitionId, requestFailure=$requestFailure, answers=$answers)"
+    override fun toString(): String = "DecisionResponse(requestFailure=$requestFailure, answers=$answers)"
 
     @JsonProperty("requestFailure")
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -406,44 +394,44 @@ class DecisionResponse private constructor(
          * Adds the answer to one proposition question of the spec. A rejected answer leaves the
          * builder as it was.
          *
-         * @param question a question of the spec, or a question with the same definition
+         * @param question a question of the spec, or an equal question
          * @param outcome what the model concluded about the proposition
          * @return this builder
          * @throws IllegalArgumentException if the spec has no question with this name, the spec's
-         * question has a different definition, or the question already has an answer
+         * question is not equal to this one, or the question already has an answer
          */
         fun answer(question: PropositionQuestionSpec, outcome: PropositionResult): Builder = add(question) {
-            DecisionAnswer.Proposition.create(question.name, question.definitionId, outcome)
+            DecisionAnswer.Proposition.create(question.name, outcome)
         }
 
         /**
          * Adds the answer to one choice question of the spec. A rejected answer leaves the builder
          * as it was.
          *
-         * @param question a question of the spec, or a question with the same definition
+         * @param question a question of the spec, or an equal question
          * @param outcome the option the model picked, or why it picked none
          * @return this builder
          * @throws IllegalArgumentException if the spec has no question with this name, the spec's
-         * question has a different definition, the question already has an answer, or the
-         * selection is not one of the question's options
+         * question is not equal to this one, the question already has an answer, or the selection
+         * is not one of the question's options
          */
         fun answer(question: ChoiceQuestionSpec, outcome: ClassificationResult): Builder = add(question) {
-            DecisionAnswer.Choice.create(question.name, question.definitionId, question.options, outcome)
+            DecisionAnswer.Choice.create(question.name, question.options, outcome)
         }
 
         /**
          * Adds the answer to one rating question of the spec. A rejected answer leaves the builder
          * as it was.
          *
-         * @param question a question of the spec, or a question with the same definition
+         * @param question a question of the spec, or an equal question
          * @param outcome the rating evidence the model reported, or why it reported none
          * @return this builder
          * @throws IllegalArgumentException if the spec has no question with this name, the spec's
-         * question has a different definition, the question already has an answer, or the evidence
+         * question is not equal to this one, the question already has an answer, or the evidence
          * does not fit the question's levels
          */
         fun answer(question: RatingQuestionSpec, outcome: RatingResult): Builder = add(question) {
-            DecisionAnswer.Rating.create(question.name, question.definitionId, question.levels, outcome)
+            DecisionAnswer.Rating.create(question.name, question.levels, outcome)
         }
 
         /**
@@ -456,14 +444,14 @@ class DecisionResponse private constructor(
             require(missing.isEmpty()) {
                 "Every question in the spec needs an answer. Missing: ${missing.joinToString { "'$it'" }}"
             }
-            return DecisionResponse(spec.definitionId, null, spec.questions.map { answers.getValue(it.name) })
+            return DecisionResponse(null, spec.questions.map { answers.getValue(it.name) })
         }
 
         // Runs the checks every answer method shares, then stores the answer that make builds.
         private fun add(question: Question<*>, make: () -> DecisionAnswer): Builder {
             val declared = spec.question(question.name)
             require(declared != null) { "The spec has no question named '${question.name}'" }
-            require(declared.definitionId == question.definitionId) {
+            require(declared == question) {
                 "Question '${question.name}' has a different definition from the one in the spec"
             }
             require(question.name !in answers) { "Question '${question.name}' already has an answer" }
@@ -502,40 +490,55 @@ class DecisionResponse private constructor(
          */
         @JvmStatic
         fun failed(spec: DecisionSpec, reason: FailureReason): DecisionResponse =
-            DecisionResponse(spec.definitionId, reason, spec.questions.map { AnswerRules.failure(it, reason) })
+            DecisionResponse(reason, spec.questions.map { AnswerRules.failure(it, reason) })
 
-        // Rebuilds a response without its spec. The constructor checks every invariant, including
-        // that the answers' definition ids give the stated spec id. Hidden from Java.
+        // Rebuilds a response without its spec. The constructor checks every invariant. Hidden from Java.
         @JvmSynthetic
-        internal fun create(
-            definitionId: String,
-            requestFailure: FailureReason?,
-            answers: List<DecisionAnswer>,
-        ): DecisionResponse = DecisionResponse(definitionId, requestFailure, answers)
+        internal fun create(requestFailure: FailureReason?, answers: List<DecisionAnswer>): DecisionResponse =
+            DecisionResponse(requestFailure, answers)
 
         // Reads a response from JSON through the same constructor. An explicit null request failure
         // reads the same as an absent one.
         @JvmStatic
         @JsonCreator
         private fun fromJson(
-            @JsonProperty("definitionId", required = true) definitionId: String,
             @JsonProperty("requestFailure") requestFailure: FailureReasonJson?,
             @JsonProperty("answers", required = true)
             @JsonFormat(without = [JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY])
             answers: List<DecisionAnswer>,
-        ): DecisionResponse = DecisionResponse(definitionId, requestFailure?.reason, answers)
+        ): DecisionResponse = DecisionResponse(requestFailure?.reason, answers)
     }
 }
 
 // A private object compiles to a package-private class, so these shared checks add nothing Java can see.
 private object AnswerRules {
 
-    fun requireIdentity(name: String, definitionId: String) {
+    fun requireName(name: String) {
         require(name.isNotBlank()) { "Answer name must not be blank" }
-        require(DefinitionIds.isQuestionId(definitionId)) {
-            "Answer '$name': definition id '$definitionId' is not a question id. " +
-                "It must be 'd1-' followed by 43 base64url characters."
+    }
+
+    // Says how an answer differs from a question with the same name, or returns null when it fits.
+    // Only the kind and the options or levels can be compared, because an answer holds no instructions.
+    fun mismatch(answer: DecisionAnswer, question: Question<*>): String? = when {
+        answer.kind != question.kind ->
+            "it is a ${answer.kind.wireName} answer and the question is a ${question.kind.wireName} question"
+        answer is DecisionAnswer.Choice && question is ChoiceQuestionSpec ->
+            entryMismatch("options", answer.options.map { it.id to it.description }, question.options.map { it.id to it.description })
+        answer is DecisionAnswer.Rating && question is RatingQuestionSpec ->
+            entryMismatch("levels", answer.levels.map { it.id to it.description }, question.levels.map { it.id to it.description })
+        else -> null
+    }
+
+    // Compares options or levels as (id, description) pairs in order.
+    private fun entryMismatch(label: String, answer: List<Pair<String, String>>, question: List<Pair<String, String>>): String? {
+        if (answer == question) return null
+        val answerIds = answer.map { it.first }
+        val questionIds = question.map { it.first }
+        if (answerIds != questionIds) {
+            return "its $label are ${answerIds.joinToString { "'$it'" }} and the question's are ${questionIds.joinToString { "'$it'" }}"
         }
+        val changed = answer.zip(question).filter { (a, q) -> a.second != q.second }.map { it.first.first }
+        return "its $label have different descriptions from the question's for ${changed.joinToString { "'$it'" }}"
     }
 
     fun failureReason(answer: DecisionAnswer): FailureReason? = when (answer) {
@@ -545,13 +548,10 @@ private object AnswerRules {
     }
 
     fun failure(question: Question<*>, reason: FailureReason): DecisionAnswer = when (question) {
-        is PropositionQuestionSpec ->
-            DecisionAnswer.Proposition.create(question.name, question.definitionId, PropositionResult.Failure(reason))
-        is ChoiceQuestionSpec -> DecisionAnswer.Choice.create(
-            question.name, question.definitionId, question.options, ClassificationResult.Failure(reason),
-        )
-        is RatingQuestionSpec -> DecisionAnswer.Rating.create(
-            question.name, question.definitionId, question.levels, RatingResult.Failure(reason),
-        )
+        is PropositionQuestionSpec -> DecisionAnswer.Proposition.create(question.name, PropositionResult.Failure(reason))
+        is ChoiceQuestionSpec ->
+            DecisionAnswer.Choice.create(question.name, question.options, ClassificationResult.Failure(reason))
+        is RatingQuestionSpec ->
+            DecisionAnswer.Rating.create(question.name, question.levels, RatingResult.Failure(reason))
     }
 }

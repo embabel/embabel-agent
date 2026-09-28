@@ -21,9 +21,4 @@ public class QuestionImplementation implements Question<String> {
     public QuestionKind getKind() {
         return QuestionKind.PROPOSITION;
     }
-
-    @Override
-    public String getDefinitionId() {
-        return "d1-custom";
-    }
 }
