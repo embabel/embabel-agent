@@ -124,9 +124,9 @@ In a Spring application the spec can be a bean:
 include::../../../../../../embabel-agent-starters/embabel-agent-starter-typesafe/src/test/java/com/embabel/agent/typesafe/example/DecisionServicesSpringExampleTest.java[tag=spec-bean,indent=0]
 ----
 
-To register a prompted service that only classifies, set `kind: classification` on its entry under `embabel.agent.platform.decisions.llm.services.<name>`, and bind it to a role under `embabel.models.classification.roles.<role>`.
+To use a prompted service for classification, declare it under `embabel.agent.platform.decisions.llm.services.<name>` and bind it to a role under `embabel.models.classification.roles.<role>`.
 The `ticket-classifier` entry in the configuration example below does both.
-Such a service is not a decision service, so a decision default or role cannot name it.
+A decision service also classifies, so a classification role can name it.
 
 A `ClassificationSpec` is a decision spec with one choice question, so a decision service answers it too.
 
@@ -224,7 +224,7 @@ These properties configure services and selection together:
 
 |`embabel.agent.platform.decisions.llm.services.<name>.llm`
 |none
-|Registers a prompted service under `<name>`, answered by the named LLM. <<reference.llm-decisions.configuration>> lists the other keys of an entry.
+|Registers a prompted decision service under `<name>`, answered by the named LLM. See <<reference.llm-decisions.configuration>>.
 
 |`embabel.agent.platform.decisions.capture-content`
 |`false`
