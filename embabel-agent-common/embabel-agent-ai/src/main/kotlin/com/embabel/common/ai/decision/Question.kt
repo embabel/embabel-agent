@@ -108,11 +108,23 @@ class PropositionQuestionSpec private constructor(
 
     override fun toString(): String = "PropositionQuestionSpec(name=$name, kind=$kind)"
 
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
     @JsonAnySetter
     private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("PropositionQuestionSpec", name, value)
 
     private companion object {
-        // Reads a question from JSON through its builder, which runs the same checks.
+        /**
+         * Reads a question from JSON through its builder, which runs the same checks.
+         *
+         * @param name the question name
+         * @param instructions the text that tells the model what to decide
+         * @return the question
+         */
         @JvmStatic
         @JsonCreator
         private fun fromJson(
@@ -192,14 +204,32 @@ class ChoiceQuestionSpec private constructor(
 
     override fun toString(): String = "ChoiceQuestionSpec(name=$name, kind=$kind)"
 
+    /**
+     * Converts the options to their JSON form.
+     *
+     * @return the options as JSON
+     */
     @JsonProperty("options")
     private fun optionsJson(): List<OptionJson> = options.map(::OptionJson)
 
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
     @JsonAnySetter
     private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("ChoiceQuestionSpec", name, value)
 
     private companion object {
-        // Reads a question from JSON through its builder, which runs the same checks.
+        /**
+         * Reads a question from JSON through its builder, which runs the same checks.
+         *
+         * @param name the question name
+         * @param instructions the text that tells the model what to decide
+         * @param options the options as read from JSON
+         * @return the question
+         */
         @JvmStatic
         @JsonCreator
         private fun fromJson(
@@ -298,11 +328,24 @@ class RatingQuestionSpec private constructor(
 
     override fun toString(): String = "RatingQuestionSpec(name=$name, kind=$kind)"
 
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
     @JsonAnySetter
     private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingQuestionSpec", name, value)
 
     private companion object {
-        // Reads a question from JSON through its builder, which runs the same checks.
+        /**
+         * Reads a question from JSON through its builder, which runs the same checks.
+         *
+         * @param name the question name
+         * @param instructions the text that tells the model what to decide
+         * @param levels the levels as read from JSON
+         * @return the question
+         */
         @JvmStatic
         @JsonCreator
         private fun fromJson(
@@ -434,6 +477,13 @@ internal object OutcomeRules {
         return result
     }
 
+    /**
+     * Requires every id to be nonblank and unique.
+     *
+     * @param name the question name, used in error messages
+     * @param entry what these ids are called, "option" or "level"
+     * @param ids the ids to check
+     */
     private fun requireEntryIds(name: String, entry: String, ids: List<String>) {
         require(ids.none { it.isBlank() }) { "Question '$name': $entry id must not be blank" }
         val seen = HashSet<String>()

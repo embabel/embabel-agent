@@ -41,11 +41,23 @@ data class RatingLevel @JvmOverloads constructor(val id: String, val description
         require(id.isNotBlank()) { "Rating level id must not be blank" }
     }
 
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
     @JsonAnySetter
     private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingLevel", name, value)
 
     private companion object {
-        // JSON always carries both members.
+        /**
+         * Builds a rating level from deserialized JSON fields. JSON always carries both members.
+         *
+         * @param id the level id
+         * @param description what the level means
+         * @return the level
+         */
         @JvmStatic
         @JsonCreator
         private fun fromJson(
@@ -83,6 +95,12 @@ data class RatingScore @JsonCreator constructor(
         require(value.isFinite() && value >= 0.0) { "Rating score value must be finite and at least 0" }
     }
 
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
     @JsonAnySetter
     private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingScore", name, value)
 }
@@ -104,6 +122,12 @@ data class LevelProbability @JsonCreator constructor(
         }
     }
 
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
     @JsonAnySetter
     private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("LevelProbability", name, value)
 }
@@ -197,14 +221,35 @@ sealed interface RatingResult {
             "RatingResult.Answered(provenance=$provenance, selectedLevelId=$selectedLevelId, " +
                 "distribution=$distribution, score=$score, confidence=$confidence)"
 
+        /**
+         * Converts the provenance to its JSON form.
+         *
+         * @return the provenance as JSON
+         */
         @JsonProperty("provenance")
         private fun provenanceJson(): ProvenanceJson = ProvenanceJson(provenance)
 
+        /**
+         * Rejects a JSON member this type doesn't define.
+         *
+         * @param name the unknown member's name
+         * @param value the unknown member's value
+         */
         @JsonAnySetter
         private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingResult", name, value)
 
         private companion object {
-            // An explicit null distribution reads the same as an absent one.
+            /**
+             * Builds an answered rating from deserialized JSON fields. An explicit null
+             * distribution reads the same as an absent one.
+             *
+             * @param provenance the model that answered, as read from JSON
+             * @param selectedLevelId the level the provider selected, when it selects one
+             * @param distribution the per-level probabilities, or null when absent
+             * @param score the provider's score and the statistic it represents, when reported
+             * @param confidence the provider's concentration measure, when reported
+             * @return the answered rating
+             */
             @JvmStatic
             @JsonCreator
             private fun fromJson(
@@ -222,13 +267,30 @@ sealed interface RatingResult {
      */
     data class Inconclusive(@get:JsonIgnore val provenance: ModelProvenance) : RatingResult {
 
+        /**
+         * Converts the provenance to its JSON form.
+         *
+         * @return the provenance as JSON
+         */
         @JsonProperty("provenance")
         private fun provenanceJson(): ProvenanceJson = ProvenanceJson(provenance)
 
+        /**
+         * Rejects a JSON member this type doesn't define.
+         *
+         * @param name the unknown member's name
+         * @param value the unknown member's value
+         */
         @JsonAnySetter
         private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingResult", name, value)
 
         private companion object {
+            /**
+             * Builds an inconclusive rating from a deserialized JSON field.
+             *
+             * @param provenance the model that answered, as read from JSON
+             * @return the inconclusive rating
+             */
             @JvmStatic
             @JsonCreator
             private fun fromJson(@JsonProperty("provenance", required = true) provenance: ProvenanceJson): Inconclusive =
@@ -241,13 +303,30 @@ sealed interface RatingResult {
      */
     data class Failure(@get:JsonIgnore val reason: FailureReason) : RatingResult {
 
+        /**
+         * Converts the reason to its JSON form.
+         *
+         * @return the reason as JSON
+         */
         @JsonProperty("reason")
         private fun reasonJson(): FailureReasonJson = FailureReasonJson.of(reason)
 
+        /**
+         * Rejects a JSON member this type doesn't define.
+         *
+         * @param name the unknown member's name
+         * @param value the unknown member's value
+         */
         @JsonAnySetter
         private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("RatingResult", name, value)
 
         private companion object {
+            /**
+             * Builds a failure rating from a deserialized JSON field.
+             *
+             * @param reason why the request failed, as read from JSON
+             * @return the failure rating
+             */
             @JvmStatic
             @JsonCreator
             private fun fromJson(@JsonProperty("reason", required = true) reason: FailureReasonJson): Failure =

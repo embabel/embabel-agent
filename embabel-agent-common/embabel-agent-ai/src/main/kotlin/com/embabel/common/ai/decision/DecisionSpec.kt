@@ -72,6 +72,12 @@ class DecisionSpec private constructor(questions: List<Question<*>>) {
 
     override fun toString(): String = "DecisionSpec(questions=${questions.map { it.name }})"
 
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
     @JsonAnySetter
     private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionSpec", name, value)
 
@@ -155,8 +161,14 @@ class DecisionSpec private constructor(questions: List<Question<*>>) {
          */
         fun build(): DecisionSpec = DecisionSpec(questions)
 
-        // Every declaring method goes through here. The question is appended only after make()
-        // returns, and nothing else touches the list, so a failure anywhere leaves it as it was.
+        /**
+         * Every declaring method goes through here. The question is appended only after make()
+         * returns, and nothing else touches the list, so a failure anywhere leaves it as it was.
+         *
+         * @param name the question name, checked for blank or already used before make runs
+         * @param make builds the question once the name checks pass
+         * @return this builder
+         */
         private inline fun declare(name: String, make: () -> Question<*>): Builder {
             check(!declaring) {
                 "Cannot declare question '$name' while a customizer on this builder is running. " +
@@ -173,6 +185,11 @@ class DecisionSpec private constructor(questions: List<Question<*>>) {
             return this
         }
 
+        /**
+         * Checks that no question already declared has this name.
+         *
+         * @param name the question name to check
+         */
         private fun requireUnused(name: String) {
             require(questions.none { it.name == name }) { "Question names must be unique within a decision spec. Repeated: '$name'" }
         }
@@ -216,6 +233,12 @@ class DecisionSpec private constructor(questions: List<Question<*>>) {
         @JvmStatic
         fun of(questions: List<Question<*>>): DecisionSpec = DecisionSpec(questions)
 
+        /**
+         * Builds a spec from deserialized JSON fields.
+         *
+         * @param questions the questions as read from JSON
+         * @return the spec
+         */
         @JvmStatic
         @JsonCreator
         private fun fromJson(@JsonProperty("questions", required = true) questions: List<Question<*>>): DecisionSpec =

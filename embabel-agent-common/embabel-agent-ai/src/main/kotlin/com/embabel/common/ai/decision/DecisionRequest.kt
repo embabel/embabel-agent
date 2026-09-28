@@ -44,6 +44,12 @@ class DecisionRequest private constructor(
     /** Shows the spec only. The input is left out because it can be long or hold private text. */
     override fun toString(): String = "DecisionRequest(spec=$spec)"
 
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
     @JsonAnySetter
     private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionRequest", name, value)
 
@@ -74,6 +80,13 @@ class DecisionRequest private constructor(
         fun of(input: String, vararg questions: Question<*>): DecisionRequest =
             DecisionRequest(input, DecisionSpec.of(*questions))
 
+        /**
+         * Builds a request from deserialized JSON fields.
+         *
+         * @param input the text the model reasons over
+         * @param spec the questions to answer
+         * @return the request
+         */
         @JvmStatic
         @JsonCreator
         private fun fromJson(
