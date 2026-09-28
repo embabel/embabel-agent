@@ -85,11 +85,14 @@ class DecisionServicesPlainJavaExampleTest {
                 .isEqualTo("jev-fast");
         assertThat(binder.bind("embabel.agent.platform.decisions.llm.services.llm-review.llm", String.class).get())
                 .isNotBlank();
+        assertThat(binder.bind("embabel.agent.platform.decisions.llm.services.ticket-classifier.kind", String.class).get())
+                .isEqualTo("classification");
         assertThat(binder.bind("embabel.models.decision.roles", stringMap).get())
                 .containsExactlyInAnyOrderEntriesOf(
                         Map.of("support-triage", "jev", "dice-revision-review", "llm-review"));
         assertThat(binder.bind("embabel.models.classification.roles", stringMap).get())
-                .containsExactlyInAnyOrderEntriesOf(Map.of("dice-revision", "llm-review"));
+                .containsExactlyInAnyOrderEntriesOf(
+                        Map.of("dice-revision", "llm-review", "ticket-routing", "ticket-classifier"));
         assertThat(binder.bind("embabel.models.decision.default", String.class).isBound()).isFalse();
 
         var registered = registry(ObservationRegistry.NOOP).registrationNames();
