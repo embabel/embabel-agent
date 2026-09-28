@@ -17,6 +17,7 @@ package com.embabel.common.ai.model.observation
 
 import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
+import com.embabel.common.ai.classification.ClassificationSpec
 import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.DecisionService
@@ -41,6 +42,10 @@ class ObservedDecisionService @JvmOverloads constructor(
 
     override fun classify(request: ClassificationRequest): ClassificationResult =
         observation.classify(request) { delegate.classify(request) }
+
+    // Interface delegation would forward this straight to the delegate and skip the observation.
+    override fun classify(input: String, spec: ClassificationSpec): ClassificationResult =
+        classify(ClassificationRequest.of(input, spec))
 
     override fun assess(request: PropositionRequest): PropositionResult = observation.assess { delegate.assess(request) }
 }

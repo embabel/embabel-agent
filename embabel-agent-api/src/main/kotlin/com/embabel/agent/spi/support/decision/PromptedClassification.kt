@@ -80,7 +80,7 @@ internal object PromptedClassification {
                 if (request.categories.none { it.id == categoryId }) {
                     invalid("The selected category ID is not one of the requested categories")
                 }
-                request.selected(categoryId, provenance)
+                request.spec.selected(categoryId, provenance)
             }
             ClassificationVerdict.NO_MATCH -> {
                 if (!answer.categoryId.isNullOrBlank()) invalid("A NO_MATCH verdict must not name a category")

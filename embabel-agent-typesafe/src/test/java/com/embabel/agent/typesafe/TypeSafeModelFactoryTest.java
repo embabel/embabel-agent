@@ -28,8 +28,8 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 
-import com.embabel.common.ai.classification.Category;
 import com.embabel.common.ai.classification.ClassificationRequest;
+import com.embabel.common.ai.classification.ClassificationSpec;
 import com.embabel.common.ai.classification.ClassificationResult;
 import com.embabel.common.ai.classification.FailureReason;
 import com.embabel.common.ai.decision.PropositionRequest;
@@ -45,19 +45,19 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
-import java.util.List;
 import java.util.concurrent.CancellationException;
 
 class TypeSafeModelFactoryTest {
     private static final String SYSTEM_ONE_URI = "https://api.typesafe.ai/v1/systemone";
     private static final String MODELS_URI = "https://api.typesafe.ai/v1/models";
     private static final ClassificationRequest CLASSIFICATION_REQUEST =
-            new ClassificationRequest(
+            ClassificationRequest.of(
                     "A border collie is waiting by the door",
-                    "Which animal is waiting?",
-                    List.of(
-                            new Category("dog", "A domestic dog"),
-                            new Category("cat", "A domestic cat")));
+                    ClassificationSpec.builder()
+                            .asking("Which animal is waiting?")
+                            .category("dog", "A domestic dog")
+                            .category("cat", "A domestic cat")
+                            .build());
 
     @Test
     void lifecycleLogsDescribeWorkWithoutPrivateValues() {

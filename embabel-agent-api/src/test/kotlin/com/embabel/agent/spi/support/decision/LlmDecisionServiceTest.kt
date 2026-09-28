@@ -31,6 +31,8 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.Message
 import com.embabel.common.ai.classification.Category
 import com.embabel.common.ai.classification.ClassificationRequest
+import com.embabel.common.ai.classification.ClassificationSpec
+import com.embabel.common.ai.decision.Questions
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
@@ -83,7 +85,14 @@ class LlmDecisionServiceTest {
         Category("technical", "Errors, outages and bugs"),
     )
 
-    private val classification = ClassificationRequest("My card was charged twice", "Which team should handle this?", categories)
+    private val classification = ClassificationRequest.of(
+        "My card was charged twice",
+        ClassificationSpec.of(
+            Questions.named("department").choice("Which team should handle this?")
+                .apply { categories.forEach { option(it.id, it.description) } }
+                .build(),
+        ),
+    )
 
     private val proposition = PropositionRequest("My card was charged twice", "The customer wants a refund")
 
