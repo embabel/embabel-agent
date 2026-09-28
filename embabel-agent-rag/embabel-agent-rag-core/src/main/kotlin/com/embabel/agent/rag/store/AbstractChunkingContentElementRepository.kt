@@ -58,6 +58,10 @@ abstract class AbstractChunkingContentElementRepository(
      * Will call save on the root and all descendants.
      * The database only needs to store each descendant and link by id,
      * rather than otherwise consider the entire structure.
+     *
+     * @throws EmbeddingIncompleteException if some chunks could not be embedded and
+     * [ContentChunker.Config.failOnMissingEmbeddings] is true. It is thrown after the
+     * document and all its chunks have been saved and committed.
      */
     final override fun writeAndChunkDocument(root: NavigableDocument): List<String> {
         logger.info(

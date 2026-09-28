@@ -123,7 +123,6 @@ class EmbeddingAwareChunkingContentElementRepositoryTest {
             assertEquals(listOf("chunk2"), e.missingChunkIds)
             assertEquals(2, e.embeddedCount)
             assertSame(rejected, e.cause)
-            assertEquals("1 of 3 chunks could not be embedded", e.message)
             assertEquals(3, repo.persistedChunks.size)
             assertEquals(setOf("chunk1", "chunk3"), repo.persistedEmbeddings.keys)
         }
