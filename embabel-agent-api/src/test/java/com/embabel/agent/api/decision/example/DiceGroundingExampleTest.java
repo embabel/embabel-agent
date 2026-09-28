@@ -86,7 +86,6 @@ class DiceGroundingExampleTest {
         String inputDigest,
         String sourceLocator,
         String sourceRevision,
-        String requestDefinitionId,
         ModelProvenance model,
         Double pTrue,
         String policyVersion,
@@ -123,7 +122,6 @@ class DiceGroundingExampleTest {
             sha256(input),
             facts.sourceId(),
             facts.sourceRevision(),
-            response.getDefinitionId(),
             switch (outcome) {
                 case PropositionResult.Answered answered -> answered.getProvenance();
                 case PropositionResult.Inconclusive inconclusive -> inconclusive.getProvenance();
@@ -176,7 +174,6 @@ class DiceGroundingExampleTest {
         assertEquals(64, evidence.inputDigest().length());
         assertEquals("doc:branch-hours", evidence.sourceLocator());
         assertEquals("rev-42", evidence.sourceRevision());
-        assertEquals(GROUNDING.getDefinitionId(), evidence.requestDefinitionId());
         assertEquals(MODEL, evidence.model());
         assertNull(evidence.pTrue());
         assertEquals("grounding-policy-3", evidence.policyVersion());
@@ -237,7 +234,6 @@ class DiceGroundingExampleTest {
         assertEquals(Disposition.FAILED, evidence.proposedDisposition());
         assertNull(evidence.model());
         assertNull(evidence.pTrue());
-        assertEquals(GROUNDING.getDefinitionId(), evidence.requestDefinitionId());
         assertEquals(List.of(evidence), evidenceLog);
         assertEquals(List.of(), groundedPropositions);
     }

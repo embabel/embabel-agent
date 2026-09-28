@@ -491,7 +491,7 @@ A Spring `Converter` maps a response to an application route:
 include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/SupportTriageExampleTest.java[tag=converter,indent=0]
 ----
 
-The application stores the response JSON with the spec's definition id and each answer's provenance:
+The application stores the response JSON and each answer's provenance:
 
 [source,java]
 ----
