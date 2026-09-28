@@ -21,5 +21,11 @@
             <artifactId>embabel-agent-api</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Registers the prompted services the examples declare in YAML. -->
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-platform-autoconfigure</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>

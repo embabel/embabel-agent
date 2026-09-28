@@ -20,6 +20,7 @@ import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.DefaultAgentPlatform
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.decision.LlmDecisionServiceFactory
 import com.embabel.agent.spi.support.ExecutorAsyncer
 import com.embabel.agent.spi.support.RankingProperties
 import com.embabel.agent.spi.support.SpringContextPlatformServices
@@ -35,11 +36,13 @@ import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.springframework.context.annotation.Bean
 import java.util.function.Supplier
 
 /**
  * Boots the platform configuration, which applications get from the platform auto-configuration,
- * and reaches a configured prompted service through the registry and through `Ai`.
+ * and reaches a prompted service through the registry and through `Ai`. The auto-configuration also
+ * scans in the decision configurations, so this test lists them.
  */
 class DecisionServiceRegistryBootTest {
 
@@ -49,7 +52,12 @@ class DecisionServiceRegistryBootTest {
     }
 
     private val runner = ApplicationContextRunner()
-        .withUserConfiguration(AgentPlatformConfiguration::class.java)
+        .withUserConfiguration(
+            AgentPlatformConfiguration::class.java,
+            LlmDecisionServiceConfiguration::class.java,
+            DecisionServiceRegistryConfiguration::class.java,
+            ConfiguredReview::class.java,
+        )
         .withBean("fake", LlmService::class.java, Supplier { llm })
         .withBean(LlmOperations::class.java, Supplier { mockk<LlmOperations>() })
         .withBean(RankingProperties::class.java, Supplier { RankingProperties() })
@@ -58,7 +66,6 @@ class DecisionServiceRegistryBootTest {
         .withBean(DefaultAgentPlatform::class.java)
         .withPropertyValues(
             "embabel.models.default-llm=fake",
-            "embabel.agent.platform.decisions.llm.services.llm-review.llm=fake",
         )
 
     @Test
@@ -95,5 +102,11 @@ class DecisionServiceRegistryBootTest {
                 service.capabilities(),
             )
         }
+    }
+
+    /** Stands in for a configured prompted service: the platform factory builds `llm-review`. */
+    class ConfiguredReview {
+        @Bean("llm-review")
+        fun review(factory: LlmDecisionServiceFactory): DecisionService = factory.decisionService("fake")
     }
 }
