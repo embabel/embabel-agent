@@ -101,6 +101,12 @@ class DecisionCapabilities private constructor(
         "DecisionCapabilities(questionKinds=$questionKinds, " +
             "maxQuestions=$maxQuestions, maxInputCharacters=$maxInputCharacters)"
 
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
     @JsonAnySetter
     private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionCapabilities", name, value)
 
@@ -120,6 +126,14 @@ class DecisionCapabilities private constructor(
         fun of(questionKinds: Set<QuestionKind>): DecisionCapabilities =
             DecisionCapabilities(questionKinds, null, null)
 
+        /**
+         * Builds capabilities from deserialized JSON fields.
+         *
+         * @param questionKinds the question kinds the service accepts
+         * @param maxQuestions the largest number of questions a request may hold, or null when unset
+         * @param maxInputCharacters the largest input length in characters, or null when unset
+         * @return the capabilities
+         */
         @JvmStatic
         @JsonCreator
         private fun fromJson(

@@ -36,7 +36,12 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo
 internal fun rejectUnknownMember(type: String, name: String, value: Any?): Nothing =
     throw IllegalArgumentException("Unknown member '$name' in $type (${jsonKind(value)})")
 
-// Names the JSON kind of a rejected member. The value itself stays out of the message.
+/**
+ * Names the JSON kind of a rejected member. The value itself stays out of the message.
+ *
+ * @param value the rejected member's value
+ * @return a short description of its JSON kind
+ */
 private fun jsonKind(value: Any?): String = when (value) {
     null -> "null"
     is String -> "a string"
@@ -57,6 +62,12 @@ internal class OptionJson @JsonCreator constructor(
 
     fun toCategory(): Category = Category(id, description)
 
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
     @JsonAnySetter
     private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("Category", name, value)
 }
@@ -75,6 +86,12 @@ internal class ProvenanceJson @JsonCreator constructor(
 
     fun toProvenance(): ModelProvenance = ModelProvenance(modelName, provider, version, requestId)
 
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
     @JsonAnySetter
     private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("ModelProvenance", name, value)
 }
@@ -154,6 +171,12 @@ internal class PropositionAnsweredJson @JsonCreator constructor(
     @param:JsonProperty("pTrue") @get:JsonProperty("pTrue") val pTrue: Double?,
     @JsonProperty("provenance", required = true) val provenance: ProvenanceJson,
 ) : PropositionOutcomeJson {
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
     @JsonAnySetter
     private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("PropositionResult", name, value)
 }
@@ -165,6 +188,12 @@ internal class SelectedJson @JsonCreator constructor(
     @JsonProperty("confidence") val confidence: Double?,
     @JsonProperty("provenance", required = true) val provenance: ProvenanceJson,
 ) : ChoiceOutcomeJson {
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
     @JsonAnySetter
     private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("ClassificationResult", name, value)
 }
@@ -172,6 +201,12 @@ internal class SelectedJson @JsonCreator constructor(
 internal class NoMatchJson @JsonCreator constructor(
     @JsonProperty("provenance", required = true) val provenance: ProvenanceJson,
 ) : ChoiceOutcomeJson {
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
     @JsonAnySetter
     private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("ClassificationResult", name, value)
 }
@@ -179,6 +214,12 @@ internal class NoMatchJson @JsonCreator constructor(
 internal class InconclusiveJson @JsonCreator constructor(
     @JsonProperty("provenance", required = true) val provenance: ProvenanceJson,
 ) : PropositionOutcomeJson, ChoiceOutcomeJson {
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
     @JsonAnySetter
     private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("an inconclusive outcome", name, value)
 }
@@ -186,6 +227,12 @@ internal class InconclusiveJson @JsonCreator constructor(
 internal class FailureJson @JsonCreator constructor(
     @JsonProperty("reason", required = true) val reason: FailureReasonJson,
 ) : PropositionOutcomeJson, ChoiceOutcomeJson {
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
     @JsonAnySetter
     private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("a failure outcome", name, value)
 }

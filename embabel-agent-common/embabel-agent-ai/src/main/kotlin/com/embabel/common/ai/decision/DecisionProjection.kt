@@ -127,14 +127,24 @@ class DecisionProjection<T : Any> private constructor(val value: T, val response
             return java.util.Collections.unmodifiableMap(values)
         }
 
-        // The plain value an answer reduces to, or null when its outcome carries none.
+        /**
+         * Reduces one answer to its plain value.
+         *
+         * @param answer the answer to reduce
+         * @return the plain value, or null when its outcome carries none
+         */
         private fun projectedValue(answer: DecisionAnswer): Any? = when (answer) {
             is DecisionAnswer.Proposition -> (answer.outcome as? PropositionResult.Answered)?.answer
             is DecisionAnswer.Choice -> (answer.outcome as? ClassificationResult.Selected)?.categoryId
             is DecisionAnswer.Rating -> (answer.outcome as? RatingResult.Answered)?.selectedLevelId
         }
 
-        // A short label for an outcome with no plain value, used in the exception message.
+        /**
+         * Builds a short label for an outcome with no plain value, used in the exception message.
+         *
+         * @param answer the answer whose outcome has no plain value
+         * @return the label
+         */
         private fun outcomeStatus(answer: DecisionAnswer): String = when (answer) {
             is DecisionAnswer.Proposition -> when (answer.outcome) {
                 is PropositionResult.Answered -> "answered"
@@ -157,7 +167,13 @@ class DecisionProjection<T : Any> private constructor(val value: T, val response
             }
         }
 
-        // Runs a Jackson conversion, turning a mapping failure into a DecisionProjectionException.
+        /**
+         * Runs a Jackson conversion, turning a mapping failure into a DecisionProjectionException.
+         *
+         * @param typeName the target type's name, used in the error message
+         * @param block the conversion to run
+         * @return the converted value
+         */
         private fun <T> convert(typeName: String, block: () -> T): T =
             try {
                 block()

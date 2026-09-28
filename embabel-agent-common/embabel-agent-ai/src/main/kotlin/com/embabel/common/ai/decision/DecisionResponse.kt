@@ -96,9 +96,20 @@ sealed interface DecisionAnswer {
 
         override fun toString(): String = "DecisionAnswer.Proposition(name=$name, outcome=$outcome)"
 
+        /**
+         * Converts the outcome to its JSON form.
+         *
+         * @return the outcome as JSON
+         */
         @JsonProperty("outcome")
         private fun outcomeJson(): PropositionOutcomeJson = PropositionOutcomeJson.of(outcome)
 
+        /**
+         * Rejects a JSON member this type doesn't define.
+         *
+         * @param name the unknown member's name
+         * @param value the unknown member's value
+         */
         @JsonAnySetter
         private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionAnswer", name, value)
 
@@ -107,6 +118,13 @@ sealed interface DecisionAnswer {
             @JvmSynthetic
             internal fun create(name: String, outcome: PropositionResult): Proposition = Proposition(name, outcome)
 
+            /**
+             * Builds a proposition answer from deserialized JSON fields.
+             *
+             * @param name the question name
+             * @param outcome the outcome as read from JSON
+             * @return the answer
+             */
             @JvmStatic
             @JsonCreator
             private fun fromJson(
@@ -147,12 +165,28 @@ sealed interface DecisionAnswer {
 
         override fun toString(): String = "DecisionAnswer.Choice(name=$name, outcome=$outcome)"
 
+        /**
+         * Converts the options to their JSON form.
+         *
+         * @return the options as JSON
+         */
         @JsonProperty("options")
         private fun optionsJson(): List<OptionJson> = options.map(::OptionJson)
 
+        /**
+         * Converts the outcome to its JSON form.
+         *
+         * @return the outcome as JSON
+         */
         @JsonProperty("outcome")
         private fun outcomeJson(): ChoiceOutcomeJson = ChoiceOutcomeJson.of(outcome)
 
+        /**
+         * Rejects a JSON member this type doesn't define.
+         *
+         * @param name the unknown member's name
+         * @param value the unknown member's value
+         */
         @JsonAnySetter
         private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionAnswer", name, value)
 
@@ -165,6 +199,14 @@ sealed interface DecisionAnswer {
                 outcome: ClassificationResult,
             ): Choice = Choice(name, options, outcome)
 
+            /**
+             * Builds a choice answer from deserialized JSON fields.
+             *
+             * @param name the question name
+             * @param options the options as read from JSON
+             * @param outcome the outcome as read from JSON
+             * @return the answer
+             */
             @JvmStatic
             @JsonCreator
             private fun fromJson(
@@ -208,6 +250,12 @@ sealed interface DecisionAnswer {
 
         override fun toString(): String = "DecisionAnswer.Rating(name=$name, outcome=$outcome)"
 
+        /**
+         * Rejects a JSON member this type doesn't define.
+         *
+         * @param name the unknown member's name
+         * @param value the unknown member's value
+         */
         @JsonAnySetter
         private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionAnswer", name, value)
 
@@ -220,6 +268,14 @@ sealed interface DecisionAnswer {
                 outcome: RatingResult,
             ): Rating = Rating(name, levels, outcome)
 
+            /**
+             * Builds a rating answer from deserialized JSON fields.
+             *
+             * @param name the question name
+             * @param levels the levels as read from JSON
+             * @param outcome the outcome as read from JSON
+             * @return the answer
+             */
             @JvmStatic
             @JsonCreator
             private fun fromJson(
@@ -373,10 +429,21 @@ class DecisionResponse private constructor(
 
     override fun toString(): String = "DecisionResponse(requestFailure=$requestFailure, answers=$answers)"
 
+    /**
+     * Converts the request failure to its JSON form.
+     *
+     * @return the request failure as JSON, or null when there is none
+     */
     @JsonProperty("requestFailure")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private fun requestFailureJson(): FailureReasonJson? = requestFailure?.let(FailureReasonJson::of)
 
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
     @JsonAnySetter
     private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionResponse", name, value)
 
@@ -447,7 +514,13 @@ class DecisionResponse private constructor(
             return DecisionResponse(null, spec.questions.map { answers.getValue(it.name) })
         }
 
-        // Runs the checks every answer method shares, then stores the answer that make builds.
+        /**
+         * Runs the checks every answer method shares, then stores the answer that make builds.
+         *
+         * @param question the question being answered
+         * @param make builds the answer once the checks pass
+         * @return this builder
+         */
         private fun add(question: Question<*>, make: () -> DecisionAnswer): Builder {
             val declared = spec.question(question.name)
             require(declared != null) { "The spec has no question named '${question.name}'" }
@@ -497,8 +570,14 @@ class DecisionResponse private constructor(
         internal fun create(requestFailure: FailureReason?, answers: List<DecisionAnswer>): DecisionResponse =
             DecisionResponse(requestFailure, answers)
 
-        // Reads a response from JSON through the same constructor. An explicit null request failure
-        // reads the same as an absent one.
+        /**
+         * Reads a response from JSON through the same constructor. An explicit null request failure
+         * reads the same as an absent one.
+         *
+         * @param requestFailure the request failure as read from JSON, or null when there is none
+         * @param answers the answers as read from JSON
+         * @return the response
+         */
         @JvmStatic
         @JsonCreator
         private fun fromJson(
@@ -529,7 +608,14 @@ private object AnswerRules {
         else -> null
     }
 
-    // Compares options or levels as (id, description) pairs in order.
+    /**
+     * Compares options or levels as (id, description) pairs in order.
+     *
+     * @param label what these entries are called, "options" or "levels"
+     * @param answer the answer's entries, in order
+     * @param question the question's entries, in order
+     * @return why they differ, or null when they match
+     */
     private fun entryMismatch(label: String, answer: List<Pair<String, String>>, question: List<Pair<String, String>>): String? {
         if (answer == question) return null
         val answerIds = answer.map { it.first }
