@@ -220,6 +220,11 @@ final class TypeSafeDecisionService
     /**
      * Sends every question of the request in one call and maps the answers onto the spec. A failed
      * call fails the whole request with its reason.
+     *
+     * @param request the input and the questions to answer
+     * @param operation the operation name for logging
+     * @param label the label for the failure log line
+     * @return the response for the request's spec
      */
     private DecisionResponse runQuestionSet(
             DecisionRequest request, String operation, String label) {
@@ -244,6 +249,10 @@ final class TypeSafeDecisionService
     /**
      * Sends one {@code systemOne} call. A missing response throws an
      * {@link IllegalArgumentException}, which the caller reports as an invalid response.
+     *
+     * @param input the text the model reasons over
+     * @param questions the native questions, keyed by question key
+     * @return the provider's response
      */
     private SystemOneResponse systemOne(String input, Map<String, ? extends Question> questions) {
         @Nullable SystemOneResponse response = client.systemOne(input, questions);
@@ -305,6 +314,9 @@ final class TypeSafeDecisionService
      * reports an interrupted transport read as a {@link TypeSafeException} and restores the flag,
      * so a set flag counts as an interruption along with an interruption in the cause chain. The
      * flag stays set.
+     *
+     * @param failure the failed provider call
+     * @param operation the operation name for logging
      */
     private void rethrowIfInterrupted(TypeSafeException failure, String operation) {
         InterruptedException interrupted = null;
@@ -378,6 +390,12 @@ final class TypeSafeDecisionService
      * reason <reason>" and appends bounded fields. The exception is not attached and its message is
      * not logged, because provider text can echo the input and transport errors can carry
      * credentials or endpoints.
+     *
+     * @param label the label for the log line
+     * @param operation the operation name for logging
+     * @param reason the failure reason
+     * @param failure the failed call
+     * @param started the call's start time, from {@link System#nanoTime()}
      */
     private void logFailure(
             String label,
@@ -403,7 +421,12 @@ final class TypeSafeDecisionService
                 requestId(failure));
     }
 
-    /** Names the kind of failure from a fixed set, so operators can tell transport from content. */
+    /**
+     * Names the kind of failure from a fixed set, so operators can tell transport from content.
+     *
+     * @param failure the failure to categorize
+     * @return a short category name for the log line
+     */
     private static String causeCategory(Throwable failure) {
         if (hasTimeout(failure)) {
             return "timeout";
@@ -471,6 +494,9 @@ final class TypeSafeDecisionService
     /**
      * Logs the SDK response at TRACE when content capture is on. The line holds provider output,
      * which can echo the input.
+     *
+     * @param operation the operation name for logging
+     * @param response the provider's response
      */
     private void traceResponse(String operation, SystemOneResponse response) {
         if (DecisionContentCapture.isEnabled() && logger.isTraceEnabled()) {
