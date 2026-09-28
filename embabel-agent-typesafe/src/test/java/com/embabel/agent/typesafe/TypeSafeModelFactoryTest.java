@@ -54,6 +54,7 @@ class TypeSafeModelFactoryTest {
     private static final ClassificationRequest CLASSIFICATION_REQUEST =
             new ClassificationRequest(
                     "A border collie is waiting by the door",
+                    "Which animal is waiting?",
                     List.of(
                             new Category("dog", "A domestic dog"),
                             new Category("cat", "A domestic cat")));
@@ -230,6 +231,9 @@ class TypeSafeModelFactoryTest {
         fixture.server()
                 .expect(requestTo(SYSTEM_ONE_URI))
                 .andExpect(jsonPath("$.model").value("configured-alias"))
+                .andExpect(
+                        jsonPath("$.questions.classification.instructions")
+                                .value("Which animal is waiting?"))
                 .andExpect(jsonPath("$.questions.classification.criteria.dog").exists())
                 .andExpect(jsonPath("$.questions.classification.criteria.cat").exists())
                 .andRespond(

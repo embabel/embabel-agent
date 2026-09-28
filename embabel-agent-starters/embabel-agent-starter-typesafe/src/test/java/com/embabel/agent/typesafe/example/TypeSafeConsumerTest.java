@@ -87,6 +87,7 @@ class TypeSafeConsumerTest {
             return decisions.classify(
                     new ClassificationRequest(
                             message,
+                            "Which team should handle this request?",
                             List.of(
                                     new Category("billing", "Payments, invoices and refunds"),
                                     new Category("support", "Product use and technical support"))));
