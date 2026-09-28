@@ -16,7 +16,7 @@ Two providers implement them: Jev through the TypeSafe integration (<<reference.
 .Application and model responsibilities
 [listing]
 ----
-Application: input + canonical categories
+Application: input + instructions + canonical categories
                     |
                     v
             ClassificationService
@@ -48,8 +48,9 @@ In Kotlin, `classificationSpec { }` builds the same spec:
 include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/kotlin/com/embabel/common/ai/classification/ClassificationSpecTest.kt[tag=dsl,indent=0]
 ----
 
-`asking` is required, and so is at least one `category`.
-Category IDs must be nonblank and unique.
+`asking` sets the instructions: what the model is asked, such as "Which kind of animal is this?".
+They are required, and a blank value throws `IllegalArgumentException`.
+At least one `category` is required, and category IDs must be nonblank and unique.
 Each category is a `Category` with a stable `id` and a description of when it applies.
 `getInstructions()` and `getCategories()` read them back.
 `ClassificationRequest.of(input, spec)` pairs a spec with the text to classify.
@@ -68,7 +69,7 @@ Descriptions guide the model, but do not create a separate alias registry or gua
 `spec()` returns the `ClassificationSpec` built from them, and `request(input)` returns a request for that spec.
 Values may be enum constants or class tokens such as `Rabbit.class`.
 Class tokens stay in the application; the provider receives category definitions, not authority to instantiate objects.
-`fromEnum` uses enum names as IDs, regardless of an overridden `toString()`.
+`fromEnum(enumType, instructions, description)` uses enum names as IDs, regardless of an overridden `toString()`.
 Requests and mappings copy their structural collections; mapped values themselves remain caller-owned references.
 
 The following repository tests use `AnimalKind` with `DOG`, `CAT`, and `RABBIT` constants, and `Dog`, `Cat`, and `Rabbit` classes implementing `Animal`.
@@ -133,6 +134,30 @@ This test implementation returns `false` successfully and leaves `pTrue` absent:
 ----
 include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/com/embabel/common/ai/classification/ClassificationJavaTest.java[tag=proposition]
 ----
+
+==== Store Results as JSON
+
+Classification and proposition results carry their own Jackson annotations, so a plain `JsonMapper.builder().build()` writes and reads them with no module registered.
+Each result is an object whose `status` member names the outcome:
+
+[cols="1,2",options="header"]
+|===
+|Result |`status` values
+|`ClassificationResult` |`selected`, `no_match`, `inconclusive`, `failure`
+|`PropositionResult` |`answered`, `inconclusive`, `failure`
+|===
+
+[source,json]
+----
+{"status":"selected","categoryId":"billing","confidence":0.91,
+ "provenance":{"modelName":"example-model","provider":"example-provider"}}
+----
+
+A missing confidence, `pTrue`, provenance `version` or `requestId` is left out rather than written as `null`.
+A failure writes its reason in lower case, such as `{"status":"failure","reason":"invalid_response"}`.
+A `Category` is `{"id":...,"description":...}`.
+A `ClassificationSpec` writes decision spec JSON and a `ClassificationRequest` writes decision request JSON, `{"input":...,"spec":...}`; see <<reference.decision-specs>>.
+Reading throws a Jackson `DatabindException` for a member these types don't define, whatever the mapper's unknown-property setting, so a typo can't silently drop data.
 
 ==== Describe and Inject a Service
 
