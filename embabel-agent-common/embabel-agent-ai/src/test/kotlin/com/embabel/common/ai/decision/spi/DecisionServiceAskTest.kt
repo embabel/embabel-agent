@@ -383,9 +383,28 @@ class DecisionServiceAskTest {
             val service = NativeService {
                 DecisionResponse.failed(DecisionSpec.of(anger), FailureReason.UNAVAILABLE)
             }
-            assertThrows(IllegalStateException::class.java) {
+            val e = assertThrows(IllegalStateException::class.java) {
                 service.ask(DecisionRequest.of("An email.", urgent, team))
             }
+            assertTrue(e.message!!.contains("'native'"), e.message)
+            assertTrue(e.message!!.contains("Missing: 'urgent', 'team'."), e.message)
+        }
+
+        @Test
+        fun `a native service answering a question with other options is an illegal state`() {
+            val otherTeam = Questions.named("team")
+                .choice("Which team should handle this?")
+                .option("billing", "Payments and refunds")
+                .option("sales", "New customers")
+                .build()
+            val service = NativeService {
+                DecisionResponse.failed(DecisionSpec.of(urgent, otherTeam), FailureReason.UNAVAILABLE)
+            }
+            val e = assertThrows(IllegalStateException::class.java) {
+                service.ask(DecisionRequest.of("An email.", urgent, team))
+            }
+            assertTrue(e.message!!.contains("Answer 'team'"), e.message)
+            assertInstanceOf(IllegalArgumentException::class.java, e.cause)
         }
 
         @Test

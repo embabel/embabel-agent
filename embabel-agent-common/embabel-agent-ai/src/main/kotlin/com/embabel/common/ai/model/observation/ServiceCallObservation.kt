@@ -21,6 +21,7 @@ import com.embabel.common.ai.decision.ChoiceQuestionSpec
 import com.embabel.common.ai.decision.DecisionAnswer
 import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionResponse
+import com.embabel.common.ai.decision.DecisionSpec
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.RatingResult
 import com.embabel.common.ai.decision.UnsupportedDecisionException
@@ -100,7 +101,7 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
      *
      * @param service the answering service's own name
      * @param provider the answering service's provider
-     * @param request the request, read only for its question count and spec id
+     * @param request the request, read only for its question count and spec
      * @param work the execution that produces the response
      * @return the response [work] returned, unchanged
      */
@@ -383,11 +384,11 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
     }
 
     /**
-     * One event per answer, in spec order. Events are recorded only for a response to the request's
-     * spec, whose answer names are then the spec's question names.
+     * One event per answer, in spec order. Events are recorded only for a response that matches the
+     * request's spec, whose answer names are then the spec's question names.
      */
     private fun answerEvents(request: DecisionRequest, response: DecisionResponse): List<Observation.Event> {
-        if (response.definitionId != request.spec.definitionId) return emptyList()
+        if (!matchesSpec(response, request.spec)) return emptyList()
         return response.answers.map { answer ->
             val kind = when (answer) {
                 is DecisionAnswer.Proposition -> "proposition"
@@ -398,6 +399,14 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
             Observation.Event.of("answer.$kind.$outcome", "${answer.name} $kind $outcome")
         }
     }
+
+    private fun matchesSpec(response: DecisionResponse, spec: DecisionSpec): Boolean =
+        try {
+            response.requireMatches(spec)
+            true
+        } catch (_: IllegalArgumentException) {
+            false
+        }
 
     // Fixed buckets keep the tag bounded for any spec size.
     private fun questionCountBucket(count: Int): String = when {

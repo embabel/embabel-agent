@@ -249,7 +249,7 @@ internal object DecisionExecution {
      * @throws UnsupportedDecisionException if the service cannot run the request
      * @throws IllegalStateException if the capabilities claim a hook the hook source lacks, if the
      * service lacks a hook of the hook source that the request is routed through, or if a native
-     * response answers another spec
+     * response does not match the request's spec
      * @throws InterruptedException if the thread is interrupted between questions
      */
     fun execute(
@@ -301,10 +301,14 @@ internal object DecisionExecution {
         request: DecisionRequest,
     ): DecisionResponse {
         val response = hook.askNative(request)
-        check(response.definitionId == request.spec.definitionId) {
-            "Decision service '${service.name}' returned a native response for spec ${response.definitionId}, " +
-                "but the request has spec ${request.spec.definitionId}. The service's askNative implementation " +
-                "must answer the request's spec."
+        try {
+            response.requireMatches(request.spec)
+        } catch (e: IllegalArgumentException) {
+            throw IllegalStateException(
+                "Decision service '${service.name}' returned a native response that does not answer the " +
+                    "request's spec. ${e.message} The service's askNative implementation must answer the request's spec.",
+                e,
+            )
         }
         return response
     }
