@@ -18,7 +18,6 @@ package com.embabel.common.ai.decision.support
 import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.FailureReason
-import com.embabel.common.ai.decision.ChoiceQuestionSpec
 import com.embabel.common.ai.decision.DecisionCapabilities
 import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionResponse
@@ -27,7 +26,6 @@ import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.QuestionKind
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
-import com.embabel.common.ai.decision.spi.ChoiceAssessment
 import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
 import com.embabel.common.ai.decision.spi.RatingAssessment
 import com.embabel.common.ai.model.DecisionService
@@ -49,7 +47,7 @@ import java.util.EnumSet
 @ApiStatus.Experimental
 class NoOpDecisionService @JvmOverloads constructor(
     override val name: String = "none",
-) : DecisionService, NativeQuestionSetExecution, ChoiceAssessment, RatingAssessment {
+) : DecisionService, NativeQuestionSetExecution, RatingAssessment {
 
     override val provider: String get() = PROVIDER
 
@@ -67,11 +65,6 @@ class NoOpDecisionService @JvmOverloads constructor(
     override fun assess(request: PropositionRequest): PropositionResult {
         logger.debug("Decision service '{}' is disabled: assess returns UNAVAILABLE", name)
         return PropositionResult.Failure(FailureReason.UNAVAILABLE)
-    }
-
-    override fun choose(input: String, question: ChoiceQuestionSpec): ClassificationResult {
-        logger.debug("Decision service '{}' is disabled: choose returns UNAVAILABLE", name)
-        return ClassificationResult.Failure(FailureReason.UNAVAILABLE)
     }
 
     override fun rate(input: String, question: RatingQuestionSpec): RatingResult {

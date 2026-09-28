@@ -15,7 +15,6 @@
  */
 package com.embabel.common.ai.decision.spi
 
-import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.decision.ChoiceQuestionSpec
 import com.embabel.common.ai.decision.DecisionCapabilities
 import com.embabel.common.ai.decision.DecisionRequest
@@ -69,17 +68,9 @@ class DecisionExecutionPlanTest {
 
     private val noHooks = object {}
 
-    private val choiceOnly = object : ChoiceAssessment {
-        override fun choose(input: String, question: ChoiceQuestionSpec): ClassificationResult = error("not called")
-    }
+    private val propositionsOnly = DecisionCapabilities.of(EnumSet.of(QuestionKind.PROPOSITION))
 
     private val ratingOnly = object : RatingAssessment {
-        override fun rate(input: String, question: RatingQuestionSpec): RatingResult = error("not called")
-    }
-
-    private val choiceAndRating = object : ChoiceAssessment, RatingAssessment {
-        override fun choose(input: String, question: ChoiceQuestionSpec): ClassificationResult = error("not called")
-
         override fun rate(input: String, question: RatingQuestionSpec): RatingResult = error("not called")
     }
 
@@ -135,9 +126,8 @@ class DecisionExecutionPlanTest {
         }
 
         @Test
-        fun `one choice on a legacy service names the question, CHOICE and ChoiceAssessment`() {
-            val error = unsupported { plan(legacy, request(choice())) }
-            assertContains(error.message!!, "'team' (CHOICE) needs ChoiceAssessment")
+        fun `a legacy service answers a choice per question through classify`() {
+            assertFalse(plan(legacy, request(proposition(), choice())))
         }
 
         @Test
@@ -149,7 +139,7 @@ class DecisionExecutionPlanTest {
         @Test
         fun `a proposition on capabilities without PROPOSITION blames the capabilities`() {
             val choicesOnly = DecisionCapabilities.of(EnumSet.of(QuestionKind.CHOICE))
-            val message = unsupported { plan(choicesOnly, request(proposition()), choiceOnly) }.message!!
+            val message = unsupported { plan(choicesOnly, request(proposition())) }.message!!
             assertContains(
                 message,
                 "capabilities leave out PROPOSITION questions",
@@ -161,7 +151,7 @@ class DecisionExecutionPlanTest {
 
         @Test
         fun `all three kinds with every hook answer per question`() {
-            assertFalse(plan(everyKind, request(proposition(), choice(), rating()), choiceAndRating))
+            assertFalse(plan(everyKind, request(proposition(), choice(), rating()), ratingOnly))
         }
 
         @Test
@@ -172,7 +162,7 @@ class DecisionExecutionPlanTest {
 
         @Test
         fun `a native service still needs the kind in its capabilities`() {
-            val message = unsupported { plan(legacy, request(choice()), nativeSource) }.message!!
+            val message = unsupported { plan(propositionsOnly, request(choice()), nativeSource) }.message!!
             assertContains(
                 message,
                 "capabilities leave out CHOICE questions: 'team' (CHOICE)",
@@ -208,27 +198,24 @@ class DecisionExecutionPlanTest {
     inner class DescriptorAndHooks {
 
         @Test
-        fun `CHOICE claimed without the choice hook names ChoiceAssessment`() {
-            val error = assertThrows(IllegalStateException::class.java) {
-                plan(everyKind, request(proposition(), choice()), ratingOnly)
-            }
-            assertContains(error.message!!, "svc-under-test", "ChoiceAssessment", "NativeQuestionSetExecution")
+        fun `CHOICE claimed with no hooks is backed by classify`() {
+            assertFalse(plan(everyKind, request(proposition(), choice()), noHooks))
         }
 
         @Test
         fun `RATING claimed without the rating hook names RatingAssessment`() {
             val error = assertThrows(IllegalStateException::class.java) {
-                plan(everyKind, request(proposition(), rating()), choiceOnly)
+                plan(everyKind, request(proposition(), rating()), noHooks)
             }
-            assertContains(error.message!!, "svc-under-test", "RatingAssessment")
+            assertContains(error.message!!, "svc-under-test", "RatingAssessment", "NativeQuestionSetExecution")
         }
 
         @Test
         fun `a claimed kind with no backing is checked before any other question runs`() {
             val error = assertThrows(IllegalStateException::class.java) {
-                plan(everyKind, request(choice()), noHooks)
+                plan(everyKind, request(rating()), noHooks)
             }
-            assertContains(error.message!!, "claims choice questions")
+            assertContains(error.message!!, "claims rating questions")
             assertNoContent(error.message!!)
         }
 
@@ -241,33 +228,31 @@ class DecisionExecutionPlanTest {
     @Nested
     inner class Decorators {
 
-        private val choiceForwarder = object : ChoiceAssessment {
-            override fun choose(input: String, question: ChoiceQuestionSpec): ClassificationResult = error("not called")
-
-            override fun toString() = "choiceForwarder"
+        private val bareForwarder = object {
+            override fun toString() = "bareForwarder"
         }
 
         @Test
         fun `a decorator without the native hook of its hook source fails preflight`() {
             val error = assertThrows(IllegalStateException::class.java) {
-                plan(everyKind, request(choice()), nativeSource, service = choiceForwarder)
+                plan(everyKind, request(choice()), nativeSource, service = bareForwarder)
             }
             assertContains(
                 error.message!!,
                 "svc-under-test",
-                choiceForwarder.javaClass.name,
+                bareForwarder.javaClass.name,
                 "NativeQuestionSetExecution",
-                "Implement NativeQuestionSetExecution on ${choiceForwarder.javaClass.name}",
+                "Implement NativeQuestionSetExecution on ${bareForwarder.javaClass.name}",
             )
         }
 
         @Test
         fun `a decorator without a per-question hook of its hook source fails preflight`() {
             val error = assertThrows(IllegalStateException::class.java) {
-                plan(everyKind, request(choice(), rating()), choiceAndRating, service = choiceForwarder)
+                plan(everyKind, request(choice(), rating()), ratingOnly, service = bareForwarder)
             }
             assertContains(error.message!!, "svc-under-test", "does not implement RatingAssessment", "Implement RatingAssessment")
-            assertFalse(error.message!!.contains("ChoiceAssessment")) { "Only the missing hook is named: ${error.message}" }
+            assertFalse(error.message!!.contains("classify")) { "Only the missing hook is named: ${error.message}" }
             assertNoContent(error.message!!)
         }
 
@@ -281,15 +266,13 @@ class DecisionExecutionPlanTest {
 
         @Test
         fun `a decorator only needs the hooks the request uses`() {
-            assertFalse(plan(everyKind, request(proposition(), choice()), choiceAndRating, service = choiceForwarder))
+            assertFalse(plan(everyKind, request(proposition(), choice()), ratingOnly, service = bareForwarder))
         }
 
         @Test
         fun `a decorator with every hook of its hook source passes`() {
-            val full = object : NativeQuestionSetExecution, ChoiceAssessment {
+            val full = object : NativeQuestionSetExecution {
                 override fun askNative(request: DecisionRequest): DecisionResponse = error("not called")
-
-                override fun choose(input: String, question: ChoiceQuestionSpec): ClassificationResult = error("not called")
             }
             assertTrue(plan(everyKind, request(choice(), rating()), nativeSource, service = full))
         }
@@ -299,8 +282,8 @@ class DecisionExecutionPlanTest {
     inner class DefaultCapabilities {
 
         @Test
-        fun `legacy capabilities are propositions with no limits`() {
-            assertEquals(setOf(QuestionKind.PROPOSITION), legacy.questionKinds)
+        fun `legacy capabilities are propositions and choices with no limits`() {
+            assertEquals(setOf(QuestionKind.PROPOSITION, QuestionKind.CHOICE), legacy.questionKinds)
             assertEquals(null, legacy.maxQuestions)
             assertEquals(null, legacy.maxInputCharacters)
         }
@@ -311,19 +294,13 @@ class DecisionExecutionPlanTest {
         }
 
         @Test
-        fun `the proposition hook keeps PROPOSITION only`() {
+        fun `the proposition hook keeps PROPOSITION and CHOICE only`() {
             assertEquals(legacy, DecisionExecution.defaultCapabilities(propositionHook))
         }
 
         @Test
-        fun `the choice hook adds CHOICE`() {
-            val capabilities = DecisionExecution.defaultCapabilities(choiceOnly)
-            assertEquals(setOf(QuestionKind.PROPOSITION, QuestionKind.CHOICE), capabilities.questionKinds)
-        }
-
-        @Test
-        fun `both hooks add CHOICE and RATING`() {
-            assertEquals(allKinds, DecisionExecution.defaultCapabilities(choiceAndRating).questionKinds)
+        fun `the rating hook adds RATING`() {
+            assertEquals(allKinds, DecisionExecution.defaultCapabilities(ratingOnly).questionKinds)
         }
 
         @Test
@@ -337,14 +314,14 @@ class DecisionExecutionPlanTest {
 
         @Test
         fun `a kind miss names service, questions, kinds, hooks, capabilities and remedy`() {
-            val message = unsupported { plan(legacy, request(proposition(), choice())) }.message!!
+            val message = unsupported { plan(legacy, request(proposition(), rating())) }.message!!
             assertContains(
                 message,
                 "svc-under-test",
-                "'team' (CHOICE) needs ChoiceAssessment",
-                "capabilities leave out CHOICE questions",
-                "kinds [PROPOSITION]",
-                "Use a service that implements ChoiceAssessment, or remove these questions.",
+                "'anger' (RATING) needs RatingAssessment",
+                "capabilities leave out RATING questions",
+                "kinds [PROPOSITION, CHOICE]",
+                "Use a service that implements RatingAssessment, or remove these questions.",
             )
             assertFalse(message.contains("'urgent'")) { "Only unsupported questions are listed: $message" }
             assertFalse(message.contains("mode", ignoreCase = true)) { "No mode in: $message" }
@@ -352,33 +329,34 @@ class DecisionExecutionPlanTest {
         }
 
         @Test
-        fun `a rating kind miss names the rating remedy`() {
-            val message = unsupported { plan(legacy, request(rating())) }.message!!
-            assertContains(message, "Use a service that implements RatingAssessment, or remove these questions.")
+        fun `a choice kind miss never asks for a hook`() {
+            val message = unsupported { plan(propositionsOnly, request(choice())) }.message!!
+            assertFalse(message.contains("needs")) { "No missing hook in: $message" }
+            assertFalse(message.contains("Assessment")) { "No hook named in: $message" }
             assertNoContent(message)
         }
 
         @Test
         fun `a kind the service has the hook for names the capabilities as the fix`() {
-            val message = unsupported { plan(legacy, request(choice()), choiceOnly) }.message!!
+            val message = unsupported { plan(propositionsOnly, request(choice())) }.message!!
             assertContains(
                 message,
                 "capabilities leave out CHOICE questions",
-                "'team' (CHOICE), which the service backs with ChoiceAssessment",
+                "'team' (CHOICE), which the service backs with classify",
                 "Report CHOICE in the service's capabilities(), use a service whose capabilities include CHOICE, " +
                     "or remove these questions.",
             )
-            assertFalse(message.contains("needs ChoiceAssessment")) { "No missing hook in: $message" }
+            assertFalse(message.contains("needs")) { "No missing hook in: $message" }
             assertFalse(message.contains("Use a service that implements")) { "No hook remedy in: $message" }
             assertNoContent(message)
         }
 
         @Test
         fun `a present hook and a missing hook each get their own remedy`() {
-            val message = unsupported { plan(legacy, request(choice(), rating()), choiceOnly) }.message!!
+            val message = unsupported { plan(propositionsOnly, request(choice(), rating())) }.message!!
             assertContains(
                 message,
-                "'team' (CHOICE), which the service backs with ChoiceAssessment",
+                "'team' (CHOICE), which the service backs with classify",
                 "'anger' (RATING) needs RatingAssessment",
                 "Report CHOICE in the service's capabilities(), use a service that implements RatingAssessment, " +
                     "or remove these questions.",

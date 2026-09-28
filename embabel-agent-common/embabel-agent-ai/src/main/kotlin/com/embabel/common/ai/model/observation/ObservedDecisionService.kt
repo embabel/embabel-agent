@@ -18,7 +18,6 @@ package com.embabel.common.ai.model.observation
 import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.ClassificationSpec
-import com.embabel.common.ai.decision.ChoiceQuestionSpec
 import com.embabel.common.ai.decision.DecisionCapabilities
 import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionResponse
@@ -29,7 +28,6 @@ import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
-import com.embabel.common.ai.decision.spi.ChoiceAssessment
 import com.embabel.common.ai.decision.spi.DecisionExecution
 import com.embabel.common.ai.decision.spi.DelegatingDecisionService
 import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
@@ -48,8 +46,9 @@ import org.jetbrains.annotations.ApiStatus
  * diagnostics when logging is available and never replace service behavior. JVM error types propagate.
  *
  * An ask emits one logical `embabel.ai.ask` observation plus one `embabel.ai.decision` observation
- * per provider call made inside it: `ask_native` for a native call, and `assess`, `choose` or `rate`
- * for each question asked on its own. The capabilities are the delegate's. Preflight checks them
+ * per provider call made inside it: `ask_native` for a native call, and `assess` or `rate` for each
+ * proposition or rating question asked on its own. A choice question asked on its own goes through
+ * `classify` and emits one `embabel.ai.classification` observation. The capabilities are the delegate's. Preflight checks them
  * against the hook interfaces of the delegate, so a delegate whose capabilities claim a hook it does
  * not implement fails with an [IllegalStateException] before any provider call. Every ask overload
  * runs through the shared execution path, so a delegate's own `ask` override is not called.
@@ -64,7 +63,6 @@ class ObservedDecisionService @JvmOverloads constructor(
     DelegatingDecisionService,
     NativeQuestionSetExecution,
     PropositionAssessment,
-    ChoiceAssessment,
     RatingAssessment {
     private val observation = ServiceCallObservation(observationRegistry)
 
@@ -126,18 +124,6 @@ class ObservedDecisionService @JvmOverloads constructor(
     override fun assess(input: String, question: PropositionQuestionSpec): PropositionResult {
         val hook = requireHook<PropositionAssessment>("PropositionAssessment")
         return observation.assess { hook.assess(input, question) }
-    }
-
-    /**
-     * Runs the delegate's choice call inside one `choose` observation and validates the selection
-     * against the question's options.
-     *
-     * @throws IllegalStateException if the delegate does not implement [ChoiceAssessment]
-     * @throws IllegalArgumentException if the delegate selects an option the question does not hold
-     */
-    override fun choose(input: String, question: ChoiceQuestionSpec): ClassificationResult {
-        val hook = requireHook<ChoiceAssessment>("ChoiceAssessment")
-        return observation.choose(question) { hook.choose(input, question) }
     }
 
     /**

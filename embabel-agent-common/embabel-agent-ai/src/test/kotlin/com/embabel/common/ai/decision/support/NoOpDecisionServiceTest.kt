@@ -76,7 +76,6 @@ class NoOpDecisionServiceTest {
             ClassificationResult.Failure(FailureReason.UNAVAILABLE),
             service.classify(ClassificationRequest.of("x", classificationSpec { asking("Which category fits?"); category("a", "A") })),
         )
-        assertEquals(ClassificationResult.Failure(FailureReason.UNAVAILABLE), service.choose("x", team))
         assertEquals(RatingResult.Failure(FailureReason.UNAVAILABLE), service.rate("x", anger))
     }
 

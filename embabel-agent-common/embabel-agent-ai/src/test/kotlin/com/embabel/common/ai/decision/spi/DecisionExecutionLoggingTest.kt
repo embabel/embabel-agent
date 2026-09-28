@@ -72,16 +72,14 @@ class DecisionExecutionLoggingTest {
 
     private class Hooked(
         private val onAssess: () -> PropositionResult,
-        private val onChoose: () -> ClassificationResult,
-    ) : DecisionService, ChoiceAssessment, RatingAssessment {
+        private val onClassify: () -> ClassificationResult,
+    ) : DecisionService, RatingAssessment {
         override val name = "log-service"
         override val provider = "log-provider"
 
-        override fun classify(request: ClassificationRequest): ClassificationResult = error("not used")
+        override fun classify(request: ClassificationRequest): ClassificationResult = onClassify()
 
         override fun assess(request: PropositionRequest): PropositionResult = onAssess()
-
-        override fun choose(input: String, question: ChoiceQuestionSpec): ClassificationResult = onChoose()
 
         override fun rate(input: String, question: RatingQuestionSpec): RatingResult =
             RatingResult.Answered(ModelProvenance("model-a", "provider-a"), selectedLevelId = "angry")
@@ -89,8 +87,8 @@ class DecisionExecutionLoggingTest {
 
     private fun hooked(
         onAssess: () -> PropositionResult = { PropositionResult.Answered(true, provenance) },
-        onChoose: () -> ClassificationResult = { ClassificationResult.Selected("billing", provenance) },
-    ) = Hooked(onAssess, onChoose)
+        onClassify: () -> ClassificationResult = { ClassificationResult.Selected("billing", provenance) },
+    ) = Hooked(onAssess, onClassify)
 
     private class FailingNative : DecisionService, NativeQuestionSetExecution {
         override val name = "native-service"
@@ -204,7 +202,7 @@ class DecisionExecutionLoggingTest {
     @Test
     fun `an out of domain answer logs a warning naming the question`() {
         val events = capture(Level.INFO, contentCapture = false) {
-            hooked(onChoose = { ClassificationResult.Selected("SENTINEL-CATEGORY", provenance) })
+            hooked(onClassify = { ClassificationResult.Selected("SENTINEL-CATEGORY", provenance) })
                 .ask(allThree)
         }
         val warn = events.at(Level.WARN)

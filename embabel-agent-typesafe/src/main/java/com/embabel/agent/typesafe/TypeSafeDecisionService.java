@@ -19,7 +19,6 @@ import com.embabel.common.ai.classification.ClassificationRequest;
 import com.embabel.common.ai.classification.ClassificationResult;
 import com.embabel.common.ai.classification.FailureReason;
 import com.embabel.common.ai.classification.ModelProvenance;
-import com.embabel.common.ai.decision.ChoiceQuestionSpec;
 import com.embabel.common.ai.decision.DecisionCapabilities;
 import com.embabel.common.ai.decision.DecisionRequest;
 import com.embabel.common.ai.decision.DecisionResponse;
@@ -30,7 +29,6 @@ import com.embabel.common.ai.decision.PropositionResult;
 import com.embabel.common.ai.decision.QuestionKind;
 import com.embabel.common.ai.decision.RatingQuestionSpec;
 import com.embabel.common.ai.decision.RatingResult;
-import com.embabel.common.ai.decision.spi.ChoiceAssessment;
 import com.embabel.common.ai.decision.spi.DecisionContentCapture;
 import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution;
 import com.embabel.common.ai.decision.spi.PropositionAssessment;
@@ -64,8 +62,9 @@ import java.util.concurrent.TimeoutException;
 /**
  * Maps TypeSafe's native primitives into Embabel decision evidence without adding policy.
  *
- * <p>A whole decision spec runs as one {@code systemOne} call. Proposition, choice and rating
- * questions asked on their own run as a one-question call each. Every failed provider call logs one
+ * <p>A whole decision spec runs as one {@code systemOne} call. Proposition and rating questions
+ * asked on their own run as a one-question call each. A choice question asked on its own goes
+ * through {@code classify}, with the question's instructions and categories. Every failed provider call logs one
  * WARN line with bounded fields: service, provider, operation, reason, cause category, HTTP status class,
  * attempts, elapsed time, exception class and provider request id. Exception messages, bodies,
  * headers and endpoints are left out, because they can echo the input or carry credentials.
@@ -82,7 +81,6 @@ final class TypeSafeDecisionService
         implements DecisionService,
                 NativeQuestionSetExecution,
                 PropositionAssessment,
-                ChoiceAssessment,
                 RatingAssessment {
     private static final Logger logger = LoggerFactory.getLogger(TypeSafeDecisionService.class);
     private static final String CLASSIFICATION_QUESTION = "classification";
@@ -128,13 +126,6 @@ final class TypeSafeDecisionService
     public DecisionResponse askNative(DecisionRequest request) {
         Objects.requireNonNull(request, REQUEST_ARGUMENT);
         return runQuestionSet(request, "ask_native", "question set");
-    }
-
-    @Override
-    public ClassificationResult choose(String input, ChoiceQuestionSpec question) {
-        Objects.requireNonNull(question, QUESTION);
-        return runQuestionSet(DecisionRequest.of(input, question), "choose", "choice")
-                .answer(question);
     }
 
     @Override

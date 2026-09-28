@@ -15,8 +15,6 @@
  */
 package com.embabel.common.ai.decision.spi
 
-import com.embabel.common.ai.classification.ClassificationResult
-import com.embabel.common.ai.decision.ChoiceQuestionSpec
 import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionResponse
 import com.embabel.common.ai.decision.PropositionQuestionSpec
@@ -85,26 +83,6 @@ fun interface PropositionAssessment {
      * @return the question's outcome
      */
     fun assess(input: String, question: PropositionQuestionSpec): PropositionResult
-}
-
-/**
- * A decision service that answers one choice question, with its instructions and options, in its
- * own provider call.
- *
- * Per-question execution answers choice questions only through this interface.
- */
-@ApiStatus.Experimental
-fun interface ChoiceAssessment {
-
-    /**
-     * Answers one choice question in its own provider call. The caller validates the outcome
-     * against the question's options.
-     *
-     * @param input the text the model reasons over
-     * @param question the choice question, with its instructions and options
-     * @return the question's outcome
-     */
-    fun choose(input: String, question: ChoiceQuestionSpec): ClassificationResult
 }
 
 /**

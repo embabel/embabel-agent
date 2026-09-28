@@ -17,11 +17,11 @@ package com.embabel.common.ai.decision.spi;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.embabel.common.ai.classification.Category;
 import com.embabel.common.ai.classification.ClassificationRequest;
 import com.embabel.common.ai.classification.ClassificationResult;
 import com.embabel.common.ai.classification.ClassificationSpec;
 import com.embabel.common.ai.classification.ModelProvenance;
+import com.embabel.common.ai.decision.ChoiceQuestionSpec;
 import com.embabel.common.ai.decision.DecisionCapabilities;
 import com.embabel.common.ai.decision.DecisionSpec;
 import com.embabel.common.ai.decision.PropositionQuestionSpec;
@@ -34,7 +34,6 @@ import com.embabel.common.ai.model.DecisionService;
 import org.junit.jupiter.api.Test;
 
 import java.util.EnumSet;
-import java.util.List;
 
 class LegacyDecisionServiceJavaTest {
 
@@ -81,26 +80,44 @@ class LegacyDecisionServiceJavaTest {
     @Test
     void capabilitiesAreTheLegacyDescriptor() {
         var expected =
-                DecisionCapabilities.of(EnumSet.of(QuestionKind.PROPOSITION));
+                DecisionCapabilities.of(EnumSet.of(QuestionKind.PROPOSITION, QuestionKind.CHOICE));
         assertEquals(expected, new LegacyJavaService().capabilities());
     }
 
     @Test
-    void singleChoiceThroughAskIsUnsupportedAndClassifyStillWorks() {
+    void singleChoiceThroughAskGoesThroughClassify() {
         var service = new LegacyJavaService();
-        var spec =
-                DecisionSpec.builder()
-                        .choice("team", question -> question
-                                .asking("Which team?")
-                                .option("billing", "Payments")
-                                .option("support", "Help"))
-                        .build();
+        ChoiceQuestionSpec team = Questions.named("team")
+                .choice("Which team?")
+                .option("support", "Help")
+                .option("billing", "Payments")
+                .build();
 
-        assertThrows(UnsupportedOperationException.class, () -> service.ask("A customer email.", spec));
+        var response = service.ask("A customer email.", DecisionSpec.of(team));
+
+        assertEquals(new ClassificationResult.Selected("support", PROVENANCE), response.answer(team));
         assertEquals(0, service.assessCalls);
+    }
 
-        var direct = service.classify(
-                ClassificationRequest.of("A customer email.", ClassificationSpec.builder().asking("Which category fits?").category("billing", "Payments").build()));
-        assertEquals(new ClassificationResult.Selected("billing", PROVENANCE), direct);
+    @Test
+    void classificationRequestThroughAskAnswersItsQuestion() {
+        var service = new LegacyJavaService();
+        var departments = ClassificationSpec.builder()
+                .asking("Which category fits?")
+                .category("billing", "Payments")
+                .build();
+
+        var response = service.ask(ClassificationRequest.of("A customer email.", departments));
+
+        assertEquals(new ClassificationResult.Selected("billing", PROVENANCE), response.answer(departments.getQuestion()));
+    }
+
+    @Test
+    void singleRatingThroughAskIsUnsupported() {
+        var service = new LegacyJavaService();
+        var anger = Questions.named("anger").rating("How angry?").level("calm", "Calm").level("angry", "Angry").build();
+
+        assertThrows(UnsupportedOperationException.class, () -> service.ask("A customer email.", DecisionSpec.of(anger)));
+        assertEquals(0, service.assessCalls);
     }
 }

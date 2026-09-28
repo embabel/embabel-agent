@@ -19,7 +19,9 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
+import com.embabel.common.ai.classification.ClassificationSpec
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
 import com.embabel.common.ai.decision.ChoiceQuestionSpec
@@ -83,6 +85,7 @@ class AskTelemetryTest {
         .build()
 
     private val questionNames = listOf("urgent", "department", "anger")
+    private val departmentRequest = ClassificationRequest.of(sentinelInput, ClassificationSpec.of(department))
     private val spec = DecisionSpec.of(urgent, department, anger)
     private val request = DecisionRequest.of(sentinelInput, spec)
 
@@ -274,13 +277,12 @@ class AskTelemetryTest {
                 telemetry.observation.native { throw UnsupportedDecisionException("no") }
             }
             assertThrows<InterruptedException> { telemetry.observation.native { interrupted() } }
-            telemetry.observation.choose(department) { ClassificationResult.Selected("support", provenance) }
             telemetry.observation.rate { RatingResult.Inconclusive(provenance) }
 
             assertEquals(listOf("complete", "partial", "request_failure", "exception", "interrupted"),
                 outcomes(telemetry, "ask_native"))
             val decisionTimers = telemetry.timers("embabel.ai.decision")
-            assertEquals(setOf("assess", "ask_native", "choose", "rate"),
+            assertEquals(setOf("assess", "ask_native", "rate"),
                 decisionTimers.map { it.id.getTag("operation") }.toSet())
             decisionTimers.forEach { assertEquals(timerKeys(providerKeys), it.id.tags.map { tag -> tag.key }.toSet()) }
             telemetry.recorder.stopped.forEach {
@@ -290,19 +292,19 @@ class AskTelemetryTest {
         }
 
         @Test
-        fun `choose uses classification labels and validates the selection`() {
+        fun `classify of a choice question validates the selection against its options`() {
             val telemetry = Telemetry()
             listOf(
                 ClassificationResult.Selected("billing", provenance),
                 ClassificationResult.NoMatch(provenance),
                 ClassificationResult.Inconclusive(provenance),
                 ClassificationResult.Failure(FailureReason.UNAVAILABLE),
-            ).forEach { result -> assertSame(result, telemetry.observation.choose(department) { result }) }
+            ).forEach { result -> assertSame(result, telemetry.observation.classify(departmentRequest) { result }) }
             assertThrows<IllegalArgumentException> {
-                telemetry.observation.choose(department) { ClassificationResult.Selected("SENTINEL-ID", provenance) }
+                telemetry.observation.classify(departmentRequest) { ClassificationResult.Selected("SENTINEL-ID", provenance) }
             }
             assertEquals(listOf("selected", "no_match", "inconclusive", "failure", "invalid_response"),
-                outcomes(telemetry, "choose"))
+                outcomes(telemetry, "classify"))
             assertTrue(telemetry.recorder.errors.none { it.toString().contains("SENTINEL-ID") })
         }
 
@@ -416,7 +418,7 @@ class AskTelemetryTest {
         fun `no tag value holds a question name, role, input or instruction`() {
             val telemetry = Telemetry()
             ask(telemetry) {
-                telemetry.observation.choose(department) { ClassificationResult.Selected("billing", provenance) }
+                telemetry.observation.classify(departmentRequest) { ClassificationResult.Selected("billing", provenance) }
                 telemetry.observation.rate { RatingResult.Answered(provenance, selectedLevelId = "calm") }
                 partial()
             }

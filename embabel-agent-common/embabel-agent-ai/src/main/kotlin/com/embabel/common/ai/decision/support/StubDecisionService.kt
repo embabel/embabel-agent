@@ -27,7 +27,6 @@ import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.QuestionKind
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
-import com.embabel.common.ai.decision.spi.ChoiceAssessment
 import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
 import com.embabel.common.ai.decision.spi.PropositionAssessment
 import com.embabel.common.ai.decision.spi.RatingAssessment
@@ -39,15 +38,16 @@ import java.util.EnumSet
 /**
  * A decision service for tests that returns scripted outcomes and records each call.
  *
- * Outcomes for `ask`, `choose`, `rate` and question `assess` calls are scripted by question name,
- * outcomes for `assess` calls with a [PropositionRequest] by proposition text, and outcomes for
- * `classify` by the set of category ids. A call with no scripted outcome throws
- * [IllegalStateException].
+ * Outcomes for `ask`, `rate` and question `assess` calls are scripted by question name, and
+ * outcomes for `assess` calls with a [PropositionRequest] by proposition text. `classify` returns
+ * the choice scripted for the request's question name, and otherwise the classification scripted
+ * for its set of category ids. A call with no scripted outcome throws [IllegalStateException].
  *
  * By default the stub answers a whole request in one native call. Native answers pass through the
  * same question validation as provider answers, so a scripted choice outside its question's
  * options, or rating evidence outside its levels, throws [IllegalStateException] from `ask`. A stub
- * built after [Builder.perQuestion] answers each question through its per-question hooks.
+ * built after [Builder.perQuestion] answers each question on its own: a choice question through
+ * `classify`, and the other kinds through their per-question hooks.
  * The stub accepts every question kind unless other capabilities are set.
  *
  * ```kotlin
@@ -65,7 +65,7 @@ sealed class StubDecisionService private constructor(
     private val ratings: Map<String, RatingResult>,
     private val assessments: Map<String, PropositionResult>,
     private val classifications: Map<Set<String>, ClassificationResult>,
-) : DecisionService, PropositionAssessment, ChoiceAssessment, RatingAssessment {
+) : DecisionService, PropositionAssessment, RatingAssessment {
 
     private val callLog = mutableListOf<String>()
 
@@ -75,7 +75,7 @@ sealed class StubDecisionService private constructor(
 
     /**
      * Returns the names of the operations called so far, in call order: `askNative`, `assess`,
-     * `classify`, `choose` and `rate`. A question `assess` call is recorded as `assess`.
+     * `classify` and `rate`. A question `assess` call is recorded as `assess`.
      *
      * @return an unmodifiable copy of the call log
      */
@@ -83,10 +83,13 @@ sealed class StubDecisionService private constructor(
 
     override fun classify(request: ClassificationRequest): ClassificationResult {
         record("classify")
+        val questionName = request.spec.question.name
+        choices[questionName]?.let { return it }
         val ids = request.categories.map { it.id }.toSet()
         return classifications[ids] ?: throw IllegalStateException(
-            "Stub decision service '$name' has no scripted classification for category ids $ids. " +
-                "Script one with classifying(categoryIds, result).",
+            "Stub decision service '$name' has no scripted choice for question '$questionName' and no scripted " +
+                "classification for category ids $ids. Script one with choice(\"$questionName\", result) or " +
+                "classifying(categoryIds, result).",
         )
     }
 
@@ -101,11 +104,6 @@ sealed class StubDecisionService private constructor(
     override fun assess(input: String, question: PropositionQuestionSpec): PropositionResult {
         record("assess")
         return propositions[question.name] ?: throw unscripted(question.name, question.kind, "proposition")
-    }
-
-    override fun choose(input: String, question: ChoiceQuestionSpec): ClassificationResult {
-        record("choose")
-        return choices[question.name] ?: throw unscripted(question.name, QuestionKind.CHOICE, "choice")
     }
 
     override fun rate(input: String, question: RatingQuestionSpec): RatingResult {
@@ -160,7 +158,7 @@ sealed class StubDecisionService private constructor(
         override fun askNative(request: DecisionRequest): DecisionResponse = answerAll(request)
     }
 
-    // The variant that answers each question through its per-question hooks.
+    // The variant that answers each question on its own, a choice through classify.
     private class PerQuestion(
         name: String,
         capabilities: DecisionCapabilities,
@@ -220,7 +218,8 @@ sealed class StubDecisionService private constructor(
             apply { propositions[questionName] = outcome }
 
         /**
-         * Scripts the outcome of a choice question in `ask` and `choose`.
+         * Scripts the outcome of a choice question in `ask`, and of `classify` for a request whose
+         * question has this name.
          *
          * @param questionName the question name
          * @param outcome the outcome to return
@@ -259,8 +258,9 @@ sealed class StubDecisionService private constructor(
             apply { classifications[java.util.Set.copyOf(categoryIds)] = outcome }
 
         /**
-         * Makes the stub answer each question through its per-question hooks. By default the stub
-         * answers a whole request in one native call.
+         * Makes the stub answer each question on its own: a choice through `classify`, the other
+         * kinds through their per-question hooks. By default the stub answers a whole request in one
+         * native call.
          *
          * @return this builder
          */

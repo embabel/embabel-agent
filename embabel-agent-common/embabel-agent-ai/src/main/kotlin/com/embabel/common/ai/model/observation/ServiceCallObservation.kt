@@ -17,7 +17,6 @@ package com.embabel.common.ai.model.observation
 
 import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
-import com.embabel.common.ai.decision.ChoiceQuestionSpec
 import com.embabel.common.ai.decision.DecisionAnswer
 import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionResponse
@@ -52,7 +51,6 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         ASSESS(DECISION_OBSERVATION, "assess"),
         ASK("embabel.ai.ask", "ask"),
         ASK_NATIVE(DECISION_OBSERVATION, "ask_native"),
-        CHOOSE(DECISION_OBSERVATION, "choose"),
         RATE(DECISION_OBSERVATION, "rate"),
     }
 
@@ -122,14 +120,6 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
 
     /** Observes one native question-set call as `embabel.ai.decision` with the operation `ask_native`. */
     fun native(work: () -> DecisionResponse): DecisionResponse = observe(Operation.ASK_NATIVE, ::responseOutcome, work = work)
-
-    /**
-     * Observes one choice call as `embabel.ai.decision` with the operation `choose`. The selection is
-     * validated against [question], as `classify` validates against its request. A selection outside
-     * the question's options records the outcome `invalid_response`.
-     */
-    fun choose(question: ChoiceQuestionSpec, work: () -> ClassificationResult): ClassificationResult =
-        observe(Operation.CHOOSE, ::classificationOutcome, validate = question::validate, work = work)
 
     /** Observes one rating call as `embabel.ai.decision` with the operation `rate`. */
     fun rate(work: () -> RatingResult): RatingResult = observe(Operation.RATE, ::ratingOutcome, work = work)
