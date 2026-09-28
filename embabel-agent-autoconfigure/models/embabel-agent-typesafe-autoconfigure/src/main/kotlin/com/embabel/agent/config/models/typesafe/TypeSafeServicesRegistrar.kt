@@ -90,8 +90,15 @@ internal class TypeSafeServicesRegistrar(
         }
     }
 
-    // Fails unless the existing definition is an application decision or classification service.
-    // The type comes from the definition, so no bean is created.
+    /**
+     * Fails unless the existing definition is an application decision or classification service.
+     * The type comes from the definition, so no bean is created.
+     *
+     * @param registry the registry that holds the existing definition
+     * @param key the configured key the definition shares
+     * @param property the configuration property path, used in the error message
+     * @throws IllegalStateException if another configured entry uses the key, or the bean is not a service
+     */
     private fun requireApplicationService(registry: BeanDefinitionRegistry, key: String, property: String) {
         val existing = registry.getBeanDefinition(key)
         (existing.getAttribute(CONFIGURED_SERVICE_ATTRIBUTE) as? String)?.let { other ->
@@ -110,7 +117,14 @@ internal class TypeSafeServicesRegistrar(
         }
     }
 
-    // The type a definition declares: the @Bean method's return type, or else the bean class.
+    /**
+     * Reads the type a definition declares: the `@Bean` method's return type, or else the bean
+     * class.
+     *
+     * @param registry registry the definition is held in, used to resolve the class loader
+     * @param definition the bean definition to read
+     * @return the declared type, or null if it can't be resolved
+     */
     private fun definedType(registry: BeanDefinitionRegistry, definition: BeanDefinition): Class<*>? {
         val classLoader = (registry as? ConfigurableBeanFactory)?.beanClassLoader ?: ClassUtils.getDefaultClassLoader()
         val typeName = (definition as? AnnotatedBeanDefinition)?.factoryMethodMetadata?.returnTypeName
@@ -119,8 +133,16 @@ internal class TypeSafeServicesRegistrar(
         return typeName?.let { runCatching { ClassUtils.forName(it, classLoader) }.getOrNull() }
     }
 
-    // The definition names the service type so type lookups can skip it without creating it. It is
-    // eager, so a failing service stops startup even when the application makes beans lazy.
+    /**
+     * Builds the bean definition for one configured service. The definition names the service type
+     * so type lookups can skip it without creating it. It is eager, so a failing service stops
+     * startup even when the application makes beans lazy.
+     *
+     * @param key the configured key, used as the bean name
+     * @param service the configured service properties
+     * @return the bean definition to register
+     * @throws IllegalStateException if the service has no model configured
+     */
     private fun definition(key: String, service: ServiceProperties): BeanDefinition {
         val model = service.model?.takeIf { it.isNotBlank() }
             ?: throw IllegalStateException("$PREFIX.$key.model must name a TypeSafe model")

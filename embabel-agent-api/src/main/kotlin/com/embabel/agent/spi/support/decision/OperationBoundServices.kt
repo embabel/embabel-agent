@@ -86,13 +86,27 @@ internal object OperationBoundServices {
             bindClassification(service, parent, registry.observationRegistry)
         }
 
-    // Wraps a service in an observed decorator unless it already is one. A binding is unwrapped
-    // first, so an observed service under a binding is not wrapped again.
+    /**
+     * Wraps a decision service in an observed decorator unless it already is one. A binding is
+     * unwrapped first, so an observed service under a binding is not wrapped again.
+     *
+     * @param service the decision service to wrap
+     * @param observationRegistry registry used by the wrapping decorator
+     * @return the service, observed exactly once
+     */
     private fun observedDecision(service: DecisionService, observationRegistry: ObservationRegistry): DecisionService {
         val raw = if (service is OperationBoundDecisionService) service.delegate else service
         return raw as? ObservedDecisionService ?: ObservedDecisionService(raw, observationRegistry)
     }
 
+    /**
+     * Wraps a classification service in an observed decorator unless it already is one, keeping a
+     * decision service wrapped as a decision decorator. A binding is unwrapped first.
+     *
+     * @param service the classification service to wrap
+     * @param observationRegistry registry used by the wrapping decorator
+     * @return the service, observed exactly once
+     */
     private fun observedClassification(
         service: ClassificationService,
         observationRegistry: ObservationRegistry,
@@ -102,12 +116,26 @@ internal object OperationBoundServices {
         else -> ObservedClassificationService(raw, observationRegistry)
     }
 
+    /**
+     * Returns a service's binding delegate, or the service itself when it isn't bound.
+     *
+     * @param service the classification service to unwrap
+     * @return the unbound service
+     */
     private fun unbound(service: ClassificationService): ClassificationService = when (service) {
         is OperationBoundDecisionService -> service.delegate
         is OperationBoundClassificationService -> service.delegate
         else -> service
     }
 
+    /**
+     * Binds a decision service to the given parent observation, replacing any existing binding.
+     *
+     * @param service the decision service to bind
+     * @param parent the observation future calls should run under
+     * @param observationRegistry registry the binding runs against
+     * @return the bound service
+     */
     private fun bindDecision(
         service: DecisionService,
         parent: Observation?,
@@ -117,6 +145,15 @@ internal object OperationBoundServices {
         return OperationBoundDecisionService(raw, parent, observationRegistry)
     }
 
+    /**
+     * Binds a classification service to the given parent observation, keeping a decision service
+     * bound as a decision service.
+     *
+     * @param service the classification service to bind
+     * @param parent the observation future calls should run under
+     * @param observationRegistry registry the binding runs against
+     * @return the bound service
+     */
     private fun bindClassification(
         service: ClassificationService,
         parent: Observation?,
@@ -143,14 +180,45 @@ private class BindingSelector<S : ClassificationService>(
     private val bind: (S, Observation?) -> S,
 ) : ServiceSelector<S> {
 
+    /**
+     * Resolves the family default from the wrapped selector and binds it to the current observation.
+     *
+     * @return the bound default service
+     */
     override fun defaultService(): S = bound(selector.defaultService())
 
+    /**
+     * Resolves the named service from the wrapped selector and binds it to the current observation.
+     *
+     * @param name the service's registration name
+     * @return the bound service
+     */
     override fun named(name: String): S = bound(selector.named(name))
 
+    /**
+     * Resolves the service bound to the given role from the wrapped selector and binds it to the
+     * current observation.
+     *
+     * @param role the role to resolve
+     * @return the bound service
+     */
     override fun byRole(role: String): S = bound(selector.byRole(role))
 
+    /**
+     * Observes the given service through the wrapped selector and binds it to the current
+     * observation.
+     *
+     * @param service the service to use directly
+     * @return the bound service
+     */
     override fun using(service: S): S = bound(observe(selector.using(service)))
 
+    /**
+     * Binds the given service to the observation current on [observationRegistry].
+     *
+     * @param service the service to bind
+     * @return the bound service
+     */
     private fun bound(service: S): S = bind(service, observationRegistry.currentObservation)
 }
 
@@ -244,6 +312,14 @@ internal class OperationBoundDecisionService(
 
     override fun toString(): String = "OperationBoundDecisionService(delegate=$delegate)"
 
+    /**
+     * Builds the error for a delegate that doesn't implement an optional execution hook.
+     *
+     * @param hook the hook interface the delegate is missing
+     * @param method the method that needed the hook
+     * @param capability the capability the delegate should drop if it can't implement the hook
+     * @return the exception to throw
+     */
     private fun missingHook(hook: String, method: String, capability: String) = IllegalStateException(
         "Decision service '${delegate.name}' (${delegate.javaClass.name}) does not implement $hook, so $method " +
             "cannot run. Implement $hook on the service, or remove $capability from its capabilities().",
