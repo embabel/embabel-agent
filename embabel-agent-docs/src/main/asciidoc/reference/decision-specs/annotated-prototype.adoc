@@ -174,11 +174,12 @@ No mapper is involved, so `toString()`, `@JsonProperty` and enum naming strategi
 A choice option id follows the mapper, so the same enum can give different ids on the two paths.
 The question is named `classification`, from `ClassificationSpec.QUESTION_NAME`.
 
-A record or bean whose only settable property is a `@ChoiceQuestion` reads as a `ClassificationSpec`.
+A record or bean whose only question is a `@ChoiceQuestion` reads as a `ClassificationSpec`, whatever other properties it has.
 `spec()` still returns `DecisionSpec`, so a caller casts it to pass it to a classification service.
 The question keeps its Jackson property name.
 The spec equals the plain `DecisionSpec`, writes the same JSON and projects the same way.
-A type with another question or another settable property reads as a plain `DecisionSpec`.
+Other properties, such as an id, are filled by `project(response, otherProperties)` as usual.
+A type with another question reads as a plain `DecisionSpec`.
 
 ==== Portable JSON
 
@@ -387,7 +388,7 @@ The main code is 2,002 lines in ten Java files, 1,001 of them non-blank and outs
 `DecisionTypeParser` holds 1,239 of the lines.
 `AnnotatedDecision` holds 218, `AnnotatedDecisions` 195, `AnnotatedDecisionException` 80, and the five annotations and `package-info` 270 together.
 Classification adds the `@Classification` annotation, 85 lines to `AnnotatedDecisions` and 17 to the parser, which picks the spec type. The mapping itself is `CategoryMapping`.
-The tests are 2,939 lines, most of them diagnostic cases.
+The tests are 2,951 lines, most of them diagnostic cases.
 
 The parser reads Jackson's creation view of a type through public calls: `DeserializationConfig.classIntrospectorInstance()`, `ClassIntrospector.introspectForCreation`, `BeanDescription.findProperties()`, `AccessorNamingStrategy` and `AnnotationIntrospector`.
 These calls are public and lower level than `ObjectMapper`.
