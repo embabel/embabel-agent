@@ -82,7 +82,14 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
 
     fun assess(work: () -> PropositionResult): PropositionResult = observe(Operation.ASSESS, ::propositionOutcome, work)
 
-    /** Validate and execute inside the call scope, recording only bounded diagnostics on every completion. */
+    /**
+     * Runs the work inside the call scope and records only bounded diagnostics, however the call ends.
+     *
+     * @param operation the call being observed
+     * @param outcomeOf turns the work's result into an outcome label
+     * @param work the service call
+     * @return the work's result
+     */
     private fun <T> observe(operation: Operation, outcomeOf: (T) -> Outcome, work: () -> T): T {
         val observation = startObservation(operation)
         val scope = observation?.let { openScope(it, operation) }
@@ -116,7 +123,12 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         }
     }
 
-    /** Start telemetry without allowing a broken convention or handler to prevent the provider call. */
+    /**
+     * Starts the observation. A broken convention or handler cannot stop the provider call.
+     *
+     * @param operation the call being observed
+     * @return the started observation, or null if starting failed
+     */
     private fun startObservation(operation: Operation): Observation? {
         var observation: Observation? = null
         return try {
@@ -130,7 +142,13 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         }
     }
 
-    /** Open the provider scope and unwind callbacks that completed before a later handler failed. */
+    /**
+     * Opens the provider scope, and unwinds the callbacks that ran before a later handler failed.
+     *
+     * @param observation the started observation
+     * @param operation the call being observed
+     * @return the open scope, or null if opening failed
+     */
     private fun openScope(observation: Observation, operation: Operation): Observation.Scope? {
         val previous = registry.currentObservationScope
         return try {
@@ -147,7 +165,13 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         }
     }
 
-    /** Close the provider scope without allowing a handler failure to leak it or replace the call result. */
+    /**
+     * Closes the provider scope. A handler failure cannot leak the scope or replace the call result.
+     *
+     * @param scope the scope to close
+     * @param operation the call being observed
+     * @param previous the scope to restore if closing fails
+     */
     private fun closeScope(
         scope: Observation.Scope,
         operation: Operation,
@@ -161,7 +185,12 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         }
     }
 
-    /** Restore the registry pointer after a handler interrupts Micrometer's normal scope cleanup. */
+    /**
+     * Puts back the registry's current scope after a handler breaks Micrometer's normal cleanup.
+     *
+     * @param previous the scope to make current again
+     * @param operation the call being observed
+     */
     private fun restoreRegistryScope(previous: Observation.Scope?, operation: Operation) {
         try {
             registry.setCurrentObservationScope(previous)
@@ -170,7 +199,13 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         }
     }
 
-    /** Record a bounded outcome while keeping telemetry failures outside the service contract. */
+    /**
+     * Records the outcome tag. A telemetry failure here does not reach the caller.
+     *
+     * @param observation the observation to tag
+     * @param operation the call being observed
+     * @param outcome the outcome to record
+     */
     private fun recordOutcome(observation: Observation, operation: Operation, outcome: Outcome) {
         try {
             observation.lowCardinalityKeyValue(OUTCOME, outcome.tag)
@@ -179,7 +214,13 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         }
     }
 
-    /** Notify handlers with a stackless marker without exposing or replacing the provider failure. */
+    /**
+     * Tells handlers about an error with a stackless marker. The provider failure itself stays hidden and unchanged.
+     *
+     * @param observation the observation to mark
+     * @param operation the call being observed
+     * @param outcome the outcome the marker names
+     */
     private fun recordError(observation: Observation, operation: Operation, outcome: Outcome) {
         try {
             observation.error(SafeFailure(outcome))
@@ -188,7 +229,12 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         }
     }
 
-    /** Stop telemetry without allowing exporters to replace a successful result or provider failure. */
+    /**
+     * Stops the observation. An exporter failure cannot replace the result or the provider failure.
+     *
+     * @param observation the observation to stop
+     * @param operation the call being observed
+     */
     private fun stop(observation: Observation, operation: Operation) {
         try {
             observation.stop()
@@ -197,7 +243,12 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         }
     }
 
-    /** Log only bounded lifecycle labels; handler exceptions can contain provider payloads or credentials. */
+    /**
+     * Logs a telemetry failure with fixed labels only. Handler exceptions can hold payloads or credentials, so they stay out of the log.
+     *
+     * @param operation the call being observed
+     * @param phase the lifecycle phase that failed
+     */
     private fun logTelemetryFailure(operation: Operation, phase: TelemetryPhase) {
         try {
             logger.warn("AI {} observation failed during {}", operation.tag, phase.tag)
@@ -206,7 +257,12 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         }
     }
 
-    /** Emit the bounded completion diagnostic without allowing a logging backend to alter the call. */
+    /**
+     * Logs the call's completion with fixed labels. A logging backend failure cannot change the call.
+     *
+     * @param operation the call being observed
+     * @param outcome how the call ended
+     */
     private fun logCompletion(operation: Operation, outcome: Outcome) {
         try {
             logger.debug("AI {} completed with outcome {}", operation.tag, outcome.tag)
@@ -215,7 +271,12 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         }
     }
 
-    /** Map only result variants to labels; provider evidence never enters the observation. */
+    /**
+     * Names the outcome of a classification result. Provider evidence never enters the observation.
+     *
+     * @param result the classification result
+     * @return the outcome label
+     */
     private fun classificationOutcome(result: ClassificationResult): Outcome = when (result) {
         is ClassificationResult.Selected -> Outcome.SELECTED
         is ClassificationResult.NoMatch -> Outcome.NO_MATCH
@@ -223,7 +284,12 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         is ClassificationResult.Failure -> Outcome.FAILURE
     }
 
-    /** Map proposition result variants to labels without inspecting provider evidence. */
+    /**
+     * Names the outcome of a proposition result without looking at the provider evidence.
+     *
+     * @param result the proposition result
+     * @return the outcome label
+     */
     private fun propositionOutcome(result: PropositionResult): Outcome = when (result) {
         is PropositionResult.Answered -> Outcome.ANSWERED
         is PropositionResult.Inconclusive -> Outcome.INCONCLUSIVE
