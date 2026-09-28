@@ -130,8 +130,8 @@ class DecisionResponseJavaTest {
         var response = answered();
         response.requireMatches(DecisionSpec.of(urgent, department, frustration));
 
-        var mismatch = assertThrows(IllegalArgumentException.class,
-            () -> response.requireMatches(DecisionSpec.of(urgent, department)));
+        var shorter = DecisionSpec.of(urgent, department);
+        var mismatch = assertThrows(IllegalArgumentException.class, () -> response.requireMatches(shorter));
         assertTrue(mismatch.getMessage().contains("Extra: 'frustration'"));
     }
 
