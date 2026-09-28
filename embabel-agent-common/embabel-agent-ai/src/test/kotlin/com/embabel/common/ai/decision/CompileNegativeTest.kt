@@ -17,7 +17,6 @@ package com.embabel.common.ai.decision
 
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.decision.spi.DecisionExecution
-import com.embabel.common.ai.model.DecisionService
 import com.embabel.common.ai.model.observation.ObservedDecisionService
 import org.jetbrains.kotlin.cli.common.ExitCode
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity

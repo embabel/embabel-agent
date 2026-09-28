@@ -23,9 +23,9 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import com.embabel.common.ai.classification.ClassificationRequest;
 import com.embabel.common.ai.classification.ClassificationSpec;
 import com.embabel.common.ai.decision.DecisionRequest;
+import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.decision.PropositionRequest;
 import com.embabel.common.ai.decision.Questions;
-import com.embabel.common.ai.model.DecisionService;
 
 import io.micrometer.observation.ObservationRegistry;
 

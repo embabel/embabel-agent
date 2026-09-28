@@ -23,13 +23,13 @@ import com.embabel.common.ai.classification.ClassificationSpec;
 import com.embabel.common.ai.classification.ModelProvenance;
 import com.embabel.common.ai.decision.ChoiceQuestionSpec;
 import com.embabel.common.ai.decision.DecisionCapabilities;
+import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.decision.DecisionSpec;
 import com.embabel.common.ai.decision.PropositionQuestionSpec;
 import com.embabel.common.ai.decision.PropositionRequest;
 import com.embabel.common.ai.decision.PropositionResult;
 import com.embabel.common.ai.decision.QuestionKind;
 import com.embabel.common.ai.decision.Questions;
-import com.embabel.common.ai.model.DecisionService;
 
 import org.junit.jupiter.api.Test;
 

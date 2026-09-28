@@ -28,6 +28,7 @@ import com.embabel.common.ai.decision.DecisionAnswer
 import com.embabel.common.ai.decision.DecisionCapabilities
 import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionResponse
+import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.decision.DecisionSpec
 import com.embabel.common.ai.decision.PropositionQuestionSpec
 import com.embabel.common.ai.decision.PropositionRequest
@@ -41,7 +42,6 @@ import com.embabel.common.ai.decision.spi.DecisionContentCapture
 import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
 import com.embabel.common.ai.decision.spi.PropositionAssessment
 import com.embabel.common.ai.decision.spi.RatingAssessment
-import com.embabel.common.ai.model.DecisionService
 import io.micrometer.observation.Observation
 import io.micrometer.observation.ObservationHandler
 import io.micrometer.observation.ObservationRegistry
