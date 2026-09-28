@@ -200,10 +200,10 @@ internal class LlmDecisionService(
      * echo the request. The shared model-call path and the retry listener log failed attempts on
      * their own terms.
      *
-     * @param operation the operation name used in log lines
-     * @param failure builds the failure result for a reason
-     * @param work runs the decision
-     * @return the decision's result, or the failure result when it fails
+     * @param operation the name used in retry and log lines
+     * @param failure builds the result for a mapped failure reason
+     * @param work runs the decision, given the attempt counter to increment on each try
+     * @return the result of [work], or the mapped failure
      */
     private fun <R : Any> decide(
         operation: String,
@@ -295,9 +295,6 @@ internal class LlmDecisionService(
      * another I/O error. Then the interruption is a new [InterruptedException] caused by the
      * failure. The type `InterruptedIOException` proves nothing, because `SocketTimeoutException`
      * extends it and is only a timeout.
-     *
-     * @param call the model call to run
-     * @return what the call returns
      */
     private inline fun <T> guarded(call: () -> T): T =
         try {
@@ -315,9 +312,6 @@ internal class LlmDecisionService(
     /**
      * Finds an [InterruptedException] in the cause chain of a failure, or returns null when there
      * is none. It sets the interrupt flag whenever it finds one.
-     *
-     * @param e the failure to search
-     * @return the interruption, or null when the chain has none
      */
     private fun interruptionIn(e: Throwable): InterruptedException? =
         generateSequence(e) { it.cause }.filterIsInstance<InterruptedException>().firstOrNull()

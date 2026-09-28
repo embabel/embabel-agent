@@ -138,6 +138,14 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
      * Executes and validates inside the call scope, recording only bounded diagnostics on every
      * completion. An [IllegalArgumentException] from [validate] means the provider's answer does not
      * fit the request, and records the outcome `invalid_response`.
+     *
+     * @param operation the operation being observed
+     * @param outcomeOf maps the validated result to its outcome label
+     * @param startTags extra tags set when the observation starts
+     * @param resultEvents builds the events to record for the validated result
+     * @param validate checks the result and throws when it doesn't fit
+     * @param work runs the call to observe
+     * @return the result [work] and [validate] returned, unchanged
      */
     private fun <T> observe(
         operation: Operation,
@@ -198,7 +206,13 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         else -> Outcome.EXCEPTION
     }
 
-    /** Start telemetry without allowing a broken convention or handler to prevent the provider call. */
+    /**
+     * Start telemetry without allowing a broken convention or handler to prevent the provider call.
+     *
+     * @param operation the operation being observed
+     * @param startTags extra tags set when the observation starts
+     * @return the started observation, or null when starting it failed
+     */
     private fun startObservation(operation: Operation, startTags: KeyValues): Observation? {
         var observation: Observation? = null
         return try {
@@ -285,7 +299,13 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         }
     }
 
-    /** Record one answer event. A failing handler loses that event and leaves the call result unchanged. */
+    /**
+     * Record one answer event. A failing handler loses that event and leaves the call result unchanged.
+     *
+     * @param observation the observation to record the event on
+     * @param operation the operation being observed
+     * @param event the event to record
+     */
     private fun recordEvent(observation: Observation, operation: Operation, event: Observation.Event) {
         try {
             observation.event(event)
@@ -294,7 +314,13 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         }
     }
 
-    /** Notify handlers with a stackless marker without exposing or replacing the provider failure. */
+    /**
+     * Notify handlers with a stackless marker without exposing or replacing the provider failure.
+     *
+     * @param observation the observation to record the error on
+     * @param operation the operation being observed
+     * @param outcome the outcome the error marker names
+     */
     private fun recordError(observation: Observation, operation: Operation, outcome: Outcome) {
         try {
             observation.error(SafeFailure(outcome))
@@ -370,14 +396,24 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         is PropositionResult.Failure -> Outcome.FAILURE
     }
 
-    /** Map rating result variants to labels without inspecting provider evidence. */
+    /**
+     * Map rating result variants to labels without inspecting provider evidence.
+     *
+     * @param result the rating result to map
+     * @return the outcome label
+     */
     private fun ratingOutcome(result: RatingResult): Outcome = when (result) {
         is RatingResult.Answered -> Outcome.ANSWERED
         is RatingResult.Inconclusive -> Outcome.INCONCLUSIVE
         is RatingResult.Failure -> Outcome.FAILURE
     }
 
-    /** A request failure outranks per-question failures. Any failed answer makes the response partial. */
+    /**
+     * A request failure outranks per-question failures. Any failed answer makes the response partial.
+     *
+     * @param response the decision response to map
+     * @return the outcome label
+     */
     private fun responseOutcome(response: DecisionResponse): Outcome = when {
         response.requestFailure != null -> Outcome.REQUEST_FAILURE
         response.answers.any { answerOutcome(it) == Outcome.FAILURE } -> Outcome.PARTIAL
@@ -399,6 +435,10 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
     /**
      * One event per answer, in spec order. Events are recorded only for a response that matches the
      * request's spec, whose answer names are then the spec's question names.
+     *
+     * @param request the request the response answers
+     * @param response the response to build events for
+     * @return one event per answer, or none when the response doesn't match the spec
      */
     private fun answerEvents(request: DecisionRequest, response: DecisionResponse): List<Observation.Event> {
         if (!matchesSpec(response, request.spec)) return emptyList()
