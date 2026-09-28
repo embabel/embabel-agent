@@ -493,8 +493,10 @@ class ToolDecoratorsTest {
             val responseEvent = capturedEvents[1] as ToolCallResponseEvent
             assertTrue(responseEvent.result.isFailure)
             val failure = responseEvent.result.exceptionOrNull()
-            assertEquals("Execution denied: rm", failure?.message)
-            assertSame(cause, failure?.cause)
+            assertTrue(failure is ToolReturnedError)
+            assertEquals("error-tool", (failure as ToolReturnedError).toolName)
+            assertEquals("Execution denied: rm", failure.message)
+            assertSame(cause, failure.cause)
         }
 
         @Test
