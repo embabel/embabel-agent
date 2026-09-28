@@ -27,13 +27,13 @@ import com.embabel.common.ai.decision.ChoiceQuestionSpec
 import com.embabel.common.ai.decision.DecisionCapabilities
 import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionResponse
+import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.QuestionKind
 import com.embabel.common.ai.decision.Questions
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
-import com.embabel.common.ai.model.DecisionService
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue

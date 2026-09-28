@@ -15,8 +15,8 @@
  */
 package com.embabel.common.ai.decision.spi
 
-import com.embabel.common.ai.model.ClassificationService
-import com.embabel.common.ai.model.DecisionService
+import com.embabel.common.ai.classification.ClassificationService
+import com.embabel.common.ai.decision.DecisionService
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -72,7 +72,7 @@ class DecisionServiceShapeTest {
     @Test
     fun `DecisionService has no DefaultImpls class`() {
         assertThrows<ClassNotFoundException> {
-            Class.forName("com.embabel.common.ai.model.DecisionService\$DefaultImpls")
+            Class.forName("com.embabel.common.ai.decision.DecisionService\$DefaultImpls")
         }
     }
 }

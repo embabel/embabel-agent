@@ -6,9 +6,9 @@ package com.embabel.common.ai.decision.fixtures;
 import com.embabel.common.ai.classification.ClassificationRequest;
 import com.embabel.common.ai.classification.ClassificationResult;
 import com.embabel.common.ai.classification.ModelProvenance;
+import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.decision.PropositionRequest;
 import com.embabel.common.ai.decision.PropositionResult;
-import com.embabel.common.ai.model.DecisionService;
 
 public class LegacyJavaDecisionService implements DecisionService {
 

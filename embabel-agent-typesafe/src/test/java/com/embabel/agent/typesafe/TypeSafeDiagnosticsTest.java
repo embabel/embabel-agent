@@ -29,12 +29,12 @@ import com.embabel.common.ai.classification.ClassificationRequest;
 import com.embabel.common.ai.classification.ClassificationSpec;
 import com.embabel.common.ai.classification.ClassificationResult;
 import com.embabel.common.ai.classification.FailureReason;
+import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.decision.PropositionRequest;
 import com.embabel.common.ai.decision.PropositionResult;
 import com.embabel.common.ai.decision.DecisionSpec;
 import com.embabel.common.ai.decision.Questions;
 import com.embabel.common.ai.decision.spi.DecisionContentCapture;
-import com.embabel.common.ai.model.DecisionService;
 
 import io.micrometer.observation.ObservationRegistry;
 

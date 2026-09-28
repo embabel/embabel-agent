@@ -21,6 +21,7 @@ import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.decision.DecisionCapabilities
 import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionResponse
+import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.QuestionKind
@@ -28,7 +29,6 @@ import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
 import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
 import com.embabel.common.ai.decision.spi.RatingAssessment
-import com.embabel.common.ai.model.DecisionService
 import org.jetbrains.annotations.ApiStatus
 import org.slf4j.LoggerFactory
 import java.util.EnumSet

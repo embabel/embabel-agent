@@ -28,6 +28,7 @@ import com.embabel.common.ai.classification.ClassificationSpec;
 import com.embabel.common.ai.classification.ClassificationResult;
 import com.embabel.common.ai.decision.ChoiceQuestionSpec;
 import com.embabel.common.ai.decision.DecisionResponse;
+import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.decision.DecisionSpec;
 import com.embabel.common.ai.decision.LevelProbability;
 import com.embabel.common.ai.decision.PropositionQuestionSpec;
@@ -37,7 +38,6 @@ import com.embabel.common.ai.decision.Questions;
 import com.embabel.common.ai.decision.RatingQuestionSpec;
 import com.embabel.common.ai.decision.RatingResult;
 import com.embabel.common.ai.decision.RatingStatistic;
-import com.embabel.common.ai.model.DecisionService;
 import com.embabel.agent.typesafe.internal.GuardedTypeSafeApi;
 
 import org.junit.jupiter.api.Test;
