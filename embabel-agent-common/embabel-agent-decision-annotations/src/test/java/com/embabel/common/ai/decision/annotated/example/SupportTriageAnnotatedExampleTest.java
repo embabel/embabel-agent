@@ -97,7 +97,7 @@ class SupportTriageAnnotatedExampleTest {
             questionNames(triage.spec()));
         // end::annotated-plain-names[]
         assertEquals(new TicketTriage(true, Department.TECHNICAL, Severity.CRITICAL), projection.getValue());
-        assertEquals(triage.spec().getDefinitionId(), projection.getResponse().getDefinitionId());
+        projection.getResponse().requireMatches(triage.spec());
     }
 
     @Test
@@ -125,7 +125,7 @@ class SupportTriageAnnotatedExampleTest {
                         "assignedDepartment", "assigned_department",
                         "customerSeverity", "customer_severity"),
                     triage.questionNames());
-                assertNotEquals(plain.spec().getDefinitionId(), triage.spec().getDefinitionId());
+                assertNotEquals(plain.spec(), triage.spec());
 
                 DecisionResponse response = stub("needs_urgent_reply", "assigned_department", "customer_severity")
                     .ask(TICKET, triage.spec());

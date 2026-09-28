@@ -95,14 +95,14 @@ public final class AnnotatedDecision<T> {
     /**
      * Projects a response to this decision's spec into the annotated type.
      * <p>
-     * The response must answer this decision's spec, which the spec ids check. The answers then
-     * convert to the type through the mapper that read it, as in
+     * The response must match this decision's spec, as {@link DecisionResponse#requireMatches}
+     * checks. The answers then convert to the type through the mapper that read it, as in
      * {@link DecisionProjection#of(DecisionResponse, Class, ObjectMapper)}. A type with properties
      * that carry no question annotation needs {@link #project(DecisionResponse, Map)}.
      *
      * @param response the response to project
      * @return the projected value together with the response
-     * @throws DecisionProjectionException if the response answers another spec, the type has
+     * @throws DecisionProjectionException if the response does not match the spec, the type has
      *     properties the answers do not set, an answer has no representable value, or the values do
      *     not fit the type
      */
@@ -131,7 +131,7 @@ public final class AnnotatedDecision<T> {
      * @param response the response to project
      * @param otherProperties the values of the non-question properties, keyed by property name
      * @return the projected value
-     * @throws DecisionProjectionException if the response answers another spec, a key is missing,
+     * @throws DecisionProjectionException if the response does not match the spec, a key is missing,
      *     unknown or names a question, an answer has no representable value, or the values do not
      *     fit the type. The message lists every key problem at once.
      */
@@ -152,16 +152,18 @@ public final class AnnotatedDecision<T> {
         }
     }
 
-    // The spec id covers every question definition in order, so equal ids mean the answers fit this type.
+    // A response that matches the spec has one answer per question, in order, of the right kind and
+    // with the same options or levels, so its answers fit this type.
     private void requireSpecOf(DecisionResponse response) {
         Objects.requireNonNull(response, "response");
-        if (!response.getDefinitionId().equals(spec.getDefinitionId())) {
+        try {
+            response.requireMatches(spec);
+        } catch (IllegalArgumentException e) {
             throw new DecisionProjectionException(
-                "Response answers spec " + response.getDefinitionId() + " but " + type.getSimpleName()
-                    + " reads spec " + spec.getDefinitionId()
-                    + ". Ask with AnnotatedDecision.spec() for this type and mapper.",
+                e.getMessage() + " " + type.getSimpleName() + " reads a different spec."
+                    + " Ask with AnnotatedDecision.spec() for this type and mapper.",
                 List.of(),
-                null);
+                e);
         }
     }
 

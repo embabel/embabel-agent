@@ -61,7 +61,7 @@ class PortableSpecExecutionTest {
         DecisionResponse response = stub.ask("I cannot sign in since my password reset.", spec);
         // end::annotated-portable[]
 
-        assertEquals(spec.getDefinitionId(), response.getDefinitionId());
+        response.requireMatches(spec);
         assertEquals(
             new PropositionResult.Answered(false, PROVENANCE),
             response.answer((PropositionQuestionSpec) spec.question("urgent")));

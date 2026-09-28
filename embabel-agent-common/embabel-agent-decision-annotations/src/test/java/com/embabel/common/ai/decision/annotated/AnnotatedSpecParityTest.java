@@ -94,7 +94,6 @@ class AnnotatedSpecParityTest {
         DecisionSpec spec = AnnotatedDecisions.defaults().of(Triage.class).spec();
 
         assertEquals(builderTriage(), spec);
-        assertEquals(builderTriage().getDefinitionId(), spec.getDefinitionId());
     }
 
     @Test
@@ -126,14 +125,13 @@ class AnnotatedSpecParityTest {
     }
 
     @Test
-    void jsonPropertyOrderChangesQuestionOrderAndSpecId() {
+    void jsonPropertyOrderChangesQuestionOrderAndSpec() {
         DecisionSpec reordered = AnnotatedDecisions.defaults().of(ReorderedTriage.class).spec();
         DecisionSpec original = AnnotatedDecisions.defaults().of(Triage.class).spec();
 
         assertEquals(
             List.of("severity", "urgent", "department"),
             reordered.getQuestions().stream().map(Question::getName).toList());
-        assertNotEquals(original.getDefinitionId(), reordered.getDefinitionId());
         assertNotEquals(original, reordered);
     }
 
