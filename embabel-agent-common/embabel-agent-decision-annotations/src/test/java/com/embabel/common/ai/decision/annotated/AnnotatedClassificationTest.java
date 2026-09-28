@@ -303,9 +303,21 @@ class AnnotatedClassificationTest {
         }
 
         @Test
-        void aTypeWithAnotherQuestionOrPropertyStaysADecisionSpec() {
+        void aTypeWithAnotherQuestionStaysADecisionSpec() {
             assertFalse(AnnotatedDecisions.defaults().of(RoutingWithUrgency.class).spec() instanceof ClassificationSpec);
-            assertFalse(AnnotatedDecisions.defaults().of(RoutingWithSource.class).spec() instanceof ClassificationSpec);
+        }
+
+        @Test
+        void aPropertyThatIsNotAQuestionStillReadsAsAClassificationSpec() {
+            var decision = AnnotatedDecisions.defaults().of(RoutingWithSource.class);
+            var spec = assertInstanceOf(ClassificationSpec.class, decision.spec());
+            DecisionResponse response = StubDecisionService.builder("routing-stub")
+                .choice("department", new ClassificationResult.Selected("TECHNICAL", PROVENANCE))
+                .build()
+                .ask("The export job keeps timing out.", spec);
+
+            assertEquals(new RoutingWithSource("ticket-42", Department.TECHNICAL),
+                decision.project(response, Map.of("sourceId", "ticket-42")));
         }
 
         @Test
