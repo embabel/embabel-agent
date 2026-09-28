@@ -18,7 +18,6 @@ package com.embabel.agent.openai
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import com.openai.core.Timeout
-import org.jetbrains.annotations.ApiStatus
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.openai.OpenAiChatOptions
 import java.time.Duration
@@ -90,8 +89,11 @@ interface OpenAiClientTimeoutProperties {
     fun clientTimeouts(): OpenAiClientTimeouts = OpenAiClientTimeouts(connectTimeout, readTimeout)
 }
 
-@ApiStatus.Internal
-data class OpenAiReadTimeoutOptionsConverter(
+/**
+ * Wraps a provider's converter so the chat options it produces carry the configured read timeout.
+ * Reached only through [OpenAiClientTimeouts.optionsConverter].
+ */
+internal class OpenAiReadTimeoutOptionsConverter(
     private val delegate: OptionsConverter,
     private val readTimeout: Duration,
 ) : OptionsConverter {
