@@ -16,7 +16,10 @@
 package com.embabel.common.ai.decision.annotated
 
 import com.embabel.common.ai.classification.ClassificationResult
+import com.embabel.common.ai.classification.ClassificationSpec
+import com.embabel.common.ai.classification.MappedClassificationResult
 import com.embabel.common.ai.classification.ModelProvenance
+import com.embabel.common.ai.classification.classificationSpec
 import com.embabel.common.ai.decision.DecisionSpec
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.RatingLevel
@@ -25,6 +28,7 @@ import com.embabel.common.ai.decision.RatingResult
 import com.embabel.common.ai.decision.decisionSpec
 import com.embabel.common.ai.decision.support.StubDecisionService
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -116,6 +120,24 @@ private enum class KotlinSeverity {
 
 private data class KotlinEnumTriage(
     @get:RatingQuestion(asking = SEVERITY) val severity: KotlinSeverity,
+)
+
+@Classification(asking = TEAM)
+private enum class RoutedDepartment {
+    @Described("Payments, invoicing, refunds")
+    BILLING,
+
+    @Described("Bugs, outages, integrations")
+    TECHNICAL,
+}
+
+@Classification(asking = TEAM)
+private enum class UndescribedDepartment {
+    BILLING,
+}
+
+private data class KotlinRouting(
+    @ChoiceQuestion(asking = TEAM) val department: Department,
 )
 
 /**
@@ -241,6 +263,47 @@ class AnnotatedKotlinTest {
             .spec().question("severity") as RatingQuestionSpec
 
         assertEquals(listOf(RatingLevel("LOW"), RatingLevel("HIGH", "Work is blocked for one customer")), severity.levels)
+    }
+
+    @Test
+    fun `classification reads a Kotlin enum and maps a selection to its entry`() {
+        val departments = AnnotatedDecisions.classification(RoutedDepartment::class.java)
+        val selected = ClassificationResult.Selected("TECHNICAL", ModelProvenance("stub-model", "stub"))
+        val expected = classificationSpec {
+            asking(TEAM)
+            category("BILLING", "Payments, invoicing, refunds")
+            category("TECHNICAL", "Bugs, outages, integrations")
+        }
+
+        assertEquals(expected, departments.spec())
+        assertEquals(MappedClassificationResult.Selected(RoutedDepartment.TECHNICAL, selected), departments.map(selected))
+    }
+
+    @Test
+    fun `classification rejects a Kotlin enum entry without Described`() {
+        val failure = assertThrows(AnnotatedDecisionException::class.java) {
+            AnnotatedDecisions.classification(UndescribedDepartment::class.java)
+        }
+
+        assertEquals(
+            listOf(
+                "UndescribedDepartment.BILLING: category has no @Described. " +
+                    "Add @Described with the category's description to UndescribedDepartment.BILLING.",
+            ),
+            failure.problems(),
+        )
+    }
+
+    @Test
+    fun `data class with one choice question reads as a classification spec and projects`() {
+        val decision = AnnotatedDecisions.using(kotlinMapper).of(KotlinRouting::class.java)
+        val response = StubDecisionService.builder("routing-stub")
+            .choice("department", ClassificationResult.Selected("BILLING", ModelProvenance("stub-model", "stub")))
+            .build()
+            .ask("My card was charged twice.", decision.spec())
+
+        assertEquals("department", assertInstanceOf(ClassificationSpec::class.java, decision.spec()).question.name)
+        assertEquals(KotlinRouting(Department.BILLING), decision.project(response).value)
     }
 
     // Where Kotlin put the annotation for one property: the primary constructor parameter, the

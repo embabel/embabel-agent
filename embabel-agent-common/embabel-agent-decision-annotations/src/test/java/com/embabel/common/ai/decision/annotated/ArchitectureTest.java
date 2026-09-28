@@ -95,6 +95,8 @@ class ArchitectureTest {
         }
         assertRetainedAtRuntime(Described.class);
         assertEquals(Set.of(ElementType.FIELD), targetsOf(Described.class), "Described targets");
+        assertRetainedAtRuntime(Classification.class);
+        assertEquals(Set.of(ElementType.TYPE), targetsOf(Classification.class), "Classification targets");
     }
 
     @Test
@@ -104,6 +106,8 @@ class ArchitectureTest {
                 annotation.getSimpleName() + ".asking must have no default");
         }
         assertEquals(null, Described.class.getMethod("value").getDefaultValue(), "Described.value must have no default");
+        assertEquals(null, Classification.class.getMethod("asking").getDefaultValue(),
+            "Classification.asking must have no default");
     }
 
     private static void assertRetainedAtRuntime(Class<?> annotation) {

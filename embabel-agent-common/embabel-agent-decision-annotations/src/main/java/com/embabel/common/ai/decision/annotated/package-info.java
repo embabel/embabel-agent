@@ -21,7 +21,8 @@
  * {@link com.embabel.common.ai.decision.annotated.RatingQuestion}. Question names, option ids,
  * level ids and question order come from the Jackson mapper that reads the type. The result is an
  * ordinary {@link com.embabel.common.ai.decision.DecisionSpec}, equal to one declared with the
- * builder.
+ * builder. An enum annotated with {@link com.embabel.common.ai.decision.annotated.Classification}
+ * reads as a {@link com.embabel.common.ai.classification.CategoryMapping}.
  * <p>
  * This package is a prototype. The module that holds it is optional and is not published.
  */
