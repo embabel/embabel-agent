@@ -19,6 +19,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.embabel.common.ai.classification.ClassificationRequest;
 import com.embabel.common.ai.classification.ClassificationResult;
+import com.embabel.common.ai.classification.ClassificationService;
+import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.decision.PropositionRequest;
 import com.embabel.common.ai.decision.PropositionResult;
 

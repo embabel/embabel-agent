@@ -32,8 +32,8 @@ import com.embabel.agent.core.ToolGroupConsumer
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.decision.OperationBoundServices
-import com.embabel.common.ai.model.ClassificationService
-import com.embabel.common.ai.model.DecisionService
+import com.embabel.common.ai.classification.ClassificationService
+import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelSelectionCriteria

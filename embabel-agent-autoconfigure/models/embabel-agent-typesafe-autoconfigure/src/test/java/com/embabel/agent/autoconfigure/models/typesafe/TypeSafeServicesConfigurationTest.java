@@ -20,8 +20,8 @@ import static org.mockito.Mockito.mock;
 
 import com.embabel.agent.config.models.typesafe.TypeSafeProperties;
 import com.embabel.agent.typesafe.TypeSafeModelFactory;
-import com.embabel.common.ai.model.ClassificationService;
-import com.embabel.common.ai.model.DecisionService;
+import com.embabel.common.ai.classification.ClassificationService;
+import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.model.DecisionServiceRegistry;
 
 import org.junit.jupiter.api.Test;

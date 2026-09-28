@@ -17,10 +17,14 @@ package com.embabel.agent.spi.support.decision
 
 import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
+import com.embabel.common.ai.classification.ClassificationService
+import com.embabel.common.ai.classification.ClassificationServiceMetadata
 import com.embabel.common.ai.classification.ClassificationSpec
 import com.embabel.common.ai.decision.DecisionCapabilities
 import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionResponse
+import com.embabel.common.ai.decision.DecisionService
+import com.embabel.common.ai.decision.DecisionServiceMetadata
 import com.embabel.common.ai.decision.DecisionSpec
 import com.embabel.common.ai.decision.PropositionQuestionSpec
 import com.embabel.common.ai.decision.PropositionRequest
@@ -31,10 +35,6 @@ import com.embabel.common.ai.decision.spi.DelegatingDecisionService
 import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
 import com.embabel.common.ai.decision.spi.PropositionAssessment
 import com.embabel.common.ai.decision.spi.RatingAssessment
-import com.embabel.common.ai.model.ClassificationService
-import com.embabel.common.ai.model.ClassificationServiceMetadata
-import com.embabel.common.ai.model.DecisionService
-import com.embabel.common.ai.model.DecisionServiceMetadata
 import com.embabel.common.ai.model.DecisionServiceRegistry
 import com.embabel.common.ai.model.ModelType
 import com.embabel.common.ai.model.ServiceSelector

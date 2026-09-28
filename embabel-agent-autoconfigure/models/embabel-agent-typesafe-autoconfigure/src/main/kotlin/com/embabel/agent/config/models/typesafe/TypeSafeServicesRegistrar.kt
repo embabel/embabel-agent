@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.config.models.typesafe
 
-import com.embabel.common.ai.model.ClassificationService
-import com.embabel.common.ai.model.DecisionService
+import com.embabel.common.ai.classification.ClassificationService
+import com.embabel.common.ai.decision.DecisionService
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.BeanFactory
 import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition

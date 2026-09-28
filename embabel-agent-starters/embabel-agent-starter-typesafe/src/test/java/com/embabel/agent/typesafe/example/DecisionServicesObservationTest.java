@@ -46,7 +46,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.embabel.agent.spi.decision.LlmDecisionServiceFactory;
 import com.embabel.agent.typesafe.TypeSafeModelFactory;
-import com.embabel.common.ai.model.DecisionService;
+import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.model.DecisionServiceRegistry;
 import com.embabel.common.ai.model.observation.ObservedDecisionService;
 

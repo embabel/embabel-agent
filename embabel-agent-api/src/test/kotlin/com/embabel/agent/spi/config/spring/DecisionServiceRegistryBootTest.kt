@@ -26,7 +26,7 @@ import com.embabel.agent.spi.support.SpringContextPlatformServices
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyProcessContext
 import com.embabel.agent.test.unit.DummyAgent
 import com.embabel.agent.test.unit.FakeOperationContext
-import com.embabel.common.ai.model.DecisionService
+import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.model.DecisionServiceRegistry
 import io.mockk.every
 import io.mockk.mockk
