@@ -143,7 +143,12 @@ final class TypeSafeDecisionService implements DecisionService {
         }
     }
 
-    /** Use the resolved response model when present and preserve the provider request identifier. */
+    /**
+     * Builds the provenance from the response, using the resolved model when there is one and keeping the request id.
+     *
+     * @param response the provider response
+     * @return the provenance
+     */
     private ModelProvenance provenance(SystemOneResponse response) {
         var resolvedModel =
                 response.model() == null || response.model().isBlank()
@@ -153,7 +158,12 @@ final class TypeSafeDecisionService implements DecisionService {
                 resolvedModel, TypeSafeModelFactory.PROVIDER, null, response.requestId());
     }
 
-    /** Keep provider availability distinct from successful responses that fail validation. */
+    /**
+     * Picks the failure reason, keeping an unavailable provider apart from a response that failed validation.
+     *
+     * @param failure the TypeSafe exception
+     * @return the failure reason
+     */
     private static FailureReason failureReason(TypeSafeException failure) {
         return switch (failure) {
             case TypeSafeApiResponseValidationException ignored -> FailureReason.INVALID_RESPONSE;
@@ -163,13 +173,23 @@ final class TypeSafeDecisionService implements DecisionService {
         };
     }
 
-    /** Return a bounded classification failure and emit no provider exception or payload. */
+    /**
+     * Logs the reason and returns a classification failure. No provider exception or payload is logged.
+     *
+     * @param reason why the call failed
+     * @return the failure result
+     */
     private static ClassificationResult.Failure classificationFailure(FailureReason reason) {
         logger.warn("TypeSafe classification failed with reason {}", reason);
         return new ClassificationResult.Failure(reason);
     }
 
-    /** Return a bounded proposition failure and emit no provider exception or payload. */
+    /**
+     * Logs the reason and returns a proposition failure. No provider exception or payload is logged.
+     *
+     * @param reason why the call failed
+     * @return the failure result
+     */
     private static PropositionResult.Failure propositionFailure(FailureReason reason) {
         logger.warn("TypeSafe proposition assessment failed with reason {}", reason);
         return new PropositionResult.Failure(reason);
