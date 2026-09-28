@@ -21,7 +21,6 @@ import com.embabel.common.ai.classification.FailureReason
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonFormat
-import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
@@ -79,7 +78,7 @@ sealed interface DecisionAnswer {
     @ApiStatus.Experimental
     class Proposition private constructor(
         override val name: String,
-        @get:JsonIgnore val outcome: PropositionResult,
+        @get:JsonProperty("outcome") val outcome: PropositionResult,
     ) : DecisionAnswer {
 
         init {
@@ -95,14 +94,6 @@ sealed interface DecisionAnswer {
         override fun hashCode(): Int = Objects.hash(kind, name, outcome)
 
         override fun toString(): String = "DecisionAnswer.Proposition(name=$name, outcome=$outcome)"
-
-        /**
-         * Converts the outcome to its JSON form.
-         *
-         * @return the outcome as JSON
-         */
-        @JsonProperty("outcome")
-        private fun outcomeJson(): PropositionOutcomeJson = PropositionOutcomeJson.of(outcome)
 
         /**
          * Rejects a JSON member this type doesn't define.
@@ -129,8 +120,8 @@ sealed interface DecisionAnswer {
             @JsonCreator
             private fun fromJson(
                 @JsonProperty("name", required = true) name: String,
-                @JsonProperty("outcome", required = true) outcome: PropositionOutcomeJson,
-            ): Proposition = Proposition(name, outcome.toProposition())
+                @JsonProperty("outcome", required = true) outcome: PropositionResult,
+            ): Proposition = Proposition(name, outcome)
         }
     }
 
@@ -143,11 +134,11 @@ sealed interface DecisionAnswer {
     class Choice private constructor(
         override val name: String,
         options: List<Category>,
-        @get:JsonIgnore val outcome: ClassificationResult,
+        @get:JsonProperty("outcome") val outcome: ClassificationResult,
     ) : DecisionAnswer {
 
         /** The question's options in declared order. The list cannot be modified. Option ids are unique. */
-        @get:JsonIgnore
+        @get:JsonProperty("options")
         val options: List<Category> = java.util.List.copyOf(options)
 
         init {
@@ -164,22 +155,6 @@ sealed interface DecisionAnswer {
         override fun hashCode(): Int = Objects.hash(kind, name, options, outcome)
 
         override fun toString(): String = "DecisionAnswer.Choice(name=$name, outcome=$outcome)"
-
-        /**
-         * Converts the options to their JSON form.
-         *
-         * @return the options as JSON
-         */
-        @JsonProperty("options")
-        private fun optionsJson(): List<OptionJson> = options.map(::OptionJson)
-
-        /**
-         * Converts the outcome to its JSON form.
-         *
-         * @return the outcome as JSON
-         */
-        @JsonProperty("outcome")
-        private fun outcomeJson(): ChoiceOutcomeJson = ChoiceOutcomeJson.of(outcome)
 
         /**
          * Rejects a JSON member this type doesn't define.
@@ -211,9 +186,9 @@ sealed interface DecisionAnswer {
             @JsonCreator
             private fun fromJson(
                 @JsonProperty("name", required = true) name: String,
-                @JsonProperty("options", required = true) options: List<OptionJson>,
-                @JsonProperty("outcome", required = true) outcome: ChoiceOutcomeJson,
-            ): Choice = Choice(name, options.map { it.toCategory() }, outcome.toClassification())
+                @JsonProperty("options", required = true) options: List<Category>,
+                @JsonProperty("outcome", required = true) outcome: ClassificationResult,
+            ): Choice = Choice(name, options, outcome)
         }
     }
 
@@ -315,7 +290,9 @@ class DecisionResponse private constructor(
      * Why the whole request failed, or null when it did not. When it is set, every answer's outcome
      * is a failure with this same reason.
      */
-    @get:JsonIgnore val requestFailure: FailureReason?,
+    @get:JsonProperty("requestFailure")
+    @get:JsonInclude(JsonInclude.Include.NON_NULL)
+    val requestFailure: FailureReason?,
     answers: List<DecisionAnswer>,
 ) {
 
@@ -428,15 +405,6 @@ class DecisionResponse private constructor(
     override fun hashCode(): Int = Objects.hash(requestFailure, answers)
 
     override fun toString(): String = "DecisionResponse(requestFailure=$requestFailure, answers=$answers)"
-
-    /**
-     * Converts the request failure to its JSON form.
-     *
-     * @return the request failure as JSON, or null when there is none
-     */
-    @JsonProperty("requestFailure")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private fun requestFailureJson(): FailureReasonJson? = requestFailure?.let(FailureReasonJson::of)
 
     /**
      * Rejects a JSON member this type doesn't define.
@@ -581,11 +549,11 @@ class DecisionResponse private constructor(
         @JvmStatic
         @JsonCreator
         private fun fromJson(
-            @JsonProperty("requestFailure") requestFailure: FailureReasonJson?,
+            @JsonProperty("requestFailure") requestFailure: FailureReason?,
             @JsonProperty("answers", required = true)
             @JsonFormat(without = [JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY])
             answers: List<DecisionAnswer>,
-        ): DecisionResponse = DecisionResponse(requestFailure?.reason, answers)
+        ): DecisionResponse = DecisionResponse(requestFailure, answers)
     }
 }
 

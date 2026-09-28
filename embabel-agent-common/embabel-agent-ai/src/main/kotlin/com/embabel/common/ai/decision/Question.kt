@@ -19,7 +19,6 @@ import com.embabel.common.ai.classification.Category
 import com.embabel.common.ai.classification.ClassificationResult
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonCreator
-import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 import com.fasterxml.jackson.annotation.JsonSubTypes
@@ -183,7 +182,7 @@ class ChoiceQuestionSpec private constructor(
 ) : Question<ClassificationResult> {
 
     /** The options in declared order. The list cannot be modified. Option ids are unique. */
-    @get:JsonIgnore
+    @get:JsonProperty("options")
     val options: List<Category> = java.util.List.copyOf(options)
 
     override val kind: QuestionKind get() = QuestionKind.CHOICE
@@ -203,14 +202,6 @@ class ChoiceQuestionSpec private constructor(
     override fun hashCode(): Int = Objects.hash(kind, name, instructions, options)
 
     override fun toString(): String = "ChoiceQuestionSpec(name=$name, kind=$kind)"
-
-    /**
-     * Converts the options to their JSON form.
-     *
-     * @return the options as JSON
-     */
-    @JsonProperty("options")
-    private fun optionsJson(): List<OptionJson> = options.map(::OptionJson)
 
     /**
      * Rejects a JSON member this type doesn't define.
@@ -235,7 +226,7 @@ class ChoiceQuestionSpec private constructor(
         private fun fromJson(
             @JsonProperty("name", required = true) name: String,
             @JsonProperty("instructions", required = true) instructions: String,
-            @JsonProperty("options", required = true) options: List<OptionJson>,
+            @JsonProperty("options", required = true) options: List<Category>,
         ): ChoiceQuestionSpec = Builder.create(name).asking(instructions)
             .apply { options.forEach { option(it.id, it.description) } }
             .build()

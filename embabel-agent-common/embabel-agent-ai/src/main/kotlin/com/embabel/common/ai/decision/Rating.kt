@@ -19,7 +19,6 @@ import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonCreator
-import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
@@ -166,7 +165,7 @@ sealed interface RatingResult {
     @JsonPropertyOrder("selectedLevelId", "distribution", "score", "confidence", "provenance")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     class Answered @JvmOverloads constructor(
-        @get:JsonIgnore val provenance: ModelProvenance,
+        @get:JsonProperty("provenance") val provenance: ModelProvenance,
         @get:JsonProperty("selectedLevelId") val selectedLevelId: String? = null,
         distribution: List<LevelProbability> = emptyList(),
         @get:JsonProperty("score") val score: RatingScore? = null,
@@ -222,14 +221,6 @@ sealed interface RatingResult {
                 "distribution=$distribution, score=$score, confidence=$confidence)"
 
         /**
-         * Converts the provenance to its JSON form.
-         *
-         * @return the provenance as JSON
-         */
-        @JsonProperty("provenance")
-        private fun provenanceJson(): ProvenanceJson = ProvenanceJson(provenance)
-
-        /**
          * Rejects a JSON member this type doesn't define.
          *
          * @param name the unknown member's name
@@ -243,7 +234,7 @@ sealed interface RatingResult {
              * Builds an answered rating from deserialized JSON fields. An explicit null
              * distribution reads the same as an absent one.
              *
-             * @param provenance the model that answered, as read from JSON
+             * @param provenance the model that answered
              * @param selectedLevelId the level the provider selected, when it selects one
              * @param distribution the per-level probabilities, or null when absent
              * @param score the provider's score and the statistic it represents, when reported
@@ -253,27 +244,19 @@ sealed interface RatingResult {
             @JvmStatic
             @JsonCreator
             private fun fromJson(
-                @JsonProperty("provenance", required = true) provenance: ProvenanceJson,
+                @JsonProperty("provenance", required = true) provenance: ModelProvenance,
                 @JsonProperty("selectedLevelId") selectedLevelId: String?,
                 @JsonProperty("distribution") distribution: List<LevelProbability>?,
                 @JsonProperty("score") score: RatingScore?,
                 @JsonProperty("confidence") confidence: Double?,
-            ): Answered = Answered(provenance.toProvenance(), selectedLevelId, distribution ?: emptyList(), score, confidence)
+            ): Answered = Answered(provenance, selectedLevelId, distribution ?: emptyList(), score, confidence)
         }
     }
 
     /**
      * Insufficient evidence to answer the rating.
      */
-    data class Inconclusive(@get:JsonIgnore val provenance: ModelProvenance) : RatingResult {
-
-        /**
-         * Converts the provenance to its JSON form.
-         *
-         * @return the provenance as JSON
-         */
-        @JsonProperty("provenance")
-        private fun provenanceJson(): ProvenanceJson = ProvenanceJson(provenance)
+    data class Inconclusive(@get:JsonProperty("provenance") val provenance: ModelProvenance) : RatingResult {
 
         /**
          * Rejects a JSON member this type doesn't define.
@@ -288,28 +271,20 @@ sealed interface RatingResult {
             /**
              * Builds an inconclusive rating from a deserialized JSON field.
              *
-             * @param provenance the model that answered, as read from JSON
+             * @param provenance the model that answered
              * @return the inconclusive rating
              */
             @JvmStatic
             @JsonCreator
-            private fun fromJson(@JsonProperty("provenance", required = true) provenance: ProvenanceJson): Inconclusive =
-                Inconclusive(provenance.toProvenance())
+            private fun fromJson(@JsonProperty("provenance", required = true) provenance: ModelProvenance): Inconclusive =
+                Inconclusive(provenance)
         }
     }
 
     /**
      * An operational failure with no raw provider error or throwable retained.
      */
-    data class Failure(@get:JsonIgnore val reason: FailureReason) : RatingResult {
-
-        /**
-         * Converts the reason to its JSON form.
-         *
-         * @return the reason as JSON
-         */
-        @JsonProperty("reason")
-        private fun reasonJson(): FailureReasonJson = FailureReasonJson.of(reason)
+    data class Failure(@get:JsonProperty("reason") val reason: FailureReason) : RatingResult {
 
         /**
          * Rejects a JSON member this type doesn't define.
@@ -324,13 +299,13 @@ sealed interface RatingResult {
             /**
              * Builds a failure rating from a deserialized JSON field.
              *
-             * @param reason why the request failed, as read from JSON
+             * @param reason why the request failed
              * @return the failure rating
              */
             @JvmStatic
             @JsonCreator
-            private fun fromJson(@JsonProperty("reason", required = true) reason: FailureReasonJson): Failure =
-                Failure(reason.reason)
+            private fun fromJson(@JsonProperty("reason", required = true) reason: FailureReason): Failure =
+                Failure(reason)
         }
     }
 }
