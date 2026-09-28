@@ -141,6 +141,13 @@ internal class LlmDecisionService(
     override fun rate(input: String, question: RatingQuestionSpec): RatingResult =
         askQuestionSet(RATE, DecisionRequest.of(input, question)).answer(question)
 
+    /**
+     * Runs one question set through the model and turns the reply into a response for the request.
+     *
+     * @param operation the name used in retry and log lines
+     * @param request the questions to ask, with the input text
+     * @return the decision response for the request
+     */
     private fun askQuestionSet(operation: String, request: DecisionRequest): DecisionResponse {
         val spec = request.spec
         return decide(operation, { DecisionResponse.failed(spec, it) }) { attempts ->
@@ -235,6 +242,12 @@ internal class LlmDecisionService(
         return result
     }
 
+    /**
+     * Returns the log line's suggested fix for a failure reason.
+     *
+     * @param reason the failure reason
+     * @return remedy text for the log line
+     */
     private fun remedy(reason: FailureReason): String =
         if (reason == FailureReason.INVALID_RESPONSE) {
             "The model's reply did not follow the answer format. Check that the model can produce JSON output."
@@ -242,7 +255,13 @@ internal class LlmDecisionService(
             "Check the model's availability, credentials and retry settings under $retryPrefix."
         }
 
-    // Names the kind of failure from its cause chain. The category never holds provider text.
+    /**
+     * Names the kind of failure from its cause chain. The category never holds provider text.
+     *
+     * @param e the failure to categorize
+     * @param status the HTTP status code found in its cause chain, if any
+     * @return a short category name for the log line
+     */
     private fun causeCategory(e: Exception, status: Int?): String {
         val chain = generateSequence<Throwable>(e) { it.cause }.toList()
         return when {
@@ -257,6 +276,12 @@ internal class LlmDecisionService(
         }
     }
 
+    /**
+     * Finds the HTTP status code carried by a REST client failure in the cause chain, if there is one.
+     *
+     * @param e the failure to search
+     * @return the HTTP status code, or null when none is found
+     */
     private fun httpStatus(e: Throwable): Int? =
         generateSequence(e) { it.cause }.filterIsInstance<RestClientResponseException>().firstOrNull()?.statusCode?.value()
 

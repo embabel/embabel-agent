@@ -331,6 +331,13 @@ final class TypeSafeDecisionService
         throw TypeSafeDecisionService.<RuntimeException>sneakyThrow(interrupted);
     }
 
+    /**
+     * Checks whether a throwable of the given type is in the failure's cause chain.
+     *
+     * @param failure the failure to search
+     * @param type the throwable type to look for
+     * @return true when the chain holds one
+     */
     private static boolean hasCause(Throwable failure, Class<? extends Throwable> type) {
         for (Throwable current = failure; current != null; current = current.getCause()) {
             if (type.isInstance(current)) {
@@ -340,7 +347,12 @@ final class TypeSafeDecisionService
         return false;
     }
 
-    // Throws a checked exception from a method that declares none, as Kotlin callers expect.
+    /**
+     * Throws a checked exception from a method that declares none, as Kotlin callers expect.
+     *
+     * @param failure the failure to throw
+     * @return never returns normally; declared as RuntimeException so the compiler accepts a throw at the call site
+     */
     @SuppressWarnings("unchecked")
     private static <T extends Throwable> RuntimeException sneakyThrow(Throwable failure) throws T {
         throw (T) failure;
@@ -412,6 +424,12 @@ final class TypeSafeDecisionService
         };
     }
 
+    /**
+     * Checks whether a timeout is in the failure's cause chain.
+     *
+     * @param failure the failure to search
+     * @return true when a timeout is found
+     */
     private static boolean hasTimeout(Throwable failure) {
         for (Throwable current = failure; current != null; current = current.getCause()) {
             if (current instanceof TypeSafeApiTimeoutException
@@ -424,6 +442,12 @@ final class TypeSafeDecisionService
         return false;
     }
 
+    /**
+     * Returns the failure's HTTP status class for the log line.
+     *
+     * @param failure the failure to inspect
+     * @return the status class, such as "5xx", or "none" when there isn't one
+     */
     private static String statusClass(Throwable failure) {
         if (failure instanceof TypeSafeApiException api && api.status() >= 100 && api.status() < 600) {
             return (api.status() / 100) + "xx";
@@ -431,6 +455,12 @@ final class TypeSafeDecisionService
         return "none";
     }
 
+    /**
+     * Returns the provider request id carried by the failure, for the log line.
+     *
+     * @param failure the failure to inspect
+     * @return the request id, or "none" when there isn't one
+     */
     private static String requestId(Throwable failure) {
         if (failure instanceof TypeSafeApiException api && api.requestId() != null) {
             return api.requestId();

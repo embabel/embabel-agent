@@ -171,11 +171,24 @@ sealed class StubDecisionService private constructor(
         classifications: Map<Set<String>, ClassificationResult>,
     ) : StubDecisionService(name, capabilities, propositions, choices, ratings, assessments, classifications)
 
+    /**
+     * Adds the operation to the call log and logs it at DEBUG.
+     *
+     * @param operation the operation name to record
+     */
     private fun record(operation: String) {
         synchronized(callLog) { callLog += operation }
         logger.debug("Stub decision service '{}' called: {}", name, operation)
     }
 
+    /**
+     * Builds the exception thrown when a question has no scripted outcome.
+     *
+     * @param questionName the question name
+     * @param kind the question kind
+     * @param method the builder method to script an outcome with
+     * @return the exception to throw
+     */
     private fun unscripted(questionName: String, kind: QuestionKind, method: String) = IllegalStateException(
         "Stub decision service '$name' has no scripted outcome for $kind question '$questionName'. " +
             "Script one with $method(\"$questionName\", result).",

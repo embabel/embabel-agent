@@ -128,16 +128,29 @@ internal object DecisionExecution {
         return false
     }
 
-    // True when the hook source backs one question of the kind in per-question execution.
-    // Propositions are always backed, by PropositionAssessment or by assess.
+    /**
+     * True when the hook source backs one question of the kind in per-question execution.
+     * Propositions are always backed, by PropositionAssessment or by assess.
+     *
+     * @param hookSource the object whose hook interfaces are inspected
+     * @param kind the question kind to check
+     * @return true when the hook source backs that kind
+     */
     private fun hasHook(hookSource: Any, kind: QuestionKind): Boolean = when (kind) {
         QuestionKind.PROPOSITION -> true
         QuestionKind.CHOICE -> hookSource is ChoiceAssessment
         QuestionKind.RATING -> hookSource is RatingAssessment
     }
 
-    // Routing reads the hook source's interfaces and execution casts the service to them. A
-    // decorator that reports a hook source must implement each hook the request is routed through.
+    /**
+     * Routing reads the hook source's interfaces and execution casts the service to them. A
+     * decorator that reports a hook source must implement each hook the request is routed through.
+     *
+     * @param serviceName the service name used in messages
+     * @param service the object execution casts to the hooks
+     * @param hookSource the object whose hook interfaces decide routing
+     * @param hooks the hook interfaces the request is routed through
+     */
     private fun checkForwarded(serviceName: String, service: Any, hookSource: Any, hooks: List<Class<*>>) {
         if (service === hookSource) return
         val missing = hooks.filterNot { it.isInstance(service) }
@@ -153,9 +166,16 @@ internal object DecisionExecution {
         )
     }
 
-    // A missing kind gets one of two explanations. When the hook source lacks the per-question hook
-    // for the kind, the question needs that hook. Otherwise the service can answer the kind and its
-    // capabilities leave it out, so the remedy is to report the kind in capabilities().
+    /**
+     * A missing kind gets one of two explanations. When the hook source lacks the per-question hook
+     * for the kind, the question needs that hook. Otherwise the service can answer the kind and its
+     * capabilities leave it out, so the remedy is to report the kind in capabilities().
+     *
+     * @param questions the request's questions
+     * @param capabilities the capabilities the service reports
+     * @param hookSource the object whose hook interfaces decide routing
+     * @param rejection builds the exception when a kind is unsupported
+     */
     private fun checkKinds(
         questions: List<Question<*>>,
         capabilities: DecisionCapabilities,
@@ -195,10 +215,24 @@ internal object DecisionExecution {
         )
     }
 
-    // The method that answers one question of a kind the hook source backs.
+    /**
+     * The method that answers one question of a kind the hook source backs.
+     *
+     * @param hookSource the object whose hook interfaces are inspected
+     * @param kind the question kind
+     * @return the hook method's name
+     */
     private fun backingName(hookSource: Any, kind: QuestionKind): String =
         if (kind == QuestionKind.PROPOSITION && hookSource !is PropositionAssessment) "assess" else hookName(kind)
 
+    /**
+     * Checks the request against the service's question count and input length limits, and throws
+     * when either is exceeded.
+     *
+     * @param request the request to check
+     * @param capabilities the capabilities the service reports
+     * @param rejection builds the exception when a limit is exceeded
+     */
     private fun checkLimits(request: DecisionRequest, capabilities: DecisionCapabilities, rejection: Rejection) {
         val questions = request.spec.questions
         capabilities.maxQuestions?.let { limit ->
@@ -221,7 +255,12 @@ internal object DecisionExecution {
         }
     }
 
-    // The hook that answers one question of a kind in per-question execution.
+    /**
+     * The hook that answers one question of a kind in per-question execution.
+     *
+     * @param kind the question kind
+     * @return the hook interface's name
+     */
     private fun hookName(kind: QuestionKind): String = when (kind) {
         QuestionKind.PROPOSITION -> "PropositionAssessment"
         QuestionKind.CHOICE -> "ChoiceAssessment"
@@ -295,6 +334,14 @@ internal object DecisionExecution {
     fun hookSourceOf(service: DecisionService): DecisionService =
         (service as? DelegatingDecisionService)?.hookSource ?: service
 
+    /**
+     * Answers the whole request in one native call and checks that the response matches the spec.
+     *
+     * @param hook the native execution hook to call
+     * @param service the service, named in an error message
+     * @param request the request to run
+     * @return the native response
+     */
     private fun runNative(
         hook: NativeQuestionSetExecution,
         service: DecisionService,
@@ -313,6 +360,14 @@ internal object DecisionExecution {
         return response
     }
 
+    /**
+     * Answers each question of the request in turn, through its per-question hook.
+     *
+     * @param service the service whose hook methods are called
+     * @param request the request to run
+     * @param propositionHook true when the hook source implements PropositionAssessment
+     * @return the response, in spec order
+     */
     private fun runPerQuestion(service: DecisionService, request: DecisionRequest, propositionHook: Boolean): DecisionResponse {
         val builder = DecisionResponse.builder(request.spec)
         val input = request.input
@@ -355,9 +410,17 @@ internal object DecisionExecution {
         return builder.build()
     }
 
-    // Guards a choice or rating hook call and its validation. An IllegalArgumentException from
-    // either means the answer does not fit the question: decorators validate inside their hook
-    // methods and throw it for an option or level outside the question. Other exceptions propagate.
+    /**
+     * Guards a choice or rating hook call and its validation. An IllegalArgumentException from
+     * either means the answer does not fit the question: decorators validate inside their hook
+     * methods and throw it for an option or level outside the question. Other exceptions propagate.
+     *
+     * @param service the service, named in the anomaly log line
+     * @param question the question, named in the anomaly log line
+     * @param failure the result to use when the answer is out of domain
+     * @param validate calls the hook and validates its answer
+     * @return the validated answer, or the failure result when it's out of domain
+     */
     private inline fun <R> validated(service: DecisionService, question: Question<*>, failure: R, validate: () -> R): R =
         try {
             validate()
@@ -371,6 +434,13 @@ internal object DecisionExecution {
             failure
         }
 
+    /**
+     * Logs a decision's outcome: a failed request at WARN, partial failures at WARN, and completion at DEBUG.
+     *
+     * @param service the service, named in the log lines
+     * @param response the response to describe
+     * @param elapsedMs how long the request took
+     */
     private fun logOutcome(service: DecisionService, response: DecisionResponse, elapsedMs: Long) {
         val requestFailure = response.requestFailure
         if (requestFailure != null) {
@@ -399,13 +469,24 @@ internal object DecisionExecution {
         }
     }
 
+    /**
+     * Returns the failure reason of an answer, or null when it isn't a failure.
+     *
+     * @param answer the answer to inspect
+     * @return the failure reason, or null
+     */
     private fun failureOf(answer: DecisionAnswer): FailureReason? = when (answer) {
         is DecisionAnswer.Proposition -> (answer.outcome as? PropositionResult.Failure)?.reason
         is DecisionAnswer.Choice -> (answer.outcome as? ClassificationResult.Failure)?.reason
         is DecisionAnswer.Rating -> (answer.outcome as? RatingResult.Failure)?.reason
     }
 
-    // The outcome's variant only, so DEBUG lines hold no evidence or provider text.
+    /**
+     * The outcome's variant only, so DEBUG lines hold no evidence or provider text.
+     *
+     * @param answer the answer to describe
+     * @return a short name for the outcome
+     */
     private fun outcomeName(answer: DecisionAnswer): String = when (val outcome = outcomeOf(answer)) {
         is PropositionResult.Answered, is RatingResult.Answered -> "answered"
         is ClassificationResult.Selected -> "selected"
@@ -414,13 +495,24 @@ internal object DecisionExecution {
         else -> "failure ${failureOf(answer) ?: outcome}"
     }
 
+    /**
+     * Returns the answer's outcome, regardless of its question kind.
+     *
+     * @param answer the answer to unwrap
+     * @return the outcome
+     */
     private fun outcomeOf(answer: DecisionAnswer): Any = when (answer) {
         is DecisionAnswer.Proposition -> answer.outcome
         is DecisionAnswer.Choice -> answer.outcome
         is DecisionAnswer.Rating -> answer.outcome
     }
 
-    // Content for TRACE capture only: instructions and option or level text.
+    /**
+     * Content for TRACE capture only: instructions and option or level text.
+     *
+     * @param question the question to describe
+     * @return the description for the trace line
+     */
     private fun describeQuestion(question: Question<*>): String = when (question) {
         is PropositionQuestionSpec -> "'${question.name}' ${question.kind} instructions=${question.instructions}"
         is ChoiceQuestionSpec -> "'${question.name}' ${question.kind} instructions=${question.instructions} " +
@@ -434,6 +526,14 @@ internal object DecisionExecution {
         private val serviceName: String,
         private val capabilities: DecisionCapabilities,
     ) {
+        /**
+         * Builds the exception for a rejected request.
+         *
+         * @param questions the questions the rejection concerns
+         * @param reason why the request is rejected
+         * @param remedy what to do about it
+         * @return the exception to throw
+         */
         fun of(questions: List<Question<*>>, reason: String, remedy: String): UnsupportedDecisionException =
             UnsupportedDecisionException(
                 "Decision service '$serviceName' cannot run this request: $reason. " +

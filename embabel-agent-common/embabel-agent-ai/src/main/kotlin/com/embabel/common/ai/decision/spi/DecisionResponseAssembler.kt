@@ -222,6 +222,13 @@ class DecisionResponseAssembler private constructor(
         return builder.build()
     }
 
+    /**
+     * Stores one answer under a question name, and tracks a repeated name as a duplicate.
+     *
+     * @param name the question name the answer maps to
+     * @param answer the answer to store
+     * @return this assembler
+     */
     private fun record(name: String, answer: Received): DecisionResponseAssembler = apply {
         requireOpen()
         if (spec.question(name) == null) {
@@ -232,11 +239,19 @@ class DecisionResponseAssembler private constructor(
         }
     }
 
+    /** Fails when this assembler has already built its response. */
     private fun requireOpen() {
         check(!built) { "This assembler has already built its response. Use a new assembler for each response." }
     }
 
-    // Adds the received answer for one question and returns null, or returns the anomaly that fails it.
+    /**
+     * Adds the received answer for one question and returns null, or returns the anomaly that fails it.
+     *
+     * @param builder the response builder to add the answer to
+     * @param question the question being answered
+     * @param answer the answer received for it, or null when none arrived
+     * @return the anomaly that fails the question, or null when it was added
+     */
     private fun place(builder: DecisionResponse.Builder, question: Question<*>, answer: Received?): Anomaly? {
         if (answer == null) return Anomaly.MISSING
         if (answer is Received.Unreadable) return answer.anomaly
@@ -258,7 +273,12 @@ class DecisionResponseAssembler private constructor(
         return null
     }
 
-    // The validator's message is dropped. The anomaly kind alone reaches the log.
+    /**
+     * The validator's message is dropped. The anomaly kind alone reaches the log.
+     *
+     * @param validate checks the outcome and throws when it's invalid
+     * @return true when the outcome passed validation
+     */
     private inline fun fits(validate: () -> Unit): Boolean =
         try {
             validate()
@@ -267,7 +287,13 @@ class DecisionResponseAssembler private constructor(
             false
         }
 
-    // Names the rule a rejected rating broke, in the order the validator checks them.
+    /**
+     * Names the rule a rejected rating broke, in the order the validator checks them.
+     *
+     * @param question the rating question
+     * @param result the rejected rating result
+     * @return the anomaly that names the broken rule
+     */
     private fun ratingAnomaly(question: RatingQuestionSpec, result: RatingResult): Anomaly {
         val answered = result as RatingResult.Answered
         val levelIds = question.levels.map { it.id }.toSet()
@@ -279,6 +305,12 @@ class DecisionResponseAssembler private constructor(
         }
     }
 
+    /**
+     * Records the invalid-response failure for one question.
+     *
+     * @param builder the response builder to add the failure to
+     * @param question the question that failed
+     */
     private fun fail(builder: DecisionResponse.Builder, question: Question<*>) {
         val reason = FailureReason.INVALID_RESPONSE
         when (question) {
@@ -288,6 +320,12 @@ class DecisionResponseAssembler private constructor(
         }
     }
 
+    /**
+     * Logs one WARN line naming each anomaly, the unexpected count, and whether the whole request failed.
+     *
+     * @param anomalies each affected question with its anomaly
+     * @param requestFailed true when the whole request failed
+     */
     private fun warn(anomalies: List<Pair<String, Anomaly>>, requestFailed: Boolean) {
         val parts = ArrayList<String>()
         if (anomalies.isNotEmpty()) parts += anomalies.joinToString { (name, anomaly) -> "$name=$anomaly" }

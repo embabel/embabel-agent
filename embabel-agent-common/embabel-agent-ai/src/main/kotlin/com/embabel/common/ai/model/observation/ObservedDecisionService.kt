@@ -150,8 +150,14 @@ class ObservedDecisionService @JvmOverloads constructor(
         return observation.rate { hook.rate(input, question) }
     }
 
-    // Runs before any provider observation opens. The hook is called on the direct delegate, which
-    // for a nested decorator applies its own observation.
+    /**
+     * Runs before any provider observation opens. The hook is called on the direct delegate, which
+     * for a nested decorator applies its own observation.
+     *
+     * @param hookName the hook interface's name, for the error message
+     * @return the delegate, cast to the hook interface
+     * @throws IllegalStateException if the hook source does not implement the hook
+     */
     private inline fun <reified H> requireHook(hookName: String): H {
         check(hookSource is H) {
             "Decision service '${hookSource.name}' does not implement $hookName, but ObservedDecisionService " +
