@@ -97,6 +97,9 @@ An application bean named `typeSafeDecisionService` replaces the default service
 factory configuration, so an unused provider credential is not required. Other decision providers
 and additional named TypeSafe services can coexist in the same context.
 
+An application that supplies its own `TypeSafeModelFactory` bean also keeps it: auto-configuration
+then creates no factory, no default service, and needs no API key.
+
 ==== Classification and proposition assessment
 
 The starter supports ordinary constructor injection:

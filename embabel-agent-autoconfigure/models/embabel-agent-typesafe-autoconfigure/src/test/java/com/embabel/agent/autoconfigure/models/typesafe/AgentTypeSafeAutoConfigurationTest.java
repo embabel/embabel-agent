@@ -128,6 +128,20 @@ class AgentTypeSafeAutoConfigurationTest {
     }
 
     @Test
+    void applicationFactoryBacksOffWithoutRequiringACredential() {
+        var replacement = new TypeSafeModelFactory(() -> "user-supplied-key");
+        runner.withBean(TypeSafeModelFactory.class, () -> replacement)
+                .run(
+                        context -> {
+                            assertThat(context).hasNotFailed();
+                            assertThat(context).hasSingleBean(TypeSafeModelFactory.class);
+                            assertThat(context.getBean(TypeSafeModelFactory.class))
+                                    .isSameAs(replacement);
+                            assertThat(context).doesNotHaveBean("typeSafeDecisionService");
+                        });
+    }
+
+    @Test
     void environmentCredentialWinsAndIsResolvedForEveryRequest() {
         var credentials = new HashMap<String, Object>();
         credentials.put("TYPESAFE_API_KEY", "first-key");

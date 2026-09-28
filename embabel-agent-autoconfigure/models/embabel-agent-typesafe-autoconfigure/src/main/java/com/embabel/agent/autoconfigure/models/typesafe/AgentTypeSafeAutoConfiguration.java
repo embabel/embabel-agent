@@ -16,6 +16,7 @@
 package com.embabel.agent.autoconfigure.models.typesafe;
 
 import com.embabel.agent.config.models.typesafe.TypeSafeModelsConfig;
+import com.embabel.agent.typesafe.TypeSafeModelFactory;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -26,11 +27,17 @@ import org.springframework.context.annotation.Import;
  * Activates TypeSafe decision-service configuration when the integration is available. Runs after
  * the shared HTTP transport and before the community starter so both can reuse application transport
  * configuration without changing each other's beans.
+ *
+ * <p>Backs off when the application already provides its own named {@code typeSafeDecisionService}
+ * bean or its own {@link TypeSafeModelFactory} bean, so a caller that builds the factory itself is
+ * never asked for a credential this configuration doesn't need.
  */
 @AutoConfiguration(
         beforeName = "org.springaicommunity.typesafe.autoconfigure.TypeSafeAutoConfiguration",
         afterName = "com.embabel.agent.autoconfigure.netty.NettyClientAutoConfiguration")
-@ConditionalOnClass(com.embabel.agent.typesafe.TypeSafeModelFactory.class)
-@ConditionalOnMissingBean(name = "typeSafeDecisionService")
+@ConditionalOnClass(TypeSafeModelFactory.class)
+@ConditionalOnMissingBean(
+        name = "typeSafeDecisionService",
+        value = TypeSafeModelFactory.class)
 @Import(TypeSafeModelsConfig.class)
 public class AgentTypeSafeAutoConfiguration {}
