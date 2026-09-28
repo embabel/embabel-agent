@@ -42,7 +42,7 @@ annotation class DecisionSpecDsl
  */
 @ApiStatus.Experimental
 enum class QuestionKind(
-    // The lower-case name used on the wire and in definition ids. Every writer reads it from here.
+    // The lower-case name used on the wire and in error messages.
     @get:JvmSynthetic internal val wireName: String,
 ) {
     /** A true-or-false question, answered with a [PropositionResult]. */
@@ -88,14 +88,6 @@ sealed interface Question<out R : Any> {
     /** The kind of the question, which matches its result type. */
     @get:JsonProperty("kind")
     val kind: QuestionKind
-
-    /**
-     * The stable `d1-` id of this definition. It changes whenever the kind, name, instructions or
-     * any option or level changes, including their order. Equal definitions have equal ids.
-     * It is left out of JSON and computed again on read.
-     */
-    @get:JsonIgnore
-    val definitionId: String
 }
 
 /**
@@ -108,8 +100,6 @@ class PropositionQuestionSpec private constructor(
 ) : Question<PropositionResult> {
 
     override val kind: QuestionKind get() = QuestionKind.PROPOSITION
-
-    override val definitionId: String = DefinitionIds.question(kind.wireName, name, instructions, emptyList())
 
     override fun equals(other: Any?): Boolean =
         this === other || other is PropositionQuestionSpec && name == other.name && instructions == other.instructions
@@ -185,9 +175,6 @@ class ChoiceQuestionSpec private constructor(
     val options: List<Category> = java.util.List.copyOf(options)
 
     override val kind: QuestionKind get() = QuestionKind.CHOICE
-
-    override val definitionId: String =
-        DefinitionIds.question(kind.wireName, name, instructions, this.options.map { it.id to it.description })
 
     /**
      * Checks that a result fits this question and returns it unchanged. A selection must name one
@@ -293,9 +280,6 @@ class RatingQuestionSpec private constructor(
     val levels: List<RatingLevel> = java.util.List.copyOf(levels)
 
     override val kind: QuestionKind get() = QuestionKind.RATING
-
-    override val definitionId: String =
-        DefinitionIds.question(kind.wireName, name, instructions, this.levels.map { it.id to it.description })
 
     /**
      * Checks that a result fits this question's scale and returns it unchanged. A selected level

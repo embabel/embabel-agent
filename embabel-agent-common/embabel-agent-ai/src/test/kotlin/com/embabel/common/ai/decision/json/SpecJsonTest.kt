@@ -98,7 +98,6 @@ class SpecJsonTest {
                 assertEquals(triageJson, m.writeValueAsString(triage()))
                 val read = m.readValue(triageJson, DecisionSpec::class.java)
                 assertEquals(triage(), read)
-                assertEquals(triage().definitionId, read.definitionId)
             }
         }
 
@@ -225,12 +224,6 @@ class SpecJsonTest {
                     using = m,
                 )
             }
-        }
-
-        @Test
-        fun `a definition id in spec JSON is an unknown member`() {
-            val json = """{"questions":[$urgentJson],"definitionId":"${triage().definitionId}"}"""
-            assertRejects(json, DecisionSpec::class.java, "Unknown member 'definitionId' in DecisionSpec")
         }
 
         @Test

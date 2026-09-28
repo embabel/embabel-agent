@@ -106,16 +106,16 @@ class ResponseJsonTest {
         """"score":{"value":0.9,"statistic":"expected_level_index"},"confidence":0.6,"provenance":$jevFullJson}"""
 
     private fun urgentAnswer(outcome: String = urgentOutcome) =
-        """{"name":"is_urgent","kind":"proposition","definitionId":"${urgent.definitionId}","outcome":$outcome}"""
+        """{"name":"is_urgent","kind":"proposition","outcome":$outcome}"""
 
     private fun departmentAnswer(outcome: String = departmentOutcome) =
-        """{"name":"department","kind":"choice","definitionId":"${department.definitionId}",$optionsJson,"outcome":$outcome}"""
+        """{"name":"department","kind":"choice",$optionsJson,"outcome":$outcome}"""
 
     private fun frustrationAnswer(outcome: String = angerOutcome) =
-        """{"name":"frustration","kind":"rating","definitionId":"${frustration.definitionId}",$levelsJson,"outcome":$outcome}"""
+        """{"name":"frustration","kind":"rating",$levelsJson,"outcome":$outcome}"""
 
     private fun response(vararg answers: String, extra: String = ""): String =
-        """{"definitionId":"${triage.definitionId}",$extra"answers":[""" +
+        """{$extra"answers":[""" +
             answers.joinToString(",") + "]}"
 
     private val answeredJson = response(
@@ -177,14 +177,14 @@ class ResponseJsonTest {
                 .build()
 
             fun p(q: PropositionQuestionSpec, outcome: String) =
-                """{"name":"${q.name}","kind":"proposition","definitionId":"${q.definitionId}","outcome":$outcome}"""
+                """{"name":"${q.name}","kind":"proposition","outcome":$outcome}"""
             val ab = """"options":[{"id":"a","description":"A"},{"id":"b","description":"B"}]"""
             fun c(q: ChoiceQuestionSpec, outcome: String) =
-                """{"name":"${q.name}","kind":"choice","definitionId":"${q.definitionId}",$ab,"outcome":$outcome}"""
+                """{"name":"${q.name}","kind":"choice",$ab,"outcome":$outcome}"""
             val lh = """"levels":[{"id":"low","description":"low"},{"id":"high","description":"high"}]"""
             fun r(q: RatingQuestionSpec, outcome: String) =
-                """{"name":"${q.name}","kind":"rating","definitionId":"${q.definitionId}",$lh,"outcome":$outcome}"""
-            val expected = """{"definitionId":"${spec.definitionId}","answers":[""" + listOf(
+                """{"name":"${q.name}","kind":"rating",$lh,"outcome":$outcome}"""
+            val expected = """{"answers":[""" + listOf(
                 p(p1, """{"status":"answered","answer":false,"provenance":$jevFullJson}"""),
                 p(p2, """{"status":"inconclusive","provenance":$jevJson}"""),
                 p(p3, """{"status":"failure","reason":"invalid_response"}"""),
@@ -206,8 +206,7 @@ class ResponseJsonTest {
         fun `a failed response writes requestFailure and reads back equal`() {
             val failed = DecisionResponse.failed(triage, FailureReason.UNAVAILABLE)
             val failure = """{"status":"failure","reason":"unavailable"}"""
-            val json = """{"definitionId":"${triage.definitionId}",""" +
-                """"requestFailure":"unavailable","answers":[${urgentAnswer(failure)},""" +
+            val json = """{"requestFailure":"unavailable","answers":[${urgentAnswer(failure)},""" +
                 """${departmentAnswer(failure)},${frustrationAnswer(failure)}]}"""
             assertEquals(json, mapper.writeValueAsString(failed))
             assertEquals(failed, mapper.readValue(json, DecisionResponse::class.java))
@@ -278,10 +277,9 @@ class ResponseJsonTest {
         @Test
         fun `members may come in any order, including the outcome before the kind`() {
             val reordered = """{"answers":[{"outcome":{"provenance":$jevJson,"pTrue":0.93,"answer":true,""" +
-                """"status":"answered"},"definitionId":"${urgent.definitionId}","kind":"proposition","name":"is_urgent"},""" +
-                """{"outcome":$departmentOutcome,$optionsJson,"name":"department","kind":"choice",""" +
-                """"definitionId":"${department.definitionId}"},${frustrationAnswer()}],""" +
-                """"definitionId":"${triage.definitionId}"}"""
+                """"status":"answered"},"kind":"proposition","name":"is_urgent"},""" +
+                """{"outcome":$departmentOutcome,$optionsJson,"kind":"choice","name":"department"},""" +
+                """${frustrationAnswer()}]}"""
             assertEquals(answered(), mapper.readValue(reordered, DecisionResponse::class.java))
         }
 
@@ -332,35 +330,18 @@ class ResponseJsonTest {
         }
 
         @Test
-        fun `a dropped answer is rejected by the spec id check`() {
-            val json = response(urgentAnswer(), departmentAnswer())
-            assertRejects(
-                json, DecisionResponse::class.java,
-                "The answers do not match the response's spec", "Expected spec id '${triage.definitionId}'",
+        fun `a dropped, extra or swapped answer reads, and the spec check rejects it`() {
+            val tone = """{"name":"tone","kind":"proposition","outcome":$urgentOutcome}"""
+            val cases = mapOf(
+                response(urgentAnswer(), departmentAnswer()) to "Missing: 'frustration'.",
+                response(urgentAnswer(), departmentAnswer(), frustrationAnswer(), tone) to "Extra: 'tone'.",
+                response(departmentAnswer(), urgentAnswer(), frustrationAnswer()) to "different order",
             )
-        }
-
-        @Test
-        fun `an extra answer is rejected by the spec id check`() {
-            val extra = Questions.named("tone").proposition("Is it polite?").build()
-            val json = response(
-                urgentAnswer(),
-                departmentAnswer(),
-                frustrationAnswer(),
-                """{"name":"tone","kind":"proposition","definitionId":"${extra.definitionId}","outcome":$urgentOutcome}""",
-            )
-            assertRejects(json, DecisionResponse::class.java, "The answers do not match the response's spec")
-        }
-
-        @Test
-        fun `swapped answers are rejected by the spec id check`() {
-            val json = response(
-                departmentAnswer(),
-                urgentAnswer(),
-                frustrationAnswer(),
-            )
-            val error = assertRejects(json, DecisionResponse::class.java, "The answers do not match the response's spec")
-            assertInstanceOf(IllegalArgumentException::class.java, error.cause)
+            for ((json, fragment) in cases) {
+                val read = mapper.readValue(json, DecisionResponse::class.java)
+                val error = assertThrows(IllegalArgumentException::class.java) { read.requireMatches(triage) }
+                assertTrue(error.message!!.contains(fragment)) { error.message }
+            }
         }
 
         @Test
@@ -479,9 +460,8 @@ class ResponseJsonTest {
         @Test
         fun `unknown members are rejected on a plain mapper and on one that ignores unknown properties`() {
             val lenient = JsonMapper.builder().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build()
-            val withInstructions = """{"name":"is_urgent","kind":"proposition","instructions":"Is it?",""" +
-                """"definitionId":"${urgent.definitionId}","outcome":$urgentOutcome}"""
-            val withLevels = """{"name":"is_urgent","kind":"proposition","definitionId":"${urgent.definitionId}",$levelsJson,"outcome":$urgentOutcome}"""
+            val withInstructions = """{"name":"is_urgent","kind":"proposition","instructions":"Is it?","outcome":$urgentOutcome}"""
+            val withLevels = """{"name":"is_urgent","kind":"proposition",$levelsJson,"outcome":$urgentOutcome}"""
             val provenance = """{"status":"inconclusive","provenance":{"modelName":"a","provider":"p","region":"eu"}}"""
             val distribution = """{"status":"answered","distribution":[{"levelId":"Calm","probability":1.0,"rank":0},""" +
                 """{"levelId":"Frustrated","probability":0.0},{"levelId":"Very angry","probability":0.0}],"provenance":$jevJson}"""
@@ -517,11 +497,11 @@ class ResponseJsonTest {
         @Test
         fun `a missing required member is rejected`() {
             assertRejects(
-                """{"answers":[${urgentAnswer()}]}""",
+                """{"requestFailure":"unavailable"}""",
                 DecisionResponse::class.java,
-                "'definitionId'",
+                "'answers'",
             )
-            val noOptions = """{"name":"department","kind":"choice","definitionId":"${department.definitionId}","outcome":$departmentOutcome}"""
+            val noOptions = """{"name":"department","kind":"choice","outcome":$departmentOutcome}"""
             assertRejects(
                 response(urgentAnswer(), noOptions, frustrationAnswer()),
                 DecisionResponse::class.java,
@@ -533,7 +513,7 @@ class ResponseJsonTest {
                 "'provenance'",
             )
             assertRejects(
-                """{"kind":"proposition","definitionId":"${urgent.definitionId}","outcome":$urgentOutcome}""",
+                """{"kind":"proposition","outcome":$urgentOutcome}""",
                 DecisionAnswer::class.java,
                 "'name'",
             )
@@ -541,7 +521,7 @@ class ResponseJsonTest {
 
         @Test
         fun `an unknown kind is rejected`() {
-            val poll = """{"name":"is_urgent","kind":"poll","definitionId":"${urgent.definitionId}","outcome":$urgentOutcome}"""
+            val poll = """{"name":"is_urgent","kind":"poll","outcome":$urgentOutcome}"""
             assertRejects(
                 response(poll, departmentAnswer(), frustrationAnswer()),
                 DecisionResponse::class.java,
@@ -598,31 +578,21 @@ class ResponseJsonTest {
         }
 
         @Test
-        fun `a malformed answer definition id is rejected`() {
-            val json = response(
-                urgentAnswer().replace(urgent.definitionId, "d1-short"),
-                departmentAnswer(),
-                frustrationAnswer(),
-            )
-            assertRejects(json, DecisionResponse::class.java, "definition id 'd1-short' is not a question id")
-        }
-
-        @Test
         fun `a response must be an object`() {
             assertRejects("[]", DecisionResponse::class.java, "from Array value")
         }
 
         @Test
-        fun `a tree with swapped answers is rejected`() {
+        fun `a tree with swapped answers reads in that order and fails the spec check`() {
             val swapped = response(
                 departmentAnswer(),
                 urgentAnswer(),
                 frustrationAnswer(),
             )
-            val error = assertThrows(DatabindException::class.java) {
-                mapper.treeToValue(mapper.readTree(swapped), DecisionResponse::class.java)
-            }
-            assertTrue(error.message!!.contains("The answers do not match the response's spec"))
+            val read = mapper.treeToValue(mapper.readTree(swapped), DecisionResponse::class.java)
+            assertEquals(listOf("department", "is_urgent", "frustration"), read.answers.map { it.name })
+            val error = assertThrows(IllegalArgumentException::class.java) { read.requireMatches(triage) }
+            assertTrue(error.message!!.contains("different order")) { error.message }
         }
     }
 
@@ -642,8 +612,8 @@ class ResponseJsonTest {
 
         @Test
         fun `answers written as an object keyed by name are rejected, even when single values may read as arrays`() {
-            val keyed = """{"definitionId":"${triage.definitionId}","answers":{""" +
-                """"is_urgent":{"kind":"proposition","definitionId":"${urgent.definitionId}","outcome":$urgentOutcome}}}"""
+            val keyed = """{"answers":{""" +
+                """"is_urgent":{"kind":"proposition","outcome":$urgentOutcome}}}"""
             val singleAsArray = JsonMapper.builder().enable(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY).build()
             for (m in listOf(mapper, singleAsArray)) {
                 assertRejects(keyed, DecisionResponse::class.java, "from Object value", using = m)
@@ -652,7 +622,7 @@ class ResponseJsonTest {
 
         @Test
         fun `an element without a name is rejected`() {
-            val unnamed = """{"kind":"proposition","definitionId":"${urgent.definitionId}","outcome":$urgentOutcome}"""
+            val unnamed = """{"kind":"proposition","outcome":$urgentOutcome}"""
             assertRejects(
                 response(unnamed, departmentAnswer(), frustrationAnswer()),
                 DecisionResponse::class.java,
@@ -679,20 +649,19 @@ class ResponseJsonTest {
         }
 
         @Test
-        fun `an array in another order fails the spec id check`() {
+        fun `an array in another order reads in that order`() {
             val reordered = response(frustrationAnswer(), urgentAnswer(), departmentAnswer())
-            assertRejects(
-                reordered, DecisionResponse::class.java,
-                "The answers do not match the response's spec", "Expected spec id '${triage.definitionId}'",
-            )
+            val read = mapper.readValue(reordered, DecisionResponse::class.java)
+            assertEquals(listOf("frustration", "is_urgent", "department"), read.answers.map { it.name })
+            assertEquals(answered().answer(urgent), read.answer(urgent))
         }
     }
 
     @Nested
     inner class TamperedDefinitions {
 
-        // Each edit keeps every definition id, so the response still reads. Only the typed lookup
-        // can tell that the embedded options or levels no longer match the question.
+        // Each edit keeps every answer valid on its own, so the response still reads. Only the typed
+        // lookup and the spec check can tell that the embedded options or levels no longer match the question.
         private fun readTampered(vararg edits: Pair<String, String>): DecisionResponse {
             var json = answeredJson
             for ((from, to) in edits) {
@@ -709,17 +678,18 @@ class ResponseJsonTest {
                 "\"categoryId\":\"billing\"" to "\"categoryId\":\"hacked\"",
             )
             val choice = assertInstanceOf(DecisionAnswer.Choice::class.java, read.answer("department"))
-            assertEquals(department.definitionId, choice.definitionId)
+            assertEquals("hacked", choice.options[1].id)
             val error = assertThrows(IllegalArgumentException::class.java) { read.answer(department) }
             assertTrue(error.message!!.contains("'department'")) { error.message }
-            assertTrue(error.message!!.contains("options differ from the question's")) { error.message }
+            assertTrue(error.message!!.contains("its options are 'billing', 'hacked', 'sales'")) { error.message }
+            assertThrows(IllegalArgumentException::class.java) { read.requireMatches(triage) }
         }
 
         @Test
         fun `a changed option description reads but fails the typed lookup`() {
             val read = readTampered("Bugs, outages, integrations" to "Anything at all")
             val error = assertThrows(IllegalArgumentException::class.java) { read.answer(department) }
-            assertTrue(error.message!!.contains("options differ from the question's")) { error.message }
+            assertTrue(error.message!!.contains("different descriptions from the question's for 'technical'")) { error.message }
         }
 
         @Test
@@ -729,17 +699,18 @@ class ResponseJsonTest {
                 "\"selectedLevelId\":\"Frustrated\"" to "\"selectedLevelId\":\"Furious\"",
             )
             val rating = assertInstanceOf(DecisionAnswer.Rating::class.java, read.answer("frustration"))
-            assertEquals(frustration.definitionId, rating.definitionId)
+            assertEquals("Furious", rating.levels[2].id)
             val error = assertThrows(IllegalArgumentException::class.java) { read.answer(frustration) }
             assertTrue(error.message!!.contains("'frustration'")) { error.message }
-            assertTrue(error.message!!.contains("levels differ from the question's")) { error.message }
+            assertTrue(error.message!!.contains("its levels are 'Calm', 'Frustrated', 'Furious'")) { error.message }
+            assertThrows(IllegalArgumentException::class.java) { read.requireMatches(triage) }
         }
 
         @Test
         fun `a changed level description reads but fails the typed lookup`() {
             val read = readTampered("{\"id\":\"Calm\",\"description\":\"Calm\"}" to "{\"id\":\"Calm\",\"description\":\"Relaxed\"}")
             val error = assertThrows(IllegalArgumentException::class.java) { read.answer(frustration) }
-            assertTrue(error.message!!.contains("levels differ from the question's")) { error.message }
+            assertTrue(error.message!!.contains("different descriptions from the question's for 'Calm'")) { error.message }
         }
 
         @Test

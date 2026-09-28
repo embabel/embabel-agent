@@ -247,6 +247,26 @@ class QuestionTest {
         }
 
         @Test
+        fun `rating and proposition equality covers instructions, level order and level descriptions`() {
+            assertNotEquals(
+                Questions.named("p").proposition("A").build(),
+                Questions.named("p").proposition("B").build(),
+            )
+            val reordered = Questions.named("frustration").rating("How frustrated is the customer?")
+                .level("Very angry")
+                .level("Frustrated")
+                .level("Calm")
+                .build()
+            val described = Questions.named("frustration").rating("How frustrated is the customer?")
+                .level("Calm", "Relaxed")
+                .level("Frustrated")
+                .level("Very angry")
+                .build()
+            assertNotEquals(frustration(), reordered)
+            assertNotEquals(frustration(), described)
+        }
+
+        @Test
         fun `toString shows only the name and kind`() {
             val text = department().toString()
             assertTrue(text.contains("department"))
@@ -283,97 +303,6 @@ class QuestionTest {
             val builder = Questions.named("department").choice("Which team?")
             assertThrows(IllegalArgumentException::class.java) { builder.build() }
             assertEquals(1, builder.option("billing", "Payments").build().options.size)
-        }
-    }
-
-    @Nested
-    inner class DefinitionIdentity {
-
-        @Test
-        fun `the id is computed from the lower-case kind, name, instructions and entries`() {
-            assertEquals(
-                DefinitionIds.question("proposition", "is_urgent", "The customer needs a reply today.", emptyList()),
-                Questions.named("is_urgent").proposition("The customer needs a reply today.").build().definitionId,
-            )
-            assertEquals(
-                "d1-81hzfR8Ooim5eJZok_AQMmXVY5l_p2bImz3be95T9z8",
-                Questions.named("is_urgent").proposition("The customer needs a reply today.").build().definitionId,
-            )
-            assertEquals(
-                DefinitionIds.question(
-                    "choice",
-                    "department",
-                    "Which team should handle this?",
-                    listOf("billing" to "Payments, invoicing, refunds", "technical" to "Bugs, outages, integrations"),
-                ),
-                department().definitionId,
-            )
-            assertEquals(
-                DefinitionIds.question(
-                    "rating",
-                    "frustration",
-                    "How frustrated is the customer?",
-                    listOf("Calm" to "Calm", "Frustrated" to "Frustrated", "Very angry" to "Very angry"),
-                ),
-                frustration().definitionId,
-            )
-        }
-
-        @Test
-        fun `equal definitions give equal ids`() {
-            assertEquals(department().definitionId, department().definitionId)
-            assertEquals(frustration().definitionId, frustration().definitionId)
-        }
-
-        @Test
-        fun `changing instructions changes the id`() {
-            val changed = Questions.named("department").choice("Which team should take this?")
-                .option("billing", "Payments, invoicing, refunds")
-                .option("technical", "Bugs, outages, integrations")
-                .build()
-            assertNotEquals(department().definitionId, changed.definitionId)
-            assertNotEquals(
-                Questions.named("p").proposition("A").build().definitionId,
-                Questions.named("p").proposition("B").build().definitionId,
-            )
-        }
-
-        @Test
-        fun `changing an option description changes the id`() {
-            val changed = Questions.named("department").choice("Which team should handle this?")
-                .option("billing", "Payments and refunds")
-                .option("technical", "Bugs, outages, integrations")
-                .build()
-            assertNotEquals(department().definitionId, changed.definitionId)
-        }
-
-        @Test
-        fun `changing option order changes the id`() {
-            val reordered = Questions.named("department").choice("Which team should handle this?")
-                .option("technical", "Bugs, outages, integrations")
-                .option("billing", "Payments, invoicing, refunds")
-                .build()
-            assertNotEquals(department().definitionId, reordered.definitionId)
-        }
-
-        @Test
-        fun `changing level order changes the id`() {
-            val reordered = Questions.named("frustration").rating("How frustrated is the customer?")
-                .level("Very angry")
-                .level("Frustrated")
-                .level("Calm")
-                .build()
-            assertNotEquals(frustration().definitionId, reordered.definitionId)
-        }
-
-        @Test
-        fun `a level description is part of the id`() {
-            val described = Questions.named("frustration").rating("How frustrated is the customer?")
-                .level("Calm", "Relaxed")
-                .level("Frustrated")
-                .level("Very angry")
-                .build()
-            assertNotEquals(frustration().definitionId, described.definitionId)
         }
     }
 

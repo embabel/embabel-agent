@@ -22,16 +22,16 @@ Promotion is decided at the first release after all three are in place.
 |The input text and one `DecisionSpec`
 
 |`DecisionSpec`
-|An ordered list of `Question` values with unique names, and an `s1-` definition id
+|An ordered list of `Question` values with unique names
 
 |`Question`
-|A kind, a name, instructions, the options or levels for its kind, and a `d1-` definition id
+|A kind, a name, instructions, and the options or levels for its kind
 
 |`DecisionResponse`
-|The spec's `s1-` id, an optional request failure, and one `DecisionAnswer` per question in spec order
+|An optional request failure and one `DecisionAnswer` per question in spec order
 
 |`DecisionAnswer`
-|The question's name, kind and `d1-` id, its options or levels, and a typed outcome
+|The question's name and kind, its options or levels, and a typed outcome
 |===
 
 A response holds no question objects, no instructions and no input.
@@ -171,76 +171,6 @@ It is a continuous number over the level range.
 The checks against the question's levels run when a result is validated against a `RatingQuestionSpec` or added to a response.
 The other rules run when the result is constructed.
 
-==== Definition ids
-
-Each question has a `definitionId` that starts with `d1-`.
-Each spec has a `definitionId` that starts with `s1-`.
-A question's id changes when its kind, name, instructions, or any option or level changes, including their order.
-Equal question definitions have equal ids.
-A spec's id changes when any question changes, or when questions are added, removed or reordered.
-
-Code that writes decision JSON outside this library computes the same ids with this recipe.
-An id is a prefix followed by the SHA-256 digest of a canonical JSON text.
-The digest is encoded as unpadded base64url, as in RFC 4648 section 5.
-Every id is the prefix plus 43 characters.
-
-|===
-|Id |Prefix |Canonical text
-
-|Question
-|`d1-`
-|The JSON array `[kind, name, instructions, [[id, description], ...]]`
-
-|Spec
-|`s1-`
-|The JSON array of the spec's question ids, as strings, in question order
-|===
-
-The kind is the lower-case wire name from the question kinds table.
-The last element of a question's array lists the options or levels as `[id, description]` pairs in declared order.
-For a proposition it is `[]`.
-
-The canonical text is compact JSON, written by these rules:
-
-|===
-|Content |Written as
-
-|Space between tokens
-|None
-
-|String content
-|As given, with no trimming and no Unicode normalization
-
-|`"` and `\`
-|`+\"+` and `+\\+`
-
-|Backspace, tab, line feed, form feed and carriage return
-|`+\b+`, `+\t+`, `+\n+`, `+\f+` and `+\r+`
-
-|Every other character below U+0020
-|A backslash, the letter `u` and four hex digits with upper-case letters, so U+001F becomes `+\u001F+`
-
-|An unpaired surrogate
-|The same escape, so U+D800 becomes `+\uD800+`
-
-|Everything else, including `/`, U+007F, U+2028 and all non-ASCII text
-|Unescaped
-|===
-
-The text is encoded as UTF-8, with each supplementary character written as one four-byte sequence.
-The digest is taken over those bytes.
-
-A proposition named `is_urgent` that asks `The customer needs a reply today.` has this canonical text:
-
-[source,json]
-----
-["proposition","is_urgent","The customer needs a reply today.",[]]
-----
-
-Its id is `d1-81hzfR8Ooim5eJZok_AQMmXVY5l_p2bImz3be95T9z8`.
-The number after the prefix letter is the algorithm version.
-A change to the recipe gets a new prefix.
-
 ==== Responses
 
 `DecisionResponse.builder(spec)` starts a response to a spec.
@@ -252,14 +182,16 @@ Every answer in a failed response is a failure with that reason, and `getRequest
 The builder's `answer` method throws `IllegalArgumentException` in these cases:
 
 * The spec has no question with that name.
-* The spec's question has a different definition id.
+* The spec's question with that name is not equal to the given question.
 * The question already has an answer.
 * A choice selection is not one of the options.
 * Rating evidence does not fit the levels.
 
 `build()` throws `IllegalArgumentException` when a question of the spec has no answer.
-A response always checks that its answers' definition ids give its `s1-` id.
-That check catches a dropped, extra or reordered answer.
+
+A response read from JSON or storage is checked answer by answer, with no reference to a spec.
+`requireMatches(spec)` checks it against a spec.
+It throws `IllegalArgumentException` when an answer is missing, extra or out of order, or when an answer's kind, options or levels differ from its question's.
 
 ===== Typed lookup
 
@@ -270,10 +202,9 @@ include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/c
 
 `answer(question)` returns the outcome with the result type of the question's class.
 The question can be a different object from the one that built the response.
-It must have the same name, kind and definition id as the answer.
-A question whose instructions, options or levels have changed throws `IllegalArgumentException`.
-The lookup also compares the answer's options or levels with the question's, because a response read from JSON cannot prove them from its ids.
-A name with no answer, or an answer of another kind, also throws `IllegalArgumentException`.
+The answer must have the question's name and kind, and a choice answer's options or a rating answer's levels must equal the question's.
+Otherwise the lookup throws `IllegalArgumentException`, and the message names the question and what differs.
+An answer holds no instructions, so a question whose instructions were reworded still matches.
 
 ===== Lookup by name
 
@@ -287,7 +218,7 @@ It throws `IllegalArgumentException` when the response has no answer with that n
 `DecisionAnswer` is sealed, with the classes `DecisionAnswer.Proposition`, `DecisionAnswer.Choice` and `DecisionAnswer.Rating`.
 A Java `switch` or a Kotlin `when` over an answer covers every case.
 `DecisionAnswer.Choice` also holds the options it was answered with, and `DecisionAnswer.Rating` holds its levels.
-An answer read from JSON holds them as written, and only the typed lookup checks them against a question.
+An answer read from JSON holds them as written, and the typed lookup and `requireMatches` check them against a question.
 
 ==== Requests and capabilities
 
@@ -321,10 +252,10 @@ Each decision type has fixed member names:
 |`questionKinds`, and the optional `maxQuestions` and `maxInputCharacters`
 
 |`DecisionResponse`
-|`definitionId`, the optional `requestFailure`, and `answers`
+|The optional `requestFailure`, and `answers`
 
 |`DecisionAnswer`
-|`name`, `kind`, `definitionId`, `options` or `levels` for its kind, and `outcome`
+|`name`, `kind`, `options` or `levels` for its kind, and `outcome`
 
 |Option or level
 |`id` and `description`
@@ -376,12 +307,10 @@ The response from the typed lookup example writes this JSON, shown here with lin
 [source,json]
 ----
 {
-  "definitionId": "s1-CZ2UfjbN5c9QqHynKmSBQzKTouzrERG_PPxv8PfF42A",
   "answers": [
     {
       "name": "is_urgent",
       "kind": "proposition",
-      "definitionId": "d1-jtLpNQmCV34EQ_jAGrUs0cQMyeb9i2aIcWTUKIM3crI",
       "outcome": {
         "status": "answered",
         "answer": true,
@@ -392,7 +321,6 @@ The response from the typed lookup example writes this JSON, shown here with lin
     {
       "name": "department",
       "kind": "choice",
-      "definitionId": "d1-r1GJdFFSUuEhBE7rVReD4Tc5x8GyUdNymd_di8Mfq8Y",
       "options": [
         { "id": "billing", "description": "Payments, invoicing, refunds" },
         { "id": "technical", "description": "Bugs, outages, integrations" },
@@ -408,7 +336,6 @@ The response from the typed lookup example writes this JSON, shown here with lin
     {
       "name": "frustration",
       "kind": "rating",
-      "definitionId": "d1-SqKOYhPj7qR7j2mwZJz2COEozfmP7Dfr4hirlvhDfOg",
       "levels": [
         { "id": "Calm", "description": "Calm" },
         { "id": "Frustrated", "description": "Frustrated" },
@@ -446,9 +373,9 @@ Reading applies these rules:
 A member that a later version adds fails in a reader that does not know it.
 * A missing required member, an unknown kind, status, reason or statistic, and `answers` written as an object or a single value all fail.
 * Every value goes through the same builders and factories as Java code, so a value they refuse fails with the builder's message and the `IllegalArgumentException` as the cause.
-* Definition ids are checked on read.
-A question's `d1-` id and a spec's `s1-` id are computed from their definitions.
-A response's `s1-` id must match the ids of its answers in order, so a dropped, extra or reordered answer fails.
+* Each answer in a response is checked on its own, so an outcome must fit the answer's own options or levels.
+Reading does not compare a response with a spec.
+Call `requireMatches(spec)` for that.
 * A member that appears twice in one object follows Jackson's default, where the last value wins.
 
 Each failure is a Jackson `DatabindException`.
