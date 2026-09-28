@@ -384,10 +384,10 @@ Each rule has a diagnostic that names the member and the fix.
 
 ===== Complexity
 
-The main code is 2,002 lines in ten Java files, 1,001 of them non-blank and outside comments.
+The main code is 2,015 lines in ten Java files, 1,003 of them non-blank and outside comments.
 `DecisionTypeParser` holds 1,239 of the lines.
-`AnnotatedDecision` holds 218, `AnnotatedDecisions` 195, `AnnotatedDecisionException` 80, and the five annotations and `package-info` 270 together.
-Classification adds the `@Classification` annotation, 85 lines to `AnnotatedDecisions` and 17 to the parser, which picks the spec type. The mapping itself is `CategoryMapping`.
+`AnnotatedDecision` holds 218, `AnnotatedDecisions` 208, `AnnotatedDecisionException` 80, and the five annotations and `package-info` 270 together.
+Classification adds the `@Classification` annotation, 98 lines to `AnnotatedDecisions` and 17 to the parser, which picks the spec type. The mapping itself is `CategoryMapping`.
 The tests are 2,951 lines, most of them diagnostic cases.
 
 The parser reads Jackson's creation view of a type through public calls: `DeserializationConfig.classIntrospectorInstance()`, `ClassIntrospector.introspectForCreation`, `BeanDescription.findProperties()`, `AccessorNamingStrategy` and `AnnotationIntrospector`.
