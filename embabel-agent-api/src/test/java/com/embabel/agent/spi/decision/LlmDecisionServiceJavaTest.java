@@ -19,8 +19,7 @@ import com.embabel.agent.core.internal.LlmOperations;
 import com.embabel.agent.core.support.LlmInteraction;
 import com.embabel.agent.spi.LlmService;
 import com.embabel.agent.spi.support.springai.SpringAiLlmService;
-import com.embabel.common.ai.classification.Category;
-import com.embabel.common.ai.classification.ClassificationRequest;
+import com.embabel.common.ai.classification.ClassificationSpec;
 import com.embabel.common.ai.classification.ClassificationResult;
 import com.embabel.common.ai.classification.ModelProvenance;
 import com.embabel.common.ai.decision.PropositionRequest;
@@ -32,7 +31,6 @@ import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ChatModel;
 
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -91,12 +89,12 @@ class LlmDecisionServiceJavaTest {
 
         // tag::named[]
         var classifier = factory.classificationService("gpt-test");
-        var result = classifier.classify(new ClassificationRequest(
-                "My card was charged twice",
-                "Which team should handle this?",
-                List.of(
-                        new Category("billing", "Payments, invoices and refunds"),
-                        new Category("technical", "Errors, outages and bugs"))));
+        var departments = ClassificationSpec.builder()
+                .asking("Which team should handle this?")
+                .category("billing", "Payments, invoices and refunds")
+                .category("technical", "Errors, outages and bugs")
+                .build();
+        var result = classifier.classify("My card was charged twice", departments);
         // end::named[]
 
         assertEquals(new ClassificationResult.Selected("billing", provenance), result);

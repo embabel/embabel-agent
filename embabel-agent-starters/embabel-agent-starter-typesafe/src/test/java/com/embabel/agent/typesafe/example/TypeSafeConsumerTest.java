@@ -19,8 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-import com.embabel.common.ai.classification.Category;
-import com.embabel.common.ai.classification.ClassificationRequest;
+import com.embabel.common.ai.classification.ClassificationSpec;
 import com.embabel.common.ai.classification.ClassificationResult;
 import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.decision.PropositionRequest;
@@ -35,7 +34,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
-import java.util.List;
 
 class TypeSafeConsumerTest {
     @Test
@@ -85,12 +83,12 @@ class TypeSafeConsumerTest {
     public record SupportTriage(DecisionService decisions) {
         public ClassificationResult classify(String message) {
             return decisions.classify(
-                    new ClassificationRequest(
-                            message,
-                            "Which team should handle this request?",
-                            List.of(
-                                    new Category("billing", "Payments, invoices and refunds"),
-                                    new Category("support", "Product use and technical support"))));
+                    message,
+                    ClassificationSpec.builder()
+                            .asking("Which team should handle this request?")
+                            .category("billing", "Payments, invoices and refunds")
+                            .category("support", "Product use and technical support")
+                            .build());
         }
 
         public PropositionResult isUrgent(String message) {

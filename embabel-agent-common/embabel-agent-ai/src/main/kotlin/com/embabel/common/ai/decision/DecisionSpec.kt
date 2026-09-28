@@ -41,10 +41,11 @@ import java.util.function.Consumer
  *     .build();
  * ```
  *
- * Two specs are equal when they hold equal questions in the same order.
+ * Two specs are equal when they hold equal questions in the same order, whatever their class. A
+ * `ClassificationSpec` is the one subclass: a spec with a single choice question.
  */
 @ApiStatus.Experimental
-class DecisionSpec private constructor(questions: List<Question<*>>) {
+open class DecisionSpec internal constructor(questions: List<Question<*>>) {
 
     /** The questions in declared order. The list cannot be modified. */
     @get:JsonProperty("questions")
@@ -67,10 +68,10 @@ class DecisionSpec private constructor(questions: List<Question<*>>) {
      */
     fun question(name: String): Question<*>? = questions.firstOrNull { it.name == name }
 
-    override fun equals(other: Any?): Boolean =
+    final override fun equals(other: Any?): Boolean =
         this === other || other is DecisionSpec && questions == other.questions
 
-    override fun hashCode(): Int = questions.hashCode()
+    final override fun hashCode(): Int = questions.hashCode()
 
     override fun toString(): String = "DecisionSpec(questions=${questions.map { it.name }})"
 
@@ -254,18 +255,21 @@ class DecisionSpec private constructor(questions: List<Question<*>>) {
  * @property input the text the model reasons over. It may be empty when a spec needs no input
  * beyond its questions.
  * @property spec the questions to answer
+ *
+ * Two requests are equal when their inputs and specs are equal, whatever their class. A
+ * `ClassificationRequest` is the one subclass: a request whose spec is a `ClassificationSpec`.
  */
 @ApiStatus.Experimental
 @JsonPropertyOrder("input", "spec")
-class DecisionRequest private constructor(
+open class DecisionRequest internal constructor(
     @get:JsonProperty("input") val input: String,
-    @get:JsonProperty("spec") val spec: DecisionSpec,
+    @get:JsonProperty("spec") open val spec: DecisionSpec,
 ) {
 
-    override fun equals(other: Any?): Boolean =
+    final override fun equals(other: Any?): Boolean =
         this === other || other is DecisionRequest && input == other.input && spec == other.spec
 
-    override fun hashCode(): Int = Objects.hash(input, spec)
+    final override fun hashCode(): Int = Objects.hash(input, spec)
 
     /** Shows the spec only. The input is left out because it can be long or hold private text. */
     override fun toString(): String = "DecisionRequest(spec=$spec)"

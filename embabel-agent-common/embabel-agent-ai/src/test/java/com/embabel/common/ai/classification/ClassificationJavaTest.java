@@ -84,7 +84,7 @@ class ClassificationJavaTest {
                                     case RABBIT -> "A rabbit or bunny";
                                 });
         var request = mapping.request("A canine is barking");
-        var result = request.selected("DOG", new ModelProvenance("model", "provider"));
+        var result = request.getSpec().selected("DOG", new ModelProvenance("model", "provider"));
         var mapped =
                 assertInstanceOf(MappedClassificationResult.Selected.class, mapping.map(result));
         assertEquals(AnimalKind.DOG, mapped.getValue());
@@ -121,7 +121,7 @@ class ClassificationJavaTest {
         values.put(new Category("rabbit", "A rabbit or bunny"), Rabbit.class);
         var mapping = new CategoryMapping<>("Which kind of animal is this?", values);
         var request = mapping.request("A canine is barking");
-        var result = request.selected("dog", new ModelProvenance("model", "provider"));
+        var result = request.getSpec().selected("dog", new ModelProvenance("model", "provider"));
         var mapped =
                 assertInstanceOf(MappedClassificationResult.Selected.class, mapping.map(result));
         assertSame(Dog.class, mapped.getValue());
@@ -143,7 +143,7 @@ class ClassificationJavaTest {
                     }
 
                     public ClassificationResult classify(ClassificationRequest request) {
-                        return request.selected(
+                        return request.getSpec().selected(
                                 request.getCategories().getFirst().getId(),
                                 new ModelProvenance(getName(), getProvider()));
                     }

@@ -18,6 +18,7 @@ package com.embabel.common.ai.model.observation
 import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.ClassificationService
+import com.embabel.common.ai.classification.ClassificationSpec
 import io.micrometer.observation.ObservationRegistry
 import org.jetbrains.annotations.ApiStatus
 
@@ -40,4 +41,8 @@ class ObservedClassificationService @JvmOverloads constructor(
 
     override fun classify(request: ClassificationRequest): ClassificationResult =
         observation.classify(request) { delegate.classify(request) }
+
+    // Interface delegation would forward this straight to the delegate and skip the observation.
+    override fun classify(input: String, spec: ClassificationSpec): ClassificationResult =
+        classify(ClassificationRequest.of(input, spec))
 }

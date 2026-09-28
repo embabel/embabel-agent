@@ -29,20 +29,28 @@ import java.util.function.Function
  */
 @ApiStatus.Experimental
 class CategoryMapping<T : Any>(instructions: String, values: Map<Category, T>) {
-    private val definition = ClassificationRequest("", instructions, values.keys.toList())
+    private val definition = ClassificationSpec.builder().asking(instructions)
+        .apply { values.keys.forEach { category(it.id, it.description) } }
+        .build()
     private val valuesById: Map<String, T> = java.util.Map.copyOf(values.mapKeys { it.key.id })
 
     /** The single source of category IDs and descriptions for requests and result mapping. */
     val categories: List<Category> get() = definition.categories
 
     /**
-     * Returns a request that classifies the input with this mapping's instructions and categories.
+     * Returns the classification spec built from this mapping's instructions and categories.
+     *
+     * @return the spec
+     */
+    fun spec(): ClassificationSpec = definition
+
+    /**
+     * Returns a request that classifies the input with this mapping's spec.
      *
      * @param input the text to classify, which may be empty
      * @return the request
      */
-    fun request(input: String): ClassificationRequest =
-        ClassificationRequest(input, definition.instructions, categories)
+    fun request(input: String): ClassificationRequest = ClassificationRequest.of(input, definition)
 
     /** Resolve a valid selection, retaining non-selection variants and their evidence unchanged. */
     fun map(result: ClassificationResult): MappedClassificationResult<T> = when (result) {

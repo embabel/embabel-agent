@@ -22,8 +22,8 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.classic.turbo.TurboFilter
 import ch.qos.logback.core.read.ListAppender
 import ch.qos.logback.core.spi.FilterReply
-import com.embabel.common.ai.classification.Category
 import com.embabel.common.ai.classification.ClassificationRequest
+import com.embabel.common.ai.classification.ClassificationSpec
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
@@ -51,7 +51,10 @@ class DecisionObservationTest {
     private val telemetryFailureMessage = "telemetry failed"
     private val observationLoggerName = "com.embabel.common.ai.model.observation.ServiceCallObservation"
     private val provenance = ModelProvenance(secret, secret, secret, secret)
-    private val request = ClassificationRequest(secret, secret, listOf(Category("dog", secret)))
+    private val request = ClassificationRequest.of(
+        secret,
+        ClassificationSpec.builder().asking(secret).category("dog", secret).build(),
+    )
     private val proposition = PropositionRequest(secret, secret)
 
     private class Recorder : ObservationHandler<Observation.Context> {
@@ -158,6 +161,19 @@ class DecisionObservationTest {
             assertEquals(4, telemetry.recorder.stopped.size)
             assertEquals(1, telemetry.recorder.errors.size)
             assertSafeError(telemetry.recorder.errors.single(), "failure")
+        }
+
+        @Test
+        fun `classify with input and spec is observed by both decorators`() {
+            val telemetry = Telemetry()
+            val result = ClassificationResult.NoMatch(provenance)
+            val services = listOf<ClassificationService>(
+                ObservedClassificationService(classifier { result }, telemetry.registry),
+                ObservedDecisionService(decision(classify = { result }), telemetry.registry),
+            )
+            services.forEach { assertSame(result, it.classify(request.input, request.spec)) }
+            assertEquals(2, telemetry.recorder.stopped.size)
+            assertTrue(telemetry.recorder.stopped.all { it.name == "embabel.ai.classification" })
         }
 
         @Test

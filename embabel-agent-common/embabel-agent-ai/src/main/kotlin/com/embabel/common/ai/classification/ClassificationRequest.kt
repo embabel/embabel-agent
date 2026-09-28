@@ -15,8 +15,11 @@
  */
 package com.embabel.common.ai.classification
 
+import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.rejectUnknownMember
 import com.fasterxml.jackson.annotation.JsonAnySetter
+import com.fasterxml.jackson.annotation.JsonAutoDetect
+import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility
 import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
@@ -44,40 +47,55 @@ data class Category @JsonCreator constructor(
 }
 
 /**
- * Text to classify against a closed, nonempty set of categories. The category list is copied
- * and immutable; it contains no application values or class tokens. Input may be empty.
+ * Text to classify with a [ClassificationSpec]. A classification request is a decision request whose
+ * spec has one choice question, so it goes anywhere a [DecisionRequest] goes. Its JSON is the
+ * decision request JSON. The input may be empty.
  *
- * @property input the text to classify, which may be empty
- * @property instructions what the model is asked, for example "Which kind of animal is this?"
+ * @property spec the classification to make
  */
 @ApiStatus.Experimental
-class ClassificationRequest(val input: String, val instructions: String, categories: List<Category>) {
-    /** Canonical categories in caller order. IDs are unique within this request. */
-    val categories: List<Category> = java.util.List.copyOf(categories)
+@JsonAutoDetect(getterVisibility = Visibility.NONE, isGetterVisibility = Visibility.NONE)
+class ClassificationRequest private constructor(
+    input: String,
+    @get:JsonProperty("spec") override val spec: ClassificationSpec,
+) : DecisionRequest(input, spec) {
 
-    init {
-        require(instructions.isNotBlank()) { "Classification instructions must not be blank" }
-        require(this.categories.isNotEmpty()) { "At least one category is required" }
-        require(this.categories.map { it.id }.distinct().size == this.categories.size) { "Category IDs must be unique" }
-    }
+    /** The categories to choose from, in the spec's order. */
+    val categories: List<Category> get() = spec.categories
 
-    /** Create a selection only when the provider's category ID belongs to this request. */
-    @JvmOverloads
-    fun selected(
-        categoryId: String,
-        provenance: ModelProvenance,
-        confidence: Double? = null,
-    ): ClassificationResult.Selected {
-        val result = ClassificationResult.Selected(categoryId, provenance, confidence)
-        validate(result)
-        return result
-    }
+    /** What the model is asked, from the spec. */
+    val instructions: String get() = spec.instructions
 
-    /** Reject unknown provider IDs without converting them into a successful no-match judgment. */
-    fun validate(result: ClassificationResult): ClassificationResult {
-        require(result !is ClassificationResult.Selected || categories.any { it.id == result.categoryId }) {
-            "Selected category ID is outside the request"
-        }
-        return result
+    /** Shows the spec only. The input is left out because it can be long or hold private text. */
+    override fun toString(): String = "ClassificationRequest(spec=$spec)"
+
+    /**
+     * Creates classification requests.
+     */
+    companion object {
+
+        /**
+         * Returns a request that classifies the input with the given spec.
+         *
+         * @param input the text to classify, which may be empty
+         * @param spec the classification to make
+         * @return the request
+         */
+        @JvmStatic
+        fun of(input: String, spec: ClassificationSpec): ClassificationRequest = ClassificationRequest(input, spec)
+
+        /**
+         * Builds a request from deserialized JSON fields.
+         *
+         * @param input the text to classify
+         * @param spec the classification to make
+         * @return the request
+         */
+        @JvmStatic
+        @JsonCreator
+        private fun fromJson(
+            @JsonProperty("input", required = true) input: String,
+            @JsonProperty("spec", required = true) spec: ClassificationSpec,
+        ): ClassificationRequest = ClassificationRequest(input, spec)
     }
 }
