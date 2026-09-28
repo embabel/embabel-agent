@@ -141,6 +141,38 @@ class EmbeddingBatchGeneratorTest {
     }
 
     @Test
+    fun `the cause is the failure that left a chunk missing, not a later one a retry recovered from`() {
+        val embeddingService = mockk<EmbeddingService>()
+        val chunks = (1..4).map { i -> createChunk("chunk$i", "Text $i") }
+        val tooLong = IllegalArgumentException("input exceeds the model's token limit")
+        var timedOut = false
+
+        every { embeddingService.embed(any<List<String>>()) } answers {
+            val texts = firstArg<List<String>>()
+            when {
+                "Text 1" in texts -> throw tooLong
+                "Text 3" in texts && !timedOut -> {
+                    timedOut = true
+                    throw RuntimeException("timeout")
+                }
+
+                else -> texts.map { floatArrayOf(1f) }
+            }
+        }
+
+        val result = EmbeddingBatchGenerator.embedInBatches(
+            embeddingService = embeddingService,
+            retrievables = chunks,
+            batchSize = 2,
+            logger = logger,
+        )
+
+        assertEquals(listOf("chunk1"), result.missingChunkIds)
+        assertEquals(setOf("chunk2", "chunk3", "chunk4"), result.embeddings.keys)
+        assertSame(tooLong, result.cause)
+    }
+
+    @Test
     fun `two adjacent chunks that always fail do not abandon the rest`() {
         val embeddingService = mockk<EmbeddingService>()
         val chunks = (1..8).map { i -> createChunk("chunk$i", "Text $i") }

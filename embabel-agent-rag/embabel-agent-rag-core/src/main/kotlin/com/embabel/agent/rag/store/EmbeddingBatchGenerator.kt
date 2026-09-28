@@ -118,14 +118,14 @@ object EmbeddingBatchGenerator {
     ) {
         private val embeddings = mutableMapOf<String, FloatArray>()
         private val missing = mutableListOf<String>()
-        private var lastFailure: Exception? = null
+        private var missingCause: Exception? = null
         private var consecutiveFailures = 0
         private var abandoned = false
 
         fun result() = EmbeddingBatchResult(
             embeddings = embeddings.toMap(),
             missingChunkIds = missing.toList(),
-            cause = lastFailure.takeIf { missing.isNotEmpty() },
+            cause = missingCause,
         )
 
         fun embed(batch: List<Retrievable>) {
@@ -134,13 +134,12 @@ object EmbeddingBatchGenerator {
                 return
             }
             val failure = attempt(batch) ?: return
-            lastFailure = failure
             consecutiveFailures++
             when {
                 consecutiveFailures >= abandonAfter -> abandon(batch, failure)
                 batch.size == 1 -> {
                     logger.warn("Embedding chunk {} failed ({})", batch.single().id, describe(failure))
-                    missing += batch.single().id
+                    markMissing(batch, failure)
                 }
 
                 else -> split(batch, failure)
@@ -177,7 +176,12 @@ object EmbeddingBatchGenerator {
                 describe(failure),
             )
             abandoned = true
+            markMissing(batch, failure)
+        }
+
+        private fun markMissing(batch: List<Retrievable>, failure: Exception) {
             missing += batch.map { it.id }
+            missingCause = failure
         }
     }
 }

@@ -20,7 +20,8 @@ package com.embabel.agent.rag.store
  *
  * @property embeddings chunk id to vector, for every chunk that was embedded
  * @property missingChunkIds ids of the chunks that could not be embedded, in input order
- * @property cause the last failure from the embedding service; non-null whenever [missingChunkIds] is not empty
+ * @property cause the failure that left the most recent chunk in [missingChunkIds] unembedded; a failure
+ * that a retry recovered from is never reported here. Non-null whenever [missingChunkIds] is not empty
  */
 class EmbeddingBatchResult(
     val embeddings: Map<String, FloatArray>,
