@@ -365,7 +365,7 @@ include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/c
 
 A Spring Boot application's auto-configured mapper and the platform's mapper from `EmbabelObjectMapperHolder.createDefault()` work the same way.
 The member names are fixed, so the mapper's naming strategy changes neither the written nor the accepted names.
-`PropositionResult`, `ClassificationResult`, `ModelProvenance` and `Category` keep their own JSON outside decision JSON.
+`PropositionResult`, `ClassificationResult`, `ModelProvenance` and `Category` write and read the same JSON on their own as inside decision JSON.
 
 Reading applies these rules:
 
