@@ -119,7 +119,12 @@ final class DecisionTypeParser {
         }
     }
 
-    /** One option or level read from an enum constant. The description is null when the constant has no {@link Described}. */
+    /**
+     * One option or level read from an enum constant.
+     *
+     * @param id the constant's name
+     * @param description the constant's {@link Described} text, or null when it has none
+     */
     private record Entry(String id, @Nullable String description) {
     }
 
@@ -172,6 +177,13 @@ final class DecisionTypeParser {
         return new AnnotatedDecision<>(type, parsed.spec, parsed.questionNames, parsed.settableNames, mapper);
     }
 
+    /**
+     * What the parser reads from a type.
+     *
+     * @param spec the decision spec
+     * @param questionNames each Java member name mapped to its question name
+     * @param settableNames the names projection can set
+     */
     private record Parsed(DecisionSpec spec, Map<String, String> questionNames, List<String> settableNames) {
     }
 
