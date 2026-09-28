@@ -44,8 +44,6 @@ final class TypeSafeDecisionService implements DecisionService {
     private static final Logger logger = LoggerFactory.getLogger(TypeSafeDecisionService.class);
     private static final String CLASSIFICATION_QUESTION = "classification";
     private static final String PROPOSITION_QUESTION = "proposition";
-    private static final String CLASSIFICATION_INSTRUCTIONS =
-            "Select the category that best describes the input.";
     private static final double UNDECIDED_PROBABILITY = 0.5d;
     private static final double DISTRIBUTION_TOLERANCE = 1.0e-6d;
 
@@ -113,15 +111,25 @@ final class TypeSafeDecisionService implements DecisionService {
         }
     }
 
-    /** Build a native choice whose stable labels and descriptions come only from the request. */
+    /**
+     * Builds a native choice whose instructions, labels and descriptions come only from the request.
+     *
+     * @param request the classification request
+     * @return the choice to send
+     */
     private static Choice choiceFor(ClassificationRequest request) {
-        var choice = Choice.builder().instructions(CLASSIFICATION_INSTRUCTIONS);
+        var choice = Choice.builder().instructions(request.getInstructions());
         request.getCategories()
                 .forEach(category -> choice.option(category.getId(), category.getDescription()));
         return choice.build();
     }
 
-    /** Reject incomplete or unnormalised provider evidence before reducing it to a selection. */
+    /**
+     * Rejects provider evidence that is incomplete or does not sum to one, before it becomes a selection.
+     *
+     * @param request the classification request
+     * @param answer the provider's choice answer
+     */
     private static void validateDistribution(
             ClassificationRequest request, ChoiceAnswer answer) {
         var expected = new LinkedHashSet<String>();
