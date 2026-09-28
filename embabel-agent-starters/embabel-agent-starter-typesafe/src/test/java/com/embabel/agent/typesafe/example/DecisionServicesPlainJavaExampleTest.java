@@ -85,8 +85,8 @@ class DecisionServicesPlainJavaExampleTest {
                 .isEqualTo("jev-fast");
         assertThat(binder.bind("embabel.agent.platform.decisions.llm.services.llm-review.llm", String.class).get())
                 .isNotBlank();
-        assertThat(binder.bind("embabel.agent.platform.decisions.llm.services.ticket-classifier.kind", String.class).get())
-                .isEqualTo("classification");
+        assertThat(binder.bind("embabel.agent.platform.decisions.llm.services.ticket-classifier.llm", String.class).get())
+                .isNotBlank();
         assertThat(binder.bind("embabel.models.decision.roles", stringMap).get())
                 .containsExactlyInAnyOrderEntriesOf(
                         Map.of("support-triage", "jev", "dice-revision-review", "llm-review"));

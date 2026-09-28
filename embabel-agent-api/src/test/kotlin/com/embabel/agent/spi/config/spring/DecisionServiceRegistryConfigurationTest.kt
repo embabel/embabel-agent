@@ -21,6 +21,8 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.decision.LlmDecisionRetryProperties
+import com.embabel.agent.spi.decision.LlmDecisionServiceFactory
 import com.embabel.agent.spi.support.SpringContextPlatformServices
 import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
@@ -83,8 +85,8 @@ class DecisionServiceRegistryConfigurationTest {
             LlmDecisionServiceConfigurationTest.ModelProviderFromLlmBeans::class.java,
             LlmDecisionServiceConfiguration::class.java,
             DecisionServiceRegistryConfiguration::class.java,
+            ConfiguredReview::class.java,
         )
-        .withPropertyValues("embabel.agent.platform.decisions.llm.services.llm-review.llm=gpt-test")
 
     private val withClassifier = runner.withBean("router", ClassificationService::class.java, Supplier { classifier })
 
@@ -428,7 +430,7 @@ class DecisionServiceRegistryConfigurationTest {
     inner class Coexistence {
 
         @Test
-        fun `model provider and prompted service properties bind beside the family keys`() {
+        fun `model provider and decision retry properties bind beside the family keys`() {
             runner.withUserConfiguration(ModelProviderProperties::class.java)
                 .withPropertyValues(
                     "embabel.models.default-llm=gpt-test",
@@ -436,7 +438,7 @@ class DecisionServiceRegistryConfigurationTest {
                     "embabel.models.decision.default=llm-review",
                     "embabel.models.decision.roles.support-triage=triage-stub",
                     "embabel.models.classification.roles.dice-revision=llm-review",
-                    "embabel.agent.platform.decisions.llm.services.llm-review.max-attempts=2",
+                    "embabel.agent.platform.decisions.llm.max-attempts=2",
                 )
                 .run { context ->
                     val registry = context.registry()
@@ -445,9 +447,7 @@ class DecisionServiceRegistryConfigurationTest {
                     assertEquals(mapOf("cheapest" to "gpt-test"), properties.llms)
                     assertSame(context.getBean("llm-review"), registry.decisions().defaultService())
                     assertSame(stub, registry.decisions().byRole("support-triage"))
-                    val services = LlmDecisionServiceConfiguration.bindServices(context.environment)
-                    assertEquals("gpt-test", services.getValue("llm-review").llm)
-                    assertEquals(2, services.getValue("llm-review").maxAttempts)
+                    assertEquals(2, context.getBean(LlmDecisionRetryProperties::class.java).maxAttempts)
                 }
         }
     }
@@ -561,5 +561,11 @@ class DecisionServiceRegistryConfigurationTest {
     private class FakeClassifier(override val name: String) : ClassificationService {
         override val provider: String = "Fake"
         override fun classify(request: ClassificationRequest): ClassificationResult = error("not called")
+    }
+
+    /** Stands in for a configured prompted service: the platform factory builds `llm-review`. */
+    class ConfiguredReview {
+        @Bean("llm-review")
+        fun review(factory: LlmDecisionServiceFactory): DecisionService = factory.decisionService("gpt-test")
     }
 }
