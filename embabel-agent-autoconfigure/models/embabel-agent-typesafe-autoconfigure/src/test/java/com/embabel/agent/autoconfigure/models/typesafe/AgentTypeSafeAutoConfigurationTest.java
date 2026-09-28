@@ -142,6 +142,22 @@ class AgentTypeSafeAutoConfigurationTest {
     }
 
     @Test
+    void applicationFactoryBacksOffEvenWithNamedServicesConfigured() {
+        var replacement = new TypeSafeModelFactory(() -> "user-supplied-key");
+        runner.withBean(TypeSafeModelFactory.class, () -> replacement)
+                .withPropertyValues(PREFIX + "services.triage.model=jev-latest")
+                .run(
+                        context -> {
+                            assertThat(context).hasNotFailed();
+                            assertThat(context).hasSingleBean(TypeSafeModelFactory.class);
+                            assertThat(context.getBean(TypeSafeModelFactory.class))
+                                    .isSameAs(replacement);
+                            assertThat(context).doesNotHaveBean("typeSafeDecisionService");
+                            assertThat(context).doesNotHaveBean("triage");
+                        });
+    }
+
+    @Test
     void environmentCredentialWinsAndIsResolvedForEveryRequest() {
         var credentials = new HashMap<String, Object>();
         credentials.put("TYPESAFE_API_KEY", "first-key");

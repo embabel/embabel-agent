@@ -129,7 +129,9 @@ Unknown keys are detected in configuration files and other property sources. Env
 and system properties are not checked for them.
 
 An application that supplies its own `TypeSafeModelFactory` bean also keeps it: auto-configuration
-then creates no factory, no default service, and needs no API key.
+then creates no factory, no default service, and needs no API key. Named services come from the
+auto-configured factory, so a configured `services` entry is not registered when the application
+builds its own factory instead.
 
 ==== Classification and proposition assessment
 
