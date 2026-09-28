@@ -61,6 +61,27 @@ class ClassificationTest {
         }
 
         @Test
+        fun `blank instructions are rejected`() {
+            for (blank in listOf("", "   ")) {
+                assertThrows(IllegalArgumentException::class.java) {
+                    ClassificationSpec.builder().asking(blank).category("dog", "Canine").build()
+                }
+                assertThrows(IllegalArgumentException::class.java) {
+                    CategoryMapping(blank, mapOf(Category("dog", "Canine") to Animal.DOG))
+                }
+            }
+        }
+
+        @Test
+        fun `mapping carries its instructions into every request`() {
+            val mapping = CategoryMapping.fromEnum(Animal::class.java, QUESTION) { "Description of ${it.name}" }
+            val request = mapping.request("woof")
+            assertEquals(QUESTION, request.instructions)
+            assertEquals("woof", request.input)
+            assertEquals(mapping.categories, request.categories)
+        }
+
+        @Test
         fun `collections are copied and cannot be mutated through exposed views`() {
             val categories = mutableListOf(Category("dog", "Canine"))
             val request = ClassificationRequest.of("input", spec(categories))
