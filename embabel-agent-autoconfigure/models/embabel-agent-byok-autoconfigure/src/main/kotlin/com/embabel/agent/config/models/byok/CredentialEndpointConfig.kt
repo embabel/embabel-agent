@@ -17,6 +17,8 @@ package com.embabel.agent.config.models.byok
 
 import com.embabel.agent.anthropic.AnthropicModelFactory
 import com.embabel.agent.api.models.AnthropicModels
+import com.embabel.agent.api.models.GoogleGenAiModels
+import com.embabel.agent.openai.OpenAiClientTimeouts
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.common.ai.model.CredentialEmbeddingServiceFactory
 import com.embabel.common.ai.model.CredentialEndpoint
@@ -25,10 +27,17 @@ import com.embabel.common.ai.model.CredentialLlmServiceFactory
 import com.embabel.common.ai.model.ProviderCredential
 import com.embabel.common.util.loggerFor
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+import org.springframework.boot.context.properties.bind.Binder
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.env.Environment
+import org.springframework.core.env.StandardEnvironment
+import java.time.Duration
+
+private const val MODELS_PREFIX = "embabel.agent.platform.models"
 
 /**
  * Makes per-user keys work with nothing on the classpath but `embabel-agent-starter-byok`: one
@@ -61,7 +70,15 @@ import org.springframework.context.annotation.Configuration
  * second, unbounded one holding a service per key the deployment has ever seen.
  */
 @Configuration(proxyBeanMethods = false)
-class CredentialEndpointConfig {
+class CredentialEndpointConfig @Autowired constructor(
+    private val environment: Environment,
+) {
+
+    /**
+     * For a caller building this configuration by hand. Timeouts then come from system properties
+     * and environment variables only.
+     */
+    constructor() : this(StandardEnvironment())
 
     private val logger = loggerFor<CredentialEndpointConfig>()
 
@@ -116,7 +133,11 @@ class CredentialEndpointConfig {
         return CredentialLlmServiceFactory { credential, model ->
             val endpoint = resolvedByApplication(resolvers, credential, model) ?: openAiCompatibleEndpointFor(credential)
             (endpoint as? CredentialEndpoint.OpenAiCompatible)?.let {
-                OpenAiCompatibleModelFactory(baseUrl = it.baseUrl, apiKey = credential.apiKey)
+                OpenAiCompatibleModelFactory(
+                    baseUrl = it.baseUrl,
+                    apiKey = credential.apiKey,
+                    timeouts = timeoutsFor(it.provider),
+                )
                     .openAiCompatibleLlm(
                         model = model,
                         pricingModel = it.pricingModel,
@@ -155,7 +176,11 @@ class CredentialEndpointConfig {
         return CredentialEmbeddingServiceFactory { credential, model ->
             val endpoint = resolvedByApplication(resolvers, credential, model) ?: openAiCompatibleEndpointFor(credential)
             (endpoint as? CredentialEndpoint.OpenAiCompatible)?.let {
-                OpenAiCompatibleModelFactory(baseUrl = it.baseUrl, apiKey = credential.apiKey)
+                OpenAiCompatibleModelFactory(
+                    baseUrl = it.baseUrl,
+                    apiKey = credential.apiKey,
+                    timeouts = timeoutsFor(it.provider),
+                )
                     .buildValidatedEmbeddingService(
                         model = model,
                         provider = it.provider,
@@ -180,6 +205,36 @@ class CredentialEndpointConfig {
         model: String,
     ): CredentialEndpoint? =
         resolvers.orderedStream().toList().firstNotNullOfOrNull { it.resolve(credential, model) }
+
+    /**
+     * The timeouts configured for [provider], under the same prefix its platform configuration
+     * uses - `embabel.agent.platform.models.openai.read-timeout` applies to a user's OpenAI key as
+     * it does to the deployment's. How long a model takes depends on the endpoint, not on whose key
+     * pays for the call.
+     *
+     * Bound from the environment rather than read from the provider's properties bean, because a
+     * pure BYOK deployment has no provider autoconfiguration and so no such bean. A provider an
+     * application's resolver adds is configured the same way, under its own normalised name.
+     */
+    private fun timeoutsFor(provider: String): OpenAiClientTimeouts {
+        val binder = Binder.get(environment)
+        val prefix = timeoutPrefixFor(provider)
+        return OpenAiClientTimeouts(
+            connect = binder.bind("$prefix.connect-timeout", Duration::class.java)
+                .orElse(OpenAiClientTimeouts.DEFAULT_CONNECT),
+            read = binder.bind("$prefix.read-timeout", Duration::class.java).orElse(null),
+        )
+    }
+
+    /**
+     * `Mistral AI` becomes `embabel.agent.platform.models.mistralai`, matching the provider modules'
+     * own prefixes. Gemini is the exception: over this protocol it is configured as `gemini`, while
+     * `googlegenai` belongs to the native Google GenAI module.
+     */
+    private fun timeoutPrefixFor(provider: String): String {
+        val name = provider.lowercase().filter(Char::isLetterOrDigit)
+        return "$MODELS_PREFIX.${if (name == GoogleGenAiModels.PROVIDER.lowercase()) "gemini" else name}"
+    }
 
     /**
      * Anthropic's own endpoint, or null if this is not Anthropic's key.

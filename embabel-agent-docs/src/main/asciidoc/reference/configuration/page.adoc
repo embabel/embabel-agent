@@ -451,11 +451,15 @@ From `AgentPlatformProperties.ModelsConfig` - model provider integration configu
 |`embabel.agent.platform.models.openai.read-timeout`
 |Duration
 |_unset_
-|How long to wait for a whole response, per attempt. Unset keeps Spring AI's per-call default of 60 seconds. The client retries a timed-out call twice, so a caller waits up to three times this value
+|Per-attempt response timeout: how long one attempt may take, from request to the whole response. Unset keeps Spring AI's per-call default of 60 seconds. The client retries a timed-out call twice, so a caller waits up to three times this value
 
 |===
 
 The same `connect-timeout` and `read-timeout` properties apply to every OpenAI-compatible provider, under its own prefix: `openai.custom`, `lmstudio`, `gemini`, `minimax`, `dashscope`, `zai` and `docker`, each under `embabel.agent.platform.models`.
+
+A per-user (BYOK) key uses the same properties as the deployment's key for that provider, for example `embabel.agent.platform.models.openai.read-timeout`. A provider added by a `CredentialEndpointResolver` is configured under its name in lower case with spaces and punctuation removed: `Our Gateway` reads `embabel.agent.platform.models.ourgateway.read-timeout`. BYOK Gemini reads the `gemini` prefix.
+
+IMPORTANT: These providers use their own `read-timeout`. The generic `embabel.agent.platform.http-client.read-timeout` does not apply to them.
 
 ====== Google GenAI (Native)
 
@@ -734,6 +738,8 @@ embabel:
 ----
 
 TIP: For models with extended thinking enabled (like Claude with thinking mode), consider increasing `read-timeout` to `10m` or higher to accommodate longer processing times.
+
+NOTE: The `http-client` timeouts do not apply to OpenAI-compatible providers (`openai`, `openai.custom`, `lmstudio`, `gemini`, `minimax`, `dashscope`, `zai`, `docker`). Set `read-timeout` under the provider's own prefix instead.
 
 ====== When to Adjust Timeouts
 
@@ -1017,6 +1023,6 @@ From `DockerProperties` - configuration for Docker local models (OpenAI-compatib
 |`embabel.agent.platform.models.docker.read-timeout`
 |Duration
 |_unset_
-|How long to wait for a whole response, per attempt. Unset keeps Spring AI's per-call default of 60 seconds. The client retries a timed-out call twice, so a caller waits up to three times this value
+|Per-attempt response timeout: how long one attempt may take, from request to the whole response. Unset keeps Spring AI's per-call default of 60 seconds. The client retries a timed-out call twice, so a caller waits up to three times this value
 
 |===

@@ -29,6 +29,7 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ByRoleModelSelectionCriteria
 import com.embabel.common.ai.model.ConfigurableModelProvider
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
+import com.embabel.common.ai.model.CredentialEmbeddingServiceFactory
 import com.embabel.common.ai.model.CredentialEndpoint
 import com.embabel.common.ai.model.CredentialEndpointResolver
 import com.embabel.common.ai.model.CredentialLlmServiceFactory
@@ -52,7 +53,11 @@ import org.springframework.core.annotation.Order
 import com.embabel.chat.UserMessage
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
+import java.time.Duration
 import java.time.LocalDate
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -540,6 +545,75 @@ class CredentialEndpointConfigTest {
 
                 assertThat(service?.provider).isEqualTo(AnthropicModels.PROVIDER)
             }
+        }
+    }
+
+    /**
+     * A user's key reaches the same endpoint the deployment's would, so it gets the same timeouts:
+     * nothing about a slow model changes because a different key pays for the call.
+     */
+    @Nested
+    inner class Timeouts {
+
+        @Test
+        fun `a user key's chat call gives up after the provider's configured read timeout`() {
+            withHangingGateway { gateway, requests ->
+                contextRunner
+                    .withUserConfiguration(OwnGatewayEndpoint::class.java)
+                    .withPropertyValues("embabel.agent.platform.models.ourgateway.read-timeout=300ms")
+                    .run { context ->
+                        val service = build(factoriesIn(context), GATEWAY_PROVIDER, "slow-model", gateway)
+
+                        assertFailsWithinTenSeconds {
+                            service?.createMessageSender(LlmOptions())?.call(listOf(UserMessage("Hi")), emptyList())
+                        }
+                        assertThat(requests.get()).describedAs("timed-out attempts").isEqualTo(3)
+                    }
+            }
+        }
+
+        @Test
+        fun `a user key's embedding gives up after the provider's configured read timeout`() {
+            withHangingGateway { gateway, _ ->
+                OwnGatewayEndpoint.gatewayUrl.set(gateway)
+                contextRunner
+                    .withUserConfiguration(OwnGatewayEndpoint::class.java)
+                    .withPropertyValues("embabel.agent.platform.models.ourgateway.read-timeout=300ms")
+                    .run { context ->
+                        val factory = context.getBean(CredentialEmbeddingServiceFactory::class.java)
+
+                        assertFailsWithinTenSeconds {
+                            factory.createEmbeddingService(ProviderCredential(GATEWAY_PROVIDER, TEST_API_KEY), "slow-embedding")
+                        }
+                    }
+            }
+        }
+
+        private fun withHangingGateway(test: (String, AtomicInteger) -> Unit) {
+            val server = HttpServer.create(InetSocketAddress(0), 0)
+            val release = CountDownLatch(1)
+            val requests = AtomicInteger()
+            server.executor = Executors.newCachedThreadPool()
+            server.createContext("/") { exchange ->
+                requests.incrementAndGet()
+                exchange.requestBody.use { it.readBytes() }
+                release.await(60, TimeUnit.SECONDS)
+                exchange.close()
+            }
+            server.start()
+            try {
+                test("http://localhost:${server.address.port}", requests)
+            } finally {
+                release.countDown()
+                server.stop(0)
+                OwnGatewayEndpoint.gatewayUrl.set(GATEWAY_URL)
+            }
+        }
+
+        private fun assertFailsWithinTenSeconds(call: () -> Unit) {
+            val started = System.nanoTime()
+            assertThat(runCatching(call).isFailure).describedAs("call should fail").isTrue()
+            assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(10))
         }
     }
 
