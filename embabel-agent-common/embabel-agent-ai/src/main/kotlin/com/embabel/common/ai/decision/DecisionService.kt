@@ -84,16 +84,15 @@ interface DecisionService : ClassificationService, DecisionServiceMetadata {
      * execution path, so a delegate's own override of this method is not called through a
      * decorator. A service customizes execution through [capabilities] and the hook interfaces.
      *
-     * An interruption surfaces as an [InterruptedException] with the thread's interrupt flag set.
-     * The method declares no checked exception, so Java code cannot name `InterruptedException`
-     * in a `catch` clause around this call. Java callers catch `Exception` and test for
-     * `InterruptedException`, or check `Thread.currentThread().isInterrupted()` after a failure.
+     * An interruption surfaces as an unchecked [java.util.concurrent.CancellationException] whose
+     * cause is the [InterruptedException], with the thread's interrupt flag set, so callers never
+     * handle a checked exception.
      *
      * @param request the input and the questions to answer
      * @return one answer per question, in spec order
      * @throws com.embabel.common.ai.decision.UnsupportedDecisionException if this service cannot
      * answer the request. No provider call has been made.
-     * @throws InterruptedException if the thread is interrupted during the ask
+     * @throws java.util.concurrent.CancellationException if the thread is interrupted during the ask
      */
     fun ask(request: DecisionRequest): DecisionResponse = DecisionExecution.execute(this, request)
 }

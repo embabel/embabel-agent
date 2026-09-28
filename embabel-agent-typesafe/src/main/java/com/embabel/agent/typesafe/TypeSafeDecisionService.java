@@ -57,6 +57,7 @@ import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -71,11 +72,9 @@ import java.util.concurrent.TimeoutException;
  *
  * <p>A failed provider call made while the thread is interrupted, or failing with an
  * {@link InterruptedException} or {@link ClosedByInterruptException} in its cause chain, throws an
- * {@link InterruptedException} with the interrupt flag set. It is the original one when the chain
- * holds it, and otherwise a new one caused by the failure. The methods declare no checked
- * exception, so Java code cannot name {@code InterruptedException} in a {@code catch} clause around
- * them. Java callers catch {@code Exception} and test for {@code InterruptedException}, or check
- * {@code Thread.currentThread().isInterrupted()} after a failure.
+ * unchecked {@link CancellationException} with the interrupt flag set, so callers never handle a
+ * checked exception. Its cause is the original {@link InterruptedException} when the chain holds
+ * one, and otherwise a new one caused by the failure.
  */
 final class TypeSafeDecisionService
         implements DecisionService,
@@ -301,7 +300,8 @@ final class TypeSafeDecisionService
     }
 
     /**
-     * Throws an {@link InterruptedException} when a failed provider call was interrupted. The SDK
+     * Throws a {@link CancellationException} caused by an {@link InterruptedException} when a failed
+     * provider call was interrupted. The SDK
      * reports an interrupted transport read as a {@link TypeSafeException} and restores the flag,
      * so a set flag counts as an interruption along with an interruption in the cause chain. The
      * flag stays set.
@@ -331,7 +331,9 @@ final class TypeSafeDecisionService
                 getName(),
                 TypeSafeModelFactory.PROVIDER,
                 operation);
-        throw TypeSafeDecisionService.<RuntimeException>sneakyThrow(interrupted);
+        var cancelled = new CancellationException("TypeSafe " + operation + " call was interrupted");
+        cancelled.initCause(interrupted);
+        throw cancelled;
     }
 
     /**
@@ -348,17 +350,6 @@ final class TypeSafeDecisionService
             }
         }
         return false;
-    }
-
-    /**
-     * Throws a checked exception from a method that declares none, as Kotlin callers expect.
-     *
-     * @param failure the failure to throw
-     * @return never returns normally; declared as RuntimeException so the compiler accepts a throw at the call site
-     */
-    @SuppressWarnings("unchecked")
-    private static <T extends Throwable> RuntimeException sneakyThrow(Throwable failure) throws T {
-        throw (T) failure;
     }
 
     /**

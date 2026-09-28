@@ -35,9 +35,10 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.io.IOException;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/** Interrupted provider calls rethrow an InterruptedException with the interrupt flag set. */
+/** Interrupted provider calls throw a CancellationException caused by an InterruptedException, with the interrupt flag set. */
 class TypeSafeInterruptionTest {
     private static final String SYSTEM_ONE_URI = "https://api.typesafe.ai/v1/systemone";
 
@@ -56,7 +57,8 @@ class TypeSafeInterruptionTest {
                         "An email.", Questions.named("urgent").proposition("Is this urgent?").build());
 
         assertThatThrownBy(() -> service.ask(request))
-                .isInstanceOf(InterruptedException.class);
+                .isInstanceOf(CancellationException.class)
+                .hasCauseInstanceOf(InterruptedException.class);
         assertThat(Thread.currentThread().isInterrupted()).isTrue();
     }
 
@@ -65,14 +67,16 @@ class TypeSafeInterruptionTest {
         var request =
                 ClassificationRequest.of("An email.", ClassificationSpec.builder().asking("Which category fits?").category("a", "A").category("b", "B").build());
 
-        assertThatThrownBy(() -> service.classify(request)).isInstanceOf(InterruptedException.class);
+        assertThatThrownBy(() -> service.classify(request)).isInstanceOf(CancellationException.class)
+                .hasCauseInstanceOf(InterruptedException.class);
         assertThat(Thread.currentThread().isInterrupted()).isTrue();
     }
 
     @Test
     void interruptedAssessRethrows() {
         assertThatThrownBy(() -> service.assess(new PropositionRequest("An email.", "Is this urgent?")))
-                .isInstanceOf(InterruptedException.class);
+                .isInstanceOf(CancellationException.class)
+                .hasCauseInstanceOf(InterruptedException.class);
         assertThat(Thread.currentThread().isInterrupted()).isTrue();
     }
 

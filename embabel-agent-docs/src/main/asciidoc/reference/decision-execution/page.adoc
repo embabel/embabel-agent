@@ -33,23 +33,9 @@ Provider failures come back as typed failure outcomes.
 A service that implements `NativeQuestionSetExecution` answers the whole spec in one `askNative` call.
 Any other service answers each question in its own call, in spec order.
 
-`ask` declares no checked exception, as `assess` and `classify` do.
-An interruption propagates as `InterruptedException` with the thread's interrupt flag set.
-Java code cannot name `InterruptedException` in a `catch` clause around `ask`, because the method does not declare it.
-Catch `Exception` and test for `InterruptedException`, or check `Thread.currentThread().isInterrupted()` after a failure:
-
-[source,java]
-----
-try {
-    response = service.ask(request);
-} catch (Exception e) {
-    if (e instanceof InterruptedException) {
-        // The interrupt flag is still set.
-        return;
-    }
-    throw e;
-}
-----
+`ask`, `assess` and `classify` throw no checked exception.
+An interruption surfaces as an unchecked `java.util.concurrent.CancellationException` whose cause is the `InterruptedException`, and the thread's interrupt flag stays set.
+Catch `CancellationException` where the caller needs to stop cleanly.
 
 ===== Capabilities and hooks
 
@@ -107,7 +93,7 @@ Any other service answers each question in spec order:
 A typed failure is recorded and the next question is asked.
 An `IllegalArgumentException` from `classify` or `rate`, or from checking its answer against the question, becomes that question's `INVALID_RESPONSE` failure.
 Any other exception stops the request and propagates unchanged.
-The thread's interrupt flag is checked before each question, and a set flag stops the request with `InterruptedException`.
+The thread's interrupt flag is checked before each question, and a set flag stops the request with a `CancellationException` caused by an `InterruptedException`.
 
 ===== Preflight
 

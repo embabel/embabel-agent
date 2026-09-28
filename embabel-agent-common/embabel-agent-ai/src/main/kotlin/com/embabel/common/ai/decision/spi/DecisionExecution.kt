@@ -35,6 +35,7 @@ import com.embabel.common.ai.decision.RatingResult
 import com.embabel.common.ai.decision.UnsupportedDecisionException
 import org.slf4j.LoggerFactory
 import java.util.EnumSet
+import java.util.concurrent.CancellationException
 
 /**
  * Plans and runs decision requests for decision services.
@@ -290,7 +291,8 @@ internal object DecisionExecution {
      * a rating hook, or from validating its answer, becomes that question's
      * `INVALID_RESPONSE` failure. Any other thrown exception stops the request and propagates
      * unchanged. Per-question execution checks the thread's interrupt flag before each question and
-     * stops with an [InterruptedException] when it is set, leaving the flag set.
+     * stops with an unchecked [CancellationException] caused by an [InterruptedException] when it is
+     * set, leaving the flag set.
      *
      * @param service the service whose capabilities apply and whose methods are called
      * @param request the request to run
@@ -300,7 +302,8 @@ internal object DecisionExecution {
      * @throws IllegalStateException if the capabilities claim a hook the hook source lacks, if the
      * service lacks a hook of the hook source that the request is routed through, or if a native
      * response does not match the request's spec
-     * @throws InterruptedException if the thread is interrupted between questions
+     * @throws CancellationException if the thread is interrupted between questions; its cause is an
+     * [InterruptedException] and the flag stays set
      */
     fun execute(
         service: DecisionService,
@@ -389,10 +392,9 @@ internal object DecisionExecution {
                     "Decision ask interrupted: service={}, provider={}, nextQuestion='{}'",
                     service.name, service.provider, question.name,
                 )
-                throw InterruptedException(
-                    "Decision ask on service '${service.name}' was interrupted before question '${question.name}'. " +
-                        "The thread's interrupt flag is set.",
-                )
+                val message = "Decision ask on service '${service.name}' was interrupted before question " +
+                    "'${question.name}'. The thread's interrupt flag is set."
+                throw CancellationException(message).apply { initCause(InterruptedException(message)) }
             }
             when (question) {
                 is PropositionQuestionSpec -> builder.answer(
