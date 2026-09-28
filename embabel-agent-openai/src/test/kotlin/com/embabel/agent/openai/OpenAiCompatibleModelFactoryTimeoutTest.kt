@@ -18,6 +18,8 @@ package com.embabel.agent.openai
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.PricingModel
+import com.openai.client.OpenAIClient
+import com.openai.client.OpenAIClientAsync
 import com.openai.core.Timeout
 import com.sun.net.httpserver.HttpServer
 import org.junit.jupiter.api.AfterEach
@@ -133,6 +135,14 @@ class OpenAiCompatibleModelFactoryTimeoutTest {
             timeouts = shortTimeouts,
         )
 
+        private fun clientExposingFactory(
+            customizers: List<OpenAiHttpClientBuilderCustomizer> = emptyList(),
+        ) = ClientExposingFactory(
+            baseUrl = "http://localhost:${server.address.port}",
+            customizers = listProvider(customizers),
+            timeouts = shortTimeouts,
+        )
+
         @Test
         fun `embedding client gives up after the configured read timeout`() {
             val embeddingService = factory().openAiCompatibleEmbeddingService(
@@ -157,12 +167,37 @@ class OpenAiCompatibleModelFactoryTimeoutTest {
             }
         }
 
-        @Test
-        fun `client built with http customizers gives up after the configured read timeout`() {
-            val embeddingService = factory(customizers = listOf(OpenAiHttpClientBuilderCustomizer { }))
-                .openAiCompatibleEmbeddingService(model = "slow-embedding", provider = "test")
+        // The calls below carry no Spring AI options, as a Responses API call does not, so only
+        // the client-level timeout can end them. Without it they would wait 10 minutes.
 
-            assertFailsWithin(Duration.ofSeconds(10)) { embeddingService.embed("hello") }
+        @Test
+        fun `client gives up on a call without per-call options`() {
+            val client = clientExposingFactory().syncClient()
+
+            assertFailsWithin(Duration.ofSeconds(10)) { client.models().list() }
+        }
+
+        @Test
+        fun `async client gives up on a call without per-call options`() {
+            val client = clientExposingFactory().asyncClient()
+
+            assertFailsWithin(Duration.ofSeconds(10)) { client.models().list().get() }
+        }
+
+        @Test
+        fun `client built with http customizers gives up on a call without per-call options`() {
+            val client = clientExposingFactory(customizers = listOf(OpenAiHttpClientBuilderCustomizer { }))
+                .syncClient()
+
+            assertFailsWithin(Duration.ofSeconds(10)) { client.models().list() }
+        }
+
+        @Test
+        fun `async client built with http customizers gives up on a call without per-call options`() {
+            val client = clientExposingFactory(customizers = listOf(OpenAiHttpClientBuilderCustomizer { }))
+                .asyncClient()
+
+            assertFailsWithin(Duration.ofSeconds(10)) { client.models().list().get() }
         }
 
         @Test
@@ -183,6 +218,21 @@ class OpenAiCompatibleModelFactoryTimeoutTest {
             val elapsed = Duration.ofNanos(System.nanoTime() - started)
             assertTrue(elapsed < limit, "expected failure within $limit but took $elapsed")
         }
+    }
+
+    private class ClientExposingFactory(
+        baseUrl: String,
+        customizers: ObjectProvider<OpenAiHttpClientBuilderCustomizer>,
+        timeouts: OpenAiClientTimeouts,
+    ) : OpenAiCompatibleModelFactory(
+        baseUrl = baseUrl,
+        apiKey = "test-key",
+        httpClientCustomizers = customizers,
+        timeouts = timeouts,
+    ) {
+        fun syncClient(): OpenAIClient = openAiClient
+
+        fun asyncClient(): OpenAIClientAsync = openAiClientAsync
     }
 
     private fun <T> listProvider(beans: List<T>): ObjectProvider<T> = object : ObjectProvider<T> {
