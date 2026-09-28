@@ -18,8 +18,8 @@ package com.embabel.agent.spi.config.spring
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.spi.decision.LlmDecisionRetryProperties
 import com.embabel.agent.spi.decision.LlmDecisionServiceFactory
-import com.embabel.common.ai.model.ClassificationService
-import com.embabel.common.ai.model.DecisionService
+import com.embabel.common.ai.classification.ClassificationService
+import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.NoSuitableModelException
 import io.micrometer.observation.ObservationRegistry
