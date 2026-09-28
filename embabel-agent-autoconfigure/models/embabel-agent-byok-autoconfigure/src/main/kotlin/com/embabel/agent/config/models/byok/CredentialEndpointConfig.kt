@@ -30,12 +30,14 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+import org.springframework.boot.context.properties.bind.BindException
 import org.springframework.boot.context.properties.bind.Binder
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
 import org.springframework.core.env.StandardEnvironment
 import java.time.Duration
+import java.util.concurrent.ConcurrentHashMap
 
 private const val MODELS_PREFIX = "embabel.agent.platform.models"
 
@@ -65,9 +67,10 @@ private const val MODELS_PREFIX = "embabel.agent.platform.models"
  * that makes shipping them possible at all: a pure BYOK deployment deliberately has no provider
  * autoconfiguration - `embabel-agent-starter-byok` bans it - but it does have the factories.
  *
- * Nothing here caches. [com.embabel.common.ai.model.ConfigurableModelProvider] already caches what
- * a factory returns per (provider, key, model) behind a bounded LRU, so a cache here would be a
- * second, unbounded one holding a service per key the deployment has ever seen.
+ * No services are cached here. [com.embabel.common.ai.model.ConfigurableModelProvider] already
+ * caches what a factory returns per (provider, key, model) behind a bounded LRU, so a cache here
+ * would be a second, unbounded one holding a service per key the deployment has ever seen. The one
+ * cache here holds bound timeouts per provider, which is bounded by the number of providers.
  */
 @Configuration(proxyBeanMethods = false)
 class CredentialEndpointConfig @Autowired constructor(
@@ -81,6 +84,8 @@ class CredentialEndpointConfig @Autowired constructor(
     constructor() : this(StandardEnvironment())
 
     private val logger = loggerFor<CredentialEndpointConfig>()
+
+    private val timeoutsByPrefix = ConcurrentHashMap<String, OpenAiClientTimeouts>()
 
     /**
      * Builds anything routed to Anthropic's protocol, whoever routed it there.
@@ -215,25 +220,43 @@ class CredentialEndpointConfig @Autowired constructor(
      * Bound from the environment rather than read from the provider's properties bean, because a
      * pure BYOK deployment has no provider autoconfiguration and so no such bean. A provider an
      * application's resolver adds is configured the same way, under its own normalised name.
+     *
+     * Bound on the first call for a provider and cached per prefix after that, because the set of
+     * providers is open - a resolver can route to one this configuration has never heard of - so
+     * there is no list to bind eagerly at startup. The cost is that a malformed value, say
+     * `read-timeout: 5 minutes`, is not reported at startup: it surfaces on the first call for that
+     * provider, as an [InvalidProviderTimeoutException] naming the property, and on every call after
+     * it until fixed. A failed bind is not cached, and never falls back to a default.
      */
-    private fun timeoutsFor(provider: String): OpenAiClientTimeouts {
+    private fun timeoutsFor(provider: String): OpenAiClientTimeouts =
+        timeoutsByPrefix.computeIfAbsent(timeoutPrefixFor(provider), ::bindTimeouts)
+
+    private fun bindTimeouts(prefix: String): OpenAiClientTimeouts {
         val binder = Binder.get(environment)
-        val prefix = timeoutPrefixFor(provider)
         return OpenAiClientTimeouts(
-            connect = binder.bind("$prefix.connect-timeout", Duration::class.java)
-                .orElse(OpenAiClientTimeouts.DEFAULT_CONNECT),
-            read = binder.bind("$prefix.read-timeout", Duration::class.java).orElse(null),
+            connect = bindDuration(binder, "$prefix.connect-timeout") ?: OpenAiClientTimeouts.DEFAULT_CONNECT,
+            read = bindDuration(binder, "$prefix.read-timeout"),
         )
     }
 
-    /**
-     * `Mistral AI` becomes `embabel.agent.platform.models.mistralai`, matching the provider modules'
-     * own prefixes. Gemini is the exception: over this protocol it is configured as `gemini`, while
-     * `googlegenai` belongs to the native Google GenAI module.
-     */
-    private fun timeoutPrefixFor(provider: String): String {
-        val name = provider.lowercase().filter(Char::isLetterOrDigit)
-        return "$MODELS_PREFIX.${if (name == GoogleGenAiModels.PROVIDER.lowercase()) "gemini" else name}"
+    private fun bindDuration(binder: Binder, property: String): Duration? =
+        try {
+            binder.bind(property, Duration::class.java).orElse(null)
+        } catch (e: BindException) {
+            throw InvalidProviderTimeoutException(property, e)
+        }
+
+    internal companion object {
+
+        /**
+         * `Mistral AI` becomes `embabel.agent.platform.models.mistralai`, matching the provider
+         * modules' own prefixes. Gemini is the exception: over this protocol it is configured as
+         * `gemini`, while `googlegenai` belongs to the native Google GenAI module.
+         */
+        internal fun timeoutPrefixFor(provider: String): String {
+            val name = provider.lowercase().filter(Char::isLetterOrDigit)
+            return "$MODELS_PREFIX.${if (name == GoogleGenAiModels.PROVIDER.lowercase()) "gemini" else name}"
+        }
     }
 
     /**

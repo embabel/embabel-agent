@@ -451,7 +451,7 @@ From `AgentPlatformProperties.ModelsConfig` - model provider integration configu
 |`embabel.agent.platform.models.openai.read-timeout`
 |Duration
 |_unset_
-|Per-attempt response timeout: how long one attempt may take, from request to the whole response. Unset keeps Spring AI's per-call default of 60 seconds. The client retries a timed-out call twice, so a caller waits up to three times this value
+|Per-attempt response timeout: how long one attempt may take, from request to the whole response. Unset keeps 60 seconds for chat completion and embedding calls and 10 minutes for Responses API models. The client retries a timed-out call twice, so a caller waits up to three times this value
 
 |===
 
@@ -1023,6 +1023,6 @@ From `DockerProperties` - configuration for Docker local models (OpenAI-compatib
 |`embabel.agent.platform.models.docker.read-timeout`
 |Duration
 |_unset_
-|Per-attempt response timeout: how long one attempt may take, from request to the whole response. Unset keeps Spring AI's per-call default of 60 seconds. The client retries a timed-out call twice, so a caller waits up to three times this value
+|Per-attempt response timeout: how long one attempt may take, from request to the whole response. Unset keeps 60 seconds for chat completion and embedding calls and 10 minutes for Responses API models. The client retries a timed-out call twice, so a caller waits up to three times this value
 
 |===

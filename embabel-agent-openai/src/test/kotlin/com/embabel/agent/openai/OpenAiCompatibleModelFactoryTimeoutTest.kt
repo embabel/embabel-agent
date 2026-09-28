@@ -18,6 +18,7 @@ package com.embabel.agent.openai
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PricingModel
 import com.openai.client.OpenAIClient
 import com.openai.client.OpenAIClientAsync
@@ -33,6 +34,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.Timeout as TestTimeout
 import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.ai.openai.http.okhttp.OpenAiHttpClientBuilderCustomizer
@@ -97,6 +99,17 @@ class OpenAiCompatibleModelFactoryTimeoutTest {
             assertEquals(Duration.ofSeconds(90), options.timeout)
             assertEquals(0.2, options.temperature)
             assertEquals("any", options.model)
+        }
+
+        @Test
+        fun `options that cannot carry a timeout pass through unchanged`() {
+            val plain = ChatOptions.builder().model("any").build()
+
+            val delegate = object : OptionsConverter {
+                override fun convertOptions(options: LlmOptions, model: String): ChatOptions = plain
+            }
+
+            assertSame(plain, timeouts.optionsConverter(delegate).convertOptions(LlmOptions(), "any"))
         }
     }
 
@@ -234,6 +247,34 @@ class OpenAiCompatibleModelFactoryTimeoutTest {
 
             assertThrows<Exception> { embeddingService.embed("hello") }
 
+            assertEquals(3, requests.get())
+        }
+
+        @Test
+        fun `byok spec validation gives up after its configured read timeout`() {
+            val spec = OpenAiCompatibleModelFactory.byok(
+                baseUrl = "http://localhost:${server.address.port}",
+                apiKey = "test-key",
+                validationModel = "slow-chat",
+                validationProvider = "test",
+            )
+                .withTimeouts(shortTimeouts)
+                .validating("slow-chat-small", "test")
+
+            assertFailsWithin(Duration.ofSeconds(10)) { spec.buildValidated() }
+            assertEquals(3, requests.get())
+        }
+
+        @Test
+        fun `byok embedding spec validation gives up after its configured read timeout`() {
+            val spec = OpenAiCompatibleModelFactory.byokEmbedding(
+                baseUrl = "http://localhost:${server.address.port}",
+                apiKey = "test-key",
+                model = "slow-embedding",
+                provider = "test",
+            ).withTimeouts(shortTimeouts)
+
+            assertFailsWithin(Duration.ofSeconds(10)) { spec.buildValidated() }
             assertEquals(3, requests.get())
         }
 

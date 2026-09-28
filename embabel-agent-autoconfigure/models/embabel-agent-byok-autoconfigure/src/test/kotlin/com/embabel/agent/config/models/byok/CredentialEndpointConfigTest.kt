@@ -574,7 +574,7 @@ class CredentialEndpointConfigTest {
 
         @Test
         fun `a user key's embedding gives up after the provider's configured read timeout`() {
-            withHangingGateway { gateway, _ ->
+            withHangingGateway { gateway, requests ->
                 OwnGatewayEndpoint.gatewayUrl.set(gateway)
                 contextRunner
                     .withUserConfiguration(OwnGatewayEndpoint::class.java)
@@ -585,8 +585,36 @@ class CredentialEndpointConfigTest {
                         assertFailsWithinTenSeconds {
                             factory.createEmbeddingService(ProviderCredential(GATEWAY_PROVIDER, TEST_API_KEY), "slow-embedding")
                         }
+                        assertThat(requests.get()).describedAs("timed-out attempts").isEqualTo(3)
                     }
             }
+        }
+
+        @Test
+        fun `a malformed timeout fails the call with an exception naming the property`() {
+            contextRunner
+                .withUserConfiguration(OwnGatewayEndpoint::class.java)
+                .withPropertyValues("embabel.agent.platform.models.ourgateway.read-timeout=five minutes")
+                .run { context ->
+                    assertThat(context).hasNotFailed()
+                    repeat(2) {
+                        val failure = runCatching { build(factoriesIn(context), GATEWAY_PROVIDER, "any-model") }
+                            .exceptionOrNull()
+                        assertThat(failure).isInstanceOf(InvalidProviderTimeoutException::class.java)
+                        assertThat((failure as InvalidProviderTimeoutException).property)
+                            .isEqualTo("embabel.agent.platform.models.ourgateway.read-timeout")
+                    }
+                }
+        }
+
+        @Test
+        fun `a built-in provider reads the prefix its own module configures`() {
+            assertThat(CredentialEndpointConfig.timeoutPrefixFor(OpenAiModels.PROVIDER))
+                .isEqualTo("embabel.agent.platform.models.openai")
+            assertThat(CredentialEndpointConfig.timeoutPrefixFor(GoogleGenAiModels.PROVIDER))
+                .isEqualTo("embabel.agent.platform.models.gemini")
+            assertThat(CredentialEndpointConfig.timeoutPrefixFor(MistralAiModels.PROVIDER))
+                .isEqualTo("embabel.agent.platform.models.mistralai")
         }
 
         private fun withHangingGateway(test: (String, AtomicInteger) -> Unit) {

@@ -41,9 +41,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.ai.document.MetadataMode
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.ai.openai.OpenAiChatModel
-import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.ai.openai.OpenAiEmbeddingModel
-import org.springframework.ai.openai.OpenAiEmbeddingOptions
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
@@ -259,10 +257,7 @@ class DockerLocalModelsConfig(
         val springEmbeddingModel = OpenAiEmbeddingModel.builder()
             .openAiClient(openAiClient)
             .metadataMode(MetadataMode.EMBED)
-            .options(OpenAiEmbeddingOptions.builder()
-                .model(modelId)
-                .apply { timeouts.read?.let { timeout(it) } }
-                .build())
+            .options(timeouts.embeddingOptions(modelId).build())
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
             .build()
 
@@ -283,10 +278,7 @@ class DockerLocalModelsConfig(
                     .build()
             )
             .options(
-                OpenAiChatOptions.builder()
-                    .model(modelId)
-                    .apply { timeouts.read?.let { timeout(it) } }
-                    .build()
+                timeouts.chatOptions(modelId).build()
             )
             .build()
         return SpringAiLlmService(
