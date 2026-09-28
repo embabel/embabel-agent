@@ -55,6 +55,7 @@ class ClassificationJavaTest {
         var mapping =
                 CategoryMapping.fromEnum(
                         AnimalKind.class,
+                        "Which kind of animal is this?",
                         animal ->
                                 switch (animal) {
                                     case DOG -> "A dog or canine";
@@ -73,11 +74,21 @@ class ClassificationJavaTest {
 
     @Test
     void nonselectionIsUsableFromJava() {
-        var mapping = CategoryMapping.fromEnum(AnimalKind.class, AnimalKind::name);
+        var mapping = CategoryMapping.fromEnum(AnimalKind.class, "Which animal?", AnimalKind::name);
         var noMatch = new ClassificationResult.NoMatch(new ModelProvenance("model", "provider"));
         MappedClassificationResult<AnimalKind> mapped = mapping.map(noMatch);
         assertTrue(mapped instanceof ClassificationResult.NoMatch);
         assertSame(noMatch, mapped);
+    }
+
+    @Test
+    void requestCarriesInstructionsAndRejectsBlankOnes() {
+        var mapping = CategoryMapping.fromEnum(AnimalKind.class, "Which animal?", AnimalKind::name);
+        assertEquals("Which animal?", mapping.request("A canine is barking").getInstructions());
+        var categories = mapping.getCategories();
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new ClassificationRequest("A canine is barking", " ", categories));
     }
 
     // tag::class-mapping[]
@@ -87,7 +98,7 @@ class ClassificationJavaTest {
         values.put(new Category("dog", "A dog or canine"), Dog.class);
         values.put(new Category("cat", "A cat or feline"), Cat.class);
         values.put(new Category("rabbit", "A rabbit or bunny"), Rabbit.class);
-        var mapping = new CategoryMapping<>(values);
+        var mapping = new CategoryMapping<>("Which kind of animal is this?", values);
         var request = mapping.request("A canine is barking");
         var result = request.selected("dog", new ModelProvenance("model", "provider"));
         var mapped =

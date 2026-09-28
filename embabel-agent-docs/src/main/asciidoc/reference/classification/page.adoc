@@ -17,7 +17,7 @@ The intended first default is Jev through a future TypeSafe integration.
 .Application and model responsibilities
 [listing]
 ----
-Application: input + canonical categories
+Application: input + instructions + canonical categories
                     |
                     v
             ClassificationService
@@ -35,14 +35,17 @@ Application: map selected ID to enum or class token
 ==== Define the Choices Once
 
 A `Category` has a stable `id` and a description of when it applies.
-`ClassificationRequest` carries input text and a nonempty list of categories with unique, nonblank IDs.
+`ClassificationRequest` carries the input text, the instructions, and a nonempty list of categories with unique, nonblank IDs.
+The instructions say what the model is asked, such as "Which kind of animal is this?".
+They are required, and a blank value throws `IllegalArgumentException`.
 For dog, cat, and rabbit, describe “bunny” as an alias in the rabbit description; it is not a fourth category.
 Descriptions guide the model, but do not create a separate alias registry or guarantee synonym recognition.
 
-`CategoryMapping<T>` pairs each category with an application value and supplies `request(input)` from those same categories.
+`CategoryMapping<T>` takes the instructions and pairs each category with an application value.
+`request(input)` returns a request carrying those same instructions and categories.
 Values may be enum constants or class tokens such as `Rabbit.class`.
 Class tokens stay in the application; the provider receives category definitions, not authority to instantiate objects.
-`fromEnum` uses enum names as IDs, regardless of an overridden `toString()`.
+`fromEnum(enumType, instructions, description)` uses enum names as IDs, regardless of an overridden `toString()`.
 Requests and mappings copy their structural collections; mapped values themselves remain caller-owned references.
 
 The following repository tests use `AnimalKind` with `DOG`, `CAT`, and `RABBIT` constants, and `Dog`, `Cat`, and `Rabbit` classes implementing `Animal`.
