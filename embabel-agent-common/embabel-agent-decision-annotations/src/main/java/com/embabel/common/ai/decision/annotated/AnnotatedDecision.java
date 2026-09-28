@@ -152,8 +152,14 @@ public final class AnnotatedDecision<T> {
         }
     }
 
-    // A response that matches the spec has one answer per question, in order, of the right kind and
-    // with the same options or levels, so its answers fit this type.
+    /**
+     * Checks that the response matches this decision's spec before projecting it.
+     * <p>
+     * A response that matches has one answer per question, in order, of the right kind and with
+     * the same options or levels, so its answers fit this type.
+     *
+     * @param response the response to check
+     */
     private void requireSpecOf(DecisionResponse response) {
         Objects.requireNonNull(response, "response");
         try {
@@ -167,6 +173,12 @@ public final class AnnotatedDecision<T> {
         }
     }
 
+    /**
+     * Checks the supplied other properties against the properties this type actually needs.
+     *
+     * @param otherProperties the values passed for the non-question properties
+     * @return one problem per issue found: a missing key, an unknown key or a key naming a question
+     */
     private List<String> otherPropertyProblems(Map<String, ?> otherProperties) {
         String name = type.getSimpleName();
         List<String> missing = otherNames.stream().filter(key -> !otherProperties.containsKey(key)).toList();
