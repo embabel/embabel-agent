@@ -32,13 +32,13 @@ import com.embabel.chat.Message
 import com.embabel.common.ai.classification.Category
 import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
+import com.embabel.common.ai.classification.ClassificationService
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
+import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.model.ByNameModelSelectionCriteria
-import com.embabel.common.ai.model.ClassificationService
-import com.embabel.common.ai.model.DecisionService
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.ModelMetadata
 import com.embabel.common.ai.model.ModelProvider
