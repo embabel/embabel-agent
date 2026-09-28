@@ -19,9 +19,9 @@ import com.embabel.common.ai.classification.ClassificationRequest;
 import com.embabel.common.ai.classification.ClassificationResult;
 import com.embabel.common.ai.classification.FailureReason;
 import com.embabel.common.ai.classification.ModelProvenance;
+import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.decision.PropositionRequest;
 import com.embabel.common.ai.decision.PropositionResult;
-import com.embabel.common.ai.model.DecisionService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

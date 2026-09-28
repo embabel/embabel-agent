@@ -25,10 +25,10 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.embabel.agent.config.models.typesafe.TypeSafeProperties;
 import com.embabel.agent.typesafe.TypeSafeModelFactory;
+import com.embabel.common.ai.classification.ClassificationService;
+import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.decision.PropositionRequest;
 import com.embabel.common.ai.decision.PropositionResult;
-import com.embabel.common.ai.model.ClassificationService;
-import com.embabel.common.ai.model.DecisionService;
 
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;

@@ -15,9 +15,9 @@
  */
 package com.embabel.agent.typesafe;
 
+import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.decision.PropositionRequest;
 import com.embabel.common.ai.decision.PropositionResult;
-import com.embabel.common.ai.model.DecisionService;
 
 import java.util.function.Supplier;
 
