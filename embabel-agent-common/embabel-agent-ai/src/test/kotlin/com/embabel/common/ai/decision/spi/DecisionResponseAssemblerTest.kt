@@ -288,7 +288,7 @@ class DecisionResponseAssemblerTest {
         fun `failed request answers the spec`() {
             val response = DecisionResponseAssembler.forSpec(spec, "svc").unsafe().build()
 
-            assertEquals(spec.definitionId, response.definitionId)
+            response.requireMatches(spec)
             assertEquals(FailureReason.INVALID_RESPONSE, response.requestFailure)
         }
     }
