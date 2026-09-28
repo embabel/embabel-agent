@@ -82,7 +82,7 @@ class LlmDecisionServiceTest {
         Category("technical", "Errors, outages and bugs"),
     )
 
-    private val classification = ClassificationRequest("My card was charged twice", categories)
+    private val classification = ClassificationRequest("My card was charged twice", "Which team should handle this?", categories)
 
     private val proposition = PropositionRequest("My card was charged twice", "The customer wants a refund")
 

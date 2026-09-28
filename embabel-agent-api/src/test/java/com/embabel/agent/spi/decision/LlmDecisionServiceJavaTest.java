@@ -93,6 +93,7 @@ class LlmDecisionServiceJavaTest {
         var classifier = factory.classificationService("gpt-test");
         var result = classifier.classify(new ClassificationRequest(
                 "My card was charged twice",
+                "Which team should handle this?",
                 List.of(
                         new Category("billing", "Payments, invoices and refunds"),
                         new Category("technical", "Errors, outages and bugs"))));
