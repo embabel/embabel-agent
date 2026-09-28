@@ -180,8 +180,9 @@ class ResultJsonJavaTest {
                                 PropositionResult.class,
                                 "Unknown member 'extra' in PropositionResult"));
         for (var c : cases) {
-            var error =
-                    assertThrows(DatabindException.class, () -> mapper.readValue(c.json(), c.type()));
+            var json = c.json();
+            var type = c.type();
+            var error = assertThrows(DatabindException.class, () -> mapper.readValue(json, type));
             assertTrue(error.getMessage().contains(c.message()), error.getMessage());
         }
     }
