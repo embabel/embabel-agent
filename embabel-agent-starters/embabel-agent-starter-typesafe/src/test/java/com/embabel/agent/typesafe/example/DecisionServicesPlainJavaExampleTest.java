@@ -20,10 +20,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.embabel.agent.typesafe.TypeSafeClientOptions;
 import com.embabel.agent.typesafe.TypeSafeModelFactory;
+import com.embabel.common.ai.classification.ClassificationService;
+import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.decision.support.NoOpDecisionService;
 import com.embabel.common.ai.decision.support.StubDecisionService;
-import com.embabel.common.ai.model.ClassificationService;
-import com.embabel.common.ai.model.DecisionService;
 import com.embabel.common.ai.model.DecisionServiceRegistry;
 import com.embabel.common.ai.model.ModelType;
 import com.embabel.common.ai.model.ServiceSelectionException;

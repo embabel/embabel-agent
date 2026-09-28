@@ -19,12 +19,12 @@ import com.embabel.agent.api.common.Ai;
 import com.embabel.common.ai.classification.CategoryMapping;
 import com.embabel.common.ai.classification.ClassificationRequest;
 import com.embabel.common.ai.classification.ClassificationResult;
+import com.embabel.common.ai.classification.ClassificationService;
 import com.embabel.common.ai.classification.ClassificationSpec;
 import com.embabel.common.ai.classification.FailureReason;
 import com.embabel.common.ai.classification.MappedClassificationResult;
 import com.embabel.common.ai.classification.ModelProvenance;
 import com.embabel.common.ai.decision.support.NoOpDecisionService;
-import com.embabel.common.ai.model.ClassificationService;
 import com.embabel.common.ai.model.DecisionServiceRegistry;
 import org.junit.jupiter.api.Test;
 

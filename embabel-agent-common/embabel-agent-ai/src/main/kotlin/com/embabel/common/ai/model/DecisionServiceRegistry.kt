@@ -15,7 +15,10 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.common.ai.classification.ClassificationService
+import com.embabel.common.ai.classification.ClassificationServiceMetadata
 import com.embabel.common.ai.decision.DecisionCapabilities
+import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.model.ServiceSelectionException.Reason
 import io.micrometer.observation.ObservationRegistry
 import org.jetbrains.annotations.ApiStatus

@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.spi.config.spring
 
+import com.embabel.common.ai.classification.ClassificationService
 import com.embabel.common.ai.decision.spi.DecisionContentCapture
-import com.embabel.common.ai.model.ClassificationService
 import com.embabel.common.ai.model.DecisionServiceRegistry
 import io.micrometer.observation.ObservationRegistry
 import org.jetbrains.annotations.ApiStatus

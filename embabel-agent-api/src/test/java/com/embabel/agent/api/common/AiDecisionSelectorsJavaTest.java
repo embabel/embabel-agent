@@ -16,16 +16,16 @@
 package com.embabel.agent.api.common;
 
 import com.embabel.common.ai.classification.ClassificationResult;
+import com.embabel.common.ai.classification.ClassificationService;
 import com.embabel.common.ai.classification.ModelProvenance;
 import com.embabel.common.ai.decision.ChoiceQuestionSpec;
 import com.embabel.common.ai.decision.DecisionResponse;
+import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.decision.DecisionSpec;
 import com.embabel.common.ai.decision.PropositionQuestionSpec;
 import com.embabel.common.ai.decision.PropositionResult;
 import com.embabel.common.ai.decision.Questions;
 import com.embabel.common.ai.decision.support.StubDecisionService;
-import com.embabel.common.ai.model.ClassificationService;
-import com.embabel.common.ai.model.DecisionService;
 import com.embabel.common.ai.model.DecisionServiceRegistry;
 import com.embabel.common.ai.model.EmbeddingService;
 import com.embabel.common.ai.model.LlmOptions;

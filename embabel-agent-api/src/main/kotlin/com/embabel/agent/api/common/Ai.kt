@@ -18,6 +18,8 @@ package com.embabel.agent.api.common
 import com.embabel.agent.core.LlmVerbosity
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.spi.LlmService
+import com.embabel.common.ai.classification.ClassificationService
+import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.model.*
 import org.jetbrains.annotations.ApiStatus
 

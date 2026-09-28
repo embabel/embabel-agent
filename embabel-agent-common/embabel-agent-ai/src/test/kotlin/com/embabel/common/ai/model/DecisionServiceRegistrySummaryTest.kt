@@ -21,7 +21,9 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
+import com.embabel.common.ai.classification.ClassificationService
 import com.embabel.common.ai.decision.DecisionCapabilities
+import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.QuestionKind
