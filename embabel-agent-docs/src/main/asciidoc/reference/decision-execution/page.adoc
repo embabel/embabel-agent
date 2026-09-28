@@ -78,6 +78,58 @@ A decision service registry with no services backs the default `Ai` implementati
 There, `using(service)` works and the other terminals throw `ServiceSelectionException`.
 No terminal falls back to an LLM.
 
+[[reference.decision-execution.classification-only]]
+==== Classification only
+
+An application that only sorts text into categories needs `Ai.classifications()` and a `ClassificationSpec`.
+Select the service by role, as the family default, by registration name, or pass an instance:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/ClassificationOnlyExampleTest.java[tag=selectors,indent=0]
+----
+
+Describe the categories once in a `ClassificationSpec`:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/ClassificationOnlyExampleTest.java[tag=spec,indent=0]
+----
+
+Classify with the spec and switch over the four outcomes:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/ClassificationOnlyExampleTest.java[tag=route,indent=0]
+----
+
+A `CategoryMapping` maps each category to an enum constant. `CategoryMapping.fromEnum` builds the spec from the enum, and `map` turns a selection into the constant:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/ClassificationOnlyExampleTest.java[tag=enum,indent=0]
+----
+
+In Kotlin, `classificationSpec { ... }` builds the spec and `when` covers the outcomes:
+
+[source,kotlin]
+----
+include::../../../../../../embabel-agent-api/src/test/kotlin/com/embabel/agent/api/decision/example/ClassificationOnlyKotlinExampleTest.kt[tag=route,indent=0]
+----
+
+In a Spring application the spec can be a bean:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-starters/embabel-agent-starter-typesafe/src/test/java/com/embabel/agent/typesafe/example/DecisionServicesSpringExampleTest.java[tag=spec-bean,indent=0]
+----
+
+To register a prompted service that only classifies, set `kind: classification` on its entry under `embabel.agent.platform.decisions.llm.services.<name>`, and bind it to a role under `embabel.models.classification.roles.<role>`.
+The `ticket-classifier` entry in the configuration example below does both.
+Such a service is not a decision service, so a decision default or role cannot name it.
+
+A `ClassificationSpec` is a decision spec with one choice question, so a decision service answers it too.
+
 ==== Registry
 
 `DecisionServiceRegistry` holds the registered services, the family defaults and the role bindings.
@@ -756,7 +808,7 @@ The registry summary at INFO:
 
 [source,text]
 ----
-Decision service registry built with 3 services: [typeSafeDecisionService (name jev-1, provider TypeSafe, type DECISION, capabilities kinds [PROPOSITION, CHOICE, RATING], max questions 16, max input characters 20000), gpt (name gpt-x, provider OpenAI, type DECISION, capabilities kinds [PROPOSITION], max questions none, max input characters none), clf (name clf-1, provider acme, type CLASSIFICATION)]; decision default: 'typeSafeDecisionService' (explicit); decision roles: {support-triage=gpt}; classification default: none set; candidates considered: []; classification roles: {}; default candidates: []
+Decision service registry built with 3 services: [typeSafeDecisionService (name jev-1, provider TypeSafe, type DECISION, capabilities kinds [PROPOSITION, CHOICE, RATING], max questions 16, max input characters 20000), gpt (name gpt-x, provider OpenAI, type DECISION, capabilities kinds [PROPOSITION, CHOICE], max questions none, max input characters none), clf (name clf-1, provider acme, type CLASSIFICATION)]; decision default: 'typeSafeDecisionService' (explicit); decision roles: {support-triage=gpt}; classification default: none set; candidates considered: []; classification roles: {}; default candidates: []
 ----
 
 Routing and completion at DEBUG:
