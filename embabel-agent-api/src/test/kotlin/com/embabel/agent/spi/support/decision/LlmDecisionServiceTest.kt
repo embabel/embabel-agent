@@ -62,6 +62,7 @@ import org.springframework.retry.backoff.ExponentialBackOffPolicy
 import org.springframework.retry.support.RetryTemplate
 import java.net.SocketTimeoutException
 import java.nio.channels.ClosedByInterruptException
+import java.util.concurrent.CancellationException
 import java.util.concurrent.Executors
 
 class LlmDecisionServiceTest {
@@ -246,12 +247,12 @@ class LlmDecisionServiceTest {
     inner class Interruption {
 
         @Test
-        fun `wrapped interruption is rethrown after one call with the flag set`() {
+        fun `wrapped interruption is thrown as a cancellation after one call with the flag set`() {
             val interrupted = InterruptedException("stop")
             whenAsked(ClassificationAnswer::class.java) throws RuntimeException(interrupted)
             try {
-                val thrown = assertThrows<InterruptedException> { service.classify(classification) }
-                assertEquals(interrupted, thrown)
+                val thrown = assertThrows<CancellationException> { service.classify(classification) }
+                assertSame(interrupted, thrown.cause)
                 assertTrue(Thread.currentThread().isInterrupted)
                 assertEquals(1, interactions.size)
             } finally {
@@ -260,13 +261,14 @@ class LlmDecisionServiceTest {
         }
 
         @Test
-        fun `failure with the flag set is stopped by the retry guard and rethrown after one call`() {
+        fun `failure with the flag set is stopped by the retry guard and thrown as a cancellation after one call`() {
             whenAsked(PropositionAnswer::class.java) answers {
                 Thread.currentThread().interrupt()
                 throw TransientAiException("busy")
             }
             try {
-                assertThrows<InterruptedException> { service.assess(proposition) }
+                val thrown = assertThrows<CancellationException> { service.assess(proposition) }
+                assertTrue(thrown.cause is InterruptedException)
                 assertTrue(Thread.currentThread().isInterrupted)
                 assertEquals(1, interactions.size)
             } finally {
@@ -275,15 +277,16 @@ class LlmDecisionServiceTest {
         }
 
         @Test
-        fun `io failure with the flag set is rethrown as an interruption after one call`() {
+        fun `io failure with the flag set is thrown as a cancellation after one call`() {
             val closed = ClosedByInterruptException()
             whenAsked(ClassificationAnswer::class.java) answers {
                 Thread.currentThread().interrupt()
                 throw closed
             }
             try {
-                val thrown = assertThrows<InterruptedException> { service.classify(classification) }
-                assertEquals(closed, thrown.cause)
+                val thrown = assertThrows<CancellationException> { service.classify(classification) }
+                assertTrue(thrown.cause is InterruptedException)
+                assertSame(closed, thrown.cause?.cause)
                 assertTrue(Thread.currentThread().isInterrupted)
                 assertEquals(1, interactions.size)
             } finally {
@@ -292,7 +295,7 @@ class LlmDecisionServiceTest {
         }
 
         @Test
-        fun `interrupt that lands while waiting to retry is rethrown with the flag set`() {
+        fun `interrupt that lands while waiting to retry is thrown as a cancellation with the flag set`() {
             // The backoff's sleeper throws at once, just as Thread.sleep does when interrupted.
             val interrupted = InterruptedException("sleep interrupted")
             val interruptedBackoff = object : RetryProperties by retry {
@@ -305,8 +308,8 @@ class LlmDecisionServiceTest {
             val service = LlmDecisionService(llmOperations, llm, options, interruptedBackoff)
             whenAsked(ClassificationAnswer::class.java) throws TransientAiException("busy")
             try {
-                val thrown = assertThrows<InterruptedException> { service.classify(classification) }
-                assertSame(interrupted, thrown)
+                val thrown = assertThrows<CancellationException> { service.classify(classification) }
+                assertSame(interrupted, thrown.cause)
                 assertTrue(Thread.currentThread().isInterrupted)
                 assertEquals(1, interactions.size)
             } finally {
@@ -341,13 +344,14 @@ class LlmDecisionServiceTest {
         }
 
         @Test
-        fun `flag already set before a failing call is rethrown as an interruption caused by the failure`() {
+        fun `flag already set before a failing call is thrown as a cancellation caused by the failure`() {
             val busy = TransientAiException("busy")
             whenAsked(ClassificationAnswer::class.java) throws busy
             Thread.currentThread().interrupt()
             try {
-                val thrown = assertThrows<InterruptedException> { service.classify(classification) }
-                assertSame(busy, thrown.cause)
+                val thrown = assertThrows<CancellationException> { service.classify(classification) }
+                assertTrue(thrown.cause is InterruptedException)
+                assertSame(busy, thrown.cause?.cause)
                 assertTrue(Thread.currentThread().isInterrupted)
                 assertEquals(1, interactions.size)
             } finally {

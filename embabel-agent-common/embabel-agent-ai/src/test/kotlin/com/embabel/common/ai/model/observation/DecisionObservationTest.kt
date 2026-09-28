@@ -410,6 +410,19 @@ class DecisionObservationTest {
             telemetry.recorder.errors.forEach { assertSafeError(it, it.message!!) }
             assertNull(telemetry.registry.currentObservation)
         }
+
+        @Test
+        fun `a cancellation caused by an interruption records the interrupted outcome`() {
+            val telemetry = Telemetry()
+            val cancellation = CancellationException(secret).apply { initCause(InterruptedException(secret)) }
+            assertSame(cancellation, assertThrows<CancellationException> {
+                ObservedClassificationService(classifier { throw cancellation }, telemetry.registry).classify(request)
+            })
+            assertEquals(listOf("interrupted"), telemetry.recorder.stopped.map {
+                it.getLowCardinalityKeyValue("outcome")!!.value
+            })
+            telemetry.recorder.errors.forEach { assertSafeError(it, it.message!!) }
+        }
     }
 
     @Nested
