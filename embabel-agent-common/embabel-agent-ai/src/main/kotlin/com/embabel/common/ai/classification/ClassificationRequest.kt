@@ -15,14 +15,32 @@
  */
 package com.embabel.common.ai.classification
 
+import com.embabel.common.ai.decision.rejectUnknownMember
+import com.fasterxml.jackson.annotation.JsonAnySetter
+import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.annotation.JsonPropertyOrder
 import org.jetbrains.annotations.ApiStatus
 
 /** A nonblank canonical category ID and its natural-language meaning, including caller-defined aliases. */
 @ApiStatus.Experimental
-data class Category(val id: String, val description: String) {
+@JsonPropertyOrder("id", "description")
+data class Category @JsonCreator constructor(
+    @JsonProperty("id", required = true) val id: String,
+    @JsonProperty("description", required = true) val description: String,
+) {
     init {
         require(id.isNotBlank()) { "Category ID must not be blank" }
     }
+
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
+    @JsonAnySetter
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("Category", name, value)
 }
 
 /**
