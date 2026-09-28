@@ -56,6 +56,7 @@ import com.embabel.agent.test.integration.IntegrationTestUtils;
 import com.embabel.agent.test.unit.FakeOperationContext;
 import com.embabel.agent.test.unit.FakeOperationContextKt;
 import com.embabel.agent.typesafe.TypeSafeModelFactory;
+import com.embabel.common.ai.classification.Category;
 import com.embabel.common.ai.classification.ClassificationResult;
 import com.embabel.common.ai.classification.ClassificationSpec;
 import com.embabel.common.ai.classification.FailureReason;
@@ -348,7 +349,7 @@ class DecisionServicesSpringExampleTest {
                                                     .isEqualTo(ServiceSelectionException.Reason.WRONG_CAPABILITY));
 
                             assertThat(context.getBean(ClassificationSpec.class).getCategories())
-                                    .extracting(category -> category.getId())
+                                    .extracting(Category::getId)
                                     .containsExactly("billing", "technical");
                         });
         verifyNoInteractions(fixture.llmOperations);
