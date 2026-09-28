@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.common.ai.model
+package com.embabel.common.ai.classification
 
-import com.embabel.common.ai.classification.ClassificationRequest
-import com.embabel.common.ai.classification.ClassificationResult
+import com.embabel.common.ai.model.ModelMetadata
+import com.embabel.common.ai.model.ModelType
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
 import org.jetbrains.annotations.ApiStatus

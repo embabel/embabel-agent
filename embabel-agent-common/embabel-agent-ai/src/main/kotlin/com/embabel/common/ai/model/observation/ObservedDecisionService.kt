@@ -19,7 +19,7 @@ import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
-import com.embabel.common.ai.model.DecisionService
+import com.embabel.common.ai.decision.DecisionService
 import io.micrometer.observation.ObservationRegistry
 import org.jetbrains.annotations.ApiStatus
 

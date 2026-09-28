@@ -17,9 +17,11 @@ package com.embabel.common.ai.classification;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.embabel.common.ai.decision.DecisionService;
+import com.embabel.common.ai.decision.DecisionServiceMetadata;
 import com.embabel.common.ai.decision.PropositionRequest;
 import com.embabel.common.ai.decision.PropositionResult;
-import com.embabel.common.ai.model.*;
+import com.embabel.common.ai.model.ModelType;
 
 import org.junit.jupiter.api.Test;
 
