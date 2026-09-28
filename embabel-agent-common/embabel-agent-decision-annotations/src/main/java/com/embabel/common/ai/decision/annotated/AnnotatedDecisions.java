@@ -174,8 +174,21 @@ public final class AnnotatedDecisions {
         if (!problems.isEmpty()) {
             throw new AnnotatedDecisionException(type, problems, null);
         }
-        return CategoryMapping.fromEnum((Class) type, classification.asking(),
-            constant -> DecisionTypeParser.describedOf((Enum<?>) constant).value());
+        return buildCategoryMapping((Class) type, classification.asking());
+    }
+
+    /**
+     * Builds the category mapping for an enum type that {@link #readClassification} has already checked.
+     * Taking the enum's type parameter here, rather than a raw {@code Class}, means the constant handed
+     * to {@link DecisionTypeParser#describedOf} is already an {@code Enum}, so no cast is needed.
+     *
+     * @param enumType the enum type to build categories from
+     * @param asking the instructions the model receives
+     * @param <E> the enum type
+     * @return the mapping built by {@link CategoryMapping#fromEnum}
+     */
+    private static <E extends Enum<E>> CategoryMapping<E> buildCategoryMapping(Class<E> enumType, String asking) {
+        return CategoryMapping.fromEnum(enumType, asking, constant -> DecisionTypeParser.describedOf(constant).value());
     }
 
     /**

@@ -186,9 +186,9 @@ class AnnotatedClassificationTest {
         @Test
         void rejectsASelectionOutsideTheCategories() {
             var departments = AnnotatedDecisions.classification(Department.class);
+            var outsideCategory = new ClassificationResult.Selected("ACCOUNT", PROVENANCE);
 
-            assertThrows(IllegalArgumentException.class,
-                () -> departments.map(new ClassificationResult.Selected("ACCOUNT", PROVENANCE)));
+            assertThrows(IllegalArgumentException.class, () -> departments.map(outsideCategory));
         }
 
         @Test
