@@ -145,17 +145,5 @@ class EmbeddingAwareChunkingContentElementRepositoryTest {
             assertTrue(repo.persistedChunks.isNotEmpty())
             assertEquals(repo.persistedChunks.map { it.id }, e.missingChunkIds)
         }
-
-        @Test
-        fun `failOnMissingEmbeddings false stores the chunks without vectors and does not throw`() {
-            val config = ContentChunker.Config(failOnMissingEmbeddings = false)
-            val repo = TestChunkingRepository(config, ChunkTransformer.NO_OP, serviceRejecting("Text 2"))
-            val chunks = (1..3).map { i -> createChunk("chunk$i", "Text $i") }
-
-            repo.onNewRetrievables(chunks)
-
-            assertEquals(3, repo.persistedChunks.size)
-            assertEquals(setOf("chunk1", "chunk3"), repo.persistedEmbeddings.keys)
-        }
     }
 }

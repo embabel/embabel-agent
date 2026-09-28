@@ -22,9 +22,6 @@ package com.embabel.agent.rag.store
  * and the chunks named in [missingChunkIds] have been persisted without one: they match text
  * search but never a vector search. The caller can retry or re-ingest them.
  *
- * Set [com.embabel.agent.rag.ingestion.ContentChunker.Config.failOnMissingEmbeddings] to false
- * to store the partial result without being told.
- *
  * @property missingChunkIds ids of the chunks stored without an embedding
  * @property embeddedCount number of chunks that were embedded
  */

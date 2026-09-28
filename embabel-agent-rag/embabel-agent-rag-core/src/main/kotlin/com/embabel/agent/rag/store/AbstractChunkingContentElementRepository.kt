@@ -59,9 +59,8 @@ abstract class AbstractChunkingContentElementRepository(
      * The database only needs to store each descendant and link by id,
      * rather than otherwise consider the entire structure.
      *
-     * @throws EmbeddingIncompleteException if some chunks could not be embedded and
-     * [ContentChunker.Config.failOnMissingEmbeddings] is true. It is thrown after the
-     * document and all its chunks have been saved and committed.
+     * @throws EmbeddingIncompleteException if some chunks could not be embedded. It is thrown
+     * after the document and all its chunks have been saved and committed.
      */
     final override fun writeAndChunkDocument(root: NavigableDocument): List<String> {
         logger.info(
@@ -100,12 +99,11 @@ abstract class AbstractChunkingContentElementRepository(
     }
 
     /**
-     * Throw [EmbeddingIncompleteException] if [result] is missing embeddings and
-     * [ContentChunker.Config.failOnMissingEmbeddings] is set.
+     * Throw [EmbeddingIncompleteException] if [result] is missing embeddings.
      * Call after persisting the chunks, so the ones that embedded are stored.
      */
     protected fun failIfEmbeddingsMissing(result: EmbeddingBatchResult) {
-        if (result.isComplete || !chunkerConfig.failOnMissingEmbeddings) return
+        if (result.isComplete) return
         throw EmbeddingIncompleteException(
             missingChunkIds = result.missingChunkIds,
             embeddedCount = result.embeddings.size,

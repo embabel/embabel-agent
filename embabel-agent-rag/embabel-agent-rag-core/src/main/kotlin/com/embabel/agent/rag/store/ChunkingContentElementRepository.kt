@@ -83,8 +83,7 @@ interface ChunkingContentElementRepository : ContentElementRepository {
      *
      * @param retrievables List of retrievables to process; typically chunks from document ingestion
      * @throws EmbeddingIncompleteException from implementations that embed, if some chunks could not be
-     * embedded and [com.embabel.agent.rag.ingestion.ContentChunker.Config.failOnMissingEmbeddings] is true.
-     * It is thrown after the chunks have been persisted. [AbstractChunkingContentElementRepository.writeAndChunkDocument]
+     * embedded. It is thrown after the chunks have been persisted. [AbstractChunkingContentElementRepository.writeAndChunkDocument]
      * commits before passing it on; a caller that invokes this method directly must commit itself.
      */
     fun onNewRetrievables(

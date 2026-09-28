@@ -29,8 +29,7 @@ import com.embabel.common.ai.model.EmbeddingService
  * 1. Filtering incoming retrievables to extract [Chunk] instances
  * 2. Generating embeddings in configurable batches using [EmbeddingBatchGenerator]
  * 3. Delegating persistence to subclasses via [persistChunksWithEmbeddings]
- * 4. Throwing [EmbeddingIncompleteException] if any chunk could not be embedded,
- *    unless [ContentChunker.Config.failOnMissingEmbeddings] is false
+ * 4. Throwing [EmbeddingIncompleteException] if any chunk could not be embedded
  *
  * Use this base class when your repository always requires embedding support.
  * For repositories that support optional embeddings (e.g., text-only search),
