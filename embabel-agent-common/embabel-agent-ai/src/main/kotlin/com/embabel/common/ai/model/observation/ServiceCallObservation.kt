@@ -183,6 +183,13 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         }
     }
 
+    /**
+     * Maps a thrown failure to its outcome label, treating an unsupported request specially for ask.
+     *
+     * @param operation the operation the failure happened in
+     * @param failure the thrown failure
+     * @return the outcome label for it
+     */
     private fun thrownOutcome(operation: Operation, failure: Throwable): Outcome = when (failure) {
         is UnsupportedDecisionException -> if (operation == Operation.ASK) Outcome.UNSUPPORTED else Outcome.EXCEPTION
         is InterruptedException -> Outcome.INTERRUPTED
@@ -377,6 +384,12 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         else -> Outcome.COMPLETE
     }
 
+    /**
+     * Maps one answer to its outcome label, by its question kind.
+     *
+     * @param answer the answer to map
+     * @return the outcome label
+     */
     private fun answerOutcome(answer: DecisionAnswer): Outcome = when (answer) {
         is DecisionAnswer.Proposition -> propositionOutcome(answer.outcome)
         is DecisionAnswer.Choice -> classificationOutcome(answer.outcome)
@@ -400,6 +413,13 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         }
     }
 
+    /**
+     * Reports whether the response matches the request's spec.
+     *
+     * @param response the response to check
+     * @param spec the spec it should match
+     * @return true when the response matches the spec
+     */
     private fun matchesSpec(response: DecisionResponse, spec: DecisionSpec): Boolean =
         try {
             response.requireMatches(spec)
@@ -408,7 +428,12 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
             false
         }
 
-    // Fixed buckets keep the tag bounded for any spec size.
+    /**
+     * Fixed buckets keep the tag bounded for any spec size.
+     *
+     * @param count the number of questions
+     * @return the bucket label for that count
+     */
     private fun questionCountBucket(count: Int): String = when {
         count <= 1 -> "1"
         count <= 4 -> "2-4"

@@ -106,10 +106,22 @@ final class TypeSafeQuestionSets {
         return assembler.build();
     }
 
+    /**
+     * Returns the question key for a position in the spec's question list.
+     *
+     * @param index the question's position, zero based
+     * @return the key, such as q1 for index 0
+     */
     private static String key(int index) {
         return "q" + (index + 1);
     }
 
+    /**
+     * Builds the native question that mirrors one spec question.
+     *
+     * @param question the spec question to mirror
+     * @return the native question for the provider call
+     */
     private static Question question(com.embabel.common.ai.decision.Question<?> question) {
         return switch (question) {
             case PropositionQuestionSpec proposition -> Noul.of(proposition.getInstructions());
@@ -131,8 +143,15 @@ final class TypeSafeQuestionSets {
         };
     }
 
-    // An answer of another kind goes to the assembler under its own kind, so it records WRONG_KIND.
-    // The placeholder outcome is never placed in the response.
+    /**
+     * An answer of another kind goes to the assembler under its own kind, so it records WRONG_KIND.
+     * The placeholder outcome is never placed in the response.
+     *
+     * @param assembler collects the outcome
+     * @param question the question the answer maps to
+     * @param answer the native answer for that question
+     * @param provenance the model that produced the answer
+     */
     private static void add(
             DecisionResponseAssembler assembler,
             com.embabel.common.ai.decision.Question<?> question,
@@ -154,7 +173,14 @@ final class TypeSafeQuestionSets {
         }
     }
 
-    // A value of exactly 0.5 is undecided, as in assess.
+    /**
+     * A value of exactly 0.5 is undecided, as in assess.
+     *
+     * @param assembler collects the outcome
+     * @param name the question name
+     * @param noul the native proposition answer
+     * @param provenance the model that produced the answer
+     */
     private static void proposition(
             DecisionResponseAssembler assembler, String name, NoulAnswer noul, ModelProvenance provenance) {
         var value = noul.value();
@@ -167,8 +193,15 @@ final class TypeSafeQuestionSets {
         }
     }
 
-    // The probabilities must cover exactly the options and sum to 1. A confidence of 0 is
-    // inconclusive, as in classify. The assembler checks that the selected label is an option.
+    /**
+     * The probabilities must cover exactly the options and sum to 1. A confidence of 0 is
+     * inconclusive, as in classify. The assembler checks that the selected label is an option.
+     *
+     * @param assembler collects the outcome
+     * @param question the choice question
+     * @param answer the native choice answer
+     * @param provenance the model that produced the answer
+     */
     private static void choice(
             DecisionResponseAssembler assembler,
             ChoiceQuestionSpec question,
@@ -192,9 +225,16 @@ final class TypeSafeQuestionSets {
         }
     }
 
-    // Score.java makes level 0 the first criteria entry, and ScoreAnswer keys the legend and the
-    // probabilities by level index. The value is the expected level index. The SDK derives its nearest
-    // level from the probabilities, so no level is reported as selected.
+    /**
+     * Score.java makes level 0 the first criteria entry, and ScoreAnswer keys the legend and the
+     * probabilities by level index. The value is the expected level index. The SDK derives its nearest
+     * level from the probabilities, so no level is reported as selected.
+     *
+     * @param assembler collects the outcome
+     * @param question the rating question
+     * @param answer the native score answer
+     * @param provenance the model that produced the answer
+     */
     private static void rating(
             DecisionResponseAssembler assembler,
             RatingQuestionSpec question,
@@ -235,10 +275,22 @@ final class TypeSafeQuestionSets {
                         answer.confidence()));
     }
 
+    /**
+     * Reports whether a value is a valid probability.
+     *
+     * @param value the value to check
+     * @return true when it is finite and between 0 and 1
+     */
     private static boolean isProbability(double value) {
         return Double.isFinite(value) && value >= 0.0d && value <= 1.0d;
     }
 
+    /**
+     * Reports whether a set of probabilities are all valid and sum to 1.
+     *
+     * @param probabilities the probabilities to check
+     * @return true when every value is a valid probability and they sum to 1
+     */
     private static boolean isDistribution(Collection<Double> probabilities) {
         var total = 0.0d;
         for (Double probability : probabilities) {

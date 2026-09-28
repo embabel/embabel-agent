@@ -129,7 +129,12 @@ internal object PromptedQuestionSet {
         return assembler.build()
     }
 
-    // Returns each element with its question key, or null when the envelope is unsafe.
+    /**
+     * Reads the raw reply into element and key pairs, or returns null when the envelope can't be trusted.
+     *
+     * @param raw the model's raw text
+     * @return each element with its question key, or null when the envelope is unsafe
+     */
     private fun elements(raw: String): List<Pair<String, JsonNode>>? {
         val root = try {
             strictMapper.readTree(raw)
@@ -149,6 +154,14 @@ internal object PromptedQuestionSet {
         return elements
     }
 
+    /**
+     * Matches one answer element to its question's kind and records the outcome on the assembler.
+     *
+     * @param assembler collects the outcome
+     * @param question the question the element answers
+     * @param element the answer element for that question
+     * @param provenance the model that produced the answer
+     */
     private fun add(assembler: DecisionResponseAssembler, question: Question<*>, element: JsonNode, provenance: ModelProvenance) {
         val name = question.name
         val verdict = element.get("verdict")?.takeIf { it.isString }?.stringValue()
@@ -164,6 +177,12 @@ internal object PromptedQuestionSet {
         }
     }
 
+    /**
+     * Returns the question kind a verdict belongs to, or null for a verdict that isn't tied to one kind.
+     *
+     * @param verdict the verdict text
+     * @return the matching question kind, or null
+     */
     private fun kindOf(verdict: String) = when (verdict) {
         PROPOSITION_TRUE, PROPOSITION_FALSE -> QuestionKind.PROPOSITION
         SELECTED, NO_MATCH -> QuestionKind.CHOICE
@@ -171,8 +190,17 @@ internal object PromptedQuestionSet {
         else -> null
     }
 
-    // Applies the verdict rules of PromptedProposition and PromptedClassification. A blank id
-    // counts as no id. The assembler checks that a selected id is one of the options or levels.
+    /**
+     * Applies the verdict rules of PromptedProposition and PromptedClassification to record the
+     * answer for one question. A blank id counts as no id. The assembler checks that a selected id
+     * is one of the options or levels.
+     *
+     * @param assembler collects the outcome
+     * @param question the question being answered
+     * @param verdict the verdict text
+     * @param element the answer element for that question
+     * @param provenance the model that produced the answer
+     */
     private fun read(
         assembler: DecisionResponseAssembler,
         question: Question<*>,
@@ -214,8 +242,14 @@ internal object PromptedQuestionSet {
         }
     }
 
-    // Returns the member's id. An absent, null or blank member gives an empty string. A member that
-    // holds something other than a string gives null.
+    /**
+     * Returns the member's id. An absent, null or blank member gives an empty string. A member that
+     * holds something other than a string gives null.
+     *
+     * @param element the answer element
+     * @param member the id member's name
+     * @return the id, an empty string when absent or blank, or null when it isn't a string
+     */
     private fun id(element: JsonNode, member: String): String? {
         val node = element.get(member)
         return when {
@@ -225,9 +259,21 @@ internal object PromptedQuestionSet {
         }
     }
 
+    /**
+     * Returns the question key for a position in the spec's question list.
+     *
+     * @param index the question's position, zero based
+     * @return the key, such as q1 for index 0
+     */
     private fun key(index: Int) = "q${index + 1}"
 
-    // Caller text is joined in after trimMargin so a line in it that starts with '|' stays as written.
+    /**
+     * Builds the instructions block that lists every question of the spec, in prompt order.
+     * Caller text is joined in after trimMargin so a line in it that starts with '|' stays as written.
+     *
+     * @param spec the questions to describe
+     * @return the instructions text for the prompt
+     */
     private fun instructions(spec: DecisionSpec): String {
         val questions = spec.questions.withIndex().joinToString("\n\n") { (index, question) ->
             val header = "${key(index)} (${question.kind.name.lowercase()})\nInstructions: ${question.instructions}"
