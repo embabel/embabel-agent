@@ -5,6 +5,7 @@ The module `embabel-agent-decision-annotations` reads a `DecisionSpec` from an a
 It is a prototype.
 It is optional, it is not published, and no Embabel module depends on it.
 The spec it reads is an ordinary `DecisionSpec`, equal to the spec the builder or the Kotlin DSL declares for the same questions.
+It also reads a `CategoryMapping` from an annotated enum, for classification.
 The types are in the package `com.embabel.common.ai.decision.annotated` and carry `@ApiStatus.Experimental`.
 The <<reference.decision-specs-annotated.evaluation>> section below holds the recommendation on keeping the module.
 
@@ -42,14 +43,18 @@ include::../../../../../../embabel-agent-common/embabel-agent-decision-annotatio
 
 |`@Described(value)`
 |An enum constant
-|The description of an option or level
+|The description of an option, level or category
+
+|`@Classification(asking)`
+|An enum
+|A classification with one category per enum constant. See <<reference.decision-specs-annotated.classification>>.
 |===
 
 The three question annotations target fields, methods and parameters.
 On a record component, Java copies the annotation to the private field, the accessor and the canonical constructor parameter.
 Jackson merges the accessor and the constructor parameter into one property, and the parser reads them as one question.
 `asking` has no default and holds the instructions the model receives.
-There is no class-level annotation.
+A record or bean takes no class-level annotation.
 
 Choices and rating levels are enums.
 Options and levels follow the declaration order of the constants.
@@ -140,6 +145,40 @@ include::../../../../../../embabel-agent-common/embabel-agent-decision-annotatio
 
 include::../../../../../../embabel-agent-common/embabel-agent-decision-annotations/src/test/java/com/embabel/common/ai/decision/annotated/AnnotatedProjectionTest.java[tag=annotated-ignored-component,indent=0]
 ----
+
+[[reference.decision-specs-annotated.classification]]
+==== Classification
+
+`@Classification(asking)` on an enum declares a classification.
+Each constant is a category, in declaration order.
+Every constant needs `@Described`, as a choice option does.
+
+[source,java]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-decision-annotations/src/test/java/com/embabel/common/ai/decision/annotated/example/TicketClassificationAnnotatedExampleTest.java[tag=annotated-classification-enum,indent=0]
+----
+
+`AnnotatedDecisions.classification(type)` returns a `CategoryMapping<E>` built by `CategoryMapping.fromEnum`.
+It is static and caches one mapping per enum. A failed read is not cached.
+`spec()` is the `ClassificationSpec` to pass to `ClassificationService.classify(input, spec)`.
+`map(result)` turns a selection into its constant and returns no match, inconclusive and failure unchanged.
+A selection outside the categories throws `IllegalArgumentException`.
+
+[source,java]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-decision-annotations/src/test/java/com/embabel/common/ai/decision/annotated/example/TicketClassificationAnnotatedExampleTest.java[tag=annotated-classification-route,indent=0]
+----
+
+The category id is the constant's name.
+No mapper is involved, so `toString()`, `@JsonProperty` and enum naming strategies do not change it.
+A choice option id follows the mapper, so the same enum can give different ids on the two paths.
+The question is named `classification`, from `ClassificationSpec.QUESTION_NAME`.
+
+A record or bean whose only settable property is a `@ChoiceQuestion` reads as a `ClassificationSpec`.
+`spec()` still returns `DecisionSpec`, so a caller casts it to pass it to a classification service.
+The question keeps its Jackson property name.
+The spec equals the plain `DecisionSpec`, writes the same JSON and projects the same way.
+A type with another question or another settable property reads as a plain `DecisionSpec`.
 
 ==== Portable JSON
 
@@ -235,8 +274,28 @@ A failed read is not cached.
 |`<Type>: Jackson cannot read the properties of the type (...).`
 |Give each member its own property name
 
+|Classification on a type that is not an enum
+|`<Type>: is not an enum.`
+|Declare the categories as an annotated enum
+
+|Enum without `@Classification`
+|`<Enum>: has no @Classification.`
+|Annotate the enum
+
+|Blank `@Classification` asking
+|`<Enum>: @Classification has a blank asking value.`
+|Set the instructions
+
+|Classification enum without constants
+|`<Enum>: has no constants, so the classification has no categories.`
+|Add one constant per category
+
+|Classification constant without `@Described`
+|`<Enum>.<CONSTANT>: category has no @Described.`
+|Add `@Described`
+
 |Response to another spec
-|`Response answers spec s1-... but <Type> reads spec s1-....`
+|`The response does not match the spec. Missing: 'urgent'. <Type> reads a different spec.`
 |Ask with `AnnotatedDecision.spec()` for this type and mapper
 
 |Missing `otherProperties` key
@@ -245,7 +304,7 @@ A failed read is not cached.
 |===
 
 The last two rows throw `DecisionProjectionException` from projection.
-The others throw `AnnotatedDecisionException` when the type is read.
+The others throw `AnnotatedDecisionException` when the type is read, from `of` or from `classification`.
 
 ==== Kotlin
 
@@ -283,7 +342,7 @@ The table records the placements on a `data class` constructor `val`, read with 
 The parser skips a `copy()` parameter that carries the same question annotations as the constructor parameter.
 The `componentN()` methods carry no annotations.
 A plain `class` has no `copy()`, and the default site reads there too.
-An annotation on a Kotlin enum entry, such as `@Described`, sets the option or level description.
+An annotation on a Kotlin enum entry, such as `@Described`, sets the option, level or category description, and `@Classification` reads on a Kotlin enum class.
 
 [source,kotlin]
 ----
@@ -317,15 +376,18 @@ With the builder, a typed projection needs the same record and enums in addition
 The option and level ids exist once, as enum constants, so a renamed constant changes the spec and the projection together.
 Question names and ids come from the application's Jackson settings, so the spec follows the JSON conventions the application already uses.
 
-The costs to a user are the rules a Java type must satisfy: a `boolean` or enum per question, `@Described` on each choice constant, and a Kotlin use-site target that reads.
+An annotated enum replaces a `CategoryMapping.fromEnum` call and its description function. The descriptions sit on the constants.
+
+The costs to a user are the rules a Java type must satisfy: a `boolean` or enum per question, `@Described` on each choice or category constant, and a Kotlin use-site target that reads.
 Each rule has a diagnostic that names the member and the fix.
 
 ===== Complexity
 
-The main code is 1,849 lines in nine Java files, 932 of them non-blank and outside comments.
-`DecisionTypeParser` holds 1,222 of the lines.
-`AnnotatedDecision` holds 214, `AnnotatedDecisions` 110, `AnnotatedDecisionException` 80, and the four annotations and `package-info` 223 together.
-The tests are 2,426 lines, most of them diagnostic cases.
+The main code is 2,002 lines in ten Java files, 1,001 of them non-blank and outside comments.
+`DecisionTypeParser` holds 1,239 of the lines.
+`AnnotatedDecision` holds 218, `AnnotatedDecisions` 195, `AnnotatedDecisionException` 80, and the five annotations and `package-info` 270 together.
+Classification adds the `@Classification` annotation, 85 lines to `AnnotatedDecisions` and 17 to the parser, which picks the spec type. The mapping itself is `CategoryMapping`.
+The tests are 2,939 lines, most of them diagnostic cases.
 
 The parser reads Jackson's creation view of a type through public calls: `DeserializationConfig.classIntrospectorInstance()`, `ClassIntrospector.introspectForCreation`, `BeanDescription.findProperties()`, `AccessorNamingStrategy` and `AnnotationIntrospector`.
 These calls are public and lower level than `ObjectMapper`.
@@ -339,6 +401,7 @@ The Kotlin data class rule reads the `kotlin.Metadata` annotation by name, so th
 * Types: Java records, beans with a `@JsonCreator` constructor or setters, and Kotlin classes with the placements in the Kotlin table.
 * Reading: `Class<T>`. Generic types and type variables are rejected.
 * Projection into `T` with `DecisionProjection<T>` when every property is a question, and into `T` alone when `otherProperties` supplies the rest.
+* Classification: an enum with `@Classification`, read into a `CategoryMapping<E>`.
 * `@JsonIgnore` on a record component: the component cannot hold a question and fails projection under the default mapper.
 
 ===== Costs
@@ -347,6 +410,7 @@ The Kotlin data class rule reads the `kotlin.Metadata` annotation by name, so th
 * The parser depends on the Jackson introspection calls listed under Complexity. A Jackson upgrade needs the module tests to pass before release.
 * `project(response, otherProperties)` returns `T` alone. A public factory on `DecisionProjection` that takes a value would let it return `DecisionProjection<T>`. That change belongs to `embabel-agent-ai`.
 * `defaults()` holds one shared mapper. Jackson's type and deserializer caches in that mapper keep references to the types it reads and projects, so an application that reloads classes passes a mapper it owns to `using(mapper)`. The decision cache itself keeps no class reachable.
+* Category ids are constant names and choice option ids follow the mapper. An enum used both ways can have two sets of ids.
 * Kotlin support depends on use-site targets and on two rules that skip Kotlin's repeated annotations: one for `copy()` parameters and one for the backing field.
 
 ===== Removal
