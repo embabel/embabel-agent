@@ -36,6 +36,10 @@ object EmbeddingBatchGenerator {
 
     /**
      * Embed [retrievables] in batches of [batchSize], retrying failed batches in halves.
+     *
+     * The returned result is the report of record for chunks that could not be embedded, and so is
+     * the [EmbeddingIncompleteException] a repository throws from it. This method logs only a
+     * warning summary, with no stack trace.
      */
     fun embedInBatches(
         embeddingService: EmbeddingService,
@@ -67,9 +71,9 @@ object EmbeddingBatchGenerator {
 
         val result = run.result()
         if (!result.isComplete) {
-            // The message only, not the stack trace: the result carries the cause, and a caller that
-            // throws EmbeddingIncompleteException passes it on, so logging it here would print it twice.
-            logger.error(
+            // A warning with the message only: the result carries the cause, and a caller that throws
+            // EmbeddingIncompleteException reports it, so an error with a stack trace here would repeat it.
+            logger.warn(
                 "{} of {} chunks could not be embedded ({}): {}",
                 result.missingChunkIds.size,
                 retrievables.size,
@@ -82,9 +86,12 @@ object EmbeddingBatchGenerator {
 
     /**
      * Embed in batches, returning only the embeddings that succeeded.
+     *
+     * Chunks that could not be embedded are absent from the map. Their ids are logged at WARN, but
+     * the caller is not told, so use [embedInBatches] and check [EmbeddingBatchResult.missingChunkIds].
      */
     @Deprecated(
-        message = "Chunks that could not be embedded are dropped without telling the caller",
+        message = "Chunks that could not be embedded are only logged at WARN, not reported to the caller",
         replaceWith = ReplaceWith("embedInBatches(embeddingService, retrievables, batchSize, logger).embeddings"),
     )
     fun generateEmbeddingsInBatches(

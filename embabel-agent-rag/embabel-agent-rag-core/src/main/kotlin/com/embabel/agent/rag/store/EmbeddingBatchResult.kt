@@ -29,5 +29,11 @@ class EmbeddingBatchResult(
     val cause: Throwable?,
 ) {
 
+    init {
+        require(missingChunkIds.isEmpty() || cause != null) {
+            "${missingChunkIds.size} chunks are missing embeddings but no cause was given"
+        }
+    }
+
     val isComplete: Boolean get() = missingChunkIds.isEmpty()
 }

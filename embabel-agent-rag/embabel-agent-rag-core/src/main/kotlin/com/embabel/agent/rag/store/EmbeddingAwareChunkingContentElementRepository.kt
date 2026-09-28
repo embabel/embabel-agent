@@ -46,22 +46,8 @@ abstract class EmbeddingAwareChunkingContentElementRepository(
     protected val embeddingService: EmbeddingService,
 ) : AbstractChunkingContentElementRepository(chunkerConfig, chunkTransformer) {
 
-    final override fun onNewRetrievables(retrievables: List<Retrievable>) {
-        val chunks = retrievables.filterIsInstance<Chunk>()
-        if (chunks.isEmpty()) {
-            logger.debug("No chunks to process in {} retrievables", retrievables.size)
-            return
-        }
-
-        val result = EmbeddingBatchGenerator.embedInBatches(
-            embeddingService = embeddingService,
-            retrievables = chunks,
-            batchSize = chunkerConfig.embeddingBatchSize,
-            logger = logger,
-        )
-        persistChunksWithEmbeddings(chunks, result.embeddings)
-        failIfEmbeddingsMissing(result)
-    }
+    final override fun onNewRetrievables(retrievables: List<Retrievable>) =
+        embedAndPersist(retrievables, embeddingService, ::persistChunksWithEmbeddings)
 
     /**
      * Persist chunks with their pre-generated embeddings to the underlying store.
@@ -72,6 +58,8 @@ abstract class EmbeddingAwareChunkingContentElementRepository(
      * 2. Associate the embedding with each chunk (if available in the map)
      * 3. Store a chunk with no embedding if it is missing from the map; the caller is told
      *    through [EmbeddingIncompleteException] after this method returns
+     * 4. Replace any chunk already stored with the same id, so passing a chunk again to
+     *    re-embed it does not store it twice
      *
      * @param chunks The chunks to persist; guaranteed to be non-empty when called
      * @param embeddings Map of chunk ID to embedding vector; may be missing entries

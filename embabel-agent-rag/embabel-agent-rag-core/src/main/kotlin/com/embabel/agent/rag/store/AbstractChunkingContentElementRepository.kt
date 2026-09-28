@@ -17,8 +17,10 @@ package com.embabel.agent.rag.store
 
 import com.embabel.agent.rag.ingestion.ChunkTransformer
 import com.embabel.agent.rag.ingestion.ContentChunker
+import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.NavigableDocument
 import com.embabel.agent.rag.model.Retrievable
+import com.embabel.common.ai.model.EmbeddingService
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -37,6 +39,10 @@ import org.slf4j.LoggerFactory
  * - [createInternalRelationships]: Create relationships between structural elements (e.g., in a graph database)
  * - [commit]: Commit changes after a write operation
  * - [save]: Persist individual content elements (inherited from [ContentElementRepository])
+ *
+ * A subclass that embeds chunks in [onNewRetrievables] must do so through [embedAndPersist].
+ * It persists every chunk, with or without a vector, before throwing [EmbeddingIncompleteException],
+ * so the chunks that did embed are never lost and the caller is always told about the ones that did not.
  *
  * ## Embedding Support
  *
@@ -96,6 +102,58 @@ abstract class AbstractChunkingContentElementRepository(
         )
         combine(descendantsIncomplete, chunksIncomplete)?.let { throw it }
         return chunks.map { it.id }
+    }
+
+    /**
+     * Embed the chunks with [chunkIds] again and commit, replacing each stored copy.
+     *
+     * Use this with [EmbeddingIncompleteException.missingChunkIds] to complete a write that could not
+     * embed every chunk. Ids with no stored chunk are logged and skipped.
+     *
+     * @return the ids of the chunks that were passed to [onNewRetrievables]
+     * @throws EmbeddingIncompleteException if some chunks still could not be embedded. It is thrown
+     * after the others have been committed.
+     */
+    fun reembedChunks(chunkIds: List<String>): List<String> {
+        val chunks = findAllChunksById(chunkIds).toList()
+        if (chunks.size < chunkIds.size) {
+            val found = chunks.map { it.id }.toSet()
+            logger.warn("No stored chunk to re-embed for ids {}", chunkIds.filterNot { it in found })
+        }
+        val incomplete = embeddingIncomplete { onNewRetrievables(chunks) }
+        commit()
+        incomplete?.let { throw it }
+        return chunks.map { it.id }
+    }
+
+    /**
+     * Embed the chunks among [retrievables] with [embeddingService], pass them to [persist], then
+     * throw [EmbeddingIncompleteException] if any could not be embedded.
+     *
+     * [persist] receives every chunk and a map of chunk id to vector. A chunk missing from the map
+     * could not be embedded and must be stored without a vector. With no [embeddingService], no
+     * chunk is embedded and nothing is thrown.
+     */
+    protected fun embedAndPersist(
+        retrievables: List<Retrievable>,
+        embeddingService: EmbeddingService?,
+        persist: (chunks: List<Chunk>, embeddings: Map<String, FloatArray>) -> Unit,
+    ) {
+        val chunks = retrievables.filterIsInstance<Chunk>()
+        if (chunks.isEmpty()) {
+            logger.debug("No chunks to process in {} retrievables", retrievables.size)
+            return
+        }
+        val result = embeddingService?.let {
+            EmbeddingBatchGenerator.embedInBatches(
+                embeddingService = it,
+                retrievables = chunks,
+                batchSize = chunkerConfig.embeddingBatchSize,
+                logger = logger,
+            )
+        }
+        persist(chunks, result?.embeddings ?: emptyMap())
+        result?.let { failIfEmbeddingsMissing(it) }
     }
 
     /**

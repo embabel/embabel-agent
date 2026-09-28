@@ -65,7 +65,7 @@ import java.util.concurrent.atomic.AtomicInteger
  *       — `embeddingService.embed(query)` and `embeddingService!!.embed(getAssetText(asset))`
  *
  *   * [EmbeddingBatchGeneratorPattern]
- *       — `embabel-agent-rag-core`/EmbeddingBatchGenerator.kt:151
+ *       — `embabel-agent-rag-core`/EmbeddingBatchGenerator.kt:174
  *       — bulk `embed(texts: List<String>)`
  *
  *   * [LuceneSearchOperationsPattern]

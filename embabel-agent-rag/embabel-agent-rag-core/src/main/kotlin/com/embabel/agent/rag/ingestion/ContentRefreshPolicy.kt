@@ -17,6 +17,7 @@ package com.embabel.agent.rag.ingestion
 
 import com.embabel.agent.rag.model.NavigableDocument
 import com.embabel.agent.rag.store.ChunkingContentElementRepository
+import com.embabel.agent.rag.store.EmbeddingIncompleteException
 import com.embabel.common.util.loggerFor
 
 /**
@@ -47,6 +48,12 @@ interface ContentRefreshPolicy {
      * @param hierarchicalContentReader the reader to parse the document
      * @param rootUri the uri of the document to ingest
      * @return the ingested document if it was ingested, or null if no ingestion
+     * @throws EmbeddingIncompleteException if some chunks could not be embedded. The document is
+     * already stored when this is thrown, so a policy that skips existing documents, such as
+     * [com.embabel.agent.rag.ingestion.policy.NeverRefreshExistingDocumentContentPolicy], will not
+     * retry it on the next ingest. Re-embed the missing chunks, for example with
+     * [com.embabel.agent.rag.store.AbstractChunkingContentElementRepository.reembedChunks], or delete
+     * the root and ingest again.
      */
     fun ingestUriIfNeeded(
         repository: ChunkingContentElementRepository,

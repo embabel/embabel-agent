@@ -20,7 +20,14 @@ package com.embabel.agent.rag.store
  *
  * By the time this is thrown, the chunks that did embed have been persisted with their vectors,
  * and the chunks named in [missingChunkIds] have been persisted without one: they match text
- * search but never a vector search. The caller can retry or re-ingest them.
+ * search but never a vector search.
+ *
+ * The document is stored and committed, so a refresh policy that skips existing documents, such as
+ * [com.embabel.agent.rag.ingestion.policy.NeverRefreshExistingDocumentContentPolicy], will not
+ * retry it on the next ingest. To complete it, pass [missingChunkIds] to
+ * [AbstractChunkingContentElementRepository.reembedChunks], which embeds those chunks again and
+ * replaces each stored copy. Or delete the root with
+ * [ChunkingContentElementRepository.deleteRootAndDescendants] and ingest it again.
  *
  * @property missingChunkIds ids of the chunks stored without an embedding
  * @property embeddedCount number of chunks that were embedded

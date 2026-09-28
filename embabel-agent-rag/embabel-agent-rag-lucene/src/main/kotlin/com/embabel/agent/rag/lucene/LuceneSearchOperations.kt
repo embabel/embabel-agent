@@ -40,7 +40,6 @@ import com.embabel.agent.rag.service.support.RagFacetResults
 import com.embabel.agent.rag.service.support.VectorMath
 import com.embabel.agent.rag.store.AbstractChunkingContentElementRepository
 import com.embabel.agent.rag.store.DocumentDeletionResult
-import com.embabel.agent.rag.store.EmbeddingBatchGenerator
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.SimilarityResult
@@ -56,9 +55,11 @@ import org.apache.lucene.document.StoredField
 import org.apache.lucene.document.StringField
 import org.apache.lucene.document.TextField
 import org.apache.lucene.index.DirectoryReader
+import org.apache.lucene.index.IndexNotFoundException
 import org.apache.lucene.index.IndexWriter
 import org.apache.lucene.index.IndexWriterConfig
 import org.apache.lucene.index.MultiBits
+import org.apache.lucene.index.Term
 import org.apache.lucene.index.VectorSimilarityFunction
 import org.apache.lucene.queryparser.classic.QueryParser
 import org.apache.lucene.search.IndexSearcher
@@ -152,24 +153,8 @@ class LuceneSearchOperations @JvmOverloads constructor(
         return this
     }
 
-    override fun onNewRetrievables(retrievables: List<Retrievable>) {
-        val chunks = retrievables.filterIsInstance<Chunk>()
-        if (chunks.isEmpty()) {
-            logger.debug("No chunks to process in {} retrievables", retrievables.size)
-            return
-        }
-
-        val result = embeddingService?.let {
-            EmbeddingBatchGenerator.embedInBatches(
-                embeddingService = it,
-                retrievables = chunks,
-                batchSize = chunkerConfig.embeddingBatchSize,
-                logger = logger,
-            )
-        }
-        persistChunksWithEmbeddings(chunks, result?.embeddings ?: emptyMap())
-        result?.let { failIfEmbeddingsMissing(it) }
-    }
+    override fun onNewRetrievables(retrievables: List<Retrievable>) =
+        embedAndPersist(retrievables, embeddingService, ::persistChunksWithEmbeddings)
 
     @Volatile
     private var directoryReader: DirectoryReader? = null
@@ -792,10 +777,10 @@ class LuceneSearchOperations @JvmOverloads constructor(
             contentElementStorage[chunk.id] = chunk
         }
 
-        // Create and index Lucene documents
+        // Replace any document with the same id, so a chunk passed again to re-embed it is indexed once
         chunks.forEach { chunk ->
             val luceneDoc = createLuceneDocument(chunk, embeddings[chunk.id])
-            indexWriter.addDocument(luceneDoc)
+            indexWriter.updateDocument(Term(LuceneFields.ID_FIELD, chunk.id), luceneDoc)
         }
 
         logger.info("Indexed {} chunks", chunks.size)
@@ -887,14 +872,19 @@ class LuceneSearchOperations @JvmOverloads constructor(
         }
     }
 
+    /**
+     * Open a fresh reader, so searches see the latest changes. An index with nothing committed yet has
+     * no reader, which is not an error. Any other failure to open propagates, rather than leaving
+     * searches to run against a closed reader or silently find nothing.
+     */
     private fun refreshReaderIfNeeded() {
         synchronized(this) {
-            try {
-                // Always try to open a fresh reader to ensure we see latest changes
-                directoryReader?.close()
-                directoryReader = DirectoryReader.open(directory)
-            } catch (_: Exception) {
-                // Index might be empty, which is fine
+            directoryReader?.close()
+            directoryReader = null
+            directoryReader = try {
+                DirectoryReader.open(directory)
+            } catch (_: IndexNotFoundException) {
+                null
             }
         }
     }

@@ -23,6 +23,7 @@ import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
@@ -293,5 +294,12 @@ class EmbeddingBatchGeneratorTest {
         )
 
         assertTrue(embeddings.isEmpty())
+    }
+
+    @Test
+    fun `a result with missing chunks must carry a cause`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            EmbeddingBatchResult(embeddings = emptyMap(), missingChunkIds = listOf("c1"), cause = null)
+        }
     }
 }

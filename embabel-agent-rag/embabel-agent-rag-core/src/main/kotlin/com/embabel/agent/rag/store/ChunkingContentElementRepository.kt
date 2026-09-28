@@ -85,6 +85,10 @@ interface ChunkingContentElementRepository : ContentElementRepository {
      * @throws EmbeddingIncompleteException from implementations that embed, if some chunks could not be
      * embedded. It is thrown after the chunks have been persisted. [AbstractChunkingContentElementRepository.writeAndChunkDocument]
      * commits before passing it on; a caller that invokes this method directly must commit itself.
+     *
+     * Passing a chunk that is already stored replaces it, so a chunk named in
+     * [EmbeddingIncompleteException.missingChunkIds] can be passed again to embed it.
+     * [AbstractChunkingContentElementRepository.reembedChunks] does that and commits.
      */
     fun onNewRetrievables(
         retrievables: List<Retrievable>,

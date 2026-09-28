@@ -323,4 +323,55 @@ class LuceneEmbeddingVerificationTest : LuceneSearchOperationsTestBase() {
             assertEquals(e.missingChunkIds.toSet(), found.map { it.match.id }.toSet())
         }
     }
+
+    @Test
+    fun `passing the same chunk twice indexes it once`() {
+        val chunk = Chunk(id = "twice", text = "Content about programming", parentId = "twice", metadata = emptyMap())
+
+        ragServiceWithTracking.onNewRetrievables(listOf(chunk))
+        ragServiceWithTracking.onNewRetrievables(listOf(chunk))
+        ragServiceWithTracking.commitChanges()
+
+        val found = ragServiceWithTracking.textSearch(
+            RagRequest.query("programming").withSimilarityThreshold(0.0),
+            Chunk::class.java,
+        )
+        assertEquals(listOf("twice"), found.map { it.match.id })
+    }
+
+    @Test
+    fun `reembedChunks after a failed embedding leaves each chunk once, with its vector`() {
+        var failing = true
+        val flakyModel = object : EmbeddingModel by trackingEmbeddingModel {
+            override fun embed(texts: MutableList<String>): MutableList<FloatArray> =
+                if (failing) throw IllegalStateException("embedding service unavailable")
+                else trackingEmbeddingModel.embed(texts)
+        }
+        val document = MaterializedDocument(
+            id = "root",
+            uri = "test://embedding-retry",
+            title = "Test Document",
+            children = listOf(LeafSection(id = "leaf-1", title = "Section", text = "Content about programming", parentId = "root")),
+        )
+
+        LuceneSearchOperations(
+            name = "flaky-rag",
+            embeddingService = SpringAiEmbeddingService("model", "provider", flakyModel),
+        ).use { rag ->
+            val e = assertThrows(EmbeddingIncompleteException::class.java) { rag.writeAndChunkDocument(document) }
+            failing = false
+            assertTrue(
+                rag.vectorSearch(RagRequest.query("programming").withSimilarityThreshold(0.0), Chunk::class.java).isEmpty(),
+                "No chunk should have a vector before the retry",
+            )
+
+            val reembedded = rag.reembedChunks(e.missingChunkIds)
+
+            assertEquals(e.missingChunkIds, reembedded)
+            val textHits = rag.textSearch(RagRequest.query("programming").withSimilarityThreshold(0.0), Chunk::class.java)
+            assertEquals(e.missingChunkIds.sorted(), textHits.map { it.match.id }.sorted())
+            val vectorHits = rag.vectorSearch(RagRequest.query("programming").withSimilarityThreshold(0.0), Chunk::class.java)
+            assertEquals(e.missingChunkIds.sorted(), vectorHits.map { it.match.id }.sorted())
+        }
+    }
 }
