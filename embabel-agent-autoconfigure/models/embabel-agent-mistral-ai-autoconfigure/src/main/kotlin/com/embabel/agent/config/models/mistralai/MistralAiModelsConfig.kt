@@ -19,6 +19,12 @@ import com.embabel.agent.api.models.MistralAiModels
 import com.embabel.agent.config.models.mistralai.MistralAiProperties.Companion.PREFIX
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
+import com.embabel.agent.spi.support.http.ProviderHttpClients
+import com.embabel.agent.spi.support.http.ProviderHttpClients.Companion.DEFAULT_CONNECT_TIMEOUT
+import com.embabel.agent.spi.support.http.ProviderHttpClients.Companion.DEFAULT_READ_TIMEOUT
+import com.embabel.agent.spi.support.http.ProviderHttpClients.Companion.HTTP_CONNECT_TIMEOUT
+import com.embabel.agent.spi.support.http.ProviderHttpClients.Companion.HTTP_READ_TIMEOUT
+import com.embabel.agent.spi.support.http.ProviderHttpClients.Companion.HTTP_USE_REACTOR_NETTY
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.autoconfig.ProviderInitialization
@@ -27,7 +33,6 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
 import io.micrometer.observation.ObservationRegistry
-import io.netty.channel.ChannelOption
 import org.slf4j.LoggerFactory
 import org.springframework.ai.mistralai.MistralAiChatModel
 import org.springframework.ai.chat.prompt.ChatOptions
@@ -41,19 +46,10 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
-import org.springframework.boot.convert.DurationStyle
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.http.client.ClientHttpRequestFactory
-import org.springframework.http.client.JdkClientHttpRequestFactory
-import org.springframework.http.client.ReactorClientHttpRequestFactory
-import org.springframework.http.client.reactive.ClientHttpConnector
-import org.springframework.http.client.reactive.JdkClientHttpConnector
-import org.springframework.http.client.reactive.ReactorClientHttpConnector
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
-import reactor.netty.http.client.HttpClient
-import java.net.http.HttpClient as JdkHttpClient
 import java.time.Duration
 
 /**
@@ -141,7 +137,7 @@ class MistralAiModelsConfig @Autowired constructor(
     private val restClientBuilderProvider: ObjectProvider<RestClient.Builder>,
     @param:Qualifier("aiModelWebClientBuilder")
     private val webClientBuilderProvider: ObjectProvider<WebClient.Builder>,
-    @param:Value("\${$HTTP_READ_TIMEOUT:5m}")
+    @param:Value("\${$HTTP_READ_TIMEOUT:$DEFAULT_READ_TIMEOUT}")
     private val httpReadTimeout: String,
     @param:Value("\${$HTTP_CONNECT_TIMEOUT:$DEFAULT_CONNECT_TIMEOUT}")
     private val httpConnectTimeout: String,
@@ -184,36 +180,19 @@ class MistralAiModelsConfig @Autowired constructor(
     private val apiKey: String = envApiKey ?: properties.apiKey
     ?: error("Mistral AI API key required: set MISTRAL_API_KEY env var or embabel.agent.platform.models.mistralai.api-key")
 
-    /** Whether this provider sets a timeout of its own rather than using the http-client ones. */
-    private val ownTimeouts = properties.connectTimeout != null || properties.readTimeout != null
-
-    /**
-     * The timeouts this provider's clients carry. Read the use-reactor-netty opt-out as
-     * NettyClientAutoConfiguration's `@ConditionalOnProperty` does: only `true`, in any case, is true.
-     */
-    internal val timeouts = ProviderClientTimeouts(
-        connect = properties.connectTimeout ?: parseTimeout(HTTP_CONNECT_TIMEOUT, httpConnectTimeout),
-        read = properties.readTimeout ?: parseTimeout(HTTP_READ_TIMEOUT, httpReadTimeout),
-        reactorNetty = httpUseReactorNetty.equals("true", ignoreCase = true),
+    /** This provider's HTTP clients, with its own transport when it sets a timeout of its own. */
+    internal val httpClients = ProviderHttpClients.resolve(
+        provider = "Mistral AI",
+        providerConnect = properties.connectTimeout,
+        providerRead = properties.readTimeout,
+        httpConnect = httpConnectTimeout,
+        httpRead = httpReadTimeout,
+        httpUseReactorNetty = httpUseReactorNetty,
+        logger = logger,
     )
 
     init {
         logger.info("Mistral AI models are available: {}", properties)
-        if (ownTimeouts) {
-            logger.info(
-                "Mistral AI uses its own HTTP client (connect timeout {}, read timeout {}) in place of the " +
-                    "shared aiModelRestClientBuilder / aiModelWebClientBuilder transport; proxy or TLS " +
-                    "settings on those do not apply to it",
-                timeouts.connect, timeouts.read,
-            )
-            if (!timeouts.reactorNetty) {
-                logger.warn(
-                    "{} uses the JDK HTTP client, as {} is false: its read timeout bounds the wait for " +
-                        "response headers only, not a stream that stalls mid-body",
-                    "Mistral AI", HTTP_USE_REACTOR_NETTY,
-                )
-            }
-        }
     }
 
     @Bean
@@ -314,16 +293,10 @@ class MistralAiModelsConfig @Autowired constructor(
         // without the netty client autoconfigure), fall back to a builder that still honours the platform read
         // timeout rather than the ~10s ReactorClientHttpRequestFactory default, which otherwise aborts slow
         // generations (e.g. reasoning models) with a ReadTimeoutException.
-        // Timeouts set under this provider's prefix replace the shared client's transport with a
-        // reactor-netty one configured like NettyClientAutoConfiguration's, carrying them; the shared
-        // builders hold the http-client timeouts and can't be changed.
-        val restClientBuilder = restClientBuilderProvider.getIfAvailable(::fallbackRestClientBuilder)
-            .clone()
-            .let { if (ownTimeouts) it.requestFactory(timeouts.requestFactory()) else it }
+        // Timeouts set under this provider's prefix replace the shared transport: see ProviderHttpClients.
+        val restClientBuilder = httpClients.restClientBuilder(restClientBuilderProvider)
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-        val webClientBuilder = webClientBuilderProvider.getIfAvailable(WebClient::builder)
-            .clone()
-            .let { if (ownTimeouts) it.clientConnector(timeouts.connector()) else it }
+        val webClientBuilder = httpClients.webClientBuilder(webClientBuilderProvider)
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
 
         val builder = MistralAiApi.builder()
@@ -335,65 +308,6 @@ class MistralAiModelsConfig @Autowired constructor(
         }
         return builder.build()
     }
-
-    /**
-     * Fallback client builder for contexts where the shared [aiModelRestClientBuilder] bean is absent.
-     * Applies the timeouts so a slow response is not aborted at the ~10s ReactorClientHttpRequestFactory
-     * default.
-     */
-    private fun fallbackRestClientBuilder(): RestClient.Builder =
-        RestClient.builder().requestFactory(timeouts.jdkRequestFactory())
-}
-
-private const val HTTP_CONNECT_TIMEOUT = "embabel.agent.platform.http-client.connect-timeout"
-private const val HTTP_READ_TIMEOUT = "embabel.agent.platform.http-client.read-timeout"
-private const val HTTP_USE_REACTOR_NETTY = "embabel.agent.platform.http-client.use-reactor-netty"
-
-/** The http-client connect timeout's default, as NettyClientAutoConfiguration has it. */
-private const val DEFAULT_CONNECT_TIMEOUT = "25s"
-
-/** Parses a duration, naming [property] when [value] is not one. */
-private fun parseTimeout(property: String, value: String): Duration =
-    try {
-        DurationStyle.detectAndParse(value)
-    } catch (e: IllegalArgumentException) {
-        throw IllegalArgumentException("$property must be a duration such as 30s or 5m, but was '$value'", e)
-    }
-
-// Twin of ProviderClientTimeouts in embabel-agent-deepseek-autoconfigure; change both together.
-/**
- * HTTP clients carrying [connect] and [read]: a request factory for blocking calls and a connector
- * for streamed ones.
- *
- * With [reactorNetty] they are configured as NettyClientAutoConfiguration configures the shared
- * client, and [read] is netty's response timeout, which bounds each wait between reads, so a stream
- * that stalls mid-body fails too. Without it they are JDK clients, as the application opted out of
- * reactor-netty, and [read] bounds only the wait for response headers.
- */
-internal data class ProviderClientTimeouts(
-    val connect: Duration,
-    val read: Duration,
-    val reactorNetty: Boolean,
-) {
-
-    fun requestFactory(): ClientHttpRequestFactory =
-        if (reactorNetty) ReactorClientHttpRequestFactory(nettyClient()) else jdkRequestFactory()
-
-    fun connector(): ClientHttpConnector =
-        if (reactorNetty) ReactorClientHttpConnector(nettyClient())
-        else JdkClientHttpConnector(jdkClient()).apply { setReadTimeout(read) }
-
-    /** A JDK request factory, whatever [reactorNetty] says. */
-    fun jdkRequestFactory(): ClientHttpRequestFactory =
-        JdkClientHttpRequestFactory(jdkClient()).apply { setReadTimeout(read) }
-
-    private fun jdkClient(): JdkHttpClient = JdkHttpClient.newBuilder().connectTimeout(connect).build()
-
-    private fun nettyClient(): HttpClient =
-        HttpClient.create()
-            .followRedirect(true)
-            .responseTimeout(read)
-            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connect.toMillis().coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
 }
 
 object MistralAiOptionsConverter : OptionsConverter {

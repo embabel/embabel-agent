@@ -224,8 +224,8 @@ class DeepSeekClientTimeoutsTest {
                 webClientBuilder = ObjectProviders.empty(),
                 httpUseReactorNetty = "false",
             ) { config ->
-                assertTrue(config.timeouts.requestFactory() is JdkClientHttpRequestFactory)
-                assertTrue(config.timeouts.connector() is JdkClientHttpConnector)
+                assertTrue(config.httpClients.requestFactory() is JdkClientHttpRequestFactory)
+                assertTrue(config.httpClients.connector() is JdkClientHttpConnector)
             }
 
             assertFailsWithinTenSeconds { llm.callOnce() }
