@@ -24,11 +24,11 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Gives the description the model sees for an enum constant used as a choice option or a rating
- * level.
+ * Gives the description the model sees for an enum constant used as a choice option, a rating
+ * level or a classification category.
  * <p>
- * Every constant of a {@link ChoiceQuestion} enum needs this annotation. A constant of a
- * {@link RatingQuestion} enum may omit it, and its description is then the level id.
+ * Every constant of a {@link ChoiceQuestion} or {@link Classification} enum needs this annotation.
+ * A constant of a {@link RatingQuestion} enum may omit it, and its description is then the level id.
  */
 @ApiStatus.Experimental
 @Documented

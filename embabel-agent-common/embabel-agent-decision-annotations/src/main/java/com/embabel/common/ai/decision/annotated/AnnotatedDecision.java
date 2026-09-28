@@ -76,6 +76,10 @@ public final class AnnotatedDecision<T> {
 
     /**
      * Returns the decision spec read from the type.
+     * <p>
+     * A type whose only property is a choice question gives a
+     * {@link com.embabel.common.ai.classification.ClassificationSpec}, which a classification
+     * service accepts once cast.
      *
      * @return the spec, with one question per annotated property in Jackson's property order
      */
