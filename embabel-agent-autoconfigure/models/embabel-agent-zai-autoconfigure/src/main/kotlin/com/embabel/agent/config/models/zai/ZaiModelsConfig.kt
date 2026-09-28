@@ -17,6 +17,8 @@ package com.embabel.agent.config.models.zai
 
 import com.embabel.agent.api.models.ZaiModels
 import com.embabel.agent.config.models.zai.ZaiProperties.Companion.PREFIX
+import com.embabel.agent.openai.OpenAiClientTimeoutProperties
+import com.embabel.agent.openai.OpenAiClientTimeouts
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
@@ -42,6 +44,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
+import java.time.Duration
 
 /**
  * Configuration properties for Z.ai (Zhipu AI) GLM models.
@@ -50,7 +53,7 @@ import org.springframework.web.reactive.function.client.WebClient
  * when calling Z.ai APIs.
  */
 @ConfigurationProperties(prefix = PREFIX)
-class ZaiProperties : RetryProperties {
+class ZaiProperties : RetryProperties, OpenAiClientTimeoutProperties {
     /**
      * Base URL for Z.ai API requests. Z.ai/GLM exposes an OpenAI-compatible chat-completions
      * endpoint under the "PaaS v4" path, so this is the host + `/api/paas/v4` prefix; the
@@ -82,6 +85,17 @@ class ZaiProperties : RetryProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 60000L
+
+    /**
+     * How long to wait to connect to the provider.
+     */
+    override var connectTimeout: Duration = OpenAiClientTimeouts.DEFAULT_CONNECT
+
+    /**
+     * How long to wait for a whole response, per attempt. Raise it for a slow model or a large
+     * embedding batch. Unset keeps Spring AI's per-call default of 60 seconds.
+     */
+    override var readTimeout: Duration? = null
 
     override val propertyPrefix: String = PREFIX
     companion object {
@@ -136,6 +150,7 @@ class ZaiModelsConfig(
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
     restClientBuilder = restClientBuilder,
     webClientBuilder = webClientBuilder,
+    timeouts = properties.clientTimeouts(),
 ) {
 
     init {

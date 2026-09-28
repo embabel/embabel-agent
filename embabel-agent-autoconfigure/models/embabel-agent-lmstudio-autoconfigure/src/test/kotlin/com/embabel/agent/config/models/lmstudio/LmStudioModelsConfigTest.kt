@@ -16,6 +16,7 @@
 package com.embabel.agent.config.models.lmstudio
 
 import com.embabel.agent.api.models.LmStudioModels
+import com.embabel.agent.openai.OpenAiClientTimeouts
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
 import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
 import com.embabel.common.ai.model.local.LocalModelKind
@@ -59,6 +60,7 @@ class LmStudioModelsConfigTest {
         // Mock basic dependencies
         every { mockLmStudioProperties.baseUrl } returns "http://127.0.0.1:1234"
         every { mockLmStudioProperties.apiKey } returns null
+        every { mockLmStudioProperties.clientTimeouts() } returns OpenAiClientTimeouts.DEFAULT
         every { mockLmStudioProperties.retryTemplate(any()) } returns mockk(relaxed = true)
         every { mockBeanFactory.registerSingleton(any(), any()) } just Runs
         every { mockObservationRegistry.getIfUnique(any()) } returns ObservationRegistry.NOOP

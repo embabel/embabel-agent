@@ -53,7 +53,6 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.retry.support.RetryTemplate
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
-import java.time.Duration
 import java.time.LocalDate
 
 /**
@@ -80,6 +79,7 @@ import java.time.LocalDate
  * @param httpClientCustomizers Zero-or-more [OpenAiHttpClientBuilderCustomizer] beans to apply
  *   to the OkHttp client (proxy, TLS, interceptors, Micrometer, etc.). When none are present the
  *   factory uses a plain [OpenAIOkHttpClient] builder, preserving existing behaviour.
+ * @param timeouts Connect and read timeouts for every client this factory builds, chat and embedding.
  */
 open class OpenAiCompatibleModelFactory(
     val baseUrl: String?,
@@ -93,12 +93,10 @@ open class OpenAiCompatibleModelFactory(
     @Suppress("UNUSED_PARAMETER")
     webClientBuilder: ObjectProvider<WebClient.Builder> = ObjectProviders.empty(),
     private val httpClientCustomizers: ObjectProvider<OpenAiHttpClientBuilderCustomizer> = ObjectProviders.empty(),
+    protected val timeouts: OpenAiClientTimeouts = OpenAiClientTimeouts.DEFAULT,
 ) {
 
     companion object {
-        private const val CONNECT_TIMEOUT_MS = 5_000L
-        private const val READ_TIMEOUT_MS = 600_000L
-
         private val OPEN_AI = ProviderEndpoint(OpenAiModels.PROVIDER, null)
         private val DEEP_SEEK = ProviderEndpoint(DeepSeekModels.PROVIDER, "https://api.deepseek.com")
         private val MISTRAL = ProviderEndpoint(MistralAiModels.PROVIDER, "https://api.mistral.ai/v1")
@@ -403,15 +401,18 @@ open class OpenAiCompatibleModelFactory(
         // Build the Spring AI OkHttp wrapper and let each customizer configure it
         // (proxy, TLS, interceptors, Micrometer registry, etc.).
         val springAiHttpClient = SpringAiOpenAiHttpClient.builder()
-            .timeout(Duration.ofMillis(READ_TIMEOUT_MS))
+            .timeout(timeouts.toSdkTimeout())
             .observationRegistry(observationRegistry)
             .apply { customizers.forEach { it.customize(this) } }
             .build()
 
         // Wire the customized HTTP client into the SDK's ClientOptions so that
         // OpenAIClientImpl / OpenAIClientAsyncImpl use it instead of building their own.
+        // The timeout is set here too: the SDK passes the ClientOptions timeout on every call,
+        // and SpringAiOpenAiHttpClient lets that per-call value override its own.
         val builder = ClientOptions.builder()
             .httpClient(springAiHttpClient)
+            .timeout(timeouts.toSdkTimeout())
             .apiKey(resolvedApiKey())
         if (baseUrl != null) builder.baseUrl(baseUrl)
         httpHeaders.forEach { (name, value) -> builder.putHeader(name, value) }
@@ -420,7 +421,7 @@ open class OpenAiCompatibleModelFactory(
 
     private fun createOpenAiClient(): OpenAIClient {
         val builder = OpenAIOkHttpClient.builder()
-            .timeout(Duration.ofMillis(READ_TIMEOUT_MS))
+            .timeout(timeouts.toSdkTimeout())
             .apiKey(resolvedApiKey())
         if (baseUrl != null) {
             logger.info("Using custom OpenAI base URL: {}", baseUrl)
@@ -432,7 +433,7 @@ open class OpenAiCompatibleModelFactory(
 
     private fun createOpenAiClientAsync(): OpenAIClientAsync {
         val builder = OpenAIOkHttpClientAsync.builder()
-            .timeout(Duration.ofMillis(READ_TIMEOUT_MS))
+            .timeout(timeouts.toSdkTimeout())
             .apiKey(resolvedApiKey())
         if (baseUrl != null) {
             builder.baseUrl(baseUrl)
@@ -455,11 +456,13 @@ open class OpenAiCompatibleModelFactory(
             name = model,
             chatModel = chatModelOf(model),
             provider = provider,
-            optionsConverter = if (provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) {
-                OpenAiReasoningEffortOptionsConverter(optionsConverter)
-            } else {
-                optionsConverter
-            },
+            optionsConverter = timeouts.optionsConverter(
+                if (provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) {
+                    OpenAiReasoningEffortOptionsConverter(optionsConverter)
+                } else {
+                    optionsConverter
+                }
+            ),
             pricingModel = pricingModel,
             knowledgeCutoffDate = knowledgeCutoffDate,
         )
@@ -549,6 +552,7 @@ open class OpenAiCompatibleModelFactory(
             .metadataMode(MetadataMode.EMBED)
             .options(OpenAiEmbeddingOptions.builder()
                 .model(model)
+                .apply { timeouts.read?.let { timeout(it) } }
                 .build())
             .observationRegistry(observationRegistry)
             .build()

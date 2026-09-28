@@ -443,7 +443,19 @@ From `AgentPlatformProperties.ModelsConfig` - model provider integration configu
 |`180000`
 |Maximum backoff interval in milliseconds
 
+|`embabel.agent.platform.models.openai.connect-timeout`
+|Duration
+|`1m`
+|How long to wait to connect
+
+|`embabel.agent.platform.models.openai.read-timeout`
+|Duration
+|_unset_
+|How long to wait for a whole response, per attempt. Unset keeps Spring AI's per-call default of 60 seconds. The client retries a timed-out call twice, so a caller waits up to three times this value
+
 |===
+
+The same `connect-timeout` and `read-timeout` properties apply to every OpenAI-compatible provider, under its own prefix: `openai.custom`, `lmstudio`, `gemini`, `minimax`, `dashscope`, `zai` and `docker`, each under `embabel.agent.platform.models`.
 
 ====== Google GenAI (Native)
 
@@ -996,5 +1008,15 @@ From `DockerProperties` - configuration for Docker local models (OpenAI-compatib
 |Long
 |`180000`
 |Maximum backoff interval in milliseconds
+
+|`embabel.agent.platform.models.docker.connect-timeout`
+|Duration
+|`1m`
+|How long to wait to connect
+
+|`embabel.agent.platform.models.docker.read-timeout`
+|Duration
+|_unset_
+|How long to wait for a whole response, per attempt. Unset keeps Spring AI's per-call default of 60 seconds. The client retries a timed-out call twice, so a caller waits up to three times this value
 
 |===

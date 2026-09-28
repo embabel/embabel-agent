@@ -18,6 +18,8 @@ package com.embabel.agent.config.models.docker
 import com.embabel.agent.api.models.DockerLocalModels.Companion.PROVIDER
 import com.embabel.agent.config.models.docker.DockerRetryProperties.Companion.PREFIX
 import com.embabel.agent.openai.OpenAiChatOptionsConverter
+import com.embabel.agent.openai.OpenAiClientTimeoutProperties
+import com.embabel.agent.openai.OpenAiClientTimeouts
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.ProviderInitialization
@@ -57,7 +59,7 @@ import java.time.Duration
 
 
 @ConfigurationProperties(prefix = PREFIX)
-class DockerRetryProperties : RetryProperties {
+class DockerRetryProperties : RetryProperties, OpenAiClientTimeoutProperties {
 
     /**
      *  Maximum number of attempts.
@@ -78,6 +80,17 @@ class DockerRetryProperties : RetryProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 180000L
+
+    /**
+     * How long to wait to connect to the Docker model runner.
+     */
+    override var connectTimeout: Duration = OpenAiClientTimeouts.DEFAULT_CONNECT
+
+    /**
+     * How long to wait for a whole response, per attempt. Raise it for a slow model or a large
+     * embedding batch. Unset keeps Spring AI's per-call default of 60 seconds.
+     */
+    override var readTimeout: Duration? = null
 
     override val propertyPrefix: String = PREFIX
     companion object {
@@ -116,7 +129,6 @@ class DockerConnectionProperties {
     LocalModelDiscoveryProperties::class,
 )
 class DockerLocalModelsConfig(
-    @Suppress("UNUSED_PARAMETER")
     dockerRetryProperties: DockerRetryProperties,
     private val dockerConnectionProperties: DockerConnectionProperties,
     private val configurableBeanFactory: ConfigurableBeanFactory,
@@ -127,6 +139,8 @@ class DockerLocalModelsConfig(
     private val logger = LoggerFactory.getLogger(DockerLocalModelsConfig::class.java)
 
     private val discoveryFailures = DiscoveryFailureReporter(logger)
+
+    private val timeouts = dockerRetryProperties.clientTimeouts()
 
     private companion object {
         /** Connect and read budget for a model listing against a runner on this machine. */
@@ -157,6 +171,7 @@ class DockerLocalModelsConfig(
             // The openai-java SDK rejects null/blank API keys even when the
             // backing server doesn't require auth. Placeholder is fine.
             .apiKey("no-auth")
+            .timeout(timeouts.toSdkTimeout())
             .build()
     }
 
@@ -258,6 +273,7 @@ class DockerLocalModelsConfig(
             .metadataMode(MetadataMode.EMBED)
             .options(OpenAiEmbeddingOptions.builder()
                 .model(modelId)
+                .apply { timeouts.read?.let { timeout(it) } }
                 .build())
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
             .build()
@@ -288,7 +304,7 @@ class DockerLocalModelsConfig(
             name = modelId,
             chatModel = chatModel,
             provider = PROVIDER,
-            optionsConverter = OpenAiChatOptionsConverter,
+            optionsConverter = timeouts.optionsConverter(OpenAiChatOptionsConverter),
             knowledgeCutoffDate = null,
             pricingModel = PricingModel.ALL_YOU_CAN_EAT,
         )

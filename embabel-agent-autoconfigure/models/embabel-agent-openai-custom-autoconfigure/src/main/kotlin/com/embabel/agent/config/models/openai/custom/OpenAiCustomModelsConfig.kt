@@ -16,6 +16,8 @@
 package com.embabel.agent.config.models.openai.custom
 
 import com.embabel.agent.config.models.openai.custom.OpenAiCustomProperties.Companion.PREFIX
+import com.embabel.agent.openai.OpenAiClientTimeoutProperties
+import com.embabel.agent.openai.OpenAiClientTimeouts
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.openai.StandardOpenAiOptionsConverter
 import com.embabel.agent.spi.LlmService
@@ -36,6 +38,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
+import java.time.Duration
 
 /**
  * Configuration properties for OpenAI Custom model settings.
@@ -43,7 +46,7 @@ import org.springframework.web.reactive.function.client.WebClient
  * prefix embabel.agent.platform.models.openai.custom
  */
 @ConfigurationProperties(prefix = PREFIX)
-class OpenAiCustomProperties : RetryProperties {
+class OpenAiCustomProperties : RetryProperties, OpenAiClientTimeoutProperties {
     /**
      * Base URL for OpenAI Custom API requests.
      */
@@ -90,6 +93,17 @@ class OpenAiCustomProperties : RetryProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 180000L
+
+    /**
+     * How long to wait to connect to the provider.
+     */
+    override var connectTimeout: Duration = OpenAiClientTimeouts.DEFAULT_CONNECT
+
+    /**
+     * How long to wait for a whole response, per attempt. Raise it for a slow model or a large
+     * embedding batch. Unset keeps Spring AI's per-call default of 60 seconds.
+     */
+    override var readTimeout: Duration? = null
 
     override val propertyPrefix: String = PREFIX
     companion object {
@@ -150,6 +164,7 @@ class OpenAiCustomModelsConfig(
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
     restClientBuilder = restClientBuilder,
     webClientBuilder = webClientBuilder,
+    timeouts = properties.clientTimeouts(),
 ) {
 
     private val customModelList: List<String> = (envCustomModels ?: properties.models)
@@ -209,7 +224,7 @@ class OpenAiCustomModelsConfig(
             name = modelId,
             chatModel = chatModel,
             provider = CUSTOM_PROVIDER,
-            optionsConverter = StandardOpenAiOptionsConverter,
+            optionsConverter = timeouts.optionsConverter(StandardOpenAiOptionsConverter),
         )
     }
 
