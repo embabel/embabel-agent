@@ -16,7 +16,7 @@ flowchart TD
     Caller[caller] --> Obs[ObservedDecisionService]
     Obs -->|ask: embabel.ai.ask| Exec[preflight and execution]
     Exec -->|native service| Hook[askNative: embabel.ai.decision ask_native]
-    Exec -->|any other service| Split[assess / choose / rate]
+    Exec -->|any other service| Split[assess / classify / rate]
     Hook --> Jev[TypeSafeDecisionService]
     Hook --> Llm[LlmDecisionService]
     Hook --> Fix[NoOpDecisionService / StubDecisionService]
@@ -60,13 +60,10 @@ The default derives from the hook interfaces the service implements:
 |Hook |Enables
 
 |None
-|Proposition questions, one `assess` call each
+|Proposition questions, one `assess` call each. Choice questions, one `classify` call each.
 
 |`PropositionAssessment.assess(input, question)`
 |Proposition questions, one call each with the question's name and instructions
-
-|`ChoiceAssessment.choose(input, question)`
-|Choice questions, one call each
 
 |`RatingAssessment.rate(input, question)`
 |Rating questions, one call each
@@ -75,13 +72,19 @@ The default derives from the hook interfaces the service implements:
 |The whole spec in one call. The service overrides `capabilities()` to list the kinds it answers this way.
 |===
 
-The default always includes proposition questions and reports no limits.
+The default always includes proposition and choice questions and reports no limits.
+Every decision service is a classification service, so it can answer a choice question through `classify`.
 A service declares other kinds, `maxQuestions` or `maxInputCharacters` by overriding `capabilities()`.
-The hook interfaces declare no default methods, so a class can implement all four.
+The hook interfaces declare no default methods, so a class can implement all three.
 
 A service that implements none of the hooks answers proposition questions through `ask`, one `assess` call per proposition, with the question's instructions as the proposition.
-A choice question on such a service fails the preflight.
+It answers each choice question with one `classify` call.
+A rating question on such a service fails the preflight.
 Its `classify` and `assess` methods stay directly usable.
+
+A choice question is a classification request: `ClassificationRequest.of(input, ClassificationSpec.of(question))`.
+The provider sees the question's own instructions and categories.
+A `ClassificationRequest` is also a `DecisionRequest`, so `ask(request)` accepts one and `response.answer(spec.getQuestion())` returns the classification result.
 
 ===== Routing
 
@@ -95,14 +98,14 @@ Any other service answers each question in spec order:
 |`PropositionAssessment.assess(input, question)` when the service implements it, otherwise `assess(request)`
 
 |Choice
-|`ChoiceAssessment.choose(input, question)`
+|`classify(request)`, with a classification request built from the question
 
 |Rating
 |`RatingAssessment.rate(input, question)`
 |===
 
 A typed failure is recorded and the next question is asked.
-An `IllegalArgumentException` from `choose` or `rate`, or from checking its answer against the question, becomes that question's `INVALID_RESPONSE` failure.
+An `IllegalArgumentException` from `classify` or `rate`, or from checking its answer against the question, becomes that question's `INVALID_RESPONSE` failure.
 Any other exception stops the request and propagates unchanged.
 The thread's interrupt flag is checked before each question, and a set flag stops the request with `InterruptedException`.
 
@@ -115,27 +118,24 @@ A request that fails a kind or limit check throws `UnsupportedDecisionException`
 Its message names the service, each question concerned with its kind, what is missing or exceeded, the service's capabilities and a remedy.
 A kind missing from the capabilities gets one of two explanations:
 
-* The service lacks the hook for the kind. The message says the question needs that hook, with the remedy `Use a service that implements ChoiceAssessment, or remove these questions.`
-* The service has the hook, or answers questions natively, and its capabilities leave the kind out. For a per-question service the message names the method that backs the question. The remedy is `Report CHOICE in the service's capabilities(), use a service whose capabilities include CHOICE, or remove these questions.`
+* The service lacks the hook for the kind. Only rating questions need a hook. The message says the question needs `RatingAssessment`, with the remedy `Use a service that implements RatingAssessment, or remove these questions.`
+* The service can answer the kind, and its capabilities leave the kind out. For a per-question service the message names the method that backs the question: `assess`, `PropositionAssessment`, `classify` or `RatingAssessment`. The remedy is `Report CHOICE in the service's capabilities(), use a service whose capabilities include CHOICE, or remove these questions.`
 
 The message holds question names and kinds only.
 The input, instructions, options and levels stay out of it.
 
-Capabilities that claim a kind the service backs with neither its hook nor `NativeQuestionSetExecution` throw `IllegalStateException` before any provider call:
-
-* choice questions without `ChoiceAssessment`
-* rating questions without `RatingAssessment`
-
+Capabilities that claim rating questions on a service that implements neither `RatingAssessment` nor `NativeQuestionSetExecution` throw `IllegalStateException` before any provider call.
 The message names the service and the missing hook interface.
 
 ===== Decorators
 
-`ObservedDecisionService` forwards `capabilities()` and every hook to their delegate.
+`ObservedDecisionService` forwards `capabilities()`, `classify` and every hook to their delegate.
 A decorator adds no kind.
 It implements `DelegatingDecisionService`, so preflight inspects the hooks of the innermost service that does the work.
 Routing follows the hooks of that innermost service, and execution calls those hooks on the decorator.
 A decorator that reports a hook source implements every hook interface the hook source implements.
 When a request is routed through a hook the decorator lacks, preflight throws `IllegalStateException` before any provider call.
+A choice question needs no hook on the decorator, because execution calls the decorator's own `classify`.
 The message names the decorator, its class, the hook source and the missing hook, and asks for the hook to be implemented on the decorator.
 `ObservedDecisionService.ask` runs the shared preflight and execution with the delegate's hooks, so each provider call is observed once.
 A delegate's own override of `ask` is therefore not called through `ObservedDecisionService`.
@@ -219,7 +219,8 @@ Question names stay with the caller, so no name character can break a provider's
 |===
 
 Jev and prompted services support every kind, answer a whole spec in one native call and report no limits.
-They also implement every one-question hook for direct calls.
+They also implement the proposition and rating hooks for direct calls.
+Their `classify` answers one choice question with its own instructions and categories.
 
 `NoOpDecisionService(name)` serves disabled configuration.
 Its provider is `none`, and it makes no provider call.
@@ -228,11 +229,12 @@ Construction logs one INFO line, and each request logs the usual WARN line for a
 
 `StubDecisionService.builder(name)` builds a service for tests.
 Its provider is `stub`.
-Outcomes for `ask`, `choose`, `rate` and question `assess` calls are scripted by question name, for `assess(request)` calls by proposition text, and for `classify` by the set of category ids.
+Outcomes for `ask`, `rate` and question `assess` calls are scripted by question name, and for `assess(request)` calls by proposition text.
+`classify` returns the choice scripted for the request's question name, and otherwise the outcome scripted for its set of category ids.
 A call with no scripted outcome throws `IllegalStateException` naming the question.
 By default the stub answers a whole spec in one native call.
 Scripted native answers go through the same question checks as provider answers.
-After `perQuestion()` the builder builds a stub that answers each question through `PropositionAssessment`, `ChoiceAssessment` and `RatingAssessment`.
+After `perQuestion()` the builder builds a stub that answers each question through `PropositionAssessment`, `classify` and `RatingAssessment`.
 The stub supports every kind unless the builder's `capabilities(...)` sets others.
 `calls()` returns the calls made, in order.
 
@@ -290,12 +292,12 @@ Wrap a service you build in `ObservedDecisionService(service, observationRegistr
 |One `answer.<kind>.<outcome>` per question
 
 |`embabel.ai.decision`
-|Each `askNative`, `assess`, `choose` and `rate` call
+|Each `askNative`, `assess` and `rate` call
 |`operation`, `outcome`
 |None
 
 |`embabel.ai.classification`
-|Each `classify` call
+|Each `classify` call, including a choice question asked on its own
 |`operation`, `outcome`
 |None
 |===
@@ -303,19 +305,20 @@ Wrap a service you build in `ObservedDecisionService(service, observationRegistr
 Provider-call observations are children of the ask observation.
 A native ask records one ask and one `ask_native` observation.
 A per-question ask of three questions records one ask and three provider observations.
+A choice question among them records `embabel.ai.classification` with `operation=classify`.
 A request rejected by the preflight records one ask with `outcome=unsupported` and no provider observation.
 
 |===
 |Tag |Values
 
 |`operation`
-|`ask` on `embabel.ai.ask`. `ask_native`, `assess`, `choose`, `rate` or `classify` on provider calls.
+|`ask` on `embabel.ai.ask`. `ask_native`, `assess`, `rate` or `classify` on provider calls.
 
 |`outcome` on `embabel.ai.ask`
 |`complete`, `partial`, `request_failure`, `unsupported`, `exception`, `interrupted`, `cancelled`
 
 |`outcome` on provider calls
-|The result kind, such as `answered`, `selected`, `no_match`, `inconclusive` or `failure`. `invalid_response` when a `choose` or `classify` answer falls outside the question's options. `exception`, `interrupted` or `cancelled` when the call throws.
+|The result kind, such as `answered`, `selected`, `no_match`, `inconclusive` or `failure`. `invalid_response` when a `classify` answer falls outside the question's options. `exception`, `interrupted` or `cancelled` when the call throws.
 
 |`question_count`
 |`1`, `2-4`, `5-16`, `17+`
@@ -352,7 +355,7 @@ Question names, input and model output never become tag values.
 
 |`IllegalStateException` naming a hook interface
 |The exception message
-|The service's capabilities claim choice or rating without the hook
+|The service's capabilities claim rating without the hook
 |Implement the hook, or remove the claim from `capabilities()`
 
 |Every answer is `Failure(UNAVAILABLE)`
@@ -426,7 +429,7 @@ A provider WARN line holds the service name, provider, operation, failure reason
 The cause category is one of `timeout`, `connection`, `rate_limited`, `http_4xx`, `http_5xx`, `invalid_response` and `other`.
 The Jev line starts with `TypeSafe <operation label> failed with reason <reason>`, makes one attempt, and ends with the provider request id or `none`.
 The prompted line starts with `Decision call failed`, counts the attempts made by its retry settings, and ends with a remedy that names the retry property prefix.
-A one-question call logs its operation: `assess`, `choose` or `rate`.
+A one-question call logs its operation: `assess`, `classify` or `rate`.
 Lines up to DEBUG hold no input, instructions, option or level text, received category ids, credentials or provider text.
 Question names and service names appear in logs, exception messages and span events.
 

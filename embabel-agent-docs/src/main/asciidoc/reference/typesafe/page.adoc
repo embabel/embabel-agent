@@ -169,8 +169,9 @@ other Embabel providers while preserving the distinct decision-service contract.
 
 A TypeSafe service runs a whole decision spec in one Jev `systemOne` call. It supports proposition,
 choice and rating questions. The SDK reports no limits, so the service reports none. Questions go
-to Jev under the keys `q1` to `qN` in spec order. A question `assess`, `choose` and `rate` each make
-one call for one question.
+to Jev under the keys `q1` to `qN` in spec order. A question `assess` and `rate` each make one call
+for one question. A choice question asked on its own goes through `classify`, one call under the key
+`classification` with the question's instructions and categories.
 
 A proposition becomes a Jev `noul`, a choice a `choice` and a rating a `score`. The score value is
 an expected level index, and the answer carries a distribution over the levels and no selected level.
