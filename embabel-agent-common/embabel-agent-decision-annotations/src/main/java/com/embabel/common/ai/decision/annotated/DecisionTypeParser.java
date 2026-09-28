@@ -229,20 +229,20 @@ final class DecisionTypeParser {
         if (!problems.isEmpty()) {
             throw failure();
         }
-        return new Parsed(specOf(questions, settableNames), questionNames, settableNames);
+        return new Parsed(specOf(questions), questionNames, settableNames);
     }
 
     /**
-     * Builds the spec, as a classification spec when the type holds one choice question and no
-     * other property that projection sets. The classification spec keeps the question's name and
-     * equals the plain spec, so projection and the spec JSON do not change.
+     * Builds the spec, as a classification spec when the type's only question is a choice.
+     * Properties that aren't questions never reach the spec, so they don't change its type.
+     * The classification spec keeps the question's name and equals the plain spec, so projection
+     * and the spec JSON do not change.
      *
      * @param questions the questions read, in Jackson's order
-     * @param settableNames the names projection can set
      * @return the spec
      */
-    private static DecisionSpec specOf(List<Question<?>> questions, List<String> settableNames) {
-        if (questions.size() == 1 && settableNames.size() == 1 && questions.get(0) instanceof ChoiceQuestionSpec choice) {
+    private static DecisionSpec specOf(List<Question<?>> questions) {
+        if (questions.size() == 1 && questions.get(0) instanceof ChoiceQuestionSpec choice) {
             return ClassificationSpec.of(choice);
         }
         return DecisionSpec.of(questions);
