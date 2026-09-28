@@ -421,10 +421,22 @@ class RatingQuestionSpec private constructor(
 // A private object compiles to a package-private class, so these shared checks add nothing Java can see.
 private object QuestionRules {
 
+    /**
+     * Checks that a question name is not blank.
+     *
+     * @param name the question name to check
+     */
     fun requireName(name: String) {
         require(name.isNotBlank()) { "Question name must not be blank" }
     }
 
+    /**
+     * Checks that instructions were set and are not blank.
+     *
+     * @param name the question name, used in error messages
+     * @param instructions the instructions to check, or null when none were set
+     * @return the instructions
+     */
     fun requireInstructions(name: String, instructions: String?): String {
         require(instructions != null) { "Question '$name': instructions are missing. Call asking(...) before build()." }
         require(instructions.isNotBlank()) { "Question '$name': instructions must not be blank" }

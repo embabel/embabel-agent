@@ -592,12 +592,24 @@ class DecisionResponse private constructor(
 // A private object compiles to a package-private class, so these shared checks add nothing Java can see.
 private object AnswerRules {
 
+    /**
+     * Checks that an answer name is not blank.
+     *
+     * @param name the answer name to check
+     */
     fun requireName(name: String) {
         require(name.isNotBlank()) { "Answer name must not be blank" }
     }
 
-    // Says how an answer differs from a question with the same name, or returns null when it fits.
-    // Only the kind and the options or levels can be compared, because an answer holds no instructions.
+    /**
+     * Says how an answer differs from a question with the same name, or returns null when it fits.
+     * Only the kind and the options or levels can be compared, because an answer holds no
+     * instructions.
+     *
+     * @param answer the answer to check
+     * @param question the question it should fit
+     * @return why they differ, or null when the answer fits the question
+     */
     fun mismatch(answer: DecisionAnswer, question: Question<*>): String? = when {
         answer.kind != question.kind ->
             "it is a ${answer.kind.wireName} answer and the question is a ${question.kind.wireName} question"
@@ -627,12 +639,25 @@ private object AnswerRules {
         return "its $label have different descriptions from the question's for ${changed.joinToString { "'$it'" }}"
     }
 
+    /**
+     * Reads the failure reason out of an answer's outcome.
+     *
+     * @param answer the answer to check
+     * @return the reason its outcome failed, or null when it did not fail
+     */
     fun failureReason(answer: DecisionAnswer): FailureReason? = when (answer) {
         is DecisionAnswer.Proposition -> answer.outcome.let { if (it is PropositionResult.Failure) it.reason else null }
         is DecisionAnswer.Choice -> answer.outcome.let { if (it is ClassificationResult.Failure) it.reason else null }
         is DecisionAnswer.Rating -> answer.outcome.let { if (it is RatingResult.Failure) it.reason else null }
     }
 
+    /**
+     * Builds the failure answer for a question, in the outcome type its kind requires.
+     *
+     * @param question the question that failed
+     * @param reason why it failed
+     * @return the failure answer
+     */
     fun failure(question: Question<*>, reason: FailureReason): DecisionAnswer = when (question) {
         is PropositionQuestionSpec -> DecisionAnswer.Proposition.create(question.name, PropositionResult.Failure(reason))
         is ChoiceQuestionSpec ->
