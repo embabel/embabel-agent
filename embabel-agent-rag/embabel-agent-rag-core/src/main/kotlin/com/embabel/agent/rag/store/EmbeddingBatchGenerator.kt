@@ -52,7 +52,7 @@ object EmbeddingBatchGenerator {
         }
 
         val batches = retrievables.chunked(batchSize)
-        val run = BatchRun(embeddingService, logger, abandonAfter = halvingsToOne(batchSize) + 3)
+        val run = EmbeddingBatchRun(embeddingService, logger, abandonAfter = halvingsToOne(batchSize) + 3)
 
         fun logProgress(current: Int) {
             val progress = VisualizableTask(
@@ -77,7 +77,7 @@ object EmbeddingBatchGenerator {
                 "{} of {} chunks could not be embedded ({}): {}",
                 result.missingChunkIds.size,
                 retrievables.size,
-                describe(result.cause),
+                describeFailure(result.cause),
                 describeIds(result.missingChunkIds),
             )
         }
@@ -110,113 +110,13 @@ object EmbeddingBatchGenerator {
      * bad chunk never trips it, but a service that fails everything does within about 10 calls.
      */
     private fun halvingsToOne(size: Int): Int =
+        // The sequence is size and each halving after it, ending at 1: for 3 it is 3, 2, 1. count()
+        // includes size itself, so the number of halvings is one less: 2 for 3, 7 for 100.
         generateSequence(size) { if (it > 1) (it + 1) / 2 else null }.count() - 1
-
-    private fun describe(e: Throwable?): String = e?.message ?: e?.javaClass?.simpleName ?: "unknown"
 
     private fun describeIds(ids: List<String>): String =
         if (ids.size <= MAX_IDS_LOGGED) ids.joinToString()
         else "${ids.take(MAX_IDS_LOGGED).joinToString()} and ${ids.size - MAX_IDS_LOGGED} more"
 
     private const val MAX_IDS_LOGGED = 20
-
-    /**
-     * State for one [embedInBatches] call.
-     */
-    private class BatchRun(
-        private val embeddingService: EmbeddingService,
-        private val logger: Logger,
-        private val abandonAfter: Int,
-    ) {
-        private val embeddings = mutableMapOf<String, FloatArray>()
-        private val missing = mutableListOf<String>()
-        private var missingCause: Exception? = null
-        private var consecutiveFailures = 0
-        private var abandoned = false
-
-        fun result() = EmbeddingBatchResult(
-            embeddings = embeddings.toMap(),
-            missingChunkIds = missing.toList(),
-            cause = missingCause,
-        )
-
-        /**
-         * Embed [batch], recording each chunk as embedded or missing.
-         *
-         * A failed batch is split in two and each half embedded in turn, down to single chunks.
-         * A single chunk that fails is recorded missing. Once [abandonAfter] calls have failed in a
-         * row, this and every later batch is recorded missing without calling the service.
-         */
-        fun embed(batch: List<Retrievable>) {
-            if (abandoned) {
-                markMissing(batch)
-                return
-            }
-            val failure = attempt(batch) ?: return
-            consecutiveFailures++
-            when {
-                consecutiveFailures >= abandonAfter -> abandon(batch, failure)
-                batch.size == 1 -> {
-                    logger.warn("Embedding chunk {} failed ({})", batch.single().id, describe(failure))
-                    markMissing(batch, failure)
-                }
-
-                else -> split(batch, failure)
-            }
-        }
-
-        /**
-         * One call to the service for [batch]. Records the vectors and resets the failure count on
-         * success. Returns the failure, or null on success. A response with the wrong number of
-         * vectors is a failure, since the vectors can't be matched to chunks.
-         */
-        private fun attempt(batch: List<Retrievable>): Exception? = try {
-            val vectors = embeddingService.embed(batch.map { it.embeddableValue() })
-            check(vectors.size == batch.size) {
-                "embedding service returned ${vectors.size} vectors for ${batch.size} texts"
-            }
-            batch.zip(vectors).forEach { (chunk, vector) -> embeddings[chunk.id] = vector }
-            consecutiveFailures = 0
-            null
-        } catch (e: Exception) {
-            e
-        }
-
-        /**
-         * Embed each half of [batch] after it failed as a whole. The first half takes the extra
-         * chunk when the size is odd.
-         */
-        private fun split(batch: List<Retrievable>, failure: Exception) {
-            val half = (batch.size + 1) / 2
-            val first = batch.subList(0, half)
-            val second = batch.subList(half, batch.size)
-            val halves = if (first.size == second.size) "2 batches of ${first.size}"
-            else "batches of ${first.size} and ${second.size}"
-            logger.warn("Embedding batch of {} chunks failed ({}); retrying as {}", batch.size, describe(failure), halves)
-            embed(first)
-            embed(second)
-        }
-
-        /**
-         * Stop calling the service for the rest of this run, and record [batch] missing.
-         */
-        private fun abandon(batch: List<Retrievable>, failure: Exception) {
-            logger.warn(
-                "Embedding failed {} times in a row ({}); making no more embedding calls for this write",
-                consecutiveFailures,
-                describe(failure),
-            )
-            abandoned = true
-            markMissing(batch, failure)
-        }
-
-        /**
-         * Record [batch] as missing, and [failure] as the cause reported for the run. A batch
-         * skipped after abandoning has no failure of its own and keeps the one that caused it.
-         */
-        private fun markMissing(batch: List<Retrievable>, failure: Exception? = null) {
-            missing += batch.map { it.id }
-            failure?.let { missingCause = it }
-        }
-    }
 }

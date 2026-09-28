@@ -180,6 +180,9 @@ abstract class AbstractChunkingContentElementRepository(
         e
     }
 
+    /**
+     * One exception covering both, or whichever is not null, or null when both are.
+     */
     private fun combine(
         first: EmbeddingIncompleteException?,
         second: EmbeddingIncompleteException?,

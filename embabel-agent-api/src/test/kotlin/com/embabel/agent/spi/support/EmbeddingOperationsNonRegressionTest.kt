@@ -65,7 +65,7 @@ import java.util.concurrent.atomic.AtomicInteger
  *       — `embeddingService.embed(query)` and `embeddingService!!.embed(getAssetText(asset))`
  *
  *   * [EmbeddingBatchGeneratorPattern]
- *       — `embabel-agent-rag-core`/EmbeddingBatchGenerator.kt:174
+ *       — `embabel-agent-rag-core`/EmbeddingBatchRun.kt:74
  *       — bulk `embed(texts: List<String>)`
  *
  *   * [LuceneSearchOperationsPattern]
@@ -232,7 +232,7 @@ class EmbeddingOperationsNonRegressionTest {
     }
 
     // ---------------------------------------------------------------------
-    // Production call site: rag-core/EmbeddingBatchGenerator.kt
+    // Production call site: rag-core/EmbeddingBatchRun.kt
     // Calls `embeddingService.embed(texts)` where `texts` is a List<String>.
     // ---------------------------------------------------------------------
     @Nested
