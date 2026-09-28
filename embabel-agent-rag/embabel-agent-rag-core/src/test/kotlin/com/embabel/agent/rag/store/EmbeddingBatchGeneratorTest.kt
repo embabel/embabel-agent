@@ -196,6 +196,30 @@ class EmbeddingBatchGeneratorTest {
     }
 
     @Test
+    fun `three adjacent chunks that always fail abandon the rest`() {
+        val embeddingService = mockk<EmbeddingService>()
+        val chunks = (1..8).map { i -> createChunk("chunk$i", "Text $i") }
+
+        every { embeddingService.embed(any<List<String>>()) } answers {
+            val texts = firstArg<List<String>>()
+            if ("Text 1" in texts || "Text 2" in texts || "Text 3" in texts) throw RuntimeException("rejected")
+            texts.map { floatArrayOf(1f) }
+        }
+
+        val result = EmbeddingBatchGenerator.embedInBatches(
+            embeddingService = embeddingService,
+            retrievables = chunks,
+            batchSize = 8,
+            logger = logger,
+        )
+
+        // Six failures in a row reach the limit of 3 + 3: 8, 4, 2, chunk1, chunk2, then chunks 3 and 4
+        verify(exactly = 6) { embeddingService.embed(any<List<String>>()) }
+        assertTrue(result.embeddings.isEmpty())
+        assertEquals(chunks.map { it.id }, result.missingChunkIds)
+    }
+
+    @Test
     fun `a dead embedding service is abandoned after a bounded number of calls`() {
         val embeddingService = mockk<EmbeddingService>()
         val chunks = (1..1000).map { i -> createChunk("chunk$i", "Text $i") }

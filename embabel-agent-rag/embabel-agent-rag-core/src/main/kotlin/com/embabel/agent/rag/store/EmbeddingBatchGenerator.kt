@@ -68,11 +68,10 @@ object EmbeddingBatchGenerator {
         val result = run.result()
         if (!result.isComplete) {
             logger.error(
-                "{} of {} chunks could not be embedded: {} ({})",
+                "{} of {} chunks could not be embedded: {}",
                 result.missingChunkIds.size,
                 retrievables.size,
                 describeIds(result.missingChunkIds),
-                describe(result.cause),
                 result.cause,
             )
         }
