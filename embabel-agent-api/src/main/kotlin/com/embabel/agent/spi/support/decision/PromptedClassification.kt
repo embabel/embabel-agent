@@ -92,12 +92,23 @@ internal object PromptedClassification {
             }
         }
 
-    // The categories are joined in after trimMargin so a line in a description that starts with '|' stays as written.
+    /**
+     * Builds the full instructions text for one classification request, joining the categories in
+     * after trimMargin so a line in a description that starts with '|' stays as written.
+     *
+     * @param request the classification request with the categories to list
+     * @return the system message text
+     */
     private fun instructions(request: ClassificationRequest): String {
         val categories = request.categories.joinToString("\n") { "- ${it.id}: ${it.description}" }
         return "$instructionsBeforeCategories\n$categories\n\n$instructionsAfterCategories"
     }
 
+    /**
+     * Throws for an answer that breaks the decision rules.
+     *
+     * @param rule what rule the answer broke
+     */
     private fun invalid(rule: String): Nothing = throw InvalidDecisionAnswerException(rule)
 }
 

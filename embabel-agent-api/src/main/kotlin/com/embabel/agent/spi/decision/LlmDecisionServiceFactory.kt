@@ -101,18 +101,46 @@ class LlmDecisionServiceFactory @ApiStatus.Internal @JvmOverloads internal const
         retryName: String,
     ): ClassificationService = observedClassificationService(llmDecisionService(llmNamed(llmName), retry, retryName))
 
+    /**
+     * Looks up the model with this name.
+     *
+     * @param llmName the model name to resolve
+     * @return the matching LLM
+     * @throws IllegalArgumentException if the name is blank
+     * @throws NoSuitableModelException if no model has this name
+     */
     private fun llmNamed(llmName: String): LlmService<*> {
         require(llmName.isNotBlank()) { "LLM name must not be blank" }
         return modelProvider.getLlm(ModelSelectionCriteria.byName(llmName))
     }
 
+    /**
+     * Wraps a decision service so every call is recorded as an observation.
+     *
+     * @param service the raw decision service
+     * @return the observed decision service
+     */
     private fun observedDecisionService(service: LlmDecisionService): DecisionService =
         ObservedDecisionService(service, observationRegistry)
 
+    /**
+     * Wraps a decision service as a classification service, recording every call as an observation.
+     *
+     * @param service the raw decision service
+     * @return the observed classification service
+     */
     private fun observedClassificationService(service: LlmDecisionService): ClassificationService =
         ObservedClassificationService(LlmClassificationService(service), observationRegistry)
 
-    // Every call selects this exact model, so the model provider is never asked again.
+    /**
+     * Builds a decision service pinned to this exact model, so the model provider is never asked
+     * again for it.
+     *
+     * @param llm the resolved model to use
+     * @param retry the retry settings for calls
+     * @param retryName the name retry log lines carry
+     * @return the built decision service
+     */
     private fun llmDecisionService(llm: LlmService<*>, retry: RetryProperties, retryName: String) =
         LlmDecisionService(llmOperations, llm, LlmOptions(PreResolvedModelSelectionCriteria(llm)), retry, retryName)
 }

@@ -82,6 +82,14 @@ internal class LlmDecisionService(
             PromptedProposition.result(answer, provenance)
         }
 
+    /**
+     * Sends one prompt to the model and reads back the typed answer, retrying on failure.
+     *
+     * @param operation the name used in retry and log lines
+     * @param messages the prompt to send
+     * @param answerType the class the reply parses into
+     * @return the parsed answer
+     */
     private fun <A : Any> ask(operation: String, messages: List<Message>, answerType: Class<A>): A =
         retryTemplate.execute<A, Exception> {
             guarded {

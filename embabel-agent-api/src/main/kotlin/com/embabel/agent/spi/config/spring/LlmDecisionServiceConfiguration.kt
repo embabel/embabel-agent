@@ -202,10 +202,16 @@ internal class LlmDecisionServiceConfiguration {
             services.forEach { (key, service) -> registry.registerBeanDefinition(key, definition(key, service)) }
         }
 
-        // The definition names the service type so the model provider's search for LLM beans can
-        // skip it without creating it. It is eager, so an unknown LLM stops startup even when the
-        // application makes beans lazy by default. The retry settings are checked here, before any
-        // bean is created.
+        /**
+         * Names the service type in the definition so the model provider's search for LLM beans can
+         * skip it without creating it. It is eager, so an unknown LLM stops startup even when the
+         * application makes beans lazy by default. The retry settings are checked here, before any
+         * bean is created.
+         *
+         * @param key the service's config key
+         * @param service the entry's declared properties
+         * @return the bean definition to register
+         */
         private fun definition(key: String, service: ServiceProperties): BeanDefinition {
             val llm = service.llm?.takeIf { it.isNotBlank() }
                 ?: throw IllegalStateException("$SERVICES_PREFIX.$key.llm must name an LLM")
@@ -222,8 +228,15 @@ internal class LlmDecisionServiceConfiguration {
             return builder.setLazyInit(false).beanDefinition
         }
 
-        // The factory bean builds every configured service, so a factory the application supplies
-        // builds them as well.
+        /**
+         * Builds one service through the factory bean, so a factory the application supplies builds
+         * every configured service too.
+         *
+         * @param key the service's config key, used in the error message
+         * @param llm the LLM name, used in the error message
+         * @param create builds the service from the resolved factory
+         * @return the built service
+         */
         private fun <T> build(key: String, llm: String, create: (LlmDecisionServiceFactory) -> T): T {
             val factory = beanFactory.getBean(LlmDecisionServiceFactory::class.java)
             return try {

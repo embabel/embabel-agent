@@ -63,7 +63,13 @@ internal object PromptedProposition {
             PropositionVerdict.INCONCLUSIVE -> PropositionResult.Inconclusive(provenance)
         }
 
-    // The proposition is joined in after trimMargin so a line in it that starts with '|' stays as written.
+    /**
+     * Builds the full instructions text for one proposition, joining it in after trimMargin so a
+     * line in it that starts with '|' stays as written.
+     *
+     * @param proposition the proposition to judge
+     * @return the system message text
+     */
     private fun instructions(proposition: String): String =
         "$instructionsBeforeProposition\n$proposition\n\n$instructionsAfterProposition"
 }
