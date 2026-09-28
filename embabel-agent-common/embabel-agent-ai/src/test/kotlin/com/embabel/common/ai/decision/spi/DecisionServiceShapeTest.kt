@@ -61,7 +61,6 @@ class DecisionServiceShapeTest {
         listOf(
             NativeQuestionSetExecution::class.java,
             PropositionAssessment::class.java,
-            ChoiceAssessment::class.java,
             RatingAssessment::class.java,
         )
             .forEach { hook ->

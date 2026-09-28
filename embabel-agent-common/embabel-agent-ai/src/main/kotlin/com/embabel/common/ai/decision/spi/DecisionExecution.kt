@@ -15,7 +15,9 @@
  */
 package com.embabel.common.ai.decision.spi
 
+import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
+import com.embabel.common.ai.classification.ClassificationSpec
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.decision.ChoiceQuestionSpec
 import com.embabel.common.ai.decision.DecisionAnswer
@@ -40,7 +42,8 @@ import java.util.EnumSet
  * Planning is a preflight over the whole request. It checks question kinds and limits, and throws
  * before any provider call when the service cannot answer the request. A service that implements
  * [NativeQuestionSetExecution] answers the whole request in one call. Any other service answers
- * each question through its per-question hook, in spec order. Execution logs start and completion
+ * each question on its own, in spec order: a choice question through `classify`, and the other
+ * kinds through their per-question hooks. Execution logs start and completion
  * at DEBUG, failed requests, partial responses and answer anomalies at WARN, and request and
  * response content at TRACE only when [DecisionContentCapture] is on.
  */
@@ -49,23 +52,25 @@ internal object DecisionExecution {
     private val logger = LoggerFactory.getLogger(DecisionExecution::class.java)
 
     /**
-     * The capabilities of a decision service that implements none of the hooks: proposition
-     * questions, with no reported limits. Such a service answers each proposition through `assess`.
+     * The capabilities of a decision service that implements none of the hooks: proposition and
+     * choice questions, with no reported limits. Such a service answers each proposition through
+     * `assess` and each choice through `classify`.
      */
-    val LEGACY_CAPABILITIES: DecisionCapabilities = DecisionCapabilities.of(EnumSet.of(QuestionKind.PROPOSITION))
+    val LEGACY_CAPABILITIES: DecisionCapabilities =
+        DecisionCapabilities.of(EnumSet.of(QuestionKind.PROPOSITION, QuestionKind.CHOICE))
 
     /**
      * Returns the capabilities a service reports when it does not override them. They derive from
-     * the hooks the source implements: [QuestionKind.PROPOSITION] always, [QuestionKind.CHOICE] with
-     * [ChoiceAssessment] and [QuestionKind.RATING] with [RatingAssessment]. A service that answers
-     * other kinds through [NativeQuestionSetExecution] overrides its capabilities to list them.
+     * the hooks the source implements: [QuestionKind.PROPOSITION] and [QuestionKind.CHOICE] always,
+     * and [QuestionKind.RATING] with [RatingAssessment]. Every decision service can classify, so it
+     * answers a choice question through `classify`. A service that answers other kinds through
+     * [NativeQuestionSetExecution] overrides its capabilities to list them.
      *
      * @param hookSource the object whose hook interfaces are inspected
      * @return the derived capabilities, with no limits
      */
     fun defaultCapabilities(hookSource: Any): DecisionCapabilities {
-        val kinds = EnumSet.of(QuestionKind.PROPOSITION)
-        if (hookSource is ChoiceAssessment) kinds += QuestionKind.CHOICE
+        val kinds = EnumSet.of(QuestionKind.PROPOSITION, QuestionKind.CHOICE)
         if (hookSource is RatingAssessment) kinds += QuestionKind.RATING
         return DecisionCapabilities.of(kinds)
     }
@@ -78,7 +83,7 @@ internal object DecisionExecution {
      * within the reported limits, every question has a backing, then [service] implements every hook
      * the request is routed through. A service that implements [NativeQuestionSetExecution] backs
      * every kind it claims. Otherwise a proposition question is backed by [PropositionAssessment] or
-     * `assess`, a choice question by [ChoiceAssessment] and a rating question by [RatingAssessment].
+     * `assess`, a choice question by `classify` and a rating question by [RatingAssessment].
      * Routing follows the hooks of [hookSource], and execution calls those hooks on [service]. The
      * last check makes a decorator that leaves out one of its hook source's hooks fail here, before
      * any question is asked.
@@ -110,8 +115,8 @@ internal object DecisionExecution {
             return true
         }
         for (question in questions) {
-            val hook = hookName(question.kind)
             check(hasHook(hookSource, question.kind)) {
+                val hook = requiredHook(question.kind)
                 "Decision service '$serviceName' claims ${question.kind.name.lowercase()} questions but implements " +
                     "neither $hook nor NativeQuestionSetExecution. Implement $hook, or remove ${question.kind} " +
                     "from its capabilities."
@@ -120,7 +125,7 @@ internal object DecisionExecution {
         val routedHooks = questions.mapNotNull { question ->
             when (question.kind) {
                 QuestionKind.PROPOSITION -> if (hookSource is PropositionAssessment) PropositionAssessment::class.java else null
-                QuestionKind.CHOICE -> ChoiceAssessment::class.java
+                QuestionKind.CHOICE -> null
                 QuestionKind.RATING -> RatingAssessment::class.java
             }
         }.distinct()
@@ -130,15 +135,15 @@ internal object DecisionExecution {
 
     /**
      * True when the hook source backs one question of the kind in per-question execution.
-     * Propositions are always backed, by PropositionAssessment or by assess.
+     * Propositions are always backed, by PropositionAssessment or by assess. Choices are always
+     * backed by classify.
      *
      * @param hookSource the object whose hook interfaces are inspected
      * @param kind the question kind to check
      * @return true when the hook source backs that kind
      */
     private fun hasHook(hookSource: Any, kind: QuestionKind): Boolean = when (kind) {
-        QuestionKind.PROPOSITION -> true
-        QuestionKind.CHOICE -> hookSource is ChoiceAssessment
+        QuestionKind.PROPOSITION, QuestionKind.CHOICE -> true
         QuestionKind.RATING -> hookSource is RatingAssessment
     }
 
@@ -193,7 +198,7 @@ internal object DecisionExecution {
             val kind = question.kind
             val label = "'${question.name}' ($kind)"
             when {
-                needsHook(kind) -> "$label needs ${hookName(kind)}"
+                needsHook(kind) -> "$label needs ${requiredHook(kind)}"
                 native -> label
                 else -> "$label, which the service backs with ${backingName(hookSource, kind)}"
             }
@@ -202,7 +207,7 @@ internal object DecisionExecution {
             if (unlisted.isNotEmpty()) add("report ${unlisted.joinToString(" and ")} in the service's capabilities()")
             add(
                 if (hookless.isNotEmpty()) {
-                    "use a service that implements ${hookless.joinToString(" and ") { hookName(it) }}"
+                    "use a service that implements ${hookless.joinToString(" and ") { requiredHook(it) }}"
                 } else {
                     "use a service whose capabilities include ${unlisted.joinToString(" and ")}"
                 },
@@ -222,8 +227,11 @@ internal object DecisionExecution {
      * @param kind the question kind
      * @return the hook method's name
      */
-    private fun backingName(hookSource: Any, kind: QuestionKind): String =
-        if (kind == QuestionKind.PROPOSITION && hookSource !is PropositionAssessment) "assess" else hookName(kind)
+    private fun backingName(hookSource: Any, kind: QuestionKind): String = when (kind) {
+        QuestionKind.PROPOSITION -> if (hookSource is PropositionAssessment) "PropositionAssessment" else "assess"
+        QuestionKind.CHOICE -> "classify"
+        QuestionKind.RATING -> "RatingAssessment"
+    }
 
     /**
      * Checks the request against the service's question count and input length limits, and throws
@@ -256,14 +264,15 @@ internal object DecisionExecution {
     }
 
     /**
-     * The hook that answers one question of a kind in per-question execution.
+     * The hook a service must implement to answer one question of a kind on its own. Only rating
+     * needs one: propositions fall back to assess and choices go through classify.
      *
      * @param kind the question kind
      * @return the hook interface's name
      */
-    private fun hookName(kind: QuestionKind): String = when (kind) {
+    private fun requiredHook(kind: QuestionKind): String = when (kind) {
         QuestionKind.PROPOSITION -> "PropositionAssessment"
-        QuestionKind.CHOICE -> "ChoiceAssessment"
+        QuestionKind.CHOICE -> "classify"
         QuestionKind.RATING -> "RatingAssessment"
     }
 
@@ -275,8 +284,10 @@ internal object DecisionExecution {
      * [DelegatingDecisionService], and to the service otherwise, so preflight sees the hooks of the
      * service that does the work. Preflight also checks that the service implements each hook the
      * request is routed through. In per-question execution, typed failures
-     * are recorded and execution continues with the next question. An [IllegalArgumentException]
-     * from a choice or rating hook, or from validating its answer, becomes that question's
+     * are recorded and execution continues with the next question. A choice question goes to
+     * `classify` as a classification request built from the question, so the provider sees the
+     * question's own instructions and categories. An [IllegalArgumentException] from `classify` or
+     * a rating hook, or from validating its answer, becomes that question's
      * `INVALID_RESPONSE` failure. Any other thrown exception stops the request and propagates
      * unchanged. Per-question execution checks the thread's interrupt flag before each question and
      * stops with an [InterruptedException] when it is set, leaving the flag set.
@@ -361,7 +372,8 @@ internal object DecisionExecution {
     }
 
     /**
-     * Answers each question of the request in turn, through its per-question hook.
+     * Answers each question of the request in turn: a choice through classify, the other kinds
+     * through their per-question hooks.
      *
      * @param service the service whose hook methods are called
      * @param request the request to run
@@ -395,7 +407,7 @@ internal object DecisionExecution {
                 is ChoiceQuestionSpec -> builder.answer(
                     question,
                     validated(service, question, ClassificationResult.Failure(FailureReason.INVALID_RESPONSE)) {
-                        question.validate((service as ChoiceAssessment).choose(input, question))
+                        question.validate(service.classify(ClassificationRequest.of(input, ClassificationSpec.of(question))))
                     },
                 )
 
@@ -411,14 +423,14 @@ internal object DecisionExecution {
     }
 
     /**
-     * Guards a choice or rating hook call and its validation. An IllegalArgumentException from
-     * either means the answer does not fit the question: decorators validate inside their hook
-     * methods and throw it for an option or level outside the question. Other exceptions propagate.
+     * Guards a classify or rating call and its validation. An IllegalArgumentException from either
+     * means the answer does not fit the question: decorators validate inside classify and their hook
+     * methods, and throw it for an option or level outside the question. Other exceptions propagate.
      *
      * @param service the service, named in the anomaly log line
      * @param question the question, named in the anomaly log line
      * @param failure the result to use when the answer is out of domain
-     * @param validate calls the hook and validates its answer
+     * @param validate makes the call and validates its answer
      * @return the validated answer, or the failure result when it's out of domain
      */
     private inline fun <R> validated(service: DecisionService, question: Question<*>, failure: R, validate: () -> R): R =

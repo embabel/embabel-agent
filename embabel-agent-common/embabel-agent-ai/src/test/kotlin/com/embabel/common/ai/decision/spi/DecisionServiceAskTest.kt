@@ -69,12 +69,14 @@ class DecisionServiceAskTest {
     ) : DecisionService {
         val calls = mutableListOf<String>()
         val propositions = mutableListOf<PropositionRequest>()
+        val classified = mutableListOf<ClassificationRequest>()
 
         override val name = "legacy"
         override val provider = "test"
 
         override fun classify(request: ClassificationRequest): ClassificationResult {
             calls += "classify"
+            classified += request
             return ClassificationResult.NoMatch(ModelProvenance("legacy", "test"))
         }
 
@@ -85,29 +87,27 @@ class DecisionServiceAskTest {
         }
     }
 
-    /** A service with both decomposition hooks, answering from scripted functions. */
+    /** A service with the rating hook, answering from scripted functions. */
     private class HookedService(
         private val onAssess: (PropositionRequest) -> PropositionResult,
-        private val onChoose: (ChoiceQuestionSpec) -> ClassificationResult,
+        private val onClassify: (ClassificationRequest) -> ClassificationResult,
         private val onRate: (RatingQuestionSpec) -> RatingResult,
-    ) : DecisionService, ChoiceAssessment, RatingAssessment {
+    ) : DecisionService, RatingAssessment {
         val calls = mutableListOf<String>()
-        val chosen = mutableListOf<ChoiceQuestionSpec>()
+        val classified = mutableListOf<ClassificationRequest>()
 
         override val name = "hooked"
         override val provider = "test"
 
-        override fun classify(request: ClassificationRequest): ClassificationResult = error("classify is not used")
+        override fun classify(request: ClassificationRequest): ClassificationResult {
+            calls += "classify"
+            classified += request
+            return onClassify(request)
+        }
 
         override fun assess(request: PropositionRequest): PropositionResult {
             calls += "assess"
             return onAssess(request)
-        }
-
-        override fun choose(input: String, question: ChoiceQuestionSpec): ClassificationResult {
-            calls += "choose"
-            chosen += question
-            return onChoose(question)
         }
 
         override fun rate(input: String, question: RatingQuestionSpec): RatingResult {
@@ -138,11 +138,11 @@ class DecisionServiceAskTest {
 
     private fun hooked(
         onAssess: (PropositionRequest) -> PropositionResult = { PropositionResult.Answered(true, provenance) },
-        onChoose: (ChoiceQuestionSpec) -> ClassificationResult = {
+        onClassify: (ClassificationRequest) -> ClassificationResult = {
             ClassificationResult.Selected("billing", provenance)
         },
         onRate: (RatingQuestionSpec) -> RatingResult = { RatingResult.Answered(provenance, selectedLevelId = "calm") },
-    ) = HookedService(onAssess, onChoose, onRate)
+    ) = HookedService(onAssess, onClassify, onRate)
 
     @Nested
     inner class LegacyImplementor {
@@ -158,12 +158,25 @@ class DecisionServiceAskTest {
         }
 
         @Test
-        fun `a single choice is unsupported with no calls, and classify still works directly`() {
+        fun `a single choice runs with one classify call built from the question`() {
+            val service = LegacyService(PropositionResult.Answered(true, provenance))
+            val response = service.ask("An email.", DecisionSpec.of(team))
+            assertEquals(ClassificationResult.NoMatch(ModelProvenance("legacy", "test")), response.answer(team))
+            assertEquals(listOf("classify"), service.calls)
+            val received = service.classified.single()
+            assertEquals("An email.", received.input)
+            assertSame(team, received.spec.question)
+            assertEquals("Which team should handle this?", received.instructions)
+            assertEquals(listOf("billing", "support"), received.categories.map { it.id })
+        }
+
+        @Test
+        fun `a single rating is unsupported with no calls, and classify still works directly`() {
             val service = LegacyService(PropositionResult.Answered(true, provenance))
             val error = assertThrows(UnsupportedDecisionException::class.java) {
-                service.ask("An email.", DecisionSpec.of(team))
+                service.ask("An email.", DecisionSpec.of(anger))
             }
-            assertTrue(error.message!!.contains("'team'"))
+            assertTrue(error.message!!.contains("'anger'"))
             assertEquals(emptyList<String>(), service.calls)
             val direct = service.classify(ClassificationRequest.of("An email.", classificationSpec { asking("Which category fits?"); category("billing", "Payments") }))
             assertInstanceOf(ClassificationResult.NoMatch::class.java, direct)
@@ -196,7 +209,7 @@ class DecisionServiceAskTest {
     inner class HookedImplementor {
 
         @Test
-        fun `capabilities add CHOICE and RATING`() {
+        fun `the rating hook adds RATING`() {
             assertEquals(EnumSet.allOf(QuestionKind::class.java), hooked().capabilities().questionKinds)
         }
 
@@ -209,15 +222,15 @@ class DecisionServiceAskTest {
         }
 
         @Test
-        fun `per-question execution calls assess, choose and rate in spec order with the question text`() {
+        fun `per-question execution calls assess, classify and rate in spec order with the question text`() {
             val service = hooked()
             val response = service.ask(
                 DecisionRequest.of("An email.", urgent, team, anger))
-            assertEquals(listOf("assess", "choose", "rate"), service.calls)
-            val received = service.chosen.single()
-            assertSame(team, received)
+            assertEquals(listOf("assess", "classify", "rate"), service.calls)
+            val received = service.classified.single()
+            assertSame(team, received.spec.question)
             assertEquals("Which team should handle this?", received.instructions)
-            assertEquals(listOf("billing", "support"), received.options.map { it.id })
+            assertEquals(listOf("billing", "support"), received.categories.map { it.id })
             assertEquals(ClassificationResult.Selected("billing", provenance), response.answer(team))
         }
 
@@ -233,17 +246,17 @@ class DecisionServiceAskTest {
         @Test
         fun `a thrown exception from the second call propagates and the third is not called`() {
             val boom = RuntimeException("boom")
-            val service = hooked(onChoose = { throw boom })
+            val service = hooked(onClassify = { throw boom })
             val thrown = assertThrows(RuntimeException::class.java) {
                 service.ask(DecisionRequest.of("An email.", urgent, team, anger))
             }
             assertSame(boom, thrown)
-            assertEquals(listOf("assess", "choose"), service.calls)
+            assertEquals(listOf("assess", "classify"), service.calls)
         }
 
         @Test
         fun `an interruption propagates with the thread flag set`() {
-            val service = hooked(onChoose = {
+            val service = hooked(onClassify = {
                 Thread.currentThread().interrupt()
                 throw InterruptedException("stopped")
             })
@@ -252,7 +265,7 @@ class DecisionServiceAskTest {
                     service.ask(DecisionRequest.of("An email.", urgent, team, anger))
                 }
                 assertTrue(Thread.currentThread().isInterrupted)
-                assertEquals(listOf("assess", "choose"), service.calls)
+                assertEquals(listOf("assess", "classify"), service.calls)
             } finally {
                 Thread.interrupted()
             }
@@ -260,7 +273,7 @@ class DecisionServiceAskTest {
 
         @Test
         fun `a selection outside the options becomes an invalid response failure`() {
-            val service = hooked(onChoose = { ClassificationResult.Selected("elsewhere", provenance) })
+            val service = hooked(onClassify = { ClassificationResult.Selected("elsewhere", provenance) })
             val response = service.ask("An email.", DecisionSpec.of(team))
             assertEquals(ClassificationResult.Failure(FailureReason.INVALID_RESPONSE), response.answer(team))
         }
@@ -268,13 +281,13 @@ class DecisionServiceAskTest {
         @Test
         fun `an IllegalArgumentException from a hook fails only that question`() {
             val service = hooked(
-                onChoose = { throw IllegalArgumentException("Question 'team': not one of its options") },
+                onClassify = { throw IllegalArgumentException("Question 'team': not one of its options") },
                 onRate = { throw IllegalArgumentException("Question 'anger': not one of its levels") },
             )
             val second = Questions.named("second").proposition("Is it a refund?").build()
             val response = service.ask(
                 DecisionRequest.of("An email.", urgent, team, anger, second))
-            assertEquals(listOf("assess", "choose", "rate", "assess"), service.calls)
+            assertEquals(listOf("assess", "classify", "rate", "assess"), service.calls)
             assertEquals(PropositionResult.Answered(true, provenance), response.answer(urgent))
             assertEquals(ClassificationResult.Failure(FailureReason.INVALID_RESPONSE), response.answer(team))
             assertEquals(RatingResult.Failure(FailureReason.INVALID_RESPONSE), response.answer(anger))
@@ -335,7 +348,7 @@ class DecisionServiceAskTest {
         }
 
         @Test
-        fun `capabilities from the question hook are propositions`() {
+        fun `capabilities from the question hook are propositions and choices`() {
             assertEquals(DecisionExecution.LEGACY_CAPABILITIES, QuestionAssessingService().capabilities())
         }
     }
@@ -345,7 +358,7 @@ class DecisionServiceAskTest {
 
         @Test
         fun `a per-question run stops before the next question when the thread is interrupted`() {
-            val service = hooked(onChoose = {
+            val service = hooked(onClassify = {
                 Thread.currentThread().interrupt()
                 ClassificationResult.Failure(FailureReason.UNAVAILABLE)
             })
@@ -355,7 +368,7 @@ class DecisionServiceAskTest {
                 }
                 assertTrue(error.message!!.contains("'anger'"))
                 assertTrue(Thread.currentThread().isInterrupted)
-                assertEquals(listOf("choose"), service.calls)
+                assertEquals(listOf("classify"), service.calls)
             } finally {
                 Thread.interrupted()
             }
@@ -408,23 +421,21 @@ class DecisionServiceAskTest {
         }
 
         @Test
-        fun `a native service with per-question hooks still answers in one native call`() {
-            var chooseCalls = 0
-            val service = object : DecisionService, NativeQuestionSetExecution, ChoiceAssessment {
-                override val name = "native-and-choice"
+        fun `a native service answers a choice in its native call and leaves classify alone`() {
+            var classifyCalls = 0
+            val service = object : DecisionService, NativeQuestionSetExecution {
+                override val name = "native-and-classify"
                 override val provider = "test"
 
                 override fun capabilities(): DecisionCapabilities =
                     DecisionCapabilities.of(EnumSet.of(QuestionKind.PROPOSITION, QuestionKind.CHOICE))
 
-                override fun classify(request: ClassificationRequest): ClassificationResult = error("not used")
-
-                override fun assess(request: PropositionRequest): PropositionResult = error("not used")
-
-                override fun choose(input: String, question: ChoiceQuestionSpec): ClassificationResult {
-                    chooseCalls++
+                override fun classify(request: ClassificationRequest): ClassificationResult {
+                    classifyCalls++
                     return ClassificationResult.NoMatch(provenance)
                 }
+
+                override fun assess(request: PropositionRequest): PropositionResult = error("not used")
 
                 override fun askNative(request: DecisionRequest): DecisionResponse =
                     DecisionResponse.builder(request.spec)
@@ -433,7 +444,7 @@ class DecisionServiceAskTest {
             }
             val response = service.ask("An email.", DecisionSpec.of(team))
             assertEquals(ClassificationResult.Selected("support", provenance), response.answer(team))
-            assertEquals(0, chooseCalls)
+            assertEquals(0, classifyCalls)
         }
     }
 
@@ -441,27 +452,27 @@ class DecisionServiceAskTest {
     inner class HookSource {
 
         @Test
-        fun `a wrapper claiming CHOICE over a delegate without the hook fails before any call`() {
+        fun `a wrapper claiming RATING over a delegate without the hook fails before any call`() {
             val delegate = LegacyService(PropositionResult.Answered(true, provenance))
-            var wrapperChooseCalls = 0
-            val wrapper = object : DecisionService by delegate, ChoiceAssessment {
+            var wrapperRateCalls = 0
+            val wrapper = object : DecisionService by delegate, RatingAssessment {
                 override fun capabilities(): DecisionCapabilities =
-                    DecisionCapabilities.of(EnumSet.of(QuestionKind.PROPOSITION, QuestionKind.CHOICE))
+                    DecisionCapabilities.of(EnumSet.of(QuestionKind.PROPOSITION, QuestionKind.RATING))
 
-                override fun choose(input: String, question: ChoiceQuestionSpec): ClassificationResult {
-                    wrapperChooseCalls++
-                    return ClassificationResult.NoMatch(provenance)
+                override fun rate(input: String, question: RatingQuestionSpec): RatingResult {
+                    wrapperRateCalls++
+                    return RatingResult.Inconclusive(provenance)
                 }
             }
             val error = assertThrows(IllegalStateException::class.java) {
                 DecisionExecution.execute(
                     wrapper,
-                    DecisionRequest.of("An email.", team),
+                    DecisionRequest.of("An email.", anger),
                     hookSource = delegate,
                 )
             }
-            assertTrue(error.message!!.contains("ChoiceAssessment"))
-            assertEquals(0, wrapperChooseCalls)
+            assertTrue(error.message!!.contains("RatingAssessment"))
+            assertEquals(0, wrapperRateCalls)
             assertEquals(emptyList<String>(), delegate.calls)
         }
 
@@ -483,13 +494,21 @@ class DecisionServiceAskTest {
         @Test
         fun `a decorator missing a later question's hook fails before the earlier question is asked`() {
             val inner = hooked()
-            val decorator = ChoiceOnlyDecorator(inner)
+            val decorator = PartialDecorator(inner)
             val error = assertThrows(IllegalStateException::class.java) {
                 decorator.ask(DecisionRequest.of("An email.", team, anger))
             }
             assertTrue(error.message!!.contains("does not implement RatingAssessment"), error.message)
-            assertEquals(0, decorator.chooseCalls)
             assertEquals(emptyList<String>(), inner.calls)
+        }
+
+        @Test
+        fun `a decorator without hooks answers a choice through its own classify`() {
+            val inner = hooked()
+            val decorator = PartialDecorator(inner)
+            val response = decorator.ask(DecisionRequest.of("An email.", team))
+            assertEquals(ClassificationResult.Selected("billing", provenance), response.answer(team))
+            assertEquals(listOf("classify"), inner.calls)
         }
     }
 
@@ -507,15 +526,5 @@ class DecisionServiceAskTest {
         override fun classify(request: ClassificationRequest): ClassificationResult = inner.classify(request)
 
         override fun assess(request: PropositionRequest): PropositionResult = inner.assess(request)
-    }
-
-    /** A decorator that forwards choices, and leaves out the rating hook its delegate has. */
-    private class ChoiceOnlyDecorator(private val inner: HookedService) : PartialDecorator(inner), ChoiceAssessment {
-        var chooseCalls = 0
-
-        override fun choose(input: String, question: ChoiceQuestionSpec): ClassificationResult {
-            chooseCalls++
-            return inner.choose(input, question)
-        }
     }
 }

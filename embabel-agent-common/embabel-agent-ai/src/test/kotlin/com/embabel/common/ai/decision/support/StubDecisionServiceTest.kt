@@ -18,6 +18,7 @@ package com.embabel.common.ai.decision.support
 import com.embabel.common.ai.classification.Category
 import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
+import com.embabel.common.ai.classification.ClassificationSpec
 import com.embabel.common.ai.classification.classificationSpec
 import com.embabel.common.ai.classification.ModelProvenance
 import com.embabel.common.ai.decision.ChoiceQuestionSpec
@@ -31,7 +32,6 @@ import com.embabel.common.ai.decision.Questions
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
 import com.embabel.common.ai.decision.UnsupportedDecisionException
-import com.embabel.common.ai.decision.spi.DecisionExecution
 import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
 import com.embabel.common.ai.model.observation.ObservedDecisionService
 import io.micrometer.observation.ObservationRegistry
@@ -64,6 +64,9 @@ class StubDecisionServiceTest {
     private val teamAnswer = ClassificationResult.Selected("support", provenance)
     private val angerAnswer = RatingResult.Answered(provenance, selectedLevelId = "angry")
 
+    private fun classifying(question: ChoiceQuestionSpec): ClassificationRequest =
+        ClassificationRequest.of("text", ClassificationSpec.of(question))
+
     private fun scripted(): StubDecisionService.Builder = StubDecisionService.builder("triage-stub")
         .proposition("urgent", urgentAnswer)
         .choice("team", teamAnswer)
@@ -91,7 +94,7 @@ class StubDecisionServiceTest {
     }
 
     @Test
-    fun `assess, classify, choose and rate return their scripted outcomes`() {
+    fun `assess, classify and rate return their scripted outcomes`() {
         val noMatch = ClassificationResult.NoMatch(provenance)
         val stub = scripted()
             .assessing("Is it urgent?", urgentAnswer)
@@ -99,9 +102,9 @@ class StubDecisionServiceTest {
             .build()
         assertEquals(urgentAnswer, stub.assess(PropositionRequest("text", "Is it urgent?")))
         assertEquals(noMatch, stub.classify(ClassificationRequest.of("text", classificationSpec { asking("Which category fits?"); category("b", "B"); category("a", "A") })))
-        assertEquals(teamAnswer, stub.choose("text", team))
+        assertEquals(teamAnswer, stub.classify(classifying(team)))
         assertEquals(angerAnswer, stub.rate("text", anger))
-        assertEquals(listOf("assess", "classify", "choose", "rate"), stub.calls())
+        assertEquals(listOf("assess", "classify", "classify", "rate"), stub.calls())
     }
 
     @Test
@@ -111,8 +114,8 @@ class StubDecisionServiceTest {
             stub.ask(DecisionRequest.of("text", urgent, team))
         }
         assertTrue(error.message!!.contains("'team'")) { error.message }
-        val chooseError = assertThrows(IllegalStateException::class.java) { stub.choose("text", team) }
-        assertTrue(chooseError.message!!.contains("'team'"))
+        val classifyError = assertThrows(IllegalStateException::class.java) { stub.classify(classifying(team)) }
+        assertTrue(classifyError.message!!.contains("'team'")) { classifyError.message }
         val rateError = assertThrows(IllegalStateException::class.java) { stub.rate("text", anger) }
         assertTrue(rateError.message!!.contains("'anger'"))
     }
@@ -138,7 +141,7 @@ class StubDecisionServiceTest {
 
     @Test
     fun `propositions-only capabilities reject a choice with no calls`() {
-        val stub = scripted().capabilities(DecisionExecution.LEGACY_CAPABILITIES).build()
+        val stub = scripted().capabilities(DecisionCapabilities.of(EnumSet.of(QuestionKind.PROPOSITION))).build()
         assertThrows(UnsupportedDecisionException::class.java) {
             stub.ask(DecisionRequest.of("text", urgent, team))
         }
@@ -149,13 +152,32 @@ class StubDecisionServiceTest {
     }
 
     @Test
-    fun `a per-question stub calls assess, choose and rate in spec order`() {
+    fun `a per-question stub calls assess, classify and rate in spec order`() {
         val stub = scripted().perQuestion().build()
         val response = stub.ask(DecisionRequest.of("text", urgent, team, anger))
-        assertEquals(listOf("assess", "choose", "rate"), stub.calls())
+        assertEquals(listOf("assess", "classify", "rate"), stub.calls())
         assertEquals(urgentAnswer, response.answer(urgent))
         assertEquals(teamAnswer, response.answer(team))
         assertEquals(angerAnswer, response.answer(anger))
+    }
+
+    @Test
+    fun `a classification request asked on a native stub answers its question`() {
+        val spec = ClassificationSpec.of(team)
+        val stub = scripted().build()
+        val response = stub.ask(ClassificationRequest.of("text", spec))
+        assertEquals(teamAnswer, response.answer(spec.question))
+        assertEquals(listOf("askNative"), stub.calls())
+    }
+
+    @Test
+    fun `a classification request asked on a per-question stub goes through classify`() {
+        val spec = classificationSpec { asking("Which category fits?"); category("a", "A"); category("b", "B") }
+        val noMatch = ClassificationResult.NoMatch(provenance)
+        val stub = StubDecisionService.builder("triage-stub").classifying(setOf("a", "b"), noMatch).perQuestion().build()
+        val response = stub.ask(ClassificationRequest.of("text", spec))
+        assertEquals(noMatch, response.answer(spec.question))
+        assertEquals(listOf("classify"), stub.calls())
     }
 
     @Test
@@ -177,7 +199,7 @@ class StubDecisionServiceTest {
         val observed = ObservedDecisionService(stub, ObservationRegistry.NOOP)
         val response = observed.ask(DecisionRequest.of("text", urgent, team))
         assertEquals(urgentAnswer, response.answer(urgent))
-        assertEquals(listOf("assess", "choose"), stub.calls())
+        assertEquals(listOf("assess", "classify"), stub.calls())
     }
 
     @Test
@@ -199,10 +221,10 @@ class StubDecisionServiceTest {
     fun `the call log is in call order and cannot be modified`() {
         val stub = scripted().assessing("Is it urgent?", urgentAnswer).build()
         stub.rate("text", anger)
-        stub.choose("text", team)
+        stub.classify(classifying(team))
         stub.assess(PropositionRequest("text", "Is it urgent?"))
         val calls = stub.calls()
-        assertEquals(listOf("rate", "choose", "assess"), calls)
+        assertEquals(listOf("rate", "classify", "assess"), calls)
         assertThrows(UnsupportedOperationException::class.java) { (calls as MutableList<String>).add("x") }
     }
 }

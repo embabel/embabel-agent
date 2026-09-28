@@ -15,6 +15,7 @@
  */
 package com.embabel.common.ai.decision
 
+import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.decision.spi.DecisionExecution
 import com.embabel.common.ai.model.DecisionService
 import com.embabel.common.ai.model.observation.ObservedDecisionService
@@ -179,13 +180,18 @@ class CompileNegativeTest {
     @Nested
     inner class LegacyJavaImplementor {
 
-        private val newMembers = setOf("ask", "capabilities", "askNative", "choose", "rate")
+        private val newMembers = setOf("ask", "capabilities", "askNative", "rate")
 
         private val proposition = Questions.named("urgent").proposition("Is it urgent?").build()
 
         private val choice = Questions.named("team").choice("Which team?")
             .option("billing", "Payments")
             .option("support", "Help")
+            .build()
+
+        private val rating = Questions.named("anger").rating("How angry?")
+            .level("calm", "Calm")
+            .level("angry", "Angry")
             .build()
 
         @Test
@@ -205,7 +211,9 @@ class CompileNegativeTest {
                         val response = service.ask("input", DecisionSpec.of(proposition))
                         assertInstanceOf(PropositionResult.Answered::class.java, response.answer(proposition))
                         assertEquals(DecisionExecution.LEGACY_CAPABILITIES, service.capabilities())
-                        assertThrows<UnsupportedDecisionException> { service.ask("input", DecisionSpec.of(choice)) }
+                        val chosen = service.ask("input", DecisionSpec.of(choice))
+                        assertInstanceOf(ClassificationResult.NoMatch::class.java, chosen.answer(choice))
+                        assertThrows<UnsupportedDecisionException> { service.ask("input", DecisionSpec.of(rating)) }
                     }
                 }
             } finally {

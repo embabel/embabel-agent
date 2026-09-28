@@ -34,7 +34,6 @@ import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.QuestionKind
 import com.embabel.common.ai.decision.Questions
 import com.embabel.common.ai.decision.RatingResult
-import com.embabel.common.ai.decision.spi.ChoiceAssessment
 import com.embabel.common.ai.decision.spi.DecisionContentCapture
 import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
 import com.embabel.common.ai.decision.spi.PropositionAssessment
@@ -228,14 +227,6 @@ class LlmDecisionServiceAskTest {
     inner class OneQuestionHooks {
 
         @Test
-        fun `choose makes one call and returns the question's outcome`() {
-            modelReplies() returns """{"answers":[{"question":"q1","verdict":"SELECTED","categoryId":"technical"}]}"""
-            assertEquals(ClassificationResult.Selected("technical", provenance), service.choose(request.input, department))
-            assertEquals(1, interactions.size)
-            assertEquals("choose", interactions.single().id.value)
-        }
-
-        @Test
         fun `rate makes one call and returns the question's outcome`() {
             modelReplies() returns """{"answers":[{"question":"q1","verdict":"RATED","levelId":"angry"}]}"""
             assertEquals(RatingResult.Answered(provenance, selectedLevelId = "angry"), service.rate(request.input, frustration))
@@ -257,7 +248,7 @@ class LlmDecisionServiceAskTest {
         @Test
         fun `an unreadable one-question reply is that question's invalid response`() {
             modelReplies() returns "nope"
-            assertEquals(ClassificationResult.Failure(FailureReason.INVALID_RESPONSE), service.choose(request.input, department))
+            assertEquals(RatingResult.Failure(FailureReason.INVALID_RESPONSE), service.rate(request.input, frustration))
             assertEquals(1, interactions.size)
         }
     }
@@ -268,7 +259,6 @@ class LlmDecisionServiceAskTest {
         assertEquals(QuestionKind.entries.toSet(), capabilities.questionKinds)
         assertTrue(service is NativeQuestionSetExecution)
         assertTrue(service is PropositionAssessment)
-        assertTrue(service is ChoiceAssessment)
         assertTrue(service is RatingAssessment)
     }
 
@@ -323,9 +313,9 @@ class LlmDecisionServiceAskTest {
         @Test
         fun `a one-question call logs its operation and no mode`() {
             modelReplies() throws SocketTimeoutException("timed out")
-            val events = capturing(Level.DEBUG) { service.choose("A charge.", department) }
+            val events = capturing(Level.DEBUG) { service.rate("A charge.", frustration) }
             val warning = serviceWarnings(events).single()
-            assertTrue(warning.contains("operation=choose"), warning)
+            assertTrue(warning.contains("operation=rate"), warning)
             assertFalse(warning.contains("mode="), warning)
         }
 

@@ -22,7 +22,9 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import com.embabel.common.ai.classification.ClassificationRequest;
 import com.embabel.common.ai.classification.ClassificationResult;
+import com.embabel.common.ai.classification.ClassificationSpec;
 import com.embabel.common.ai.classification.FailureReason;
 import com.embabel.common.ai.decision.ChoiceQuestionSpec;
 import com.embabel.common.ai.decision.DecisionAnswer;
@@ -34,7 +36,6 @@ import com.embabel.common.ai.decision.Questions;
 import com.embabel.common.ai.decision.RatingQuestionSpec;
 import com.embabel.common.ai.decision.RatingResult;
 import com.embabel.common.ai.decision.RatingStatistic;
-import com.embabel.common.ai.decision.spi.ChoiceAssessment;
 import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution;
 import com.embabel.common.ai.decision.spi.PropositionAssessment;
 import com.embabel.common.ai.decision.spi.RatingAssessment;
@@ -170,16 +171,18 @@ class TypeSafeNativeAskTest {
     }
 
     @Test
-    void chooseAndRateMakeOneRequestEach() {
+    void classifyAndRateMakeOneRequestEach() {
         var fixture = fixture();
         fixture.server()
                 .expect(requestTo(SYSTEM_ONE_URI))
-                .andExpect(jsonPath("$.questions.q1.type").value("choice"))
-                .andExpect(jsonPath("$.questions.q2").doesNotExist())
+                .andExpect(jsonPath("$.questions.classification.type").value("choice"))
+                .andExpect(jsonPath("$.questions.classification.instructions")
+                        .value("Which team should handle this?"))
+                .andExpect(jsonPath("$.questions.classification.criteria.technical").exists())
                 .andRespond(
                         withSuccess(
                                 """
-                                {"answers":{"q1":{"type":"choice","choice":"technical","probabilities":{"billing":0.3,"technical":0.7},"confidence":0.5}}}
+                                {"answers":{"classification":{"type":"choice","choice":"technical","probabilities":{"billing":0.3,"technical":0.7},"confidence":0.5}}}
                                 """,
                                 MediaType.APPLICATION_JSON));
         fixture.server()
@@ -194,7 +197,7 @@ class TypeSafeNativeAskTest {
                                 MediaType.APPLICATION_JSON));
         var service = fixture.rawService();
 
-        var choice = service.choose(INPUT, department);
+        var choice = service.classify(ClassificationRequest.of(INPUT, ClassificationSpec.of(department)));
         var rating = service.rate(INPUT, frustration);
 
         fixture.server().verify();
@@ -222,11 +225,11 @@ class TypeSafeNativeAskTest {
                                 MediaType.APPLICATION_JSON));
         fixture.server()
                 .expect(requestTo(SYSTEM_ONE_URI))
-                .andExpect(jsonPath("$.questions.q1.type").value("choice"))
+                .andExpect(jsonPath("$.questions.classification.type").value("choice"))
                 .andRespond(
                         withSuccess(
                                 """
-                                {"answers":{"q1":{"type":"choice","choice":"billing","probabilities":{"billing":0.9,"technical":0.1},"confidence":0.8}}}
+                                {"answers":{"classification":{"type":"choice","choice":"billing","probabilities":{"billing":0.9,"technical":0.1},"confidence":0.8}}}
                                 """,
                                 MediaType.APPLICATION_JSON));
         fixture.server()
@@ -242,7 +245,7 @@ class TypeSafeNativeAskTest {
         var service = fixture.factory().build();
 
         var proposition = ((PropositionAssessment) service).assess(INPUT, urgent);
-        var choice = ((ChoiceAssessment) service).choose(INPUT, department);
+        var choice = service.classify(ClassificationRequest.of(INPUT, ClassificationSpec.of(department)));
         var rating = ((RatingAssessment) service).rate(INPUT, frustration);
 
         fixture.server().verify();
@@ -265,7 +268,6 @@ class TypeSafeNativeAskTest {
         assertThat(raw)
                 .isInstanceOf(NativeQuestionSetExecution.class)
                 .isInstanceOf(PropositionAssessment.class)
-                .isInstanceOf(ChoiceAssessment.class)
                 .isInstanceOf(RatingAssessment.class);
         assertThat(fixture.factory().build().capabilities()).isEqualTo(capabilities);
     }

@@ -51,7 +51,7 @@ interface DecisionService : ClassificationService, DecisionServiceMetadata {
      * Returns what this service can accept.
      *
      * The default derives from the hook interfaces the service implements. Every service accepts
-     * proposition questions. `ChoiceAssessment` adds choice questions and `RatingAssessment` adds
+     * proposition questions, and choice questions because it can classify. `RatingAssessment` adds
      * rating questions. The default declares no limits. Override this method to list the kinds a
      * `NativeQuestionSetExecution` service answers, or to declare limits. Capabilities that claim a
      * kind the service backs with neither its hook nor native execution make every affected request
@@ -78,8 +78,8 @@ interface DecisionService : ClassificationService, DecisionServiceMetadata {
      * The whole request is checked against [capabilities] before any provider call. A service that
      * implements `NativeQuestionSetExecution` answers the whole request in one call. Any other
      * service answers each question in spec order: a proposition through `PropositionAssessment`
-     * when implemented and through [assess] otherwise, a choice through `ChoiceAssessment` and a
-     * rating through `RatingAssessment`. Provider failures come back as typed failure outcomes, and
+     * when implemented and through [assess] otherwise, a choice through [classify] with a
+     * classification request built from the question, and a rating through `RatingAssessment`. Provider failures come back as typed failure outcomes, and
      * the remaining questions are still asked. A decorator routes this call through the shared
      * execution path, so a delegate's own override of this method is not called through a
      * decorator. A service customizes execution through [capabilities] and the hook interfaces.

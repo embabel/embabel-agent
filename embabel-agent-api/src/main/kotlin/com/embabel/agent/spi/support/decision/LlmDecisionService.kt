@@ -29,7 +29,6 @@ import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.ClassificationService
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
-import com.embabel.common.ai.decision.ChoiceQuestionSpec
 import com.embabel.common.ai.decision.DecisionCapabilities
 import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionResponse
@@ -40,7 +39,6 @@ import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.QuestionKind
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
-import com.embabel.common.ai.decision.spi.ChoiceAssessment
 import com.embabel.common.ai.decision.spi.DecisionContentCapture
 import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
 import com.embabel.common.ai.decision.spi.PropositionAssessment
@@ -63,8 +61,9 @@ import java.util.concurrent.TimeoutException
  *
  * The service classifies text, assesses propositions, and answers a whole decision request of
  * proposition, choice and rating questions in one model call through [askNative]. A single choice
- * or rating question goes through the same prompt as a one-question request. A single proposition
- * question goes through the proposition prompt with the question's instructions. The model reports
+ * question goes through the classification prompt with the question's instructions and categories.
+ * A single rating question goes through the same prompt as a one-question request. A single
+ * proposition question goes through the proposition prompt with the question's instructions. The model reports
  * verdicts and ids only, so no outcome carries a confidence, distribution or score.
  *
  * A question set reply is read after the retry template returns, so a reply that cannot be read
@@ -92,7 +91,7 @@ internal class LlmDecisionService(
     private val options: LlmOptions,
     retry: RetryProperties,
     retryName: String = "decision-${llm.name}",
-) : DecisionService, NativeQuestionSetExecution, PropositionAssessment, ChoiceAssessment, RatingAssessment {
+) : DecisionService, NativeQuestionSetExecution, PropositionAssessment, RatingAssessment {
 
     private val logger = LoggerFactory.getLogger(LlmDecisionService::class.java)
 
@@ -132,10 +131,6 @@ internal class LlmDecisionService(
     /** Answers one proposition question through the proposition prompt, with the question's instructions. */
     override fun assess(input: String, question: PropositionQuestionSpec): PropositionResult =
         assess(PropositionRequest(input, question.instructions))
-
-    /** Answers one choice question through the question set prompt, in its own model call. */
-    override fun choose(input: String, question: ChoiceQuestionSpec): ClassificationResult =
-        askQuestionSet(CHOOSE, DecisionRequest.of(input, question)).answer(question)
 
     /** Rates the input against one rating question through the question set prompt, in its own model call. */
     override fun rate(input: String, question: RatingQuestionSpec): RatingResult =
@@ -345,7 +340,6 @@ internal class LlmDecisionService(
         const val CLASSIFY = "classify"
         const val ASSESS = "assess"
         const val ASK = "ask"
-        const val CHOOSE = "choose"
         const val RATE = "rate"
 
         const val TOO_MANY_REQUESTS = 429
