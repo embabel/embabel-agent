@@ -33,15 +33,17 @@ import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.model.LlmOptions
 import org.slf4j.LoggerFactory
+import java.util.concurrent.CancellationException
 
 /**
  * Classifies text and assesses propositions by asking a chat model, retrying failed calls.
  *
  * Every outcome becomes a contract result: a reply that cannot be read or breaks the answer rules
  * is an invalid response, and anything else that goes wrong is unavailability. An interruption during
- * the model call or the wait between retries is the one exception that escapes, as an
- * [InterruptedException] with the thread's interrupt flag set. It is the original one when the
- * failure carries it, and otherwise a new one caused by the failure.
+ * the model call or the wait between retries is the one exception that escapes, as an unchecked
+ * [CancellationException] with the thread's interrupt flag set. Its cause is the interruption: the
+ * original [InterruptedException] when the failure carries one, and otherwise a new one caused by
+ * the failure.
  *
  * A failed model call counts as interrupted when an [InterruptedException] is in its cause chain
  * or the thread's interrupt flag is set. Once the model call has returned, the flag no longer matters.
@@ -108,7 +110,7 @@ internal class LlmDecisionService(
 
     /**
      * Runs one decision and maps whatever it throws to a failure result, except an interruption,
-     * which it rethrows.
+     * which it throws as a [CancellationException].
      *
      * An interruption here is an [InterruptedException] in the cause chain. That covers an
      * interrupted model call, which [guarded] has already turned into one, and an interrupted wait
@@ -129,13 +131,13 @@ internal class LlmDecisionService(
             work()
         } catch (e: DecisionInterrupted) {
             logger.debug("Decision {} with model {} was interrupted", operation, name)
-            throw e.interrupted
+            throw cancelled(e.interrupted)
         } catch (e: Exception) {
             // The retry template reports an interrupted backoff wait as its own exception, with the
             // InterruptedException as the cause.
             interruptionIn(e)?.let { interrupted ->
                 logger.debug("Decision {} with model {} was interrupted", operation, name)
-                throw interrupted
+                throw cancelled(interrupted)
             }
             val reason = when (e) {
                 is InvalidLlmReturnFormatException, is InvalidDecisionAnswerException -> FailureReason.INVALID_RESPONSE
@@ -185,6 +187,15 @@ internal class LlmDecisionService(
     private fun interruptionIn(e: Throwable): InterruptedException? =
         generateSequence(e) { it.cause }.filterIsInstance<InterruptedException>().firstOrNull()
             ?.also { Thread.currentThread().interrupt() }
+
+    /**
+     * The unchecked exception an interruption escapes as, so callers never face a checked one.
+     *
+     * @param interrupted the interruption, kept as the cause
+     * @return the exception to throw
+     */
+    private fun cancelled(interrupted: InterruptedException): CancellationException =
+        CancellationException("Decision interrupted").apply { initCause(interrupted) }
 
     /** Carries an interrupted call out of the retry template, which never retries it. */
     private class DecisionInterrupted(val interrupted: InterruptedException) :

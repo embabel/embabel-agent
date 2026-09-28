@@ -281,11 +281,11 @@ Each call returns a contract result for every outcome except interruption.
 
 |The model call fails while the thread's interrupt flag is set
 |No
-|`InterruptedException` is thrown
+|`CancellationException` is thrown
 
 |The failure has an `InterruptedException` in its cause chain
 |No
-|That `InterruptedException` is thrown
+|`CancellationException` is thrown, caused by that `InterruptedException`
 |===
 
 The retry rules are the same ones the platform's other model calls use.
@@ -294,10 +294,11 @@ The service sets no timeout of its own.
 
 ==== Interruption
 
-The service leaves the thread's interrupt flag set whenever it throws `InterruptedException`.
-When a model call fails while the flag is set and the cause chain holds no `InterruptedException`, the service throws a new one whose cause is the failure.
-A reply that cannot be read is part of the model call, so with the flag set it also throws `InterruptedException`.
-An interrupted wait between retries fails with the `InterruptedException` as its cause, so the service throws that original exception.
+An interruption escapes as an unchecked `java.util.concurrent.CancellationException`, so callers never handle a checked exception.
+Its cause is the `InterruptedException`, and the service leaves the thread's interrupt flag set.
+When a model call fails while the flag is set and the cause chain holds no `InterruptedException`, the cause is a new one whose own cause is the failure.
+A reply that cannot be read is part of the model call, so with the flag set it also throws `CancellationException`.
+An interrupted wait between retries fails with the `InterruptedException` as its cause, and that original exception becomes the cause of the `CancellationException`.
 A call that succeeds returns its result even when the interrupt flag is set.
 A verdict that breaks a rule returns `Failure(INVALID_RESPONSE)` even when the interrupt flag is set.
 
