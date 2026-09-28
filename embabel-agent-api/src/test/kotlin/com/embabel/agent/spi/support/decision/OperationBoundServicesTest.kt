@@ -237,7 +237,7 @@ class OperationBoundServicesTest {
         val boundNative = selector.named("native")
         assertEquals(stub.capabilities(), boundNative.capabilities())
         val request = DecisionRequest.of("text", urgent, team, anger)
-        assertEquals(request.spec.definitionId, (boundNative as NativeQuestionSetExecution).askNative(request).definitionId)
+        (boundNative as NativeQuestionSetExecution).askNative(request).requireMatches(request.spec)
         assertEquals(
             ClassificationResult.Selected("support", provenance),
             boundNative.classify("text", ClassificationSpec.of(team)),

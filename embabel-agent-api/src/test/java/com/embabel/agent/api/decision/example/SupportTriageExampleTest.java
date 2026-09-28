@@ -227,7 +227,6 @@ class SupportTriageExampleTest {
 
     record TriageEvidence(
         String responseJson,
-        String definitionId,
         List<AnswerProvenance> answers) {
     }
 
@@ -241,7 +240,6 @@ class SupportTriageExampleTest {
             .toList();
         TriageEvidence evidence = new TriageEvidence(
             mapper.writeValueAsString(response),
-            response.getDefinitionId(),
             answers);
         evidenceStore.add(evidence);
         return evidence;
@@ -279,7 +277,6 @@ class SupportTriageExampleTest {
         TriageEvidence evidence = persist(response);
 
         assertEquals(List.of(evidence), evidenceStore);
-        assertEquals(TRIAGE.getDefinitionId(), evidence.definitionId());
         assertEquals(
             List.of(
                 new AnswerProvenance("urgent", "Answered", "triage-model", "stub"),
