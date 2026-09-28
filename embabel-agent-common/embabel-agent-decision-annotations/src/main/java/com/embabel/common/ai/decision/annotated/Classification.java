@@ -24,22 +24,23 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Gives the description the model sees for an enum constant used as a choice option, a rating
- * level or a classification category.
+ * Declares that an enum is a classification. Read it with
+ * {@link AnnotatedDecisions#classification(Class)}.
  * <p>
- * Every constant of a {@link ChoiceQuestion} or {@link Classification} enum needs this annotation.
- * A constant of a {@link RatingQuestion} enum may omit it, and its description is then the level id.
+ * Each constant is a category, in declaration order. The category id is the constant's name, and
+ * every constant needs {@link Described} to give the category's description, as a choice option
+ * does.
  */
 @ApiStatus.Experimental
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.FIELD)
-public @interface Described {
+@Target(ElementType.TYPE)
+public @interface Classification {
 
     /**
-     * The description of the option or level.
+     * The instructions the model receives.
      *
-     * @return the description, which should say when the model picks this constant
+     * @return the classification's instructions, which must not be blank
      */
-    String value();
+    String asking();
 }

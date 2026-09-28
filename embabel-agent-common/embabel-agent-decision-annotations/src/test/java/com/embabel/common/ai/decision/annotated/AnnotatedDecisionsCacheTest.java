@@ -31,8 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
- * Checks that the decision cache returns one instance per type and lets a type's class loader be
- * collected once the application drops it.
+ * Checks that the decision and classification caches return one instance per type and let a
+ * type's class loader be collected once the application drops it.
  */
 class AnnotatedDecisionsCacheTest {
 
@@ -74,12 +74,30 @@ class AnnotatedDecisionsCacheTest {
             .map(Question::getName).toList());
     }
 
+    @Test
+    void theClassificationCacheDoesNotHoldTheClassLoaderOfAnEnumItRead() throws Exception {
+        ReferenceQueue<ClassLoader> queue = new ReferenceQueue<>();
+        WeakReference<ClassLoader> loader = classifyInThrowawayLoader(queue);
+
+        assertCollected(loader, queue);
+    }
+
     private static WeakReference<ClassLoader> readInThrowawayLoader(
         AnnotatedDecisions decisions, ReferenceQueue<ClassLoader> queue) throws Exception {
         ClassLoader loader = new SingleClassLoader(UnloadableTriage.class);
         Class<?> copy = loader.loadClass(UnloadableTriage.class.getName());
         assertNotSame(UnloadableTriage.class, copy);
         assertSame(decisions.of(copy), decisions.of(copy));
+        return new WeakReference<>(loader, queue);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static WeakReference<ClassLoader> classifyInThrowawayLoader(ReferenceQueue<ClassLoader> queue)
+        throws Exception {
+        ClassLoader loader = new SingleClassLoader(UnloadableDepartment.class);
+        Class copy = loader.loadClass(UnloadableDepartment.class.getName());
+        assertNotSame(UnloadableDepartment.class, copy);
+        assertSame(AnnotatedDecisions.classification(copy), AnnotatedDecisions.classification(copy));
         return new WeakReference<>(loader, queue);
     }
 
@@ -123,4 +141,11 @@ class AnnotatedDecisionsCacheTest {
 
 // Top level, so a copy defined by another class loader has no enclosing class to match.
 record UnloadableTriage(@PropositionQuestion(asking = "Does this ticket convey urgency?") boolean urgent) {
+}
+
+// Top level for the same reason.
+@Classification(asking = "Which team should handle this ticket?")
+enum UnloadableDepartment {
+    @Described("Payments, invoicing, refunds")
+    BILLING,
 }
