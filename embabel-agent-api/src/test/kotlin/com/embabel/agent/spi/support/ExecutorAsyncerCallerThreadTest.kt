@@ -295,9 +295,18 @@ class ExecutorAsyncerCallerThreadTest {
                 outer.withCurrent {
                     val callerThread = Thread.currentThread()
                     val ranOn = Collections.synchronizedList(mutableListOf<Thread>())
+                    // A pool item holds its thread until an item has run on the caller. Without
+                    // this, instant items can drain the pool before the queue fills, nothing is
+                    // rejected, and the precondition fails by timing alone.
+                    val overflowed = CountDownLatch(1)
 
                     val seen = asyncer.parallelMap((1..12).toList(), maxConcurrency = 12) {
                         ranOn += Thread.currentThread()
+                        if (Thread.currentThread() === callerThread) {
+                            overflowed.countDown()
+                        } else {
+                            overflowed.await(10, TimeUnit.SECONDS)
+                        }
                         AgentProcess.get()
                     }
 
