@@ -20,7 +20,6 @@ import com.embabel.common.ai.decision.DecisionResponse
 import com.embabel.common.ai.decision.DecisionSpec
 import com.embabel.common.ai.decision.QuestionKind
 import com.embabel.common.ai.decision.Questions
-import com.embabel.common.ai.model.ClassificationService
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertSame

@@ -21,7 +21,6 @@ import com.embabel.common.ai.decision.ChoiceQuestionSpec;
 import com.embabel.common.ai.decision.DecisionRequest;
 import com.embabel.common.ai.decision.DecisionResponse;
 import com.embabel.common.ai.decision.DecisionSpec;
-import com.embabel.common.ai.model.ClassificationService;
 
 import org.junit.jupiter.api.Test;
 
