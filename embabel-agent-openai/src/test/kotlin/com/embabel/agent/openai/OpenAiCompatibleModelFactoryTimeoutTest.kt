@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.openai
 
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.PricingModel
@@ -31,6 +32,8 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.Timeout as TestTimeout
+import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.ai.openai.http.okhttp.OpenAiHttpClientBuilderCustomizer
 import org.springframework.beans.factory.ObjectProvider
@@ -166,6 +169,28 @@ class OpenAiCompatibleModelFactoryTimeoutTest {
                 llm.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())
             }
         }
+
+        @Test
+        fun `streamed completion gives up after the configured read timeout`() {
+            val chatModel = slowChatModel()
+
+            assertFailsWithin(Duration.ofSeconds(10)) { chatModel.stream(Prompt("Hi")).blockLast() }
+        }
+
+        @Test
+        fun `completion without per-call options gives up after the configured read timeout`() {
+            val chatModel = slowChatModel()
+
+            assertFailsWithin(Duration.ofSeconds(10)) { chatModel.call(Prompt("Hi")) }
+        }
+
+        private fun slowChatModel(): ChatModel =
+            (factory().openAiCompatibleLlm(
+                model = "slow-chat",
+                pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+                provider = "test",
+                knowledgeCutoffDate = null,
+            ) as SpringAiLlmService).chatModel
 
         // The calls below carry no Spring AI options, as a Responses API call does not, so only
         // the client-level timeout can end them. Without it they would wait 10 minutes.

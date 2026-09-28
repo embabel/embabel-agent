@@ -81,7 +81,7 @@ import java.time.LocalDate
  *   factory uses a plain [OpenAIOkHttpClient] builder, preserving existing behaviour.
  * @param timeouts Connect and read timeouts for every client this factory builds, chat and embedding.
  */
-open class OpenAiCompatibleModelFactory(
+open class OpenAiCompatibleModelFactory @JvmOverloads constructor(
     val baseUrl: String?,
     private val apiKey: String?,
     private val completionsPath: String? = null,
@@ -584,6 +584,7 @@ open class OpenAiCompatibleModelFactory(
                 OpenAiChatOptions.builder()
                     .model(model)
                     .apply { if (httpHeaders.isNotEmpty()) customHeaders(httpHeaders) }
+                    .apply { timeouts.read?.let { timeout(it) } }
                     .build()
             )
             .toolCallingManager(

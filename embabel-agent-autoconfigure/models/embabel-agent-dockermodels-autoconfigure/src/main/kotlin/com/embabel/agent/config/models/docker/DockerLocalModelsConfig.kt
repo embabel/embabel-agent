@@ -18,8 +18,7 @@ package com.embabel.agent.config.models.docker
 import com.embabel.agent.api.models.DockerLocalModels.Companion.PROVIDER
 import com.embabel.agent.config.models.docker.DockerRetryProperties.Companion.PREFIX
 import com.embabel.agent.openai.OpenAiChatOptionsConverter
-import com.embabel.agent.openai.OpenAiClientTimeoutProperties
-import com.embabel.agent.openai.OpenAiClientTimeouts
+import com.embabel.agent.openai.OpenAiCompatibleClientProperties
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.ProviderInitialization
@@ -59,7 +58,7 @@ import java.time.Duration
 
 
 @ConfigurationProperties(prefix = PREFIX)
-class DockerRetryProperties : RetryProperties, OpenAiClientTimeoutProperties {
+class DockerRetryProperties : OpenAiCompatibleClientProperties(), RetryProperties {
 
     /**
      *  Maximum number of attempts.
@@ -80,17 +79,6 @@ class DockerRetryProperties : RetryProperties, OpenAiClientTimeoutProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 180000L
-
-    /**
-     * How long to wait to connect to the Docker model runner.
-     */
-    override var connectTimeout: Duration = OpenAiClientTimeouts.DEFAULT_CONNECT
-
-    /**
-     * How long to wait for a whole response, per attempt. Raise it for a slow model or a large
-     * embedding batch. Unset keeps Spring AI's per-call default of 60 seconds.
-     */
-    override var readTimeout: Duration? = null
 
     override val propertyPrefix: String = PREFIX
     companion object {
@@ -297,6 +285,7 @@ class DockerLocalModelsConfig(
             .options(
                 OpenAiChatOptions.builder()
                     .model(modelId)
+                    .apply { timeouts.read?.let { timeout(it) } }
                     .build()
             )
             .build()

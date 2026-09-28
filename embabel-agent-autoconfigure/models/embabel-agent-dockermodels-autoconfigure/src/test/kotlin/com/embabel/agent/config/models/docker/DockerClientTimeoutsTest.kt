@@ -16,8 +16,11 @@
 package com.embabel.agent.config.models.docker
 
 import com.embabel.agent.openai.OpenAiClientTimeouts
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
 import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
 import com.embabel.common.util.ObjectProviders
 import com.sun.net.httpserver.HttpServer
@@ -32,6 +35,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.api.assertThrows
+import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.bind.Binder
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource
@@ -87,7 +91,7 @@ class DockerClientTimeoutsTest {
             server = HttpServer.create(InetSocketAddress(0), 0)
             server.executor = Executors.newCachedThreadPool()
             server.createContext("/engines/v1/models") { exchange ->
-                val body = """{"object":"list","data":[{"id":"slow-embedding"}]}""".toByteArray()
+                val body = """{"object":"list","data":[{"id":"slow-embedding"},{"id":"slow-chat"}]}""".toByteArray()
                 exchange.responseHeaders.set("Content-Type", "application/json")
                 exchange.sendResponseHeaders(200, body.size.toLong())
                 exchange.responseBody.use { it.write(body) }
@@ -123,7 +127,29 @@ class DockerClientTimeoutsTest {
             assertEquals(3, hangingRequests.get(), "expected three timed-out attempts")
         }
 
-        private fun embeddingServiceWith(retryProperties: DockerRetryProperties): EmbeddingService {
+        @Test
+        fun `chat gives up after the configured read timeout`() {
+            val llm = modelsWith(
+                bind("embabel.agent.platform.models.docker.read-timeout" to "300ms"),
+            ).getValue("dockerModel-slow-chat") as SpringAiLlmService
+
+            assertFailsWithinTenSeconds {
+                llm.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())
+            }
+            assertFailsWithinTenSeconds { llm.chatModel.call(Prompt("Hi")) }
+        }
+
+        private fun assertFailsWithinTenSeconds(call: () -> Unit) {
+            val started = System.nanoTime()
+            assertThrows<Exception> { call() }
+            val elapsed = Duration.ofNanos(System.nanoTime() - started)
+            assertTrue(elapsed < Duration.ofSeconds(10), "expected failure within 10s but took $elapsed")
+        }
+
+        private fun embeddingServiceWith(retryProperties: DockerRetryProperties): EmbeddingService =
+            modelsWith(retryProperties).getValue("dockerModel-slow-embedding") as EmbeddingService
+
+        private fun modelsWith(retryProperties: DockerRetryProperties): Map<String, Any> {
             val registered = mutableMapOf<String, Any>()
             val beanFactory = mockk<ConfigurableBeanFactory> {
                 every { registerSingleton(any(), any()) } answers { registered[firstArg()] = secondArg() }
@@ -138,7 +164,7 @@ class DockerClientTimeoutsTest {
                 observationRegistry = ObjectProviders.empty(),
                 localModelDiscoveryProperties = LocalModelDiscoveryProperties(),
             ).dockerLocalModelsInitializer()
-            return registered.getValue("dockerModel-slow-embedding") as EmbeddingService
+            return registered
         }
     }
 }
