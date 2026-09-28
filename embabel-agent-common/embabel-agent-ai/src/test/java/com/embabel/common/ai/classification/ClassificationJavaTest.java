@@ -106,10 +106,11 @@ class ClassificationJavaTest {
     void requestCarriesInstructionsAndRejectsBlankOnes() {
         var mapping = CategoryMapping.fromEnum(AnimalKind.class, "Which animal?", AnimalKind::name);
         assertEquals("Which animal?", mapping.request("A canine is barking").getInstructions());
-        var categories = mapping.getCategories();
+        var request = ClassificationRequest.of("A canine is barking", mapping.spec());
+        assertEquals("Which animal?", request.getInstructions());
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new ClassificationRequest("A canine is barking", " ", categories));
+                () -> ClassificationSpec.builder().asking(" ").category("DOG", "A dog").build());
     }
 
     // tag::class-mapping[]
