@@ -23,9 +23,14 @@ import com.embabel.common.ai.model.EmbeddingService
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import com.embabel.agent.rag.model.LeafSection
+import com.embabel.agent.rag.model.MaterializedDocument
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 
 /**
  * Tests for [EmbeddingAwareChunkingContentElementRepository].
@@ -91,5 +96,67 @@ class EmbeddingAwareChunkingContentElementRepositoryTest {
 
         verify(exactly = 0) { embeddingService.embed(any<List<String>>()) }
         assertTrue(repo.persistedChunks.isEmpty())
+    }
+
+    @Nested
+    inner class MissingEmbeddings {
+
+        private val rejected = IllegalArgumentException("input exceeds the model's token limit")
+
+        private fun serviceRejecting(text: String): EmbeddingService {
+            val embeddingService = mockk<EmbeddingService>()
+            every { embeddingService.embed(any<List<String>>()) } answers {
+                val texts = firstArg<List<String>>()
+                if (text in texts) throw rejected
+                texts.map { floatArrayOf(1f) }
+            }
+            return embeddingService
+        }
+
+        @Test
+        fun `a chunk that cannot be embedded reaches the caller after the others are persisted`() {
+            val repo = TestChunkingRepository(ContentChunker.Config(), ChunkTransformer.NO_OP, serviceRejecting("Text 2"))
+            val chunks = (1..3).map { i -> createChunk("chunk$i", "Text $i") }
+
+            val e = assertThrows<EmbeddingIncompleteException> { repo.onNewRetrievables(chunks) }
+
+            assertEquals(listOf("chunk2"), e.missingChunkIds)
+            assertEquals(2, e.embeddedCount)
+            assertSame(rejected, e.cause)
+            assertEquals("1 of 3 chunks could not be embedded", e.message)
+            assertEquals(3, repo.persistedChunks.size)
+            assertEquals(setOf("chunk1", "chunk3"), repo.persistedEmbeddings.keys)
+        }
+
+        @Test
+        fun `writeAndChunkDocument commits the document before reporting missing embeddings`() {
+            val document = MaterializedDocument(
+                id = "doc-1",
+                uri = "http://example.com/doc",
+                title = "Test Document",
+                children = listOf(LeafSection(id = "leaf-1", title = "Section", text = "Some content here")),
+            )
+            val rejectEverything = mockk<EmbeddingService>()
+            every { rejectEverything.embed(any<List<String>>()) } throws rejected
+            val repo = TestChunkingRepository(ContentChunker.Config(), ChunkTransformer.NO_OP, rejectEverything)
+
+            val e = assertThrows<EmbeddingIncompleteException> { repo.writeAndChunkDocument(document) }
+
+            assertTrue(repo.committed, "the document and its chunks are committed before the caller is told")
+            assertTrue(repo.persistedChunks.isNotEmpty())
+            assertEquals(repo.persistedChunks.map { it.id }, e.missingChunkIds)
+        }
+
+        @Test
+        fun `failOnMissingEmbeddings false stores the chunks without vectors and does not throw`() {
+            val config = ContentChunker.Config(failOnMissingEmbeddings = false)
+            val repo = TestChunkingRepository(config, ChunkTransformer.NO_OP, serviceRejecting("Text 2"))
+            val chunks = (1..3).map { i -> createChunk("chunk$i", "Text $i") }
+
+            repo.onNewRetrievables(chunks)
+
+            assertEquals(3, repo.persistedChunks.size)
+            assertEquals(setOf("chunk1", "chunk3"), repo.persistedEmbeddings.keys)
+        }
     }
 }

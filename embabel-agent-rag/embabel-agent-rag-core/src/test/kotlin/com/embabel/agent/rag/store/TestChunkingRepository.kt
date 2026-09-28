@@ -38,6 +38,7 @@ class TestChunkingRepository(
     val persistedChunks = mutableListOf<Chunk>()
     val persistedEmbeddings = mutableMapOf<String, FloatArray>()
     val savedElements = mutableMapOf<String, ContentElement>()
+    var committed = false
 
     override val name: String = "test-repo"
     override val enhancers: List<RetrievableEnhancer> = emptyList()
@@ -52,7 +53,7 @@ class TestChunkingRepository(
     }
 
     override fun commit() {
-        // No-op for testing
+        committed = true
     }
 
     override fun save(element: ContentElement): ContentElement {

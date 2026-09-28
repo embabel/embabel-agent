@@ -36,11 +36,15 @@ interface ContentChunker {
      * @property maxChunkSize Maximum size of each chunk in characters
      * @property overlapSize Number of overlapping characters between consecutive chunks
      * @property embeddingBatchSize Number of chunks to process in a single embedding batch
+     * @property failOnMissingEmbeddings If true (the default), a write that leaves any chunk without an
+     * embedding throws [com.embabel.agent.rag.store.EmbeddingIncompleteException] after persisting what it can.
+     * If false, those chunks are stored without a vector and the write succeeds.
      */
     data class Config(
         val maxChunkSize: Int = 1500,
         val overlapSize: Int = 200,
         val embeddingBatchSize: Int = 100,
+        val failOnMissingEmbeddings: Boolean = true,
     ) {
 
         init {

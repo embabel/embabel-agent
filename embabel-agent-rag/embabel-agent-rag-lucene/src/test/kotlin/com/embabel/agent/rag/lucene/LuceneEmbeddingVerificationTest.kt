@@ -19,12 +19,14 @@ import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.LeafSection
 import com.embabel.agent.rag.model.MaterializedDocument
 import com.embabel.agent.rag.service.RagRequest
+import com.embabel.agent.rag.store.EmbeddingIncompleteException
 import com.embabel.common.ai.model.SpringAiEmbeddingService
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.ai.document.Document
+import org.springframework.ai.embedding.EmbeddingModel
 
 /**
  * Tests for embedding verification in LuceneSearchOperations.
@@ -293,5 +295,32 @@ class LuceneEmbeddingVerificationTest : LuceneSearchOperationsTestBase() {
 
         assertTrue(results.results.isNotEmpty())
         // Quantum-related docs should score higher than classical physics
+    }
+
+    @Test
+    fun `writeAndChunkDocument commits unembedded chunks for text search and then reports them`() {
+        val rejectingModel = object : EmbeddingModel by trackingEmbeddingModel {
+            override fun embed(texts: MutableList<String>): MutableList<FloatArray> =
+                throw IllegalStateException("embedding service unavailable")
+        }
+        val failingService = LuceneSearchOperations(
+            name = "failing-rag",
+            embeddingService = SpringAiEmbeddingService("model", "provider", rejectingModel),
+        )
+        val document = MaterializedDocument(
+            id = "root",
+            uri = "test://embedding-failure",
+            title = "Test Document",
+            children = listOf(LeafSection(id = "leaf-1", title = "Section", text = "Content about programming", parentId = "root")),
+        )
+
+        failingService.use { rag ->
+            val e = assertThrows(EmbeddingIncompleteException::class.java) { rag.writeAndChunkDocument(document) }
+
+            assertTrue(e.missingChunkIds.isNotEmpty())
+            assertEquals(0, e.embeddedCount)
+            val found = rag.textSearch(RagRequest.query("programming").withSimilarityThreshold(0.0), Chunk::class.java)
+            assertEquals(e.missingChunkIds.toSet(), found.map { it.match.id }.toSet())
+        }
     }
 }

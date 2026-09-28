@@ -79,9 +79,11 @@ abstract class AbstractChunkingContentElementRepository(
         )
         save(root)
         root.descendants().forEach { save(it) }
-        onNewRetrievables(root.descendants().filterIsInstance<Retrievable>())
+        val descendantsIncomplete = embeddingIncomplete {
+            onNewRetrievables(root.descendants().filterIsInstance<Retrievable>())
+        }
         chunks.forEach { save(it) }
-        onNewRetrievables(chunks)
+        val chunksIncomplete = embeddingIncomplete { onNewRetrievables(chunks) }
         createInternalRelationships(root)
         commit()
         logger.info(
@@ -89,7 +91,46 @@ abstract class AbstractChunkingContentElementRepository(
             root.id,
             chunks.size,
         )
+        combine(descendantsIncomplete, chunksIncomplete)?.let { throw it }
         return chunks.map { it.id }
+    }
+
+    /**
+     * Throw [EmbeddingIncompleteException] if [result] is missing embeddings and
+     * [ContentChunker.Config.failOnMissingEmbeddings] is set.
+     * Call after persisting the chunks, so the ones that embedded are stored.
+     */
+    protected fun failIfEmbeddingsMissing(result: EmbeddingBatchResult) {
+        if (result.isComplete || !chunkerConfig.failOnMissingEmbeddings) return
+        throw EmbeddingIncompleteException(
+            missingChunkIds = result.missingChunkIds,
+            embeddedCount = result.embeddings.size,
+            cause = requireNotNull(result.cause) { "missing embeddings must carry the failure that caused them" },
+        )
+    }
+
+    /**
+     * Run [block], returning rather than throwing an [EmbeddingIncompleteException],
+     * so the rest of the document is still written and committed before the caller is told.
+     */
+    private fun embeddingIncomplete(block: () -> Unit): EmbeddingIncompleteException? = try {
+        block()
+        null
+    } catch (e: EmbeddingIncompleteException) {
+        e
+    }
+
+    private fun combine(
+        first: EmbeddingIncompleteException?,
+        second: EmbeddingIncompleteException?,
+    ): EmbeddingIncompleteException? = when {
+        first == null -> second
+        second == null -> first
+        else -> EmbeddingIncompleteException(
+            missingChunkIds = first.missingChunkIds + second.missingChunkIds,
+            embeddedCount = first.embeddedCount + second.embeddedCount,
+            cause = requireNotNull(first.cause),
+        ).apply { addSuppressed(second) }
     }
 
     /**

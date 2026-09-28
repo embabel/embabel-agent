@@ -29,6 +29,8 @@ import com.embabel.common.ai.model.EmbeddingService
  * 1. Filtering incoming retrievables to extract [Chunk] instances
  * 2. Generating embeddings in configurable batches using [EmbeddingBatchGenerator]
  * 3. Delegating persistence to subclasses via [persistChunksWithEmbeddings]
+ * 4. Throwing [EmbeddingIncompleteException] if any chunk could not be embedded,
+ *    unless [ContentChunker.Config.failOnMissingEmbeddings] is false
  *
  * Use this base class when your repository always requires embedding support.
  * For repositories that support optional embeddings (e.g., text-only search),
@@ -52,13 +54,14 @@ abstract class EmbeddingAwareChunkingContentElementRepository(
             return
         }
 
-        val embeddings = EmbeddingBatchGenerator.generateEmbeddingsInBatches(
+        val result = EmbeddingBatchGenerator.embedInBatches(
             embeddingService = embeddingService,
             retrievables = chunks,
             batchSize = chunkerConfig.embeddingBatchSize,
             logger = logger,
         )
-        persistChunksWithEmbeddings(chunks, embeddings)
+        persistChunksWithEmbeddings(chunks, result.embeddings)
+        failIfEmbeddingsMissing(result)
     }
 
     /**
@@ -68,11 +71,12 @@ abstract class EmbeddingAwareChunkingContentElementRepository(
      * Subclasses should:
      * 1. Store each chunk in their backing storage (memory, database, index, etc.)
      * 2. Associate the embedding with each chunk (if available in the map)
-     * 3. Handle the case where some embeddings may be missing (if a batch failed)
+     * 3. Store a chunk with no embedding if it is missing from the map; the caller is told
+     *    through [EmbeddingIncompleteException] after this method returns
      *
      * @param chunks The chunks to persist; guaranteed to be non-empty when called
      * @param embeddings Map of chunk ID to embedding vector; may be missing entries
-     *                   if embedding generation failed for some batches
+     *                   for chunks that could not be embedded
      */
     protected abstract fun persistChunksWithEmbeddings(
         chunks: List<Chunk>,

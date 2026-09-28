@@ -21,6 +21,8 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
@@ -71,21 +73,135 @@ class EmbeddingBatchGeneratorTest {
 
         val chunks = (1..4).map { i -> createChunk("chunk$i", "Text $i") }
 
-        every { embeddingService.embed(listOf("Text 1", "Text 2")) } returns
-                listOf(floatArrayOf(1f, 2f), floatArrayOf(3f, 4f))
-        every { embeddingService.embed(listOf("Text 3", "Text 4")) } throws
-                RuntimeException("API error")
+        every { embeddingService.embed(any<List<String>>()) } answers {
+            val texts = firstArg<List<String>>()
+            if ("Text 3" in texts || "Text 4" in texts) throw RuntimeException("API error")
+            texts.map { floatArrayOf(1f) }
+        }
 
-        val embeddings = EmbeddingBatchGenerator.generateEmbeddingsInBatches(
+        val result = EmbeddingBatchGenerator.embedInBatches(
             embeddingService = embeddingService,
             retrievables = chunks,
             batchSize = 2,
             logger = logger,
         )
 
-        assertEquals(2, embeddings.size)
-        assertTrue(embeddings.containsKey("chunk1"))
-        assertTrue(embeddings.containsKey("chunk2"))
+        assertEquals(setOf("chunk1", "chunk2"), result.embeddings.keys)
+        assertEquals(listOf("chunk3", "chunk4"), result.missingChunkIds)
+        assertEquals("API error", result.cause?.message)
+    }
+
+    @Test
+    fun `a batch that fails once is retried as two halves`() {
+        val embeddingService = mockk<EmbeddingService>()
+        val chunks = (1..4).map { i -> createChunk("chunk$i", "Text $i") }
+
+        every { embeddingService.embed(any<List<String>>()) } answers {
+            val texts = firstArg<List<String>>()
+            if (texts.size == 4) throw RuntimeException("timeout")
+            texts.map { floatArrayOf(1f) }
+        }
+
+        val result = EmbeddingBatchGenerator.embedInBatches(
+            embeddingService = embeddingService,
+            retrievables = chunks,
+            batchSize = 4,
+            logger = logger,
+        )
+
+        verify(exactly = 1) { embeddingService.embed(listOf("Text 1", "Text 2")) }
+        verify(exactly = 1) { embeddingService.embed(listOf("Text 3", "Text 4")) }
+        assertEquals(4, result.embeddings.size)
+        assertTrue(result.missingChunkIds.isEmpty())
+        assertNull(result.cause)
+    }
+
+    @Test
+    fun `a chunk that always fails costs only itself`() {
+        val embeddingService = mockk<EmbeddingService>()
+        val chunks = (1..8).map { i -> createChunk("chunk$i", "Text $i") }
+        val tooLong = IllegalArgumentException("input exceeds the model's token limit")
+
+        every { embeddingService.embed(any<List<String>>()) } answers {
+            val texts = firstArg<List<String>>()
+            if ("Text 3" in texts) throw tooLong
+            texts.map { floatArrayOf(1f) }
+        }
+
+        val result = EmbeddingBatchGenerator.embedInBatches(
+            embeddingService = embeddingService,
+            retrievables = chunks,
+            batchSize = 8,
+            logger = logger,
+        )
+
+        assertEquals(listOf("chunk3"), result.missingChunkIds)
+        assertEquals(7, result.embeddings.size)
+        assertSame(tooLong, result.cause)
+    }
+
+    @Test
+    fun `two adjacent chunks that always fail do not abandon the rest`() {
+        val embeddingService = mockk<EmbeddingService>()
+        val chunks = (1..8).map { i -> createChunk("chunk$i", "Text $i") }
+
+        every { embeddingService.embed(any<List<String>>()) } answers {
+            val texts = firstArg<List<String>>()
+            if ("Text 1" in texts || "Text 2" in texts) throw RuntimeException("rejected")
+            texts.map { floatArrayOf(1f) }
+        }
+
+        val result = EmbeddingBatchGenerator.embedInBatches(
+            embeddingService = embeddingService,
+            retrievables = chunks,
+            batchSize = 8,
+            logger = logger,
+        )
+
+        // Five failures in a row: 8, 4, 2, then chunk1 and chunk2 alone
+        assertEquals(listOf("chunk1", "chunk2"), result.missingChunkIds)
+        assertEquals(6, result.embeddings.size)
+    }
+
+    @Test
+    fun `a dead embedding service is abandoned after a bounded number of calls`() {
+        val embeddingService = mockk<EmbeddingService>()
+        val chunks = (1..1000).map { i -> createChunk("chunk$i", "Text $i") }
+
+        every { embeddingService.embed(any<List<String>>()) } throws RuntimeException("connection refused")
+
+        val result = EmbeddingBatchGenerator.embedInBatches(
+            embeddingService = embeddingService,
+            retrievables = chunks,
+            batchSize = 100,
+            logger = logger,
+        )
+
+        // Halving 100 down to 1 takes 7 steps, so the limit is 7 + 3 consecutive failed calls
+        verify(exactly = 10) { embeddingService.embed(any<List<String>>()) }
+        assertTrue(result.embeddings.isEmpty())
+        assertEquals(chunks.map { it.id }, result.missingChunkIds)
+    }
+
+    @Test
+    fun `a response with the wrong number of vectors is a failed batch`() {
+        val embeddingService = mockk<EmbeddingService>()
+        val chunks = (1..2).map { i -> createChunk("chunk$i", "Text $i") }
+
+        every { embeddingService.embed(any<List<String>>()) } answers {
+            val texts = firstArg<List<String>>()
+            if (texts.size == 2) listOf(floatArrayOf(1f)) else texts.map { floatArrayOf(1f) }
+        }
+
+        val result = EmbeddingBatchGenerator.embedInBatches(
+            embeddingService = embeddingService,
+            retrievables = chunks,
+            batchSize = 2,
+            logger = logger,
+        )
+
+        assertEquals(setOf("chunk1", "chunk2"), result.embeddings.keys)
+        assertTrue(result.missingChunkIds.isEmpty())
     }
 
     @Test

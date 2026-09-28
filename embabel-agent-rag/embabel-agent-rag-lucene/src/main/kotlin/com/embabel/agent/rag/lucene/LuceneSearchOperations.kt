@@ -159,17 +159,16 @@ class LuceneSearchOperations @JvmOverloads constructor(
             return
         }
 
-        val embeddings = if (embeddingService != null) {
-            EmbeddingBatchGenerator.generateEmbeddingsInBatches(
-                embeddingService = embeddingService,
+        val result = embeddingService?.let {
+            EmbeddingBatchGenerator.embedInBatches(
+                embeddingService = it,
                 retrievables = chunks,
                 batchSize = chunkerConfig.embeddingBatchSize,
                 logger = logger,
             )
-        } else {
-            emptyMap()
         }
-        persistChunksWithEmbeddings(chunks, embeddings)
+        persistChunksWithEmbeddings(chunks, result?.embeddings ?: emptyMap())
+        result?.let { failIfEmbeddingsMissing(it) }
     }
 
     @Volatile
