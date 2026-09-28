@@ -26,6 +26,7 @@ import com.embabel.common.ai.model.ModelType;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 
 class ClassificationJavaTest {
     enum AnimalKind {
@@ -50,6 +51,24 @@ class ClassificationJavaTest {
     static final class Cat implements Animal {}
 
     static final class Rabbit implements Animal {}
+
+    @Test
+    void requestFromCategories() {
+        // tag::request[]
+        var request =
+                new ClassificationRequest(
+                        "A bunny is eating clover",
+                        "Which kind of animal is this?",
+                        List.of(
+                                new Category("dog", "A dog or canine"),
+                                new Category("cat", "A cat or feline"),
+                                new Category("rabbit", "A rabbit, including a bunny")));
+        // end::request[]
+        assertEquals("Which kind of animal is this?", request.getInstructions());
+        assertEquals(
+                List.of("dog", "cat", "rabbit"),
+                request.getCategories().stream().map(Category::getId).toList());
+    }
 
     // tag::enum-mapping[]
     @Test

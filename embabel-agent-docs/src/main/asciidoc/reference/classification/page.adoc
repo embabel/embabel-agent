@@ -1,8 +1,9 @@
 [[reference.classification]]
 === Classification and Proposition Assessment
 
-Classification chooses from a closed set of categories that your application supplies.
-It can select a type such as `Dog`, `Cat`, or `Rabbit` without extracting fields or constructing an instance of that type.
+Classification picks one category ID from a closed set that your application supplies.
+Your application can map that ID to an enum constant or a class token such as `Rabbit.class`.
+The provider sees the input, the instructions, and each category's ID and description; nothing extracts fields or constructs an instance.
 Use object extraction separately when you need a populated object.
 The application decides what to do with the result: route work, ask for more information, or revise a choice.
 
@@ -10,8 +11,6 @@ The application decides what to do with the result: route work, ask for more inf
 ====
 These contracts are experimental and live in `embabel-agent-ai`.
 They can be implemented and injected today, but this release supplies no production provider adapter or default classification model.
-Promotion requires a real adapter, provider contract tests covering every outcome and missing scores, and Java and Kotlin consumer examples verified against that adapter.
-The intended first default is Jev through a future TypeSafe integration.
 ====
 
 .Application and model responsibilities
@@ -40,6 +39,11 @@ The instructions say what the model is asked, such as "Which kind of animal is t
 They are required, and a blank value throws `IllegalArgumentException`.
 For dog, cat, and rabbit, describe “bunny” as an alias in the rabbit description; it is not a fourth category.
 Descriptions guide the model, but do not create a separate alias registry or guarantee synonym recognition.
+
+[source,java]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/com/embabel/common/ai/classification/ClassificationJavaTest.java[tag=request,indent=0]
+----
 
 `CategoryMapping<T>` takes the instructions and pairs each category with an application value.
 `request(input)` returns a request carrying those same instructions and categories.
