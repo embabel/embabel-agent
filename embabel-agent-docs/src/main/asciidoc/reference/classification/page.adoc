@@ -136,7 +136,7 @@ Serializing arbitrary live service objects is not the snapshot contract.
 
 Use an ordinary constructor parameter in Java or Kotlin to depend on `ClassificationService` or `DecisionService`.
 In Spring, inject the interface normally.
-A prompted classification service configured under `embabel.agent.platform.decisions.llm.services` with `kind: classification` is registered as a bean named after its key, and `TypeSafeModelFactory` builds Jev services.
+A prompted service configured under `embabel.agent.platform.decisions.llm.services` is registered as a decision service bean named after its key, and `TypeSafeModelFactory` builds Jev services. A decision service also classifies, so it can be injected as a `ClassificationService`.
 Your own implementation registers with an ordinary `@Bean`.
 
 ==== Observe Calls

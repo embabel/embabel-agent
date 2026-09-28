@@ -22,7 +22,7 @@ Neither service is an `LlmService`.
 
 ==== Factory
 
-A Spring application gets an `LlmDecisionServiceFactory` bean from the agent platform's `LlmDecisionServiceConfiguration`.
+A Spring application gets an `LlmDecisionServiceFactory` bean from the agent platform.
 Applications inject that bean to build services in code.
 The four methods in this table are the factory's public API.
 
@@ -83,8 +83,7 @@ The service takes its name and provider from the `LlmService`.
 ==== Configuration
 
 LLM decision settings live under `embabel.agent.platform.decisions.llm`.
-The retry settings at that level apply to services built in code.
-Services declared under `services` take each retry setting they leave unset from the same level.
+The retry settings at that level apply to every service the factory builds, in code or from configuration.
 This example keeps the TypeSafe default and adds two LLM services:
 
 [source,yaml]
@@ -107,12 +106,8 @@ embabel:
               llm: small-chat-model
             routing:
               llm: fast-chat-model
-              kind: classification
-              max-attempts: 2
 ----
 
-`triage` uses all four top-level retry settings.
-`routing` makes at most 2 calls and takes the other three settings from the top level.
 The context then holds three services:
 
 |===
@@ -127,11 +122,11 @@ The context then holds three services:
 |The LLM named `small-chat-model`
 
 |`routing`
-|`ClassificationService`
+|`DecisionService`
 |The LLM named `fast-chat-model`
 |===
 
-These are the top-level retry settings:
+These are the retry settings:
 
 |===
 |Property |Default |Purpose
@@ -153,60 +148,43 @@ These are the top-level retry settings:
 |Longest wait between retries, in milliseconds
 |===
 
-Each entry under `services` registers one bean, and the entry's key is the bean name.
-The factory bean builds each of these services.
+Each entry under `services` registers one `DecisionService` bean, and the entry's key is the bean name.
+The platform autoconfiguration registers these beans, and the factory bean builds each service.
+An entry has one property, `llm`: the name of the LLM that answers.
 Replace the `llm` values with names the application's model provider knows.
-Each entry accepts these properties:
+A decision service also classifies, so inject it as a `ClassificationService` where only classification is needed.
 
-|===
-|Property |Default |Purpose
-
-|`llm`
-|none
-|Name of the LLM that answers. Required.
-
-|`kind`
-|`decision`
-|`decision` registers a `DecisionService`. `classification` registers a `ClassificationService`.
-
-|`max-attempts`, `backoff-millis`, `backoff-multiplier`, `backoff-max-interval`
-|The top-level value
-|The same meaning as the top-level setting
-|===
-
-Several beans share the `DecisionService` and `ClassificationService` types.
+Several beans share the `DecisionService` type.
 Inject a specific service by its bean name, for example with the constructor parameter `@Qualifier("triage") DecisionService triage`.
 
 ==== Startup checks
 
 Startup fails when any setting breaks a rule in this table.
-Each message starts with the property path of the settings it checks.
-For top-level settings the path is `embabel.agent.platform.decisions.llm`.
-For an entry the path is `embabel.agent.platform.decisions.llm.services.<key>`.
+A retry setting out of range fails binding `embabel.agent.platform.decisions.llm`, and the cause carries the message.
+For an entry, `<entry>` is `embabel.agent.platform.decisions.llm.services.<key>`.
 
 |===
-|Rule |Message after the path
+|Rule |Message
 
 |`max-attempts` is at least 1
-|`: max-attempts must be at least 1`
+|`max-attempts must be at least 1`
 
 |`backoff-millis` is at least 1
-|`: backoff-millis must be at least 1`
+|`backoff-millis must be at least 1`
 
 |`backoff-multiplier` is greater than 1
-|`: backoff-multiplier must be greater than 1`
+|`backoff-multiplier must be greater than 1`
 
 |`backoff-max-interval` is greater than `backoff-millis`
-|`: backoff-max-interval must be greater than backoff-millis`
+|`backoff-max-interval must be greater than backoff-millis`
 
 |An entry has an `llm`
-|`.llm must name an LLM`
+|`<entry>.llm must name an LLM`
 
 |The model provider knows the entry's `llm`
-|`.llm names unknown LLM '<name>'`
+|`<entry>.llm names unknown LLM '<name>'`
 |===
 
-An entry's retry settings are checked after the unset ones are filled from the top level.
 A key under an entry that matches no property also fails startup, and the failure names that key.
 Keys that come from environment variables or system properties are not checked this way.
 The service beans are created eagerly, so an unknown `llm` fails startup even when the application makes beans lazy by default.
@@ -336,26 +314,17 @@ When a decision uses all its attempts, the listener logs one WARN under the same
 Each line carries the service's retry log name, and the WARN names the property that sets the ceiling.
 
 |===
-|Service |Retry log name |Property named in the WARN
+|Service |Retry log name
 
-|An entry with key `<key>` and kind `decision`
-|`decision-<key>`
-|`embabel.agent.platform.decisions.llm.services.<key>.max-attempts`
-
-|An entry with key `<key>` and kind `classification`
-|`classification-<key>`
-|`embabel.agent.platform.decisions.llm.services.<key>.max-attempts`
-
-|Built in code with `decisionService`
+|Built with `decisionService`, in code or from configuration
 |`decision-<llm>`
-|`embabel.agent.platform.decisions.llm.max-attempts`
 
-|Built in code with `classificationService`
+|Built with `classificationService`
 |`classification-<llm>`
-|`embabel.agent.platform.decisions.llm.max-attempts`
 |===
 
-For a service built in code, `<llm>` is the model's name.
+`<llm>` is the model's name.
+The WARN names `embabel.agent.platform.decisions.llm.max-attempts`.
 
 ==== Observations
 
