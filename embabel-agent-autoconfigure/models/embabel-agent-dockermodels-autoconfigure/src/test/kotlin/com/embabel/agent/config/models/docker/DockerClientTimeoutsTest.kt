@@ -40,6 +40,7 @@ import java.time.Duration
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class DockerClientTimeoutsTest {
 
@@ -79,6 +80,7 @@ class DockerClientTimeoutsTest {
 
         private lateinit var server: HttpServer
         private val release = CountDownLatch(1)
+        private val hangingRequests = AtomicInteger()
 
         @BeforeEach
         fun startRunnerThatNeverFinishesAnEmbedding() {
@@ -90,7 +92,10 @@ class DockerClientTimeoutsTest {
                 exchange.sendResponseHeaders(200, body.size.toLong())
                 exchange.responseBody.use { it.write(body) }
             }
-            server.createContext("/engines/v1/embeddings") { exchange ->
+            // Every other path hangs, whichever path the SDK builds from the base URL, so the call
+            // can only fail by timing out rather than on a fast 404.
+            server.createContext("/engines/") { exchange ->
+                hangingRequests.incrementAndGet()
                 exchange.requestBody.use { it.readBytes() }
                 release.await(60, TimeUnit.SECONDS)
                 exchange.close()
@@ -115,6 +120,7 @@ class DockerClientTimeoutsTest {
             val elapsed = Duration.ofNanos(System.nanoTime() - started)
 
             assertTrue(elapsed < Duration.ofSeconds(10), "expected failure within 10s but took $elapsed")
+            assertEquals(3, hangingRequests.get(), "expected three timed-out attempts")
         }
 
         private fun embeddingServiceWith(retryProperties: DockerRetryProperties): EmbeddingService {
