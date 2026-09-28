@@ -137,7 +137,7 @@ class AnnotatedNamingTest {
 
         assertEquals(List.of("isUrgent", "department", "severityLevel"), names(camelDecision.spec()));
         assertEquals(List.of("is_urgent", "department", "severity_level"), names(snakeDecision.spec()));
-        assertNotEquals(camelDecision.spec().getDefinitionId(), snakeDecision.spec().getDefinitionId());
+        assertNotEquals(camelDecision.spec(), snakeDecision.spec());
 
         assertSame(camelDecision, camel.of(Plain.class));
         assertEquals(List.of("isUrgent", "department", "severityLevel"), names(camel.of(Plain.class).spec()));

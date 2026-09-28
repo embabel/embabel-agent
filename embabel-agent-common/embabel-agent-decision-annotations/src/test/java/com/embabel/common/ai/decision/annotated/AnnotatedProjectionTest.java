@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -160,11 +161,12 @@ class AnnotatedProjectionTest {
     void responseToAnotherSpecIsRejectedBeforeConversion() {
         AnnotatedDecision<Triage> triage = AnnotatedDecisions.defaults().of(Triage.class);
         DecisionSpec other = DecisionSpec.builder()
-            .proposition("urgent", question -> question.asking("Is the customer angry?"))
+            .proposition("urgent", question -> question.asking("Does this ticket convey urgency?"))
             .choice("department", question -> question
                 .asking("Which team should handle this?")
                 .option("BILLING", "Payments, invoicing, refunds")
-                .option("TECHNICAL", "Bugs, outages, integrations"))
+                .option("TECHNICAL", "Bugs, outages, integrations")
+                .option("ACCOUNT", "Sign-in and access"))
             .rating("severity", question -> question
                 .asking("How severe is the impact?")
                 .level("LOW").level("HIGH").level("CRITICAL"))
@@ -174,12 +176,33 @@ class AnnotatedProjectionTest {
         DecisionProjectionException e = assertThrows(DecisionProjectionException.class, () -> triage.project(response));
 
         assertEquals(
-            "Response answers spec " + other.getDefinitionId() + " but Triage reads spec "
-                + triage.spec().getDefinitionId() + ". Ask with AnnotatedDecision.spec() for this type and mapper.",
+            "The response does not match the spec. Answer 'department': its options are 'BILLING', 'TECHNICAL',"
+                + " 'ACCOUNT' and the question's are 'BILLING', 'TECHNICAL'. Triage reads a different spec."
+                + " Ask with AnnotatedDecision.spec() for this type and mapper.",
             e.getMessage());
         assertEquals(List.of(), e.getQuestions());
+        assertInstanceOf(IllegalArgumentException.class, e.getCause());
         assertThrows(DecisionProjectionException.class,
             () -> triage.project(response, Map.of()));
+    }
+
+    @Test
+    void responseToRewordedQuestionsStillProjects() {
+        AnnotatedDecision<Triage> triage = AnnotatedDecisions.defaults().of(Triage.class);
+        DecisionSpec reworded = DecisionSpec.builder()
+            .proposition("urgent", question -> question.asking("Is the customer angry?"))
+            .choice("department", question -> question
+                .asking("Which team should handle this?")
+                .option("BILLING", "Payments, invoicing, refunds")
+                .option("TECHNICAL", "Bugs, outages, integrations"))
+            .rating("severity", question -> question
+                .asking("How severe is the impact?")
+                .level("LOW").level("HIGH").level("CRITICAL"))
+            .build();
+        DecisionResponse response = answeredStub().build().ask(INPUT, reworded);
+
+        // The check compares names, kinds and options or levels. Instructions are not compared.
+        assertEquals(new Triage(true, Department.TECHNICAL, Severity.CRITICAL), triage.project(response).getValue());
     }
 
     @Test

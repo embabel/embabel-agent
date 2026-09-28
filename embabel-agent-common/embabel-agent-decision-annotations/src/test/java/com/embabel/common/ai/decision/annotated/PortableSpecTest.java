@@ -103,7 +103,6 @@ class PortableSpecTest {
         DecisionSpec read = mapper.readValue(resourceText(), DecisionSpec.class);
 
         assertEquals(spec, read);
-        assertEquals(spec.getDefinitionId(), read.getDefinitionId());
     }
 
     static String resourceText() throws IOException {

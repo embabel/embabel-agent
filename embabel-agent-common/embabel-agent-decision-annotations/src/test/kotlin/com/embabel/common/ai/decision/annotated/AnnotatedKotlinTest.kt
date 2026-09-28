@@ -149,7 +149,6 @@ class AnnotatedKotlinTest {
         }
 
         assertEquals(dsl, javaTriage)
-        assertEquals(dsl.definitionId, javaTriage.definitionId)
     }
 
     @Test
@@ -216,7 +215,6 @@ class AnnotatedKotlinTest {
             PlainClassTriage::class.java,
         )) {
             assertEquals(javaTriage, decisions.of(type).spec(), type.simpleName)
-            assertEquals(javaTriage.definitionId, decisions.of(type).spec().definitionId, type.simpleName)
         }
     }
 
