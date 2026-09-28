@@ -30,6 +30,7 @@ interface FileAccessLog {
 data class FileReads(
     val path: String,
     val reads: List<Instant> = emptyList(),
+    val bytesReceived: Long = 0,
 ) {
 
     fun count() = reads.size
@@ -44,6 +45,11 @@ interface FileReadLog {
     fun flushReads()
 
     fun recordRead(path: String)
+
+    fun recordRead(
+        path: String,
+        bytesReceived: Long,
+    ) = recordRead(path)
 
     fun getReads(): List<FileReads>
 
@@ -63,8 +69,18 @@ class DefaultFileReadLog(
     }
 
     override fun recordRead(path: String) {
+        recordRead(path, 0)
+    }
+
+    override fun recordRead(
+        path: String,
+        bytesReceived: Long,
+    ) {
         val currentReads = reads.getOrDefault(path, FileReads(path))
-        val updatedReads = currentReads.copy(reads = currentReads.reads + Instant.now())
+        val updatedReads = currentReads.copy(
+            reads = currentReads.reads + Instant.now(),
+            bytesReceived = currentReads.bytesReceived + bytesReceived,
+        )
         reads[path] = updatedReads
     }
 
