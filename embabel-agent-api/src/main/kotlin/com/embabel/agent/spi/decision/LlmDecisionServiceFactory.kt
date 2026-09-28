@@ -31,6 +31,7 @@ import com.embabel.common.ai.model.observation.ObservedClassificationService
 import com.embabel.common.ai.model.observation.ObservedDecisionService
 import io.micrometer.observation.ObservationRegistry
 import org.jetbrains.annotations.ApiStatus
+import org.springframework.boot.context.properties.ConfigurationProperties
 
 /**
  * Builds decision and classification services that ask a chat model.
@@ -74,32 +75,6 @@ class LlmDecisionServiceFactory @ApiStatus.Internal @JvmOverloads internal const
     /** Builds a classification service for a model the caller already holds. */
     fun classificationService(llm: LlmService<*>): ClassificationService =
         observedClassificationService(llmDecisionService(llm, retry, "classification-${llm.name}"))
-
-    /**
-     * Builds a decision service for the model with this name, using its own retry settings and
-     * retry log name. Configured services use this.
-     *
-     * @throws IllegalArgumentException if the name is blank
-     * @throws NoSuitableModelException if no model has this name
-     */
-    internal fun decisionService(
-        llmName: String,
-        retry: LlmDecisionRetryProperties,
-        retryName: String,
-    ): DecisionService = observedDecisionService(llmDecisionService(llmNamed(llmName), retry, retryName))
-
-    /**
-     * Builds a classification service for the model with this name, using its own retry settings
-     * and retry log name. Configured services use this.
-     *
-     * @throws IllegalArgumentException if the name is blank
-     * @throws NoSuitableModelException if no model has this name
-     */
-    internal fun classificationService(
-        llmName: String,
-        retry: LlmDecisionRetryProperties,
-        retryName: String,
-    ): ClassificationService = observedClassificationService(llmDecisionService(llmNamed(llmName), retry, retryName))
 
     /**
      * Looks up the model with this name.
@@ -146,9 +121,10 @@ class LlmDecisionServiceFactory @ApiStatus.Internal @JvmOverloads internal const
 }
 
 /**
- * Retry settings for LLM-backed decision services. The defaults match the other platform services
- * that call a model. Construction fails on any value spring-retry would reject, and on fewer than
- * one attempt, which would fail every call without asking the model.
+ * Retry settings for LLM-backed decision services, bound from `embabel.agent.platform.decisions.llm`.
+ * The defaults match the other platform services that call a model. Construction fails on any value
+ * spring-retry would reject, and on fewer than one attempt, which would fail every call without asking
+ * the model.
  *
  * @property maxAttempts most calls made for one decision, counting the first; at least 1
  * @property backoffMillis wait before the first retry, in milliseconds; at least 1
@@ -157,12 +133,13 @@ class LlmDecisionServiceFactory @ApiStatus.Internal @JvmOverloads internal const
  * @property propertyPrefix where these settings live in configuration
  * @throws IllegalArgumentException if a setting is out of range, with a message naming the property
  */
-internal data class LlmDecisionRetryProperties @JvmOverloads constructor(
+@ConfigurationProperties(prefix = LlmDecisionRetryProperties.PREFIX)
+internal data class LlmDecisionRetryProperties(
     override val maxAttempts: Int = 5,
     override val backoffMillis: Long = 100L,
     override val backoffMultiplier: Double = 5.0,
     override val backoffMaxInterval: Long = 180000L,
-    override val propertyPrefix: String = "embabel.agent.platform.decisions.llm",
+    override val propertyPrefix: String = PREFIX,
 ) : RetryProperties {
 
     init {
@@ -170,5 +147,9 @@ internal data class LlmDecisionRetryProperties @JvmOverloads constructor(
         require(backoffMillis >= 1) { "backoff-millis must be at least 1" }
         require(backoffMultiplier > 1.0) { "backoff-multiplier must be greater than 1" }
         require(backoffMaxInterval > backoffMillis) { "backoff-max-interval must be greater than backoff-millis" }
+    }
+
+    companion object {
+        const val PREFIX = "embabel.agent.platform.decisions.llm"
     }
 }
