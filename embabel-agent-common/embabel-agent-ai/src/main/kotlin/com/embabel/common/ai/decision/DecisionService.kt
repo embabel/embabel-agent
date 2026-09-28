@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.common.ai.model
+package com.embabel.common.ai.decision
 
-import com.embabel.common.ai.decision.PropositionRequest
-import com.embabel.common.ai.decision.PropositionResult
+import com.embabel.common.ai.classification.ClassificationService
+import com.embabel.common.ai.classification.ClassificationServiceMetadata
+import com.embabel.common.ai.model.ModelType
 import org.jetbrains.annotations.ApiStatus
 import tools.jackson.databind.annotation.JsonDeserialize
 

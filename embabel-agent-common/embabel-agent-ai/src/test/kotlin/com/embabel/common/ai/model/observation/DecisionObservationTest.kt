@@ -29,8 +29,8 @@ import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
 import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
-import com.embabel.common.ai.model.ClassificationService
-import com.embabel.common.ai.model.DecisionService
+import com.embabel.common.ai.classification.ClassificationService
+import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.model.ModelType
 import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry

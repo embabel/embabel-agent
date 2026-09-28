@@ -18,7 +18,7 @@ package com.embabel.common.ai.model.observation
 import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.decision.PropositionResult
-import com.embabel.common.ai.model.ClassificationService
+import com.embabel.common.ai.classification.ClassificationService
 import io.micrometer.observation.Observation
 import io.micrometer.observation.ObservationRegistry
 import org.jetbrains.annotations.ApiStatus

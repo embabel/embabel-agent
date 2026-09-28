@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.common.ai.model
+package com.embabel.common.ai.decision
 
 import com.embabel.common.ai.classification.*
-import com.embabel.common.ai.decision.*
+import com.embabel.common.ai.model.*
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import tools.jackson.module.kotlin.jacksonObjectMapper
