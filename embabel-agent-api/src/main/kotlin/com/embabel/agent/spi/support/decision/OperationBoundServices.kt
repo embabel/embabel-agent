@@ -226,6 +226,11 @@ private class BindingSelector<S : ClassificationService>(
  * Runs [block] with [parent] as the current observation. When [parent] is null or already current,
  * [block] runs directly. Otherwise the parent's scope is opened for the call and closed afterwards,
  * which restores the scope the thread held before.
+ *
+ * @param parent the observation to make current, or null for none
+ * @param observationRegistry the registry that tracks the current observation
+ * @param block the work to run
+ * @return what [block] returns
  */
 private inline fun <R> withParent(
     parent: Observation?,

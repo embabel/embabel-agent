@@ -105,7 +105,12 @@ class TypeSafeModelsConfig(
 
         private val logger = org.slf4j.LoggerFactory.getLogger(TypeSafeModelsConfig::class.java)
 
-        /** Keep property conversion at the configuration edge and native options immutable. */
+        /**
+         * Builds the client options from configuration, keeping the default timeouts.
+         *
+         * @param properties the TypeSafe configuration properties
+         * @return the client options
+         */
         private fun options(properties: TypeSafeProperties): TypeSafeClientOptions {
             val defaults = TypeSafeClientOptions.defaults()
             return TypeSafeClientOptions(
@@ -116,14 +121,28 @@ class TypeSafeModelsConfig(
             )
         }
 
-        /** Translate parsing failures without retaining an endpoint that may contain credentials. */
+        /**
+         * Parses the base URL. The error leaves the URL out, since it may hold credentials.
+         *
+         * @param value the configured base URL
+         * @return the parsed URI
+         * @throws IllegalArgumentException if the URL is invalid
+         */
         private fun parseBaseUri(value: String): URI = try {
             URI.create(value)
         } catch (_: IllegalArgumentException) {
             throw IllegalArgumentException("TypeSafe base URL is invalid")
         }
 
-        /** Select and clone the same application transport hierarchy used by other providers. */
+        /**
+         * Picks the same REST client builder the other model providers use, and adds the observation
+         * registry to a copy of it when there is exactly one.
+         *
+         * @param platformBuilders the platform's model REST client builder
+         * @param builders any other REST client builders in the context
+         * @param registries the observation registries in the context
+         * @return the builder to use, or null to use the client's own
+         */
         private fun selectedBuilder(
             platformBuilders: ObjectProvider<RestClient.Builder>,
             builders: ObjectProvider<RestClient.Builder>,
@@ -134,7 +153,15 @@ class TypeSafeModelsConfig(
             return selected.clone().observationRegistry(registry)
         }
 
-        /** Resolve the environment key first and never include credential contents in failures. */
+        /**
+         * Reads the API key, preferring the environment variable over the configured property. The
+         * error never includes the key.
+         *
+         * @param properties the TypeSafe configuration properties
+         * @param environment the Spring environment
+         * @return the API key
+         * @throws IllegalStateException if neither source has a key
+         */
         private fun requireApiKey(properties: TypeSafeProperties, environment: Environment): String {
             val environmentKey = environment.getProperty(API_KEY_ENVIRONMENT_VARIABLE)
             return environmentKey.takeUnless { it.isNullOrBlank() }
