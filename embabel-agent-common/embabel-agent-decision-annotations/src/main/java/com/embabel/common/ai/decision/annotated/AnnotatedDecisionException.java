@@ -63,6 +63,13 @@ public class AnnotatedDecisionException extends IllegalArgumentException {
         return problems;
     }
 
+    /**
+     * Builds the exception message listing every problem found in the type.
+     *
+     * @param type the type that was read
+     * @param problems the problems found, which must not be empty
+     * @return the full message, with one problem per line
+     */
     private static String message(Class<?> type, List<String> problems) {
         Objects.requireNonNull(type, "type");
         if (problems.isEmpty()) {
