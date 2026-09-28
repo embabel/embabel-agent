@@ -749,6 +749,18 @@ NOTE: The `http-client` timeouts do not apply to OpenAI-compatible providers (`o
 
 NOTE: The HTTP client configuration applies to all model providers that use Spring's `RestClient` and `WebClient`, including OpenAI, Anthropic, and OpenAI-compatible endpoints.
 
+DeepSeek and Mistral AI also accept `connect-timeout` and `read-timeout` under their own prefixes, `embabel.agent.platform.models.deepseek` and `embabel.agent.platform.models.mistralai`. Set there, they replace the `http-client` values for that provider. A per-user key for DeepSeek or Mistral AI reads the same properties.
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        mistralai:
+          read-timeout: 10m
+----
+
 ===== Template Renderer
 
 From the `JinjaProperties` nested in `AgentPlatformProperties` - Jinja template renderer configuration.

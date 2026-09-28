@@ -34,6 +34,7 @@ import org.springframework.ai.mistralai.MistralAiChatOptions
 import org.springframework.ai.mistralai.api.MistralAiApi
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -42,9 +43,13 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.convert.DurationStyle
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.http.client.ClientHttpRequestFactory
 import org.springframework.http.client.JdkClientHttpRequestFactory
+import org.springframework.http.client.reactive.ClientHttpConnector
+import org.springframework.http.client.reactive.JdkClientHttpConnector
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
+import java.net.http.HttpClient
 import java.time.Duration
 
 /**
@@ -83,6 +88,18 @@ class MistralAiProperties : RetryProperties {
      */
     override var backoffMaxInterval: Long = 180_000L
 
+    /**
+     * How long to wait to connect to Mistral AI. Unset uses
+     * `embabel.agent.platform.http-client.connect-timeout`.
+     */
+    var connectTimeout: Duration? = null
+
+    /**
+     * How long to wait for a response from Mistral AI. Unset uses
+     * `embabel.agent.platform.http-client.read-timeout`.
+     */
+    var readTimeout: Duration? = null
+
     override val propertyPrefix: String = PREFIX
     companion object {
         const val PREFIX  = "embabel.agent.platform.models.mistralai"
@@ -96,7 +113,7 @@ class MistralAiProperties : RetryProperties {
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(MistralAiProperties::class)
-class MistralAiModelsConfig(
+class MistralAiModelsConfig @Autowired constructor(
     @param:Value("\${MISTRAL_BASE_URL:#{null}}")
     private val envBaseUrl: String?,
     @param:Value("\${MISTRAL_API_KEY:#{null}}")
@@ -111,12 +128,47 @@ class MistralAiModelsConfig(
     @param:Value("\${embabel.agent.platform.http-client.read-timeout:5m}")
     private val httpReadTimeout: String,
     private val modelLoader: LlmAutoConfigMetadataLoader<MistralAiModelDefinitions> = MistralAiModelLoader(),
+    @param:Value("\${embabel.agent.platform.http-client.connect-timeout:25s}")
+    private val httpConnectTimeout: String = DEFAULT_CONNECT_TIMEOUT,
 ) {
+
+    /** The constructor as it was before [httpConnectTimeout], kept for Java callers. */
+    constructor(
+        envBaseUrl: String?,
+        envApiKey: String?,
+        properties: MistralAiProperties,
+        observationRegistry: ObjectProvider<ObservationRegistry>,
+        configurableBeanFactory: ConfigurableBeanFactory,
+        restClientBuilderProvider: ObjectProvider<RestClient.Builder>,
+        webClientBuilderProvider: ObjectProvider<WebClient.Builder>,
+        httpReadTimeout: String,
+        modelLoader: LlmAutoConfigMetadataLoader<MistralAiModelDefinitions>,
+    ) : this(
+        envBaseUrl,
+        envApiKey,
+        properties,
+        observationRegistry,
+        configurableBeanFactory,
+        restClientBuilderProvider,
+        webClientBuilderProvider,
+        httpReadTimeout,
+        modelLoader,
+        DEFAULT_CONNECT_TIMEOUT,
+    )
+
     private val logger = LoggerFactory.getLogger(MistralAiModelsConfig::class.java)
 
     private val baseUrl: String? = envBaseUrl ?: properties.baseUrl
     private val apiKey: String = envApiKey ?: properties.apiKey
     ?: error("Mistral AI API key required: set MISTRAL_API_KEY env var or embabel.agent.platform.models.mistralai.api-key")
+
+    /** Whether this provider sets a timeout of its own rather than using the http-client ones. */
+    private val ownTimeouts = properties.connectTimeout != null || properties.readTimeout != null
+
+    private val timeouts = JdkClientTimeouts(
+        connect = properties.connectTimeout ?: DurationStyle.detectAndParse(httpConnectTimeout),
+        read = properties.readTimeout ?: DurationStyle.detectAndParse(httpReadTimeout),
+    )
 
     init {
         logger.info("Mistral AI models are available: {}", properties)
@@ -220,11 +272,15 @@ class MistralAiModelsConfig(
         // without the netty client autoconfigure), fall back to a builder that still honours the platform read
         // timeout rather than the ~10s ReactorClientHttpRequestFactory default, which otherwise aborts slow
         // generations (e.g. reasoning models) with a ReadTimeoutException.
+        // Timeouts set under this provider's prefix replace the shared client's transport with one
+        // that carries them; the shared builders hold the http-client timeouts and can't be changed.
         val restClientBuilder = restClientBuilderProvider.getIfAvailable(::fallbackRestClientBuilder)
             .clone()
+            .let { if (ownTimeouts) it.requestFactory(timeouts.requestFactory()) else it }
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
         val webClientBuilder = webClientBuilderProvider.getIfAvailable(WebClient::builder)
             .clone()
+            .let { if (ownTimeouts) it.clientConnector(timeouts.connector()) else it }
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
 
         val builder = MistralAiApi.builder()
@@ -239,14 +295,36 @@ class MistralAiModelsConfig(
 
     /**
      * Fallback client builder for contexts where the shared [aiModelRestClientBuilder] bean is absent.
-     * Applies the platform read timeout ([httpReadTimeout]) so a slow response is not aborted at the
-     * ~10s ReactorClientHttpRequestFactory default.
+     * Applies the timeouts so a slow response is not aborted at the ~10s ReactorClientHttpRequestFactory
+     * default.
      */
-    private fun fallbackRestClientBuilder(): RestClient.Builder {
-        val readTimeout: Duration = DurationStyle.detectAndParse(httpReadTimeout)
-        val requestFactory = JdkClientHttpRequestFactory().apply { setReadTimeout(readTimeout) }
-        return RestClient.builder().requestFactory(requestFactory)
-    }
+    private fun fallbackRestClientBuilder(): RestClient.Builder =
+        RestClient.builder().requestFactory(timeouts.requestFactory())
+}
+
+/** The http-client connect timeout's default, for a caller that does not pass one. */
+private const val DEFAULT_CONNECT_TIMEOUT = "25s"
+
+/**
+ * JDK HTTP clients carrying [connect] and [read]: a request factory for blocking calls and a
+ * connector for streamed ones.
+ */
+internal data class JdkClientTimeouts(
+    val connect: Duration,
+    val read: Duration,
+) {
+
+    fun requestFactory(): ClientHttpRequestFactory =
+        JdkClientHttpRequestFactory(httpClient()).apply { setReadTimeout(read) }
+
+    fun connector(): ClientHttpConnector =
+        JdkClientHttpConnector(httpClient()).apply { setReadTimeout(read) }
+
+    private fun httpClient(): HttpClient =
+        HttpClient.newBuilder()
+            .connectTimeout(connect)
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .build()
 }
 
 object MistralAiOptionsConverter : OptionsConverter {
