@@ -96,6 +96,8 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpStatus;
@@ -137,6 +139,7 @@ class DecisionServicesSpringExampleTest {
                     "support-triage",
                     "dice-revision-review",
                     "dice-revision",
+                    "ticket-routing",
                     "urgent",
                     "department",
                     "frustration");
@@ -323,6 +326,48 @@ class DecisionServicesSpringExampleTest {
         verifyOnePrompt(fixture);
         fixture.server.verify();
     }
+
+    @Test
+    void classificationOnlyEntryServesItsRoleAndTheSpecBean() {
+        fixture.runner()
+                .withUserConfiguration(TicketRoutingConfiguration.class)
+                .run(
+                        context -> {
+                            assertThat(context).hasNotFailed();
+                            var registry = context.getBean(DecisionServiceRegistry.class);
+
+                            ClassificationService routing = registry.classifications().byRole("ticket-routing");
+                            assertThat(routing).isSameAs(context.getBean("ticket-classifier"));
+                            assertThat(routing).isNotInstanceOf(DecisionService.class);
+                            assertThat(routing.getType()).isEqualTo(ModelType.CLASSIFICATION);
+                            assertThat(routing.getName()).isEqualTo(REVIEW_MODEL);
+                            assertThatThrownBy(() -> registry.decisions().named("ticket-classifier"))
+                                    .isInstanceOfSatisfying(
+                                            ServiceSelectionException.class,
+                                            e -> assertThat(e.getReason())
+                                                    .isEqualTo(ServiceSelectionException.Reason.WRONG_CAPABILITY));
+
+                            assertThat(context.getBean(ClassificationSpec.class).getCategories())
+                                    .extracting(category -> category.getId())
+                                    .containsExactly("billing", "technical");
+                        });
+        verifyNoInteractions(fixture.llmOperations);
+    }
+
+    // tag::spec-bean[]
+    @Configuration(proxyBeanMethods = false)
+    static class TicketRoutingConfiguration {
+
+        @Bean
+        ClassificationSpec departments() {
+            return ClassificationSpec.builder()
+                    .asking("Which team should handle this?")
+                    .category("billing", "Payments, invoicing, refunds")
+                    .category("technical", "Bugs, outages, integrations")
+                    .build();
+        }
+    }
+    // end::spec-bean[]
 
     @Test
     void unavailableJevReturnsTypedFailuresAndLogsTheCauseWithoutPayload() {

@@ -16,6 +16,9 @@ embabel:
           services:
             llm-review:
               llm: gpt-4.1-mini
+            ticket-classifier:
+              llm: gpt-4.1-mini
+              kind: classification
         capture-content: false
   models:
     decision:
@@ -25,4 +28,5 @@ embabel:
     classification:
       roles:
         dice-revision: llm-review
+        ticket-routing: ticket-classifier
 # end::yaml[]
