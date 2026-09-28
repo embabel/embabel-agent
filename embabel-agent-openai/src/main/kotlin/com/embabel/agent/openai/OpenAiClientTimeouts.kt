@@ -77,14 +77,24 @@ data class OpenAiClientTimeouts @JvmOverloads constructor(
 }
 
 /**
- * Configuration that sets the timeouts of an OpenAI-compatible client, under the provider's
- * own property prefix as `connect-timeout` and `read-timeout`.
+ * Properties shared by every OpenAI-compatible provider. Each provider's properties class
+ * extends this and binds it under its own prefix, so `connect-timeout` and `read-timeout` are
+ * set per provider while the fields, defaults and documentation live here once.
  */
-interface OpenAiClientTimeoutProperties {
+abstract class OpenAiCompatibleClientProperties {
 
-    val connectTimeout: Duration
+    /**
+     * How long to wait to connect to the provider.
+     */
+    var connectTimeout: Duration = OpenAiClientTimeouts.DEFAULT_CONNECT
 
-    val readTimeout: Duration?
+    /**
+     * The per-attempt response timeout: how long one attempt may take, from sending the request
+     * to reading the whole response. Raise it for a slow model or a large embedding batch. Unset
+     * keeps Spring AI's per-call default of 60 seconds. The client retries a timed-out call
+     * twice, so a caller can wait up to three times this value.
+     */
+    var readTimeout: Duration? = null
 
     fun clientTimeouts(): OpenAiClientTimeouts = OpenAiClientTimeouts(connectTimeout, readTimeout)
 }

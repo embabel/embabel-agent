@@ -21,8 +21,7 @@ import com.embabel.agent.openai.CapabilityAwareOpenAiOptionsConverter
 import com.embabel.agent.openai.OpenAiReasoningEffortOptionsConverter
 import com.embabel.agent.openai.Gpt5ChatOptionsConverter
 import com.embabel.agent.openai.ModelCapabilities
-import com.embabel.agent.openai.OpenAiClientTimeoutProperties
-import com.embabel.agent.openai.OpenAiClientTimeouts
+import com.embabel.agent.openai.OpenAiCompatibleClientProperties
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.openai.StandardOpenAiOptionsConverter
 import com.embabel.agent.spi.LlmService
@@ -52,7 +51,6 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
-import java.time.Duration
 
 /**
  * Configuration properties for OpenAI model settings.
@@ -60,7 +58,7 @@ import java.time.Duration
  * prefix embabel.agent.platform.models.openai.
  */
 @ConfigurationProperties(prefix = PREFIX)
-class OpenAiProperties : RetryProperties, OpenAiClientTimeoutProperties {
+class OpenAiProperties : OpenAiCompatibleClientProperties(), RetryProperties {
     /**
      * Base URL for OpenAI API requests.
      */
@@ -100,17 +98,6 @@ class OpenAiProperties : RetryProperties, OpenAiClientTimeoutProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 180000L
-
-    /**
-     * How long to wait to connect to the provider.
-     */
-    override var connectTimeout: Duration = OpenAiClientTimeouts.DEFAULT_CONNECT
-
-    /**
-     * How long to wait for a whole response, per attempt. Raise it for a slow model or a large
-     * embedding batch. Unset keeps Spring AI's per-call default of 60 seconds.
-     */
-    override var readTimeout: Duration? = null
 
     override val propertyPrefix: String = PREFIX
     companion object {

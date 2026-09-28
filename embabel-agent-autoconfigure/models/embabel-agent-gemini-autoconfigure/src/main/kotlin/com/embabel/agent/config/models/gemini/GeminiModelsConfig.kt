@@ -18,8 +18,7 @@ package com.embabel.agent.config.models.gemini
 import com.embabel.agent.api.models.GeminiModels
 import com.embabel.agent.config.models.gemini.GeminiProperties.Companion.PREFIX
 import com.embabel.agent.openai.OpenAiChatOptionsConverter
-import com.embabel.agent.openai.OpenAiClientTimeoutProperties
-import com.embabel.agent.openai.OpenAiClientTimeouts
+import com.embabel.agent.openai.OpenAiCompatibleClientProperties
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
@@ -40,7 +39,6 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
-import java.time.Duration
 
 /**
  * Configuration properties for Gemini models.
@@ -49,7 +47,7 @@ import java.time.Duration
  * when calling Google Gemini APIs.
  */
 @ConfigurationProperties(prefix = PREFIX)
-class GeminiProperties : RetryProperties, OpenAiClientTimeoutProperties {
+class GeminiProperties : OpenAiCompatibleClientProperties(), RetryProperties {
     /**
      * Base URL for Gemini API requests.
      */
@@ -79,17 +77,6 @@ class GeminiProperties : RetryProperties, OpenAiClientTimeoutProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 180000L
-
-    /**
-     * How long to wait to connect to the provider.
-     */
-    override var connectTimeout: Duration = OpenAiClientTimeouts.DEFAULT_CONNECT
-
-    /**
-     * How long to wait for a whole response, per attempt. Raise it for a slow model or a large
-     * embedding batch. Unset keeps Spring AI's per-call default of 60 seconds.
-     */
-    override var readTimeout: Duration? = null
 
     override val propertyPrefix: String = PREFIX
     companion object {

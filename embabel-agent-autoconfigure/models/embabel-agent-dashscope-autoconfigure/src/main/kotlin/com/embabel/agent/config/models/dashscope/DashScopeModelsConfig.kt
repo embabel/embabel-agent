@@ -17,8 +17,7 @@ package com.embabel.agent.config.models.dashscope
 
 import com.embabel.agent.api.models.DashScopeModels
 import com.embabel.agent.config.models.dashscope.DashScopeProperties.Companion.PREFIX
-import com.embabel.agent.openai.OpenAiClientTimeoutProperties
-import com.embabel.agent.openai.OpenAiClientTimeouts
+import com.embabel.agent.openai.OpenAiCompatibleClientProperties
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
@@ -44,7 +43,6 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
-import java.time.Duration
 
 /**
  * Configuration properties for Alibaba Cloud DashScope models.
@@ -55,7 +53,7 @@ import java.time.Duration
  * @since 1.5.0
  */
 @ConfigurationProperties(prefix = PREFIX)
-class DashScopeProperties : RetryProperties, OpenAiClientTimeoutProperties {
+class DashScopeProperties : OpenAiCompatibleClientProperties(), RetryProperties {
     /**
      * Base URL for DashScope API requests. DashScope exposes an OpenAI-compatible
      * chat-completions endpoint, so this is the base URL for the compatible mode;
@@ -87,17 +85,6 @@ class DashScopeProperties : RetryProperties, OpenAiClientTimeoutProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 60000L
-
-    /**
-     * How long to wait to connect to the provider.
-     */
-    override var connectTimeout: Duration = OpenAiClientTimeouts.DEFAULT_CONNECT
-
-    /**
-     * How long to wait for a whole response, per attempt. Raise it for a slow model or a large
-     * embedding batch. Unset keeps Spring AI's per-call default of 60 seconds.
-     */
-    override var readTimeout: Duration? = null
 
     override val propertyPrefix: String = PREFIX
     companion object {

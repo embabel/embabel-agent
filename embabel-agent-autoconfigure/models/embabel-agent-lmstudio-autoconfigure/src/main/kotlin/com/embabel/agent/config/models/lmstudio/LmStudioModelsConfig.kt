@@ -17,8 +17,7 @@ package com.embabel.agent.config.models.lmstudio
 
 import com.embabel.agent.api.models.LmStudioModels
 import com.embabel.agent.config.models.lmstudio.LmStudioProperties.Companion.PREFIX
-import com.embabel.agent.openai.OpenAiClientTimeoutProperties
-import com.embabel.agent.openai.OpenAiClientTimeouts
+import com.embabel.agent.openai.OpenAiCompatibleClientProperties
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.common.ai.autoconfig.ProviderInitialization
@@ -50,10 +49,9 @@ import org.springframework.http.MediaType
 import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
-import java.time.Duration
 
 @ConfigurationProperties(prefix = PREFIX)
-class LmStudioProperties : RetryProperties, OpenAiClientTimeoutProperties {
+class LmStudioProperties : OpenAiCompatibleClientProperties(), RetryProperties {
 
     /**
      * Base URL for LM Studio endpoint
@@ -84,17 +82,6 @@ class LmStudioProperties : RetryProperties, OpenAiClientTimeoutProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 180000L
-
-    /**
-     * How long to wait to connect to the provider.
-     */
-    override var connectTimeout: Duration = OpenAiClientTimeouts.DEFAULT_CONNECT
-
-    /**
-     * How long to wait for a whole response, per attempt. Raise it for a slow model or a large
-     * embedding batch. Unset keeps Spring AI's per-call default of 60 seconds.
-     */
-    override var readTimeout: Duration? = null
 
     override val propertyPrefix: String = PREFIX
     companion object {
