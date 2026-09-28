@@ -54,16 +54,14 @@ class ClassificationJavaTest {
 
     @Test
     void requestFromCategories() {
-        // tag::request[]
-        var request =
-                new ClassificationRequest(
-                        "A bunny is eating clover",
-                        "Which kind of animal is this?",
-                        List.of(
-                                new Category("dog", "A dog or canine"),
-                                new Category("cat", "A cat or feline"),
-                                new Category("rabbit", "A rabbit, including a bunny")));
-        // end::request[]
+        var spec =
+                ClassificationSpec.builder()
+                        .asking("Which kind of animal is this?")
+                        .category("dog", "A dog or canine")
+                        .category("cat", "A cat or feline")
+                        .category("rabbit", "A rabbit, including a bunny")
+                        .build();
+        var request = ClassificationRequest.of("A bunny is eating clover", spec);
         assertEquals("Which kind of animal is this?", request.getInstructions());
         assertEquals(
                 List.of("dog", "cat", "rabbit"),
