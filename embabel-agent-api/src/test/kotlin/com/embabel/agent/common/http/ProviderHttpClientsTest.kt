@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.support.http
+package com.embabel.agent.common.http
 
 import io.mockk.mockk
 import io.mockk.verify

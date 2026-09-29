@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.support.http
+package com.embabel.agent.common.http
 
 import io.netty.channel.ChannelOption
 import org.slf4j.Logger
@@ -163,15 +163,19 @@ class ProviderHttpClients private constructor(
     private fun logTransport(provider: String, logger: Logger) {
         if (!ownsTransport) return
         logger.info(
-            "{} uses its own HTTP client (connect timeout {}, read timeout {}) in place of the shared " +
-                "aiModelRestClientBuilder / aiModelWebClientBuilder transport; proxy or TLS settings on " +
-                "those do not apply to it",
+            """
+            {} uses its own HTTP client (connect timeout {}, read timeout {}) in place of the shared
+            aiModelRestClientBuilder / aiModelWebClientBuilder transport; proxy or TLS settings on
+            those do not apply to it
+            """.trimIndent().replace("\n", " "),
             provider, connect, read,
         )
         if (!reactorNetty) {
             logger.warn(
-                "{} uses the JDK HTTP client, as {} is false: its read timeout bounds the wait for " +
-                    "response headers only, not a stream that stalls mid-body",
+                """
+                {} uses the JDK HTTP client, as {} is false: its read timeout bounds the wait for
+                response headers only, not a stream that stalls mid-body
+                """.trimIndent().replace("\n", " "),
                 provider, HTTP_USE_REACTOR_NETTY,
             )
         }

@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.openai
 
-import com.embabel.agent.spi.common.ClientTimeoutProperties
+import com.embabel.agent.common.http.ClientTimeoutProperties
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import com.openai.core.Timeout

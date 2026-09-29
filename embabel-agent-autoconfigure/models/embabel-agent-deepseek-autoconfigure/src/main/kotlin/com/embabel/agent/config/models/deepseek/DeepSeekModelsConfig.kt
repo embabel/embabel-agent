@@ -16,15 +16,15 @@
 package com.embabel.agent.config.models.deepseek
 
 import com.embabel.agent.api.models.DeepSeekModels
+import com.embabel.agent.common.http.ClientTimeoutProperties
+import com.embabel.agent.common.http.ProviderHttpClients
+import com.embabel.agent.common.http.ProviderHttpClients.Companion.DEFAULT_CONNECT_TIMEOUT
+import com.embabel.agent.common.http.ProviderHttpClients.Companion.DEFAULT_READ_TIMEOUT
+import com.embabel.agent.common.http.ProviderHttpClients.Companion.HTTP_CONNECT_TIMEOUT
+import com.embabel.agent.common.http.ProviderHttpClients.Companion.HTTP_READ_TIMEOUT
+import com.embabel.agent.common.http.ProviderHttpClients.Companion.HTTP_USE_REACTOR_NETTY
 import com.embabel.agent.config.models.deepseek.DeepSeekProperties.Companion.PREFIX
-import com.embabel.agent.spi.common.ClientTimeoutProperties
 import com.embabel.agent.spi.common.RetryProperties
-import com.embabel.agent.spi.support.http.ProviderHttpClients
-import com.embabel.agent.spi.support.http.ProviderHttpClients.Companion.DEFAULT_CONNECT_TIMEOUT
-import com.embabel.agent.spi.support.http.ProviderHttpClients.Companion.DEFAULT_READ_TIMEOUT
-import com.embabel.agent.spi.support.http.ProviderHttpClients.Companion.HTTP_CONNECT_TIMEOUT
-import com.embabel.agent.spi.support.http.ProviderHttpClients.Companion.HTTP_READ_TIMEOUT
-import com.embabel.agent.spi.support.http.ProviderHttpClients.Companion.HTTP_USE_REACTOR_NETTY
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter

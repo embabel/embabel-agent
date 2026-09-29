@@ -318,9 +318,11 @@ class MistralAiClientTimeoutsTest {
         /** TEST-NET-1 (RFC 5737): reserved for documentation, never assigned, so normally dropped. */
         const val BLACKHOLE = "192.0.2.1"
 
-        const val FIRST_CHUNK =
-            """data: {"id":"1","object":"chat.completion.chunk","created":0,"model":"m",""" +
-                """"choices":[{"index":0,"delta":{"role":"assistant","content":"Hi"},"finish_reason":null}]}""" +
-                "\n\n"
+        private val FIRST_CHUNK_JSON = """
+            {"id":"1","object":"chat.completion.chunk","created":0,"model":"m",
+            "choices":[{"index":0,"delta":{"role":"assistant","content":"Hi"},"finish_reason":null}]}
+            """.trimIndent().replace("\n", "")
+
+        val FIRST_CHUNK = "data: $FIRST_CHUNK_JSON\n\n"
     }
 }
