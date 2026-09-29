@@ -30,6 +30,16 @@ import tools.jackson.databind.json.JsonMapper
  * parameter of the target has no answered value, so a record component with no matching question is
  * an error. A mapper passed in keeps its own settings.
  *
+ * For a spec with an `is_urgent` proposition and a `department` choice, a record whose component
+ * names match the question names receives the answers:
+ *
+ * ```java
+ * record SupportRoute(boolean is_urgent, String department) {}
+ *
+ * var route = DecisionProjection.of(response, SupportRoute.class).getValue();
+ * // SupportRoute[is_urgent=true, department=billing]
+ * ```
+ *
  * @param T the caller's target type
  * @property value the projected value
  * @property response the response the value was read from, unchanged

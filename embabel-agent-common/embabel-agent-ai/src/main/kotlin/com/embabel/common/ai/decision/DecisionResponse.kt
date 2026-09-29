@@ -369,8 +369,14 @@ class DecisionResponse private constructor(
      * the spec's order, and each answer must fit its question the way the typed [answer] lookup
      * requires: same name and kind, and equal options or levels.
      *
-     * Use it on a response that did not come from this spec's builder, such as one read from JSON.
-     * As with the typed lookup, a change to a question's instructions is not detected.
+     * Use it on a response that did not come from this spec's builder, such as one read from JSON or
+     * one a provider built itself. As with the typed lookup, a change to a question's instructions is
+     * not detected.
+     *
+     * For example, when the spec asks `urgent` and `team` but the response also answers
+     * `sentiment`, this throws with `Extra: 'sentiment'.` The names are compared first because the
+     * per-answer check pairs each question with the answer at the same position, so an answer with
+     * no question would never be checked.
      *
      * @param spec the spec this response should answer
      * @throws IllegalArgumentException if an answer is missing, extra or out of order, or an answer
