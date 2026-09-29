@@ -769,7 +769,7 @@ The registry summary at INFO:
 
 [source,text]
 ----
-Decision service registry built with 3 services: [typeSafeDecisionService (name jev-1, provider TypeSafe, type DECISION, capabilities kinds [PROPOSITION, CHOICE, RATING], max questions 16, max input characters 20000), gpt (name gpt-x, provider OpenAI, type DECISION, capabilities kinds [PROPOSITION, CHOICE], max questions none, max input characters none), clf (name clf-1, provider acme, type CLASSIFICATION)]; decision default: 'typeSafeDecisionService' (explicit); decision roles: {support-triage=gpt}; classification default: none set; candidates considered: []; classification roles: {}; default candidates: []
+Decision service registry built with 3 services: [typeSafeDecisionService (name jev-1, provider TypeSafe, type DECISION, capabilities kinds [PROPOSITION, CHOICE, RATING]), gpt (name gpt-x, provider OpenAI, type DECISION, capabilities kinds [PROPOSITION, CHOICE]), clf (name clf-1, provider acme, type CLASSIFICATION)]; decision default: 'typeSafeDecisionService' (explicit); decision roles: {support-triage=gpt}; classification default: none set; candidates considered: []; classification roles: {}; default candidates: []
 ----
 
 Routing and completion at DEBUG:

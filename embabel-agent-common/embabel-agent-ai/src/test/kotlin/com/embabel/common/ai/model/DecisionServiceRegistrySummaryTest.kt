@@ -63,7 +63,7 @@ class DecisionServiceRegistrySummaryTest {
 
     private val nativeCapabilities = DecisionCapabilities.of(
         EnumSet.of(QuestionKind.PROPOSITION, QuestionKind.CHOICE, QuestionKind.RATING),
-    ).withMaxQuestions(16).withMaxInputCharacters(20000)
+    )
 
     private fun captured(block: () -> Unit): List<ILoggingEvent> {
         val logger = LoggerFactory.getLogger(DecisionServiceRegistry::class.java) as Logger
@@ -97,10 +97,8 @@ class DecisionServiceRegistrySummaryTest {
         val message = events.single().formattedMessage
         listOf(
             "typeSafeDecisionService (name jev-1, provider TypeSafe, type DECISION, capabilities kinds " +
-                "[PROPOSITION, CHOICE, RATING], max questions 16, " +
-                "max input characters 20000)",
-            "gpt (name gpt-x, provider OpenAI, type DECISION, capabilities kinds [PROPOSITION, CHOICE], " +
-                "max questions none, max input characters none)",
+                "[PROPOSITION, CHOICE, RATING])",
+            "gpt (name gpt-x, provider OpenAI, type DECISION, capabilities kinds [PROPOSITION, CHOICE])",
             "clf (name clf-1, provider acme, type CLASSIFICATION)",
             "decision default: 'typeSafeDecisionService' (explicit)",
             "decision roles: {support-triage=gpt}",
