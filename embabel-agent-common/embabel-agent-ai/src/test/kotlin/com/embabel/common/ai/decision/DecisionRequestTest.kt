@@ -118,69 +118,13 @@ class DecisionRequestTest {
         }
 
         @Test
-        fun `limits are null until set`() {
-            val capabilities = capabilities()
-            assertNull(capabilities.maxQuestions)
-            assertNull(capabilities.maxInputCharacters)
-        }
-
-        @Test
-        fun `a present limit is kept as given`() {
-            val capabilities = capabilities().withMaxQuestions(8).withMaxInputCharacters(4000)
-            assertEquals(8, capabilities.maxQuestions)
-            assertEquals(4000, capabilities.maxInputCharacters)
-        }
-
-        @Test
-        fun `withMaxQuestions returns new capabilities and keeps everything else`() {
-            val original = capabilities().withMaxInputCharacters(4000)
-            val limited = original.withMaxQuestions(8)
-            assertNull(original.maxQuestions)
-            assertEquals(8, limited.maxQuestions)
-            assertEquals(4000, limited.maxInputCharacters)
-            assertEquals(original.questionKinds, limited.questionKinds)
-        }
-
-        @Test
-        fun `withMaxInputCharacters returns new capabilities and keeps everything else`() {
-            val original = capabilities().withMaxQuestions(8)
-            val limited = original.withMaxInputCharacters(4000)
-            assertNull(original.maxInputCharacters)
-            assertEquals(4000, limited.maxInputCharacters)
-            assertEquals(8, limited.maxQuestions)
-            assertEquals(original.questionKinds, limited.questionKinds)
-        }
-
-        @Test
-        fun `a later wither replaces an earlier limit`() {
-            assertEquals(3, capabilities().withMaxQuestions(8).withMaxQuestions(3).maxQuestions)
-        }
-
-        @Test
         fun `empty question kinds are rejected`() {
             assertRejected("question kind") { DecisionCapabilities.of(emptySet()) }
         }
 
         @Test
-        fun `a maxQuestions below 1 is rejected`() {
-            assertRejected("maxQuestions") { capabilities().withMaxQuestions(0) }
-        }
-
-        @Test
-        fun `a maxInputCharacters below 1 is rejected`() {
-            assertRejected("maxInputCharacters") { capabilities().withMaxInputCharacters(-1) }
-        }
-
-        @Test
-        fun `a limit of 1 is accepted`() {
-            val capabilities = capabilities().withMaxQuestions(1).withMaxInputCharacters(1)
-            assertEquals(1, capabilities.maxQuestions)
-            assertEquals(1, capabilities.maxInputCharacters)
-        }
-
-        @Test
         fun `questionKinds cannot be modified`() {
-            val capabilities = capabilities().withMaxQuestions(8)
+            val capabilities = capabilities()
             @Suppress("UNCHECKED_CAST")
             val kinds = capabilities.questionKinds as MutableSet<QuestionKind>
             assertThrows(UnsupportedOperationException::class.java) { kinds.add(QuestionKind.CHOICE) }
@@ -196,15 +140,8 @@ class DecisionRequestTest {
 
         @Test
         fun `capabilities with equal fields are equal`() {
-            assertEquals(capabilities().withMaxQuestions(8), capabilities().withMaxQuestions(8))
-            assertEquals(capabilities().withMaxQuestions(8).hashCode(), capabilities().withMaxQuestions(8).hashCode())
-        }
-
-        @Test
-        fun `capabilities with a different limit are not equal`() {
-            assertNotEquals(capabilities().withMaxQuestions(8), capabilities().withMaxQuestions(9))
-            assertNotEquals(capabilities().withMaxQuestions(8), capabilities())
-            assertNotEquals(capabilities().withMaxInputCharacters(8), capabilities().withMaxQuestions(8))
+            assertEquals(capabilities(), capabilities())
+            assertEquals(capabilities().hashCode(), capabilities().hashCode())
         }
 
         @Test
@@ -219,20 +156,16 @@ class DecisionRequestTest {
         fun `kinds iterate in declaration order whatever order they were given in`() {
             val capabilities = capabilities(
                 kinds = linkedSetOf(QuestionKind.RATING, QuestionKind.CHOICE, QuestionKind.PROPOSITION),
-            ).withMaxQuestions(8)
+            )
             assertEquals(QuestionKind.entries, capabilities.questionKinds.toList())
         }
 
         @Test
-        fun `toString lists kinds in declaration order with the limits`() {
+        fun `toString lists kinds in declaration order`() {
             val shown = capabilities(
                 kinds = linkedSetOf(QuestionKind.RATING, QuestionKind.CHOICE, QuestionKind.PROPOSITION),
-            ).withMaxQuestions(8).toString()
-            assertEquals(
-                "DecisionCapabilities(questionKinds=[PROPOSITION, CHOICE, RATING], " +
-                    "maxQuestions=8, maxInputCharacters=null)",
-                shown,
-            )
+            ).toString()
+            assertEquals("DecisionCapabilities(questionKinds=[PROPOSITION, CHOICE, RATING])", shown)
         }
 
         @Test

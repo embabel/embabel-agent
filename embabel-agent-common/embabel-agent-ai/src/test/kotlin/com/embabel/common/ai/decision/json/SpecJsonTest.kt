@@ -146,25 +146,13 @@ class SpecJsonTest {
         }
 
         @Test
-        fun `capabilities omit null limits and read back equal`() {
+        fun `capabilities write their kinds in declaration order and read back equal`() {
             val capabilities = DecisionCapabilities.of(setOf(QuestionKind.CHOICE, QuestionKind.PROPOSITION))
-                .withMaxQuestions(8)
-            val json = """{"questionKinds":["proposition","choice"],"maxQuestions":8}"""
+            val json = """{"questionKinds":["proposition","choice"]}"""
             assertEquals(json, mapper.writeValueAsString(capabilities))
             assertEquals(capabilities, mapper.readValue(json, DecisionCapabilities::class.java))
-
-            val both = capabilities.withMaxInputCharacters(20000)
-            val bothJson = """{"questionKinds":["proposition","choice"],""" +
-                """"maxQuestions":8,"maxInputCharacters":20000}"""
-            assertEquals(bothJson, discovered.writeValueAsString(both))
-            assertEquals(both, discovered.readValue(bothJson, DecisionCapabilities::class.java))
-        }
-
-        @Test
-        fun `an explicit null limit reads as an unreported limit`() {
-            val json = """{"questionKinds":["rating"],"maxQuestions":null}"""
-            val expected = DecisionCapabilities.of(setOf(QuestionKind.RATING))
-            assertEquals(expected, mapper.readValue(json, DecisionCapabilities::class.java))
+            assertEquals(json, discovered.writeValueAsString(capabilities))
+            assertEquals(capabilities, discovered.readValue(json, DecisionCapabilities::class.java))
         }
 
         @Test
@@ -176,8 +164,7 @@ class SpecJsonTest {
                 assertEquals(requestJson, renaming.writeValueAsString(request()))
                 assertEquals(request(), renaming.readValue(requestJson, DecisionRequest::class.java))
                 val capabilities = DecisionCapabilities.of(setOf(QuestionKind.RATING))
-                    .withMaxInputCharacters(100)
-                val json = """{"questionKinds":["rating"],"maxInputCharacters":100}"""
+                val json = """{"questionKinds":["rating"]}"""
                 assertEquals(json, renaming.writeValueAsString(capabilities))
                 assertEquals(capabilities, renaming.readValue(json, DecisionCapabilities::class.java))
             }
@@ -297,7 +284,7 @@ class SpecJsonTest {
             assertRejects("""{"spec":$triageJson}""", DecisionRequest::class.java, "'input'")
             assertRejects("""{"input":"x"}""", DecisionRequest::class.java, "'spec'")
             assertRejects("""{}""", DecisionSpec::class.java, "'questions'")
-            assertRejects("""{"maxQuestions":8}""", DecisionCapabilities::class.java, "'questionKinds'")
+            assertRejects("""{}""", DecisionCapabilities::class.java, "'questionKinds'")
         }
 
         @Test
@@ -346,16 +333,11 @@ class SpecJsonTest {
         }
 
         @Test
-        fun `capability limits below one are rejected`() {
+        fun `capabilities reject a limit member`() {
             assertRejects(
-                """{"questionKinds":["rating"],"maxQuestions":0}""",
+                """{"questionKinds":["rating"],"maxQuestions":8}""",
                 DecisionCapabilities::class.java,
-                "maxQuestions must be at least 1 when present",
-            )
-            assertRejects(
-                """{"questionKinds":["rating"],"maxInputCharacters":-3}""",
-                DecisionCapabilities::class.java,
-                "maxInputCharacters must be at least 1 when present",
+                "'maxQuestions'",
             )
         }
     }
