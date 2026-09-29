@@ -18,7 +18,9 @@ package com.embabel.common.ai.decision
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.annotation.JsonPropertyOrder
 import org.jetbrains.annotations.ApiStatus
+import java.util.Objects
 import java.util.function.Consumer
 
 /**
@@ -243,5 +245,79 @@ class DecisionSpec private constructor(questions: List<Question<*>>) {
         @JsonCreator
         private fun fromJson(@JsonProperty("questions", required = true) questions: List<Question<*>>): DecisionSpec =
             DecisionSpec(questions)
+    }
+}
+
+/**
+ * One decision spec together with the input it should be evaluated against.
+ *
+ * @property input the text the model reasons over. It may be empty when a spec needs no input
+ * beyond its questions.
+ * @property spec the questions to answer
+ */
+@ApiStatus.Experimental
+@JsonPropertyOrder("input", "spec")
+class DecisionRequest private constructor(
+    @get:JsonProperty("input") val input: String,
+    @get:JsonProperty("spec") val spec: DecisionSpec,
+) {
+
+    override fun equals(other: Any?): Boolean =
+        this === other || other is DecisionRequest && input == other.input && spec == other.spec
+
+    override fun hashCode(): Int = Objects.hash(input, spec)
+
+    /** Shows the spec only. The input is left out because it can be long or hold private text. */
+    override fun toString(): String = "DecisionRequest(spec=$spec)"
+
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
+    @JsonAnySetter
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("DecisionRequest", name, value)
+
+    /**
+     * Creates decision requests.
+     */
+    companion object {
+
+        /**
+         * Returns a request that evaluates the given spec against the given input.
+         *
+         * @param input the text the model reasons over, which may be empty
+         * @param spec the questions to answer
+         * @return the request
+         */
+        @JvmStatic
+        fun of(input: String, spec: DecisionSpec): DecisionRequest = DecisionRequest(input, spec)
+
+        /**
+         * Returns a request built from the given questions, in the given order.
+         *
+         * @param input the text the model reasons over, which may be empty
+         * @param questions the questions to answer, which must have unique names
+         * @return the request
+         * @throws IllegalArgumentException if there are no questions or two share a name
+         */
+        @JvmStatic
+        fun of(input: String, vararg questions: Question<*>): DecisionRequest =
+            DecisionRequest(input, DecisionSpec.of(*questions))
+
+        /**
+         * Builds a request from deserialized JSON fields.
+         *
+         * @param input the text the model reasons over
+         * @param spec the questions to answer
+         * @return the request
+         */
+        @JvmStatic
+        @JsonCreator
+        private fun fromJson(
+            @JsonProperty("input", required = true) input: String,
+            @JsonProperty("spec", required = true) spec: DecisionSpec,
+        ): DecisionRequest = DecisionRequest(input, spec)
     }
 }
