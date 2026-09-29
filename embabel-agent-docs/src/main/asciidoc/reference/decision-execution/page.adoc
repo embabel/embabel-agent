@@ -769,7 +769,7 @@ Setting a package level reaches every class under it.
 |TRACE
 |The request and response content, when content capture is on
 
-|`com.embabel.agent.spi.config.spring.DecisionServiceRegistryConfiguration`
+|`com.embabel.agent.autoconfigure.platform.DecisionServiceRegistryAutoConfiguration`
 |WARN
 |One line at startup when `embabel.agent.platform.decisions.capture-content` is true
 

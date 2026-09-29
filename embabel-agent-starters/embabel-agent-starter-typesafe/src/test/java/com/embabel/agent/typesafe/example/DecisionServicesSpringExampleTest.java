@@ -40,6 +40,7 @@ import ch.qos.logback.core.read.ListAppender;
 import com.embabel.agent.api.channel.DevNullOutputChannel;
 import com.embabel.agent.api.common.Asyncer;
 import com.embabel.agent.autoconfigure.models.typesafe.AgentTypeSafeAutoConfiguration;
+import com.embabel.agent.autoconfigure.platform.DecisionServiceRegistryAutoConfiguration;
 import com.embabel.agent.autoconfigure.platform.LlmDecisionServicesAutoConfiguration;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.ProcessContext;
@@ -49,8 +50,6 @@ import com.embabel.agent.core.support.DefaultAgentPlatform;
 import com.embabel.agent.core.support.LlmInteraction;
 import com.embabel.agent.spi.LlmService;
 import com.embabel.agent.spi.config.spring.AgentPlatformConfiguration;
-import com.embabel.agent.spi.config.spring.DecisionServiceRegistryConfiguration;
-import com.embabel.agent.spi.config.spring.LlmDecisionServiceConfiguration;
 import com.embabel.agent.spi.config.spring.ContextRepositoryProperties;
 import com.embabel.agent.spi.support.ExecutorAsyncer;
 import com.embabel.agent.spi.support.RankingProperties;
@@ -623,12 +622,11 @@ class DecisionServicesSpringExampleTest {
         ApplicationContextRunner runner() {
             return new ApplicationContextRunner()
                     .withInitializer(context -> loadExampleYaml(context.getEnvironment().getPropertySources()))
-                    .withUserConfiguration(
-                            AgentPlatformConfiguration.class,
-                            LlmDecisionServiceConfiguration.class,
-                            DecisionServiceRegistryConfiguration.class)
+                    .withUserConfiguration(AgentPlatformConfiguration.class)
                     .withConfiguration(AutoConfigurations.of(
-                            LlmDecisionServicesAutoConfiguration.class, AgentTypeSafeAutoConfiguration.class))
+                            LlmDecisionServicesAutoConfiguration.class,
+                            DecisionServiceRegistryAutoConfiguration.class,
+                            AgentTypeSafeAutoConfiguration.class))
                     .withPropertyValues(
                             "TYPESAFE_API_KEY=",
                             "embabel.agent.platform.models.typesafe.api-key=" + SENTINEL_KEY,

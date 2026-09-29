@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.config.spring
+package com.embabel.agent.autoconfigure.platform
 
 import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
@@ -21,7 +21,6 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.spi.LlmService
-import com.embabel.agent.spi.decision.LlmDecisionRetryProperties
 import com.embabel.agent.spi.decision.LlmDecisionServiceFactory
 import com.embabel.agent.spi.support.SpringContextPlatformServices
 import com.embabel.common.ai.classification.ClassificationRequest
@@ -31,8 +30,14 @@ import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.decision.spi.DecisionContentCapture
 import com.embabel.common.ai.decision.support.StubDecisionService
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
+import com.embabel.common.ai.model.ByNameModelSelectionCriteria
 import com.embabel.common.ai.model.DecisionServiceRegistry
+import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.ModelMetadata
+import com.embabel.common.ai.model.ModelProvider
+import com.embabel.common.ai.model.ModelSelectionCriteria
 import com.embabel.common.ai.model.ModelType
+import com.embabel.common.ai.model.NoSuitableModelException
 import com.embabel.common.ai.model.ServiceSelectionException
 import com.embabel.common.util.EmbabelObjectMapperHolder
 import io.micrometer.observation.ObservationRegistry
@@ -51,6 +56,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor
 import org.springframework.boot.LazyInitializationBeanFactoryPostProcessor
+import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
@@ -62,11 +68,7 @@ import org.springframework.context.annotation.Scope
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Supplier
 
-/**
- * The helper classes here carry no configuration annotation, so the API test application's scan of
- * `com.embabel.agent` does not pick them up.
- */
-class DecisionServiceRegistryConfigurationTest {
+class DecisionServiceRegistryAutoConfigurationTest {
 
     private val llm = mockk<LlmService<*>> {
         every { name } returns "gpt-test"
@@ -81,11 +83,12 @@ class DecisionServiceRegistryConfigurationTest {
         .withBean("gptTest", LlmService::class.java, Supplier { llm })
         .withBean(LlmOperations::class.java, Supplier { mockk<LlmOperations>() })
         .withBean("triage-stub", DecisionService::class.java, Supplier { stub })
-        .withUserConfiguration(
-            LlmDecisionServiceConfigurationTest.ModelProviderFromLlmBeans::class.java,
-            LlmDecisionServiceConfiguration::class.java,
-            DecisionServiceRegistryConfiguration::class.java,
-            ConfiguredReview::class.java,
+        .withUserConfiguration(ModelProviderFromLlmBeans::class.java, ConfiguredReview::class.java)
+        .withConfiguration(
+            AutoConfigurations.of(
+                LlmDecisionServicesAutoConfiguration::class.java,
+                DecisionServiceRegistryAutoConfiguration::class.java,
+            ),
         )
 
     private val withClassifier = runner.withBean("router", ClassificationService::class.java, Supplier { classifier })
@@ -155,7 +158,7 @@ class DecisionServiceRegistryConfigurationTest {
 
         @Test
         fun `several observation registries and none primary log one warning naming them`() {
-            val warnings = capturing(DecisionServiceRegistryConfiguration::class.java, Level.WARN) {
+            val warnings = capturing(DecisionServiceRegistryAutoConfiguration::class.java, Level.WARN) {
                 runner.withBean("firstObservations", ObservationRegistry::class.java, Supplier { ObservationRegistry.create() })
                     .withBean("secondObservations", ObservationRegistry::class.java, Supplier { ObservationRegistry.create() })
                     .run { context -> assertSame(ObservationRegistry.NOOP, context.registry().observationRegistry) }
@@ -202,7 +205,7 @@ class DecisionServiceRegistryConfigurationTest {
             ApplicationContextRunner()
                 .withBean(DecisionServiceRegistry::class.java, Supplier { own })
                 .withBean("triage-stub", DecisionService::class.java, Supplier { stub })
-                .withUserConfiguration(DecisionServiceRegistryConfiguration::class.java)
+                .withConfiguration(AutoConfigurations.of(DecisionServiceRegistryAutoConfiguration::class.java))
                 .run { context ->
                     assertSame(own, context.registry())
                     assertEquals(1, context.getBeansOfType(DecisionServiceRegistry::class.java).size)
@@ -317,7 +320,7 @@ class DecisionServiceRegistryConfigurationTest {
         @Test
         fun `one instance under two bean names registers once under the first name`() {
             val shared = StubDecisionService.builder("shared-model").build()
-            val lines = capturing(DecisionServiceRegistryConfiguration::class.java, Level.DEBUG) {
+            val lines = capturing(DecisionServiceRegistryAutoConfiguration::class.java, Level.DEBUG) {
                 runner.withBean("first", DecisionService::class.java, Supplier { shared })
                     .withBean("second", DecisionService::class.java, Supplier { shared })
                     .withPropertyValues("embabel.models.decision.roles.support-triage=second")
@@ -359,7 +362,7 @@ class DecisionServiceRegistryConfigurationTest {
         @Test
         fun `a lazy service bean is not created and is named at info`() {
             LazyAndPrototype.created.set(0)
-            val lines = capturing(DecisionServiceRegistryConfiguration::class.java, Level.INFO) {
+            val lines = capturing(DecisionServiceRegistryAutoConfiguration::class.java, Level.INFO) {
                 runner.withUserConfiguration(LazyAndPrototype::class.java).run { context ->
                     val registry = context.registry()
                     assertFalse("lazyService" in registry.registrationNames())
@@ -375,7 +378,7 @@ class DecisionServiceRegistryConfigurationTest {
         @Test
         fun `a prototype service bean is not created and is named at info`() {
             LazyAndPrototype.created.set(0)
-            val lines = capturing(DecisionServiceRegistryConfiguration::class.java, Level.INFO) {
+            val lines = capturing(DecisionServiceRegistryAutoConfiguration::class.java, Level.INFO) {
                 runner.withUserConfiguration(LazyAndPrototype::class.java).run { context ->
                     context.registry()
                     assertEquals(0, LazyAndPrototype.created.get())
@@ -458,7 +461,7 @@ class DecisionServiceRegistryConfigurationTest {
 
         @Test
         fun `capture stays off without the property`() {
-            val warnings = capturing(DecisionServiceRegistryConfiguration::class.java, Level.WARN) {
+            val warnings = capturing(DecisionServiceRegistryAutoConfiguration::class.java, Level.WARN) {
                 runner.run { context ->
                     context.registry()
                     assertFalse(DecisionContentCapture.isEnabled())
@@ -470,7 +473,7 @@ class DecisionServiceRegistryConfigurationTest {
         @Test
         fun `the property turns capture on with one warning and off at close`() {
             try {
-                val warnings = capturing(DecisionServiceRegistryConfiguration::class.java, Level.WARN) {
+                val warnings = capturing(DecisionServiceRegistryAutoConfiguration::class.java, Level.WARN) {
                     runner.withPropertyValues("embabel.agent.platform.decisions.capture-content=true").run { context ->
                         context.registry()
                         assertTrue(DecisionContentCapture.isEnabled())
@@ -491,7 +494,7 @@ class DecisionServiceRegistryConfigurationTest {
             try {
                 ApplicationContextRunner()
                     .withBean(DecisionServiceRegistry::class.java, Supplier { DecisionServiceRegistry.empty() })
-                    .withUserConfiguration(DecisionServiceRegistryConfiguration::class.java)
+                    .withConfiguration(AutoConfigurations.of(DecisionServiceRegistryAutoConfiguration::class.java))
                     .withPropertyValues("embabel.agent.platform.decisions.capture-content=true")
                     .run { context ->
                         assertNull(context.startupFailure)
@@ -567,5 +570,26 @@ class DecisionServiceRegistryConfigurationTest {
     class ConfiguredReview {
         @Bean("llm-review")
         fun review(factory: LlmDecisionServiceFactory): DecisionService = factory.decisionService("gpt-test")
+    }
+
+    /** Builds the model provider from the LLM beans in the context, the same way the platform does. */
+    class ModelProviderFromLlmBeans {
+        @Bean
+        fun modelProvider(context: ApplicationContext): ModelProvider =
+            StubModelProvider(context.getBeansOfType(LlmService::class.java).values.toList())
+    }
+
+    private class StubModelProvider(private val llms: List<LlmService<*>>) : ModelProvider {
+        override fun getLlm(criteria: ModelSelectionCriteria): LlmService<*> =
+            llms.firstOrNull { it.name == (criteria as? ByNameModelSelectionCriteria)?.name }
+                ?: throw NoSuitableModelException(criteria, llms.map { it.name })
+
+        override fun getEmbeddingService(criteria: ModelSelectionCriteria): EmbeddingService =
+            throw NoSuitableModelException(criteria, emptyList())
+
+        override fun listRoles(modelClass: Class<*>): List<String> = emptyList()
+        override fun listModelNames(modelClass: Class<*>): List<String> = llms.map { it.name }
+        override fun listModels(): List<ModelMetadata> = llms
+        override fun infoString(verbose: Boolean?, indent: Int): String = "stub"
     }
 }
