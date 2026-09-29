@@ -57,7 +57,7 @@ class LlmDecisionServiceAskJavaTest {
 
     // Applications inject this bean from the Spring context.
     private final LlmDecisionServiceFactory factory =
-            new LlmDecisionServiceFactory(llmOperations, mock(ModelProvider.class), ObservationRegistry.create());
+            new LlmDecisionServiceFactory(llmOperations, mock(ModelProvider.class), new QuickRetry(), ObservationRegistry.create());
 
     private final PropositionQuestionSpec urgent =
             Questions.named("urgent").proposition("Does this convey urgency?").build();
