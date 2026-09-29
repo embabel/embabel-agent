@@ -561,10 +561,7 @@ class DecisionServiceRegistry private constructor(
      * @param capabilities the capabilities to describe
      * @return the description
      */
-    private fun describe(capabilities: DecisionCapabilities): String =
-        "kinds ${capabilities.questionKinds}, " +
-            "max questions ${capabilities.maxQuestions ?: "none"}, " +
-            "max input characters ${capabilities.maxInputCharacters ?: "none"}"
+    private fun describe(capabilities: DecisionCapabilities): String = "kinds ${capabilities.questionKinds}"
 
     companion object {
         private val logger = LoggerFactory.getLogger(DecisionServiceRegistry::class.java)
