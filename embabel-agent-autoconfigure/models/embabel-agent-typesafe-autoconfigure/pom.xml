@@ -19,11 +19,5 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-autoconfigure</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.springaicommunity</groupId>
-            <artifactId>spring-ai-starter-typesafe</artifactId>
-            <version>0.2.0</version>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 </project>
