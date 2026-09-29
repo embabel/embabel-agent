@@ -18,12 +18,12 @@ package com.embabel.common.ai.decision
 import org.jetbrains.annotations.ApiStatus
 
 /**
- * Thrown when a decision service cannot answer a request: a question kind is missing from its
- * capabilities, or the request exceeds a limit the service reports.
+ * Thrown when a decision service cannot answer a request because a question kind is missing from
+ * its capabilities.
  *
  * The check runs before any provider call, so no model work has happened when this is thrown. The
- * message names the service, the questions concerned with their kinds, the missing kind or the
- * exceeded limit, the service's capabilities and a remedy. It holds question names and kinds only.
+ * message names the service, the questions concerned with their kinds, the missing kind, the
+ * service's capabilities and a remedy. It holds question names and kinds only.
  * The input, instructions, options and levels stay out of it.
  *
  * @param message the description of the unsupported request

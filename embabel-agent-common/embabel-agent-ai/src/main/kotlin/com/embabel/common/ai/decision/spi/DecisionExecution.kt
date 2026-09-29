@@ -40,7 +40,7 @@ import java.util.concurrent.CancellationException
 /**
  * Plans and runs decision requests for decision services.
  *
- * Planning is a preflight over the whole request. It checks question kinds and limits, and throws
+ * Planning is a preflight over the whole request. It checks question kinds and hooks, and throws
  * before any provider call when the service cannot answer the request. A service that implements
  * [NativeQuestionSetExecution] answers the whole request in one call. Any other service answers
  * each question on its own, in spec order: a choice question through `classify`, and the other
@@ -54,7 +54,7 @@ internal object DecisionExecution {
 
     /**
      * The capabilities of a decision service that implements none of the hooks: proposition and
-     * choice questions, with no reported limits. Such a service answers each proposition through
+     * choice questions. Such a service answers each proposition through
      * `assess` and each choice through `classify`.
      */
     val LEGACY_CAPABILITIES: DecisionCapabilities =
@@ -68,7 +68,7 @@ internal object DecisionExecution {
      * [NativeQuestionSetExecution] overrides its capabilities to list them.
      *
      * @param hookSource the object whose hook interfaces are inspected
-     * @return the derived capabilities, with no limits
+     * @return the derived capabilities
      */
     fun defaultCapabilities(hookSource: Any): DecisionCapabilities {
         val kinds = EnumSet.of(QuestionKind.PROPOSITION, QuestionKind.CHOICE)
@@ -80,8 +80,8 @@ internal object DecisionExecution {
      * Checks a request against a service before any provider call, and reports whether the service
      * answers it in one native call.
      *
-     * The checks run in this order: every question kind is in the capabilities, the request is
-     * within the reported limits, every question has a backing, then [service] implements every hook
+     * The checks run in this order: every question kind is in the capabilities, every question has
+     * a backing, then [service] implements every hook
      * the request is routed through. A service that implements [NativeQuestionSetExecution] backs
      * every kind it claims. Otherwise a proposition question is backed by [PropositionAssessment] or
      * `assess`, a choice question by `classify` and a rating question by [RatingAssessment].
@@ -95,7 +95,7 @@ internal object DecisionExecution {
      * @param request the request to plan
      * @param service the object whose hook methods execution calls
      * @return true when the service answers the request in one native call
-     * @throws UnsupportedDecisionException if a question kind or a limit rules the request out
+     * @throws UnsupportedDecisionException if a question kind rules the request out
      * @throws IllegalStateException if the capabilities claim a question kind that the service backs
      * with neither its hook nor native execution, or if [service] lacks a hook of [hookSource] that
      * the request is routed through
@@ -110,7 +110,6 @@ internal object DecisionExecution {
         val questions = request.spec.questions
         val rejection = Rejection(serviceName, capabilities)
         checkKinds(questions, capabilities, hookSource, rejection)
-        checkLimits(request, capabilities, rejection)
         if (hookSource is NativeQuestionSetExecution) {
             checkForwarded(serviceName, service, hookSource, listOf(NativeQuestionSetExecution::class.java))
             return true
@@ -232,36 +231,6 @@ internal object DecisionExecution {
         QuestionKind.PROPOSITION -> if (hookSource is PropositionAssessment) "PropositionAssessment" else "assess"
         QuestionKind.CHOICE -> "classify"
         QuestionKind.RATING -> "RatingAssessment"
-    }
-
-    /**
-     * Checks the request against the service's question count and input length limits, and throws
-     * when either is exceeded.
-     *
-     * @param request the request to check
-     * @param capabilities the capabilities the service reports
-     * @param rejection builds the exception when a limit is exceeded
-     */
-    private fun checkLimits(request: DecisionRequest, capabilities: DecisionCapabilities, rejection: Rejection) {
-        val questions = request.spec.questions
-        capabilities.maxQuestions?.let { limit ->
-            if (questions.size > limit) {
-                throw rejection.of(
-                    questions,
-                    "the request has ${questions.size} questions, above maxQuestions $limit",
-                    "Split the request into requests of at most $limit questions, or use a service with a higher limit.",
-                )
-            }
-        }
-        capabilities.maxInputCharacters?.let { limit ->
-            if (request.input.length > limit) {
-                throw rejection.of(
-                    questions,
-                    "the input has ${request.input.length} characters, above maxInputCharacters $limit",
-                    "Shorten the input to at most $limit characters, or use a service with a higher limit.",
-                )
-            }
-        }
     }
 
     /**
@@ -552,9 +521,7 @@ internal object DecisionExecution {
             UnsupportedDecisionException(
                 "Decision service '$serviceName' cannot run this request: $reason. " +
                     "Questions: ${questions.joinToString { "'${it.name}' (${it.kind})" }}. " +
-                    "Service capabilities: kinds ${capabilities.questionKinds}, " +
-                    "maxQuestions ${capabilities.maxQuestions ?: "not reported"}, " +
-                    "maxInputCharacters ${capabilities.maxInputCharacters ?: "not reported"}. $remedy",
+                    "Service capabilities: kinds ${capabilities.questionKinds}. $remedy",
             )
     }
 }

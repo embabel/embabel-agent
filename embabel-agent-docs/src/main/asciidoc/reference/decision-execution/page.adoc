@@ -58,9 +58,9 @@ The default derives from the hook interfaces the service implements:
 |The whole spec in one call. The service overrides `capabilities()` to list the kinds it answers this way.
 |===
 
-The default always includes proposition and choice questions and reports no limits.
+The default always includes proposition and choice questions.
 Every decision service is a classification service, so it can answer a choice question through `classify`.
-A service declares other kinds, `maxQuestions` or `maxInputCharacters` by overriding `capabilities()`.
+A service declares other kinds by overriding `capabilities()`.
 The hook interfaces declare no default methods, so a class can implement all three.
 
 A service that implements none of the hooks answers proposition questions through `ask`, one `assess` call per proposition, with the question's instructions as the proposition.
@@ -98,10 +98,10 @@ The thread's interrupt flag is checked before each question, and a set flag stop
 ===== Preflight
 
 The whole request is checked before any provider call.
-The checks run in this order: every question kind is in the capabilities, the request is within `maxQuestions` and `maxInputCharacters`, every question has a hook, then a decorator implements every hook the request is routed through.
+The checks run in this order: every question kind is in the capabilities, every question has a hook, then a decorator implements every hook the request is routed through.
 
-A request that fails a kind or limit check throws `UnsupportedDecisionException`, an `UnsupportedOperationException`.
-Its message names the service, each question concerned with its kind, what is missing or exceeded, the service's capabilities and a remedy.
+A request that fails the kind check throws `UnsupportedDecisionException`, an `UnsupportedOperationException`.
+Its message names the service, each question concerned with its kind, what is missing, the service's capabilities and a remedy.
 A kind missing from the capabilities gets one of two explanations:
 
 * The service lacks the hook for the kind. Only rating questions need a hook. The message says the question needs `RatingAssessment`, with the remedy `Use a service that implements RatingAssessment, or remove these questions.`
@@ -204,7 +204,7 @@ Question names stay with the caller, so no name character can break a provider's
 |As scripted
 |===
 
-Jev and prompted services support every kind, answer a whole spec in one native call and report no limits.
+Jev and prompted services support every kind and answer a whole spec in one native call.
 They also implement the proposition and rating hooks for direct calls.
 Their `classify` answers one choice question with its own instructions and categories.
 
@@ -336,7 +336,7 @@ Question names, input and model output never become tag values.
 
 |`UnsupportedDecisionException`
 |The exception message and `outcome=unsupported` on `embabel.ai.ask`
-|The service lacks a kind or the hook for a kind, or a limit is exceeded
+|The service lacks a kind or the hook for a kind
 |Apply the remedy in the message, such as using a service that implements the named hook
 
 |`IllegalStateException` naming a hook interface

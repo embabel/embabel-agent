@@ -263,8 +263,6 @@ class TypeSafeNativeAskTest {
         var capabilities = raw.capabilities();
 
         assertThat(capabilities.getQuestionKinds()).isEqualTo(EnumSet.allOf(QuestionKind.class));
-        assertThat(capabilities.getMaxQuestions()).isNull();
-        assertThat(capabilities.getMaxInputCharacters()).isNull();
         assertThat(raw)
                 .isInstanceOf(NativeQuestionSetExecution.class)
                 .isInstanceOf(PropositionAssessment.class)
