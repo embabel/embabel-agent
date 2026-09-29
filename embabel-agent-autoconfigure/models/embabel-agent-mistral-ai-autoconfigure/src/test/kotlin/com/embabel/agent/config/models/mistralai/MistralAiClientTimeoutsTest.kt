@@ -146,6 +146,25 @@ class MistralAiClientTimeoutsTest {
         }
     }
 
+    @Test
+    fun `the constructor as it was before the new timeouts still builds a working config`() {
+        val beanFactory = DefaultListableBeanFactory()
+        val config = MistralAiModelsConfig(
+            "http://localhost:1",
+            "test-key",
+            bind(),
+            ObjectProviders.empty(),
+            beanFactory,
+            ObjectProviders.empty(),
+            ObjectProviders.empty(),
+            "5m",
+        )
+
+        val registered = config.mistralAiModelsInitializer().registeredLlms
+        assertTrue(registered.isNotEmpty(), "the previous constructor must still register models")
+        assertEquals(Duration.ofSeconds(25), config.httpClients.connect, "it uses the http-client connect default")
+    }
+
     @Nested
     @Timeout(60)
     inner class AgainstASlowServer {
