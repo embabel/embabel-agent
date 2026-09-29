@@ -13,13 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.config.spring
+package com.embabel.agent.autoconfigure.platform
 
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.DefaultAgentPlatform
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.config.spring.AgentPlatformConfiguration
+import com.embabel.agent.spi.config.spring.ContextRepositoryProperties
 import com.embabel.agent.spi.decision.LlmDecisionServiceFactory
 import com.embabel.agent.spi.support.ExecutorAsyncer
 import com.embabel.agent.spi.support.RankingProperties
@@ -35,14 +37,14 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
 import java.util.function.Supplier
 
 /**
- * Boots the platform configuration, which applications get from the platform auto-configuration,
- * and reaches a prompted service through the registry and through `Ai`. The auto-configuration also
- * scans in the decision configurations, so this test lists them.
+ * Boots the platform configuration with the decision autoconfigurations, and reaches a prompted
+ * service through the registry and through `Ai`.
  */
 class DecisionServiceRegistryBootTest {
 
@@ -52,11 +54,12 @@ class DecisionServiceRegistryBootTest {
     }
 
     private val runner = ApplicationContextRunner()
-        .withUserConfiguration(
-            AgentPlatformConfiguration::class.java,
-            LlmDecisionServiceConfiguration::class.java,
-            DecisionServiceRegistryConfiguration::class.java,
-            ConfiguredReview::class.java,
+        .withUserConfiguration(AgentPlatformConfiguration::class.java, ConfiguredReview::class.java)
+        .withConfiguration(
+            AutoConfigurations.of(
+                LlmDecisionServicesAutoConfiguration::class.java,
+                DecisionServiceRegistryAutoConfiguration::class.java,
+            ),
         )
         .withBean("fake", LlmService::class.java, Supplier { llm })
         .withBean(LlmOperations::class.java, Supplier { mockk<LlmOperations>() })

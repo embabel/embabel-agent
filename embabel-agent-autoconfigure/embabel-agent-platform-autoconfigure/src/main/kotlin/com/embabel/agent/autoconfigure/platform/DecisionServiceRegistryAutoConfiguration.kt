@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.config.spring
+package com.embabel.agent.autoconfigure.platform
 
 import com.embabel.common.ai.classification.ClassificationService
 import com.embabel.common.ai.decision.spi.DecisionContentCapture
@@ -27,11 +27,11 @@ import org.springframework.beans.factory.ListableBeanFactory
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory
+import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.bind.Bindable
 import org.springframework.boot.context.properties.bind.Binder
 import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Lazy
 import org.springframework.core.env.Environment
 import java.util.IdentityHashMap
@@ -78,8 +78,8 @@ import java.util.IdentityHashMap
  * An application `DecisionServiceRegistry` bean replaces the one built here.
  */
 @ApiStatus.Internal
-@Configuration(proxyBeanMethods = false)
-class DecisionServiceRegistryConfiguration {
+@AutoConfiguration(after = [AgentPlatformAutoConfiguration::class, LlmDecisionServicesAutoConfiguration::class])
+class DecisionServiceRegistryAutoConfiguration {
 
     /**
      * The registry of decision and classification services in the context.
@@ -147,7 +147,7 @@ class DecisionServiceRegistryConfiguration {
         init {
             if (enabled) {
                 DecisionContentCapture.enable()
-                LoggerFactory.getLogger(DecisionServiceRegistryConfiguration::class.java).warn(
+                LoggerFactory.getLogger(DecisionServiceRegistryAutoConfiguration::class.java).warn(
                     "{} is true: decision requests and provider responses are logged at TRACE. " +
                         "They can hold personal or confidential text. Do not enable this in production.",
                     CAPTURE_CONTENT_PROPERTY,
@@ -168,7 +168,7 @@ class DecisionServiceRegistryConfiguration {
 
         const val CAPTURE_CONTENT_PROPERTY = "embabel.agent.platform.decisions.capture-content"
 
-        private val logger = LoggerFactory.getLogger(DecisionServiceRegistryConfiguration::class.java)
+        private val logger = LoggerFactory.getLogger(DecisionServiceRegistryAutoConfiguration::class.java)
 
         /**
          * Picks the unique or primary observation registry. With several and none primary,
