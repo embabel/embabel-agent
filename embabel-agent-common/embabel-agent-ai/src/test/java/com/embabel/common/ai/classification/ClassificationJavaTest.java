@@ -106,9 +106,8 @@ class ClassificationJavaTest {
         assertEquals("Which animal?", mapping.request("A canine is barking").getInstructions());
         var request = ClassificationRequest.of("A canine is barking", mapping.spec());
         assertEquals("Which animal?", request.getInstructions());
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> ClassificationSpec.builder().asking(" ").category("DOG", "A dog").build());
+        var blank = ClassificationSpec.builder().asking(" ").category("DOG", "A dog");
+        assertThrows(IllegalArgumentException.class, blank::build);
     }
 
     // tag::class-mapping[]
