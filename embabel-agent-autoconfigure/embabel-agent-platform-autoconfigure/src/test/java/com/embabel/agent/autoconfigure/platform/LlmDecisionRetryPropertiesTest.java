@@ -84,7 +84,7 @@ class LlmDecisionRetryPropertiesTest {
                 var chain = failures(context);
                 var bind = chain.stream().filter(BindException.class::isInstance).map(BindException.class::cast)
                         .findFirst().orElseThrow();
-                assertThat(bind.getName().toString()).isEqualTo("embabel.agent.platform.decisions.llm");
+                assertThat(bind.getName()).hasToString("embabel.agent.platform.decisions.llm");
                 var invalid = chain.stream().filter(IllegalArgumentException.class::isInstance)
                         .reduce((first, second) -> second).orElseThrow();
                 assertThat(invalid.getMessage()).isEqualTo("max-attempts must be at least 1");
