@@ -131,8 +131,6 @@ class DecisionJsonGoldenTest {
     private val request = DecisionRequest.of("My invoice is wrong and nobody answers.", triage)
 
     private val capabilities = DecisionCapabilities.of(QuestionKind.entries.toSet())
-        .withMaxQuestions(8)
-        .withMaxInputCharacters(20000)
 
     private fun golden(name: String): String {
         val resource = requireNotNull(javaClass.getResourceAsStream("/decision/golden/$name.json")) { "No golden file $name" }

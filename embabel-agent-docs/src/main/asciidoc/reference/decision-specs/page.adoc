@@ -227,10 +227,8 @@ An answer read from JSON holds them as written, and the typed lookup and `requir
 The input may be empty.
 A request's `toString()` shows the spec and leaves the input out.
 
-`DecisionCapabilities` describes what a service accepts.
-`DecisionCapabilities.of(questionKinds)` sets the supported kinds.
-`withMaxQuestions` and `withMaxInputCharacters` each return a copy with that limit set.
-A `null` limit means the service does not report that limit.
+`DecisionCapabilities` describes what a service accepts: the question kinds it answers.
+`DecisionCapabilities.of(questionKinds)` creates one.
 
 ==== JSON format
 
@@ -249,7 +247,7 @@ Each decision type has fixed member names:
 |`input` and `spec`
 
 |`DecisionCapabilities`
-|`questionKinds`, and the optional `maxQuestions` and `maxInputCharacters`
+|`questionKinds`
 
 |`DecisionResponse`
 |The optional `requestFailure`, and `answers`
