@@ -74,7 +74,9 @@ class TypeSafeInterruptionTest {
 
     @Test
     void interruptedAssessRethrows() {
-        assertThatThrownBy(() -> service.assess(new PropositionRequest("An email.", "Is this urgent?")))
+        var request = new PropositionRequest("An email.", "Is this urgent?");
+
+        assertThatThrownBy(() -> service.assess(request))
                 .isInstanceOf(CancellationException.class)
                 .hasCauseInstanceOf(InterruptedException.class);
         assertThat(Thread.currentThread().isInterrupted()).isTrue();
