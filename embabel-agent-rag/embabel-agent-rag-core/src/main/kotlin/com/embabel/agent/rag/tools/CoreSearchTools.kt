@@ -43,6 +43,7 @@ internal class VectorSearchTools @JvmOverloads constructor(
     private val metadataFilter: PropertyFilter? = null,
     private val entityFilter: EntityFilter? = null,
     private val resultsListener: ResultsListener? = null,
+    private val formatter: RetrievableResultsFormatter = SimpleRetrievableResultsFormatter,
 ) : SearchTools {
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
@@ -62,7 +63,7 @@ internal class VectorSearchTools @JvmOverloads constructor(
             searchForAllTypes(request)
         }
         resultsListener?.onResultsEvent(ResultsEvent(this, query, results, Duration.ofMillis(ms)))
-        return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList<Retrievable>(results))
+        return formatter.formatResults(SimilarityResults.fromList<Retrievable>(results))
     }
 
     private fun searchForAllTypes(request: TextSimilaritySearchRequest): List<SimilarityResult<out Retrievable>> {
@@ -175,6 +176,7 @@ internal class TextSearchTools @JvmOverloads constructor(
     private val metadataFilter: PropertyFilter? = null,
     private val entityFilter: EntityFilter? = null,
     private val resultsListener: ResultsListener? = null,
+    private val formatter: RetrievableResultsFormatter = SimpleRetrievableResultsFormatter,
 ) : SearchTools, Tool {
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
@@ -239,7 +241,7 @@ internal class TextSearchTools @JvmOverloads constructor(
             searchForAllTypes(request)
         }
         resultsListener?.onResultsEvent(ResultsEvent(this, query, results, Duration.ofMillis(ms)))
-        return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList<Retrievable>(results))
+        return formatter.formatResults(SimilarityResults.fromList<Retrievable>(results))
     }
 
     private fun searchForAllTypes(request: TextSimilaritySearchRequest): List<SimilarityResult<out Retrievable>> {
@@ -303,6 +305,7 @@ internal class RegexSearchTools(
     private val metadataFilter: PropertyFilter? = null,
     private val entityFilter: EntityFilter? = null,
     private val resultsListener: ResultsListener? = null,
+    private val formatter: RetrievableResultsFormatter = SimpleRetrievableResultsFormatter,
 ) : SearchTools {
 
     @LlmTool(description = "Perform regex search across content elements. Specify topK")
@@ -318,7 +321,7 @@ internal class RegexSearchTools(
         val results = searchWithFilter(Regex(regex), topK)
         val runningTime = Duration.between(start, Instant.now())
         resultsListener?.onResultsEvent(ResultsEvent(this, regex, results, runningTime))
-        return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList(results))
+        return formatter.formatResults(SimilarityResults.fromList(results))
     }
 
     private fun searchWithFilter(
