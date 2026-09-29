@@ -18,6 +18,7 @@ package com.embabel.agent.config.models.mistralai
 import com.embabel.agent.api.models.MistralAiModels
 import com.embabel.agent.config.models.mistralai.MistralAiProperties.Companion.PREFIX
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.common.ClientTimeoutProperties
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.http.ProviderHttpClients
 import com.embabel.agent.spi.support.http.ProviderHttpClients.Companion.DEFAULT_CONNECT_TIMEOUT
@@ -50,14 +51,21 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
-import java.time.Duration
 
 /**
  * Configuration properties for Mistral AI models.
  * These properties control retry behavior when calling Mistral AI APIs.
+ *
+ * `connect-timeout` and `read-timeout` ([ClientTimeoutProperties]) fall back to
+ * `embabel.agent.platform.http-client.connect-timeout` and `read-timeout` when unset. Setting either
+ * gives Mistral AI its own HTTP client, so a proxy, TLS or other transport customisation on the shared
+ * `aiModelRestClientBuilder` / `aiModelWebClientBuilder` beans does not apply to it. That client is
+ * reactor-netty, like the shared one, and its read timeout bounds each wait between reads, unless
+ * `embabel.agent.platform.http-client.use-reactor-netty` is false; then it is the JDK client, whose read
+ * timeout bounds only the wait for response headers.
  */
 @ConfigurationProperties(prefix = PREFIX)
-class MistralAiProperties : RetryProperties {
+class MistralAiProperties : ClientTimeoutProperties(), RetryProperties {
     /**
      * Base URL for Mistral AI API requests.
      */
@@ -87,30 +95,6 @@ class MistralAiProperties : RetryProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 180_000L
-
-    /**
-     * How long to wait to connect to Mistral AI. Unset uses
-     * `embabel.agent.platform.http-client.connect-timeout`.
-     *
-     * Setting this or [readTimeout] gives Mistral AI its own HTTP client, so a proxy, TLS or other
-     * transport customisation on the shared `aiModelRestClientBuilder` / `aiModelWebClientBuilder`
-     * beans does not apply to it. That client is reactor-netty, like the shared one, unless
-     * `embabel.agent.platform.http-client.use-reactor-netty` is false; then it is the JDK client, whose
-     * read timeout bounds only the wait for response headers, not a stream that stalls mid-body.
-     */
-    var connectTimeout: Duration? = null
-
-    /**
-     * How long to wait for a response from Mistral AI, and between reads of a streamed one. Unset
-     * uses `embabel.agent.platform.http-client.read-timeout`.
-     *
-     * Setting this or [connectTimeout] gives Mistral AI its own HTTP client, so a proxy, TLS or other
-     * transport customisation on the shared `aiModelRestClientBuilder` / `aiModelWebClientBuilder`
-     * beans does not apply to it. That client is reactor-netty, like the shared one, unless
-     * `embabel.agent.platform.http-client.use-reactor-netty` is false; then it is the JDK client, whose
-     * read timeout bounds only the wait for response headers, not a stream that stalls mid-body.
-     */
-    var readTimeout: Duration? = null
 
     override val propertyPrefix: String = PREFIX
     companion object {

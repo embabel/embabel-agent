@@ -241,6 +241,19 @@ class MistralAiClientTimeoutsTest {
 
             assertFailsWithinTenSeconds { llm.callOnce() }
         }
+
+        @Test
+        fun `without a shared WebClient or a provider timeout, the http-client read timeout bounds a stalled stream`() {
+            val llm = llmWith(
+                "$baseUrl/stall",
+                bind(),
+                restClientBuilder = ObjectProviders.empty(),
+                webClientBuilder = ObjectProviders.empty(),
+                httpReadTimeout = "300ms",
+            )
+
+            assertFailsWithinTenSeconds { llm.chatModel.stream(Prompt("Hi")).blockLast() }
+        }
     }
 
     @Nested

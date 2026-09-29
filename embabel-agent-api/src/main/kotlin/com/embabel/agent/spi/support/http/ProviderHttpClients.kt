@@ -69,9 +69,13 @@ class ProviderHttpClients private constructor(
             .clone()
             .let { if (ownsTransport) it.requestFactory(requestFactory()) else it }
 
-    /** A clone of [shared], or a plain builder, with this provider's transport when it [ownsTransport]. */
+    /**
+     * A clone of [shared], with this provider's transport when it [ownsTransport]. Without a shared
+     * builder, a builder whose connector carries the resolved timeouts, as [restClientBuilder] does for
+     * blocking calls, so a streamed call is bounded by the http-client values too.
+     */
     fun webClientBuilder(shared: ObjectProvider<WebClient.Builder>): WebClient.Builder =
-        shared.getIfAvailable(WebClient::builder)
+        shared.getIfAvailable { WebClient.builder().clientConnector(connector()) }
             .clone()
             .let { if (ownsTransport) it.clientConnector(connector()) else it }
 
