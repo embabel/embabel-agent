@@ -170,28 +170,6 @@ class DecisionExecutionPlanTest {
             )
             assertFalse(message.contains("needs")) { "No missing hook in: $message" }
         }
-
-        @Test
-        fun `more questions than maxQuestions is rejected with the count`() {
-            val capabilities = everyKind.withMaxQuestions(2)
-            val error = unsupported {
-                plan(capabilities, request(proposition("a"), proposition("b"), proposition("c")), nativeSource)
-            }
-            assertContains(error.message!!, "3", "maxQuestions 2")
-        }
-
-        @Test
-        fun `maxQuestions also binds per-question execution`() {
-            val error = unsupported { plan(legacy.withMaxQuestions(1), request(proposition("a"), proposition("b"))) }
-            assertContains(error.message!!, "2 questions", "maxQuestions 1")
-        }
-
-        @Test
-        fun `input longer than maxInputCharacters is rejected with the count`() {
-            val capabilities = everyKind.withMaxInputCharacters(5)
-            val error = unsupported { plan(capabilities, request(proposition()), nativeSource) }
-            assertContains(error.message!!, "${sentinelInput.length} characters", "maxInputCharacters 5")
-        }
     }
 
     @Nested
@@ -282,10 +260,8 @@ class DecisionExecutionPlanTest {
     inner class DefaultCapabilities {
 
         @Test
-        fun `legacy capabilities are propositions and choices with no limits`() {
+        fun `legacy capabilities are propositions and choices`() {
             assertEquals(setOf(QuestionKind.PROPOSITION, QuestionKind.CHOICE), legacy.questionKinds)
-            assertEquals(null, legacy.maxQuestions)
-            assertEquals(null, legacy.maxInputCharacters)
         }
 
         @Test
@@ -361,24 +337,6 @@ class DecisionExecutionPlanTest {
                 "Report CHOICE in the service's capabilities(), use a service that implements RatingAssessment, " +
                     "or remove these questions.",
             )
-        }
-
-        @Test
-        fun `a limit miss names the limit, the count and a remedy`() {
-            val message = unsupported {
-                plan(everyKind.withMaxQuestions(1), request(proposition("a"), choice()), nativeSource)
-            }.message!!
-            assertContains(message, "svc-under-test", "'a' (PROPOSITION)", "'team' (CHOICE)", "2 questions", "maxQuestions 1", "Split")
-            assertNoContent(message)
-        }
-
-        @Test
-        fun `an input limit miss gives the length and never the input`() {
-            val message = unsupported {
-                plan(everyKind.withMaxInputCharacters(3), request(proposition()), nativeSource)
-            }.message!!
-            assertContains(message, "svc-under-test", "maxInputCharacters 3", "Shorten")
-            assertNoContent(message)
         }
     }
 }

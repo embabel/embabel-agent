@@ -52,8 +52,8 @@ interface DecisionService : ClassificationService, DecisionServiceMetadata {
      *
      * The default derives from the hook interfaces the service implements. Every service accepts
      * proposition questions, and choice questions because it can classify. `RatingAssessment` adds
-     * rating questions. The default declares no limits. Override this method to list the kinds a
-     * `NativeQuestionSetExecution` service answers, or to declare limits. Capabilities that claim a
+     * rating questions. Override this method to list the kinds a `NativeQuestionSetExecution`
+     * service answers. Capabilities that claim a
      * kind the service backs with neither its hook nor native execution make every affected request
      * fail with an [IllegalStateException] before any provider call.
      *
