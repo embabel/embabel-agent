@@ -64,7 +64,6 @@ import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertDoesNotThrow
 import org.junit.jupiter.api.assertThrows
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.model.ChatModel
@@ -147,7 +146,7 @@ class LlmDecisionServiceFactoryTest {
         every { getLlm(byName("gpt-test")) } returns llm
     }
 
-    private val factory = LlmDecisionServiceFactory(llmOperations, modelProvider, registry)
+    private val factory = LlmDecisionServiceFactory(llmOperations, modelProvider, QuickRetry(), registry)
 
     private fun observationNames() = recorder.stopped.map { it.name }
 
@@ -239,7 +238,7 @@ class LlmDecisionServiceFactoryTest {
                 templateRenderer = JinjavaTemplateRenderer(),
                 asyncer = ExecutorAsyncer(Executors.newCachedThreadPool()),
             )
-            val service = LlmDecisionServiceFactory(operations, provider).decisionService("fake")
+            val service = LlmDecisionServiceFactory(operations, provider, QuickRetry()).decisionService("fake")
             assertEquals(PropositionResult.Answered(true, ModelProvenance("fake", "provider")), service.assess(proposition))
             assertEquals(1, chatModel.promptsPassed.size)
             verify(exactly = 1) { provider.getLlm(byName("fake")) }
@@ -295,8 +294,8 @@ class LlmDecisionServiceFactoryTest {
                 templateRenderer = JinjavaTemplateRenderer(),
                 asyncer = ExecutorAsyncer(Executors.newCachedThreadPool()),
             )
-            val retry = LlmDecisionRetryProperties(maxAttempts = 3, backoffMillis = 1L, backoffMaxInterval = 2L)
-            val service = LlmDecisionServiceFactory(operations, modelProvider, registry, retry).decisionService(fake)
+            val service = LlmDecisionServiceFactory(operations, modelProvider, QuickRetry(maxAttempts = 3), registry)
+                .decisionService(fake)
 
             assertEquals(PropositionResult.Answered(true, ModelProvenance("fake", "provider")), service.assess(proposition))
 
@@ -310,74 +309,24 @@ class LlmDecisionServiceFactoryTest {
 
         @Test
         fun `nothing is observed without a registry`() {
-            val service = LlmDecisionServiceFactory(llmOperations, modelProvider).decisionService(llm)
+            val service = LlmDecisionServiceFactory(llmOperations, modelProvider, QuickRetry()).decisionService(llm)
             service.assess(proposition)
             assertTrue(recorder.stopped.isEmpty())
         }
     }
 
     @Nested
-    inner class RetryDefaults {
-
-        @Test
-        fun `default retry matches the other platform llm services`() {
-            val retry = LlmDecisionRetryProperties()
-            assertEquals(5, retry.maxAttempts)
-            assertEquals(100L, retry.backoffMillis)
-            assertEquals(5.0, retry.backoffMultiplier)
-            assertEquals(180000L, retry.backoffMaxInterval)
-            assertEquals("embabel.agent.platform.decisions.llm", retry.propertyPrefix)
-        }
+    inner class SuppliedRetry {
 
         @Test
         fun `supplied retry properties bound the number of calls`() {
             every {
                 llmOperations.doTransform(any<List<Message>>(), any(), PropositionAnswer::class.java, null)
             } throws TransientAiException("provider busy")
-            val retry = LlmDecisionRetryProperties(maxAttempts = 2, backoffMillis = 1L, backoffMultiplier = 2.0, backoffMaxInterval = 4L)
-            val service = LlmDecisionServiceFactory(llmOperations, modelProvider, registry, retry).decisionService(llm)
+            val service = LlmDecisionServiceFactory(llmOperations, modelProvider, QuickRetry(maxAttempts = 2), registry)
+                .decisionService(llm)
             assertEquals(PropositionResult.Failure(FailureReason.UNAVAILABLE), service.assess(proposition))
             verify(exactly = 2) { llmOperations.doTransform(any<List<Message>>(), any(), PropositionAnswer::class.java, null) }
-        }
-    }
-
-    @Nested
-    inner class RetryValidation {
-
-        @Test
-        fun `max attempts below one is rejected`() {
-            val e = assertThrows<IllegalArgumentException> { LlmDecisionRetryProperties(maxAttempts = 0) }
-            assertEquals("max-attempts must be at least 1", e.message)
-        }
-
-        @Test
-        fun `backoff below one millisecond is rejected`() {
-            val e = assertThrows<IllegalArgumentException> { LlmDecisionRetryProperties(backoffMillis = 0L) }
-            assertEquals("backoff-millis must be at least 1", e.message)
-        }
-
-        @Test
-        fun `backoff multiplier of one or less is rejected`() {
-            listOf(1.0, 0.5).forEach { multiplier ->
-                val e = assertThrows<IllegalArgumentException> { LlmDecisionRetryProperties(backoffMultiplier = multiplier) }
-                assertEquals("backoff-multiplier must be greater than 1", e.message)
-            }
-        }
-
-        @Test
-        fun `max interval no longer than the first wait is rejected`() {
-            listOf(100L, 99L).forEach { maxInterval ->
-                val e = assertThrows<IllegalArgumentException> {
-                    LlmDecisionRetryProperties(backoffMillis = 100L, backoffMaxInterval = maxInterval)
-                }
-                assertEquals("backoff-max-interval must be greater than backoff-millis", e.message)
-            }
-        }
-
-        @Test
-        fun `the smallest valid settings build a retry template`() {
-            val retry = LlmDecisionRetryProperties(maxAttempts = 1, backoffMillis = 1L, backoffMultiplier = 1.01, backoffMaxInterval = 2L)
-            assertDoesNotThrow { retry.retryTemplate("decision-test") }
         }
     }
 
@@ -395,7 +344,7 @@ class LlmDecisionServiceFactoryTest {
             override fun retryTemplate(name: String) = super.retryTemplate(name).also { names += name }
         }
 
-        private val named = LlmDecisionServiceFactory(llmOperations, modelProvider, registry, retry)
+        private val named = LlmDecisionServiceFactory(llmOperations, modelProvider, retry, registry)
 
         @Test
         fun `decision services carry a decision retry name`() {

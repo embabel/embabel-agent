@@ -15,14 +15,23 @@
  */
 package com.embabel.agent.autoconfigure.platform;
 
+import com.embabel.agent.core.internal.LlmOperations;
+import com.embabel.agent.spi.decision.LlmDecisionServiceFactory;
+import com.embabel.common.ai.model.ModelProvider;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.beans.factory.BeanFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 
 /**
- * Registers a decision service bean for each entry under
- * {@code embabel.agent.platform.decisions.llm.services}, named after the entry's key.
+ * Supplies the {@link LlmDecisionServiceFactory} bean applications inject, with retry settings bound
+ * from {@code embabel.agent.platform.decisions.llm}, and registers a decision service bean for each
+ * entry under {@code embabel.agent.platform.decisions.llm.services}, named after the entry's key.
  *
  * <pre>{@code
  * embabel:
@@ -30,13 +39,31 @@ import org.springframework.core.env.Environment;
  *     platform:
  *       decisions:
  *         llm:
+ *           max-attempts: 5
  *           services:
  *             triage:
  *               llm: small-chat-model
  * }</pre>
  */
 @AutoConfiguration(after = AgentPlatformAutoConfiguration.class)
+@EnableConfigurationProperties(LlmDecisionRetryProperties.class)
 public class LlmDecisionServicesAutoConfiguration {
+
+    /**
+     * Configured services are built by this bean too, so an application that supplies its own
+     * factory changes them as well.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean({LlmOperations.class, ModelProvider.class})
+    public LlmDecisionServiceFactory llmDecisionServiceFactory(
+            LlmOperations llmOperations,
+            ModelProvider modelProvider,
+            ObjectProvider<ObservationRegistry> observationRegistry,
+            LlmDecisionRetryProperties retry) {
+        return new LlmDecisionServiceFactory(
+                llmOperations, modelProvider, retry, observationRegistry.getIfUnique(() -> ObservationRegistry.NOOP));
+    }
 
     /**
      * Static, so Spring creates it before any ordinary bean and the service definitions exist

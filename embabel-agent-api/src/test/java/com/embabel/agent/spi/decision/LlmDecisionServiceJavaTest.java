@@ -61,7 +61,7 @@ class LlmDecisionServiceJavaTest {
 
     // Applications inject this bean from the Spring context rather than constructing it themselves.
     private final LlmDecisionServiceFactory factory =
-            new LlmDecisionServiceFactory(llmOperations, modelProvider, observationRegistry);
+            new LlmDecisionServiceFactory(llmOperations, modelProvider, new QuickRetry(), observationRegistry);
 
     /** Stands in for the platform's operations by reading one canned model reply into the answer type asked for. */
     @SuppressWarnings({"unchecked", "rawtypes"})
