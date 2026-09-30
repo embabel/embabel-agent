@@ -78,6 +78,22 @@ The `resource` argument is a Spring resource specification.
 
 Thus `LlmReferenceProviders.fromYml("references.yml")` will load `references.yml` under `src/main/resources/`
 
+===== Tool naming
+
+`withReference()` adds each tool of a reference one time, with the tool prefix of the reference.
+For example, a reference named `docs` exposes its `search` tool as `docs_search`.
+
+When you implement `LlmReference`:
+
+- Return unprefixed tool names from `tools()`.
+The framework applies `namingStrategy`, which adds the prefix.
+- The tool prefix is the reference name in lower case, with each character that is not a letter or a digit replaced by an underscore.
+- If `tools()` already returns final names, override `namingStrategy` to return `StringTransformer.IDENTITY`.
+- The default naming strategy does not add the prefix a second time.
+It keeps a name that is the prefix or starts with it, and logs a warning, because such a name usually means that `tools()` added the prefix itself.
+- A reference made with `withUnfolding()` exposes one tool named after the prefix.
+When the model unfolds it, the inner tools also get the prefix, so that the tools of two unfolded references do not collide.
+
 ==== Built-in Convenience Classes
 
 Embabel provides several convenience classes that implement `PromptContributor` for common use cases.

@@ -28,6 +28,7 @@ import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.jvm.javaMethod
 import kotlin.reflect.jvm.javaType
 import org.slf4j.LoggerFactory
+import org.springframework.aop.framework.AopProxyUtils
 import org.springframework.util.ReflectionUtils
 
 /**
@@ -45,6 +46,16 @@ internal sealed class MethodTool(
 ) : Tool {
 
     private val logger = LoggerFactory.getLogger(MethodTool::class.java)
+
+    /** The name of the annotated method. */
+    protected abstract val methodName: String
+
+    /** The class and method of the tool, for messages. */
+    internal val source: String get() = "${AopProxyUtils.ultimateTargetClass(instance).name}.$methodName"
+
+    /** True when [other] calls the same method on the same object. */
+    internal fun hasSameMethodAs(other: MethodTool): Boolean =
+        instance === other.instance && methodName == other.methodName
 
     override val metadata: Tool.Metadata = Tool.Metadata(returnDirect = annotation.returnDirect)
 
@@ -101,6 +112,8 @@ internal class KotlinMethodTool(
     annotation = annotation,
     objectMapper = objectMapper
 ) {
+
+    override val methodName: String get() = method.name
 
     override val definition: Tool.Definition by lazy {
         val name = annotation.name.ifEmpty { method.name }
@@ -179,6 +192,8 @@ internal class JavaMethodTool(
     annotation = annotation,
     objectMapper = objectMapper
 ) {
+
+    override val methodName: String get() = method.name
 
     override val definition: Tool.Definition by lazy {
         val name = annotation.name.ifEmpty { method.name }

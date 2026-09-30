@@ -18,9 +18,13 @@ package com.embabel.agent.api.reference
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.tool.progressive.UnfoldingTool
+import com.embabel.agent.core.support.renamedBy
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.NamedAndDescribed
 import com.embabel.common.util.StringTransformer
+import org.slf4j.LoggerFactory
+
+private val logger = LoggerFactory.getLogger(LlmReference::class.java)
 
 /**
  * An LLmReference exposes tools and is a prompt contributor.
@@ -41,13 +45,35 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
      * Defaults to the name lowercased with spaces replaced by underscores.
      * Subclasses can override it
      */
-    fun toolPrefix(): String = name.replace(Regex("[^a-zA-Z0-9 ]"), "_").lowercase()
+    fun toolPrefix(): String = name.replace(Regex("[^a-zA-Z0-9]"), "_").lowercase()
 
     /**
      * Naming strategy for tools associated with this reference.
-     * Defaults to prefixing tool names with the tool prefix and an underscore.
+     * Defaults to prefixing tool names with the tool prefix and an underscore. A name that is
+     * the tool prefix, or already starts with it, is kept. So the default strategy gives the
+     * same name when it is applied two times.
+     *
+     * The consumer of the reference, such as [com.embabel.agent.api.common.PromptRunner.withReference],
+     * applies this strategy to the names that [tools] returns. So [tools] must return unprefixed names.
+     * If [tools] already returns final names, override this to return [StringTransformer.IDENTITY].
      */
-    val namingStrategy: StringTransformer get() = StringTransformer { toolName -> "${toolPrefix()}_$toolName" }
+    val namingStrategy: StringTransformer
+        get() = StringTransformer { toolName ->
+            val prefix = toolPrefix()
+            if (toolName == prefix || toolName.startsWith("${prefix}_")) {
+                // LlmReference.of builds SimpleLlmReference, whose class means nothing to the developer.
+                val owner = if (this is SimpleLlmReference) "" else " (${javaClass.name})"
+                logger.warn(
+                    "Reference '{}'{} returned tool '{}', which already has the prefix '{}'. " +
+                        "The name is kept as is. tools() should return unprefixed names; " +
+                        "if the names are final, override namingStrategy to return StringTransformer.IDENTITY.",
+                    name, owner, toolName, prefix,
+                )
+                toolName
+            } else {
+                "${prefix}_$toolName"
+            }
+        }
 
     /**
      * Create a tool object for this reference.
@@ -92,6 +118,8 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
     /**
      * Return framework-agnostic tools provided by this reference.
      * These tools will be added to the PromptRunner when the reference is added.
+     *
+     * Return unprefixed tool names. The consumer of the reference applies [namingStrategy] to them.
      *
      * The default implementation bridges from the deprecated [toolInstances] method
      * by converting any @LlmTool annotated objects to [Tool] instances.
@@ -240,6 +268,10 @@ private class UnfoldingReference(
 
     override fun toolPrefix(): String = delegate.toolPrefix()
 
+    // tools() returns one wrapper tool that has the prefix as its name, by design.
+    // The identity strategy keeps that name without the warning of the default strategy.
+    override val namingStrategy: StringTransformer get() = StringTransformer.IDENTITY
+
     override fun notes(): String = delegate.notes()
 
     override fun contribution(): String = delegate.contribution()
@@ -257,7 +289,9 @@ private class UnfoldingReference(
             UnfoldingTool.of(
                 name = delegate.toolPrefix(),
                 description = delegate.description,
-                innerTools = innerTools,
+                // After unfolding, the inner tools join the same tool list as other tools,
+                // so they get the delegate naming strategy, like any other consumer applies.
+                innerTools = innerTools.renamedBy(delegate.namingStrategy),
                 childToolUsageNotes = childToolUsageNotes,
             )
         )

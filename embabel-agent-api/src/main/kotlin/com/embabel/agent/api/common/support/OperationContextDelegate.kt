@@ -35,6 +35,7 @@ import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetTools
+import com.embabel.agent.core.support.warnOnRepeatedToolNames
 import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.core.internal.streaming.StreamingLlmOperationsFactory
 import com.embabel.agent.spi.loop.ToolChainingInjectionStrategy
@@ -181,6 +182,7 @@ internal data class OperationContextDelegate(
      */
     private fun resolveToolConfig(): ResolvedToolConfig {
         val baseTools = safelyGetTools(toolObjects) + otherTools
+        warnOnRepeatedToolNames(baseTools, loggerFor<OperationContextDelegate>())
         if (!hasDomainToolConfig) {
             return ResolvedToolConfig(baseTools, injectionStrategies)
         }

@@ -20,6 +20,7 @@ import com.embabel.agent.api.common.ActionContext
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.PlatformServices
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.Action
@@ -28,6 +29,9 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.support.LlmInteraction
+import com.embabel.agent.core.support.LookupToolsA
+import com.embabel.agent.core.support.LookupToolsB
+import com.embabel.agent.core.support.captureWarnings
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
@@ -231,6 +235,37 @@ class OperationContextDelegateTest {
             val delegate = createDelegateWithDefaults(mockk<OperationContext>())
                 .withValidation(false)
             assertEquals(false, delegate.validation)
+        }
+    }
+
+    @Nested
+    inner class RepeatedToolNameTest {
+
+        @Test
+        fun `warns with class and method when a tool object and a direct tool have the same name`() {
+            val mockProcessContext = mockk<ProcessContext>(relaxed = true)
+            val mockContext = mockk<ActionContext>(relaxed = true)
+            every { mockContext.processContext } returns mockProcessContext
+            every {
+                mockProcessContext.createObject<TestResult>(any(), any(), any(), any(), any())
+            } returns TestResult("result")
+
+            val warnings = captureWarnings(OperationContextDelegate::class.java.name) {
+                OperationContextDelegate(
+                    context = mockContext,
+                    llm = LlmOptions(),
+                    toolGroups = emptySet(),
+                    toolObjects = listOf(ToolObject(LookupToolsA())),
+                    promptContributors = emptyList(),
+                )
+                    .withTool(Tool.fromInstance(LookupToolsB()).single())
+                    .createObject(listOf(UserMessage("test")), TestResult::class.java)
+            }
+
+            assertEquals(1, warnings.size, "warnings were $warnings")
+            assertTrue(warnings[0].contains("'lookup'"), warnings[0])
+            assertTrue(warnings[0].contains("LookupToolsA.lookup"), warnings[0])
+            assertTrue(warnings[0].contains("LookupToolsB.lookup"), warnings[0])
         }
     }
 
