@@ -44,6 +44,23 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class MdcPropagationEventListenerTest {
 
+    @Test
+    void anotherProcessTerminalEventsPreserveCallerMdc() {
+        var listener = new MdcPropagationEventListener(new ObservabilityProperties());
+        var target = mock(AgentProcess.class);
+        when(target.getId()).thenReturn("target");
+        MDC.put("embabel.agent.run_id", "caller");
+        MDC.put("embabel.agent.name", "CallerAgent");
+        MDC.put("embabel.action.name", "terminateTarget");
+        listener.onProcessEvent(new AgentProcessTerminatedEvent(target));
+        listener.onProcessEvent(new ProcessKilledEvent(target));
+        listener.onProcessEvent(new AgentProcessCompletedEvent(target));
+        listener.onProcessEvent(new AgentProcessFailedEvent(target));
+        assertThat(MDC.get("embabel.agent.run_id")).isEqualTo("caller");
+        assertThat(MDC.get("embabel.agent.name")).isEqualTo("CallerAgent");
+        assertThat(MDC.get("embabel.action.name")).isEqualTo("terminateTarget");
+    }
+
     @AfterEach
     void tearDown() {
         MDC.clear();
@@ -156,6 +173,21 @@ class MdcPropagationEventListenerTest {
 
             listener.onProcessEvent(new AgentProcessCreationEvent(process));
             listener.onProcessEvent(new AgentProcessFailedEvent(process));
+
+            assertThat(MDC.get("embabel.agent.run_id")).isNull();
+            assertThat(MDC.get("embabel.agent.name")).isNull();
+            assertThat(MDC.get("embabel.action.name")).isNull();
+        }
+
+        @Test
+        @DisplayName("Agent terminated should clear all MDC keys")
+        void agentTerminated_shouldClearAllMdcKeys() {
+            ObservabilityProperties properties = new ObservabilityProperties();
+            MdcPropagationEventListener listener = new MdcPropagationEventListener(properties);
+            AgentProcess process = createMockAgentProcess("run-1", "TestAgent");
+
+            listener.onProcessEvent(new AgentProcessCreationEvent(process));
+            listener.onProcessEvent(new AgentProcessTerminatedEvent(process));
 
             assertThat(MDC.get("embabel.agent.run_id")).isNull();
             assertThat(MDC.get("embabel.agent.name")).isNull();

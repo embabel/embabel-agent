@@ -82,12 +82,12 @@ abstract class AbstractAgentProcessRepository : AgentProcessRepository {
 
     /**
      * Update an existing agent process.
-     * This method checks if the process is ephemeral and logs an error if persistence
-     * is attempted. Non-ephemeral processes are delegated to [doUpdate].
+     * This method skips ephemeral processes and logs the skipped update at DEBUG.
+     * Non-ephemeral processes are delegated to [doUpdate].
      */
     final override fun update(agentProcess: AgentProcess) {
         if (agentProcess.processOptions.ephemeral) {
-            logger.error(
+            logger.debug(
                 """
                 Attempted to update ephemeral AgentProcess [id={}].
                 Ephemeral processes are not persisted.

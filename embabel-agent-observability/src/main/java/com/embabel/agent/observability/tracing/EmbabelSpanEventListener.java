@@ -26,6 +26,7 @@ import com.embabel.agent.api.event.AgentProcessPausedEvent;
 import com.embabel.agent.api.event.AgentProcessPlanFormulatedEvent;
 import com.embabel.agent.api.event.AgentProcessReadyToPlanEvent;
 import com.embabel.agent.api.event.AgentProcessStuckEvent;
+import com.embabel.agent.api.event.AgentProcessTerminatedEvent;
 import com.embabel.agent.api.event.AgentProcessWaitingEvent;
 import com.embabel.agent.api.event.AgenticEventListener;
 import com.embabel.agent.api.event.DynamicAgentCreationEvent;
@@ -47,7 +48,6 @@ import com.embabel.agent.api.event.ToolCallResponseEvent;
 import com.embabel.agent.api.event.ToolLoopCompletedEvent;
 import com.embabel.agent.api.event.observation.ToolCallOutcomes;
 import com.embabel.agent.core.AgentProcess;
-import com.embabel.agent.core.EarlyTermination;
 import com.embabel.agent.core.EmbeddingInvocation;
 import com.embabel.agent.core.LlmInvocation;
 import com.embabel.agent.core.ToolGroupMetadata;
@@ -62,6 +62,7 @@ import com.embabel.common.ai.model.EmbeddingServiceMetadata;
 import com.embabel.common.core.types.SimilarityResult;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.tracing.Tracer;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -76,6 +77,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
 
     private final ObservationRegistry registry;
     private final ObservabilityProperties properties;
+    private final Tracer tracer;
 
     /**
      * Per-run plan iteration counter, so the planning span can carry {@code embabel.plan.iteration}
@@ -86,9 +88,16 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
      */
     private final Map<String, Integer> planIterations = new ConcurrentHashMap<>();
 
+    /** Observation-only constructor. With tracing enabled, use the overload accepting the registry's tracer. */
     public EmbabelSpanEventListener(ObservationRegistry registry, ObservabilityProperties properties) {
+        this(registry, properties, Tracer.NOOP);
+    }
+
+    /** Supply the registry's tracer so cross-process lifecycle events can detach the caller span. */
+    public EmbabelSpanEventListener(ObservationRegistry registry, ObservabilityProperties properties, Tracer tracer) {
         this.registry = registry;
         this.properties = properties;
+        this.tracer = tracer;
     }
 
     @Override
@@ -160,6 +169,10 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
                 planIterations.remove(e.getAgentProcess().getId());
                 recordLifecycle(e);
             }
+            case AgentProcessTerminatedEvent e -> {
+                planIterations.remove(e.getAgentProcess().getId());
+                recordLifecycle(e);
+            }
             case AgentProcessWaitingEvent e -> recordLifecycle(e);
             case AgentProcessPausedEvent e -> recordLifecycle(e);
             case AgentProcessStuckEvent e -> recordLifecycle(e);
@@ -167,10 +180,8 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
                 planIterations.remove(e.getAgentProcess().getId());
                 recordLifecycle(e);
             }
-            case EarlyTermination e -> {
-                planIterations.remove(e.getAgentProcess().getId());
-                recordLifecycle(e);
-            }
+            // EarlyTermination remains a compatibility notification; terminal accounting
+            // is performed only when AgentProcessTerminatedEvent arrives after persistence.
             default -> {
             }
         }
@@ -385,11 +396,32 @@ public class EmbabelSpanEventListener implements AgenticEventListener, Embedding
         if (!properties.isTraceLifecycleStates()) {
             return;
         }
-        Observation observation = point(SpanAttributes.EMBABEL_LIFECYCLE, event.getAgentProcess().getStatus().name())
+        Observation current = registry.getCurrentObservation();
+        // A process can terminate another process synchronously, so the current observation
+        // may belong to the caller rather than the event target. Its run ID identifies that
+        // owner: use it as the parent only when it matches the target process ID. A missing or
+        // different run ID makes the target lifecycle a root span; the tracer scope is also
+        // cleared below so tracing handlers cannot implicitly restore the caller as its parent.
+        var runId = current == null ? null
+                : current.getContextView().getHighCardinalityKeyValue(SpanAttributes.EMBABEL_RUN_ID);
+        Observation parent = runId != null && event.getProcessId().equals(runId.getValue())
+                ? current : Observation.NOOP;
+        Observation observation = Observation.createNotStarted(SpanAttributes.EMBABEL_LIFECYCLE, registry)
+                .parentObservation(parent)
+                .contextualName(event.getAgentProcess().getStatus().name())
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_RUN_ID, event.getProcessId())
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_EVENT_TYPE, "lifecycle")
                 .lowCardinalityKeyValue(SpanAttributes.GEN_AI_OPERATION_NAME, "lifecycle")
                 .lowCardinalityKeyValue(SpanAttributes.EMBABEL_LIFECYCLE_STATE, event.getAgentProcess().getStatus().name());
-        emit(observation);
+        if (parent == Observation.NOOP) {
+            // Clearing the observation parent alone is insufficient: tracing handlers can
+            // fall back to the tracer's current span. Restore that caller scope on exit.
+            try (Tracer.SpanInScope ignored = tracer.withSpan(null)) {
+                emit(observation);
+            }
+        } else {
+            emit(observation);
+        }
     }
 
     private void recordDynamicAgentCreation(DynamicAgentCreationEvent event) {

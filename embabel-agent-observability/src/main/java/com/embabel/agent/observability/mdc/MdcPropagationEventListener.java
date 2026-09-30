@@ -16,6 +16,7 @@
 package com.embabel.agent.observability.mdc;
 
 import com.embabel.agent.api.event.*;
+import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.observability.ObservabilityProperties;
 import org.slf4j.MDC;
 
@@ -57,7 +58,7 @@ public class MdcPropagationEventListener implements AgenticEventListener {
      * <p>On {@link AgentProcessCreationEvent}, sets {@code run_id} and {@code agent.name}.
      * On {@link ActionExecutionStartEvent}, adds the {@code action.name} key.
      * On {@link ActionExecutionResultEvent}, removes the {@code action.name} key.
-     * On terminal events (completed, failed, killed), clears all MDC keys.
+     * On terminal events, clears Embabel MDC keys only when they belong to the event process.
      *
      * @param event the agent process event to handle
      */
@@ -74,9 +75,10 @@ public class MdcPropagationEventListener implements AgenticEventListener {
             }
             case ActionExecutionStartEvent e -> MDC.put(MDC_ACTION_NAME, e.getAction().getName());
             case ActionExecutionResultEvent e -> MDC.remove(MDC_ACTION_NAME);
-            case AgentProcessCompletedEvent e -> clearAll();
-            case AgentProcessFailedEvent e -> clearAll();
-            case ProcessKilledEvent e -> clearAll();
+            case AgentProcessCompletedEvent e -> clearIfOwner(e.getAgentProcess());
+            case AgentProcessFailedEvent e -> clearIfOwner(e.getAgentProcess());
+            case AgentProcessTerminatedEvent e -> clearIfOwner(e.getAgentProcess());
+            case ProcessKilledEvent e -> clearIfOwner(e.getAgentProcess());
             default -> { }
         }
     }
@@ -85,6 +87,12 @@ public class MdcPropagationEventListener implements AgenticEventListener {
      * Removes all Embabel MDC keys ({@code run_id}, {@code agent.name}, {@code action.name}).
      * Called on terminal process events to prevent MDC leaking into unrelated log statements.
      */
+    private void clearIfOwner(AgentProcess process) {
+        if (process.getId().equals(MDC.get(MDC_RUN_ID))) {
+            clearAll();
+        }
+    }
+
     private void clearAll() {
         MDC.remove(MDC_RUN_ID);
         MDC.remove(MDC_AGENT_NAME);

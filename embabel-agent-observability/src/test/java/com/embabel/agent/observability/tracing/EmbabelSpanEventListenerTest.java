@@ -21,6 +21,7 @@ import com.embabel.agent.api.event.AgentProcessPausedEvent;
 import com.embabel.agent.api.event.AgentProcessPlanFormulatedEvent;
 import com.embabel.agent.api.event.AgentProcessReadyToPlanEvent;
 import com.embabel.agent.api.event.AgentProcessStuckEvent;
+import com.embabel.agent.api.event.AgentProcessTerminatedEvent;
 import com.embabel.agent.api.event.AgentProcessWaitingEvent;
 import com.embabel.agent.api.event.ProcessKilledEvent;
 import com.embabel.agent.api.event.DynamicAgentCreationEvent;
@@ -55,6 +56,8 @@ import com.embabel.agent.event.AgentProcessRagEvent;
 import com.embabel.agent.event.RagEvent;
 import com.embabel.agent.event.RagResponseEvent;
 import com.embabel.agent.observability.ObservabilityProperties;
+import com.embabel.agent.observability.SpanAttributes;
+import io.micrometer.tracing.Tracer;
 import com.embabel.agent.rag.service.QualityMetrics;
 import com.embabel.agent.rag.service.RagRequest;
 import com.embabel.agent.rag.service.RagResponse;
@@ -95,6 +98,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.mockStatic;
 
 /**
@@ -140,6 +144,49 @@ class EmbabelSpanEventListenerTest {
         handler = new RecordingHandler();
         registry.observationConfig().observationHandler(handler);
         properties = new ObservabilityProperties();
+    }
+
+    @Test
+    void lifecycleUsesParentOnlyWhenRunIdMatches() {
+        var listener = listener();
+        var target = processWithStatus("target", AgentProcessStatusCode.TERMINATED);
+        Observation caller = Observation.createNotStarted("caller", registry)
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_RUN_ID, "caller");
+        caller.observe(() -> listener.onProcessEvent(new AgentProcessTerminatedEvent(target)));
+        Observation.Context crossProcess = handler.stopped.stream()
+                .filter(c -> "embabel.lifecycle".equals(c.getName())).findFirst().orElseThrow();
+        assertTrue(crossProcess.getParentObservation() == null
+                || crossProcess.getParentObservation() == Observation.NOOP);
+        assertEquals("target", kvOf("embabel.lifecycle").get(SpanAttributes.EMBABEL_RUN_ID));
+
+        handler.stopped.clear();
+        Observation owner = Observation.createNotStarted("owner", registry)
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_RUN_ID, "target");
+        owner.observe(() -> listener.onProcessEvent(new AgentProcessTerminatedEvent(target)));
+        Observation.Context sameProcess = handler.stopped.stream()
+                .filter(c -> "embabel.lifecycle".equals(c.getName())).findFirst().orElseThrow();
+        assertEquals(owner, sameProcess.getParentObservation());
+    }
+
+    @Test
+    void crossProcessLifecycleTemporarilyClearsTracerScope() {
+        Tracer tracer = mock(Tracer.class);
+        Tracer.SpanInScope clearedScope = mock(Tracer.SpanInScope.class);
+        when(tracer.withSpan(null)).thenReturn(clearedScope);
+        var listener = new EmbabelSpanEventListener(registry, properties, tracer);
+        Observation caller = Observation.createNotStarted("caller", registry)
+                .highCardinalityKeyValue(SpanAttributes.EMBABEL_RUN_ID, "caller");
+        caller.observe(() -> listener.onProcessEvent(new AgentProcessTerminatedEvent(
+                processWithStatus("target", AgentProcessStatusCode.TERMINATED))));
+        org.mockito.Mockito.verify(tracer).withSpan(null);
+        org.mockito.Mockito.verify(clearedScope).close();
+    }
+
+    @Test
+    void lifecycleWithoutCurrentObservationStillIdentifiesTarget() {
+        listener().onProcessEvent(new AgentProcessTerminatedEvent(
+                processWithStatus("target", AgentProcessStatusCode.TERMINATED)));
+        assertEquals("target", kvOf("embabel.lifecycle").get(SpanAttributes.EMBABEL_RUN_ID));
     }
 
     private EmbabelSpanEventListener listener() {
@@ -218,6 +265,7 @@ class EmbabelSpanEventListenerTest {
         lenient().when(process.getStatus()).thenReturn(AgentProcessStatusCode.COMPLETED);
         AgentProcessCompletedEvent event = mock(AgentProcessCompletedEvent.class);
         lenient().when(event.getAgentProcess()).thenReturn(process);
+        lenient().when(event.getProcessId()).thenReturn("run-1");
         return event;
     }
 
@@ -937,6 +985,16 @@ class EmbabelSpanEventListenerTest {
         }
 
         @Test
+        @DisplayName("terminated run becomes a lifecycle span carrying TERMINATED")
+        void terminatedLifecycleSpan() {
+            listener().onProcessEvent(
+                    new AgentProcessTerminatedEvent(processWithStatus("run-1", AgentProcessStatusCode.TERMINATED)));
+
+            Map<String, String> kv = kvOf("embabel.lifecycle");
+            assertEquals("TERMINATED", kv.get("embabel.lifecycle.state"));
+        }
+
+        @Test
         @DisplayName("waiting, paused and stuck each become a lifecycle span with their status")
         void intermediateLifecycleSpans() {
             EmbabelSpanEventListener listener = listener();
@@ -997,21 +1055,19 @@ class EmbabelSpanEventListenerTest {
         }
 
         @Test
-        @DisplayName("early termination maps the process status onto the lifecycle span state")
-        void earlyTerminationEmitsLifecycleSpan() {
-            EarlyTerminationPolicy policy = mock(EarlyTerminationPolicy.class);
-            // Listener-mapping test: with the process reporting TERMINATED, recordLifecycle must copy
-            // getStatus() into embabel.lifecycle.state (parallel to the FAILED/KILLED/WAITING cases).
-            // The core guarantee that the status is already TERMINATED when the event fires is covered
-            // by AbstractAgentProcessTerminationStatusOrderingTest, not here (the process is mocked).
-            EarlyTermination event = new EarlyTermination(
-                    processWithStatus("run-1", AgentProcessStatusCode.TERMINATED), true, "budget exceeded", policy);
-
-            listener().onProcessEvent(event);
-
-            Map<String, String> kv = kvOf("embabel.lifecycle");
-            assertEquals("TERMINATED", kv.get("embabel.lifecycle.state"));
+        @DisplayName("early termination followed by the terminal event produces one lifecycle span")
+        void pairedTerminationEventsProduceOneSpan() {
+            var process = processWithStatus("run-1", AgentProcessStatusCode.TERMINATED);
+            var listener = listener();
+            listener.onProcessEvent(new EarlyTermination(
+                    process, true, "budget exceeded", mock(EarlyTerminationPolicy.class)));
+            assertTrue(handler.stopped.stream().noneMatch(c -> "embabel.lifecycle".equals(c.getName())));
+            listener.onProcessEvent(new AgentProcessTerminatedEvent(process));
+            assertEquals(1L, handler.stopped.stream()
+                    .filter(c -> "embabel.lifecycle".equals(c.getName())).count());
+            assertEquals("TERMINATED", kvOf("embabel.lifecycle").get("embabel.lifecycle.state"));
         }
+
     }
 
     @Nested
@@ -1380,19 +1436,23 @@ class EmbabelSpanEventListenerTest {
             listener.onProcessEvent(planEvent()); // run-1 -> iteration 1
             listener.onProcessEvent(planEvent()); // run-1 -> iteration 2
             listener.onProcessEvent(completedEvent()); // purges run-1
+            listener.onProcessEvent(new AgentProcessTerminatedEvent(
+                    processWithStatus("run-1", AgentProcessStatusCode.TERMINATED)));
             listener.onProcessEvent(planEvent()); // run-1 -> iteration 1 again iff purged (else 3)
 
             assertEquals(List.of("1", "2", "1"), planningIterations());
         }
 
         @Test
-        @DisplayName("early termination also purges the counter (parallel to completed/failed/killed)")
-        void earlyTerminationResetsIterationCounter() {
+        @DisplayName("terminal event purges the counter after the compatibility notification")
+        void terminalEventResetsIterationCounter() {
             EmbabelSpanEventListener listener = listener();
             listener.onProcessEvent(planEvent()); // run-1 -> iteration 1
             listener.onProcessEvent(new EarlyTermination(
                     processWithStatus("run-1", AgentProcessStatusCode.TERMINATED),
                     true, "budget exceeded", mock(EarlyTerminationPolicy.class)));
+            listener.onProcessEvent(new AgentProcessTerminatedEvent(
+                    processWithStatus("run-1", AgentProcessStatusCode.TERMINATED)));
             listener.onProcessEvent(planEvent()); // run-1 -> iteration 1 again iff purged
 
             assertEquals(List.of("1", "1"), planningIterations());
