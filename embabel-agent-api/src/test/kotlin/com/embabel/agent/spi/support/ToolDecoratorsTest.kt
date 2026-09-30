@@ -498,6 +498,7 @@ class ToolDecoratorsTest {
             assertEquals("error-tool", (failure as ToolReturnedError).toolName)
             assertEquals("Execution denied: rm", failure.message)
             assertSame(cause, failure.cause)
+            assertEquals(0, failure.stackTrace.size)
         }
 
         @Test
