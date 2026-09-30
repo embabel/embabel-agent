@@ -20,6 +20,7 @@ import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolControlFlowSignal
+import com.embabel.agent.api.tool.ToolReturnedError
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ToolGroupMetadata
@@ -57,16 +58,6 @@ private val Tool.Result.content: String
         is Tool.Result.WithArtifact -> content
         is Tool.Result.Error -> message
     }
-
-/**
- * Recorded on a [com.embabel.agent.api.event.ToolCallResponseEvent] when a tool
- * returns [Tool.Result.Error] instead of throwing, so the event reports a failure.
- */
-class ToolReturnedError(
-    val toolName: String,
-    message: String,
-    cause: Throwable? = null,
-) : RuntimeException(message, cause)
 
 private fun Result<Tool.Result>.toEventResult(toolName: String): Result<String> =
     fold(
