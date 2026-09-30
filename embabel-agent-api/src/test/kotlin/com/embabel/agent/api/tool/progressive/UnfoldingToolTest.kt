@@ -18,6 +18,7 @@ package com.embabel.agent.api.tool.progressive
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.UnfoldingTools
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.support.captureWarnings
 import com.embabel.agent.spi.loop.ChainedToolInjectionStrategy
 import com.embabel.agent.spi.loop.MockLlmMessageSender
 import com.embabel.agent.spi.loop.MockTool
@@ -254,6 +255,54 @@ class UnfoldingToolTest {
 
     @Nested
     inner class UnfoldingToolInjectionStrategyTest {
+
+        private fun unfoldWarnings(inner: Tool, existing: Tool, exclusive: Boolean = false): List<String> {
+            val unfolding = UnfoldingTool.of(
+                name = "outer",
+                description = "Outer tool",
+                innerTools = listOf(inner),
+                exclusive = exclusive,
+            )
+            val context = ToolInjectionContext(
+                conversationHistory = emptyList(),
+                currentTools = listOf(unfolding, existing),
+                lastToolCall = ToolCallResult(toolName = "outer", toolInput = "{}", result = "ok", resultObject = null),
+                iterationCount = 1,
+            )
+            return captureWarnings(UnfoldingToolInjectionStrategy::class.java.name) {
+                UnfoldingToolInjectionStrategy().evaluate(context)
+            }
+        }
+
+        @Test
+        fun `warns when an inner tool has the name of a different tool that is already present`() {
+            val existing = MockTool("search", "Search A") { Tool.Result.text("a") }
+            val inner = MockTool("search", "Search B") { Tool.Result.text("b") }
+
+            val warnings = unfoldWarnings(inner = inner, existing = existing)
+
+            Assertions.assertEquals(1, warnings.size, "warnings were $warnings")
+            Assertions.assertTrue(warnings[0].contains("'outer'") && warnings[0].contains("'search'"), warnings[0])
+        }
+
+        @Test
+        fun `does not warn when the inner tool is already present`() {
+            val tool = MockTool("search", "Search A") { Tool.Result.text("a") }
+
+            val warnings = unfoldWarnings(inner = tool, existing = tool)
+
+            Assertions.assertTrue(warnings.isEmpty(), "warnings were $warnings")
+        }
+
+        @Test
+        fun `does not warn for an exclusive unfolding tool, which removes the other tools`() {
+            val existing = MockTool("search", "Search A") { Tool.Result.text("a") }
+            val inner = MockTool("search", "Search B") { Tool.Result.text("b") }
+
+            val warnings = unfoldWarnings(inner = inner, existing = existing, exclusive = true)
+
+            Assertions.assertTrue(warnings.isEmpty(), "warnings were $warnings")
+        }
 
         @Test
         fun `strategy ignores non-UnfoldingTool invocations`() {

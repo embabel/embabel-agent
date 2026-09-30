@@ -15,13 +15,16 @@
  */
 package com.embabel.agent.skills
 
+import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.embabel.agent.skills.script.ScriptExecutionResult
 import com.embabel.agent.skills.script.ScriptLanguage
 import com.embabel.agent.skills.script.SkillScript
 import com.embabel.agent.skills.script.SkillScriptExecutionEngine
 import com.embabel.agent.skills.spec.SkillDefinition
 import com.embabel.agent.skills.support.LoadedSkill
+import com.embabel.agent.test.unit.FakeOperationContext
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -725,6 +728,57 @@ class SkillsTest {
     }
 
     // Helper methods
+
+    private data class Answer(val text: String)
+
+    /** Returns the tool names that the LLM receives when [references] are added with withReferences. */
+    private fun toolNamesThroughWithReferences(references: List<LlmReference>): List<String> {
+        val context = FakeOperationContext.create()
+        context.expectResponse(Answer("ok"))
+        context.promptRunner
+            .withReferences(references)
+            .createObject("Answer the question", Answer::class.java)
+        return context.llmInvocations.single().interaction.tools.map { it.definition.name }.sorted()
+    }
+
+    private fun githubWorkflowsSkills(): Skills = Skills(
+        name = "test",
+        description = "test",
+        skills = listOf(
+            LoadedSkill(
+                skillMetadata = SkillDefinition(
+                    name = "github-workflows",
+                    description = "GitHub workflows",
+                    instructions = "Use gateway.gh.* via execute_javascript.",
+                ),
+                basePath = createSkillDirectory("github-workflows"),
+            ),
+        ),
+    )
+
+    @Test
+    fun `asIndividualReferences keeps the activation tool name when added with withReferences`() {
+        // The activation tool is named after the skill so that prompts can refer to it.
+        val names = toolNamesThroughWithReferences(githubWorkflowsSkills().asIndividualReferences())
+
+        assertTrue("github_workflows" in names, "tool names were $names")
+        assertTrue("readResource" in names, "tool names were $names")
+        assertTrue(names.none { it.startsWith("github_workflows_") }, "tool names were $names")
+    }
+
+    @Test
+    fun `Skills keeps its tool names when added with withReference`() {
+        val names = toolNamesThroughWithReferences(listOf(githubWorkflowsSkills()))
+
+        assertTrue("activate" in names, "tool names were $names")
+    }
+
+    @Test
+    fun `unfolded Skills keeps its inner tool names`() {
+        val unfolding = githubWorkflowsSkills().withUnfolding().tools().single() as UnfoldingTool
+
+        assertTrue("activate" in unfolding.innerTools.map { it.definition.name })
+    }
 
     private fun createSkillDirectory(name: String): Path {
         val skillDir = tempDir.resolve(name)

@@ -15,8 +15,15 @@
  */
 package com.embabel.agent.core.support
 
+import com.embabel.agent.api.tool.DelegatingTool
+import com.embabel.agent.api.tool.MethodTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolObject
+import com.embabel.common.util.StringTransformer
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+
+private val logger: Logger = LoggerFactory.getLogger("com.embabel.agent.core.support.ToolUtils")
 
 /**
  * SPI for extracting framework-specific tools (e.g. Spring AI) from an arbitrary
@@ -40,7 +47,7 @@ private val externalToolExtractor: ExternalToolExtractor? = try {
  */
 fun safelyGetTools(instances: Collection<ToolObject>): List<Tool> =
     instances.flatMap { safelyGetToolsFrom(it) }
-        .distinctBy { it.definition.name }
+        .distinctByNameWarningOnCollision()
         .sortedBy { it.definition.name }
 
 /**
@@ -61,33 +68,97 @@ fun safelyGetToolsFrom(toolObject: ToolObject): List<Tool> {
     }
     return tools
         .filter { toolObject.filter(it.definition.name) }
-        .map {
-            val newName = toolObject.namingStrategy.transform(it.definition.name)
-            if (newName != it.definition.name) {
-                RenamedTool(it, newName)
-            } else {
-                it
-            }
-        }
-        .distinctBy { it.definition.name }
+        .renamedBy(toolObject.namingStrategy)
+        .distinctByNameWarningOnCollision()
         .sortedBy { it.definition.name }
 }
 
 /**
- * Allows renaming a Tool while preserving its behavior.
+ * Keeps the first tool of each name. A later tool with the same name is dropped. If it runs
+ * different code, the drop loses a tool, so a warning names both tools.
  */
-internal class RenamedTool(
-    private val delegate: Tool,
-    private val newName: String,
-) : Tool {
+private fun List<Tool>.distinctByNameWarningOnCollision(): List<Tool> {
+    val kept = LinkedHashMap<String, Tool>()
+    for (tool in this) {
+        val name = tool.definition.name
+        val first = kept.putIfAbsent(name, tool) ?: continue
+        if (!first.sameSourceAs(tool)) {
+            val firstSource = first.sourceDescription()
+            val droppedSource = tool.sourceDescription().let { if (it == firstSource) "$it (another instance)" else it }
+            logger.warn(
+                "Two different tools are named '{}'. Kept {}; dropped {}. " +
+                    "Give the tools unique names, for example with a naming strategy.",
+                name, firstSource, droppedSource,
+            )
+        }
+    }
+    return kept.values.toList()
+}
 
-    override val definition: Tool.Definition = object : Tool.Definition {
-        override val name: String = newName
-        override val description: String = delegate.definition.description
-        override val inputSchema: Tool.InputSchema = delegate.definition.inputSchema
+/** The innermost tool, after [DelegatingTool] wrappers are removed. */
+internal fun Tool.innermost(): Tool {
+    var current = this
+    while (current is DelegatingTool) current = current.delegate
+    return current
+}
+
+/** True when both tools run the same code on the same object. */
+internal fun Tool.sameSourceAs(other: Tool): Boolean {
+    val a = innermost()
+    val b = other.innermost()
+    return a === b || (a is MethodTool && b is MethodTool && a.hasSameMethodAs(b))
+}
+
+/** The class and method of an `@LlmTool` method, otherwise the class of the innermost tool. */
+internal fun Tool.sourceDescription(): String =
+    when (val tool = innermost()) {
+        is MethodTool -> tool.source
+        else -> tool.javaClass.name
     }
 
-    override val metadata: Tool.Metadata = delegate.metadata
+/**
+ * Warns when [tools] contains a name more than once. The list is not changed:
+ * the model sees each copy, and calls go to the first tool with that name.
+ */
+internal fun warnOnRepeatedToolNames(tools: List<Tool>, logger: Logger) {
+    tools.groupBy { it.definition.name }
+        .filterValues { it.size > 1 }
+        .forEach { (name, sameName) ->
+            logger.warn(
+                "Tool '{}' is registered more than once: {}. " +
+                    "The model sees each copy, and calls go to the first one. Register each tool one time.",
+                name, sameName.joinToString(", ") { it.sourceDescription() },
+            )
+        }
+}
 
-    override fun call(input: String): Tool.Result = delegate.call(input)
+/**
+ * Returns a list of the tools renamed by [namingStrategy].
+ * A tool whose name does not change is returned as is, not wrapped.
+ */
+internal fun Collection<Tool>.renamedBy(namingStrategy: StringTransformer): List<Tool> =
+    map { tool ->
+        val newName = namingStrategy.transform(tool.definition.name)
+        if (newName != tool.definition.name) RenamedTool(tool, newName) else tool
+    }
+
+/**
+ * Allows renaming a Tool while preserving its behavior.
+ * Implements [DelegatingTool] so that both [call] overloads pass the [com.embabel.agent.api.tool.ToolCallContext]
+ * to the delegate, and so that injection strategies can unwrap it.
+ */
+internal class RenamedTool(
+    override val delegate: Tool,
+    private val newName: String,
+) : DelegatingTool {
+
+    override val definition: Tool.Definition = Tool.Definition(
+        name = newName,
+        description = delegate.definition.description,
+        inputSchema = delegate.definition.inputSchema,
+        metadata = delegate.definition.metadata,
+    )
+
+    override val metadata: Tool.Metadata
+        get() = delegate.metadata
 }

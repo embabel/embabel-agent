@@ -19,6 +19,7 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
+import com.embabel.agent.core.support.captureWarnings
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.AssistantMessageWithToolCalls
@@ -221,6 +222,47 @@ class ToolLoopTest {
             assertTrue(strategyEvaluated)
             assertEquals(1, result.injectedTools.size)
             assertEquals("bonus_tool", result.injectedTools[0].definition.name)
+        }
+
+        private fun runWithInjection(existing: Tool, injected: Tool): List<String> {
+            val initialTool = MockTool(
+                name = "initial_tool",
+                description = "Initial tool",
+                onCall = { Tool.Result.text("done") }
+            )
+            val strategy = object : ToolInjectionStrategy {
+                override fun evaluateToolResult(context: ToolInjectionContext): List<Tool> =
+                    if (context.lastToolCall.toolName == "initial_tool") listOf(injected) else emptyList()
+            }
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = MockLlmMessageSender(
+                    responses = listOf(
+                        MockLlmMessageSender.toolCallResponse("call_1", "initial_tool", "{}"),
+                        MockLlmMessageSender.textResponse("All done!")
+                    )
+                ),
+                objectMapper = objectMapper,
+                injectionStrategy = strategy,
+            )
+            return captureWarnings(DefaultToolLoop::class.java.name) {
+                toolLoop.execute(
+                    initialMessages = listOf(UserMessage("Do something")),
+                    initialTools = listOf(initialTool, existing),
+                    outputParser = { it }
+                )
+            }
+        }
+
+        @Test
+        fun `does not warn when a generic injection skips a tool with a taken name`() {
+            // Tool chaining injects tools of a new domain object under names already present.
+            // That is framework behavior, not a user mistake, so the loop must not warn.
+            val existing = MockTool(name = "search", description = "Search A", onCall = { Tool.Result.text("a") })
+            val other = MockTool(name = "search", description = "Search B", onCall = { Tool.Result.text("b") })
+
+            val warnings = runWithInjection(existing = existing, injected = other)
+
+            assertTrue(warnings.isEmpty(), "warnings were $warnings")
         }
     }
 
