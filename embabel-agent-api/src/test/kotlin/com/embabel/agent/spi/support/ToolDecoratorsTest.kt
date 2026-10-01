@@ -18,6 +18,7 @@ package com.embabel.agent.spi.support
 import com.embabel.agent.api.event.ToolCallRequestEvent
 import com.embabel.agent.api.event.ToolCallResponseEvent
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolReturnedError
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.ProcessContext
@@ -33,6 +34,7 @@ import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -470,6 +472,33 @@ class ToolDecoratorsTest {
 
             val responseEvent = capturedEvents[1] as ToolCallResponseEvent
             assertTrue(responseEvent.result.isFailure)
+        }
+
+        @Test
+        fun `publishes failed response event when delegate returns error result and still returns it`() {
+            val cause = IllegalStateException("root cause")
+            val errorResult = Tool.Result.error("Execution denied: rm", cause)
+            val delegateTool = createMockTool("error-tool") { errorResult }
+            val eventPublishingTool = EventPublishingTool(
+                delegate = delegateTool,
+                agentProcess = mockAgentProcess,
+                action = null,
+                llmOptions = LlmOptions(),
+            )
+
+            val result = eventPublishingTool.call("{}")
+
+            assertSame(errorResult, result)
+            assertEquals(2, capturedEvents.size)
+
+            val responseEvent = capturedEvents[1] as ToolCallResponseEvent
+            assertTrue(responseEvent.result.isFailure)
+            val failure = responseEvent.result.exceptionOrNull()
+            assertTrue(failure is ToolReturnedError)
+            assertEquals("error-tool", (failure as ToolReturnedError).toolName)
+            assertEquals("Execution denied: rm", failure.message)
+            assertSame(cause, failure.cause)
+            assertEquals(0, failure.stackTrace.size)
         }
 
         @Test

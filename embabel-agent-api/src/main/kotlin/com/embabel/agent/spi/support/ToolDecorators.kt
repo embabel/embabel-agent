@@ -20,6 +20,7 @@ import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolControlFlowSignal
+import com.embabel.agent.api.tool.ToolReturnedError
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ToolGroupMetadata
@@ -57,6 +58,17 @@ private val Tool.Result.content: String
         is Tool.Result.WithArtifact -> content
         is Tool.Result.Error -> message
     }
+
+private fun Result<Tool.Result>.toEventResult(toolName: String): Result<String> =
+    fold(
+        onSuccess = { r ->
+            when (r) {
+                is Tool.Result.Error -> Result.failure(ToolReturnedError(toolName, r.message, r.cause))
+                else -> Result.success(r.content)
+            }
+        },
+        onFailure = { Result.failure(it) },
+    )
 
 /**
  * Tool decorator that adds Micrometer Observability.
@@ -212,7 +224,7 @@ class EventPublishingTool(
         }
         agentProcess.processContext.onProcessEvent(
             functionCallRequestEvent.responseEvent(
-                result = result.map { it.content },
+                result = result.toEventResult(delegate.definition.name),
                 runningTime = Duration.ofMillis(millis),
             )
         )
