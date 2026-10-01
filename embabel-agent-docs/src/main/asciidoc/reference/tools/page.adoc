@@ -1511,7 +1511,7 @@ Java::
 +
 [source,java]
 ----
-ConfirmationGuardedTool guard = LlmConfirmation.guard(createTask(), "Create this task?");
+ConfirmationGuardedTool guard = ConfirmationGuardedTool.of(createTask(), "Create this task?");
 
 // Pass both the guard and its verdict tool to the prompt runner
 guard.tools();
@@ -1541,7 +1541,7 @@ ConfirmationGuardOptions options = ConfirmationGuardOptions.DEFAULT
         .withConfirmationNote("Check with the user first.")
         .withVerdictToolPrefix("approve_");
 
-ConfirmationGuardedTool guard = LlmConfirmation.guard(createTask(), "Create this task?", ConfirmationMode.ASK_VIA_LLM, options);
+ConfirmationGuardedTool guard = ConfirmationGuardedTool.of(createTask(), "Create this task?", ConfirmationMode.ASK_VIA_LLM, options);
 ----
 Kotlin::
 +

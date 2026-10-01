@@ -19,12 +19,14 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.agent.core.hitl.ConfirmationResponse
 import com.embabel.agent.core.hitl.ResponseImpact
+import org.jetbrains.annotations.ApiStatus
 import java.time.Instant
 import java.util.UUID
 
 /**
  * How a [ConfirmationGuardedTool] gets its proposal in front of the human.
  */
+@ApiStatus.Experimental
 enum class ConfirmationMode {
 
     /**
@@ -44,6 +46,7 @@ enum class ConfirmationMode {
 /**
  * Who recorded a [ToolCallVerdict]. Informational only; behaviour does not branch on it.
  */
+@ApiStatus.Experimental
 enum class VerdictSource {
 
     /** Recorded by the LLM through the verdict tool. */
@@ -61,6 +64,7 @@ enum class VerdictSource {
  * @param arguments Canonical JSON arguments, see [ToolArgumentsCanonicalizer]
  * @param message Human-facing confirmation text
  */
+@ApiStatus.Experimental
 data class ToolCallProposal(
     val toolName: String,
     val arguments: String,
@@ -72,6 +76,7 @@ data class ToolCallProposal(
 /**
  * The human's answer to a [ToolCallProposal], however it arrived.
  */
+@ApiStatus.Experimental
 data class ToolCallVerdict(
     val proposalId: String,
     val accepted: Boolean,
@@ -84,6 +89,7 @@ data class ToolCallVerdict(
  * Terminal record for a [ToolCallProposal]: it has been executed or cancelled
  * and can no longer be acted on.
  */
+@ApiStatus.Experimental
 data class ToolCallOutcome(
     val proposalId: String,
     val executed: Boolean,
@@ -96,6 +102,7 @@ data class ToolCallOutcome(
  * keeps working; resolution is recorded as a [ToolCallVerdict] so the guard can act
  * on it when the process resumes.
  */
+@ApiStatus.Experimental
 class ToolCallConfirmationRequest @JvmOverloads constructor(
     proposal: ToolCallProposal,
     persistent: Boolean = false,

@@ -382,11 +382,11 @@ class ConfirmationGuardedToolTest {
         }
 
         @Test
-        fun `LlmConfirmation factory mirrors the extension functions`() {
+        fun `of factory mirrors the extension functions`() {
             val tool = RecordingTool().tool
 
-            val byMessage = LlmConfirmation.guard(tool, "Create it?")
-            val byProvider = LlmConfirmation.guard(tool, Function { "Confirm $it" }, ConfirmationMode.PAUSE_PROCESS)
+            val byMessage = ConfirmationGuardedTool.of(tool, "Create it?")
+            val byProvider = ConfirmationGuardedTool.of(tool, Function { "Confirm $it" }, ConfirmationMode.PAUSE_PROCESS)
 
             assertEquals(ConfirmationMode.ASK_VIA_LLM, byMessage.mode)
             assertEquals(ConfirmationMode.PAUSE_PROCESS, byProvider.mode)

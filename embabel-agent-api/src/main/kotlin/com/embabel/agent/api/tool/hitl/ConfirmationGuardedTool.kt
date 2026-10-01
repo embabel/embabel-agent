@@ -21,9 +21,8 @@ import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.hitl.AwaitableResponseException
+import org.jetbrains.annotations.ApiStatus
 import org.slf4j.LoggerFactory
-import tools.jackson.core.JacksonException
-import tools.jackson.databind.ObjectMapper
 import java.util.function.Function
 
 /**
@@ -31,8 +30,8 @@ import java.util.function.Function
  * and lets the LLM in the loop collect and record that confirmation.
  *
  * The guard's [definition] never changes. It is paired with a [verdictTool]
- * (`confirm_<toolName>`) through which the LLM records the user's yes or no.
- * Pass both to the prompt runner, see [tools].
+ * (`confirm_<toolName>`, see [ConfirmationVerdictTool]) through which the LLM records
+ * the user's yes or no. Pass both to the prompt runner, see [tools].
  *
  * All state lives on the blackboard as [ToolCallProposal], [ToolCallVerdict] and
  * [ToolCallOutcome] records keyed by tool name, so tool instances stay stateless and
@@ -57,11 +56,14 @@ import java.util.function.Function
  * If the delegate throws, no outcome is recorded and the accepted proposal remains
  * executable on the next identical call.
  *
+ * Kotlin callers typically use [withLlmConfirmation]; Java callers use [of].
+ *
  * @param delegate The tool to guard
  * @param messageProvider Builds the human-facing confirmation message from the raw input
  * @param mode How the proposal reaches the human
  * @param options Wording and naming knobs, see [ConfirmationGuardOptions]
  */
+@ApiStatus.Experimental
 class ConfirmationGuardedTool @JvmOverloads constructor(
     override val delegate: Tool,
     private val messageProvider: (String) -> String,
@@ -230,138 +232,31 @@ class ConfirmationGuardedTool @JvmOverloads constructor(
         }
     }
 
-}
-
-/**
- * Wording and naming options for [ConfirmationGuardedTool].
- * Immutable; derive variants with [withConfirmationNote] and [withVerdictToolPrefix] or `copy`.
- *
- * @param confirmationNote Sentence appended to the guarded tool's description. Blank means
- * the delegate's description is left untouched.
- * @param verdictToolPrefix Prefix for the verdict tool's name, followed by the guarded tool's
- * name. Must not be blank, or the two tools would share a name.
- */
-data class ConfirmationGuardOptions @JvmOverloads constructor(
-    val confirmationNote: String = DEFAULT_CONFIRMATION_NOTE,
-    val verdictToolPrefix: String = DEFAULT_VERDICT_TOOL_PREFIX,
-) {
-
-    init {
-        require(verdictToolPrefix.isNotBlank()) { "verdictToolPrefix must not be blank" }
-    }
-
-    fun withConfirmationNote(confirmationNote: String): ConfirmationGuardOptions =
-        copy(confirmationNote = confirmationNote)
-
-    fun withVerdictToolPrefix(verdictToolPrefix: String): ConfirmationGuardOptions =
-        copy(verdictToolPrefix = verdictToolPrefix)
-
     companion object {
-        const val DEFAULT_CONFIRMATION_NOTE = "Requires the user's confirmation before it takes effect."
-        const val DEFAULT_VERDICT_TOOL_PREFIX = "confirm_"
 
-        @JvmField
-        val DEFAULT = ConfirmationGuardOptions()
+        /**
+         * Guard [tool] with a static confirmation [message]. Java-friendly entry point;
+         * Kotlin callers typically use [withLlmConfirmation].
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun of(
+            tool: Tool,
+            message: String,
+            mode: ConfirmationMode = ConfirmationMode.ASK_VIA_LLM,
+            options: ConfirmationGuardOptions = ConfirmationGuardOptions.DEFAULT,
+        ): ConfirmationGuardedTool = ConfirmationGuardedTool(tool, { message }, mode, options)
+
+        /**
+         * Guard [tool], building the confirmation message from the raw input with [messageProvider].
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun of(
+            tool: Tool,
+            messageProvider: Function<String, String>,
+            mode: ConfirmationMode = ConfirmationMode.ASK_VIA_LLM,
+            options: ConfirmationGuardOptions = ConfirmationGuardOptions.DEFAULT,
+        ): ConfirmationGuardedTool = ConfirmationGuardedTool(tool, { messageProvider.apply(it) }, mode, options)
     }
-}
-
-/**
- * Records the user's verdict on the open proposal of a [ConfirmationGuardedTool].
- * On acceptance it runs the guarded tool with the confirmed arguments and returns its result.
- */
-class ConfirmationVerdictTool internal constructor(
-    private val guard: ConfirmationGuardedTool,
-) : Tool {
-
-    private val objectMapper = ObjectMapper()
-
-    override val definition: Tool.Definition = Tool.Definition(
-        name = guard.options.verdictToolPrefix + guard.definition.name,
-        description = "Record the user's answer to the pending confirmation for '${guard.definition.name}'. " +
-                "Call this only after the user has explicitly confirmed or declined in the conversation. " +
-                "accepted=true runs '${guard.definition.name}' exactly as it was proposed; accepted=false cancels it.",
-        inputSchema = Tool.InputSchema.of(
-            Tool.Parameter(
-                name = "accepted",
-                type = Tool.ParameterType.BOOLEAN,
-                description = "true if the user confirmed, false if the user declined",
-                required = true,
-            ),
-            Tool.Parameter(
-                name = "note",
-                type = Tool.ParameterType.STRING,
-                description = "Optional: what the user said, in their own words",
-                required = false,
-            ),
-        ),
-    )
-
-    override fun call(input: String): Tool.Result = call(input, ToolCallContext.EMPTY)
-
-    override fun call(input: String, context: ToolCallContext): Tool.Result {
-        val node = try {
-            objectMapper.readTree(input)
-        } catch (e: JacksonException) {
-            return Tool.Result.error("Invalid input for '${definition.name}': ${e.message}", e)
-        }
-        val acceptedNode = node?.get("accepted")
-        if (acceptedNode == null || !acceptedNode.isBoolean) {
-            return Tool.Result.error("'${definition.name}' requires a boolean 'accepted' argument.")
-        }
-        val note = node.get("note")?.takeIf { it.isTextual }?.asString()
-        return guard.recordVerdict(acceptedNode.asBoolean(), note, context)
-    }
-}
-
-/**
- * Wrap this tool so the LLM must obtain the user's confirmation before it runs.
- * Remember to expose the guard's [ConfirmationGuardedTool.verdictTool] too.
- *
- * @param message Static confirmation message shown to the user
- * @param mode How the proposal reaches the human
- * @param options Wording and naming knobs
- */
-@JvmOverloads
-fun Tool.withLlmConfirmation(
-    message: String,
-    mode: ConfirmationMode = ConfirmationMode.ASK_VIA_LLM,
-    options: ConfirmationGuardOptions = ConfirmationGuardOptions.DEFAULT,
-): ConfirmationGuardedTool = ConfirmationGuardedTool(this, { message }, mode, options)
-
-/**
- * Wrap this tool so the LLM must obtain the user's confirmation before it runs.
- * Remember to expose the guard's [ConfirmationGuardedTool.verdictTool] too.
- *
- * @param mode How the proposal reaches the human
- * @param options Wording and naming knobs
- * @param messageProvider Builds the confirmation message from the raw tool input
- */
-fun Tool.withLlmConfirmation(
-    mode: ConfirmationMode = ConfirmationMode.ASK_VIA_LLM,
-    options: ConfirmationGuardOptions = ConfirmationGuardOptions.DEFAULT,
-    messageProvider: (String) -> String,
-): ConfirmationGuardedTool = ConfirmationGuardedTool(this, messageProvider, mode, options)
-
-/**
- * Java entry point for [ConfirmationGuardedTool].
- */
-object LlmConfirmation {
-
-    @JvmStatic
-    @JvmOverloads
-    fun guard(
-        tool: Tool,
-        message: String,
-        mode: ConfirmationMode = ConfirmationMode.ASK_VIA_LLM,
-        options: ConfirmationGuardOptions = ConfirmationGuardOptions.DEFAULT,
-    ): ConfirmationGuardedTool = ConfirmationGuardedTool(tool, { message }, mode, options)
-
-    @JvmStatic
-    @JvmOverloads
-    fun guard(
-        tool: Tool,
-        messageProvider: Function<String, String>,
-        mode: ConfirmationMode = ConfirmationMode.ASK_VIA_LLM,
-        options: ConfirmationGuardOptions = ConfirmationGuardOptions.DEFAULT,
-    ): ConfirmationGuardedTool = ConfirmationGuardedTool(tool, { messageProvider.apply(it) }, mode, options)
 }
