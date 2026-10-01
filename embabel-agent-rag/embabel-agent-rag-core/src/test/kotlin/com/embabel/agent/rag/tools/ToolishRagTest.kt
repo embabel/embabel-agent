@@ -130,6 +130,11 @@ class ToolishRagTest {
         }
     }
 
+    // Renders the ids it receives; see https://github.com/embabel/embabel-agent/issues/2069
+    private val customFormatter = RetrievableResultsFormatter { similarityResults ->
+        "CUSTOM " + similarityResults.results.joinToString(",") { it.match.id }
+    }
+
     private fun createChunk(
         id: String,
         text: String,
@@ -460,6 +465,44 @@ class ToolishRagTest {
             assertTrue(result.contains("First content"))
             assertTrue(result.contains("Second content"))
         }
+
+        @Test
+        fun `vectorSearch should use the supplied formatter`() {
+
+            // Arrange
+            val vectorSearch = mockk<VectorSearch>()
+            every {
+                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } returns listOf(
+                SimpleSimilaritySearchResult(match = createChunk("chunk1", "Low"), score = 0.5),
+                SimpleSimilaritySearchResult(match = createChunk("chunk2", "High"), score = 0.9),
+            )
+            val tools = VectorSearchTools(vectorSearch, formatter = customFormatter)
+
+            // Act
+            val result = tools.vectorSearch("test query", 10, 0.5)
+
+            // Assert
+            assertEquals("CUSTOM chunk2,chunk1", result)
+        }
+
+        @Test
+        fun `ToolishRag should pass its formatter to the vectorSearch tool`() {
+
+            // Arrange
+            val vectorSearch = mockk<VectorSearch>()
+            every {
+                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = createChunk("chunk1", "Content"), score = 0.9))
+            val rag = ToolishRag("fmt", "Formatter RAG", vectorSearch, formatter = customFormatter)
+            val tool = rag.tools().first { it.definition.name == "fmt_vectorSearch" }
+
+            // Act
+            val result = tool.call("""{"query": "test", "topK": 5, "threshold": 0.5}""")
+
+            // Assert
+            assertEquals("CUSTOM chunk1", (result as Tool.Result.Text).content)
+        }
     }
 
     @Nested
@@ -504,6 +547,45 @@ class ToolishRagTest {
             val result = tools.textSearch("nonexistent", 10, 0.5)
 
             assertEquals("0 results:", result)
+        }
+
+        @Test
+        fun `textSearch should use the supplied formatter`() {
+
+            // Arrange
+            val textSearch = mockk<TextSearch>()
+            every {
+                textSearch.textSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } returns listOf(
+                SimpleSimilaritySearchResult(match = createChunk("chunk1", "Low"), score = 0.5),
+                SimpleSimilaritySearchResult(match = createChunk("chunk2", "High"), score = 0.85),
+            )
+            val tools = TextSearchTools(textSearch, formatter = customFormatter)
+
+            // Act
+            val result = tools.textSearch("+kotlin", 5, 0.4)
+
+            // Assert
+            assertEquals("CUSTOM chunk2,chunk1", result)
+        }
+
+        @Test
+        fun `ToolishRag should pass its formatter to the textSearch tool`() {
+
+            // Arrange
+            val textSearch = mockk<TextSearch>()
+            every { textSearch.luceneSyntaxNotes } returns ""
+            every {
+                textSearch.textSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = createChunk("chunk1", "Content"), score = 0.85))
+            val rag = ToolishRag("fmt", "Formatter RAG", textSearch, formatter = customFormatter)
+            val tool = rag.tools().first { it.definition.name == "fmt_textSearch" }
+
+            // Act
+            val result = tool.call("""{"query": "test", "topK": 5, "threshold": 0.5}""")
+
+            // Assert
+            assertEquals("CUSTOM chunk1", (result as Tool.Result.Text).content)
         }
 
     }
@@ -568,6 +650,41 @@ class ToolishRagTest {
             assertTrue(result.contains("2 results:"))
             assertTrue(result.contains("Error E001"))
             assertTrue(result.contains("Error E002"))
+        }
+
+        @Test
+        fun `regexSearch should use the supplied formatter`() {
+
+            // Arrange
+            val regexSearch = mockk<RegexSearchOperations>()
+            every {
+                regexSearch.regexSearch(any<Regex>(), any(), Chunk::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = createChunk("chunk1", "Error E001"), score = 1.0))
+            val tools = RegexSearchTools(regexSearch, formatter = customFormatter)
+
+            // Act
+            val result = tools.regexSearch("E\\d{3}", 10)
+
+            // Assert
+            assertEquals("CUSTOM chunk1", result)
+        }
+
+        @Test
+        fun `ToolishRag should pass its formatter to the regexSearch tool`() {
+
+            // Arrange
+            val regexSearch = mockk<RegexSearchOperations>()
+            every {
+                regexSearch.regexSearch(any<Regex>(), any(), Chunk::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = createChunk("chunk1", "Error E001"), score = 1.0))
+            val rag = ToolishRag("fmt", "Formatter RAG", regexSearch, formatter = customFormatter)
+            val tool = rag.tools().first { it.definition.name == "fmt_regexSearch" }
+
+            // Act
+            val result = tool.call("""{"regex": "E\\d{3}", "topK": 10}""")
+
+            // Assert
+            assertEquals("CUSTOM chunk1", (result as Tool.Result.Text).content)
         }
     }
 
@@ -890,6 +1007,39 @@ class ToolishRagTest {
             )
 
             assertEquals(customFormatter, toolishRag.formatter)
+        }
+
+        @Test
+        fun `withFormatter returns new instance with updated formatter`() {
+
+            // Arrange
+            val vectorSearch = mockk<VectorSearch>()
+            val original = ToolishRag(name = "test", description = "Test", searchOperations = vectorSearch)
+
+            // Act
+            val updated = original.withFormatter(customFormatter)
+
+            // Assert
+            assertSame(customFormatter, updated.formatter)
+            assertSame(SimpleRetrievableResultsFormatter, original.formatter)
+        }
+
+        @Test
+        fun `withFormatter applies the formatter to the search tools`() {
+
+            // Arrange
+            val vectorSearch = mockk<VectorSearch>()
+            every {
+                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = createChunk("chunk1", "Content"), score = 0.9))
+            val rag = ToolishRag("fmt", "Formatter RAG", vectorSearch).withFormatter(customFormatter)
+            val tool = rag.tools().first { it.definition.name == "fmt_vectorSearch" }
+
+            // Act
+            val result = tool.call("""{"query": "test", "topK": 5, "threshold": 0.5}""")
+
+            // Assert
+            assertEquals("CUSTOM chunk1", (result as Tool.Result.Text).content)
         }
 
         @Test

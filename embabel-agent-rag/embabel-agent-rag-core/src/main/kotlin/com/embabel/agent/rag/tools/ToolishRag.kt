@@ -147,7 +147,7 @@ data class ToolishRag @JvmOverloads constructor(
             }
             if (searchOperations is VectorSearch) {
                 logger.debug("Adding VectorSearchTools to ToolishRag '{}'", name)
-                add(VectorSearchTools(searchOperations, vectorSearchFor, metadataFilter, entityFilter, listener))
+                add(VectorSearchTools(searchOperations, vectorSearchFor, metadataFilter, entityFilter, listener, formatter = formatter))
             } else {
                 if (hints.any { it is TryHyDE }) {
                     logger.warn(
@@ -159,7 +159,7 @@ data class ToolishRag @JvmOverloads constructor(
             }
             if (searchOperations is TextSearch) {
                 logger.debug("Adding TextSearchTools to ToolishRag '{}'", name)
-                add(TextSearchTools(searchOperations, textSearchFor, metadataFilter, entityFilter, listener))
+                add(TextSearchTools(searchOperations, textSearchFor, metadataFilter, entityFilter, listener, formatter = formatter))
             }
             if (searchOperations is ResultExpander) {
                 logger.debug("Adding ResultExpanderTools to ToolishRag '{}'", name)
@@ -167,7 +167,7 @@ data class ToolishRag @JvmOverloads constructor(
             }
             if (searchOperations is RegexSearchOperations) {
                 logger.debug("Adding RegexSearchTools to ToolishRag '{}'", name)
-                add(RegexSearchTools(searchOperations, metadataFilter, entityFilter, listener))
+                add(RegexSearchTools(searchOperations, metadataFilter, entityFilter, listener, formatter = formatter))
             }
         }
         ToolishRagInitState(tools, mutableHints.toList())
@@ -203,6 +203,12 @@ data class ToolishRag @JvmOverloads constructor(
      */
     fun withGoal(goal: String): ToolishRag =
         copy(goal = goal)
+
+    /**
+     * Set the formatter that renders search results for the LLM
+     */
+    fun withFormatter(formatter: RetrievableResultsFormatter): ToolishRag =
+        copy(formatter = formatter)
 
     /**
      * With a listener that sees the raw (structured) results rather than strings.
