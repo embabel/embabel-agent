@@ -23,8 +23,9 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.ToolDecorator
-import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.loop.streaming.DefaultStreamingToolLoop
+import com.embabel.agent.spi.loop.streaming.LlmInferenceStreamEvent
+import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.loop.AutoCorrectionPolicy
 import com.embabel.agent.spi.loop.ChainedToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
@@ -235,13 +236,19 @@ internal class StreamingLlmOperationsImpl(
         val messagesWithContributions = buildMessagesWithContributions(messages, fullPromptContributions)
 
         // Step 1: Raw chunk stream from LLM
-        val rawChunkFlux: Flux<String> = streamWithToolLoop(
+        val rawChunkFlux: Flux<String> = streamEventsWithToolLoop(
             messagesWithContributions,
             tools,
             interaction,
             agentProcess,
             action,
-        )
+        ).map { event ->
+            when (event) {
+                is LlmInferenceStreamEvent.Content -> event.text
+                is LlmInferenceStreamEvent.Thinking -> "<think>${event.text}</think>\n"
+                is LlmInferenceStreamEvent.Complete -> error("Completion events are internal to the streaming tool loop")
+            }
+        }
             .filter { it.isNotEmpty() }
             .doOnNext { chunk -> logger.trace("RAW CHUNK: '${chunk.replace("\n", "\\n")}'") }
 
@@ -294,7 +301,22 @@ internal class StreamingLlmOperationsImpl(
         interaction: LlmInteraction,
         agentProcess: AgentProcess?,
         action: Action?,
-    ): Flux<String> {
+    ): Flux<String> = createStreamingToolLoop(interaction, agentProcess, action).execute(messages, tools)
+
+    private fun streamEventsWithToolLoop(
+        messages: List<Message>,
+        tools: List<Tool>,
+        interaction: LlmInteraction,
+        agentProcess: AgentProcess?,
+        action: Action?,
+    ): Flux<LlmInferenceStreamEvent> =
+        createStreamingToolLoop(interaction, agentProcess, action).executeEvents(messages, tools)
+
+    private fun createStreamingToolLoop(
+        interaction: LlmInteraction,
+        agentProcess: AgentProcess?,
+        action: Action?,
+    ): DefaultStreamingToolLoop {
         val injectionStrategy = if (interaction.additionalInjectionStrategies.isEmpty()) {
             ToolInjectionStrategy.DEFAULT
         } else {
@@ -328,7 +350,7 @@ internal class StreamingLlmOperationsImpl(
             toolCallInspectors = interaction.toolCallInspectors,
             toolCallContext = toolCallContext,
             toolNotFoundPolicy = interaction.toolNotFoundPolicy ?: AutoCorrectionPolicy(),
-        ).execute(messages, tools)
+        )
     }
 
     /**
