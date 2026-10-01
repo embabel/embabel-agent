@@ -38,6 +38,14 @@ class AgentProcessPersistenceProperties {
     var enabled: Boolean = true
 
     /**
+     * Snapshot store provider to activate. Set to `jdbc` to enable
+     * [com.embabel.agent.jdbc.JdbcAgentProcessSnapshotStore] when
+     * `embabel-agent-starter-jdbc` is on the classpath.
+     * Leave null to supply your own [com.embabel.agent.spi.persistence.AgentProcessSnapshotStore] bean.
+     */
+    var provider: String? = null
+
+    /**
      * When a process is written to the snapshot store.
      */
     var checkpointPolicy: CheckpointPolicy = CheckpointPolicy.LIFECYCLE
@@ -70,13 +78,17 @@ class AgentProcessPersistenceProperties {
     }
 
     companion object {
+        const val PREFIX = "embabel.agent.platform.persistence"
+
         operator fun invoke(
             enabled: Boolean = true,
             checkpointPolicy: CheckpointPolicy = CheckpointPolicy.LIFECYCLE,
+            provider: String? = null,
         ): AgentProcessPersistenceProperties =
             AgentProcessPersistenceProperties().apply {
                 this.enabled = enabled
                 this.checkpointPolicy = checkpointPolicy
+                this.provider = provider
             }
     }
 }

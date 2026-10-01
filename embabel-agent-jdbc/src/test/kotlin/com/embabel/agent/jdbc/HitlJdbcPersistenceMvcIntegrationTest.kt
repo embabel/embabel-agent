@@ -13,15 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.cache.support
+package com.embabel.agent.jdbc
 
 import com.embabel.agent.api.annotation.AchievesGoal
 import com.embabel.agent.api.annotation.Action
 import com.embabel.agent.api.annotation.support.AgentMetadataReader
 import com.embabel.agent.api.common.ActionContext
-import com.embabel.agent.cache.AgentCacheProvider
-import com.embabel.agent.cache.CacheRegionConfig
-import com.embabel.agent.cache.CacheRegions
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.AgentProcessRepository
@@ -42,7 +39,7 @@ import com.embabel.agent.spi.persistence.AgentProcessPersistence
 import com.embabel.agent.spi.persistence.AgentProcessSnapshotStore
 import com.embabel.agent.spi.support.DefaultPlannerFactory
 import com.embabel.agent.spi.support.InMemoryAgentProcessRepository
-import com.embabel.agent.test.integration.IntegrationTestUtils.dummyPlatformServices
+import com.embabel.agent.test.integration.IntegrationTestUtils
 import com.embabel.common.util.EmbabelObjectMapperHolder
 import tools.jackson.databind.ObjectMapper
 import org.assertj.core.api.Assertions.assertThat
@@ -52,12 +49,9 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
-import org.springframework.cache.CacheManager
-import org.springframework.cache.concurrent.ConcurrentMapCacheManager
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.Configuration
@@ -65,6 +59,8 @@ import org.springframework.context.annotation.Profile
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.datasource.DriverManagerDataSource
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.TestPropertySource
 import org.springframework.test.web.servlet.MockMvc
@@ -78,10 +74,11 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
 import java.time.Instant
 import java.util.UUID
+import javax.sql.DataSource
 
 // ─── Domain model ────────────────────────────────────────────────────────────
-// Identical to the in-memory and JDBC MVC test fixtures.
-// Extracted to a shared base in the planned refactor.
+// Identical to WaitForMvcIntegrationTest and HitlJCachePersistenceMvcIntegrationTest.
+// Defined inline so this module has no test-source dependency on embabel-agent-api.
 
 private data class ChoiceRequest(val prompt: String, val options: List<String>)
 
@@ -111,7 +108,7 @@ private data class UserChoiceResponse(
     override fun persistent(): Boolean = false
 }
 
-@com.embabel.agent.api.annotation.Agent(description = "Cache adventure agent requiring user choices")
+@com.embabel.agent.api.annotation.Agent(description = "JDBC adventure agent requiring user choices")
 private class AdventureAgent {
     @Action
     fun getChoice(input: UserInput, context: ActionContext): UserChoice =
@@ -125,7 +122,7 @@ private class AdventureAgent {
         )
 
     @Action
-    @AchievesGoal(description = "Complete the cache adventure")
+    @AchievesGoal(description = "Complete the JDBC adventure")
     fun processChoice(choice: UserChoice, context: ActionContext): AdventureResult =
         AdventureResult("You chose: ${choice.value}")
 }
@@ -182,14 +179,13 @@ private class ChoiceAwaitableSerializer(
 // ─── Controller ──────────────────────────────────────────────────────────────
 // Depends only on AgentProcessRepository — backend-agnostic by design.
 
-private val adventureLogger = LoggerFactory.getLogger("PersistentAdventureController")
+private val adventureLogger = LoggerFactory.getLogger("HitlJdbcPersistenceMvcController")
 
-@ConditionalOnProperty(name = ["waitfor.persistent.cache.mvc.test.enabled"], havingValue = "true")
-@Profile("waitfor-persistent-cache")
+@Profile("hitl-jdbc")
 @RestController
-@RequestMapping("/cache-adventure")
+@RequestMapping("/jdbc-adventure")
 private class PersistentAdventureController(
-    @Qualifier("waitForCacheRepository")
+    @Qualifier("hitlJdbcRepository")
     private val processRepository: AgentProcessRepository,
 ) {
     @PostMapping("/start")
@@ -203,13 +199,13 @@ private class PersistentAdventureController(
             agent = agent,
             processOptions = ProcessOptions.DEFAULT,
             blackboard = blackboard,
-            platformServices = dummyPlatformServices(),
+            platformServices = IntegrationTestUtils.dummyPlatformServices(),
             plannerFactory = DefaultPlannerFactory,
             timestamp = Instant.now(),
         )
         val result = process.run()
-        processRepository.save(result)
-        adventureLogger.info("POST /cache-adventure/start processId={} status={}", result.id, result.status)
+        processRepository.save(result) // test only — platform calls save automatically
+        adventureLogger.info("POST /jdbc-adventure/start processId={} status={}", result.id, result.status)
         return when (result.status) {
             AgentProcessStatusCode.WAITING -> {
                 val awaitable = result.blackboard.last(ChoiceAwaitable::class.java)
@@ -249,8 +245,8 @@ private class PersistentAdventureController(
         }
         awaitable.onResponse(UserChoiceResponse(awaitableId = request.awaitableId, choice = request.choice), agentProcess)
         val resumed = agentProcess.run()
-        processRepository.save(resumed)
-        adventureLogger.info("POST /cache-adventure/{}/continue status={}", processId, resumed.status)
+        processRepository.save(resumed) // test only — platform calls save automatically
+        adventureLogger.info("POST /jdbc-adventure/{}/continue status={}", processId, resumed.status)
         return when (resumed.status) {
             AgentProcessStatusCode.WAITING -> {
                 val next = resumed.blackboard.last(ChoiceAwaitable::class.java)
@@ -277,85 +273,100 @@ private class PersistentAdventureController(
 // ─── Spring Boot application ──────────────────────────────────────────────────
 
 @Configuration
-@ComponentScan(basePackages = ["com.embabel.agent.cache.support"])
+@ComponentScan(basePackages = ["com.embabel.agent.jdbc"])
 @EnableAutoConfiguration
-@Profile("waitfor-persistent-cache")
-private class WaitForPersistentRepositoryCacheTestApplication
+@Profile("hitl-jdbc")
+private class HitlJdbcPersistenceTestApplication
 
 // ─── Test ─────────────────────────────────────────────────────────────────────
 
 /**
- * Reference implementation: HITL agent flow backed by a Spring [CacheManager].
+ * Reference implementation: HITL agent flow backed by [JdbcAgentProcessSnapshotStore].
  *
  * ## What this proves
  *
- * 1. A process that reaches `WAITING` is durably checkpointed to the cache.
+ * 1. A process that reaches `WAITING` is durably checkpointed to the database
+ *    at version 1.
  * 2. After the runtime repository is cleared (simulating a pod restart or
- *    scale-out), a `/continue` call restores the process from the snapshot
+ *    scale-out), a `/continue` call restores the process from the JDBC snapshot
  *    and resumes it exactly where it paused.
- * 3. The completed snapshot is written back at version 2.
+ * 3. The completed snapshot is written back to the database at version 2.
+ * 4. The client-held `awaitableId` survives the serialize/deserialize cycle —
+ *    the id in the `/continue` request matches the restored awaitable exactly.
+ *    This proves that [ChoiceAwaitableSerializer] preserves awaitable identity.
+ *
+ * **Note on `save` calls:** the test controller calls `processRepository.save()`
+ * explicitly to simulate what the platform's execution engine does automatically.
+ * Production agents do not call `save` directly — the platform's checkpoint
+ * policy drives all persistence writes.
  *
  * ## How to adapt this for production
  *
- * The [WaitForPersistentRepositoryCacheTestConfig] below is your starting
- * point. Replace the [ConcurrentMapCacheManager] with the `CacheManager` for
- * your chosen backend — everything else stays identical:
+ * The [HitlJdbcPersistenceTestConfig] below is your starting point.
+ * Replace the H2 [DataSource] with the one for your target database — everything
+ * else stays identical:
  *
  * ```
- * // Redis ────────────────────────────────────────────────────────────────────
+ * // PostgreSQL ───────────────────────────────────────────────────────────────
  * @Bean
- * fun cacheManager(factory: RedisConnectionFactory): CacheManager =
- *     RedisCacheManager.builder(factory)
- *         .cacheDefaults(RedisCacheConfiguration.defaultCacheConfig()
- *             .entryTtl(Duration.ofHours(1)))
- *         .build()
+ * fun dataSource(): DataSource = PGSimpleDataSource().apply {
+ *     setURL("jdbc:postgresql://localhost:5432/mydb")
+ *     user = "app"
+ *     password = System.getenv("DB_PASSWORD")
+ * }
  *
- * // Hazelcast ────────────────────────────────────────────────────────────────
+ * // HikariCP (recommended for production) ───────────────────────────────────
  * @Bean
- * fun cacheManager(hz: HazelcastInstance): CacheManager =
- *     HazelcastCacheManager(hz)
- *
- * // Ehcache 3 / JCache ───────────────────────────────────────────────────────
- * @Bean
- * fun cacheManager(): CacheManager =
- *     JCacheCacheManager(Caching.getCachingProvider().cacheManager)
+ * fun dataSource(): DataSource = HikariDataSource(HikariConfig().apply {
+ *     jdbcUrl = "jdbc:postgresql://localhost:5432/mydb"
+ *     username = "app"
+ *     password = System.getenv("DB_PASSWORD")
+ * })
  * ```
  *
- * The [agentCacheProvider], [cacheBackedSnapshotStore] and
- * [agentProcessRepository] beans are backend-neutral and do not change.
+ * Apply [schema.sql][com.embabel.agent.jdbc] to your database before starting,
+ * or configure Flyway/Liquibase to manage the migration.
  *
- * @see WaitForPersistentRepositoryJdbcMvcIntegrationTest for the JDBC
- * equivalent using a hand-rolled SQL snapshot store.
+ * The [jdbcRuntimeRepository], [jdbcSnapshotStore] and [agentProcessRepository]
+ * beans are identical regardless of the underlying database.
+ *
+ * @see HitlJCachePersistenceMvcIntegrationTest for the cache-backed
+ * equivalent.
  */
-@SpringBootTest(classes = [WaitForPersistentRepositoryCacheTestApplication::class])
-@ActiveProfiles("test", "waitfor-persistent-cache")
-@TestPropertySource(properties = ["waitfor.persistent.cache.mvc.test.enabled=true"])
+@SpringBootTest(classes = [HitlJdbcPersistenceTestApplication::class])
+@ActiveProfiles("test", "hitl-jdbc")
+@TestPropertySource(properties = ["embabel.agent.platform.persistence.enabled=true"])
 @AutoConfigureMockMvc
-class WaitForPersistentRepositoryJCacheMvcIntegrationTest {
+class HitlJdbcPersistenceMvcIntegrationTest {
 
     @Autowired
     private lateinit var mockMvc: MockMvc
 
     @Autowired
-    @Qualifier("cacheRuntimeRepository")
+    @Qualifier("jdbcRuntimeRepository")
     private lateinit var runtimeRepository: InMemoryAgentProcessRepository
 
     @Autowired
-    private lateinit var agentCacheProvider: AgentCacheProvider
+    @Qualifier("hitlJdbcTemplate")
+    private lateinit var jdbcTemplate: JdbcTemplate
+
+    @Autowired
+    @Qualifier("hitlJdbcSnapshotStore")
+    private lateinit var snapshotStore: AgentProcessSnapshotStore
 
     private val objectMapper: ObjectMapper = EmbabelObjectMapperHolder.createDefault().get()
 
     @BeforeEach
     fun setUp() {
         runtimeRepository.clear()
-        agentCacheProvider.getRegion(CacheRegionConfig(CacheRegions.AGENT_PROCESS_SNAPSHOTS)).clear()
+        jdbcTemplate.clearSnapshots()
     }
 
     @Test
-    fun `complete adventure flow resumes from cache snapshot after runtime repository loss`() {
+    fun `complete adventure flow resumes from jdbc snapshot after runtime repository loss`() {
         // ── Step 1: start the adventure ───────────────────────────────────────
         val startResult = mockMvc.perform(
-            MockMvcRequestBuilders.post("/cache-adventure/start")
+            MockMvcRequestBuilders.post("/jdbc-adventure/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(StartAdventureRequest("Player1")))
         )
@@ -370,21 +381,19 @@ class WaitForPersistentRepositoryJCacheMvcIntegrationTest {
             AwaitableResponseDto::class.java,
         )
 
-        // Process is in runtime repo and snapshot is in the cache at version 1.
+        // Process is in the runtime repo and snapshot is in the DB at version 1.
         assertThat(runtimeRepository.findById(awaitableDto.processId)?.status)
             .isEqualTo(AgentProcessStatusCode.WAITING)
-        val snapshotStore = CacheBackedAgentProcessSnapshotStore(
-            agentCacheProvider.getRegion(CacheRegionConfig(CacheRegions.AGENT_PROCESS_SNAPSHOTS))
-        )
         assertThat(snapshotStore.findLatestByProcessId(awaitableDto.processId)?.version).isEqualTo(1L)
+        adventureLogger.info("Step 1 complete: durable snapshots={}", jdbcTemplate.snapshotRows())
 
         // ── Step 2: simulate pod loss ─────────────────────────────────────────
         runtimeRepository.clear()
         assertThat(runtimeRepository.findById(awaitableDto.processId)).isNull()
 
-        // ── Step 3: continue — PersistentAgentProcessRepository restores from cache
+        // ── Step 3: continue — PersistentAgentProcessRepository restores from DB
         mockMvc.perform(
-            MockMvcRequestBuilders.post("/cache-adventure/${awaitableDto.processId}/continue")
+            MockMvcRequestBuilders.post("/jdbc-adventure/${awaitableDto.processId}/continue")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -404,83 +413,90 @@ class WaitForPersistentRepositoryJCacheMvcIntegrationTest {
         assertThat(snapshotStore.findLatestByProcessId(awaitableDto.processId)?.version).isEqualTo(2L)
         assertThat(snapshotStore.findLatestByProcessId(awaitableDto.processId)?.status)
             .isEqualTo(AgentProcessStatusCode.COMPLETED)
+        adventureLogger.info("Step 3 complete: durable snapshots={}", jdbcTemplate.snapshotRows())
     }
 
     // ─── Reference @Bean configuration ───────────────────────────────────────
     /**
-     * Reference configuration for cache-backed agent process persistence.
+     * Reference configuration for JDBC-backed agent process persistence.
      *
      * Copy these beans into your `@Configuration` class and swap the
-     * [cacheManager] bean for the backend of your choice. Every other bean
-     * is identical regardless of backend.
+     * [dataSource] bean for the backend of your choice. Every other bean
+     * is identical regardless of database vendor.
      */
     @TestConfiguration
-    @Profile("waitfor-persistent-cache")
-    class WaitForPersistentRepositoryCacheTestConfig {
+    @Profile("hitl-jdbc")
+    class HitlJdbcPersistenceTestConfig {
 
-        // ── STEP 1: choose your backend ───────────────────────────────────────
+        // ── STEP 1: choose your DataSource ────────────────────────────────────
         //
-        // This is the ONLY bean that changes between backends.
+        // This is the ONLY bean that changes between databases.
         //
-        // Redis (production distributed cache):
+        // PostgreSQL with HikariCP (recommended for production):
         //   @Bean
-        //   fun cacheManager(factory: RedisConnectionFactory): CacheManager =
-        //       RedisCacheManager.builder(factory)
-        //           .cacheDefaults(RedisCacheConfiguration.defaultCacheConfig()
-        //               .entryTtl(Duration.ofHours(1)))
-        //           .build()
+        //   fun dataSource(): DataSource = HikariDataSource(HikariConfig().apply {
+        //       jdbcUrl = "jdbc:postgresql://localhost:5432/mydb"
+        //       username = "app"
+        //       password = System.getenv("DB_PASSWORD")
+        //   })
         //
-        // Hazelcast (distributed, JCache-compliant):
+        // MySQL / MariaDB:
         //   @Bean
-        //   fun cacheManager(hz: HazelcastInstance): CacheManager =
-        //       HazelcastCacheManager(hz)
-        //
-        // Ehcache 3 / JCache (local tiered, no infra required):
-        //   @Bean
-        //   fun cacheManager(): CacheManager =
-        //       JCacheCacheManager(Caching.getCachingProvider().cacheManager)
+        //   fun dataSource(): DataSource = HikariDataSource(HikariConfig().apply {
+        //       jdbcUrl = "jdbc:mysql://localhost:3306/mydb"
+        //       username = "app"
+        //       password = System.getenv("DB_PASSWORD")
+        //   })
         // ─────────────────────────────────────────────────────────────────────
         @Bean
-        fun cacheManager(): CacheManager = ConcurrentMapCacheManager()
+        fun hitlJdbcDataSource(): DataSource =
+            DriverManagerDataSource(
+                "jdbc:h2:mem:hitl-jdbc;DB_CLOSE_DELAY=-1;MODE=PostgreSQL",
+                "sa",
+                "",
+            )
 
-        // ── STEP 2: wire Embabel's cache provider over your CacheManager ──────
+        // ── STEP 2: expose the JdbcTemplate ───────────────────────────────────
+        //
+        // Named so the test can inject it directly for schema init and cleanup.
+        // Spring Boot auto-creates a JdbcTemplate from your DataSource in
+        // production; you do not need this bean outside tests.
         @Bean
-        fun agentCacheProvider(cacheManager: CacheManager): AgentCacheProvider =
-            SpringCacheAgentCacheProvider(cacheManager)
+        fun hitlJdbcTemplate(dataSource: DataSource): JdbcTemplate = JdbcTemplate(dataSource)
 
         // ── STEP 3: build the snapshot store ──────────────────────────────────
         //
-        // CacheRegions.AGENT_PROCESS_SNAPSHOTS is the well-known region name.
-        // The region is created on first access; no up-front schema needed.
+        // Apply schema.sql to your database before starting, or configure
+        // Flyway/Liquibase to manage the migration. The store itself does not
+        // create the table.
         @Bean
-        fun cacheBackedSnapshotStore(agentCacheProvider: AgentCacheProvider): AgentProcessSnapshotStore =
-            CacheBackedAgentProcessSnapshotStore(
-                agentCacheProvider.getRegion(CacheRegionConfig(CacheRegions.AGENT_PROCESS_SNAPSHOTS))
-            )
+        fun hitlJdbcSnapshotStore(jdbcTemplate: JdbcTemplate): AgentProcessSnapshotStore {
+            jdbcTemplate.initSchema()
+            return JdbcAgentProcessSnapshotStore(jdbcTemplate)
+        }
 
         // ── STEP 4: expose the runtime repository ─────────────────────────────
         //
         // Named so the test can inject and clear it to simulate a pod restart.
-        // In production you do not need a named qualifier; the repository is
-        // used only internally by PersistentAgentProcessRepository.
+        // In production you do not need a named qualifier.
         @Bean
-        fun cacheRuntimeRepository(): InMemoryAgentProcessRepository = InMemoryAgentProcessRepository()
+        fun jdbcRuntimeRepository(): InMemoryAgentProcessRepository = InMemoryAgentProcessRepository()
 
         // ── STEP 5: assemble the durable repository ───────────────────────────
         //
         // AgentProcessPersistence.persistentRepository() is the stable public
-        // factory. It hides the snapshot, serialisation and restore internals so
-        // they can evolve without affecting your configuration.
+        // factory. It hides snapshot, serialisation and restore internals so they
+        // can evolve without affecting your configuration.
         //
         // blackboardEntrySerializers: supply one BlackboardEntrySerializer for
         // each custom Awaitable or domain object that the Jackson fallback cannot
         // round-trip (types with no no-arg constructor, sealed classes, etc.).
         // Simple data classes are handled automatically by the Jackson fallback.
         @Bean
-        @Qualifier("waitForCacheRepository")
+        @Qualifier("hitlJdbcRepository")
         fun agentProcessRepository(
-            @Qualifier("cacheRuntimeRepository") runtimeRepository: InMemoryAgentProcessRepository,
-            @Qualifier("cacheBackedSnapshotStore") snapshotStore: AgentProcessSnapshotStore,
+            @Qualifier("jdbcRuntimeRepository") runtimeRepository: InMemoryAgentProcessRepository,
+            @Qualifier("hitlJdbcSnapshotStore") snapshotStore: AgentProcessSnapshotStore,
         ): AgentProcessRepository {
             val objectMapper = EmbabelObjectMapperHolder.createDefault().get()
             val agent = AgentMetadataReader().createAgentMetadata(AdventureAgent()) as Agent
@@ -489,9 +505,43 @@ class WaitForPersistentRepositoryJCacheMvcIntegrationTest {
                 snapshotStore = snapshotStore,
                 objectMapper = objectMapper,
                 agents = { listOf(agent) },
-                platformServices = { dummyPlatformServices() },
+                platformServices = { IntegrationTestUtils.dummyPlatformServices() },
                 blackboardEntrySerializers = listOf(ChoiceAwaitableSerializer(objectMapper)),
             )
         }
     }
 }
+
+// ─── Local test extensions ────────────────────────────────────────────────────
+
+private fun JdbcTemplate.initSchema() {
+    execute(
+        """
+        create table if not exists agent_process_snapshots (
+            process_id   varchar(255)        not null,
+            parent_id    varchar(255),
+            agent_name   varchar(255)        not null,
+            status       varchar(64)         not null,
+            version      bigint              not null,
+            content_type varchar(255)        not null,
+            payload      binary large object not null,
+            created_at   timestamp           not null,
+            updated_at   timestamp           not null,
+            constraint pk_agent_process_snapshots primary key (process_id)
+        )
+        """.trimIndent()
+    )
+}
+
+private fun JdbcTemplate.clearSnapshots() {
+    update("delete from agent_process_snapshots")
+}
+
+private fun JdbcTemplate.snapshotRows(): List<Map<String, Any?>> =
+    queryForList(
+        """
+        select process_id, status, version, length(payload) as payload_bytes
+        from agent_process_snapshots
+        order by process_id
+        """.trimIndent()
+    )
