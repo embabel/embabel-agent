@@ -104,11 +104,13 @@ class DefaultProcessCallbackTools(
             awaitableId = confirmationRequest.id,
             accepted = confirmed,
         )
-        if (confirmationResponse.accepted) {
-            agentProcess += confirmationRequest.payload
-        } else {
-            logger.info("Confirmation request rejected: {}", confirmationRequest.payload)
-            // If the confirmation is rejected, we do not update the agent process
+        // Resolve through the Awaitable protocol so the request decides what the response
+        // means. The base ConfirmationRequest promotes its payload on acceptance; subclasses
+        // may record something else, and both see rejections too.
+        val impact = confirmationRequest.onResponse(confirmationResponse, agentProcess)
+        if (!confirmationResponse.accepted) {
+            logger.info("Confirmation request rejected ({}): {}", impact, confirmationRequest.payload)
+            // A rejection does not resume the process
             return "Confirmation request rejected: ${confirmationRequest.payload}"
         }
         // Resume the agent process with the form data
