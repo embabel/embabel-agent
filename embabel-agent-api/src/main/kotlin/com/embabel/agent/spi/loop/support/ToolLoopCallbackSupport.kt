@@ -23,6 +23,8 @@ import com.embabel.agent.api.tool.callback.AfterToolCallContext
 import com.embabel.agent.api.tool.callback.AfterToolResultContext
 import com.embabel.agent.api.tool.callback.BeforeLlmCallContext
 import com.embabel.agent.api.tool.callback.BeforeToolCallContext
+import com.embabel.agent.api.tool.callback.BeforeToolExecutionContext
+import com.embabel.agent.api.tool.callback.ToolCallDisposition
 import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.chat.Message
 import com.embabel.chat.ToolCall
@@ -135,6 +137,22 @@ internal fun List<ToolLoopTransformer>.applyAfterToolResult(context: AfterToolRe
     return result
 }
 
+/**
+ * Fold the transformers over a pending tool call. Each transformer sees the call the previous
+ * one returned; the first [ToolCallDisposition.ShortCircuit] ends the chain. Exceptions are
+ * not isolated: a failing gate fails the call.
+ */
+internal fun List<ToolLoopTransformer>.applyBeforeToolCall(context: BeforeToolExecutionContext): ToolCallDisposition {
+    var toolCall = context.toolCall
+    for (transformer in this) {
+        when (val disposition = transformer.transformBeforeToolCall(context.copy(toolCall = toolCall))) {
+            is ToolCallDisposition.ShortCircuit -> return disposition
+            is ToolCallDisposition.Proceed -> toolCall = disposition.toolCall
+        }
+    }
+    return ToolCallDisposition.Proceed(toolCall)
+}
+
 internal fun List<ToolLoopTransformer>.applyAfterIteration(context: AfterIterationContext): List<Message> {
     var history = context.history
     for (transformer in this) {
@@ -183,6 +201,18 @@ internal fun createAfterToolResultContext(
     toolCall = toolCall,
     result = result,
     resultAsString = resultAsString,
+)
+
+internal fun createBeforeToolExecutionContext(
+    history: List<Message>,
+    iteration: Int,
+    toolCall: ToolCall,
+    tool: Tool,
+) = BeforeToolExecutionContext(
+    history = history,
+    iteration = iteration,
+    toolCall = toolCall,
+    tool = tool,
 )
 
 internal fun createAfterIterationContext(
