@@ -150,6 +150,7 @@ models:
 
   - name: "gpt54"
     model_id: "gpt-5.4"
+    api_format: "RESPONSES"
     display_name: "GPT-5.4"
     max_tokens: 16384
     temperature: 1.0
