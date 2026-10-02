@@ -68,6 +68,36 @@ interface ToolLoopTransformer : ToolLoopCallback {
 
     /** Transform history after iteration completes. Return modified list. */
     fun transformAfterIteration(context: AfterIterationContext): List<Message> = context.history
+
+    /**
+     * Decide what happens to a tool call before it runs. Return [ToolCallDisposition.Proceed]
+     * to execute it, optionally with rewritten arguments, or [ToolCallDisposition.ShortCircuit]
+     * to skip it and hand the LLM a result directly. Default: proceed unchanged.
+     *
+     * Transformers run in registration order; each sees the call the previous one returned,
+     * and the first short circuit ends the chain. A short-circuited result still passes through
+     * [transformAfterToolResult] and the after-tool-result inspectors. Throwing a
+     * [com.embabel.agent.api.tool.ToolControlFlowSignal], for example an
+     * `AwaitableResponseException`, propagates as it would from the tool itself. Any other
+     * exception also propagates: unlike inspectors, transformers are not isolated.
+     *
+     * Applied by the blocking and parallel tool loops only. The streaming loop supports
+     * inspectors only, by design, and does not call this method.
+     */
+    fun transformBeforeToolCall(context: BeforeToolExecutionContext): ToolCallDisposition =
+        ToolCallDisposition.Proceed(context.toolCall)
+}
+
+/**
+ * Outcome of [ToolLoopTransformer.transformBeforeToolCall].
+ */
+sealed interface ToolCallDisposition {
+
+    /** Run the tool with this call. Same as the input unless the arguments were rewritten. */
+    data class Proceed(val toolCall: ToolCall) : ToolCallDisposition
+
+    /** Do not run the tool; [result] goes to the LLM as the tool result. */
+    data class ShortCircuit(val result: Tool.Result) : ToolCallDisposition
 }
 
 /**
@@ -144,6 +174,22 @@ data class AfterToolResultContext(
     override val result: Tool.Result,
     override val resultAsString: String,
 ) : CallbackContext(history, iteration), ToolResultContext
+
+/**
+ * Context provided to [ToolLoopTransformer.transformBeforeToolCall], before a tool runs.
+ * Distinct from the inspector's lightweight [BeforeToolCallContext], which has no loop state.
+ *
+ * @property history Current conversation history
+ * @property iteration Current iteration number (1-based)
+ * @property toolCall The call the LLM requested: id, name and arguments
+ * @property tool The resolved tool, decorators included
+ */
+data class BeforeToolExecutionContext(
+    override val history: List<Message>,
+    override val iteration: Int,
+    val toolCall: ToolCall,
+    val tool: Tool,
+) : CallbackContext(history, iteration)
 
 /**
  * Context provided after each complete iteration in the tool loop.

@@ -20,6 +20,9 @@ import com.embabel.agent.api.common.TerminationSignal
 import com.embabel.agent.api.tool.TerminateActionException
 import com.embabel.agent.api.tool.TerminateAgentException
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.callback.BeforeToolExecutionContext
+import com.embabel.agent.api.tool.callback.ToolCallDisposition
+import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.AbstractAgentProcess
 import io.mockk.every
@@ -920,6 +923,69 @@ class ParallelToolLoopTest {
                     textContent = "All done",
                 )
             }
+        }
+    }
+
+    @Nested
+    inner class BeforeToolCallTransformTest {
+
+        @Test
+        fun `the transform is applied to each parallel tool call`() {
+            val received = ConcurrentHashMap<String, String>()
+            var blockedCalled = false
+            val gate = object : ToolLoopTransformer {
+                override fun transformBeforeToolCall(context: BeforeToolExecutionContext): ToolCallDisposition =
+                    when (context.toolCall.name) {
+                        "blocked_tool" -> ToolCallDisposition.ShortCircuit(Tool.Result.text("needs confirmation"))
+                        else -> ToolCallDisposition.Proceed(context.toolCall.copy(arguments = """{"rewritten":true}"""))
+                    }
+            }
+            val allowed = MockTool("allowed_tool", "Allowed") { input ->
+                received["allowed_tool"] = input
+                Tool.Result.text("allowed ran")
+            }
+            val blocked = MockTool("blocked_tool", "Blocked") { blockedCalled = true; Tool.Result.text("should not run") }
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    LlmMessageResponse(
+                        message = AssistantMessageWithToolCalls(
+                            content = " ",
+                            toolCalls = listOf(
+                                ToolCall("call_1", "allowed_tool", "{}"),
+                                ToolCall("call_2", "blocked_tool", "{}"),
+                            ),
+                        ),
+                        textContent = "",
+                    ),
+                    MockLlmMessageSender.textResponse("Done!")
+                )
+            )
+
+            val toolLoop = ParallelToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                injectionStrategy = ToolInjectionStrategy.NONE,
+                maxIterations = 20,
+                toolDecorator = null,
+                asyncer = asyncer,
+                parallelConfig = parallelConfig,
+                toolLoopTransformers = listOf(gate),
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Test")),
+                initialTools = listOf(allowed, blocked),
+                outputParser = { it }
+            )
+
+            assertEquals("""{"rewritten":true}""", received["allowed_tool"])
+            assertFalse(blockedCalled, "a short-circuited tool must not run")
+            val toolResults = result.conversationHistory.filterIsInstance<ToolResultMessage>()
+            assertEquals(listOf("call_1", "call_2"), toolResults.map { it.toolCallId })
+            assertEquals("allowed ran", toolResults[0].content)
+            assertEquals("needs confirmation", toolResults[1].content)
+            assertEquals("Done!", result.result)
         }
     }
 }
