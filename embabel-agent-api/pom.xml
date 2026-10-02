@@ -42,6 +42,20 @@
             <artifactId>embabel-agent-ai</artifactId>
         </dependency>
 
+        <!-- Provider HTTP clients (ProviderHttpClients). Optional: a provider module that uses them
+             declares these itself, so nothing new reaches other consumers of this module. -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webflux</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>io.projectreactor.netty</groupId>
+            <artifactId>reactor-netty-http</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <dependency>
             <groupId>com.embabel.common</groupId>
             <artifactId>embabel-common-core</artifactId>
