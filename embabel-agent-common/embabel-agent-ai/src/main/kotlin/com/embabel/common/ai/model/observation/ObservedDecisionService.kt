@@ -73,6 +73,10 @@ class ObservedDecisionService @JvmOverloads constructor(
      */
     override val hookSource: DecisionService = DecisionExecution.hookSourceOf(delegate)
 
+    // Inspect the decorator that receives forwarded calls, even through nested observations.
+    private val forwardingDelegate: DecisionService =
+        (delegate as? ObservedDecisionService)?.forwardingDelegate ?: delegate
+
     override fun classify(request: ClassificationRequest): ClassificationResult =
         observation.classify(request) { delegate.classify(request) }
 
@@ -103,6 +107,9 @@ class ObservedDecisionService @JvmOverloads constructor(
      */
     override fun ask(request: DecisionRequest): DecisionResponse =
         observation.ask(name, provider, request) {
+            if (forwardingDelegate is DelegatingDecisionService) {
+                DecisionExecution.plan(name, capabilities(), hookSource, request, forwardingDelegate)
+            }
             DecisionExecution.execute(this, request, hookSource = hookSource)
         }
 
@@ -142,13 +149,17 @@ class ObservedDecisionService @JvmOverloads constructor(
      *
      * @param hookName the hook interface's name, for the error message
      * @return the delegate, cast to the hook interface
-     * @throws IllegalStateException if the hook source does not implement the hook
+     * @throws IllegalStateException if the hook source or its forwarding decorator lacks the hook
      */
     private inline fun <reified H> requireHook(hookName: String): H {
         check(hookSource is H) {
             "Decision service '${hookSource.name}' does not implement $hookName, but ObservedDecisionService " +
                 "was asked to run it. Implement $hookName in the service, or remove the question kinds it answers " +
                 "from its capabilities."
+        }
+        check(forwardingDelegate is H) {
+            "Decision decorator '${forwardingDelegate.name}' (${forwardingDelegate.javaClass.name}) does not " +
+                "implement $hookName. Implement $hookName on the decorator and forward calls to the hook source."
         }
         return delegate as H
     }

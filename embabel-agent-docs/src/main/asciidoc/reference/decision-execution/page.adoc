@@ -92,6 +92,9 @@ Any other service answers each question in spec order:
 
 A typed failure is recorded and the next question is asked.
 An `IllegalArgumentException` from `classify` or `rate`, or from checking its answer against the question, becomes that question's `INVALID_RESPONSE` failure.
+An `IllegalArgumentException` from either proposition `assess` overload also propagates unchanged.
+Proposition answers have no option or level id to validate, so providers report an unusable proposition reply as `PropositionResult.Failure(INVALID_RESPONSE)`.
+Other operational failures also use typed `Failure` outcomes. Throwing from `assess` stops the request.
 Any other exception stops the request and propagates unchanged.
 The thread's interrupt flag is checked before each question, and a set flag stops the request with a `CancellationException` caused by an `InterruptedException`.
 
@@ -126,10 +129,15 @@ The message names the decorator, its class, the hook source and the missing hook
 `ObservedDecisionService.ask` runs the shared preflight and execution with the delegate's hooks, so each provider call is observed once.
 A delegate's own override of `ask` is therefore not called through `ObservedDecisionService`.
 A service customizes execution through `capabilities()` and the hook interfaces.
+Provider implementations put their execution logic in `askNative`, `assess`, `classify` or `rate`.
+Overriding `ask` does not customize execution through the observation wrapper.
 
 ==== Answer rules
 
-A native provider hands its answers to `DecisionResponseAssembler`, which applies one set of rules for every provider:
+A native provider must return a response for the request's spec.
+Execution calls `response.requireMatches(request.spec)` before accepting it.
+Names, kinds and options or levels must match one for one in spec order; a mismatch throws `IllegalStateException`.
+Providers can use `DecisionResponse.builder(request.spec)` or assemble wire answers through `DecisionResponseAssembler`, which applies these rules:
 
 |===
 |Situation |Result
