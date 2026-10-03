@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.openai
 
+import com.embabel.common.ai.model.SpringAiEmbeddingService
 import com.embabel.common.byok.InvalidApiKeyException
 import com.sun.net.httpserver.HttpServer
 import io.micrometer.observation.ObservationRegistry
@@ -22,9 +23,14 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.springframework.ai.document.Document
+import org.springframework.ai.embedding.EmbeddingModel
+import org.springframework.ai.embedding.EmbeddingRequest
+import org.springframework.ai.embedding.TokenCountBatchingStrategy
 import java.net.InetSocketAddress
 
 /**
@@ -40,12 +46,13 @@ class OpenAiCompatibleEmbeddingResponseShapeTest {
 
     private lateinit var server: HttpServer
     private var answer: Pair<Int, String> = 200 to "{}"
+    private var lastRequest: String = ""
 
     @BeforeEach
     fun setUp() {
         server = HttpServer.create(InetSocketAddress(0), 0).apply {
             createContext("/") { exchange ->
-                exchange.requestBody.use { it.readBytes() }
+                lastRequest = exchange.requestBody.use { it.readBytes() }.decodeToString()
                 val (status, body) = answer
                 val bytes = body.toByteArray()
                 exchange.responseHeaders.set("Content-Type", "application/json")
@@ -66,6 +73,10 @@ class OpenAiCompatibleEmbeddingResponseShapeTest {
         apiKey = "test-key",
         observationRegistry = ObservationRegistry.NOOP,
     )
+
+    private fun model(): EmbeddingModel =
+        (factory().openAiCompatibleEmbeddingService(model = "any-model", provider = "Any") as SpringAiEmbeddingService)
+            .model
 
     @Test
     fun `an answer with no index and no usage, as Google sends it, builds and embeds in order`() {
@@ -95,6 +106,54 @@ class OpenAiCompatibleEmbeddingResponseShapeTest {
         val service = factory().buildValidatedEmbeddingService(model = "text-embedding-3-small", provider = "OpenAI")
 
         assertEquals(2, service.dimensions)
+    }
+
+    @Test
+    fun `an index and a usage the provider sends are the ones reported`() {
+        answer = 200 to """
+            {"object":"list","model":"text-embedding-3-small","data":[
+              {"object":"embedding","index":1,"embedding":[0.4,0.5]},
+              {"object":"embedding","index":0,"embedding":[0.1,0.2]}
+            ],"usage":{"prompt_tokens":7,"total_tokens":9}}
+        """.trimIndent()
+
+        val response = model().call(EmbeddingRequest(listOf("first", "second"), null))
+
+        assertEquals(listOf(1, 0), response.results.map { it.index })
+        assertEquals(7, response.metadata.usage.promptTokens)
+        assertEquals(9, response.metadata.usage.totalTokens)
+    }
+
+    @Test
+    fun `an answer with no usage reports none`() {
+        answer = 200 to """
+            {"object":"list","model":"gemini-embedding-2","data":[
+              {"object":"embedding","embedding":[0.1,0.2]}
+            ]}
+        """.trimIndent()
+
+        val response = model().call(EmbeddingRequest(listOf("only"), null))
+
+        assertEquals(listOf(0), response.results.map { it.index })
+        assertEquals(0, response.metadata.usage.totalTokens)
+    }
+
+    @Test
+    fun `a document in a batch is embedded with its metadata, as one embedded alone is`() {
+        answer = 200 to """
+            {"object":"list","model":"any-model","data":[
+              {"object":"embedding","embedding":[0.1,0.2]}
+            ]}
+        """.trimIndent()
+        val document = Document("the body", mapOf("chapter" to "the-chapter-marker"))
+        val model = model()
+
+        model.embed(listOf(document), null, TokenCountBatchingStrategy())
+        assertTrue(lastRequest.contains("the-chapter-marker")) { "batch request dropped the metadata: $lastRequest" }
+
+        lastRequest = ""
+        model.embed(document)
+        assertTrue(lastRequest.contains("the-chapter-marker")) { "single request dropped the metadata: $lastRequest" }
     }
 
     @Test

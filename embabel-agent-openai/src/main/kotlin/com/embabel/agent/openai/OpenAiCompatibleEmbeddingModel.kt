@@ -19,6 +19,7 @@ import com.openai.client.OpenAIClient
 import com.openai.core.RequestOptions
 import com.openai.models.embeddings.CreateEmbeddingResponse
 import io.micrometer.observation.ObservationRegistry
+import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.metadata.DefaultUsage
 import org.springframework.ai.document.Document
 import org.springframework.ai.document.MetadataMode
@@ -33,6 +34,7 @@ import org.springframework.ai.embedding.observation.EmbeddingModelObservationDoc
 import org.springframework.ai.model.EmbeddingUtils
 import org.springframework.ai.observation.conventions.AiProvider
 import org.springframework.ai.openai.OpenAiEmbeddingOptions
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Spring AI's `OpenAiEmbeddingModel`, reading the answer as OpenAI-COMPATIBLE providers send it.
@@ -44,8 +46,12 @@ import org.springframework.ai.openai.OpenAiEmbeddingOptions
  *
  * So an item's index is its own when it has one and its position otherwise — the items arrive in
  * the order of the inputs, which is what the field records anyway — and usage is reported only when
- * the provider reported it. Everything else is as Spring AI does it: the same options merge, the
- * same per-request timeout, the same observation.
+ * the provider reported it. The first answer that leaves either out is logged at info, and each
+ * one after it at debug.
+ *
+ * The request side is as Spring AI does it: the same options merge, the same per-request timeout,
+ * the same observation, and a document embedded as its content under [metadataMode], whether it
+ * arrives alone or in a batch.
  */
 internal class OpenAiCompatibleEmbeddingModel(
     private val client: OpenAIClient,
@@ -54,29 +60,37 @@ internal class OpenAiCompatibleEmbeddingModel(
     private val metadataMode: MetadataMode = MetadataMode.EMBED,
 ) : AbstractEmbeddingModel() {
 
+    private val logger = LoggerFactory.getLogger(javaClass)
+
+    private val omissionReported = AtomicBoolean(false)
+
+    // The batch path asks for a document's content here, and its default is the bare text: without
+    // this, a document embedded in a batch would lose the metadata one embedded alone keeps.
+    override fun getEmbeddingContent(document: Document): String =
+        document.getFormattedContent(metadataMode)
+
     override fun embed(document: Document): FloatArray =
-        call(EmbeddingRequest(listOf(document.getFormattedContent(metadataMode)), options))
+        call(EmbeddingRequest(listOf(getEmbeddingContent(document)), options))
             .results.firstOrNull()?.output ?: FloatArray(0)
 
     override fun call(request: EmbeddingRequest): EmbeddingResponse {
         val merged = OpenAiEmbeddingOptions.builder().from(options).merge(request.options).build()
         val params = merged.toOpenAiCreateParams(request.instructions)
-        val requestOptions = RequestOptions.builder().apply { merged.timeout?.let { timeout(it) } }.build()
+        val requestOptions = RequestOptions.builder().timeout(merged.timeout).build()
         val context = EmbeddingModelObservationContext.builder()
             .embeddingRequest(EmbeddingRequest(request.instructions, merged))
             .provider(AiProvider.OPENAI.value())
             .build()
-        return requireNotNull(
-            EmbeddingModelObservationDocumentation.EMBEDDING_MODEL_OPERATION
-                .observation(null, OBSERVATION_CONVENTION, { context }, observationRegistry)
-                .observe<EmbeddingResponse> {
-                    responseOf(client.embeddings().create(params, requestOptions))
-                        .also { context.response = it }
-                },
-        ) { "the embedding observation returned nothing" }
+        return EmbeddingModelObservationDocumentation.EMBEDDING_MODEL_OPERATION
+            .observation(null, OBSERVATION_CONVENTION, { context }, observationRegistry)
+            .observe<EmbeddingResponse> {
+                responseOf(client.embeddings().create(params, requestOptions))
+                    .also { context.response = it }
+            }
     }
 
     private fun responseOf(response: CreateEmbeddingResponse): EmbeddingResponse {
+        reportOmissions(response)
         val embeddings = response.data().mapIndexed { position, item ->
             Embedding(
                 EmbeddingUtils.toPrimitive(item.embedding()),
@@ -94,7 +108,29 @@ internal class OpenAiCompatibleEmbeddingModel(
         return EmbeddingResponse(embeddings, metadata)
     }
 
+    /**
+     * Says which required fields this answer left out, so the fallback taken is on the record:
+     * once at info, since a provider that omits a field omits it every time, then at debug.
+     */
+    private fun reportOmissions(response: CreateEmbeddingResponse) {
+        val omitted = listOfNotNull(
+            "index".takeIf { response.data().any { it._index().asKnown().isEmpty } },
+            "usage".takeIf { response._usage().asKnown().isEmpty },
+        )
+        if (omitted.isEmpty()) return
+        val model = response._model().asKnown().orElse(options.model)
+        if (omissionReported.compareAndSet(false, true)) {
+            logger.info(OMISSION_MESSAGE, model, omitted)
+        } else {
+            logger.debug(OMISSION_MESSAGE, model, omitted)
+        }
+    }
+
     private companion object {
+        const val OMISSION_MESSAGE =
+            "Embedding answer from '{}' omits {}: index falls back to position, usage is reported only when sent"
+
+
         val OBSERVATION_CONVENTION = DefaultEmbeddingModelObservationConvention()
     }
 }
