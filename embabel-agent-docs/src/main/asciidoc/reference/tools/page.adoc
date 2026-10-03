@@ -1499,6 +1499,85 @@ val wrapped = Tool.sinkArtifacts(myTool, MyType::class.java, eventSink)
 ----
 ====
 
+===== ConfirmationGuardedTool: Asking the User Before a Tool Runs
+
+`ConfirmationGuardedTool` wraps a side-effecting tool so it only runs once the user has confirmed, and lets the LLM in the loop collect that confirmation.
+It is paired with a verdict tool named `confirm_<toolName>`, through which the LLM records the user's yes or no.
+Both tools must be available to the LLM.
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+ConfirmationGuardedTool guard = ConfirmationGuardedTool.of(createTask(), "Create this task?");
+
+// Pass both the guard and its verdict tool to the prompt runner
+guard.tools();
+guard.getVerdictTool().getDefinition().getName(); // "confirm_create_task"
+----
+Kotlin::
++
+[source,kotlin]
+----
+val guard = createTaskTool.withLlmConfirmation("Create this task?")
+
+// Pass both the guard and its verdict tool to the prompt runner
+promptRunner.withTools(guard.tools())
+----
+====
+
+The guard's definition never changes: it is the delegate's, with one sentence appended saying the tool requires confirmation.
+Both the appended sentence and the verdict tool's name prefix can be changed through `ConfirmationGuardOptions`; a blank note leaves the description untouched.
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+ConfirmationGuardOptions options = ConfirmationGuardOptions.DEFAULT
+        .withConfirmationNote("Check with the user first.")
+        .withVerdictToolPrefix("approve_");
+
+ConfirmationGuardedTool guard = ConfirmationGuardedTool.of(createTask(), "Create this task?", ConfirmationMode.ASK_VIA_LLM, options);
+----
+Kotlin::
++
+[source,kotlin]
+----
+val options = ConfirmationGuardOptions(
+    confirmationNote = "Ask before doing this.",
+    verdictToolPrefix = "approve_",
+)
+
+val guard = createTaskTool.withLlmConfirmation("Create it?", options = options)
+----
+====
+
+State lives on the blackboard as three plain records, `ToolCallProposal`, `ToolCallVerdict` and `ToolCallOutcome`, keyed by tool name, so several guarded tools can coexist in one loop.
+
+The flow for a call with arguments `A`:
+
+. No open proposal: the guard records a proposal for `A`.
+In the default `ConfirmationMode.ASK_VIA_LLM` it returns an instruction telling the LLM to ask the user and then call `confirm_<toolName>`.
+The process does not pause.
+. The LLM asks the user, then calls `confirm_<toolName>` with `accepted=true` or `accepted=false`.
+On acceptance the delegate runs with the *stored* arguments and its result is returned.
+On decline the call is cancelled.
+. A repeat call with the same arguments while the proposal is open returns the same instruction.
+A call with different arguments supersedes the open proposal.
+. A confirmation is single use.
+Once consumed, the same call needs a fresh confirmation.
+
+Arguments are canonicalised before comparison (sorted keys, no whitespace, explicit nulls dropped, `1` equals `1.0`), so the LLM re-emitting the same call in a different shape is not treated as a new proposal.
+Arguments the user did not see are never executed.
+
+For shell or form based UIs use `ConfirmationMode.PAUSE_PROCESS`.
+The guard then throws `AwaitableResponseException` with a `ToolCallConfirmationRequest`, a `ConfirmationRequest` subclass, and the process enters the `WAITING` state.
+When the UX resolves it through `onResponse` and the process resumes, the next identical call executes the delegate.
+
 ===== How Decoration Enables Extension
 
 The decoration pattern lets Embabel add sophisticated behavior while keeping `PromptRunner` simple.
