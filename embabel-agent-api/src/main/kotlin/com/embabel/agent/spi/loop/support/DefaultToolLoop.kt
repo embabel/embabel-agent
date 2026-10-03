@@ -21,6 +21,8 @@ import com.embabel.agent.core.support.AbstractAgentProcess
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolControlFlowSignal
+import com.embabel.agent.api.tool.callback.AfterToolCallContext
+import com.embabel.agent.api.tool.callback.ToolCallDisposition
 import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
@@ -327,16 +329,28 @@ internal open class DefaultToolLoop(
         toolNotFoundPolicy.onToolFound()
 
         return try {
-            val (result, resultContent) = executeToolCall(tool, toolCall)
-            applyInjectionStrategy(toolCall, resultContent, state)
-            addToolResultToHistory(toolCall, result, resultContent, state)
-            // returnDirect: tool result goes straight to the caller,
-            // bypassing further LLM processing.
-            if (tool.metadata.returnDirect) {
-                logger.info("Tool '{}' has returnDirect=true — short-circuiting loop", toolCall.name)
-                state.returnDirectContent = resultContent
+            when (val disposition = decideToolCall(toolCall, tool, state.conversationHistory.toList(), state.iterations)) {
+                is ToolCallDisposition.ShortCircuit -> {
+                    // Nothing ran: no injection, no returnDirect. The result still reaches the
+                    // history through the after-tool-result path.
+                    addToolResultToHistory(toolCall, disposition.result, disposition.result.contentForLlm(), state)
+                    true
+                }
+
+                is ToolCallDisposition.Proceed -> {
+                    val effectiveCall = disposition.toolCall
+                    val (result, resultContent) = executeToolCall(tool, effectiveCall)
+                    applyInjectionStrategy(effectiveCall, resultContent, state)
+                    addToolResultToHistory(effectiveCall, result, resultContent, state)
+                    // returnDirect: tool result goes straight to the caller,
+                    // bypassing further LLM processing.
+                    if (tool.metadata.returnDirect) {
+                        logger.info("Tool '{}' has returnDirect=true — short-circuiting loop", toolCall.name)
+                        state.returnDirectContent = resultContent
+                    }
+                    true
+                }
             }
-            true
         } catch (e: ReplanRequestedException) {
             logger.info("Tool '{}' requested replan: {}", toolCall.name, e.reason)
             state.replanRequested = true
@@ -350,6 +364,39 @@ internal open class DefaultToolLoop(
             }
             throw e
         }
+    }
+
+    /**
+     * Run the before-tool-call transformers over a pending call. A short circuit skips
+     * execution; the tool call inspectors' `afterToolCall` is still notified, with zero
+     * duration, because the LLM will see a result. `beforeToolCall` is not, since nothing ran.
+     */
+    protected fun decideToolCall(
+        toolCall: ToolCall,
+        tool: Tool,
+        history: List<Message>,
+        iteration: Int,
+    ): ToolCallDisposition {
+        val disposition = toolLoopTransformers.applyBeforeToolCall(
+            createBeforeToolExecutionContext(
+                history = history,
+                iteration = iteration,
+                toolCall = toolCall,
+                tool = tool,
+            )
+        )
+        if (disposition is ToolCallDisposition.ShortCircuit) {
+            logger.debug("Tool '{}' short-circuited before execution by a transformer", toolCall.name)
+            toolCallInspectors.notifyAfterToolCall(
+                AfterToolCallContext(
+                    toolCall = toolCall,
+                    result = disposition.result,
+                    resultAsString = disposition.result.contentForLlm(),
+                    durationMs = 0,
+                )
+            )
+        }
+        return disposition
     }
 
     protected fun executeToolCall(
