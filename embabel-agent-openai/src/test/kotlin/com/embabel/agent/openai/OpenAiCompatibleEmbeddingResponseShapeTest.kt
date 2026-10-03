@@ -15,18 +15,25 @@
  */
 package com.embabel.agent.openai
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.embabel.common.ai.model.SpringAiEmbeddingService
 import com.embabel.common.byok.InvalidApiKeyException
 import com.sun.net.httpserver.HttpServer
 import io.micrometer.observation.ObservationRegistry
-import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.assertThrows
+import org.slf4j.LoggerFactory
 import org.springframework.ai.document.Document
 import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.ai.embedding.EmbeddingRequest
@@ -42,14 +49,20 @@ import java.net.InetSocketAddress
  * and the top level is `{object, data, model}` — so a Gemini key could never build an embedding
  * service: the probe failed with "`index` is not set" and was reported as an invalid API key.
  */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class OpenAiCompatibleEmbeddingResponseShapeTest {
 
     private lateinit var server: HttpServer
     private var answer: Pair<Int, String> = 200 to "{}"
     private var lastRequest: String = ""
 
-    @BeforeEach
-    fun setUp() {
+    /*
+     * ONE SERVER FOR THE CLASS, not one per test. The SDK keeps connections alive, and a server
+     * stopped after one test can leave a pooled connection that the next test's client reuses when
+     * the OS hands its port out again — answered 404 by the stopped server's empty dispatcher.
+     */
+    @BeforeAll
+    fun startServer() {
         server = HttpServer.create(InetSocketAddress(0), 0).apply {
             createContext("/") { exchange ->
                 lastRequest = exchange.requestBody.use { it.readBytes() }.decodeToString()
@@ -63,9 +76,15 @@ class OpenAiCompatibleEmbeddingResponseShapeTest {
         }
     }
 
-    @AfterEach
-    fun tearDown() {
+    @AfterAll
+    fun stopServer() {
         server.stop(0)
+    }
+
+    @BeforeEach
+    fun reset() {
+        answer = 200 to "{}"
+        lastRequest = ""
     }
 
     private fun factory() = OpenAiCompatibleModelFactory(
@@ -74,8 +93,8 @@ class OpenAiCompatibleEmbeddingResponseShapeTest {
         observationRegistry = ObservationRegistry.NOOP,
     )
 
-    private fun model(): EmbeddingModel =
-        (factory().openAiCompatibleEmbeddingService(model = "any-model", provider = "Any") as SpringAiEmbeddingService)
+    private fun model(name: String = "any-model"): EmbeddingModel =
+        (factory().openAiCompatibleEmbeddingService(model = name, provider = "Any") as SpringAiEmbeddingService)
             .model
 
     @Test
@@ -154,6 +173,25 @@ class OpenAiCompatibleEmbeddingResponseShapeTest {
         lastRequest = ""
         model.embed(document)
         assertTrue(lastRequest.contains("the-chapter-marker")) { "single request dropped the metadata: $lastRequest" }
+    }
+
+    @Test
+    fun `an omission is said at info once per model, however many instances are built`() {
+        val logger = LoggerFactory.getLogger(OpenAiCompatibleEmbeddingModel::class.java) as Logger
+        val logs = ListAppender<ILoggingEvent>().apply { start() }
+        logger.addAppender(logs)
+        try {
+            answer = 200 to """{"object":"list","model":"m","data":[{"object":"embedding","embedding":[0.1]}]}"""
+            // As validating a key does: one instance for the probe, another for use.
+            repeat(2) { model("omits-once-model").call(EmbeddingRequest(listOf("x"), null)) }
+            model("omits-once-other-model").call(EmbeddingRequest(listOf("x"), null))
+
+            val info = logs.list.filter { it.level == Level.INFO }.map { it.formattedMessage }
+            assertEquals(2, info.size, "one line per model: $info")
+            assertTrue(info.any { it.contains("index") && it.contains("usage") }) { "$info" }
+        } finally {
+            logger.detachAppender(logs)
+        }
     }
 
     @Test

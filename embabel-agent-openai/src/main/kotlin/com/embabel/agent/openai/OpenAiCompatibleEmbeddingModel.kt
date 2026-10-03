@@ -34,7 +34,7 @@ import org.springframework.ai.embedding.observation.EmbeddingModelObservationDoc
 import org.springframework.ai.model.EmbeddingUtils
 import org.springframework.ai.observation.conventions.AiProvider
 import org.springframework.ai.openai.OpenAiEmbeddingOptions
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Spring AI's `OpenAiEmbeddingModel`, reading the answer as OpenAI-COMPATIBLE providers send it.
@@ -61,8 +61,6 @@ internal class OpenAiCompatibleEmbeddingModel(
 ) : AbstractEmbeddingModel() {
 
     private val logger = LoggerFactory.getLogger(javaClass)
-
-    private val omissionReported = AtomicBoolean(false)
 
     // The batch path asks for a document's content here, and its default is the bare text: without
     // this, a document embedded in a batch would lose the metadata one embedded alone keeps.
@@ -110,7 +108,11 @@ internal class OpenAiCompatibleEmbeddingModel(
 
     /**
      * Says which required fields this answer left out, so the fallback taken is on the record:
-     * once at info, since a provider that omits a field omits it every time, then at debug.
+     * once per model at info, since a provider that omits a field omits it every time, then at debug.
+     *
+     * Once per MODEL rather than per instance: validating a key builds one instance for the probe
+     * and another for use, and the platform builds one per key, so a per-instance flag said the same
+     * thing at least twice for every key connected. A different model still gets its own line.
      */
     private fun reportOmissions(response: CreateEmbeddingResponse) {
         val omitted = listOfNotNull(
@@ -119,7 +121,7 @@ internal class OpenAiCompatibleEmbeddingModel(
         )
         if (omitted.isEmpty()) return
         val model = response._model().asKnown().orElse(options.model)
-        if (omissionReported.compareAndSet(false, true)) {
+        if (OMISSIONS_REPORTED.add(options.model ?: model)) {
             logger.info(OMISSION_MESSAGE, model, omitted)
         } else {
             logger.debug(OMISSION_MESSAGE, model, omitted)
@@ -130,6 +132,8 @@ internal class OpenAiCompatibleEmbeddingModel(
         const val OMISSION_MESSAGE =
             "Embedding answer from '{}' omits {}: index falls back to position, usage is reported only when sent"
 
+        /** Models whose omissions have been reported at info, for this process. */
+        val OMISSIONS_REPORTED: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
         val OBSERVATION_CONVENTION = DefaultEmbeddingModelObservationConvention()
     }
