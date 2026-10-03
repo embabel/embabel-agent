@@ -155,7 +155,7 @@ class DockerLocalModelsConfig(
      */
     private val openAiClient: OpenAIClient by lazy {
         OpenAIOkHttpClient.builder()
-            .baseUrl(dockerConnectionProperties.baseUrl)
+            .baseUrl(dockerApiBaseUrl(dockerConnectionProperties.baseUrl))
             // The openai-java SDK rejects null/blank API keys even when the
             // backing server doesn't require auth. Placeholder is fine.
             .apiKey("no-auth")
@@ -170,7 +170,7 @@ class DockerLocalModelsConfig(
      */
     private val openAiClientAsync: OpenAIClientAsync by lazy {
         OpenAIOkHttpClientAsync.builder()
-            .baseUrl(dockerConnectionProperties.baseUrl)
+            .baseUrl(dockerApiBaseUrl(dockerConnectionProperties.baseUrl))
             .apiKey("no-auth")
             .timeout(timeouts.toSdkTimeout())
             .build()
@@ -193,7 +193,7 @@ class DockerLocalModelsConfig(
     private fun loadModels(): List<Model> =
         try {
             val response = discoveryClient.get()
-                .uri("${dockerConnectionProperties.baseUrl}/v1/models")
+                .uri(dockerModelsUrl(dockerConnectionProperties.baseUrl))
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
                 .body<ModelResponse>()
