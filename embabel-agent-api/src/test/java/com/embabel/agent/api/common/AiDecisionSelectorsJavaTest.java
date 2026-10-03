@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.common;
 
+import com.embabel.agent.test.unit.FakeOperationContext;
 import com.embabel.common.ai.classification.ClassificationResult;
 import com.embabel.common.ai.classification.ClassificationService;
 import com.embabel.common.ai.classification.ModelProvenance;
@@ -70,7 +71,7 @@ class AiDecisionSelectorsJavaTest {
 
     @Test
     void selectsByRoleNameDefaultAndInstance() {
-        Ai ai = AiDecisionSelectorsTestKt.operationContextWith(registry).ai();
+        Ai ai = FakeOperationContext.withDecisionServices(registry).ai();
         ServiceSelector<DecisionService> decisions = ai.decisions();
         DecisionSpec triage = DecisionSpec.of(urgent, team);
 
@@ -89,7 +90,7 @@ class AiDecisionSelectorsJavaTest {
     @Test
     void missingRoleThrowsSelectionError() {
         ServiceSelector<DecisionService> decisions =
-            AiDecisionSelectorsTestKt.operationContextWith(registry).ai().decisions();
+            FakeOperationContext.withDecisionServices(registry).ai().decisions();
         ServiceSelectionException error =
             assertThrows(ServiceSelectionException.class, () -> decisions.byRole("billing-review"));
         assertEquals(ServiceSelectionException.Reason.UNKNOWN_ROLE, error.getReason());

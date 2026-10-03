@@ -16,6 +16,7 @@
 package com.embabel.agent.api.decision.example;
 
 import com.embabel.agent.api.common.Ai;
+import com.embabel.agent.test.unit.FakeOperationContext;
 import com.embabel.common.ai.classification.ModelProvenance;
 import com.embabel.common.ai.decision.DecisionResponse;
 import com.embabel.common.ai.decision.DecisionService;
@@ -26,8 +27,6 @@ import com.embabel.common.ai.decision.Questions;
 import com.embabel.common.ai.decision.support.NoOpDecisionService;
 import com.embabel.common.ai.decision.support.StubDecisionService;
 import com.embabel.common.ai.model.DecisionServiceRegistry;
-import org.junit.jupiter.api.Test;
-
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -37,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -153,7 +153,7 @@ class DiceGroundingExampleTest {
             .register("grounding", service)
             .decisionRole("dice-grounding", "grounding")
             .build();
-        return ExampleOperations.withRegistry(registry).ai();
+        return FakeOperationContext.withDecisionServices(registry).ai();
     }
 
     private static StubDecisionService stubAnswering(PropositionResult outcome) {

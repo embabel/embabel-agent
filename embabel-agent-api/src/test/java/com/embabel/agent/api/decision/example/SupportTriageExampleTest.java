@@ -16,12 +16,15 @@
 package com.embabel.agent.api.decision.example;
 
 import com.embabel.agent.api.common.Ai;
+import com.embabel.agent.test.unit.FakeOperationContext;
 import com.embabel.common.ai.classification.ClassificationResult;
 import com.embabel.common.ai.classification.FailureReason;
 import com.embabel.common.ai.classification.ModelProvenance;
 import com.embabel.common.ai.decision.ChoiceQuestionSpec;
 import com.embabel.common.ai.decision.DecisionAnswer;
 import com.embabel.common.ai.decision.DecisionCapabilities;
+import com.embabel.common.ai.decision.DecisionProjection;
+import com.embabel.common.ai.decision.DecisionProjectionException;
 import com.embabel.common.ai.decision.DecisionRequest;
 import com.embabel.common.ai.decision.DecisionResponse;
 import com.embabel.common.ai.decision.DecisionService;
@@ -34,13 +37,12 @@ import com.embabel.common.ai.decision.RatingResult;
 import com.embabel.common.ai.decision.UnsupportedDecisionException;
 import com.embabel.common.ai.decision.support.StubDecisionService;
 import com.embabel.common.ai.model.DecisionServiceRegistry;
-import org.junit.jupiter.api.Test;
-import org.springframework.core.convert.converter.Converter;
-import tools.jackson.databind.json.JsonMapper;
-
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.springframework.core.convert.converter.Converter;
+import tools.jackson.databind.json.JsonMapper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -82,7 +84,7 @@ class SupportTriageExampleTest {
         .decisionRole("support-triage", "triage-stub")
         .build();
 
-    private final Ai ai = ExampleOperations.withRegistry(registry).ai();
+    private final Ai ai = FakeOperationContext.withDecisionServices(registry).ai();
 
     // A service reporting the capabilities of one that implements no execution hooks.
     private static StubDecisionService legacyStub() {
@@ -171,6 +173,19 @@ class SupportTriageExampleTest {
     record SupportRoute(String queue, boolean sameDay, Double confidence) {
     }
 
+    static final class DecisionUnavailableException extends IllegalStateException {
+        private final FailureReason reason;
+
+        DecisionUnavailableException(FailureReason reason) {
+            super("Decision failed: " + reason);
+            this.reason = reason;
+        }
+
+        FailureReason reason() {
+            return reason;
+        }
+    }
+
     static final class SupportRouteConverter implements Converter<DecisionResponse, SupportRoute> {
 
         @Override
@@ -179,7 +194,7 @@ class SupportTriageExampleTest {
                 case PropositionResult.Answered answered -> answered.getAnswer();
                 // Without an answer, a person looks at the ticket the same day.
                 case PropositionResult.Inconclusive inconclusive -> true;
-                case PropositionResult.Failure failure -> true;
+                case PropositionResult.Failure failure -> throw new DecisionUnavailableException(failure.getReason());
             };
             // Confidence is carried for display when the provider reports it. Routing does not read it.
             return switch (response.answer(DEPARTMENT)) {
@@ -187,11 +202,22 @@ class SupportTriageExampleTest {
                     new SupportRoute(selected.getCategoryId(), sameDay, selected.getConfidence());
                 case ClassificationResult.NoMatch noMatch -> new SupportRoute("general", sameDay, null);
                 case ClassificationResult.Inconclusive inconclusive -> new SupportRoute("human-review", sameDay, null);
-                case ClassificationResult.Failure failure -> new SupportRoute("retry-later", sameDay, null);
+                case ClassificationResult.Failure failure -> throw new DecisionUnavailableException(failure.getReason());
             };
         }
     }
     // end::converter[]
+
+    // tag::failure-policy[]
+    static SupportRoute routeOrRetry(DecisionResponse response) {
+        try {
+            return new SupportRouteConverter().convert(response);
+        } catch (DecisionUnavailableException failure) {
+            // Application policy schedules another attempt and same-day review.
+            return new SupportRoute("retry-later", true, null);
+        }
+    }
+    // end::failure-policy[]
 
     private static DecisionResponse respond(PropositionResult urgent, ClassificationResult department) {
         return DecisionResponse.builder(TRIAGE)
@@ -216,10 +242,45 @@ class SupportTriageExampleTest {
         assertEquals(
             new SupportRoute("human-review", true, null),
             converter.convert(respond(new PropositionResult.Inconclusive(MODEL), new ClassificationResult.Inconclusive(MODEL))));
-        assertEquals(
-            new SupportRoute("retry-later", true, null),
-            converter.convert(DecisionResponse.failed(TRIAGE, FailureReason.UNAVAILABLE)));
+        assertThrows(DecisionUnavailableException.class,
+            () -> converter.convert(DecisionResponse.failed(TRIAGE, FailureReason.UNAVAILABLE)));
+        assertThrows(DecisionUnavailableException.class,
+            () -> converter.convert(respond(URGENT_ANSWER, new ClassificationResult.Failure(FailureReason.INVALID_RESPONSE))));
+        assertThrows(DecisionUnavailableException.class,
+            () -> converter.convert(respond(new PropositionResult.Failure(FailureReason.UNAVAILABLE), BILLING)));
     }
+
+    @Test
+    void applicationHandlesOperationalFailureSeparately() {
+        var failed = DecisionResponse.failed(TRIAGE, FailureReason.UNAVAILABLE);
+        var error = assertThrows(DecisionUnavailableException.class,
+            () -> new SupportRouteConverter().convert(failed));
+        assertEquals(FailureReason.UNAVAILABLE, error.reason());
+        assertEquals(new SupportRoute("retry-later", true, null), routeOrRetry(failed));
+        assertEquals(new SupportRoute("billing", true, null), routeOrRetry(respond(URGENT_ANSWER, BILLING)));
+    }
+
+    // tag::projection[]
+    record AnsweredTriage(boolean urgent, String department) {
+    }
+
+    @Test
+    void projectionCreatesAnObjectOnlyWhenEveryAnswerHasAValue() {
+        DecisionResponse response = respond(URGENT_ANSWER, BILLING);
+        DecisionProjection<AnsweredTriage> projected = DecisionProjection.of(response, AnsweredTriage.class);
+        assertEquals(new AnsweredTriage(true, "billing"), projected.getValue());
+        assertEquals(response, projected.getResponse());
+
+        for (DecisionResponse unresolved : List.of(
+                respond(new PropositionResult.Inconclusive(MODEL), BILLING),
+                respond(URGENT_ANSWER, new ClassificationResult.NoMatch(MODEL)),
+                respond(URGENT_ANSWER, new ClassificationResult.Inconclusive(MODEL)),
+                DecisionResponse.failed(TRIAGE, FailureReason.UNAVAILABLE))) {
+            assertThrows(DecisionProjectionException.class,
+                () -> DecisionProjection.of(unresolved, AnsweredTriage.class));
+        }
+    }
+    // end::projection[]
 
     // tag::persist[]
     record AnswerProvenance(String question, String outcome, String modelName, String provider) {

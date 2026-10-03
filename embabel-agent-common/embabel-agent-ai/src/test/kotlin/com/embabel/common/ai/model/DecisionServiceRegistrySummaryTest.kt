@@ -151,6 +151,16 @@ class DecisionServiceRegistrySummaryTest {
     }
 
     @Test
+    fun `a JVM error from capabilities propagates unchanged`() {
+        val fatal = LinkageError("broken service linkage")
+        val broken = FakeDecision("broken", "test") { throw fatal }
+        val thrown = assertThrows<LinkageError> {
+            DecisionServiceRegistry.builder().register("broken", broken).build()
+        }
+        assertSame(fatal, thrown)
+    }
+
+    @Test
     fun `a throwing capabilities fails build naming the registration`() {
         val cause = IllegalArgumentException("PAYLOAD-provider-text")
         val broken = FakeDecision("jev-1", "TypeSafe") { throw cause }
