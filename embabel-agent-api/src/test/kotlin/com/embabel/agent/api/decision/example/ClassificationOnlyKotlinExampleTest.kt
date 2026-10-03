@@ -16,6 +16,7 @@
 package com.embabel.agent.api.decision.example
 
 import com.embabel.agent.api.common.Ai
+import com.embabel.agent.test.unit.FakeOperationContext
 import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.ClassificationService
@@ -56,7 +57,7 @@ class ClassificationOnlyKotlinExampleTest {
      * @param service the service that classifies tickets
      * @return an `Ai` from a workflow operation over that registry
      */
-    private fun routingTo(service: ClassificationService): Ai = ExampleOperations.withRegistry(
+    private fun routingTo(service: ClassificationService): Ai = FakeOperationContext.withDecisionServices(
         DecisionServiceRegistry.builder()
             .register("ticket-classifier", service)
             .classificationRole("ticket-routing", "ticket-classifier")

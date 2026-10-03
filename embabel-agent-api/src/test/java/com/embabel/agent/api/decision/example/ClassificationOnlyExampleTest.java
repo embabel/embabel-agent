@@ -16,6 +16,7 @@
 package com.embabel.agent.api.decision.example;
 
 import com.embabel.agent.api.common.Ai;
+import com.embabel.agent.test.unit.FakeOperationContext;
 import com.embabel.common.ai.classification.CategoryMapping;
 import com.embabel.common.ai.classification.ClassificationRequest;
 import com.embabel.common.ai.classification.ClassificationResult;
@@ -26,11 +27,10 @@ import com.embabel.common.ai.classification.MappedClassificationResult;
 import com.embabel.common.ai.classification.ModelProvenance;
 import com.embabel.common.ai.decision.support.NoOpDecisionService;
 import com.embabel.common.ai.model.DecisionServiceRegistry;
-import org.junit.jupiter.api.Test;
-
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -107,7 +107,7 @@ class ClassificationOnlyExampleTest {
             .classificationDefault("ticket-classifier")
             .classificationRole("ticket-routing", "ticket-classifier")
             .build();
-        return ExampleOperations.withRegistry(registry).ai();
+        return FakeOperationContext.withDecisionServices(registry).ai();
     }
 
     @Test

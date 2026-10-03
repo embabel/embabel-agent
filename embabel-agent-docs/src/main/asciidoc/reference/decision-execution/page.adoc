@@ -59,6 +59,11 @@ Each selector has four terminals, and each terminal returns the service itself:
 include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/SupportTriageExampleTest.java[tag=selectors,indent=0]
 ----
 
+A manually implemented `Ai` inherits selectors backed by an empty registry.
+Only `using(service)` succeeds until the implementation overrides `decisions()` and `classifications()` to select from its populated registry.
+`SpringContextPlatformServices` also uses an empty registry when the context has no `DecisionServiceRegistry` bean.
+The platform auto-configuration supplies that bean; an application building its own platform services can override `decisionServices()`.
+
 Inside a workflow each terminal returns an operation-bound service.
 It keeps the selected service's name, provider, model family and capabilities.
 Each call on it runs under the observation that was current when the service was selected, including calls made from another thread.
@@ -529,7 +534,10 @@ Parsing runs after the call returns, so a reply that cannot be read makes one ca
 
 The support-triage example registers a stub under the name `triage-stub` and the role `support-triage`.
 The routing policy lives in the application.
-It handles every outcome and reads confidence as optional.
+`Selected`, `NoMatch` and `Inconclusive` are model judgments that the application maps to business routes.
+`Failure` reports an operational or invalid-response problem. The converter throws an application exception carrying its reason.
+The application handles that exception separately and chooses whether to retry or send the ticket for review.
+Confidence is optional and does not select a route.
 
 [source,kotlin]
 ----
@@ -541,6 +549,22 @@ A Spring `Converter` maps a response to an application route:
 [source,java]
 ----
 include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/SupportTriageExampleTest.java[tag=converter,indent=0]
+----
+
+The retry policy handles operational failure outside the converter:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/SupportTriageExampleTest.java[tag=failure-policy,indent=0]
+----
+
+For an object containing only answered values, use `DecisionProjection.of(response, type)`.
+Projection retains the original response and refuses outcomes with no representable value, including `NoMatch`, `Inconclusive` and `Failure`.
+A rating with only a score or distribution also has no selected level to project.
+
+[source,java]
+----
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/SupportTriageExampleTest.java[tag=projection,indent=0]
 ----
 
 The application stores the response JSON and each answer's provenance:
@@ -598,6 +622,8 @@ Outside a workflow, wrap a service you build in `ObservedDecisionService(service
 |===
 
 Provider-call observations are children of the ask observation.
+When the Spring context has several `ObservationRegistry` beans, mark one `@Primary`.
+If none is primary, startup logs a WARN and decision observations use `ObservationRegistry.NOOP`.
 Inside a workflow the ask observation is a child of the action's observation.
 A native ask records one ask and one `ask_native` observation.
 A per-question ask of three questions records one ask and three provider observations.

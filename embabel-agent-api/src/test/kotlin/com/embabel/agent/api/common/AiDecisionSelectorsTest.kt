@@ -15,8 +15,6 @@
  */
 package com.embabel.agent.api.common
 
-import com.embabel.agent.test.integration.IntegrationTestUtils.dummyProcessContext
-import com.embabel.agent.test.unit.DummyAgent
 import com.embabel.agent.test.unit.FakeOperationContext
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.ModelProvenance
@@ -32,23 +30,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-
-/**
- * Returns an operation context whose platform services hold [registry]. Java tests use it too.
- */
-fun operationContextWith(registry: DecisionServiceRegistry): OperationContext {
-    val base = dummyProcessContext(DummyAgent)
-    val platformServices = RegistryPlatformServices(base.platformServices, registry)
-    return FakeOperationContext(processContext = base.copy(platformServices = platformServices))
-}
-
-/** Platform services that answer [decisionServices] with a fixed registry. */
-private class RegistryPlatformServices(
-    delegate: PlatformServices,
-    private val registry: DecisionServiceRegistry,
-) : PlatformServices by delegate {
-    override fun decisionServices(): DecisionServiceRegistry = registry
-}
 
 class AiDecisionSelectorsTest {
 
@@ -81,7 +62,7 @@ class AiDecisionSelectorsTest {
 
     @Test
     fun `byRole selects the registered service and returns its outcomes`() {
-        val response = operationContextWith(registry).ai().decisions().byRole("support-triage").ask(feedback, triage)
+        val response = FakeOperationContext.withDecisionServices(registry).ai().decisions().byRole("support-triage").ask(feedback, triage)
         assertEquals(urgentAnswer, response.answer(urgent))
         assertEquals(teamAnswer, response.answer(team))
         assertEquals(listOf("askNative"), stub.calls())
@@ -89,7 +70,7 @@ class AiDecisionSelectorsTest {
 
     @Test
     fun `named, defaultService and using select the service`() {
-        val ai = operationContextWith(registry).ai()
+        val ai = FakeOperationContext.withDecisionServices(registry).ai()
         listOf(
             ai.decisions().named("triage-stub"),
             ai.decisions().defaultService(),
@@ -108,14 +89,14 @@ class AiDecisionSelectorsTest {
             .register("triage-stub", stub)
             .classificationRole("routing", "triage-stub")
             .build()
-        val service = operationContextWith(bound).ai().classifications().byRole("routing")
+        val service = FakeOperationContext.withDecisionServices(bound).ai().classifications().byRole("routing")
         assertEquals(ModelType.DECISION, service.type)
     }
 
     @Test
     fun `a missing role throws a selection error naming the role`() {
         val error = assertThrows(ServiceSelectionException::class.java) {
-            operationContextWith(registry).ai().decisions().byRole("billing-review")
+            FakeOperationContext.withDecisionServices(registry).ai().decisions().byRole("billing-review")
         }
         assertEquals(ServiceSelectionException.Reason.UNKNOWN_ROLE, error.reason)
         assertTrue(error.message!!.contains("billing-review"), error.message)

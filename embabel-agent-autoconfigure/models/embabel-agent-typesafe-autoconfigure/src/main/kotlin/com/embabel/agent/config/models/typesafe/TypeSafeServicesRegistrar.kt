@@ -121,6 +121,10 @@ internal class TypeSafeServicesRegistrar(
      * Reads the type a definition declares: the `@Bean` method's return type, or else the bean
      * class.
      *
+     * For a definition from `@Bean fun jev(): DecisionService`, this returns
+     * `DecisionService::class.java` without invoking `jev()`. For a definition registered with
+     * a bean class, it returns that class instead.
+     *
      * @param registry registry the definition is held in, used to resolve the class loader
      * @param definition the bean definition to read
      * @return the declared type, or null if it can't be resolved
