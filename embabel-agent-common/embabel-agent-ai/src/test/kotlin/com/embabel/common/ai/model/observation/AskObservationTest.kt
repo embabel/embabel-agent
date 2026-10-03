@@ -38,6 +38,7 @@ import com.embabel.common.ai.decision.Questions
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
 import com.embabel.common.ai.decision.UnsupportedDecisionException
+import com.embabel.common.ai.decision.spi.DelegatingDecisionService
 import com.embabel.common.ai.decision.spi.DecisionContentCapture
 import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
 import com.embabel.common.ai.decision.spi.PropositionAssessment
@@ -170,6 +171,11 @@ class AskObservationTest {
             calls += "askNative"
             return onNative(request)
         }
+    }
+
+    private class PartialDecorator(private val delegate: DecisionService) :
+        DecisionService by delegate, DelegatingDecisionService {
+        override val hookSource: DecisionService = delegate
     }
 
     // Claims capabilities whose hooks it does not implement.
@@ -319,6 +325,59 @@ class AskObservationTest {
 
     @Nested
     inner class Guards {
+
+        @Test
+        fun `an observed partial native decorator fails preflight before any provider observation`() {
+            val telemetry = Telemetry()
+            val delegate = Native()
+            val partial = PartialDecorator(delegate)
+            val observed = ObservedDecisionService(partial, telemetry.registry)
+
+            val thrown = assertThrows<IllegalStateException> { observed.ask(allThree) }
+
+            assertTrue(thrown.message!!.contains("NativeQuestionSetExecution"))
+            assertTrue(thrown.message!!.contains(PartialDecorator::class.java.name))
+            assertTrue(telemetry.recorder.providerCalls().isEmpty())
+            assertTrue(delegate.calls.isEmpty())
+        }
+
+        @Test
+        fun `nested observations reject a missing later hook before the earlier question is asked`() {
+            val telemetry = Telemetry()
+            val delegate = Hooked()
+            val observed = ObservedDecisionService(
+                ObservedDecisionService(PartialDecorator(delegate), telemetry.registry), telemetry.registry,
+            )
+
+            val thrown = assertThrows<IllegalStateException> {
+                observed.ask(DecisionRequest.of(sentinelInput, team, anger))
+            }
+
+            assertTrue(thrown.message!!.contains("RatingAssessment"))
+            assertTrue(telemetry.recorder.providerCalls().isEmpty())
+            assertTrue(delegate.calls.isEmpty())
+        }
+
+        @Test
+        fun `direct hook calls through partial decorators fail before any observation`() {
+            val telemetry = Telemetry()
+            val native = Native()
+            val rating = Hooked()
+            val proposition = QuestionAssessing()
+            for (nested in listOf(false, true)) {
+                fun observe(service: DecisionService): ObservedDecisionService {
+                    val observed = ObservedDecisionService(PartialDecorator(service), telemetry.registry)
+                    return if (nested) ObservedDecisionService(observed, telemetry.registry) else observed
+                }
+                assertThrows<IllegalStateException> { observe(native).askNative(allThree) }
+                assertThrows<IllegalStateException> { observe(rating).rate(sentinelInput, anger) }
+                assertThrows<IllegalStateException> { observe(proposition).assess(sentinelInput, urgent) }
+            }
+            assertTrue(telemetry.recorder.stopped.isEmpty())
+            assertTrue(native.calls.isEmpty())
+            assertTrue(rating.calls.isEmpty())
+            assertTrue(proposition.calls.isEmpty())
+        }
 
         @Test
         fun `a delegate claiming every kind without the rating hook throws before any provider call`() {
