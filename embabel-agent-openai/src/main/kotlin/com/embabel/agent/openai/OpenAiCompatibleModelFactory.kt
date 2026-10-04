@@ -42,12 +42,10 @@ import org.springframework.ai.openai.http.okhttp.SpringAiOpenAiHttpClient
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.model.ChatModel
-import org.springframework.ai.document.MetadataMode
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.ai.openai.OpenAiChatModel
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.openai.OpenAiChatOptions
-import org.springframework.ai.openai.OpenAiEmbeddingModel
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.retry.support.RetryTemplate
 import org.springframework.web.client.RestClient
@@ -607,12 +605,13 @@ open class OpenAiCompatibleModelFactory(
         configuredDimensions: Int? = null,
         pricingModel: PricingModel? = null,
     ): EmbeddingService {
-        val embeddingModel = OpenAiEmbeddingModel.builder()
-            .openAiClient(openAiClient)
-            .metadataMode(MetadataMode.EMBED)
-            .options(timeouts.embeddingOptions(model).build())
-            .observationRegistry(observationRegistry)
-            .build()
+        // Not Spring AI's OpenAiEmbeddingModel, which requires the `index` and `usage` fields that
+        // OpenAI-compatible providers may leave out: see OpenAiCompatibleEmbeddingModel.
+        val embeddingModel = OpenAiCompatibleEmbeddingModel(
+            client = openAiClient,
+            options = timeouts.embeddingOptions(model).build(),
+            observationRegistry = observationRegistry,
+        )
         return SpringAiEmbeddingService(
             name = model,
             model = embeddingModel,
