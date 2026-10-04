@@ -97,8 +97,12 @@ class TypeSafeConsumerTest {
     }
     // end::typesafe-consumer[]
 
+    /**
+     * Uses TypeSafe on its own, so it leaves out the platform auto-configuration that the assembled
+     * examples put on this module's test classpath.
+     */
     @Configuration(proxyBeanMethods = false)
-    @EnableAutoConfiguration
+    @EnableAutoConfiguration(excludeName = "com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration")
     static class ConsumerConfiguration {
         @Bean
         SupportTriage supportTriage(DecisionService decisions) {

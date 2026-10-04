@@ -92,13 +92,46 @@ Auto-configuration contributes the following beans:
   `TypeSafeModelFactory` type.
 * `typeSafeDecisionService` is built for the configured model. Because it implements
   `DecisionService`, it is also injectable as `ClassificationService`.
+* `typeSafeDefaultCandidate` offers `typeSafeDecisionService` as the default of the decision and
+  classification families. See <<reference.decision-execution>>.
+* One `DecisionService` bean for each entry under `services`, described below.
 
-An application bean named `typeSafeDecisionService` replaces the default service and suppresses its
-factory configuration, so an unused provider credential is not required. Other decision providers
-and additional named TypeSafe services can coexist in the same context.
+An application bean named `typeSafeDecisionService` replaces the default service, and the
+auto-configuration then contributes no default candidate. Entries under `services` still register
+their named services, and they need the credential. With the application bean and no entries under
+`services`, the factory configuration does not run and no credential is required. Other decision
+providers and additional named TypeSafe services can coexist in the same context.
+
+===== Named services
+
+Each entry under `embabel.agent.platform.models.typesafe.services` registers a `DecisionService`
+bean for its model. The entry's key is the bean name and the registration name.
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        typesafe:
+          services:
+            jev:
+              model: jev-latest
+            jev-fast:
+              model: jev-fast
+----
+
+`model` is the only key of an entry. Named services share the credential, base URL and response
+limit of the top-level properties, and the `typeSafeDecisionService` bean stays registered. A bean
+the application defines under an entry's key replaces that entry, and one INFO line names it.
+Startup fails when an entry has a blank model or an unknown key, and the error names the property.
+Unknown keys are detected in configuration files and other property sources. Environment variables
+and system properties are not checked for them.
 
 An application that supplies its own `TypeSafeModelFactory` bean also keeps it: auto-configuration
-then creates no factory, no default service, and needs no API key.
+then creates no factory, no default service, and needs no API key. Named services come from the
+auto-configured factory, so a configured `services` entry is not registered when the application
+builds its own factory instead.
 
 ==== Classification and proposition assessment
 
@@ -161,9 +194,8 @@ exception retained as the cause. Raw response content stays inside the guarded b
 include::../../../../../../embabel-agent-typesafe/src/test/java/com/embabel/agent/typesafe/TypeSafeUsageExamples.java[tag=byok,indent=0]
 ----
 
-In Spring, declare additional named `DecisionService` beans from the configured
-`TypeSafeModelFactory` and inject them with `@Qualifier`. This follows the same multi-model pattern as
-other Embabel providers while preserving the distinct decision-service contract.
+In Spring, configure named services under `services`, or declare additional `DecisionService` beans
+from the configured `TypeSafeModelFactory`, and inject them with `@Qualifier`.
 
 ==== Decision specs
 

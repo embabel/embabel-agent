@@ -269,6 +269,24 @@ class CompileNegativeTest {
         }
 
         @Test
+        fun `the decision selector does not accept a classification-only service`() {
+            assertFailsWith(
+                "com.embabel.common.ai.classification.ClassificationService cannot be converted to " +
+                    "com.embabel.common.ai.decision.DecisionService",
+                compileJava(negative("java", "InvariantDecisionSelector.java")),
+            )
+        }
+
+        @Test
+        fun `a classification selector is not a decision selector`() {
+            assertFailsWith(
+                "cannot be converted to " +
+                    "com.embabel.common.ai.model.ServiceSelector<com.embabel.common.ai.decision.DecisionService>",
+                compileJava(negative("java", "ClassificationSelectorAsDecision.java")),
+            )
+        }
+
+        @Test
         fun `the response builder's answer overloads are typed by question kind`() {
             assertFailsWith(
                 "answer(com.embabel.common.ai.decision.PropositionQuestionSpec," +

@@ -1,19 +1,23 @@
 [[reference.decision-execution]]
 === Running decision specs (experimental)
 
-This page covers running a decision spec on a decision service.
+This page covers selecting a decision service and running a decision spec on it.
 <<reference.decision-specs>> covers building specs and reading responses.
 <<reference.typesafe>> and <<reference.llm-decisions>> cover the two provider families.
 
 The types are in `embabel-agent-ai`.
-`DecisionService` and `ObservedDecisionService` are in `com.embabel.common.ai.model` and its `observation` package.
+Selection is in the package `com.embabel.common.ai.model`.
 Execution hooks, the response assembler and the content-capture switch are in `com.embabel.common.ai.decision.spi`.
 The no-op and stub services are in `com.embabel.common.ai.decision.support`.
 
 [source,mermaid]
 ----
 flowchart TD
-    Caller[caller] --> Obs[ObservedDecisionService]
+    Ai[Ai.decisions / classifications] --> Sel[ServiceSelector]
+    Sel --> Reg[DecisionServiceRegistry]
+    Sel --> Bind[operation binding]
+    Bind --> Obs[ObservedDecisionService]
+    Reg --> Obs
     Obs -->|ask: embabel.ai.ask| Exec[preflight and execution]
     Exec -->|native service| Hook[askNative: embabel.ai.decision ask_native]
     Exec -->|any other service| Split[assess / classify / rate]
@@ -24,6 +28,257 @@ flowchart TD
     Llm --> Asm
 ----
 
+==== Selecting a service
+
+`Ai.decisions()` returns a `ServiceSelector<DecisionService>`.
+`Ai.classifications()` returns a `ServiceSelector<ClassificationService>`.
+Each selector has four terminals, and each terminal returns the service itself:
+
+|===
+|Terminal |Returns |Throws
+
+|`defaultService()`
+|The family default
+|`ServiceSelectionException` with `NO_DEFAULT` or `AMBIGUOUS_DEFAULT`
+
+|`named(name)`
+|The service registered under `name`
+|`ServiceSelectionException` with `UNKNOWN_NAME`, or `WRONG_CAPABILITY` when the decision family is asked for a classification-only service
+
+|`byRole(role)`
+|The service bound to `role` in this family
+|`ServiceSelectionException` with `UNKNOWN_ROLE`
+
+|`using(service)`
+|The given service. It is not registered. Inside a workflow a service that is not an `ObservedDecisionService` or `ObservedClassificationService` is wrapped in one on the registry's observation registry.
+|Nothing
+|===
+
+[source,java]
+----
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/SupportTriageExampleTest.java[tag=selectors,indent=0]
+----
+
+A manually implemented `Ai` inherits selectors backed by an empty registry.
+Only `using(service)` succeeds until the implementation overrides `decisions()` and `classifications()` to select from its populated registry.
+`SpringContextPlatformServices` also uses an empty registry when the context has no `DecisionServiceRegistry` bean.
+The platform auto-configuration supplies that bean; an application building its own platform services can override `decisionServices()`.
+
+Inside a workflow each terminal returns an operation-bound service.
+It keeps the selected service's name, provider, model family and capabilities.
+Each call on it runs under the observation that was current when the service was selected, including calls made from another thread.
+The binding creates no observation of its own.
+
+Roles are scoped to one family.
+A role bound under `embabel.models.decision.roles` is unknown to `classifications().byRole(...)`, and the reverse holds too.
+The classification family holds every registered service, because a decision service also classifies.
+A decision service selected through `classifications()` keeps the model family `DECISION`.
+
+`ServiceSelectionException` is an `IllegalStateException`.
+Its `reason` is one of the `ServiceSelectionException.Reason` values in the table above.
+Its message names the requested name or role, the services eligible for the family, the family's role bindings, the family default or the candidates considered, and the fix.
+The fix is the property to set, such as `embabel.models.decision.roles.<role>`, and the `DecisionServiceRegistry.Builder` method for plain Java.
+
+A decision service registry with no services backs the default `Ai` implementation.
+There, `using(service)` works and the other terminals throw `ServiceSelectionException`.
+No terminal falls back to an LLM.
+
+[[reference.decision-execution.classification-only]]
+==== Classification only
+
+An application that only sorts text into categories needs `Ai.classifications()` and a `ClassificationSpec`.
+Select the service by role, as the family default, by registration name, or pass an instance:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/ClassificationOnlyExampleTest.java[tag=selectors,indent=0]
+----
+
+Describe the categories once in a `ClassificationSpec`:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/ClassificationOnlyExampleTest.java[tag=spec,indent=0]
+----
+
+Classify with the spec and switch over the four outcomes:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/ClassificationOnlyExampleTest.java[tag=route,indent=0]
+----
+
+A `CategoryMapping` maps each category to an enum constant. `CategoryMapping.fromEnum` builds the spec from the enum, and `map` turns a selection into the constant:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/ClassificationOnlyExampleTest.java[tag=enum,indent=0]
+----
+
+In Kotlin, `classificationSpec { ... }` builds the spec and `when` covers the outcomes:
+
+[source,kotlin]
+----
+include::../../../../../../embabel-agent-api/src/test/kotlin/com/embabel/agent/api/decision/example/ClassificationOnlyKotlinExampleTest.kt[tag=route,indent=0]
+----
+
+In a Spring application the spec can be a bean:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-starters/embabel-agent-starter-typesafe/src/test/java/com/embabel/agent/typesafe/example/DecisionServicesSpringExampleTest.java[tag=spec-bean,indent=0]
+----
+
+To use a prompted service for classification, declare it under `embabel.agent.platform.decisions.llm.services.<name>` and bind it to a role under `embabel.models.classification.roles.<role>`.
+The `ticket-classifier` entry in the configuration example below does both.
+A decision service also classifies, so a classification role can name it.
+
+A `ClassificationSpec` is a decision spec with one choice question, so a decision service answers it too.
+
+==== Registry
+
+`DecisionServiceRegistry` holds the registered services, the family defaults and the role bindings.
+`DecisionServiceRegistry.builder()` starts a builder:
+
+|===
+|Builder method |Effect
+
+|`register(name, service)`
+|Registers a `ClassificationService` or `DecisionService` under a registration name
+
+|`decisionDefault(name)`, `classificationDefault(name)`
+|Sets a family default
+
+|`decisionRole(role, name)`, `classificationRole(role, name)`
+|Binds a role in one family
+
+|`defaultCandidate(name)`
+|Offers a registered service as a family default candidate
+
+|`observationRegistry(registry)`
+|Sets the observation registry the registered services observe with
+
+|`build()`
+|Validates the bindings, builds the registry and logs one INFO summary
+|===
+
+`build()` throws `IllegalArgumentException` for a blank or repeated name, for one service instance registered under two names, and for a default, role or candidate that names a missing or ineligible service.
+The message names the binding and the property that sets it.
+`DecisionServiceRegistry.empty()` returns a registry with no services.
+
+`decisions()` and `classifications()` return the two selectors.
+`registrationNames()` lists the registration names in registration order.
+`listServices()` returns one metadata snapshot per registered service, each with its model family.
+
+The observation registry passed to the builder must be the one the registered services observe with.
+Operation bindings open scopes on it.
+With another registry, provider calls lose their parent observation.
+
+===== Family default
+
+A family default resolves in this order:
+
+. The explicit default, from `embabel.models.decision.default` or `decisionDefault(name)`.
+. The single default candidate eligible for the family.
+. The single service eligible for the family.
+
+Otherwise `defaultService()` throws `ServiceSelectionException`.
+No eligible service gives `NO_DEFAULT`.
+Several eligible candidates, or several eligible services with no candidate, give `AMBIGUOUS_DEFAULT`.
+The classification family resolves its default the same way with `embabel.models.classification.default`.
+
+The TypeSafe auto-configuration contributes `DecisionServiceRegistry.DefaultCandidate("typeSafeDecisionService")`.
+When TypeSafe is configured and no explicit default is set, Jev is the default of both families.
+Prompted LLM services contribute no candidate.
+An application that has only prompted services and several of them sets the default explicitly.
+
+===== Startup snapshot
+
+A registry is an immutable snapshot taken when `build()` runs.
+In Spring that happens when the `decisionServiceRegistry` bean is created.
+The registry holds the `ClassificationService` beans defined by then: bean definitions, including those the prompted and TypeSafe configuration adds, and singletons registered before the registry bean is created.
+A service registered later is not visible, and `named` reports `UNKNOWN_NAME` for it.
+Pass a service built at run time, such as a per-user service, to `using(service)`.
+
+==== Configuration
+
+These properties configure services and selection together:
+
+|===
+|Property |Default |Purpose
+
+|`embabel.models.decision.default`
+|none
+|Registration name of the decision family default
+
+|`embabel.models.decision.roles.<role>`
+|none
+|Registration name bound to a decision role
+
+|`embabel.models.classification.default`
+|none
+|Registration name of the classification family default
+
+|`embabel.models.classification.roles.<role>`
+|none
+|Registration name bound to a classification role
+
+|`embabel.agent.platform.models.typesafe.services.<name>.model`
+|none
+|Registers a Jev decision service under `<name>` for the given TypeSafe model
+
+|`embabel.agent.platform.decisions.llm.services.<name>.llm`
+|none
+|Registers a prompted decision service under `<name>`, answered by the named LLM. See <<reference.llm-decisions.configuration>>.
+
+|`embabel.agent.platform.decisions.capture-content`
+|`false`
+|Turns on TRACE content capture. See <<reference.decision-execution.capture>>.
+|===
+
+The registration name of a Spring service is its bean name.
+The service's own `name` is its model name.
+Named Jev services share the credential, base URL and response limit set under `embabel.agent.platform.models.typesafe`.
+The default `typeSafeDecisionService` bean stays registered next to them.
+
+[source,yaml]
+----
+include::../../../../../../embabel-agent-starters/embabel-agent-starter-typesafe/src/test/resources/decision-services-example.yml[tag=yaml,indent=0]
+----
+
+Startup fails when a default or role names a missing service, or when a decision default or role names a classification-only service.
+The error names the property.
+Startup also fails when a Jev entry has a blank model or an unknown key, naming the property.
+A default that is missing or ambiguous fails at lookup, when `defaultService()` is called.
+
+An application bean replaces configuration in these cases:
+
+|===
+|Application bean |Effect
+
+|A `DecisionServiceRegistry` bean
+|Replaces the auto-configured registry
+
+|A bean named like a Jev or prompted entry
+|Replaces that entry only. One INFO line names the skipped entry.
+
+|A bean named `typeSafeDecisionService`
+|Replaces the default Jev service. The TypeSafe auto-configuration contributes no default candidate. Named Jev services still register, and they need the TypeSafe credential.
+|===
+
+==== Plain Java
+
+Plain Java builds Jev services with `TypeSafeModelFactory`, no-op and stub services with their constructors and builders, and the registry with `DecisionServiceRegistry.builder()`:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-starters/embabel-agent-starter-typesafe/src/test/java/com/embabel/agent/typesafe/example/DecisionServicesPlainJavaExampleTest.java[tag=plain-java,indent=0]
+----
+
+A prompted service needs the platform's LLM operations, an internal platform interface held by a Spring-built agent platform.
+Plain Java code cannot build one.
+An application with a Spring context can take services from the `LlmDecisionServiceFactory` bean and register them in a registry it builds.
+
 ==== Asking
 
 `DecisionService` has two `ask` overloads: `ask(input, spec)` and `ask(request)`.
@@ -32,6 +287,11 @@ Provider failures come back as typed failure outcomes.
 
 A service that implements `NativeQuestionSetExecution` answers the whole spec in one `askNative` call.
 Any other service answers each question in its own call, in spec order.
+
+[source,java]
+----
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/SupportTriageExampleTest.java[tag=routing,indent=0]
+----
 
 `ask`, `assess` and `classify` throw no checked exception.
 An interruption surfaces as an unchecked `java.util.concurrent.CancellationException` whose cause is the `InterruptedException`, and the thread's interrupt flag stays set.
@@ -118,9 +378,9 @@ The message names the service and the missing hook interface.
 
 ===== Decorators
 
-`ObservedDecisionService` forwards `capabilities()`, `classify` and every hook to their delegate.
+`ObservedDecisionService` and the operation binding forward `capabilities()`, `classify` and every hook to their delegate.
 A decorator adds no kind.
-It implements `DelegatingDecisionService`, so preflight inspects the hooks of the innermost service that does the work.
+Both implement `DelegatingDecisionService`, so preflight inspects the hooks of the innermost service that does the work.
 Routing follows the hooks of that innermost service, and execution calls those hooks on the decorator.
 A decorator that reports a hook source implements every hook interface the hook source implements.
 When a request is routed through a hook the decorator lacks, preflight throws `IllegalStateException` before any provider call.
@@ -270,11 +530,76 @@ Prompted outcomes carry no confidence, distribution or score.
 The service's retry settings apply to the model call.
 Parsing runs after the call returns, so a reply that cannot be read makes one call and returns `INVALID_RESPONSE`.
 
+==== Examples
+
+The support-triage example registers a stub under the name `triage-stub` and the role `support-triage`.
+The routing policy lives in the application.
+`Selected`, `NoMatch` and `Inconclusive` are model judgments that the application maps to business routes.
+`Failure` reports an operational or invalid-response problem. The converter throws an application exception carrying its reason.
+The application handles that exception separately and chooses whether to retry or send the ticket for review.
+Confidence is optional and does not select a route.
+
+[source,kotlin]
+----
+include::../../../../../../embabel-agent-api/src/test/kotlin/com/embabel/agent/api/decision/example/SupportTriageKotlinExampleTest.kt[tag=dsl,indent=0]
+----
+
+A Spring `Converter` maps a response to an application route:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/SupportTriageExampleTest.java[tag=converter,indent=0]
+----
+
+The retry policy handles operational failure outside the converter:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/SupportTriageExampleTest.java[tag=failure-policy,indent=0]
+----
+
+For an object containing only answered values, use `DecisionProjection.of(response, type)`.
+Projection retains the original response and refuses outcomes with no representable value, including `NoMatch`, `Inconclusive` and `Failure`.
+A rating with only a score or distribution also has no selected level to project.
+
+[source,java]
+----
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/SupportTriageExampleTest.java[tag=projection,indent=0]
+----
+
+The application stores the response JSON and each answer's provenance:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/SupportTriageExampleTest.java[tag=persist,indent=0]
+----
+
+The grounding example checks a claim against a source excerpt and records the evidence.
+The policy decides what to persist from the answer kind and its own rules.
+`Inconclusive` and `Failure` are recorded as such.
+
+[source,java]
+----
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/api/decision/example/DiceGroundingExampleTest.java[tag=grounding,indent=0]
+----
+
+The revision example classifies a new proposition against scoped candidates and rechecks candidate versions before it applies a proposal.
+A missing or inconclusive answer leaves the proposal unapplied.
+
+[source,kotlin]
+----
+include::../../../../../../embabel-agent-api/src/test/kotlin/com/embabel/agent/api/decision/example/DiceRevisionKotlinExampleTest.kt[tag=revision,indent=0]
+----
+
+In both examples the application authorizes every change.
+The framework returns evidence.
+
 ==== Observations
 
 `ObservedDecisionService` records one logical observation per ask and one observation per provider call.
 The TypeSafe and LLM factories return observed services.
-Wrap a service you build in `ObservedDecisionService(service, observationRegistry)` to observe it.
+Inside a workflow, `using(service)` wraps a service that is not already observed, so its asks are observed too.
+Outside a workflow, wrap a service you build in `ObservedDecisionService(service, observationRegistry)` to observe it.
 
 
 |===
@@ -297,6 +622,9 @@ Wrap a service you build in `ObservedDecisionService(service, observationRegistr
 |===
 
 Provider-call observations are children of the ask observation.
+When the Spring context has several `ObservationRegistry` beans, mark one `@Primary`.
+If none is primary, startup logs a WARN and decision observations use `ObservationRegistry.NOOP`.
+Inside a workflow the ask observation is a child of the action's observation.
 A native ask records one ask and one `ask_native` observation.
 A per-question ask of three questions records one ask and three provider observations.
 A choice question among them records `embabel.ai.classification` with `operation=classify`.
@@ -332,15 +660,41 @@ A meter handler counts it as `embabel.ai.ask.answer.<kind>.<outcome>` with the a
 A tracing handler records its contextual name, `<question name> <kind> <outcome>`, as a span event.
 
 `service` and `provider` come from configuration and code.
+The registry's INFO summary maps each registration name to its service name and provider.
 Name services from configuration only.
 A service name taken from request or user data makes the tag unbounded.
-Question names, input and model output never become tag values.
+Question names, roles, input and model output never become tag values.
 
 [[reference.decision-execution.diagnosing]]
 ==== Diagnosing problems
 
 |===
 |Symptom |Where to look |Likely cause |Fix
+
+|`ServiceSelectionException` with `UNKNOWN_NAME`
+|The exception message
+|No service of the family has that registration name
+|Use a name from the message, or register the service
+
+|`ServiceSelectionException` with `UNKNOWN_ROLE`
+|The exception message
+|The role is not bound in this family
+|Set `embabel.models.<family>.roles.<role>`, or call `decisionRole` or `classificationRole`
+
+|`ServiceSelectionException` with `WRONG_CAPABILITY`
+|The exception message
+|The decision family was asked for a classification-only service
+|Select it through `classifications()`, or register a decision service under that name
+
+|`ServiceSelectionException` with `NO_DEFAULT` or `AMBIGUOUS_DEFAULT`
+|The exception message and the INFO registry summary
+|No explicit default, and zero or several eligible candidates or services
+|Set `embabel.models.<family>.default`, or call `decisionDefault` or `classificationDefault`
+
+|`UNKNOWN_NAME` for a service the application created
+|The INFO registry summary
+|The service was registered after the registry bean was created
+|Pass the service to `using(service)`
 
 |`UnsupportedDecisionException`
 |The exception message and `outcome=unsupported` on `embabel.ai.ask`
@@ -374,8 +728,8 @@ Question names, input and model output never become tag values.
 
 |Every answer is `Failure(UNAVAILABLE)` with provider `none`
 |The INFO line at construction and the WARN line for a failed request with `provider=none`
-|The service is a `NoOpDecisionService`
-|Use a provider service
+|The selected service is a `NoOpDecisionService`
+|Configure a provider service and make it the default or bind the role to it
 |===
 
 ===== Loggers
@@ -385,6 +739,10 @@ Setting a package level reaches every class under it.
 
 |===
 |Logger |Level |Shows
+
+|`com.embabel.common.ai.model.DecisionServiceRegistry`
+|INFO
+|One summary per registry: registrations with service names, providers, types and capabilities, family defaults, role bindings and candidates
 
 |`com.embabel.common.ai.decision.spi.DecisionExecution`
 |WARN
@@ -397,6 +755,10 @@ Setting a package level reaches every class under it.
 |
 |TRACE
 |The request and response content, when content capture is on
+
+|`com.embabel.agent.autoconfigure.platform.DecisionServiceRegistryAutoConfiguration`
+|WARN
+|One line at startup when `embabel.agent.platform.decisions.capture-content` is true
 
 |`com.embabel.common.ai.decision.spi.DecisionResponseAssembler`
 |WARN
@@ -425,9 +787,16 @@ The Jev line starts with `TypeSafe <operation label> failed with reason <reason>
 The prompted line starts with `Decision call failed`, counts the attempts made by its retry settings, and ends with a remedy that names the retry property prefix.
 A one-question call logs its operation: `assess`, `classify` or `rate`.
 Lines up to DEBUG hold no input, instructions, option or level text, received category ids, credentials or provider text.
-Question names and service names appear in logs, exception messages and span events.
+Question names and registration names appear in logs, exception messages and span events.
 
 ===== Sample lines
+
+The registry summary at INFO:
+
+[source,text]
+----
+Decision service registry built with 3 services: [typeSafeDecisionService (name jev-1, provider TypeSafe, type DECISION, capabilities kinds [PROPOSITION, CHOICE, RATING]), gpt (name gpt-x, provider OpenAI, type DECISION, capabilities kinds [PROPOSITION, CHOICE]), clf (name clf-1, provider acme, type CLASSIFICATION)]; decision default: 'typeSafeDecisionService' (explicit); decision roles: {support-triage=gpt}; classification default: none set; candidates considered: []; classification roles: {}; default candidates: []
+----
 
 Routing and completion at DEBUG:
 
@@ -467,12 +836,13 @@ Decision answer anomaly: service=log-service, question='team', anomaly=OUT_OF_DO
 Content capture logs the request and response content at TRACE.
 It needs two settings together:
 
-* `DecisionContentCapture.enable()`
+* `embabel.agent.platform.decisions.capture-content: true`, or `DecisionContentCapture.enable()` in plain Java
 * TRACE on the logger concerned
 
 The switch alone logs nothing, and TRACE alone logs no content.
 With both, `DecisionExecution` logs the input, each question's instructions, options or levels, and each answer with its evidence.
 The Jev service logs the response it received, and the prompted service logs the raw model reply.
+Spring logs one WARN at startup when the property is on and turns the switch off when the context closes.
 
 WARNING: Captured lines hold the decision input and provider output, which can contain personal or confidential text.
 Turn content capture on only for local diagnosis.
@@ -485,9 +855,9 @@ Every type on this page carries `@ApiStatus.Experimental`.
 The owner is James Dunnam (GitHub `@jimador`).
 Promotion to stable needs all of these:
 
-* Use of `DecisionService.ask` by a consumer application
-* Interoperation of the Jev, prompted, no-op and stub families through `DecisionService`
-* A compatibility review of `DecisionService`
+* Service resolution by role, name, default and instance, used by a consumer application
+* Interoperation of the Jev, prompted, no-op and stub families through one registry
+* A compatibility review of `DecisionService`, `Ai` and `PlatformServices`
 * Privacy checks on logs, tags and exception messages
 * A runnable consumer proof
 * A recorded run against the hosted Jev service
