@@ -7,7 +7,7 @@ The types are in `embabel-agent-ai`, in the package `com.embabel.common.ai.decis
 They carry their own Jackson annotations.
 
 This page covers building, serializing and reading specs and responses.
-It does not cover running a spec against a decision service.
+<<reference.decision-execution>> covers running a spec on a decision service.
 
 Every decision type on this page carries `@ApiStatus.Experimental`.
 The types become stable once they have a named owner, a consumer application that uses them, and a compatibility assessment.
