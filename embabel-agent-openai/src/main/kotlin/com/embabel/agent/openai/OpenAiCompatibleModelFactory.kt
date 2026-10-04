@@ -16,6 +16,7 @@
 package com.embabel.agent.openai
 
 import com.embabel.agent.api.models.AtlasCloudModels
+import com.embabel.agent.api.models.CheaperInferenceModels
 import com.embabel.agent.api.models.DeepSeekModels
 import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.api.models.MistralAiModels
@@ -135,9 +136,11 @@ open class OpenAiCompatibleModelFactory(
             "https://generativelanguage.googleapis.com/v1beta/openai",
         )
         private val ATLAS_CLOUD = ProviderEndpoint(AtlasCloudModels.PROVIDER, "https://api.atlascloud.ai/v1")
+        private val CHEAPER_INFERENCE =
+            ProviderEndpoint(CheaperInferenceModels.PROVIDER, "https://api.cheaperinference.com/v1")
 
         private val ENDPOINTS_BY_PROVIDER: Map<String, ProviderEndpoint> =
-            listOf(OPEN_AI, DEEP_SEEK, MISTRAL, GEMINI, ATLAS_CLOUD)
+            listOf(OPEN_AI, DEEP_SEEK, MISTRAL, GEMINI, ATLAS_CLOUD, CHEAPER_INFERENCE)
                 .associateBy { it.provider.lowercase() }
 
         /**
@@ -192,6 +195,13 @@ open class OpenAiCompatibleModelFactory(
          */
         fun atlasCloud(apiKey: String): ByokSpec =
             ByokSpec(ATLAS_CLOUD.baseUrl, apiKey, AtlasCloudModels.QWEN3_5_FLASH, ATLAS_CLOUD.provider)
+
+        /**
+         * Returns a [ByokSpec] for Cheaper Inference (OpenAI-compatible endpoint).
+         * Validates against [CheaperInferenceModels.GPT_5_4_MINI] by default.
+         */
+        fun cheaperInference(apiKey: String): ByokSpec =
+            ByokSpec(CHEAPER_INFERENCE.baseUrl, apiKey, CheaperInferenceModels.GPT_5_4_MINI, CHEAPER_INFERENCE.provider)
 
         /**
          * Returns a [ByokSpec] for a custom OpenAI-compatible provider.
@@ -271,9 +281,9 @@ open class OpenAiCompatibleModelFactory(
      * so it can be passed directly to [com.embabel.common.byok.detectProvider].
      *
      * Obtained via the companion factory methods ([openAi], [deepSeek], [mistral], [gemini],
-     * [atlasCloud], or [byok] for custom providers). Use [validating] to override the default
-     * validation model and provider — for example if the key only grants access to a specific
-     * model tier.
+     * [atlasCloud], [cheaperInference], or [byok] for custom providers). Use [validating] to
+     * override the default validation model and provider — for example if the key only grants
+     * access to a specific model tier.
      */
     class ByokSpec internal constructor(
         private val baseUrl: String?,
