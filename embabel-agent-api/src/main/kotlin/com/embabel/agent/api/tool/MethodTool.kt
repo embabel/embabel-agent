@@ -216,7 +216,7 @@ internal class JavaMethodTool(
             val value = args[param.name]
             if (value != null) {
                 // Convert value to expected type if needed
-                val convertedValue = convertToExpectedType(value, param.type)
+                val convertedValue = convertToExpectedType(value, param.parameterizedType)
                 callArgs[index] = convertedValue
             }
         }
