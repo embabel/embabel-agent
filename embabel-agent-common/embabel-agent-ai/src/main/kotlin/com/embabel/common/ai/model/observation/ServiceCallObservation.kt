@@ -83,7 +83,9 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         } catch (failure: Throwable) {
             outcome = when (failure) {
                 is InterruptedException -> Outcome.INTERRUPTED
-                is CancellationException -> Outcome.CANCELLED
+                // Providers report an interruption as a cancellation caused by it.
+                is CancellationException ->
+                    if (failure.cause is InterruptedException) Outcome.INTERRUPTED else Outcome.CANCELLED
                 else -> Outcome.EXCEPTION
             }
             observation?.let {
