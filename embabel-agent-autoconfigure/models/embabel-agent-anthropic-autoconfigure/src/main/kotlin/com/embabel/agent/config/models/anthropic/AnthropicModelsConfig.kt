@@ -169,7 +169,8 @@ class AnthropicModelsConfig(
         val chatModel = AnthropicChatModel
             .builder()
             .options(createDefaultOptions(modelDef))
-            .anthropicClient(createAnthropicClient())
+            .anthropicClient(syncClient())
+            .anthropicClientAsync(asyncClient())
             .toolCallingManager(
                 ToolCallingManager.builder()
                     .observationRegistry(observationRegistry)

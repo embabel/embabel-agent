@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.anthropic
 
+import com.anthropic.client.AnthropicClient
+import com.anthropic.client.AnthropicClientAsync
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.PricingModel
@@ -27,14 +29,17 @@ import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.springframework.ai.anthropic.AnthropicChatModel
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.web.client.RestClient
 import java.net.InetSocketAddress
@@ -104,6 +109,58 @@ class AnthropicModelFactoryTest {
         )
         val service = factory.build(model = AnthropicModels.CLAUDE_HAIKU_4_5) as SpringAiLlmService
         assertTrue(service.name.isNotEmpty())
+    }
+}
+
+/**
+ * A context that builds Anthropic models must be able to let them go. Spring AI builds the async client
+ * itself when it is not given one, wiring in the context's observation registry, and the SDK closes that
+ * client only once it is phantom-reachable — which a client whose interceptors reach back into the
+ * context never becomes. So the factory builds both clients, from its own credentials, and closes them.
+ */
+class AnthropicModelFactoryClientLifecycleTest {
+
+    private class RecordingFactory : AnthropicModelFactory(apiKey = "test-key", baseUrl = "https://gateway.example.com") {
+        val sync = mockk<AnthropicClient>(relaxed = true)
+        val async = mockk<AnthropicClientAsync>(relaxed = true)
+        override fun createAnthropicClient(): AnthropicClient = sync
+        override fun createAnthropicClientAsync(): AnthropicClientAsync = async
+    }
+
+    @Test
+    fun `build hands Spring AI both clients, so it never builds one of its own`() {
+        val factory = RecordingFactory()
+
+        val service = factory.build(model = AnthropicModels.CLAUDE_HAIKU_4_5) as SpringAiLlmService
+        val chatModel = service.chatModel as AnthropicChatModel
+
+        assertSame(factory.sync, chatModel.anthropicClient)
+        assertSame(factory.async, chatModel.anthropicClientAsync)
+    }
+
+    @Test
+    fun `closing the factory closes every client it built`() {
+        val factory = RecordingFactory()
+        factory.build(model = AnthropicModels.CLAUDE_HAIKU_4_5)
+
+        factory.close()
+
+        verify(exactly = 1) { factory.sync.close() }
+        verify(exactly = 1) { factory.async.close() }
+    }
+
+    @Test
+    fun `the async client carries the factory's credentials and base URL`() {
+        val factory = object : AnthropicModelFactory(apiKey = "test-key", baseUrl = "https://gateway.example.com") {
+            fun async(): AnthropicClientAsync = createAnthropicClientAsync()
+        }
+
+        val client = factory.async()
+        try {
+            assertNotNull(client)
+        } finally {
+            client.close()
+        }
     }
 }
 
