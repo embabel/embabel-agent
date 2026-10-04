@@ -109,8 +109,8 @@ sealed interface ClassificationResult {
     /**
      * A canonical category ID with optional provider-reported confidence; no score is inferred.
      * Confidence is finite and in [0,1], without a calibration guarantee. Direct construction cannot
-     * check membership; providers should use [ClassificationRequest.selected], and consumers can
-     * validate against the request or use [CategoryMapping.map].
+     * check membership; providers should use [ClassificationSpec.selected], and consumers can
+     * validate against the spec or use [CategoryMapping.map].
      */
     @JsonPropertyOrder("categoryId", "confidence", "provenance")
     @JsonInclude(JsonInclude.Include.NON_NULL)

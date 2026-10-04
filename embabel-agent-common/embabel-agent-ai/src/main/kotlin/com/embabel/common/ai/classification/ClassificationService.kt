@@ -43,6 +43,16 @@ interface ClassificationService : ClassificationServiceMetadata, HasInfoString {
     fun classify(request: ClassificationRequest): ClassificationResult
 
     /**
+     * Classifies text with a spec. Same as calling [classify] with `ClassificationRequest.of(input, spec)`.
+     *
+     * @param input the text to classify, which may be empty
+     * @param spec the classification to make
+     * @return the result
+     */
+    fun classify(input: String, spec: ClassificationSpec): ClassificationResult =
+        classify(ClassificationRequest.of(input, spec))
+
+    /**
      * Copy public model identity into pure metadata before serialization. This snapshot contains no
      * live client, credentials, or implementation discriminator. Serializing the live service itself
      * is outside this contract; use this method even when the service is viewed as [ModelMetadata].

@@ -54,16 +54,14 @@ class ClassificationJavaTest {
 
     @Test
     void requestFromCategories() {
-        // tag::request[]
-        var request =
-                new ClassificationRequest(
-                        "A bunny is eating clover",
-                        "Which kind of animal is this?",
-                        List.of(
-                                new Category("dog", "A dog or canine"),
-                                new Category("cat", "A cat or feline"),
-                                new Category("rabbit", "A rabbit, including a bunny")));
-        // end::request[]
+        var spec =
+                ClassificationSpec.builder()
+                        .asking("Which kind of animal is this?")
+                        .category("dog", "A dog or canine")
+                        .category("cat", "A cat or feline")
+                        .category("rabbit", "A rabbit, including a bunny")
+                        .build();
+        var request = ClassificationRequest.of("A bunny is eating clover", spec);
         assertEquals("Which kind of animal is this?", request.getInstructions());
         assertEquals(
                 List.of("dog", "cat", "rabbit"),
@@ -84,7 +82,7 @@ class ClassificationJavaTest {
                                     case RABBIT -> "A rabbit or bunny";
                                 });
         var request = mapping.request("A canine is barking");
-        var result = request.selected("DOG", new ModelProvenance("model", "provider"));
+        var result = request.getSpec().selected("DOG", new ModelProvenance("model", "provider"));
         var mapped =
                 assertInstanceOf(MappedClassificationResult.Selected.class, mapping.map(result));
         assertEquals(AnimalKind.DOG, mapped.getValue());
@@ -106,10 +104,10 @@ class ClassificationJavaTest {
     void requestCarriesInstructionsAndRejectsBlankOnes() {
         var mapping = CategoryMapping.fromEnum(AnimalKind.class, "Which animal?", AnimalKind::name);
         assertEquals("Which animal?", mapping.request("A canine is barking").getInstructions());
-        var categories = mapping.getCategories();
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> new ClassificationRequest("A canine is barking", " ", categories));
+        var request = ClassificationRequest.of("A canine is barking", mapping.spec());
+        assertEquals("Which animal?", request.getInstructions());
+        var blank = ClassificationSpec.builder().asking(" ").category("DOG", "A dog");
+        assertThrows(IllegalArgumentException.class, blank::build);
     }
 
     // tag::class-mapping[]
@@ -121,7 +119,7 @@ class ClassificationJavaTest {
         values.put(new Category("rabbit", "A rabbit or bunny"), Rabbit.class);
         var mapping = new CategoryMapping<>("Which kind of animal is this?", values);
         var request = mapping.request("A canine is barking");
-        var result = request.selected("dog", new ModelProvenance("model", "provider"));
+        var result = request.getSpec().selected("dog", new ModelProvenance("model", "provider"));
         var mapped =
                 assertInstanceOf(MappedClassificationResult.Selected.class, mapping.map(result));
         assertSame(Dog.class, mapped.getValue());
@@ -143,7 +141,7 @@ class ClassificationJavaTest {
                     }
 
                     public ClassificationResult classify(ClassificationRequest request) {
-                        return request.selected(
+                        return request.getSpec().selected(
                                 request.getCategories().getFirst().getId(),
                                 new ModelProvenance(getName(), getProvider()));
                     }

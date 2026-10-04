@@ -56,7 +56,7 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
     private class SafeFailure(outcome: Outcome) : RuntimeException(outcome.tag, null, false, false)
 
     fun classify(request: ClassificationRequest, work: () -> ClassificationResult): ClassificationResult =
-        observe(Operation.CLASSIFY, ::classificationOutcome) { request.validate(work()) }
+        observe(Operation.CLASSIFY, ::classificationOutcome) { request.spec.validate(work()) }
 
     fun assess(work: () -> PropositionResult): PropositionResult = observe(Operation.ASSESS, ::propositionOutcome, work)
 

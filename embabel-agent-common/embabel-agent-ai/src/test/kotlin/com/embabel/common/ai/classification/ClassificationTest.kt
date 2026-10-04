@@ -22,6 +22,15 @@ import org.junit.jupiter.api.Test
 class ClassificationTest {
     private val provenance = ModelProvenance("model", "provider")
 
+    /**
+     * Builds a classification spec over the given categories.
+     *
+     * @param categories the categories to offer
+     * @return the spec
+     */
+    private fun spec(categories: List<Category>): ClassificationSpec =
+        ClassificationSpec.builder().asking(QUESTION).apply { categories.forEach { category(it.id, it.description) } }.build()
+
     private enum class Animal {
         DOG, CAT, RABBIT;
         override fun toString() = "not an ID"
@@ -33,7 +42,7 @@ class ClassificationTest {
         fun `request string excludes input and category descriptions`() {
             val input = "sensitive-input-sentinel"
             val description = "sensitive-category-description-sentinel"
-            val request = ClassificationRequest(input, QUESTION, listOf(Category("dog", description)))
+            val request = ClassificationRequest.of(input, spec(listOf(Category("dog", description))))
             assertFalse(request.toString().contains(input))
             assertFalse(request.toString().contains(description))
         }
@@ -41,9 +50,9 @@ class ClassificationTest {
         @Test
         fun `reject malformed category domains`() {
             assertThrows(IllegalArgumentException::class.java) { Category(" ", "description") }
-            assertThrows(IllegalArgumentException::class.java) { ClassificationRequest("input", QUESTION, emptyList()) }
+            assertThrows(IllegalArgumentException::class.java) { spec(emptyList()) }
             assertThrows(IllegalArgumentException::class.java) {
-                ClassificationRequest("input", QUESTION, listOf(Category("dog", "first"), Category("dog", "second")))
+                spec(listOf(Category("dog", "first"), Category("dog", "second")))
             }
             assertThrows(IllegalArgumentException::class.java) { CategoryMapping<Animal>(QUESTION, emptyMap()) }
             assertThrows(IllegalArgumentException::class.java) {
@@ -53,9 +62,10 @@ class ClassificationTest {
 
         @Test
         fun `blank instructions are rejected`() {
-            val categories = listOf(Category("dog", "Canine"))
             for (blank in listOf("", "   ")) {
-                assertThrows(IllegalArgumentException::class.java) { ClassificationRequest("input", blank, categories) }
+                assertThrows(IllegalArgumentException::class.java) {
+                    ClassificationSpec.builder().asking(blank).category("dog", "Canine").build()
+                }
                 assertThrows(IllegalArgumentException::class.java) {
                     CategoryMapping(blank, mapOf(Category("dog", "Canine") to Animal.DOG))
                 }
@@ -74,7 +84,7 @@ class ClassificationTest {
         @Test
         fun `collections are copied and cannot be mutated through exposed views`() {
             val categories = mutableListOf(Category("dog", "Canine"))
-            val request = ClassificationRequest("input", QUESTION, categories)
+            val request = ClassificationRequest.of("input", spec(categories))
             categories.clear()
             assertEquals(1, request.categories.size)
             assertThrows(UnsupportedOperationException::class.java) {
@@ -87,7 +97,7 @@ class ClassificationTest {
             assertThrows(UnsupportedOperationException::class.java) {
                 (mapping.categories as MutableList<Category>).clear()
             }
-            val selected = mapping.request("woof").selected("dog", provenance)
+            val selected = mapping.spec().selected("dog", provenance)
             assertEquals(Animal.DOG, (mapping.map(selected) as MappedClassificationResult.Selected).value)
         }
 
@@ -95,8 +105,10 @@ class ClassificationTest {
         fun `enum mapping uses names and shares category definitions with requests`() {
             val mapping = CategoryMapping.fromEnum(Animal::class.java, QUESTION) { "Description of ${it.name}" }
             assertEquals(listOf("DOG", "CAT", "RABBIT"), mapping.categories.map { it.id })
-            assertEquals(mapping.categories, mapping.request("woof").categories)
-            val selected = mapping.request("woof").selected("DOG", provenance, 0.8)
+            assertEquals(QUESTION, mapping.spec().instructions)
+            assertEquals(mapping.categories, mapping.spec().categories)
+            assertEquals(ClassificationRequest.of("woof", mapping.spec()), mapping.request("woof"))
+            val selected = mapping.spec().selected("DOG", provenance, 0.8)
             val mapped = mapping.map(selected) as MappedClassificationResult.Selected
             assertEquals(Animal.DOG, mapped.value)
             assertSame(selected, mapped.selection)
@@ -108,10 +120,10 @@ class ClassificationTest {
         @Test
         fun `unknown provider id fails at request and mapping boundaries`() {
             val mapping = CategoryMapping(QUESTION, mapOf(Category("dog", "Canine") to Animal.DOG))
-            val request = mapping.request("woof")
+            val spec = mapping.spec()
             val invalid = ClassificationResult.Selected("cat", provenance)
-            assertThrows(IllegalArgumentException::class.java) { request.selected("cat", provenance) }
-            assertThrows(IllegalArgumentException::class.java) { request.validate(invalid) }
+            assertThrows(IllegalArgumentException::class.java) { spec.selected("cat", provenance) }
+            assertThrows(IllegalArgumentException::class.java) { spec.validate(invalid) }
             assertThrows(IllegalArgumentException::class.java) { mapping.map(invalid) }
         }
 
@@ -139,7 +151,7 @@ class ClassificationTest {
             )
             outcomes.forEach {
                 assertSame(it, mapping.map(it))
-                assertSame(it, mapping.request("input").validate(it))
+                assertSame(it, mapping.spec().validate(it))
             }
         }
     }
