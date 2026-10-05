@@ -702,6 +702,13 @@ open class OpenAiCompatibleModelFactory(
         )
     }
 
+    /** The Responses API counterpart of [chatModelOf], sharing this factory's client. */
+    protected fun responsesChatModelOf(model: String): ChatModel = OpenAiResponsesChatModel(
+        client = openAiClient,
+        defaultOptions = OpenAiChatOptions.builder().model(model).build(),
+        observationRegistry = observationRegistry,
+    )
+
     /**
      * Build the underlying [ChatModel] for [model].
      *
@@ -710,13 +717,6 @@ open class OpenAiCompatibleModelFactory(
      * compatibility with downstream subclasses (the previous Spring AI 1.x signature) but is
      * ignored.
      */
-    /** The Responses API counterpart of [chatModelOf], sharing this factory's client. */
-    protected fun responsesChatModelOf(model: String): ChatModel = OpenAiResponsesChatModel(
-        client = openAiClient,
-        defaultOptions = OpenAiChatOptions.builder().model(model).build(),
-        observationRegistry = observationRegistry,
-    )
-
     @JvmOverloads
     protected fun chatModelOf(
         model: String,
