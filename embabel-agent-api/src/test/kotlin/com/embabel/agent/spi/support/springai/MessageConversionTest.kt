@@ -33,6 +33,8 @@ import org.springframework.ai.chat.messages.AssistantMessage as SpringAiAssistan
 import org.springframework.ai.chat.messages.SystemMessage as SpringAiSystemMessage
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage as SpringAiUserMessage
+import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
 
 /**
  * Tests for converting Embabel messages to Spring AI messages, including multimodal content
@@ -297,6 +299,33 @@ class MessageConversionTest {
             assertThat(response.id()).isEqualTo("call-1")
             assertThat(response.name()).isEqualTo("get_weather")
             assertThat(response.responseData()).isEqualTo("""{"temperature": 72}""")
+        }
+    }
+
+    @Nested
+    inner class AnswerGenerationTests {
+
+        private fun thinking(text: String) =
+            Generation(SpringAiAssistantMessage.builder().content(text).properties(mapOf("signature" to "sig")).build())
+
+        @Test
+        fun `the answer is the first generation that is not thinking`() {
+            val response = ChatResponse(listOf(thinking("Let me think."), Generation(SpringAiAssistantMessage("READY"))))
+
+            assertThat(response.answerGeneration()!!.output.text).isEqualTo("READY")
+        }
+
+        /** Reasoning can use up the output limit before any answer; it must not become the answer. */
+        @Test
+        fun `a response of thinking alone has an empty answer, not the thinking`() {
+            val response = ChatResponse(listOf(thinking("secret reasoning")))
+
+            assertThat(response.answerGeneration()!!.output.text).isEmpty()
+        }
+
+        @Test
+        fun `a response without generations has no answer`() {
+            assertThat(ChatResponse(emptyList()).answerGeneration()).isNull()
         }
     }
 

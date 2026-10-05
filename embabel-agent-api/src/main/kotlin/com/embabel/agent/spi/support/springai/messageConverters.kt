@@ -16,6 +16,8 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.chat.*
+import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
 import org.springframework.ai.content.Media
 import org.springframework.core.io.ByteArrayResource
 import org.springframework.util.MimeTypeUtils
@@ -134,6 +136,26 @@ internal fun List<SpringAiMessage>.mergeConsecutiveToolResponses(): List<SpringA
     }
     return result
 }
+
+/**
+ * The generation that carries the model's answer.
+ *
+ * Spring AI's Anthropic model returns each thinking block as its own generation ahead of the
+ * answer, so the first generation is not necessarily the answer. A response of thinking alone,
+ * as when reasoning used up the output limit, has an empty answer rather than its reasoning.
+ * Null only when there are no generations at all.
+ */
+internal fun ChatResponse.answerGeneration(): Generation? =
+    results.firstOrNull { !it.output.isThinkingBlock() }
+        ?: result?.let { Generation(SpringAiAssistantMessage(""), it.metadata) }
+
+/**
+ * A thinking block Spring AI's Anthropic model returned as a generation of its own:
+ * `signature` marks a thinking block, `data` with no text a redacted one.
+ */
+internal fun SpringAiAssistantMessage.isThinkingBlock(): Boolean =
+    toolCalls.isEmpty() &&
+        (metadata.containsKey("signature") || (metadata.containsKey("data") && text.isNullOrEmpty()))
 
 /**
  * Convert a Spring AI AssistantMessage to an Embabel message.

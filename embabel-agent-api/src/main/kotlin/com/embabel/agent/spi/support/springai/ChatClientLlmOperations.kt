@@ -401,7 +401,7 @@ internal class ChatClientLlmOperations(
                 if (outputClass == String::class.java) {
                     val chatResponse = requireChatResponse(callResponse, interaction)
                     recordUsage(llm, chatResponse, llmRequestEvent)
-                    val rawText = chatResponse.result!!.output.text as String
+                    val rawText = chatResponse.answerGeneration()!!.output.text as String
 
                     val thinkingBlocks = extractAllThinkingBlocks(
                         rawText,
@@ -423,7 +423,7 @@ internal class ChatClientLlmOperations(
                     // Extract thinking blocks from raw response text FIRST
                     val chatResponse = requireChatResponse(callResponse, interaction)
                     recordUsage(llm, chatResponse, llmRequestEvent)
-                    val rawText = chatResponse.result!!.output.text ?: ""
+                    val rawText = chatResponse.answerGeneration()!!.output.text ?: ""
 
                     val thinkingBlocks = extractAllThinkingBlocks(
                         rawText,
@@ -565,7 +565,7 @@ internal class ChatClientLlmOperations(
                     // Extract thinking blocks from raw text FIRST
                     val chatResponse = requireChatResponse(callResponse, interaction)
                     recordUsage(llm, chatResponse, llmRequestEvent)
-                    val rawText = chatResponse.result!!.output.text ?: ""
+                    val rawText = chatResponse.answerGeneration()!!.output.text ?: ""
                     val thinkingBlocks = extractAllThinkingBlocks(
                         rawText,
                         includedTags = interaction.llm.thinking?.includedTags,
