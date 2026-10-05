@@ -242,19 +242,22 @@ class SupportTriageExampleTest {
         assertEquals(
             new SupportRoute("human-review", true, null),
             converter.convert(respond(new PropositionResult.Inconclusive(MODEL), new ClassificationResult.Inconclusive(MODEL))));
-        assertThrows(DecisionUnavailableException.class,
-            () -> converter.convert(DecisionResponse.failed(TRIAGE, FailureReason.UNAVAILABLE)));
-        assertThrows(DecisionUnavailableException.class,
-            () -> converter.convert(respond(URGENT_ANSWER, new ClassificationResult.Failure(FailureReason.INVALID_RESPONSE))));
-        assertThrows(DecisionUnavailableException.class,
-            () -> converter.convert(respond(new PropositionResult.Failure(FailureReason.UNAVAILABLE), BILLING)));
+        DecisionResponse failedRequest = DecisionResponse.failed(TRIAGE, FailureReason.UNAVAILABLE);
+        DecisionResponse failedClassification =
+            respond(URGENT_ANSWER, new ClassificationResult.Failure(FailureReason.INVALID_RESPONSE));
+        DecisionResponse failedProposition =
+            respond(new PropositionResult.Failure(FailureReason.UNAVAILABLE), BILLING);
+        assertThrows(DecisionUnavailableException.class, () -> converter.convert(failedRequest));
+        assertThrows(DecisionUnavailableException.class, () -> converter.convert(failedClassification));
+        assertThrows(DecisionUnavailableException.class, () -> converter.convert(failedProposition));
     }
 
     @Test
     void applicationHandlesOperationalFailureSeparately() {
         var failed = DecisionResponse.failed(TRIAGE, FailureReason.UNAVAILABLE);
+        var converter = new SupportRouteConverter();
         var error = assertThrows(DecisionUnavailableException.class,
-            () -> new SupportRouteConverter().convert(failed));
+            () -> converter.convert(failed));
         assertEquals(FailureReason.UNAVAILABLE, error.reason());
         assertEquals(new SupportRoute("retry-later", true, null), routeOrRetry(failed));
         assertEquals(new SupportRoute("billing", true, null), routeOrRetry(respond(URGENT_ANSWER, BILLING)));
