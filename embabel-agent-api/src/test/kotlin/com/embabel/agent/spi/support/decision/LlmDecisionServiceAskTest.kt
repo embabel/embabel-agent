@@ -56,6 +56,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.ai.retry.TransientAiException
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
+import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.HttpServerErrorException
 import java.net.SocketTimeoutException
 import java.util.concurrent.CancellationException
@@ -330,6 +331,32 @@ class LlmDecisionServiceAskTest {
             assertTrue(warning.contains("cause=http_5xx"), warning)
             assertTrue(warning.contains("httpStatus=5xx"), warning)
             assertTrue(warning.contains("attempts=${interactions.size}"), warning)
+        }
+
+        @Test
+        fun `adapter diagnostics cover invalid replies rate limits and unknown wrapped failures`() {
+            val cases = listOf(
+                InvalidDecisionAnswerException("private provider text") to "invalid_response",
+                TransientAiException("rate_limit_error private provider text") to "rate_limited",
+                HttpClientErrorException.create(HttpStatus.BAD_REQUEST, "private", HttpHeaders.EMPTY, ByteArray(0), null) to "http_4xx",
+                IllegalStateException("private provider text") to "other",
+            )
+            for ((failure, category) in cases) {
+                for (exception in listOf(failure, RuntimeException("wrapper", failure))) {
+                    modelReplies() throws exception
+                    val events = capturing(Level.DEBUG) { service.askQuestionSet(request) }
+                    val warning = serviceWarnings(events).single()
+                    assertTrue(warning.contains("cause=$category"), warning)
+                    assertFalse(warning.contains("private"), warning)
+                }
+            }
+        }
+
+        @Test
+        fun `JVM errors propagate instead of becoming unavailable results`() {
+            val failure = AssertionError("provider failed")
+            modelReplies() throws failure
+            assertSame(failure, assertThrows<AssertionError> { service.askQuestionSet(request) })
         }
 
         @Test

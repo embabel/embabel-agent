@@ -38,13 +38,6 @@ import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 
-// Fails on a repeated member anywhere in the text, because a tree keeps only the last value of a
-// repeated member and the model's answers could then be matched to the wrong questions.
-private val strictMapper: JsonMapper = JsonMapper.builder()
-    .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
-    .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
-    .build()
-
 /**
  * Builds the prompt that asks a chat model every question of a spec in one call, and turns the
  * model's JSON answer into a decision response.
@@ -55,6 +48,13 @@ private val strictMapper: JsonMapper = JsonMapper.builder()
  * exception or log line, because a model can be steered into copying the input there.
  */
 internal object PromptedQuestionSet {
+
+    // Fails on a repeated member anywhere in the text, because a tree keeps only the last value of a
+    // repeated member and the model's answers could then be matched to the wrong questions.
+    private val strictMapper: JsonMapper = JsonMapper.builder()
+        .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
+        .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+        .build()
 
     private const val PROPOSITION_TRUE = "TRUE"
     private const val PROPOSITION_FALSE = "FALSE"
@@ -114,6 +114,8 @@ internal object PromptedQuestionSet {
         if (elements == null) {
             return assembler.unsafe().build()
         }
+        // Reverse the prompt aliases q1..qN to caller-owned questions, keeping caller names out
+        // of the model prompt and matching answers independently of their returned order.
         val byKey = spec.questions.withIndex().associate { (index, question) -> key(index) to question }
         val unknownKeys = HashSet<String>()
         for ((key, element) in elements) {
@@ -144,14 +146,15 @@ internal object PromptedQuestionSet {
         if (root == null || !root.isObject) return null
         val answers = root.get("answers")
         if (answers == null || !answers.isArray) return null
-        val elements = ArrayList<Pair<String, JsonNode>>(answers.size())
-        for (element in answers) {
-            if (!element.isObject) return null
-            val question = element.get("question")
-            if (question == null || !question.isString) return null
-            elements += question.stringValue() to element
+        return buildList(answers.size()) {
+            for (element in answers) {
+                // An unmatchable element makes the whole envelope unsafe; never filter it out.
+                if (!element.isObject) return null
+                val question = element.get("question")
+                if (question == null || !question.isString) return null
+                add(question.stringValue() to element)
+            }
         }
-        return elements
     }
 
     /**
@@ -219,6 +222,9 @@ internal object PromptedQuestionSet {
                 },
             )
             is ChoiceQuestionSpec -> {
+                // null is a wrong JSON type; empty means no selected id; nonempty is a candidate.
+                // SELECTED requires a candidate, while NO_MATCH and INCONCLUSIVE require absence.
+                // The assembler checks that a candidate belongs to this question's options.
                 val id = id(element, "categoryId")
                 when {
                     id == null -> assembler.unreadable(name)
@@ -230,6 +236,8 @@ internal object PromptedQuestionSet {
                 }
             }
             is RatingQuestionSpec -> {
+                // RATED requires a level id; INCONCLUSIVE requires absence. Wrong JSON types
+                // are unreadable, and the assembler checks membership in the question's scale.
                 val id = id(element, "levelId")
                 when {
                     id == null -> assembler.unreadable(name)

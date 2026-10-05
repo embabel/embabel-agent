@@ -77,8 +77,13 @@ internal object DecisionExecution {
     }
 
     /**
-     * Checks a request against a service before any provider call, and reports whether the service
-     * answers it in one question-set call.
+     * Preflight for one decision request. [QuestionSetExecution] receives all questions in one
+     * provider operation; other services answer each question in spec order. This method validates
+     * the route before execution and returns true for the question-set route.
+     *
+     * Proposition questions are evidence requests: per-question execution uses [PropositionAssessment]
+     * when present and otherwise the service's `assess` method. This preflight does not manage a
+     * proposition store or build the agent's GOAP plan.
      *
      * The checks run in this order: every question kind is in the capabilities, every question has
      * a backing, then [service] implements every hook
@@ -111,6 +116,8 @@ internal object DecisionExecution {
         val rejection = Rejection(serviceName, capabilities)
         checkKinds(questions, capabilities, hookSource, rejection)
         if (hookSource is QuestionSetExecution) {
+            // The hook source selects whole-request execution. The actual service may be a
+            // decorator, so verify it forwards that hook before execution casts and invokes it.
             checkForwarded(serviceName, service, hookSource, listOf(QuestionSetExecution::class.java))
             return true
         }

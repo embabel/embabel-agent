@@ -29,6 +29,7 @@ import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.ClassificationService
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
+import com.embabel.common.ai.converters.JsonResponseText
 import com.embabel.common.ai.decision.DecisionCapabilities
 import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionResponse
@@ -44,17 +45,10 @@ import com.embabel.common.ai.decision.spi.QuestionSetExecution
 import com.embabel.common.ai.decision.spi.PropositionAssessment
 import com.embabel.common.ai.decision.spi.RatingAssessment
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.TransportFailureDiagnostics
 import org.slf4j.LoggerFactory
-import org.springframework.web.client.RestClientResponseException
-import java.net.ConnectException
-import java.net.NoRouteToHostException
-import java.net.SocketTimeoutException
-import java.net.UnknownHostException
-import java.net.http.HttpConnectTimeoutException
-import java.net.http.HttpTimeoutException
 import java.util.EnumSet
 import java.util.concurrent.CancellationException
-import java.util.concurrent.TimeoutException
 
 /**
  * Answers decision questions by asking a chat model, retrying failed calls.
@@ -105,7 +99,11 @@ internal class LlmDecisionService(
 
     override val provider: String get() = llm.provider
 
-    /** Returns every question kind. */
+    /**
+     * Reports the kinds implemented by this adapter. [DecisionCapabilities] is a public,
+     * JSON-serializable contract; this prompted adapter supports every kind and does not expose
+     * a configuration override for the set. Advertising a kind also requires an execution hook.
+     */
     override fun capabilities(): DecisionCapabilities = CAPABILITIES
 
     override fun classify(request: ClassificationRequest): ClassificationResult =
@@ -132,7 +130,11 @@ internal class LlmDecisionService(
     override fun assess(input: String, question: PropositionQuestionSpec): PropositionResult =
         assess(PropositionRequest(input, question.instructions))
 
-    /** Rates the input against one rating question through the question set prompt, in its own model call. */
+    /**
+     * Rates one input against the question's ordered scale in its own model call. The prompted
+     * answer supplies a selected level or an inconclusive outcome, without numeric evidence.
+     * Ranking instead scores multiple candidates to order them, as [com.embabel.agent.api.common.ranking.Ranker] does.
+     */
     override fun rate(input: String, question: RatingQuestionSpec): RatingResult =
         askQuestionSet(RATE, DecisionRequest.of(input, question)).answer(question)
 
@@ -150,7 +152,7 @@ internal class LlmDecisionService(
             if (DecisionContentCapture.isEnabled() && logger.isTraceEnabled) {
                 logger.trace("Decision {} with model {} received model text: {}", operation, name, raw)
             }
-            PromptedQuestionSet.response(spec, withoutCodeFence(raw), provenance, name)
+            PromptedQuestionSet.response(spec, JsonResponseText.withoutCodeFence(raw), provenance, name)
         }
     }
 
@@ -210,6 +212,7 @@ internal class LlmDecisionService(
         val result = try {
             work(attempts)
         } catch (e: DecisionInterrupted) {
+            // guarded() raises this inside the retry callback; NonRetryable stops another attempt.
             logger.debug("Decision {} with model {} was interrupted", operation, name)
             throw cancelled(e.interrupted)
         } catch (e: Exception) {
@@ -223,11 +226,11 @@ internal class LlmDecisionService(
                 is InvalidLlmReturnFormatException, is InvalidDecisionAnswerException -> FailureReason.INVALID_RESPONSE
                 else -> FailureReason.UNAVAILABLE
             }
-            val status = httpStatus(e)
+            val status = TransportFailureDiagnostics.httpStatus(e)
             logger.warn(
                 "Decision call failed: service={}, provider={}, operation={}, reason={}, cause={}, " +
                     "httpStatus={}, attempts={}, elapsedMs={}, exception={}. {}",
-                name, provider, operation, reason, causeCategory(e, status),
+                name, provider, operation, reason, causeCategory(e),
                 status?.let { "${it / 100}xx" } ?: "none", attempts.count, (System.nanoTime() - started) / 1_000_000,
                 e.javaClass.simpleName, remedy(reason),
             )
@@ -251,34 +254,20 @@ internal class LlmDecisionService(
         }
 
     /**
-     * Names the kind of failure from its cause chain. The category never holds provider text.
+     * Adds decision-specific invalid-response recognition to the common transport diagnostics.
+     * Every caught exception has a category, with `other` for unknown types. This only enriches
+     * logging; [decide] chooses the result, and the retry template chooses whether to retry.
      *
      * @param e the failure to categorize
-     * @param status the HTTP status code found in its cause chain, if any
-     * @return a short category name for the log line
+     * @return a fixed category name without provider text
      */
-    private fun causeCategory(e: Exception, status: Int?): String {
-        val chain = generateSequence<Throwable>(e) { it.cause }.toList()
-        return when {
-            chain.any { it is InvalidLlmReturnFormatException || it is InvalidDecisionAnswerException } -> "invalid_response"
-            status == TOO_MANY_REQUESTS || chain.any { LlmRetryDecision.isRateLimit(it) } -> "rate_limited"
-            status != null && status in 400..499 -> "http_4xx"
-            status != null && status in 500..599 -> "http_5xx"
-            chain.any { it is HttpConnectTimeoutException } -> "connection"
-            chain.any { it is SocketTimeoutException || it is HttpTimeoutException || it is TimeoutException } -> "timeout"
-            chain.any { it is ConnectException || it is UnknownHostException || it is NoRouteToHostException } -> "connection"
-            else -> "other"
+    private fun causeCategory(e: Exception): String {
+        val chain = TransportFailureDiagnostics.causes(e)
+        if (chain.any { it is InvalidLlmReturnFormatException || it is InvalidDecisionAnswerException }) {
+            return "invalid_response"
         }
+        return TransportFailureDiagnostics.category(e, rateLimited = chain.any { LlmRetryDecision.isRateLimit(it) })
     }
-
-    /**
-     * Finds the HTTP status code carried by a REST client failure in the cause chain, if there is one.
-     *
-     * @param e the failure to search
-     * @return the HTTP status code, or null when none is found
-     */
-    private fun httpStatus(e: Throwable): Int? =
-        generateSequence(e) { it.cause }.filterIsInstance<RestClientResponseException>().firstOrNull()?.statusCode?.value()
 
     /**
      * Stops the retry template from retrying an interrupted call. The template would otherwise
@@ -315,7 +304,7 @@ internal class LlmDecisionService(
      * @return the interruption, or null when the chain has none
      */
     private fun interruptionIn(e: Throwable): InterruptedException? =
-        generateSequence(e) { it.cause }.filterIsInstance<InterruptedException>().firstOrNull()
+        TransportFailureDiagnostics.causes(e).filterIsInstance<InterruptedException>().firstOrNull()
             ?.also { Thread.currentThread().interrupt() }
 
     /**
@@ -327,7 +316,11 @@ internal class LlmDecisionService(
     private fun cancelled(interrupted: InterruptedException): CancellationException =
         CancellationException("Decision interrupted").apply { initCause(interrupted) }
 
-    /** Carries an interrupted call out of the retry template, which never retries it. */
+    /**
+     * Raised by [guarded] around a failed model call carrying an interruption or an interrupt flag.
+     * [NonRetryable] makes it escape the retry callback; [decide] exposes it as cancellation.
+     * An interrupted retry backoff takes the separate cause-chain path in [decide].
+     */
     private class DecisionInterrupted(val interrupted: InterruptedException) :
         RuntimeException(interrupted), NonRetryable
 
@@ -342,23 +335,7 @@ internal class LlmDecisionService(
         const val ASK = "ask"
         const val RATE = "rate"
 
-        const val TOO_MANY_REQUESTS = 429
-
         val CAPABILITIES: DecisionCapabilities = DecisionCapabilities.of(EnumSet.allOf(QuestionKind::class.java))
-
-        // One fenced block and nothing else around it: an opening fence with an optional json tag,
-        // a line break, the content, and a closing fence. Content holding another fence is left
-        // alone, so two fenced blocks stay an unreadable reply.
-        val CODE_FENCE = Regex("""\A\s*```(?:json)?[ \t]*\r?\n(.*?)\r?\n?```\s*\z""", RegexOption.DOT_MATCHES_ALL)
-
-        /**
-         * Returns the content of one Markdown code fence that wraps the whole reply, or the reply
-         * unchanged. Models often fence JSON even when told not to.
-         */
-        fun withoutCodeFence(raw: String): String {
-            val content = CODE_FENCE.matchEntire(raw)?.groupValues?.get(1) ?: return raw
-            return if (content.contains("```")) raw else content
-        }
     }
 }
 

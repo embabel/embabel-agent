@@ -42,6 +42,10 @@ Catch `CancellationException` where the caller needs to stop cleanly.
 ===== Capabilities and hooks
 
 `DecisionService.capabilities()` returns the `DecisionCapabilities` the service reports.
+`DecisionCapabilities` is a public, JSON-serializable description of the question kinds a service accepts.
+The prompted adapter reports all three kinds; its configuration does not override that set.
+A capability declaration must be backed by the service's execution hooks.
+
 The default derives from the hook interfaces the service implements:
 
 |===
@@ -75,6 +79,10 @@ The provider sees the question's own instructions and categories.
 A `ClassificationRequest` is also a `DecisionRequest`, so `ask(request)` accepts one and `response.answer(spec.getQuestion())` returns the classification result.
 
 ===== Routing
+
+Execution planning here validates the route for a decision request before any provider call.
+It does not maintain a proposition store or construct the agent's GOAP plan.
+
 
 A service that implements `QuestionSetExecution` answers the whole spec in one `askQuestionSet` call.
 Any other service answers each question in spec order:
@@ -134,6 +142,13 @@ A service customizes execution through `capabilities()` and the hook interfaces.
 Provider implementations put their execution logic in `askQuestionSet`, `assess`, `classify` or `rate`.
 Overriding `ask` does not customize execution through the observation wrapper.
 
+===== Rating and ranking
+
+`RatingResult` records evidence for one input against a caller-defined ordered scale, such as low, medium and high severity.
+It can carry a selected level, a distribution over levels, or a score with a named statistic, as well as inconclusive and failure outcomes.
+The prompted adapter supplies a selected level or an inconclusive outcome without inventing numeric evidence.
+The existing `Ranking<T>` scores candidates so `Rankings<T>` can order them, as `Ranker` does when choosing among agents.
+
 ==== Answer rules
 
 A question-set provider must return a response for the request's spec.
@@ -183,6 +198,11 @@ Both providers send questions under the keys `q1` to `qN` in spec order.
 Question names stay with the caller, so no name character can break a provider's format.
 
 ==== Service families
+
+TypeSafe is a separate provider integration module, `embabel-agent-typesafe`, with its public factory and package-private adapter in `com.embabel.agent.typesafe`.
+This follows the provider-module layout used by `com.embabel.agent.openai` and `com.embabel.agent.anthropic`.
+The shared contracts live in `com.embabel.common.ai.decision`; Spring configuration is under `com.embabel.agent.config.models.typesafe`.
+
 
 `DecisionService` has four implementations:
 
@@ -272,6 +292,16 @@ Prompted outcomes carry no confidence, distribution or score.
 The service's retry settings apply to the model call.
 Parsing runs after the call returns, so a reply that cannot be read makes one call and returns `INVALID_RESPONSE`.
 
+==== Prompted response parsing
+
+The prompt uses `q1..qN` aliases and maps returned keys back to caller-owned questions, regardless of answer order.
+One malformed array element that cannot be matched safely rejects the whole envelope; it is never silently dropped.
+For choice and rating answers, an absent, null or blank id means no selection, while a non-string id is unreadable.
+`SELECTED` and `RATED` require an id from the question's options or scale; `NO_MATCH` and `INCONCLUSIVE` require no id.
+
+`JsonResponseText` in the common AI module unwraps one Markdown fence covering the complete reply, optionally tagged `json`.
+It leaves surrounding prose, other language tags and multiple or nested fences unchanged for the strict parser to reject.
+
 ==== Observations
 
 `ObservedDecisionService` records one logical observation per ask and one observation per provider call.
@@ -339,7 +369,14 @@ A service name taken from request or user data makes the tag unbounded.
 Question names, input and model output never become tag values.
 
 [[reference.decision-execution.diagnosing]]
-==== Diagnosing problems
+==== Diagnosing
+
+`TransportFailureDiagnostics` in the common AI module categorizes HTTP failures, rate limits, connection failures and timeouts for logs.
+It traverses wrapped causes once and uses `other` for unknown exceptions.
+The decision adapter adds invalid-answer recognition; result mapping and retry policy remain separate from these diagnostic labels.
+A failed model call with interruption evidence escapes the retry callback as `DecisionInterrupted`, then becomes a `CancellationException`.
+An interrupted retry wait reaches the separate cause-chain check; both paths preserve the interrupt flag.
+ problems
 
 |===
 |Symptom |Where to look |Likely cause |Fix
