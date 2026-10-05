@@ -134,7 +134,7 @@ class AnthropicWireTest {
         }
 
         @ParameterizedTest
-        @ValueSource(strings = ["claude-sonnet-4-5", "claude-haiku-4-5", "claude-opus-4-6", "claude-sonnet-4-6"])
+        @ValueSource(strings = ["claude-sonnet-4-5", "claude-haiku-4-5", "claude-opus-4-6", "claude-sonnet-4-6", "claude-mythos-preview"])
         fun `a budget is sent as is to models that accept budgets`(model: String) {
             send(model, LlmOptions().withThinking(Thinking.withTokenBudget(2000)))
 
@@ -151,7 +151,7 @@ class AnthropicWireTest {
         }
 
         @ParameterizedTest
-        @ValueSource(strings = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1"])
+        @ValueSource(strings = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1", "claude-mythos-preview"])
         fun `withoutThinking leaves thinking unset on models that reject disabled`(model: String) {
             send(model, LlmOptions().withoutThinking())
 
@@ -180,7 +180,7 @@ class AnthropicWireTest {
         private val sampling = LlmOptions().withTemperature(0.3).withTopP(0.9).withTopK(40)
 
         @ParameterizedTest
-        @ValueSource(strings = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1", "claude-opus-4-8"])
+        @ValueSource(strings = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1", "claude-opus-4-8", "claude-mythos-preview"])
         fun `sampling parameters are dropped on models that reject them`(model: String) {
             send(model, sampling)
 

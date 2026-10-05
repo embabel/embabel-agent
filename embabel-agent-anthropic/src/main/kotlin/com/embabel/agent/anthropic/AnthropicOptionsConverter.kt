@@ -159,6 +159,7 @@ object AnthropicOptionsConverter : OptionsConverter {
  *
  * @property acceptsThinkingBudget `thinking: {type: "enabled", budget_tokens}` works; Claude Opus 4.7
  * and later, the Claude 5 generation, Fable and Mythos reject it and take adaptive thinking instead.
+ * Claude Mythos Preview is the exception: it takes a budget.
  * @property acceptsThinkingDisabled `thinking: {type: "disabled"}` works; Claude Opus 5.5, Sonnet 5.5,
  * Fable and Mythos reject it. Opus 5 and Sonnet 5 accept it.
  * @property acceptsSampling non-default `temperature`, `top_p` and `top_k` work; Claude Opus 4.7 and
@@ -172,7 +173,16 @@ internal data class ClaudeCapabilities(
     companion object {
         private val ID = Regex("""^claude-(opus|sonnet|haiku|fable|mythos)(?:-(\d+)(?:-(\d)(?!\d))?)?""")
 
+        private val MYTHOS_PREVIEW = ClaudeCapabilities(
+            acceptsThinkingBudget = true,
+            acceptsThinkingDisabled = false,
+            acceptsSampling = false,
+        )
+
         fun of(model: String): ClaudeCapabilities {
+            if (model.startsWith("claude-mythos-preview")) {
+                return MYTHOS_PREVIEW
+            }
             val match = ID.find(model)
             val family = match?.groupValues?.get(1)
             // Fable and Mythos only exist in the adaptive-thinking generation.
