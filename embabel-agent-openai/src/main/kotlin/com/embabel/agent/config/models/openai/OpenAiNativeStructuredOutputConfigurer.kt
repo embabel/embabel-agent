@@ -35,7 +35,7 @@ import org.springframework.ai.openai.OpenAiChatOptions
  * The YAML tag metadata in the model files is documented for now and is not yet
  * the source of truth for direct payload injection.
  */
-internal object OpenAiNativeStructuredOutputConfigurer : SpringAiNativeStructuredOutputConfigurer {
+object OpenAiNativeStructuredOutputConfigurer : SpringAiNativeStructuredOutputConfigurer {
 
     private val logger = LoggerFactory.getLogger(OpenAiNativeStructuredOutputConfigurer::class.java)
 

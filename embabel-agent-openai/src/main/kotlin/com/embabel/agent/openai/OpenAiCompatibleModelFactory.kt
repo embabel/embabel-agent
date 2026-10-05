@@ -20,9 +20,13 @@ import com.embabel.agent.api.models.DeepSeekModels
 import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.api.models.MistralAiModels
 import com.embabel.agent.api.models.OpenAiModels
+import com.embabel.agent.config.models.openai.OpenAiNativeStructuredOutputConfigurer
+import com.embabel.agent.config.models.openai.OpenAiResponsesChatModel
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.autoconfig.NativeStructuredOutputCapability
+import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.*
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
@@ -128,6 +132,16 @@ open class OpenAiCompatibleModelFactory(
 
     companion object {
         private val OPEN_AI = ProviderEndpoint(OpenAiModels.PROVIDER, null)
+
+        /** The native structured-output defaults of the shipped OpenAI catalog. */
+        private val RESPONSE_FORMAT_SUPPORT = NativeSupport(
+            structuredOutput = NativeStructuredOutputCapability(
+                supported = true,
+                strategy = "response_format",
+                strict = false,
+                promptInstructions = "include",
+            ),
+        )
         private val DEEP_SEEK = ProviderEndpoint(DeepSeekModels.PROVIDER, "https://api.deepseek.com")
         private val MISTRAL = ProviderEndpoint(MistralAiModels.PROVIDER, "https://api.mistral.ai/v1")
         private val GEMINI = ProviderEndpoint(
@@ -529,6 +543,44 @@ open class OpenAiCompatibleModelFactory(
     }
 
     /**
+     * An [LlmService] for [model] served over the OpenAI Responses API rather than Chat Completions.
+     *
+     * Use it for models that refuse part of Chat Completions: the GPT-5.6 and GPT-6 tiers reject
+     * function tools there unless reasoning is turned off, and the `*-pro` models are not served
+     * there at all. Requests carry no sampling parameters and send the caller's limit as
+     * `max_output_tokens`, which is what [Gpt5ChatOptionsConverter] prepares for. An explicit
+     * reasoning effort ([withOpenAiReasoningEffort]) is forwarded for OpenAI's own models.
+     *
+     * Structured output is requested natively, as the shipped OpenAI catalog does for every model.
+     * The transport does not stream and refuses media.
+     */
+    @JvmOverloads
+    fun openAiResponsesLlm(
+        model: String,
+        pricingModel: PricingModel?,
+        provider: String,
+        knowledgeCutoffDate: LocalDate?,
+        optionsConverter: OptionsConverter = Gpt5ChatOptionsConverter,
+        nativeSupport: NativeSupport? = RESPONSE_FORMAT_SUPPORT,
+    ): LlmService<*> = SpringAiLlmService(
+        name = model,
+        chatModel = responsesChatModelOf(model),
+        provider = provider,
+        optionsConverter = timeouts.optionsConverter(
+            if (provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) {
+                OpenAiReasoningEffortOptionsConverter(optionsConverter)
+            } else {
+                optionsConverter
+            }
+        ),
+        pricingModel = pricingModel,
+        knowledgeCutoffDate = knowledgeCutoffDate,
+        thinkingSupported = true,
+        nativeStructuredOutputConfigurer = OpenAiNativeStructuredOutputConfigurer,
+        nativeSupport = nativeSupport,
+    )
+
+    /**
      * Validates the configured API key by making a probe call, then returns a production
      * [LlmService] if successful.
      *
@@ -630,6 +682,13 @@ open class OpenAiCompatibleModelFactory(
      * compatibility with downstream subclasses (the previous Spring AI 1.x signature) but is
      * ignored.
      */
+    /** The Responses API counterpart of [chatModelOf], sharing this factory's client. */
+    protected fun responsesChatModelOf(model: String): ChatModel = OpenAiResponsesChatModel(
+        client = openAiClient,
+        defaultOptions = OpenAiChatOptions.builder().model(model).build(),
+        observationRegistry = observationRegistry,
+    )
+
     @JvmOverloads
     protected fun chatModelOf(
         model: String,
