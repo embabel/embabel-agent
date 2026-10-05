@@ -74,8 +74,8 @@ class DecisionExecutionPlanTest {
         override fun rate(input: String, question: RatingQuestionSpec): RatingResult = error("not called")
     }
 
-    private val nativeSource = object : NativeQuestionSetExecution {
-        override fun askNative(request: DecisionRequest): DecisionResponse = error("not called")
+    private val questionSetSource = object : QuestionSetExecution {
+        override fun askQuestionSet(request: DecisionRequest): DecisionResponse = error("not called")
     }
 
     private val propositionHook = object : PropositionAssessment {
@@ -155,14 +155,14 @@ class DecisionExecutionPlanTest {
         }
 
         @Test
-        fun `a native service answers one and three questions in one call`() {
-            assertTrue(plan(everyKind, request(proposition()), nativeSource))
-            assertTrue(plan(everyKind, request(proposition(), choice(), rating()), nativeSource))
+        fun `a question-set service answers one and three questions in one call`() {
+            assertTrue(plan(everyKind, request(proposition()), questionSetSource))
+            assertTrue(plan(everyKind, request(proposition(), choice(), rating()), questionSetSource))
         }
 
         @Test
-        fun `a native service still needs the kind in its capabilities`() {
-            val message = unsupported { plan(propositionsOnly, request(choice()), nativeSource) }.message!!
+        fun `a question-set service still needs the kind in its capabilities`() {
+            val message = unsupported { plan(propositionsOnly, request(choice()), questionSetSource) }.message!!
             assertContains(
                 message,
                 "capabilities leave out CHOICE questions: 'team' (CHOICE)",
@@ -185,7 +185,7 @@ class DecisionExecutionPlanTest {
             val error = assertThrows(IllegalStateException::class.java) {
                 plan(everyKind, request(proposition(), rating()), noHooks)
             }
-            assertContains(error.message!!, "svc-under-test", "RatingAssessment", "NativeQuestionSetExecution")
+            assertContains(error.message!!, "svc-under-test", "RatingAssessment", "QuestionSetExecution")
         }
 
         @Test
@@ -198,8 +198,8 @@ class DecisionExecutionPlanTest {
         }
 
         @Test
-        fun `native execution backs every claimed kind`() {
-            assertTrue(plan(everyKind, request(choice(), rating()), nativeSource))
+        fun `question-set execution backs every claimed kind`() {
+            assertTrue(plan(everyKind, request(choice(), rating()), questionSetSource))
         }
     }
 
@@ -211,16 +211,16 @@ class DecisionExecutionPlanTest {
         }
 
         @Test
-        fun `a decorator without the native hook of its hook source fails preflight`() {
+        fun `a decorator without the question-set hook of its hook source fails preflight`() {
             val error = assertThrows(IllegalStateException::class.java) {
-                plan(everyKind, request(choice()), nativeSource, service = bareForwarder)
+                plan(everyKind, request(choice()), questionSetSource, service = bareForwarder)
             }
             assertContains(
                 error.message!!,
                 "svc-under-test",
                 bareForwarder.javaClass.name,
-                "NativeQuestionSetExecution",
-                "Implement NativeQuestionSetExecution on ${bareForwarder.javaClass.name}",
+                "QuestionSetExecution",
+                "Implement QuestionSetExecution on ${bareForwarder.javaClass.name}",
             )
         }
 
@@ -249,10 +249,10 @@ class DecisionExecutionPlanTest {
 
         @Test
         fun `a decorator with every hook of its hook source passes`() {
-            val full = object : NativeQuestionSetExecution {
-                override fun askNative(request: DecisionRequest): DecisionResponse = error("not called")
+            val full = object : QuestionSetExecution {
+                override fun askQuestionSet(request: DecisionRequest): DecisionResponse = error("not called")
             }
-            assertTrue(plan(everyKind, request(choice(), rating()), nativeSource, service = full))
+            assertTrue(plan(everyKind, request(choice(), rating()), questionSetSource, service = full))
         }
     }
 
@@ -280,8 +280,8 @@ class DecisionExecutionPlanTest {
         }
 
         @Test
-        fun `a native hook source gets the legacy capabilities`() {
-            assertEquals(legacy, DecisionExecution.defaultCapabilities(nativeSource))
+        fun `a question-set hook source gets the legacy capabilities`() {
+            assertEquals(legacy, DecisionExecution.defaultCapabilities(questionSetSource))
         }
     }
 

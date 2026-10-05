@@ -59,7 +59,7 @@ class DecisionServiceShapeTest {
     @Test
     fun `the hook interfaces declare no default methods`() {
         listOf(
-            NativeQuestionSetExecution::class.java,
+            QuestionSetExecution::class.java,
             PropositionAssessment::class.java,
             RatingAssessment::class.java,
         )

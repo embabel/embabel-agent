@@ -117,11 +117,11 @@ class DecisionServiceAskTest {
         }
     }
 
-    private class NativeService(private val answer: (DecisionRequest) -> DecisionResponse) :
-        DecisionService, NativeQuestionSetExecution {
-        var nativeCalls = 0
+    private class QuestionSetService(private val answer: (DecisionRequest) -> DecisionResponse) :
+        DecisionService, QuestionSetExecution {
+        var questionSetCalls = 0
 
-        override val name = "native"
+        override val name = "question-set"
         override val provider = "test"
 
         override fun capabilities(): DecisionCapabilities =
@@ -131,8 +131,8 @@ class DecisionServiceAskTest {
 
         override fun assess(request: PropositionRequest): PropositionResult = error("not used")
 
-        override fun askNative(request: DecisionRequest): DecisionResponse {
-            nativeCalls++
+        override fun askQuestionSet(request: DecisionRequest): DecisionResponse {
+            questionSetCalls++
             return answer(request)
         }
     }
@@ -378,41 +378,41 @@ class DecisionServiceAskTest {
     }
 
     @Nested
-    inner class NativeImplementor {
+    inner class QuestionSetImplementor {
 
         @Test
-        fun `a native service is called once`() {
-            val service = NativeService { request ->
+        fun `a question-set service is called once`() {
+            val service = QuestionSetService { request ->
                 DecisionResponse.builder(request.spec)
                     .answer(urgent, PropositionResult.Answered(true, provenance))
                     .answer(team, ClassificationResult.NoMatch(provenance))
                     .build()
             }
             val response = service.ask(DecisionRequest.of("An email.", urgent, team))
-            assertEquals(1, service.nativeCalls)
+            assertEquals(1, service.questionSetCalls)
             assertEquals(ClassificationResult.NoMatch(provenance), response.answer(team))
         }
 
         @Test
-        fun `a native service returning another spec's response is an illegal state`() {
-            val service = NativeService {
+        fun `a question-set service returning another spec's response is an illegal state`() {
+            val service = QuestionSetService {
                 DecisionResponse.failed(DecisionSpec.of(anger), FailureReason.UNAVAILABLE)
             }
             val e = assertThrows(IllegalStateException::class.java) {
                 service.ask(DecisionRequest.of("An email.", urgent, team))
             }
-            assertTrue(e.message!!.contains("'native'"), e.message)
+            assertTrue(e.message!!.contains("'question-set'"), e.message)
             assertTrue(e.message!!.contains("Missing: 'urgent', 'team'."), e.message)
         }
 
         @Test
-        fun `a native service answering a question with other options is an illegal state`() {
+        fun `a question-set service answering a question with other options is an illegal state`() {
             val otherTeam = Questions.named("team")
                 .choice("Which team should handle this?")
                 .option("billing", "Payments and refunds")
                 .option("sales", "New customers")
                 .build()
-            val service = NativeService {
+            val service = QuestionSetService {
                 DecisionResponse.failed(DecisionSpec.of(urgent, otherTeam), FailureReason.UNAVAILABLE)
             }
             val e = assertThrows(IllegalStateException::class.java) {
@@ -423,10 +423,10 @@ class DecisionServiceAskTest {
         }
 
         @Test
-        fun `a native service answers a choice in its native call and leaves classify alone`() {
+        fun `a question-set service answers a choice in its question-set call and leaves classify alone`() {
             var classifyCalls = 0
-            val service = object : DecisionService, NativeQuestionSetExecution {
-                override val name = "native-and-classify"
+            val service = object : DecisionService, QuestionSetExecution {
+                override val name = "question-set-and-classify"
                 override val provider = "test"
 
                 override fun capabilities(): DecisionCapabilities =
@@ -439,7 +439,7 @@ class DecisionServiceAskTest {
 
                 override fun assess(request: PropositionRequest): PropositionResult = error("not used")
 
-                override fun askNative(request: DecisionRequest): DecisionResponse =
+                override fun askQuestionSet(request: DecisionRequest): DecisionResponse =
                     DecisionResponse.builder(request.spec)
                         .answer(team, ClassificationResult.Selected("support", provenance))
                         .build()
@@ -479,8 +479,8 @@ class DecisionServiceAskTest {
         }
 
         @Test
-        fun `a decorator without the native hook of its hook source fails before the native call`() {
-            val inner = NativeService { error("askNative is not reached") }
+        fun `a decorator without the question-set hook of its hook source fails before the question-set call`() {
+            val inner = QuestionSetService { error("askQuestionSet is not reached") }
             val decorator = PartialDecorator(inner)
             val error = assertThrows(IllegalStateException::class.java) {
                 decorator.ask(DecisionRequest.of("An email.", urgent, team))
@@ -488,9 +488,9 @@ class DecisionServiceAskTest {
             val message = error.message!!
             assertTrue(message.contains("'audited'"), message)
             assertTrue(message.contains(PartialDecorator::class.java.name), message)
-            assertTrue(message.contains("hook source 'native'"), message)
-            assertTrue(message.contains("Implement NativeQuestionSetExecution on ${PartialDecorator::class.java.name}"), message)
-            assertEquals(0, inner.nativeCalls)
+            assertTrue(message.contains("hook source 'question-set'"), message)
+            assertTrue(message.contains("Implement QuestionSetExecution on ${PartialDecorator::class.java.name}"), message)
+            assertEquals(0, inner.questionSetCalls)
         }
 
         @Test

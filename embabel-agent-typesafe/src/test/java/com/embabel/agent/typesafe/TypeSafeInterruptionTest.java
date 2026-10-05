@@ -51,7 +51,7 @@ class TypeSafeInterruptionTest {
     }
 
     @Test
-    void interruptedNativeAskRethrows() {
+    void interruptedQuestionSetAskRethrows() {
         var request =
                 DecisionRequest.of(
                         "An email.", Questions.named("urgent").proposition("Is this urgent?").build());

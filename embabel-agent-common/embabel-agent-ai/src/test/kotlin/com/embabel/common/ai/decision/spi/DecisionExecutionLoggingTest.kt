@@ -90,9 +90,9 @@ class DecisionExecutionLoggingTest {
         onClassify: () -> ClassificationResult = { ClassificationResult.Selected("billing", provenance) },
     ) = Hooked(onAssess, onClassify)
 
-    private class FailingNative : DecisionService, NativeQuestionSetExecution {
-        override val name = "native-service"
-        override val provider = "native-provider"
+    private class FailingQuestionSet : DecisionService, QuestionSetExecution {
+        override val name = "question-set-service"
+        override val provider = "question-set-provider"
 
         override fun capabilities(): DecisionCapabilities =
             DecisionCapabilities.of(EnumSet.allOf(QuestionKind::class.java))
@@ -101,7 +101,7 @@ class DecisionExecutionLoggingTest {
 
         override fun assess(request: PropositionRequest): PropositionResult = error("not used")
 
-        override fun askNative(request: DecisionRequest): DecisionResponse =
+        override fun askQuestionSet(request: DecisionRequest): DecisionResponse =
             DecisionResponse.failed(request.spec, FailureReason.UNAVAILABLE)
     }
 
@@ -168,13 +168,13 @@ class DecisionExecutionLoggingTest {
     @Test
     fun `a request failure logs a warning with the reason`() {
         val events = capture(Level.INFO, contentCapture = false) {
-            FailingNative().ask(DecisionRequest.of(sentinelInput, urgent, team))
+            FailingQuestionSet().ask(DecisionRequest.of(sentinelInput, urgent, team))
         }
         val warn = events.at(Level.WARN).single()
         assertContains(
             warn,
-            "service=native-service",
-            "provider=native-provider",
+            "service=question-set-service",
+            "provider=question-set-provider",
             "requestFailure=UNAVAILABLE",
             "elapsedMs=",
         )

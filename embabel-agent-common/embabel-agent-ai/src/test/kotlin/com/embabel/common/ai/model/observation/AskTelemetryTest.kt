@@ -267,22 +267,22 @@ class AskTelemetryTest {
             telemetry.recorder.stopped.filter { tags(it)["operation"] == operation }.map { tags(it).getValue("outcome") }
 
         @Test
-        fun `assess and ask_native share one key set under embabel ai decision`() {
+        fun `assess and ask_question_set share one key set under embabel ai decision`() {
             val telemetry = Telemetry()
             telemetry.observation.assess { PropositionResult.Answered(true, provenance) }
-            telemetry.observation.native { complete() }
-            telemetry.observation.native { partial() }
-            telemetry.observation.native { DecisionResponse.failed(spec, FailureReason.UNAVAILABLE) }
+            telemetry.observation.questionSet { complete() }
+            telemetry.observation.questionSet { partial() }
+            telemetry.observation.questionSet { DecisionResponse.failed(spec, FailureReason.UNAVAILABLE) }
             assertThrows<UnsupportedDecisionException> {
-                telemetry.observation.native { throw UnsupportedDecisionException("no") }
+                telemetry.observation.questionSet { throw UnsupportedDecisionException("no") }
             }
-            assertThrows<InterruptedException> { telemetry.observation.native { interrupted() } }
+            assertThrows<InterruptedException> { telemetry.observation.questionSet { interrupted() } }
             telemetry.observation.rate { RatingResult.Inconclusive(provenance) }
 
             assertEquals(listOf("complete", "partial", "request_failure", "exception", "interrupted"),
-                outcomes(telemetry, "ask_native"))
+                outcomes(telemetry, "ask_question_set"))
             val decisionTimers = telemetry.timers("embabel.ai.decision")
-            assertEquals(setOf("assess", "ask_native", "rate"),
+            assertEquals(setOf("assess", "ask_question_set", "rate"),
                 decisionTimers.map { it.id.getTag("operation") }.toSet())
             decisionTimers.forEach { assertEquals(timerKeys(providerKeys), it.id.tags.map { tag -> tag.key }.toSet()) }
             telemetry.recorder.stopped.forEach {
@@ -323,7 +323,7 @@ class AskTelemetryTest {
         fun `provider calls inside an ask are children of the ask`() {
             val telemetry = Telemetry()
             ask(telemetry) {
-                telemetry.observation.native { complete() }
+                telemetry.observation.questionSet { complete() }
             }
             val child = telemetry.recorder.stopped.single { it.name == "embabel.ai.decision" }
             val parent = telemetry.recorder.stopped.single { it.name == "embabel.ai.ask" }

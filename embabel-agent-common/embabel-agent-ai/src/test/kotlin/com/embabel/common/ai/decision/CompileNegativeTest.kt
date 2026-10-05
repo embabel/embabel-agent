@@ -179,7 +179,7 @@ class CompileNegativeTest {
     @Nested
     inner class LegacyJavaImplementor {
 
-        private val newMembers = setOf("ask", "capabilities", "askNative", "rate")
+        private val newMembers = setOf("ask", "capabilities", "askQuestionSet", "rate")
 
         private val proposition = Questions.named("urgent").proposition("Is it urgent?").build()
 

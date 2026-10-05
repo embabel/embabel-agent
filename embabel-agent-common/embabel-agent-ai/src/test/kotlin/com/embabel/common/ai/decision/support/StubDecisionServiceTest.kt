@@ -32,7 +32,7 @@ import com.embabel.common.ai.decision.Questions
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
 import com.embabel.common.ai.decision.UnsupportedDecisionException
-import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
+import com.embabel.common.ai.decision.spi.QuestionSetExecution
 import com.embabel.common.ai.model.observation.ObservedDecisionService
 import io.micrometer.observation.ObservationRegistry
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -84,13 +84,13 @@ class StubDecisionServiceTest {
     }
 
     @Test
-    fun `a native ask returns the scripted outcomes exactly`() {
+    fun `a question-set ask returns the scripted outcomes exactly`() {
         val stub = scripted().build()
         val response = stub.ask(DecisionRequest.of("text", urgent, team, anger))
         assertEquals(urgentAnswer, response.answer(urgent))
         assertEquals(teamAnswer, response.answer(team))
         assertEquals(angerAnswer, response.answer(anger))
-        assertEquals(listOf("askNative"), stub.calls())
+        assertEquals(listOf("askQuestionSet"), stub.calls())
     }
 
     @Test
@@ -131,7 +131,7 @@ class StubDecisionServiceTest {
     }
 
     @Test
-    fun `a scripted choice outside the options fails the native ask`() {
+    fun `a scripted choice outside the options fails the question-set ask`() {
         val stub = scripted().choice("team", ClassificationResult.Selected("elsewhere", provenance)).build()
         val error = assertThrows(IllegalStateException::class.java) {
             stub.ask(DecisionRequest.of("text", urgent, team))
@@ -162,12 +162,12 @@ class StubDecisionServiceTest {
     }
 
     @Test
-    fun `a classification request asked on a native stub answers its question`() {
+    fun `a classification request asked on a question-set stub answers its question`() {
         val spec = ClassificationSpec.of(team)
         val stub = scripted().build()
         val response = stub.ask(ClassificationRequest.of("text", spec))
         assertEquals(teamAnswer, response.answer(spec.question))
-        assertEquals(listOf("askNative"), stub.calls())
+        assertEquals(listOf("askQuestionSet"), stub.calls())
     }
 
     @Test
@@ -181,9 +181,9 @@ class StubDecisionServiceTest {
     }
 
     @Test
-    fun `a per-question stub is no native service and a default stub is one`() {
-        assertFalse(scripted().perQuestion().build() is NativeQuestionSetExecution)
-        assertTrue(scripted().build() is NativeQuestionSetExecution)
+    fun `a per-question stub is no question-set service and a default stub is one`() {
+        assertFalse(scripted().perQuestion().build() is QuestionSetExecution)
+        assertTrue(scripted().build() is QuestionSetExecution)
     }
 
     @Test

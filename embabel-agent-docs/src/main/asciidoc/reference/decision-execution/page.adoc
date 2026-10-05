@@ -15,7 +15,7 @@ The no-op and stub services are in `com.embabel.common.ai.decision.support`.
 flowchart TD
     Caller[caller] --> Obs[ObservedDecisionService]
     Obs -->|ask: embabel.ai.ask| Exec[preflight and execution]
-    Exec -->|native service| Hook[askNative: embabel.ai.decision ask_native]
+    Exec -->|question-set service| Hook[askQuestionSet: embabel.ai.decision ask_question_set]
     Exec -->|any other service| Split[assess / classify / rate]
     Hook --> Jev[TypeSafeDecisionService]
     Hook --> Llm[LlmDecisionService]
@@ -30,7 +30,9 @@ flowchart TD
 Both return a `DecisionResponse` with one answer per question in spec order.
 Provider failures come back as typed failure outcomes.
 
-A service that implements `NativeQuestionSetExecution` answers the whole spec in one `askNative` call.
+A service that implements `QuestionSetExecution` answers the whole spec in one `askQuestionSet` call.
+The provider receives the complete question set in one operation; a prompted LLM service sends one prompt containing all the questions.
+This hook does not select the LLM's structured-output mode.
 Any other service answers each question in its own call, in spec order.
 
 `ask`, `assess` and `classify` throw no checked exception.
@@ -54,7 +56,7 @@ The default derives from the hook interfaces the service implements:
 |`RatingAssessment.rate(input, question)`
 |Rating questions, one call each
 
-|`NativeQuestionSetExecution.askNative(request)`
+|`QuestionSetExecution.askQuestionSet(request)`
 |The whole spec in one call. The service overrides `capabilities()` to list the kinds it answers this way.
 |===
 
@@ -74,7 +76,7 @@ A `ClassificationRequest` is also a `DecisionRequest`, so `ask(request)` accepts
 
 ===== Routing
 
-A service that implements `NativeQuestionSetExecution` answers the whole spec in one `askNative` call.
+A service that implements `QuestionSetExecution` answers the whole spec in one `askQuestionSet` call.
 Any other service answers each question in spec order:
 
 |===
@@ -113,7 +115,7 @@ A kind missing from the capabilities gets one of two explanations:
 The message holds question names and kinds only.
 The input, instructions, options and levels stay out of it.
 
-Capabilities that claim rating questions on a service that implements neither `RatingAssessment` nor `NativeQuestionSetExecution` throw `IllegalStateException` before any provider call.
+Capabilities that claim rating questions on a service that implements neither `RatingAssessment` nor `QuestionSetExecution` throw `IllegalStateException` before any provider call.
 The message names the service and the missing hook interface.
 
 ===== Decorators
@@ -129,12 +131,12 @@ The message names the decorator, its class, the hook source and the missing hook
 `ObservedDecisionService.ask` runs the shared preflight and execution with the delegate's hooks, so each provider call is observed once.
 A delegate's own override of `ask` is therefore not called through `ObservedDecisionService`.
 A service customizes execution through `capabilities()` and the hook interfaces.
-Provider implementations put their execution logic in `askNative`, `assess`, `classify` or `rate`.
+Provider implementations put their execution logic in `askQuestionSet`, `assess`, `classify` or `rate`.
 Overriding `ask` does not customize execution through the observation wrapper.
 
 ==== Answer rules
 
-A native provider must return a response for the request's spec.
+A question-set provider must return a response for the request's spec.
 Execution calls `response.requireMatches(request.spec)` before accepting it.
 Names, kinds and options or levels must match one for one in spec order; a mismatch throws `IllegalStateException`.
 Providers can use `DecisionResponse.builder(request.spec)` or assemble wire answers through `DecisionResponseAssembler`, which applies these rules:
@@ -212,13 +214,13 @@ Question names stay with the caller, so no name character can break a provider's
 |As scripted
 |===
 
-Jev and prompted services support every kind and answer a whole spec in one native call.
+Jev and prompted services support every kind and answer a whole spec in one question-set call.
 They also implement the proposition and rating hooks for direct calls.
 Their `classify` answers one choice question with its own instructions and categories.
 
 `NoOpDecisionService(name)` serves disabled configuration.
 Its provider is `none`, and it makes no provider call.
-It supports every kind and answers a whole spec in one native call, so a request reaches it and returns a request failure.
+It supports every kind and answers a whole spec in one question-set call, so a request reaches it and returns a request failure.
 Construction logs one INFO line, and each request logs the usual WARN line for a failed request.
 
 `StubDecisionService.builder(name)` builds a service for tests.
@@ -226,8 +228,8 @@ Its provider is `stub`.
 Outcomes for `ask`, `rate` and question `assess` calls are scripted by question name, and for `assess(request)` calls by proposition text.
 `classify` returns the choice scripted for the request's question name, and otherwise the outcome scripted for its set of category ids.
 A call with no scripted outcome throws `IllegalStateException` naming the question.
-By default the stub answers a whole spec in one native call.
-Scripted native answers go through the same question checks as provider answers.
+By default the stub answers a whole spec in one question-set call.
+Scripted question-set answers go through the same question checks as provider answers.
 After `perQuestion()` the builder builds a stub that answers each question through `PropositionAssessment`, `classify` and `RatingAssessment`.
 The stub supports every kind unless the builder's `capabilities(...)` sets others.
 `calls()` returns the calls made, in order.
@@ -286,7 +288,7 @@ Wrap a service you build in `ObservedDecisionService(service, observationRegistr
 |One `answer.<kind>.<outcome>` per question
 
 |`embabel.ai.decision`
-|Each `askNative`, `assess` and `rate` call
+|Each `askQuestionSet`, `assess` and `rate` call
 |`operation`, `outcome`
 |None
 
@@ -297,7 +299,7 @@ Wrap a service you build in `ObservedDecisionService(service, observationRegistr
 |===
 
 Provider-call observations are children of the ask observation.
-A native ask records one ask and one `ask_native` observation.
+A question-set ask records one ask and one `ask_question_set` observation.
 A per-question ask of three questions records one ask and three provider observations.
 A choice question among them records `embabel.ai.classification` with `operation=classify`.
 A request rejected by the preflight records one ask with `outcome=unsupported` and no provider observation.
@@ -306,7 +308,7 @@ A request rejected by the preflight records one ask with `outcome=unsupported` a
 |Tag |Values
 
 |`operation`
-|`ask` on `embabel.ai.ask`. `ask_native`, `assess`, `rate` or `classify` on provider calls.
+|`ask` on `embabel.ai.ask`. `ask_question_set`, `assess`, `rate` or `classify` on provider calls.
 
 |`outcome` on `embabel.ai.ask`
 |`complete`, `partial`, `request_failure`, `unsupported`, `exception`, `interrupted`, `cancelled`
@@ -353,7 +355,7 @@ Question names, input and model output never become tag values.
 |Implement the hook, or remove the claim from `capabilities()`
 
 |Every answer is `Failure(UNAVAILABLE)`
-|The provider WARN line with cause `connection`, `http_4xx`, `http_5xx` or `rate_limited`. A native ask has `outcome=request_failure`. A per-question ask has `outcome=partial`, and every answer event has the outcome `failure`.
+|The provider WARN line with cause `connection`, `http_4xx`, `http_5xx` or `rate_limited`. A question-set ask has `outcome=request_failure`. A per-question ask has `outcome=partial`, and every answer event has the outcome `failure`.
 |The provider is unreachable or rejected the call
 |Check the endpoint, credential and provider status
 
@@ -400,7 +402,7 @@ Setting a package level reaches every class under it.
 
 |`com.embabel.common.ai.decision.spi.DecisionResponseAssembler`
 |WARN
-|Answer anomalies from native execution
+|Answer anomalies from question-set execution
 
 |`com.embabel.common.ai.decision.support`
 |INFO, DEBUG
@@ -441,7 +443,7 @@ A failed request and a partial response at WARN:
 
 [source,text]
 ----
-Decision ask failed: service=native-service, provider=native-provider, requestFailure=UNAVAILABLE, elapsedMs=2. The provider's own log lines give the cause.
+Decision ask failed: service=question-set-service, provider=question-set-provider, requestFailure=UNAVAILABLE, elapsedMs=2. The provider's own log lines give the cause.
 Decision ask partially failed: service=log-service, provider=log-provider, failedQuestions=['urgent' UNAVAILABLE], elapsedMs=3. The other answers are usable. The provider's own log lines give the cause.
 ----
 
@@ -449,11 +451,11 @@ Failed provider calls at WARN, from Jev and from a prompted service:
 
 [source,text]
 ----
-TypeSafe question set failed with reason UNAVAILABLE: service=jev-latest, provider=TypeSafe, operation=ask_native, cause=http_5xx, status=5xx, attempts=1, elapsedMs=7, exception=SafeHttpFailure, requestId=none
+TypeSafe question set failed with reason UNAVAILABLE: service=jev-latest, provider=TypeSafe, operation=ask_question_set, cause=http_5xx, status=5xx, attempts=1, elapsedMs=7, exception=SafeHttpFailure, requestId=none
 Decision call failed: service=gpt-test, provider=TestProvider, operation=ask, reason=UNAVAILABLE, cause=timeout, httpStatus=none, attempts=3, elapsedMs=12, exception=SocketTimeoutException. Check the model's availability, credentials and retry settings under embabel.agent.platform.decisions.test.
 ----
 
-Answer anomalies at WARN, from native and per-question execution:
+Answer anomalies at WARN, from question-set and per-question execution:
 
 [source,text]
 ----

@@ -45,12 +45,16 @@ interface DelegatingDecisionService {
 /**
  * A decision service that answers every question of a request in one provider operation.
  *
+ * The provider receives the complete question set rather than one question at a time. A prompted
+ * LLM service can implement this with one prompt containing all the questions. This hook does not
+ * select the model's structured-output mode.
+ *
  * Execution sends the whole request to this method when the service implements it. The service's
  * capabilities list every question kind it answers this way. Execution reaches this method only
  * after the request has passed preflight.
  */
 @ApiStatus.Experimental
-fun interface NativeQuestionSetExecution {
+fun interface QuestionSetExecution {
 
     /**
      * Answers every question of the request in one provider operation.
@@ -62,7 +66,7 @@ fun interface NativeQuestionSetExecution {
      * @param request the input and the questions to answer
      * @return the response for the request's spec
      */
-    fun askNative(request: DecisionRequest): DecisionResponse
+    fun askQuestionSet(request: DecisionRequest): DecisionResponse
 }
 
 /**

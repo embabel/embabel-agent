@@ -40,7 +40,7 @@ import com.embabel.common.ai.decision.QuestionKind
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
 import com.embabel.common.ai.decision.spi.DecisionContentCapture
-import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
+import com.embabel.common.ai.decision.spi.QuestionSetExecution
 import com.embabel.common.ai.decision.spi.PropositionAssessment
 import com.embabel.common.ai.decision.spi.RatingAssessment
 import com.embabel.common.ai.model.LlmOptions
@@ -60,7 +60,7 @@ import java.util.concurrent.TimeoutException
  * Answers decision questions by asking a chat model, retrying failed calls.
  *
  * The service classifies text, assesses propositions, and answers a whole decision request of
- * proposition, choice and rating questions in one model call through [askNative]. A single choice
+ * proposition, choice and rating questions in one model call through [askQuestionSet]. A single choice
  * question goes through the classification prompt with the question's instructions and categories.
  * A single rating question goes through the same prompt as a one-question request. A single
  * proposition question goes through the proposition prompt with the question's instructions. The model reports
@@ -91,7 +91,7 @@ internal class LlmDecisionService(
     private val options: LlmOptions,
     retry: RetryProperties,
     retryName: String = "decision-${llm.name}",
-) : DecisionService, NativeQuestionSetExecution, PropositionAssessment, RatingAssessment {
+) : DecisionService, QuestionSetExecution, PropositionAssessment, RatingAssessment {
 
     private val logger = LoggerFactory.getLogger(LlmDecisionService::class.java)
 
@@ -125,7 +125,7 @@ internal class LlmDecisionService(
      * the questions fails the whole request with [FailureReason.INVALID_RESPONSE]. An answer that
      * breaks its question's rules fails only that question.
      */
-    override fun askNative(request: DecisionRequest): DecisionResponse =
+    override fun askQuestionSet(request: DecisionRequest): DecisionResponse =
         askQuestionSet(ASK, request)
 
     /** Answers one proposition question through the proposition prompt, with the question's instructions. */

@@ -80,7 +80,7 @@ class NoOpDecisionServiceTest {
     }
 
     @Test
-    fun `a three kind ask is a native request failure with every answer unavailable`() {
+    fun `a three kind ask is a question-set request failure with every answer unavailable`() {
         val response = service.ask(DecisionRequest.of("x", urgent, team, anger))
         assertEquals(FailureReason.UNAVAILABLE, response.requestFailure)
         assertEquals(PropositionResult.Failure(FailureReason.UNAVAILABLE), response.answer(urgent))

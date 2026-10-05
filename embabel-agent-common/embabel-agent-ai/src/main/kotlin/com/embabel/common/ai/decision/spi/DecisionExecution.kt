@@ -42,7 +42,7 @@ import java.util.concurrent.CancellationException
  *
  * Planning is a preflight over the whole request. It checks question kinds and hooks, and throws
  * before any provider call when the service cannot answer the request. A service that implements
- * [NativeQuestionSetExecution] answers the whole request in one call. Any other service answers
+ * [QuestionSetExecution] answers the whole request in one call. Any other service answers
  * each question on its own, in spec order: a choice question through `classify`, and the other
  * kinds through their per-question hooks. Execution logs start and completion
  * at DEBUG, failed requests, partial responses and answer anomalies at WARN, and request and
@@ -65,7 +65,7 @@ internal object DecisionExecution {
      * the hooks the source implements: [QuestionKind.PROPOSITION] and [QuestionKind.CHOICE] always,
      * and [QuestionKind.RATING] with [RatingAssessment]. Every decision service can classify, so it
      * answers a choice question through `classify`. A service that answers other kinds through
-     * [NativeQuestionSetExecution] overrides its capabilities to list them.
+     * [QuestionSetExecution] overrides its capabilities to list them.
      *
      * @param hookSource the object whose hook interfaces are inspected
      * @return the derived capabilities
@@ -78,11 +78,11 @@ internal object DecisionExecution {
 
     /**
      * Checks a request against a service before any provider call, and reports whether the service
-     * answers it in one native call.
+     * answers it in one question-set call.
      *
      * The checks run in this order: every question kind is in the capabilities, every question has
      * a backing, then [service] implements every hook
-     * the request is routed through. A service that implements [NativeQuestionSetExecution] backs
+     * the request is routed through. A service that implements [QuestionSetExecution] backs
      * every kind it claims. Otherwise a proposition question is backed by [PropositionAssessment] or
      * `assess`, a choice question by `classify` and a rating question by [RatingAssessment].
      * Routing follows the hooks of [hookSource], and execution calls those hooks on [service]. The
@@ -94,10 +94,10 @@ internal object DecisionExecution {
      * @param hookSource the object whose hook interfaces decide the routing
      * @param request the request to plan
      * @param service the object whose hook methods execution calls
-     * @return true when the service answers the request in one native call
+     * @return true when the service answers the request in one question-set call
      * @throws UnsupportedDecisionException if a question kind rules the request out
      * @throws IllegalStateException if the capabilities claim a question kind that the service backs
-     * with neither its hook nor native execution, or if [service] lacks a hook of [hookSource] that
+     * with neither its hook nor question-set execution, or if [service] lacks a hook of [hookSource] that
      * the request is routed through
      */
     fun plan(
@@ -110,15 +110,15 @@ internal object DecisionExecution {
         val questions = request.spec.questions
         val rejection = Rejection(serviceName, capabilities)
         checkKinds(questions, capabilities, hookSource, rejection)
-        if (hookSource is NativeQuestionSetExecution) {
-            checkForwarded(serviceName, service, hookSource, listOf(NativeQuestionSetExecution::class.java))
+        if (hookSource is QuestionSetExecution) {
+            checkForwarded(serviceName, service, hookSource, listOf(QuestionSetExecution::class.java))
             return true
         }
         for (question in questions) {
             check(hasHook(hookSource, question.kind)) {
                 val hook = requiredHook(question.kind)
                 "Decision service '$serviceName' claims ${question.kind.name.lowercase()} questions but implements " +
-                    "neither $hook nor NativeQuestionSetExecution. Implement $hook, or remove ${question.kind} " +
+                    "neither $hook nor QuestionSetExecution. Implement $hook, or remove ${question.kind} " +
                     "from its capabilities."
             }
         }
@@ -189,8 +189,8 @@ internal object DecisionExecution {
     ) {
         val unsupported = questions.filter { it.kind !in capabilities.questionKinds }
         if (unsupported.isEmpty()) return
-        val native = hookSource is NativeQuestionSetExecution
-        fun needsHook(kind: QuestionKind) = !native && !hasHook(hookSource, kind)
+        val wholeRequest = hookSource is QuestionSetExecution
+        fun needsHook(kind: QuestionKind) = !wholeRequest && !hasHook(hookSource, kind)
         val missing = unsupported.map { it.kind }.distinct()
         val hookless = missing.filter(::needsHook)
         val unlisted = missing.filterNot(::needsHook)
@@ -199,7 +199,7 @@ internal object DecisionExecution {
             val label = "'${question.name}' ($kind)"
             when {
                 needsHook(kind) -> "$label needs ${requiredHook(kind)}"
-                native -> label
+                wholeRequest -> label
                 else -> "$label, which the service backs with ${backingName(hookSource, kind)}"
             }
         }
@@ -269,7 +269,7 @@ internal object DecisionExecution {
      * @return the response, in spec order
      * @throws UnsupportedDecisionException if the service cannot run the request
      * @throws IllegalStateException if the capabilities claim a hook the hook source lacks, if the
-     * service lacks a hook of the hook source that the request is routed through, or if a native
+     * service lacks a hook of the hook source that the request is routed through, or if a question-set
      * response does not match the request's spec
      * @throws CancellationException if the thread is interrupted between questions; its cause is an
      * [InterruptedException] and the flag stays set
@@ -279,7 +279,7 @@ internal object DecisionExecution {
         request: DecisionRequest,
         hookSource: Any = hookSourceOf(service),
     ): DecisionResponse {
-        val native = plan(service.name, service.capabilities(), hookSource, request, service)
+        val wholeRequest = plan(service.name, service.capabilities(), hookSource, request, service)
         val spec = request.spec
         if (logger.isDebugEnabled) {
             logger.debug(
@@ -294,8 +294,8 @@ internal object DecisionExecution {
             )
         }
         val started = System.nanoTime()
-        val response = if (native) {
-            runNative(service as NativeQuestionSetExecution, service, request)
+        val response = if (wholeRequest) {
+            runQuestionSet(service as QuestionSetExecution, service, request)
         } else {
             runPerQuestion(service, request, propositionHook = hookSource is PropositionAssessment)
         }
@@ -318,25 +318,25 @@ internal object DecisionExecution {
         (service as? DelegatingDecisionService)?.hookSource ?: service
 
     /**
-     * Answers the whole request in one native call and checks that the response matches the spec.
+     * Answers the whole request in one question-set call and checks that the response matches the spec.
      *
-     * @param hook the native execution hook to call
+     * @param hook the question-set execution hook to call
      * @param service the service, named in an error message
      * @param request the request to run
-     * @return the native response
+     * @return the question-set response
      */
-    private fun runNative(
-        hook: NativeQuestionSetExecution,
+    private fun runQuestionSet(
+        hook: QuestionSetExecution,
         service: DecisionService,
         request: DecisionRequest,
     ): DecisionResponse {
-        val response = hook.askNative(request)
+        val response = hook.askQuestionSet(request)
         try {
             response.requireMatches(request.spec)
         } catch (e: IllegalArgumentException) {
             throw IllegalStateException(
-                "Decision service '${service.name}' returned a native response that does not answer the " +
-                    "request's spec. ${e.message} The service's askNative implementation must answer the request's spec.",
+                "Decision service '${service.name}' returned a question-set response that does not answer the " +
+                    "request's spec. ${e.message} The service's askQuestionSet implementation must answer the request's spec.",
                 e,
             )
         }

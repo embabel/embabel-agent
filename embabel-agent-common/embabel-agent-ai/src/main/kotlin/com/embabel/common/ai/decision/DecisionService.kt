@@ -52,9 +52,9 @@ interface DecisionService : ClassificationService, DecisionServiceMetadata {
      *
      * The default derives from the hook interfaces the service implements. Every service accepts
      * proposition questions, and choice questions because it can classify. `RatingAssessment` adds
-     * rating questions. Override this method to list the kinds a `NativeQuestionSetExecution`
+     * rating questions. Override this method to list the kinds a `QuestionSetExecution`
      * service answers. Capabilities that claim a
-     * kind the service backs with neither its hook nor native execution make every affected request
+     * kind the service backs with neither its hook nor question-set execution make every affected request
      * fail with an [IllegalStateException] before any provider call.
      *
      * @return this service's capabilities
@@ -76,7 +76,7 @@ interface DecisionService : ClassificationService, DecisionServiceMetadata {
      * Answers a request.
      *
      * The whole request is checked against [capabilities] before any provider call. A service that
-     * implements `NativeQuestionSetExecution` answers the whole request in one call. Any other
+     * implements `QuestionSetExecution` answers the whole request in one call. Any other
      * service answers each question in spec order: a proposition through `PropositionAssessment`
      * when implemented and through [assess] otherwise, a choice through [classify] with a
      * classification request built from the question, and a rating through `RatingAssessment`. Provider failures come back as typed failure outcomes, and

@@ -36,7 +36,7 @@ import com.embabel.common.ai.decision.Questions;
 import com.embabel.common.ai.decision.RatingQuestionSpec;
 import com.embabel.common.ai.decision.RatingResult;
 import com.embabel.common.ai.decision.RatingStatistic;
-import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution;
+import com.embabel.common.ai.decision.spi.QuestionSetExecution;
 import com.embabel.common.ai.decision.spi.PropositionAssessment;
 import com.embabel.common.ai.decision.spi.RatingAssessment;
 
@@ -51,7 +51,7 @@ import org.springframework.web.client.RestClient;
 
 import java.util.EnumSet;
 
-class TypeSafeNativeAskTest {
+class TypeSafeQuestionSetAskTest {
     private static final String SYSTEM_ONE_URI = "https://api.typesafe.ai/v1/systemone";
     private static final String INPUT = "I was charged twice and nobody answers my emails.";
 
@@ -264,7 +264,7 @@ class TypeSafeNativeAskTest {
 
         assertThat(capabilities.getQuestionKinds()).isEqualTo(EnumSet.allOf(QuestionKind.class));
         assertThat(raw)
-                .isInstanceOf(NativeQuestionSetExecution.class)
+                .isInstanceOf(QuestionSetExecution.class)
                 .isInstanceOf(PropositionAssessment.class)
                 .isInstanceOf(RatingAssessment.class);
         assertThat(fixture.factory().build().capabilities()).isEqualTo(capabilities);

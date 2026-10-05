@@ -30,7 +30,7 @@ import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
 import com.embabel.common.ai.decision.spi.DecisionExecution
 import com.embabel.common.ai.decision.spi.DelegatingDecisionService
-import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
+import com.embabel.common.ai.decision.spi.QuestionSetExecution
 import com.embabel.common.ai.decision.spi.PropositionAssessment
 import com.embabel.common.ai.decision.spi.RatingAssessment
 import io.micrometer.observation.ObservationRegistry
@@ -46,7 +46,7 @@ import org.jetbrains.annotations.ApiStatus
  * diagnostics when logging is available and never replace service behavior. JVM error types propagate.
  *
  * An ask emits one logical `embabel.ai.ask` observation plus one `embabel.ai.decision` observation
- * per provider call made inside it: `ask_native` for a native call, and `assess` or `rate` for each
+ * per provider call made inside it: `ask_question_set` for a question-set call, and `assess` or `rate` for each
  * proposition or rating question asked on its own. A choice question asked on its own goes through
  * `classify` and emits one `embabel.ai.classification` observation. The capabilities are the delegate's. Preflight checks them
  * against the hook interfaces of the delegate, so a delegate whose capabilities claim a hook it does
@@ -61,7 +61,7 @@ class ObservedDecisionService @JvmOverloads constructor(
     observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
 ) : DecisionService by delegate,
     DelegatingDecisionService,
-    NativeQuestionSetExecution,
+    QuestionSetExecution,
     PropositionAssessment,
     RatingAssessment {
     private val observation = ServiceCallObservation(observationRegistry)
@@ -114,13 +114,13 @@ class ObservedDecisionService @JvmOverloads constructor(
         }
 
     /**
-     * Runs the delegate's native call inside one `ask_native` observation.
+     * Runs the delegate's question-set call inside one `ask_question_set` observation.
      *
-     * @throws IllegalStateException if the delegate does not implement [NativeQuestionSetExecution]
+     * @throws IllegalStateException if the delegate does not implement [QuestionSetExecution]
      */
-    override fun askNative(request: DecisionRequest): DecisionResponse {
-        val hook = requireHook<NativeQuestionSetExecution>("NativeQuestionSetExecution")
-        return observation.native { hook.askNative(request) }
+    override fun askQuestionSet(request: DecisionRequest): DecisionResponse {
+        val hook = requireHook<QuestionSetExecution>("QuestionSetExecution")
+        return observation.questionSet { hook.askQuestionSet(request) }
     }
 
     /**

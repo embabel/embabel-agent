@@ -27,7 +27,7 @@ import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.QuestionKind
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
-import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
+import com.embabel.common.ai.decision.spi.QuestionSetExecution
 import com.embabel.common.ai.decision.spi.RatingAssessment
 import org.jetbrains.annotations.ApiStatus
 import org.slf4j.LoggerFactory
@@ -37,7 +37,7 @@ import java.util.EnumSet
  * A decision service for disabled configuration. Every operation returns an
  * [FailureReason.UNAVAILABLE] failure and makes no provider call.
  *
- * It accepts every question kind and answers a whole request in one native call, so a request
+ * It accepts every question kind and answers a whole request in one question-set call, so a request
  * reaches it and comes back as a request failure. A failure is never a judgment about the input, so callers can
  * tell a disabled service from a false, no-match or inconclusive answer. Construction logs one
  * INFO line, and each failed request logs the usual WARN line.
@@ -47,7 +47,7 @@ import java.util.EnumSet
 @ApiStatus.Experimental
 class NoOpDecisionService @JvmOverloads constructor(
     override val name: String = "none",
-) : DecisionService, NativeQuestionSetExecution, RatingAssessment {
+) : DecisionService, QuestionSetExecution, RatingAssessment {
 
     override val provider: String get() = PROVIDER
 
@@ -72,8 +72,8 @@ class NoOpDecisionService @JvmOverloads constructor(
         return RatingResult.Failure(FailureReason.UNAVAILABLE)
     }
 
-    override fun askNative(request: DecisionRequest): DecisionResponse {
-        logger.debug("Decision service '{}' is disabled: askNative returns UNAVAILABLE", name)
+    override fun askQuestionSet(request: DecisionRequest): DecisionResponse {
+        logger.debug("Decision service '{}' is disabled: askQuestionSet returns UNAVAILABLE", name)
         return DecisionResponse.failed(request.spec, FailureReason.UNAVAILABLE)
     }
 

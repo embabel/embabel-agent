@@ -40,7 +40,7 @@ import com.embabel.common.ai.decision.RatingResult
 import com.embabel.common.ai.decision.UnsupportedDecisionException
 import com.embabel.common.ai.decision.spi.DelegatingDecisionService
 import com.embabel.common.ai.decision.spi.DecisionContentCapture
-import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
+import com.embabel.common.ai.decision.spi.QuestionSetExecution
 import com.embabel.common.ai.decision.spi.PropositionAssessment
 import com.embabel.common.ai.decision.spi.RatingAssessment
 import io.micrometer.observation.Observation
@@ -156,8 +156,8 @@ class AskObservationTest {
         }
     }
 
-    private inner class Native : Legacy("native-service"), NativeQuestionSetExecution {
-        var onNative: (DecisionRequest) -> DecisionResponse = { request ->
+    private inner class QuestionSet : Legacy("question-set-service"), QuestionSetExecution {
+        var onQuestionSet: (DecisionRequest) -> DecisionResponse = { request ->
             DecisionResponse.builder(request.spec)
                 .answer(urgent, PropositionResult.Answered(true, provenance))
                 .answer(team, ClassificationResult.Selected("support", provenance))
@@ -167,9 +167,9 @@ class AskObservationTest {
 
         override fun capabilities(): DecisionCapabilities = DecisionCapabilities.of(allKinds)
 
-        override fun askNative(request: DecisionRequest): DecisionResponse {
-            calls += "askNative"
-            return onNative(request)
+        override fun askQuestionSet(request: DecisionRequest): DecisionResponse {
+            calls += "askQuestionSet"
+            return onQuestionSet(request)
         }
     }
 
@@ -210,18 +210,18 @@ class AskObservationTest {
     inner class Counts {
 
         @Test
-        fun `native ask records one ask observation with one ask_native child`() {
+        fun `question-set ask records one ask observation with one ask_question_set child`() {
             val telemetry = Telemetry()
-            val delegate = Native()
+            val delegate = QuestionSet()
             val response = ObservedDecisionService(delegate, telemetry.registry).ask(allThree)
-            assertEquals(listOf("askNative"), delegate.calls)
+            assertEquals(listOf("askQuestionSet"), delegate.calls)
             val ask = telemetry.recorder.ask()
             assertEquals("complete", tags(ask)["outcome"])
             assertFalse("execution_mode" in tags(ask))
-            val native = telemetry.recorder.providerCalls().single()
-            assertEquals("embabel.ai.decision", native.name)
-            assertEquals(mapOf("operation" to "ask_native", "outcome" to "complete"), tags(native))
-            assertSame(ask, native.parentObservation?.contextView)
+            val questionSet = telemetry.recorder.providerCalls().single()
+            assertEquals("embabel.ai.decision", questionSet.name)
+            assertEquals(mapOf("operation" to "ask_question_set", "outcome" to "complete"), tags(questionSet))
+            assertSame(ask, questionSet.parentObservation?.contextView)
             assertEquals(3, telemetry.recorder.events.size)
             assertNull(telemetry.registry.currentObservation)
         }
@@ -312,10 +312,10 @@ class AskObservationTest {
         fun `capabilities are the delegate's`() {
             val legacy = Legacy()
             val hooked = Hooked()
-            val native = Native()
+            val questionSet = QuestionSet()
             assertEquals(legacy.capabilities(), ObservedDecisionService(legacy).capabilities())
             assertEquals(hooked.capabilities(), ObservedDecisionService(hooked).capabilities())
-            assertEquals(native.capabilities(), ObservedDecisionService(native).capabilities())
+            assertEquals(questionSet.capabilities(), ObservedDecisionService(questionSet).capabilities())
             assertEquals(
                 setOf(QuestionKind.PROPOSITION, QuestionKind.CHOICE, QuestionKind.RATING),
                 ObservedDecisionService(hooked).capabilities().questionKinds,
@@ -327,15 +327,15 @@ class AskObservationTest {
     inner class Guards {
 
         @Test
-        fun `an observed partial native decorator fails preflight before any provider observation`() {
+        fun `an observed partial question-set decorator fails preflight before any provider observation`() {
             val telemetry = Telemetry()
-            val delegate = Native()
+            val delegate = QuestionSet()
             val partial = PartialDecorator(delegate)
             val observed = ObservedDecisionService(partial, telemetry.registry)
 
             val thrown = assertThrows<IllegalStateException> { observed.ask(allThree) }
 
-            assertTrue(thrown.message!!.contains("NativeQuestionSetExecution"))
+            assertTrue(thrown.message!!.contains("QuestionSetExecution"))
             assertTrue(thrown.message!!.contains(PartialDecorator::class.java.name))
             assertTrue(telemetry.recorder.providerCalls().isEmpty())
             assertTrue(delegate.calls.isEmpty())
@@ -361,7 +361,7 @@ class AskObservationTest {
         @Test
         fun `direct hook calls through partial decorators fail before any observation`() {
             val telemetry = Telemetry()
-            val native = Native()
+            val questionSet = QuestionSet()
             val rating = Hooked()
             val proposition = QuestionAssessing()
             for (nested in listOf(false, true)) {
@@ -369,12 +369,12 @@ class AskObservationTest {
                     val observed = ObservedDecisionService(PartialDecorator(service), telemetry.registry)
                     return if (nested) ObservedDecisionService(observed, telemetry.registry) else observed
                 }
-                assertThrows<IllegalStateException> { observe(native).askNative(allThree) }
+                assertThrows<IllegalStateException> { observe(questionSet).askQuestionSet(allThree) }
                 assertThrows<IllegalStateException> { observe(rating).rate(sentinelInput, anger) }
                 assertThrows<IllegalStateException> { observe(proposition).assess(sentinelInput, urgent) }
             }
             assertTrue(telemetry.recorder.stopped.isEmpty())
-            assertTrue(native.calls.isEmpty())
+            assertTrue(questionSet.calls.isEmpty())
             assertTrue(rating.calls.isEmpty())
             assertTrue(proposition.calls.isEmpty())
         }
@@ -429,9 +429,9 @@ class AskObservationTest {
             val stacked = ObservedDecisionService(ObservedDecisionService(delegate, telemetry.registry), telemetry.registry)
 
             for (observed in listOf(ObservedDecisionService(delegate, telemetry.registry), stacked)) {
-                val native = assertThrows<IllegalStateException> { observed.askNative(allThree) }
-                assertTrue(native.message!!.contains("NativeQuestionSetExecution"))
-                assertTrue(native.message!!.contains("legacy-service"))
+                val questionSet = assertThrows<IllegalStateException> { observed.askQuestionSet(allThree) }
+                assertTrue(questionSet.message!!.contains("QuestionSetExecution"))
+                assertTrue(questionSet.message!!.contains("legacy-service"))
                 val rating = assertThrows<IllegalStateException> { observed.rate(sentinelInput, anger) }
                 assertTrue(rating.message!!.contains("RatingAssessment"))
                 val proposition = assertThrows<IllegalStateException> { observed.assess(sentinelInput, urgent) }
@@ -555,14 +555,14 @@ class AskObservationTest {
         @Test
         fun `a request failure through the decorator logs WARN with service, reason and elapsed time`() {
             val telemetry = Telemetry()
-            val delegate = Native().apply {
-                onNative = { DecisionResponse.failed(it.spec, FailureReason.UNAVAILABLE) }
+            val delegate = QuestionSet().apply {
+                onQuestionSet = { DecisionResponse.failed(it.spec, FailureReason.UNAVAILABLE) }
             }
 
             val events = capture(Level.TRACE) { ObservedDecisionService(delegate, telemetry.registry).ask(allThree) }
 
             val warn = events.at(Level.WARN).single()
-            assertContains(warn, "service=native-service", "requestFailure=UNAVAILABLE", "elapsedMs=")
+            assertContains(warn, "service=question-set-service", "requestFailure=UNAVAILABLE", "elapsedMs=")
             assertFalse(warn.contains("mode="))
             assertEquals("request_failure", tags(telemetry.recorder.ask())["outcome"])
             assertNoPayload(events, telemetry)

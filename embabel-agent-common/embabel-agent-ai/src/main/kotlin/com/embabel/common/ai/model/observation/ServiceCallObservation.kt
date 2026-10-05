@@ -50,7 +50,7 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         CLASSIFY("embabel.ai.classification", "classify"),
         ASSESS(DECISION_OBSERVATION, "assess"),
         ASK("embabel.ai.ask", "ask"),
-        ASK_NATIVE(DECISION_OBSERVATION, "ask_native"),
+        ASK_QUESTION_SET(DECISION_OBSERVATION, "ask_question_set"),
         RATE(DECISION_OBSERVATION, "rate"),
     }
 
@@ -118,8 +118,8 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         )
     }
 
-    /** Observes one native question-set call as `embabel.ai.decision` with the operation `ask_native`. */
-    fun native(work: () -> DecisionResponse): DecisionResponse = observe(Operation.ASK_NATIVE, ::responseOutcome, work = work)
+    /** Observes one question-set call as `embabel.ai.decision` with the operation `ask_question_set`. */
+    fun questionSet(work: () -> DecisionResponse): DecisionResponse = observe(Operation.ASK_QUESTION_SET, ::responseOutcome, work = work)
 
     /** Observes one rating call as `embabel.ai.decision` with the operation `rate`. */
     fun rate(work: () -> RatingResult): RatingResult = observe(Operation.RATE, ::ratingOutcome, work = work)

@@ -89,7 +89,7 @@ class TypeSafeJevSmokeTest {
             new TypeSafeModelFactory(() -> System.getenv("TYPESAFE_API_KEY")).build();
 
     @Test
-    void supportTriageSpecRunsInOneNativeCall() {
+    void supportTriageSpecRunsInOneQuestionSetCall() {
         var spec = DecisionSpec.of(urgent, department, frustration);
 
         var calls = countSystemOneCalls(() -> service.ask(INPUT, spec));

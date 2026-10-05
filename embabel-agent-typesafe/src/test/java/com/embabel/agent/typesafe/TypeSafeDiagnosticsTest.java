@@ -92,7 +92,7 @@ class TypeSafeDiagnosticsTest {
                 .contains(
                         "service=jev-latest",
                         "provider=TypeSafe",
-                        "operation=ask_native",
+                        "operation=ask_question_set",
                         "cause=http_5xx",
                         "status=5xx",
                         "attempts=1",
@@ -261,7 +261,7 @@ class TypeSafeDiagnosticsTest {
                             event ->
                                     assertThat(event.getFormattedMessage())
                                             .startsWith("TypeSafe response content")
-                                            .contains("operation=ask_native", "jev-2026-09", "SENTINEL_BODY"));
+                                            .contains("operation=ask_question_set", "jev-2026-09", "SENTINEL_BODY"));
         } finally {
             DecisionContentCapture.disable();
         }

@@ -35,7 +35,7 @@ import com.embabel.common.ai.decision.QuestionKind
 import com.embabel.common.ai.decision.Questions
 import com.embabel.common.ai.decision.RatingResult
 import com.embabel.common.ai.decision.spi.DecisionContentCapture
-import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
+import com.embabel.common.ai.decision.spi.QuestionSetExecution
 import com.embabel.common.ai.decision.spi.PropositionAssessment
 import com.embabel.common.ai.decision.spi.RatingAssessment
 import com.embabel.common.ai.model.LlmOptions
@@ -129,18 +129,18 @@ class LlmDecisionServiceAskTest {
     }
 
     @Nested
-    inner class NativeAsk {
+    inner class QuestionSetAsk {
 
         @Test
         fun `one model call with text output answers every question`() {
             modelReplies() returns validReply
-            assertAnswered(service.askNative(request))
+            assertAnswered(service.askQuestionSet(request))
             assertEquals(1, interactions.size)
             assertEquals("ask", interactions.single().id.value)
         }
 
         @Test
-        fun `ask through the service interface runs natively in one call`() {
+        fun `ask through the service interface answers the question set in one call`() {
             modelReplies() returns validReply
             assertAnswered(service.ask(request))
             assertAnswered(service.ask(request.input, spec))
@@ -151,21 +151,21 @@ class LlmDecisionServiceAskTest {
         @Test
         fun `a transport failure then a reply retries inside the template`() {
             modelReplies() throws TransientAiException("busy") andThen validReply
-            assertAnswered(service.askNative(request))
+            assertAnswered(service.askQuestionSet(request))
             assertEquals(2, interactions.size)
         }
 
         @Test
         fun `an unsafe envelope makes one call and fails the request without a retry`() {
             modelReplies() returns "This is not JSON"
-            assertRequestFailed(service.askNative(request))
+            assertRequestFailed(service.askQuestionSet(request))
             assertEquals(1, interactions.size)
         }
 
         @Test
         fun `a selected id outside the options makes one call and fails only that question`() {
             modelReplies() returns validReply.replace("\"billing\"", "\"legal\"")
-            val response = service.askNative(request)
+            val response = service.askQuestionSet(request)
             assertEquals(1, interactions.size)
             assertEquals(null, response.requestFailure)
             assertEquals(ClassificationResult.Failure(FailureReason.INVALID_RESPONSE), response.answer(department))
@@ -178,7 +178,7 @@ class LlmDecisionServiceAskTest {
             val interrupted = InterruptedException("stop")
             modelReplies() throws RuntimeException(interrupted)
             try {
-                val thrown = assertThrows<CancellationException> { service.askNative(request) }
+                val thrown = assertThrows<CancellationException> { service.askQuestionSet(request) }
                 assertSame(interrupted, thrown.cause)
                 assertTrue(Thread.currentThread().isInterrupted)
                 assertEquals(1, interactions.size)
@@ -203,7 +203,7 @@ class LlmDecisionServiceAskTest {
         )
         fun `one fence around the whole reply is stripped before the strict parse`(template: String) {
             modelReplies() returns template.format(validReply)
-            assertAnswered(service.askNative(request))
+            assertAnswered(service.askQuestionSet(request))
             assertEquals(1, interactions.size)
         }
 
@@ -220,7 +220,7 @@ class LlmDecisionServiceAskTest {
         )
         fun `text around the fence, two fences or another fence shape stay an unsafe envelope`(template: String) {
             modelReplies() returns template.replace("%s", validReply)
-            assertRequestFailed(service.askNative(request))
+            assertRequestFailed(service.askQuestionSet(request))
             assertEquals(1, interactions.size)
         }
     }
@@ -259,7 +259,7 @@ class LlmDecisionServiceAskTest {
     fun `descriptor and hooks agree`() {
         val capabilities = service.capabilities()
         assertEquals(QuestionKind.entries.toSet(), capabilities.questionKinds)
-        assertTrue(service is NativeQuestionSetExecution)
+        assertTrue(service is QuestionSetExecution)
         assertTrue(service is PropositionAssessment)
         assertTrue(service is RatingAssessment)
     }
@@ -299,7 +299,7 @@ class LlmDecisionServiceAskTest {
             val events = capturing(Level.DEBUG) {
                 assertEquals(
                     DecisionResponse.failed(spec, FailureReason.UNAVAILABLE),
-                    service.askNative(request),
+                    service.askQuestionSet(request),
                 )
             }
             val warning = serviceWarnings(events).single()
@@ -325,7 +325,7 @@ class LlmDecisionServiceAskTest {
         fun `an http failure logs its status class and category`() {
             modelReplies() throws
                 HttpServerErrorException.create(HttpStatus.SERVICE_UNAVAILABLE, "down", HttpHeaders.EMPTY, ByteArray(0), null)
-            val events = capturing(Level.DEBUG) { service.askNative(request) }
+            val events = capturing(Level.DEBUG) { service.askQuestionSet(request) }
             val warning = serviceWarnings(events).single()
             assertTrue(warning.contains("cause=http_5xx"), warning)
             assertTrue(warning.contains("httpStatus=5xx"), warning)

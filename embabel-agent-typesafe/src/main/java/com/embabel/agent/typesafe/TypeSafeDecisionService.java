@@ -30,7 +30,7 @@ import com.embabel.common.ai.decision.QuestionKind;
 import com.embabel.common.ai.decision.RatingQuestionSpec;
 import com.embabel.common.ai.decision.RatingResult;
 import com.embabel.common.ai.decision.spi.DecisionContentCapture;
-import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution;
+import com.embabel.common.ai.decision.spi.QuestionSetExecution;
 import com.embabel.common.ai.decision.spi.PropositionAssessment;
 import com.embabel.common.ai.decision.spi.RatingAssessment;
 
@@ -61,7 +61,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Maps TypeSafe's native primitives into Embabel decision evidence without adding policy.
+ * Maps TypeSafe's SDK primitives into Embabel decision evidence without adding policy.
  *
  * <p>A whole decision spec runs as one {@code systemOne} call. Proposition and rating questions
  * asked on their own run as a one-question call each. A choice question asked on its own goes
@@ -78,7 +78,7 @@ import java.util.concurrent.TimeoutException;
  */
 final class TypeSafeDecisionService
         implements DecisionService,
-                NativeQuestionSetExecution,
+                QuestionSetExecution,
                 PropositionAssessment,
                 RatingAssessment {
     private static final Logger logger = LoggerFactory.getLogger(TypeSafeDecisionService.class);
@@ -122,9 +122,9 @@ final class TypeSafeDecisionService
     }
 
     @Override
-    public DecisionResponse askNative(DecisionRequest request) {
+    public DecisionResponse askQuestionSet(DecisionRequest request) {
         Objects.requireNonNull(request, REQUEST_ARGUMENT);
-        return runQuestionSet(request, "ask_native", "question set");
+        return runQuestionSet(request, "ask_question_set", "question set");
     }
 
     @Override
@@ -241,7 +241,7 @@ final class TypeSafeDecisionService
      * {@link IllegalArgumentException}, which the caller reports as an invalid response.
      *
      * @param input the text the model reasons over
-     * @param questions the native questions, keyed by question key
+     * @param questions the TypeSafe questions, keyed by question key
      * @return the provider's response
      */
     private SystemOneResponse systemOne(String input, Map<String, ? extends Question> questions) {
@@ -253,7 +253,7 @@ final class TypeSafeDecisionService
     }
 
     /**
-     * Builds a native choice whose instructions, labels and descriptions come only from the request.
+     * Builds a TypeSafe choice whose instructions, labels and descriptions come only from the request.
      *
      * @param request the classification request
      * @return the choice to send

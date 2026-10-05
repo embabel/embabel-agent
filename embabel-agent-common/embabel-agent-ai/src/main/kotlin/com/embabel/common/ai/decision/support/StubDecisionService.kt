@@ -28,7 +28,7 @@ import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.QuestionKind
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
-import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
+import com.embabel.common.ai.decision.spi.QuestionSetExecution
 import com.embabel.common.ai.decision.spi.PropositionAssessment
 import com.embabel.common.ai.decision.spi.RatingAssessment
 import org.jetbrains.annotations.ApiStatus
@@ -43,7 +43,7 @@ import java.util.EnumSet
  * the choice scripted for the request's question name, and otherwise the classification scripted
  * for its set of category ids. A call with no scripted outcome throws [IllegalStateException].
  *
- * By default the stub answers a whole request in one native call. Native answers pass through the
+ * By default the stub answers a whole request in one question-set call. Question-set answers pass through the
  * same question validation as provider answers, so a scripted choice outside its question's
  * options, or rating evidence outside its levels, throws [IllegalStateException] from `ask`. A stub
  * built after [Builder.perQuestion] answers each question on its own: a choice question through
@@ -74,7 +74,7 @@ sealed class StubDecisionService private constructor(
     override fun capabilities(): DecisionCapabilities = capabilities
 
     /**
-     * Returns the names of the operations called so far, in call order: `askNative`, `assess`,
+     * Returns the names of the operations called so far, in call order: `askQuestionSet`, `assess`,
      * `classify` and `rate`. A question `assess` call is recorded as `assess`.
      *
      * @return an unmodifiable copy of the call log
@@ -111,9 +111,9 @@ sealed class StubDecisionService private constructor(
         return ratings[question.name] ?: throw unscripted(question.name, QuestionKind.RATING, "rating")
     }
 
-    // Answers every question of the request from the scripts, for the native variant.
+    // Answers every question of the request from the scripts, for the question-set variant.
     protected fun answerAll(request: DecisionRequest): DecisionResponse {
-        record("askNative")
+        record("askQuestionSet")
         val builder = DecisionResponse.builder(request.spec)
         for (question in request.spec.questions) {
             try {
@@ -144,8 +144,8 @@ sealed class StubDecisionService private constructor(
 
     override fun toString(): String = "StubDecisionService(name=$name)"
 
-    // The variant that answers a whole request in one native call.
-    private class Native(
+    // The variant that answers a whole request in one question-set call.
+    private class QuestionSet(
         name: String,
         capabilities: DecisionCapabilities,
         propositions: Map<String, PropositionResult>,
@@ -154,8 +154,8 @@ sealed class StubDecisionService private constructor(
         assessments: Map<String, PropositionResult>,
         classifications: Map<Set<String>, ClassificationResult>,
     ) : StubDecisionService(name, capabilities, propositions, choices, ratings, assessments, classifications),
-        NativeQuestionSetExecution {
-        override fun askNative(request: DecisionRequest): DecisionResponse = answerAll(request)
+        QuestionSetExecution {
+        override fun askQuestionSet(request: DecisionRequest): DecisionResponse = answerAll(request)
     }
 
     // The variant that answers each question on its own, a choice through classify.
@@ -200,7 +200,7 @@ sealed class StubDecisionService private constructor(
     class Builder internal constructor(private val name: String) {
 
         private var capabilities = DEFAULT_CAPABILITIES
-        private var native = true
+        private var questionSet = true
         private val propositions = LinkedHashMap<String, PropositionResult>()
         private val choices = LinkedHashMap<String, ClassificationResult>()
         private val ratings = LinkedHashMap<String, RatingResult>()
@@ -260,11 +260,11 @@ sealed class StubDecisionService private constructor(
         /**
          * Makes the stub answer each question on its own: a choice through `classify`, the other
          * kinds through their per-question hooks. By default the stub answers a whole request in one
-         * native call.
+         * question-set call.
          *
          * @return this builder
          */
-        fun perQuestion(): Builder = apply { native = false }
+        fun perQuestion(): Builder = apply { questionSet = false }
 
         /**
          * Sets the capabilities the stub reports. The default is every question kind.
@@ -285,8 +285,8 @@ sealed class StubDecisionService private constructor(
             val ratings = java.util.Map.copyOf(ratings)
             val assessments = java.util.Map.copyOf(assessments)
             val classifications = java.util.Map.copyOf(classifications)
-            return if (native) {
-                Native(name, capabilities, propositions, choices, ratings, assessments, classifications)
+            return if (questionSet) {
+                QuestionSet(name, capabilities, propositions, choices, ratings, assessments, classifications)
             } else {
                 PerQuestion(name, capabilities, propositions, choices, ratings, assessments, classifications)
             }

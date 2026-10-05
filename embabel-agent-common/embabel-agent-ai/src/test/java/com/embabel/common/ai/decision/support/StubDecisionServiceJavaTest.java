@@ -53,7 +53,7 @@ class StubDecisionServiceJavaTest {
         var department = (ChoiceQuestionSpec) spec.question("department");
         assertEquals(new PropositionResult.Answered(true, PROVENANCE), response.answer(urgent));
         assertEquals(new ClassificationResult.Selected("technical", PROVENANCE), response.answer(department));
-        assertEquals(List.of("askNative"), stub.calls());
+        assertEquals(List.of("askQuestionSet"), stub.calls());
     }
 
     @Test
