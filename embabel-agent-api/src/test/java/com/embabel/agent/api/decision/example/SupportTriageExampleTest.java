@@ -116,11 +116,11 @@ class SupportTriageExampleTest {
     }
 
     @Test
-    void aNativeServiceAnswersInOneCallAndAnyOtherPerQuestion() {
+    void aQuestionSetServiceAnswersInOneCallAndAnyOtherPerQuestion() {
         // tag::routing[]
         DecisionRequest request = DecisionRequest.of(TICKET, URGENT, DEPARTMENT);
 
-        // The triage stub answers the whole request in one native call.
+        // The triage stub answers the whole request in one question-set call.
         DecisionService triage = ai.decisions().byRole("support-triage");
         DecisionResponse shared = triage.ask(request);
 
@@ -133,7 +133,7 @@ class SupportTriageExampleTest {
         DecisionResponse separate = perQuestion.ask(request);
         // end::routing[]
 
-        assertEquals(List.of("askNative"), stub.calls());
+        assertEquals(List.of("askQuestionSet"), stub.calls());
         assertEquals(List.of("assess", "classify"), perQuestion.calls());
         assertEquals(shared.getAnswers(), separate.getAnswers());
         assertEquals(URGENT_ANSWER, separate.answer(URGENT));

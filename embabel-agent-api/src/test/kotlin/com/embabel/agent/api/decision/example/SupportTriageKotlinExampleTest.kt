@@ -106,7 +106,7 @@ class SupportTriageKotlinExampleTest {
     // end::dsl[]
 
     @Test
-    fun `a native answer routes to the selected team`() {
+    fun `a question-set answer routes to the selected team`() {
         val stub = StubDecisionService.builder("triage-stub")
             .proposition("urgent", PropositionResult.Answered(true, model))
             .choice("department", ClassificationResult.Selected("technical", model, 0.1))
@@ -114,7 +114,7 @@ class SupportTriageKotlinExampleTest {
             .build()
 
         assertEquals(Route("technical", sameDay = true, frustrationConfidence = null), triageTicket(aiWith(stub), ticket))
-        assertEquals(listOf("askNative"), stub.calls())
+        assertEquals(listOf("askQuestionSet"), stub.calls())
     }
 
     @Test

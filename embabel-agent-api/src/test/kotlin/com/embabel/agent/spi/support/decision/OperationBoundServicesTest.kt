@@ -33,7 +33,7 @@ import com.embabel.common.ai.decision.Questions
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
 import com.embabel.common.ai.decision.spi.DelegatingDecisionService
-import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
+import com.embabel.common.ai.decision.spi.QuestionSetExecution
 import com.embabel.common.ai.decision.spi.PropositionAssessment
 import com.embabel.common.ai.decision.spi.RatingAssessment
 import com.embabel.common.ai.decision.support.StubDecisionService
@@ -206,16 +206,16 @@ class OperationBoundServicesTest {
     }
 
     @Test
-    fun `capabilities and hooks are forwarded for legacy, classifying and native delegates`() {
+    fun `capabilities and hooks are forwarded for legacy, classifying and question-set delegates`() {
         val legacy = Probe(observations)
         val choosing = ChoosingProbe(observations)
-        val stub = StubDecisionService.builder("native-stub")
+        val stub = StubDecisionService.builder("question-set-stub")
             .proposition("urgent", PropositionResult.Answered(true, provenance))
             .choice("team", ClassificationResult.Selected("support", provenance))
             .rating("anger", RatingResult.Answered(provenance, selectedLevelId = "angry"))
             .build()
         val selector = OperationBoundServices.decisions(
-            registryOf("legacy" to legacy, "choosing" to choosing, "native" to stub),
+            registryOf("legacy" to legacy, "choosing" to choosing, "question-set" to stub),
         )
 
         val boundLegacy = selector.named("legacy")
@@ -234,24 +234,24 @@ class OperationBoundServicesTest {
         )
         assertEquals(1, choosing.classifyCalls)
 
-        val boundNative = selector.named("native")
-        assertEquals(stub.capabilities(), boundNative.capabilities())
+        val boundQuestionSet = selector.named("question-set")
+        assertEquals(stub.capabilities(), boundQuestionSet.capabilities())
         val request = DecisionRequest.of("text", urgent, team, anger)
-        (boundNative as NativeQuestionSetExecution).askNative(request).requireMatches(request.spec)
+        (boundQuestionSet as QuestionSetExecution).askQuestionSet(request).requireMatches(request.spec)
         assertEquals(
             ClassificationResult.Selected("support", provenance),
-            boundNative.classify("text", ClassificationSpec.of(team)),
+            boundQuestionSet.classify("text", ClassificationSpec.of(team)),
         )
         assertEquals(
             RatingResult.Answered(provenance, selectedLevelId = "angry"),
-            (boundNative as RatingAssessment).rate("text", anger),
+            (boundQuestionSet as RatingAssessment).rate("text", anger),
         )
         assertEquals(
             PropositionResult.Answered(true, provenance),
-            (boundNative as PropositionAssessment).assess("text", urgent),
+            (boundQuestionSet as PropositionAssessment).assess("text", urgent),
         )
-        assertEquals(null, boundNative.ask(request).requestFailure)
-        assertEquals(listOf("askNative", "classify", "rate", "assess", "askNative"), stub.calls())
+        assertEquals(null, boundQuestionSet.ask(request).requestFailure)
+        assertEquals(listOf("askQuestionSet", "classify", "rate", "assess", "askQuestionSet"), stub.calls())
     }
 
     @Test
@@ -298,7 +298,7 @@ class OperationBoundServicesTest {
         assertTrue(rate.message!!.contains("remove RATING"), rate.message)
         assertFalse(rate.message!!.contains("How angry"), rate.message)
         assertThrows(IllegalStateException::class.java) {
-            (bound as NativeQuestionSetExecution).askNative(DecisionRequest.of("text", urgent))
+            (bound as QuestionSetExecution).askQuestionSet(DecisionRequest.of("text", urgent))
         }
         val assess = assertThrows(IllegalStateException::class.java) {
             (bound as PropositionAssessment).assess("text", urgent)

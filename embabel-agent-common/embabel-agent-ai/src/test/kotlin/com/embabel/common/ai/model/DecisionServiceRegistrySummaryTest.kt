@@ -61,7 +61,7 @@ class DecisionServiceRegistrySummaryTest {
         override fun toString(): String = "PAYLOAD-$name"
     }
 
-    private val nativeCapabilities = DecisionCapabilities.of(
+    private val questionSetCapabilities = DecisionCapabilities.of(
         EnumSet.of(QuestionKind.PROPOSITION, QuestionKind.CHOICE, QuestionKind.RATING),
     )
 
@@ -82,7 +82,7 @@ class DecisionServiceRegistrySummaryTest {
 
     @Test
     fun `summary names every registration with service name provider type and capabilities`() {
-        val jev = FakeDecision("jev-1", "TypeSafe") { nativeCapabilities }
+        val jev = FakeDecision("jev-1", "TypeSafe") { questionSetCapabilities }
         val prompted = FakeDecision("gpt-x", "OpenAI")
         val classifier = FakeClassifier("clf-1", "acme")
         val events = captured {
@@ -125,7 +125,7 @@ class DecisionServiceRegistrySummaryTest {
 
     @Test
     fun `each build logs exactly one INFO line and reads capabilities once`() {
-        val jev = FakeDecision("jev-1", "TypeSafe") { nativeCapabilities }
+        val jev = FakeDecision("jev-1", "TypeSafe") { questionSetCapabilities }
         val builder = DecisionServiceRegistry.builder().register("jev", jev)
         val events = captured {
             builder.build()
@@ -138,7 +138,7 @@ class DecisionServiceRegistrySummaryTest {
 
     @Test
     fun `capabilities are read at build even when INFO is off`() {
-        val jev = FakeDecision("jev-1", "TypeSafe") { nativeCapabilities }
+        val jev = FakeDecision("jev-1", "TypeSafe") { questionSetCapabilities }
         val logger = LoggerFactory.getLogger(DecisionServiceRegistry::class.java) as Logger
         val previous = logger.level
         logger.level = Level.WARN

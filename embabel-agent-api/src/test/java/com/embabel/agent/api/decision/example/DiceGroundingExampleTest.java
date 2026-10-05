@@ -180,7 +180,7 @@ class DiceGroundingExampleTest {
         assertEquals(Disposition.SUPPORTED, evidence.proposedDisposition());
         assertEquals(List.of(evidence), evidenceLog);
         assertEquals(List.of("prop-7"), groundedPropositions);
-        assertEquals(List.of("askNative"), stub.calls());
+        assertEquals(List.of("askQuestionSet"), stub.calls());
     }
 
     @Test

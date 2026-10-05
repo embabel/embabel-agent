@@ -297,10 +297,10 @@ class DecisionServicesSpringExampleTest {
     }
 
     @Test
-    void nativeJevAskMakesOneHttpCall() {
-        expectNativeAnswers(fixture.server);
+    void questionSetJevAskMakesOneHttpCall() {
+        expectQuestionSetAnswers(fixture.server);
 
-        fixture.run(context -> assertNativeAnswers(askTriage(context, FEEDBACK)));
+        fixture.run(context -> assertQuestionSetAnswers(askTriage(context, FEEDBACK)));
 
         fixture.server.verify();
         verifyNoInteractions(fixture.llmOperations);
@@ -383,7 +383,7 @@ class DecisionServicesSpringExampleTest {
 
     @Test
     void operationContextAiReachesTheRegisteredServices() {
-        expectNativeAnswers(fixture.server);
+        expectQuestionSetAnswers(fixture.server);
 
         fixture.run(
                 context -> {
@@ -394,7 +394,7 @@ class DecisionServicesSpringExampleTest {
                     assertThat(triage.getName()).isEqualTo(jev.getName());
                     assertThat(triage.getProvider()).isEqualTo(jev.getProvider());
                     assertThat(triage.capabilities()).isEqualTo(jev.capabilities());
-                    assertNativeAnswers(triage.ask(FEEDBACK, TRIAGE));
+                    assertQuestionSetAnswers(triage.ask(FEEDBACK, TRIAGE));
                     assertThat(operation.ai().classifications().byRole("dice-revision").getName())
                             .isEqualTo(REVIEW_MODEL);
                 });
@@ -416,8 +416,8 @@ class DecisionServicesSpringExampleTest {
                 .build();
     }
 
-    /** Scripts one native TypeSafe call that answers the triage spec. */
-    static void expectNativeAnswers(MockRestServiceServer server) {
+    /** Scripts one TypeSafe question-set call that answers the triage spec. */
+    static void expectQuestionSetAnswers(MockRestServiceServer server) {
         server.expect(requestTo(SYSTEM_ONE_URI))
                 .andExpect(jsonPath("$.questions.q1").exists())
                 .andExpect(jsonPath("$.questions.q3").exists())
@@ -453,7 +453,7 @@ class DecisionServicesSpringExampleTest {
                                 MediaType.APPLICATION_JSON));
     }
 
-    static void assertNativeAnswers(DecisionResponse response) {
+    static void assertQuestionSetAnswers(DecisionResponse response) {
         assertThat(response.getRequestFailure()).isNull();
         assertThat(response.answer(URGENT))
                 .isInstanceOfSatisfying(

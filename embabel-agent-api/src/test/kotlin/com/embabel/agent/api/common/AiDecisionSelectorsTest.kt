@@ -65,7 +65,7 @@ class AiDecisionSelectorsTest {
         val response = FakeOperationContext.withDecisionServices(registry).ai().decisions().byRole("support-triage").ask(feedback, triage)
         assertEquals(urgentAnswer, response.answer(urgent))
         assertEquals(teamAnswer, response.answer(team))
-        assertEquals(listOf("askNative"), stub.calls())
+        assertEquals(listOf("askQuestionSet"), stub.calls())
     }
 
     @Test
@@ -80,7 +80,7 @@ class AiDecisionSelectorsTest {
             assertEquals(stub.capabilities(), service.capabilities())
             assertEquals(teamAnswer, service.ask(feedback, triage).answer(team))
         }
-        assertEquals(listOf("askNative", "askNative", "askNative"), stub.calls())
+        assertEquals(listOf("askQuestionSet", "askQuestionSet", "askQuestionSet"), stub.calls())
     }
 
     @Test

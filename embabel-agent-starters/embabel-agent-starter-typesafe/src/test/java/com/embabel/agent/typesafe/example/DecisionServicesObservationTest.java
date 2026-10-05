@@ -29,13 +29,13 @@ import static com.embabel.agent.typesafe.example.DecisionServicesSpringExampleTe
 import static com.embabel.agent.typesafe.example.DecisionServicesSpringExampleTest.askTriage;
 import static com.embabel.agent.typesafe.example.DecisionServicesSpringExampleTest.assertBoundedTags;
 import static com.embabel.agent.typesafe.example.DecisionServicesSpringExampleTest.assertFailureLogLines;
-import static com.embabel.agent.typesafe.example.DecisionServicesSpringExampleTest.assertNativeAnswers;
+import static com.embabel.agent.typesafe.example.DecisionServicesSpringExampleTest.assertQuestionSetAnswers;
 import static com.embabel.agent.typesafe.example.DecisionServicesSpringExampleTest.assertNoSentinels;
 import static com.embabel.agent.typesafe.example.DecisionServicesSpringExampleTest.assertPromptedAnswers;
 import static com.embabel.agent.typesafe.example.DecisionServicesSpringExampleTest.assertPerQuestionAnswers;
 import static com.embabel.agent.typesafe.example.DecisionServicesSpringExampleTest.assertUnavailable;
 import static com.embabel.agent.typesafe.example.DecisionServicesSpringExampleTest.capture;
-import static com.embabel.agent.typesafe.example.DecisionServicesSpringExampleTest.expectNativeAnswers;
+import static com.embabel.agent.typesafe.example.DecisionServicesSpringExampleTest.expectQuestionSetAnswers;
 import static com.embabel.agent.typesafe.example.DecisionServicesSpringExampleTest.expectPerQuestionAnswers;
 import static com.embabel.agent.typesafe.example.DecisionServicesSpringExampleTest.operationContext;
 import static com.embabel.agent.typesafe.example.DecisionServicesSpringExampleTest.verifyOnePrompt;
@@ -69,13 +69,13 @@ class DecisionServicesObservationTest {
     private final DecisionServicesSpringExampleTest.Fixture fixture = new DecisionServicesSpringExampleTest.Fixture();
 
     @Test
-    void nativeJevAskRecordsOneAskAndOneProviderObservation() {
-        expectNativeAnswers(fixture.server);
+    void questionSetJevAskRecordsOneAskAndOneProviderObservation() {
+        expectQuestionSetAnswers(fixture.server);
 
-        fixture.run(context -> assertNativeAnswers(askTriage(context, FEEDBACK)));
+        fixture.run(context -> assertQuestionSetAnswers(askTriage(context, FEEDBACK)));
 
         fixture.server.verify();
-        var ask = assertOneAskWithOneNativeCall();
+        var ask = assertOneAskWithOneQuestionSetCall();
         assertThat(ask.getLowCardinalityKeyValue("service").getValue()).isEqualTo(JEV_MODEL);
         assertThat(ask.getLowCardinalityKeyValue("provider").getValue()).isEqualTo(TypeSafeModelFactory.PROVIDER);
         assertThat(ask.getLowCardinalityKeyValue("outcome").getValue()).isEqualTo("complete");
@@ -118,7 +118,7 @@ class DecisionServicesObservationTest {
                                 .ask(FEEDBACK, TRIAGE)));
 
         verifyOnePrompt(fixture);
-        var ask = assertOneAskWithOneNativeCall();
+        var ask = assertOneAskWithOneQuestionSetCall();
         assertThat(ask.getLowCardinalityKeyValue("provider").getValue()).isEqualTo(REVIEW_PROVIDER);
     }
 
@@ -135,7 +135,7 @@ class DecisionServicesObservationTest {
                 });
 
         verifyOnePrompt(fixture);
-        var ask = assertOneAskWithOneNativeCall();
+        var ask = assertOneAskWithOneQuestionSetCall();
         assertThat(ask.getLowCardinalityKeyValue("service").getValue()).isEqualTo(REVIEW_MODEL);
         assertThat(ask.getLowCardinalityKeyValue("provider").getValue()).isEqualTo(REVIEW_PROVIDER);
         assertThat(ask.getLowCardinalityKeyValue("outcome").getValue()).isEqualTo("complete");
@@ -165,12 +165,12 @@ class DecisionServicesObservationTest {
         assertThat(askTimer).isNotNull();
         assertThat(askTimer.count()).isEqualTo(1L);
 
-        // Span: the ask holds one native call, and both carry the error marker.
-        var ask = assertOneAskWithOneNativeCall();
-        var nativeCall = fixture.recorder.named("embabel.ai.decision").get(0);
-        assertThat(nativeCall.getLowCardinalityKeyValue("outcome").getValue()).isEqualTo("request_failure");
-        assertThat(nativeCall.getError()).isNotNull();
-        assertThat(nativeCall.getError().getMessage()).isEqualTo("request_failure");
+        // Span: the ask holds one question-set call, and both carry the error marker.
+        var ask = assertOneAskWithOneQuestionSetCall();
+        var questionSetCall = fixture.recorder.named("embabel.ai.decision").get(0);
+        assertThat(questionSetCall.getLowCardinalityKeyValue("outcome").getValue()).isEqualTo("request_failure");
+        assertThat(questionSetCall.getError()).isNotNull();
+        assertThat(questionSetCall.getError().getMessage()).isEqualTo("request_failure");
         assertThat(ask.getError()).isNotNull();
 
         // No payload reaches a tag, a contextual name, an error or a log line, and no role or
@@ -194,7 +194,7 @@ class DecisionServicesObservationTest {
 
     @Test
     void askSelectedInsideAnActionIsAChildOfTheAction() {
-        expectNativeAnswers(fixture.server);
+        expectQuestionSetAnswers(fixture.server);
 
         fixture.run(
                 context -> {
@@ -206,23 +206,23 @@ class DecisionServicesObservationTest {
                     try (var ignored = action.openScope()) {
                         triage = operation.ai().decisions().byRole("support-triage");
                     }
-                    assertNativeAnswers(triage.ask(FEEDBACK, TRIAGE));
+                    assertQuestionSetAnswers(triage.ask(FEEDBACK, TRIAGE));
                     action.stop();
                 });
 
         fixture.server.verify();
-        var ask = assertOneAskWithOneNativeCall();
+        var ask = assertOneAskWithOneQuestionSetCall();
         var action = fixture.recorder.named("test.action").get(0);
         assertThat(ask.getParentObservation().getContextView()).isSameAs(action);
     }
 
-    /** Checks one logical ask with one native provider call as its child, and returns the ask. */
-    private Observation.Context assertOneAskWithOneNativeCall() {
+    /** Checks one logical ask with one question-set provider call as its child, and returns the ask. */
+    private Observation.Context assertOneAskWithOneQuestionSetCall() {
         var asks = fixture.recorder.named("embabel.ai.ask");
         var calls = fixture.recorder.named("embabel.ai.decision");
         assertThat(asks).hasSize(1);
         assertThat(calls).hasSize(1);
-        assertThat(calls.get(0).getLowCardinalityKeyValue("operation").getValue()).isEqualTo("ask_native");
+        assertThat(calls.get(0).getLowCardinalityKeyValue("operation").getValue()).isEqualTo("ask_question_set");
         assertThat(calls.get(0).getParentObservation().getContextView()).isSameAs(asks.get(0));
         assertThat(asks.get(0).getLowCardinalityKeyValue("execution_mode")).isNull();
         return asks.get(0);

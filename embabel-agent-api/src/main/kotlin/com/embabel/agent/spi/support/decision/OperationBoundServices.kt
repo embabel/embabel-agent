@@ -32,7 +32,7 @@ import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
 import com.embabel.common.ai.decision.spi.DelegatingDecisionService
-import com.embabel.common.ai.decision.spi.NativeQuestionSetExecution
+import com.embabel.common.ai.decision.spi.QuestionSetExecution
 import com.embabel.common.ai.decision.spi.PropositionAssessment
 import com.embabel.common.ai.decision.spi.RatingAssessment
 import com.embabel.common.ai.model.DecisionServiceRegistry
@@ -264,7 +264,7 @@ internal class OperationBoundDecisionService(
     private val observationRegistry: ObservationRegistry,
 ) : DecisionService,
     DelegatingDecisionService,
-    NativeQuestionSetExecution,
+    QuestionSetExecution,
     PropositionAssessment,
     RatingAssessment {
 
@@ -297,10 +297,10 @@ internal class OperationBoundDecisionService(
     override fun ask(request: DecisionRequest): DecisionResponse =
         withParent(parent, observationRegistry) { delegate.ask(request) }
 
-    override fun askNative(request: DecisionRequest): DecisionResponse {
-        val hook = delegate as? NativeQuestionSetExecution
-            ?: throw missingHook("NativeQuestionSetExecution", "askNative", "the question kinds it answers only natively")
-        return withParent(parent, observationRegistry) { hook.askNative(request) }
+    override fun askQuestionSet(request: DecisionRequest): DecisionResponse {
+        val hook = delegate as? QuestionSetExecution
+            ?: throw missingHook("QuestionSetExecution", "askQuestionSet", "the question kinds it answers only through question-set execution")
+        return withParent(parent, observationRegistry) { hook.askQuestionSet(request) }
     }
 
     override fun assess(input: String, question: PropositionQuestionSpec): PropositionResult {
