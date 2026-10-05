@@ -41,10 +41,16 @@ object AnthropicOptionsConverter : OptionsConverter {
             .topP(options.topP)
             .maxTokens(options.maxTokens ?: DEFAULT_MAX_TOKENS)
             .apply {
-                // Never send thinking "disabled": Claude Opus 5.5, Sonnet 5.5 and Fable 5.1 reject
-                // it with a 400, and an absent field already means "off" on Claude 4.x.
-                val thinkingBudget = options.thinking?.tokenBudget
-                if (options.thinking?.enabled == true && thinkingBudget != null) {
+                val thinking = options.thinking
+                val thinkingBudget = thinking?.tokenBudget
+                if (thinking != null && !thinking.enabled && !thinking.extractThinking) {
+                    // withoutThinking(). Extraction alone leaves the model's own default alone.
+                    if (capabilities.acceptsThinkingDisabled) {
+                        thinkingDisabled()
+                    } else {
+                        logger.warn("Model '{}' cannot turn thinking off, so it thinks adaptively", model)
+                    }
+                } else if (thinking?.enabled == true && thinkingBudget != null) {
                     if (capabilities.acceptsThinkingBudget) {
                         thinkingEnabled(thinkingBudget.toLong())
                     } else {
@@ -125,9 +131,12 @@ object AnthropicOptionsConverter : OptionsConverter {
  *
  * @property acceptsThinkingBudget `thinking: {type: "enabled", budget_tokens}` works; Claude Opus 4.7
  * and later, the Claude 5 generation, Fable and Mythos reject it and take adaptive thinking instead.
+ * @property acceptsThinkingDisabled `thinking: {type: "disabled"}` works; Claude Opus 5.5, Sonnet 5.5,
+ * Fable and Mythos reject it. Opus 5 and Sonnet 5 accept it.
  */
 internal data class ClaudeCapabilities(
     val acceptsThinkingBudget: Boolean,
+    val acceptsThinkingDisabled: Boolean,
 ) {
     companion object {
         private val ID = Regex("""^claude-(opus|sonnet|haiku|fable|mythos)(?:-(\d+)(?:-(\d)(?!\d))?)?""")
@@ -144,6 +153,7 @@ internal data class ClaudeCapabilities(
             }
             return ClaudeCapabilities(
                 acceptsThinkingBudget = version < 47,
+                acceptsThinkingDisabled = version < 55,
             )
         }
     }

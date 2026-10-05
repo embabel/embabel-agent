@@ -143,6 +143,29 @@ class AnthropicWireTest {
         }
 
         @ParameterizedTest
+        @ValueSource(strings = ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5", "claude-opus-5", "claude-sonnet-5"])
+        fun `withoutThinking turns thinking off where the model allows it`(model: String) {
+            send(model, LlmOptions().withoutThinking())
+
+            assertEquals("disabled", request["thinking"]["type"].asText())
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1"])
+        fun `withoutThinking leaves thinking unset on models that reject disabled`(model: String) {
+            send(model, LlmOptions().withoutThinking())
+
+            assertNull(request["thinking"])
+        }
+
+        @Test
+        fun `thinking extraction leaves the model's own thinking default alone`() {
+            send("claude-opus-5", LlmOptions().withThinking(Thinking.withExtraction()))
+
+            assertNull(request["thinking"])
+        }
+
+        @ParameterizedTest
         @ValueSource(strings = ["claude-opus-5-5", "claude-haiku-4-5"])
         fun `thinking is unset when the caller says nothing`(model: String) {
             send(model)
