@@ -71,7 +71,7 @@ class PortableSpecExecutionTest {
         assertEquals(
             new RatingResult.Answered(PROVENANCE, "MEDIUM"),
             response.answer((RatingQuestionSpec) spec.question("severity")));
-        assertEquals(List.of("askNative"), stub.calls());
+        assertEquals(List.of("askQuestionSet"), stub.calls());
     }
 
     @Test
