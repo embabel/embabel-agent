@@ -33,12 +33,22 @@ object AnthropicOptionsConverter : OptionsConverter {
      */
     const val DEFAULT_MAX_TOKENS = 8192
 
+    private const val DEFAULT_TEMPERATURE = 1.0
+
     override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
         val capabilities = ClaudeCapabilities.of(model)
+        if (!capabilities.acceptsSampling) {
+            warnAboutIgnoredSampling(options, model)
+        }
         val builder = AnthropicChatOptions.builder()
             .model(model)
-            .temperature(options.temperature)
-            .topP(options.topP)
+            .apply {
+                if (capabilities.acceptsSampling) {
+                    temperature(options.temperature)
+                    topP(options.topP)
+                    topK(options.topK)
+                }
+            }
             .maxTokens(options.maxTokens ?: DEFAULT_MAX_TOKENS)
             .apply {
                 val thinking = options.thinking
@@ -63,7 +73,6 @@ object AnthropicOptionsConverter : OptionsConverter {
                     }
                 }
             }
-            .topK(options.topK)
 
         // Apply Anthropic caching if configured
         options.getAnthropicCaching()?.let { caching ->
@@ -87,6 +96,25 @@ object AnthropicOptionsConverter : OptionsConverter {
         }
 
         return builder.build()
+    }
+
+    /**
+     * Warn-and-drop, as for OpenAI: refusing the call would cost the caller an answer over a
+     * parameter that was never essential. Default temperature is what the model uses anyway.
+     */
+    private fun warnAboutIgnoredSampling(options: LlmOptions, model: String) {
+        val ignored = listOfNotNull(
+            options.temperature?.takeIf { it != DEFAULT_TEMPERATURE }?.let { "temperature=$it" },
+            options.topP?.let { "topP=$it" },
+            options.topK?.let { "topK=$it" },
+        )
+        if (ignored.isNotEmpty()) {
+            logger.warn(
+                "Model '{}' rejects sampling parameters, so the following are ignored rather than sent: {}",
+                model,
+                ignored.joinToString(", "),
+            )
+        }
     }
 
     /**
@@ -133,10 +161,13 @@ object AnthropicOptionsConverter : OptionsConverter {
  * and later, the Claude 5 generation, Fable and Mythos reject it and take adaptive thinking instead.
  * @property acceptsThinkingDisabled `thinking: {type: "disabled"}` works; Claude Opus 5.5, Sonnet 5.5,
  * Fable and Mythos reject it. Opus 5 and Sonnet 5 accept it.
+ * @property acceptsSampling non-default `temperature`, `top_p` and `top_k` work; Claude Opus 4.7 and
+ * later, the Claude 5 generation, Fable and Mythos reject them on every request.
  */
 internal data class ClaudeCapabilities(
     val acceptsThinkingBudget: Boolean,
     val acceptsThinkingDisabled: Boolean,
+    val acceptsSampling: Boolean,
 ) {
     companion object {
         private val ID = Regex("""^claude-(opus|sonnet|haiku|fable|mythos)(?:-(\d+)(?:-(\d)(?!\d))?)?""")
@@ -154,6 +185,7 @@ internal data class ClaudeCapabilities(
             return ClaudeCapabilities(
                 acceptsThinkingBudget = version < 47,
                 acceptsThinkingDisabled = version < 55,
+                acceptsSampling = version < 47,
             )
         }
     }

@@ -173,4 +173,29 @@ class AnthropicWireTest {
             assertNull(request["thinking"])
         }
     }
+
+    @Nested
+    inner class SamplingRequest {
+
+        private val sampling = LlmOptions().withTemperature(0.3).withTopP(0.9).withTopK(40)
+
+        @ParameterizedTest
+        @ValueSource(strings = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1", "claude-opus-4-8"])
+        fun `sampling parameters are dropped on models that reject them`(model: String) {
+            send(model, sampling)
+
+            assertNull(request["temperature"], "temperature")
+            assertNull(request["top_p"], "top_p")
+            assertNull(request["top_k"], "top_k")
+        }
+
+        @Test
+        fun `sampling parameters reach models that accept them`() {
+            send(AnthropicModels.CLAUDE_SONNET_4_6, sampling)
+
+            assertEquals(0.3, request["temperature"].asDouble())
+            assertEquals(0.9, request["top_p"].asDouble())
+            assertEquals(40, request["top_k"].asInt())
+        }
+    }
 }
