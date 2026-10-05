@@ -34,6 +34,7 @@ import com.embabel.common.byok.firstOfType
 import com.embabel.common.byok.requireUsableApiKey
 import com.embabel.common.byok.validatedEmbeddingService
 import com.embabel.common.util.ObjectProviders
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
 import com.openai.client.OpenAIClientAsync
 import com.openai.client.OpenAIClientAsyncImpl
@@ -712,6 +713,7 @@ open class OpenAiCompatibleModelFactory(
             client = openAiClient,
             defaultOptions = OpenAiChatOptions.builder().model(model).build(),
             observationRegistry = observationRegistry,
+            objectMapper = ObjectMapper(),
             provider = provider,
         )
 

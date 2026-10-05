@@ -77,11 +77,19 @@ import com.openai.models.responses.Response as OpenAiResponse
 class OpenAiResponsesChatModel(
     private val client: OpenAIClient,
     private val defaultOptions: OpenAiChatOptions,
-    private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
-    private val objectMapper: ObjectMapper = ObjectMapper(),
+    private val observationRegistry: ObservationRegistry,
+    private val objectMapper: ObjectMapper,
     /** Reported on the chat observation; a compatible endpoint names its own provider. */
-    private val provider: String = OpenAiModels.PROVIDER,
+    private val provider: String,
 ) : ChatModel {
+
+    /** The published constructor, kept so code compiled against it still links; reports OpenAI. */
+    constructor(
+        client: OpenAIClient,
+        defaultOptions: OpenAiChatOptions,
+        observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
+        objectMapper: ObjectMapper = ObjectMapper(),
+    ) : this(client, defaultOptions, observationRegistry, objectMapper, OpenAiModels.PROVIDER)
 
     /**
      * Observed under the same convention as Spring AI's own chat models. Embabel's `embabel.llm`

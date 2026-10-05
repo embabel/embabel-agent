@@ -23,6 +23,7 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.support.streaming.InternalStreamingApi
 import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.embabel.common.ai.model.LlmOptions
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseCreateParams
@@ -663,6 +664,29 @@ class OpenAiResponsesChatModelTest {
 
     @Nested
     inner class ContractWithSurroundingCode {
+
+        /**
+         * Code compiled against the published adapter links to these two constructors: the
+         * four-argument one from Java, and Kotlin's default-argument one, which takes a mask of
+         * the defaulted parameters and a marker. Removing either is a NoSuchMethodError there.
+         */
+        @Test
+        fun `the published constructors still link`() {
+            val type = OpenAiResponsesChatModel::class.java
+            val options = OpenAiChatOptions.builder().model("gpt-5-pro").build()
+
+            type.getConstructor(
+                OpenAIClient::class.java, OpenAiChatOptions::class.java,
+                ObservationRegistry::class.java, ObjectMapper::class.java,
+            ).newInstance(client, options, ObservationRegistry.NOOP, ObjectMapper())
+            val withDefaults = type.getConstructor(
+                OpenAIClient::class.java, OpenAiChatOptions::class.java,
+                ObservationRegistry::class.java, ObjectMapper::class.java,
+                Int::class.javaPrimitiveType, Class.forName("kotlin.jvm.internal.DefaultConstructorMarker"),
+            ).newInstance(client, options, null, null, 0b1100, null)
+
+            assertEquals(options.model, (withDefaults.defaultOptions as OpenAiChatOptions).model)
+        }
 
         /** `StreamingCapabilityVerifier` probes streaming support by calling [stream] and catching this. */
         @Test
