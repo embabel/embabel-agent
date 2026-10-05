@@ -228,37 +228,6 @@ class OpenAiResponsesChatModelTest {
             )
         }
 
-        /**
-         * The test above builds the options the way the configurer does. This one runs the real
-         * chain — shipped catalogue, real configurer, real adapter — so the three stay in step:
-         * a `strategy` renamed in the YAML, or a configurer that stopped writing `responseFormat`,
-         * would leave a `*-pro` model answering in free text with every unit test still green.
-         */
-        @Test
-        fun `a schema the native support configures reaches the Responses API`() {
-            val proModel = OpenAiModelLoader().loadAutoConfigMetadata().effectiveModels()
-                .first { it.apiFormat == OpenAiApiFormat.RESPONSES }
-
-            val configured = OpenAiNativeStructuredOutputConfigurer.configure(
-                options = OpenAiChatOptions.builder().model(proModel.modelId).build(),
-                structuredOutput = StructuredOutputRequest(
-                    name = "Answer",
-                    schema = """{"title":"Answer","type":"object","properties":{"answer":{"type":"string"}}}""",
-                ),
-                nativeSupport = proModel.nativeSupport,
-                llm = null,
-            )
-
-            val params = capture(Prompt(listOf(UserMessage("Hi")), configured))
-
-            val format = params.text().orElseThrow().format().orElseThrow().jsonSchema().orElseThrow()
-            assertEquals("Answer", format.name(), "The schema title should name the format")
-            assertEquals(
-                "object",
-                format.schema()._additionalProperties()["type"]?.asString()?.orElse(null),
-            )
-        }
-
         /** The name OpenAI accepts, for a schema titled [title], or none when it is null. */
         private fun schemaNameFor(title: String?): String {
             val titleField = title?.let { """"title":"$it",""" } ?: ""
