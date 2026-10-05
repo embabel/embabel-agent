@@ -79,6 +79,8 @@ class OpenAiResponsesChatModel(
     private val defaultOptions: OpenAiChatOptions,
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
     private val objectMapper: ObjectMapper = ObjectMapper(),
+    /** Reported on the chat observation; a compatible endpoint names its own provider. */
+    private val provider: String = OpenAiModels.PROVIDER,
 ) : ChatModel {
 
     /**
@@ -90,7 +92,7 @@ class OpenAiResponsesChatModel(
     override fun call(prompt: Prompt): ChatResponse {
         val context = ChatModelObservationContext.builder()
             .prompt(prompt)
-            .provider(OpenAiModels.PROVIDER)
+            .provider(provider)
             .build()
 
         return ChatModelObservationDocumentation.CHAT_MODEL_OPERATION
