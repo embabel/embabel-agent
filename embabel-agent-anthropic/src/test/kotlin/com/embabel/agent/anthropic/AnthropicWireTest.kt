@@ -19,11 +19,19 @@ import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.Thinking
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.sun.net.httpserver.HttpServer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import java.net.InetSocketAddress
 
 /**
@@ -35,12 +43,13 @@ class AnthropicWireTest {
 
     private lateinit var server: HttpServer
     private var responseContent = """[{"type":"text","text":"Hi"}]"""
+    private lateinit var request: JsonNode
 
     @BeforeEach
     fun setUp() {
         server = HttpServer.create(InetSocketAddress(0), 0)
         server.createContext("/v1/messages") { exchange ->
-            exchange.requestBody.use { it.readBytes() }
+            request = ObjectMapper().readTree(exchange.requestBody.use { it.readBytes() })
             val body = """
                 {"id":"msg_test","type":"message","role":"assistant","content":$responseContent,
                  "model":"test","stop_reason":"end_turn","stop_sequence":null,
@@ -106,5 +115,39 @@ class AnthropicWireTest {
 
         assertEquals("Looking it up.", response.textContent)
         assertEquals("lookup", (response.message as AssistantMessageWithToolCalls).toolCalls.single().name)
+    }
+
+    /**
+     * Per-model behaviour from platform.claude.com/docs/en/build-with-claude/thinking
+     * ("Configuring thinking" table and "Sampling parameters").
+     */
+    @Nested
+    inner class ThinkingRequest {
+
+        @ParameterizedTest
+        @ValueSource(strings = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1", "claude-opus-4-8", "claude-opus-4-7"])
+        fun `a budget becomes adaptive thinking on models that reject budgets`(model: String) {
+            send(model, LlmOptions().withThinking(Thinking.withTokenBudget(2000)))
+
+            assertEquals("adaptive", request["thinking"]["type"].asText())
+            assertFalse(request["thinking"].has("budget_tokens"))
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = ["claude-sonnet-4-5", "claude-haiku-4-5", "claude-opus-4-6", "claude-sonnet-4-6"])
+        fun `a budget is sent as is to models that accept budgets`(model: String) {
+            send(model, LlmOptions().withThinking(Thinking.withTokenBudget(2000)))
+
+            assertEquals("enabled", request["thinking"]["type"].asText())
+            assertEquals(2000, request["thinking"]["budget_tokens"].asInt())
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = ["claude-opus-5-5", "claude-haiku-4-5"])
+        fun `thinking is unset when the caller says nothing`(model: String) {
+            send(model)
+
+            assertNull(request["thinking"])
+        }
     }
 }
