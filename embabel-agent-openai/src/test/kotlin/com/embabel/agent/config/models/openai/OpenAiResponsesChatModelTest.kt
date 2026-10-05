@@ -262,6 +262,14 @@ class OpenAiResponsesChatModelTest {
             assertEquals("response", schemaNameFor(""), "An empty title names nothing")
         }
 
+        /** OpenAI rejects a schema name over 64 characters, and a qualified generic title gets there. */
+        @Test
+        fun `schema names are cut to the length the api accepts`() {
+            val title = "com.example.orders.fulfilment.List<com.example.orders.fulfilment.ShipmentLine>"
+
+            assertEquals("com_example_orders_fulfilment_List_com_example_orders_fulfilment", schemaNameFor(title))
+        }
+
         /** A response_format that is not a JSON schema has no Responses equivalent to carry. */
         @Test
         fun `non schema response formats are dropped rather than mistranslated`() {
