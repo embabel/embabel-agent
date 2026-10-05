@@ -270,8 +270,9 @@ class OpenAiResponsesChatModel(
         }
 
     /**
-     * The Responses API requires the schema to be named and accepts only `[a-zA-Z0-9_-]` in that
-     * name, so every other character is folded to an underscore, one for one:
+     * The Responses API requires the schema to be named, accepts only `[a-zA-Z0-9_-]` in that name
+     * and at most [MAX_SCHEMA_NAME_LENGTH] characters, so every other character is folded to an
+     * underscore, one for one, and a longer name is cut:
      *
      * - `Answer` stays `Answer`
      * - `com.example.Answer` becomes `com_example_Answer`
@@ -287,6 +288,7 @@ class OpenAiResponsesChatModel(
     private fun schemaNameOf(schema: Map<String, Any?>): String =
         (schema["title"] as? String)
             ?.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            ?.take(MAX_SCHEMA_NAME_LENGTH)
             ?.takeIf { it.isNotBlank() }
             ?: DEFAULT_SCHEMA_NAME
 
@@ -394,6 +396,9 @@ class OpenAiResponsesChatModel(
 
         /** Used when the schema carries no usable title. */
         const val DEFAULT_SCHEMA_NAME = "response"
+
+        /** The longest schema name the Responses API accepts. */
+        const val MAX_SCHEMA_NAME_LENGTH = 64
 
         /** Terminal statuses that carry no answer at all. */
         val ANSWERLESS_STATUSES = setOf(ResponseStatus.FAILED, ResponseStatus.CANCELLED)
