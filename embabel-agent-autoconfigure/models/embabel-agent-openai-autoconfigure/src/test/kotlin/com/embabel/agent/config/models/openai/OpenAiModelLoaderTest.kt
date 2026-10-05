@@ -63,7 +63,11 @@ class OpenAiModelLoaderTest {
         @Test
         fun `known models are present and priced`() {
             val modelNames = shippedCatalogue.models.map { it.name }
-            assertTrue(modelNames.contains("gpt53chat"), "Should include GPT-5.3 Chat")
+            assertFalse(modelNames.contains("gpt53chat"), "GPT-5.3 Chat is retired and must not be listed")
+            assertTrue(
+                modelNames.containsAll(listOf("gpt6astra", "gpt61sol", "gpt6sol", "gpt6luna")),
+                "Should include the GPT-6 family",
+            )
 
             assertTrue(
                 shippedCatalogue.models.any { it.pricingModel != null },
@@ -77,8 +81,8 @@ class OpenAiModelLoaderTest {
          * (warn-and-drop, never throw). A model shipped without these sends fields OpenAI rejects.
          */
         @Test
-        fun `every GPT-5 model declares sampling and max_completion_tokens capabilities`() {
-            val gpt5Models = shippedCatalogue.models.filter { it.name.startsWith("gpt5") }
+        fun `every GPT-5 and GPT-6 model declares sampling and max_completion_tokens capabilities`() {
+            val gpt5Models = shippedCatalogue.models.filter { it.name.startsWith("gpt5") || it.name.startsWith("gpt6") }
             assertTrue(gpt5Models.isNotEmpty(), "Should have GPT-5 models")
 
             gpt5Models.forEach { model ->
@@ -712,9 +716,10 @@ class OpenAiModelLoaderTest {
                 setOf(
                     "gpt-5-pro", "gpt-5.2-pro", "gpt-5.4-pro", "gpt-5.5-pro",
                     "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
+                    "gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna",
                 ),
                 byFormat[OpenAiApiFormat.RESPONSES].orEmpty().toSet(),
-                "Only the *-pro models and the GPT-5.6 tiers are served over /v1/responses",
+                "Only the *-pro models and the GPT-5.6 and GPT-6 tiers are served over /v1/responses",
             )
             assertTrue(
                 byFormat[OpenAiApiFormat.CHAT_COMPLETIONS].orEmpty().none { it.endsWith("-pro") },
@@ -754,6 +759,28 @@ class OpenAiModelLoaderTest {
                     "gpt-5.6-sol" to OpenAiApiFormat.RESPONSES,
                     "gpt-5.6-terra" to OpenAiApiFormat.RESPONSES,
                     "gpt-5.6-luna" to OpenAiApiFormat.RESPONSES,
+                ),
+                models,
+            )
+        }
+
+        /**
+         * GPT-6 keeps the GPT-5.6 split: Astra and 6.1 Sol take tool calls only over Responses,
+         * and 6 Sol and Luna accept function tools on Chat Completions only at reasoning effort
+         * `none`.
+         */
+        @Test
+        fun `the GPT-6 tiers use Responses, the only transport that accepts their tool calls`() {
+            val models = shippedCatalogue.effectiveModels()
+                .filter { it.modelId.startsWith("gpt-6") }
+                .associate { it.modelId to it.apiFormat }
+
+            assertEquals(
+                mapOf(
+                    "gpt-6-astra" to OpenAiApiFormat.RESPONSES,
+                    "gpt-6.1-sol" to OpenAiApiFormat.RESPONSES,
+                    "gpt-6-sol" to OpenAiApiFormat.RESPONSES,
+                    "gpt-6-luna" to OpenAiApiFormat.RESPONSES,
                 ),
                 models,
             )

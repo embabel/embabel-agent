@@ -40,13 +40,11 @@ object AnthropicOptionsConverter : OptionsConverter {
             .topP(options.topP)
             .maxTokens(options.maxTokens ?: DEFAULT_MAX_TOKENS)
             .apply {
-                // Spring AI 2.0 replaced AnthropicApi.ChatCompletionRequest.ThinkingConfig with
-                // first-class thinkingEnabled(tokenBudget) / thinkingDisabled() builder methods.
+                // Never send thinking "disabled": Claude Opus 5.5, Sonnet 5.5 and Fable 5.1 reject
+                // it with a 400, and an absent field already means "off" on Claude 4.x.
                 val thinkingBudget = options.thinking?.tokenBudget
                 if (options.thinking?.enabled == true && thinkingBudget != null) {
                     thinkingEnabled(thinkingBudget.toLong())
-                } else {
-                    thinkingDisabled()
                 }
             }
             .topK(options.topK)

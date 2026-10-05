@@ -199,9 +199,9 @@ class AnthropicModelsConfig(
     /**
      * Creates default options for a model based on YAML configuration.
      *
-     * Spring AI 2.0 replaced the `AnthropicApi.ChatCompletionRequest.ThinkingConfig`
-     * constructor with first-class `thinkingEnabled(tokenBudget)` / `thinkingDisabled()`
-     * methods on the options builder.
+     * Thinking is left unset unless the definition gives a budget: Claude Opus 5.5, Sonnet 5.5
+     * and Fable 5.1 reject `thinking: {type: "disabled"}`, and an absent field already means
+     * "off" on Claude 4.x.
      */
     private fun createDefaultOptions(modelDef: AnthropicModelDefinition): AnthropicChatOptions {
         return AnthropicChatOptions.builder()
@@ -212,12 +212,9 @@ class AnthropicModelsConfig(
                 modelDef.topP?.let { topP(it) }
                 modelDef.topK?.let { topK(it) }
 
-                // Configure thinking mode if specified
                 val thinkingBudget = modelDef.thinking?.tokenBudget
                 if (thinkingBudget != null && thinkingBudget > 0) {
                     thinkingEnabled(thinkingBudget.toLong())
-                } else {
-                    thinkingDisabled()
                 }
             }
             .build()
