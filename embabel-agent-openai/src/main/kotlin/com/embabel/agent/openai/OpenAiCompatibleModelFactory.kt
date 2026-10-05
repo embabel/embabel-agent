@@ -564,7 +564,7 @@ open class OpenAiCompatibleModelFactory(
         nativeSupport: NativeSupport? = RESPONSE_FORMAT_SUPPORT,
     ): LlmService<*> = SpringAiLlmService(
         name = model,
-        chatModel = responsesChatModelOf(model),
+        chatModel = responsesChatModelOf(model, provider),
         provider = provider,
         optionsConverter = timeouts.optionsConverter(
             if (provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) {
@@ -674,12 +674,18 @@ open class OpenAiCompatibleModelFactory(
         )
     }
 
-    /** The Responses API counterpart of [chatModelOf], sharing this factory's client. */
-    protected fun responsesChatModelOf(model: String): ChatModel = OpenAiResponsesChatModel(
-        client = openAiClient,
-        defaultOptions = OpenAiChatOptions.builder().model(model).build(),
-        observationRegistry = observationRegistry,
-    )
+    /**
+     * The Responses API counterpart of [chatModelOf], sharing this factory's client. Its chat
+     * observations report [provider].
+     */
+    @JvmOverloads
+    protected fun responsesChatModelOf(model: String, provider: String = OpenAiModels.PROVIDER): ChatModel =
+        OpenAiResponsesChatModel(
+            client = openAiClient,
+            defaultOptions = OpenAiChatOptions.builder().model(model).build(),
+            observationRegistry = observationRegistry,
+            provider = provider,
+        )
 
     /**
      * Build the underlying [ChatModel] for [model].

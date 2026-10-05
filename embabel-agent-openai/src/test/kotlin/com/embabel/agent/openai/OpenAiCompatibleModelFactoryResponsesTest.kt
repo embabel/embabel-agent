@@ -24,6 +24,9 @@ import com.embabel.common.ai.model.PricingModel
 import tools.jackson.databind.JsonNode
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import com.sun.net.httpserver.HttpServer
+import io.micrometer.observation.Observation
+import io.micrometer.observation.ObservationHandler
+import io.micrometer.observation.ObservationRegistry
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -34,6 +37,7 @@ import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage
+import org.springframework.ai.chat.observation.ChatModelObservationContext
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.openai.OpenAiChatOptions
@@ -93,6 +97,34 @@ class OpenAiCompatibleModelFactoryResponsesTest {
 
     private fun call(options: ChatOptions, vararg messages: Message) =
         llm.chatModel.call(Prompt(messages.toList(), options))
+
+    /** The nested chat observation carries the provider a compatible endpoint was built for. */
+    @Test
+    fun `the chat observation reports the configured provider`() {
+        val providers = CopyOnWriteArrayList<String>()
+        val registry = ObservationRegistry.create().apply {
+            observationConfig().observationHandler(object : ObservationHandler<ChatModelObservationContext> {
+                override fun supportsContext(context: Observation.Context) = context is ChatModelObservationContext
+                override fun onStop(context: ChatModelObservationContext) {
+                    providers += context.operationMetadata.provider
+                }
+            })
+        }
+        val gateway = OpenAiCompatibleModelFactory(
+            baseUrl = "http://localhost:${server.address.port}/v1",
+            apiKey = "test-key",
+            observationRegistry = registry,
+        ).openAiResponsesLlm(
+            model = LUNA,
+            pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+            provider = "Acme Gateway",
+            knowledgeCutoffDate = null,
+        ) as SpringAiLlmService
+
+        gateway.chatModel.call(Prompt("hi"))
+
+        assertEquals(listOf("Acme Gateway"), providers)
+    }
 
     @Test
     fun `requests go to the Responses endpoint with the model and an output limit, and no sampling parameters`() {
