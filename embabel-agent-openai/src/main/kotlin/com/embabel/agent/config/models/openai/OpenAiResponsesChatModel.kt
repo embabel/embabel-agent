@@ -314,9 +314,11 @@ class OpenAiResponsesChatModel(
         raiseIfRefused(content)
 
         val text = content.mapNotNull { it.outputText().orElse(null)?.text() }.joinToString("\n")
+        // A call the output limit cut short carries a fragment of its arguments: never dispatch it.
         val toolCalls = response.output()
             .filter { it.isFunctionCall() }
             .map { it.asFunctionCall() }
+            .filter { it.status().orElse(null) in DISPATCHABLE_CALL_STATUSES }
             .map { AssistantMessage.ToolCall(it.callId(), FUNCTION_CALL_TYPE, it.name(), it.arguments()) }
 
         val usage = response.usage().orElse(null)?.let {
@@ -399,6 +401,9 @@ class OpenAiResponsesChatModel(
 
         /** The longest schema name the Responses API accepts. */
         const val MAX_SCHEMA_NAME_LENGTH = 64
+
+        /** Function-call statuses safe to dispatch; a call with no status is treated as finished. */
+        val DISPATCHABLE_CALL_STATUSES = setOf(null, ResponseFunctionToolCall.Status.COMPLETED)
 
         /** Terminal statuses that carry no answer at all. */
         val ANSWERLESS_STATUSES = setOf(ResponseStatus.FAILED, ResponseStatus.CANCELLED)

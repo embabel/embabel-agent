@@ -591,6 +591,35 @@ class OpenAiResponsesChatModelTest {
             )
         }
 
+        /**
+         * A call cut off by the output limit can end in a function call whose arguments are a
+         * fragment of JSON. Dispatching it runs the tool on input the model never finished.
+         */
+        @Test
+        fun `a function call the output limit cut short is not dispatched`() {
+            respondWith(
+                response(
+                    ResponseOutputItem.ofFunctionCall(
+                        ResponseFunctionToolCall.builder()
+                            .callId("call_7")
+                            .name("lookup")
+                            .arguments("""{"q":"x""")
+                            .status(ResponseFunctionToolCall.Status.INCOMPLETE)
+                            .build()
+                    ),
+                    status = ResponseStatus.INCOMPLETE,
+                    incompleteDetails = Response.IncompleteDetails.builder()
+                        .reason(Response.IncompleteDetails.Reason.MAX_OUTPUT_TOKENS)
+                        .build(),
+                )
+            )
+
+            val generation = model.call(Prompt("Hi")).result
+
+            assertTrue(generation.output.toolCalls.isEmpty(), "A partial call must not reach the tool")
+            assertEquals("length", generation.metadata.finishReason)
+        }
+
         @Test
         fun `a content filtered response is reported as such rather than as an empty answer`() {
             respondWith(
