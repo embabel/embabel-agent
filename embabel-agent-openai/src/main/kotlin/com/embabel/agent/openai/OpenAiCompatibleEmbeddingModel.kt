@@ -20,6 +20,7 @@ import com.openai.core.RequestOptions
 import com.openai.models.embeddings.CreateEmbeddingResponse
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
+import org.slf4j.event.Level
 import org.springframework.ai.chat.metadata.DefaultUsage
 import org.springframework.ai.document.Document
 import org.springframework.ai.document.MetadataMode
@@ -37,21 +38,24 @@ import org.springframework.ai.openai.OpenAiEmbeddingOptions
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Spring AI's `OpenAiEmbeddingModel`, reading the answer as OpenAI-COMPATIBLE providers send it.
+ * An embedding model for OpenAI-COMPATIBLE providers. It does what Spring AI's
+ * `OpenAiEmbeddingModel` does, except that it accepts a response with two fields missing.
  *
- * The OpenAI spec marks each item's `index` and the response's `usage` as required, and Spring AI
- * reads both unconditionally — the openai-java SDK then throws "`index` is not set" or "`usage` is
- * not set" for an answer without them. OpenAI sends both. Google's OpenAI-compatible endpoint sends
- * neither, so behind Spring AI's model a Gemini key could build no embedding service at all.
+ * The OpenAI spec requires an `index` on each embedding and a `usage` block on the response.
+ * OpenAI sends both. Google's OpenAI-compatible endpoint sends neither. Spring AI reads both
+ * without checking, so the openai-java SDK throws "`index` is not set" or "`usage` is not set",
+ * and a Gemini key could not build an embedding service.
  *
- * So an item's index is its own when it has one and its position otherwise — the items arrive in
- * the order of the inputs, which is what the field records anyway — and usage is reported only when
- * the provider reported it. The first answer that leaves either out is logged at info, and each
- * one after it at debug.
+ * This class handles the missing fields as follows:
+ * - `index` missing: the embedding's position in the response list is used. Embeddings are
+ *   returned in the same order as the inputs, so the position is the same number.
+ * - `usage` missing: the response metadata carries no usage.
  *
- * The request side is as Spring AI does it: the same options merge, the same per-request timeout,
- * the same observation, and a document embedded as its content under [metadataMode], whether it
- * arrives alone or in a batch.
+ * A response with a missing field is logged: at info the first time for a model, at debug after.
+ *
+ * Sending the request is unchanged from Spring AI: the same options merge, the same per-request
+ * timeout, the same observation, and the same text for a document ([metadataMode] decides how
+ * much of its metadata is included).
  */
 internal class OpenAiCompatibleEmbeddingModel(
     private val client: OpenAIClient,
@@ -62,8 +66,10 @@ internal class OpenAiCompatibleEmbeddingModel(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    // The batch path asks for a document's content here, and its default is the bare text: without
-    // this, a document embedded in a batch would lose the metadata one embedded alone keeps.
+    // Returns the text sent to the provider for a document: its content plus the metadata that
+    // [metadataMode] selects. The inherited default returns the content only. The batch path,
+    // embed(List<Document>, ...), calls this method, so the override makes a batch send the same
+    // text as embed(Document) below.
     override fun getEmbeddingContent(document: Document): String =
         document.getFormattedContent(metadataMode)
 
@@ -72,6 +78,10 @@ internal class OpenAiCompatibleEmbeddingModel(
             .results.firstOrNull()?.output ?: FloatArray(0)
 
     override fun call(request: EmbeddingRequest): EmbeddingResponse {
+        // Start from the options this model was built with, then apply the request's options on
+        // top. A non-null value on the request (model, dimensions, user, ...) replaces the
+        // configured one, and a null leaves it as configured. Custom headers and extra body are
+        // maps: both sides are combined, and the request's entry wins on a shared key.
         val merged = OpenAiEmbeddingOptions.builder().from(options).merge(request.options).build()
         val params = merged.toOpenAiCreateParams(request.instructions)
         val requestOptions = RequestOptions.builder().timeout(merged.timeout).build()
@@ -79,6 +89,8 @@ internal class OpenAiCompatibleEmbeddingModel(
             .embeddingRequest(EmbeddingRequest(request.instructions, merged))
             .provider(AiProvider.OPENAI.value())
             .build()
+        // The first argument is a custom observation convention. This class has none, so it
+        // passes null and Micrometer uses the default convention given as the second argument.
         return EmbeddingModelObservationDocumentation.EMBEDDING_MODEL_OPERATION
             .observation(null, OBSERVATION_CONVENTION, { context }, observationRegistry)
             .observe<EmbeddingResponse> {
@@ -92,12 +104,17 @@ internal class OpenAiCompatibleEmbeddingModel(
         val embeddings = response.data().mapIndexed { position, item ->
             Embedding(
                 EmbeddingUtils.toPrimitive(item.embedding()),
+                // The index if the provider sent one, otherwise the position in the list. The
+                // SDK holds it as a Long and Spring AI takes an Int: toIntExact converts, and
+                // throws ArithmeticException on a value too large for an Int instead of
+                // silently wrapping as toInt() would.
                 Math.toIntExact(item._index().asKnown().orElse(position.toLong())),
             )
         }
         val metadata = EmbeddingResponseMetadata().apply {
             model = response._model().asKnown().orElse("")
             response._usage().asKnown().ifPresent { usage ->
+                // Token counts are Long in the SDK and Int in Spring AI, converted as above.
                 this.usage = DefaultUsage(
                     Math.toIntExact(usage.promptTokens()), 0, Math.toIntExact(usage.totalTokens()), usage,
                 )
@@ -107,12 +124,14 @@ internal class OpenAiCompatibleEmbeddingModel(
     }
 
     /**
-     * Says which required fields this answer left out, so the fallback taken is on the record:
-     * once per model at info, since a provider that omits a field omits it every time, then at debug.
+     * Logs which of `index` and `usage` the response left out.
      *
-     * Once per MODEL rather than per instance: validating a key builds one instance for the probe
-     * and another for use, and the platform builds one per key, so a per-instance flag said the same
-     * thing at least twice for every key connected. A different model still gets its own line.
+     * Logged at info the first time for a model and at debug after that, because a provider that
+     * leaves a field out does so on every response.
+     *
+     * "First time" is tracked per model name for the whole process, not per instance of this
+     * class. Validating a key builds two instances (one to probe, one to use), so a per-instance
+     * flag would log the same line at info twice for every key.
      */
     private fun reportOmissions(response: CreateEmbeddingResponse) {
         val omitted = listOfNotNull(
@@ -120,12 +139,11 @@ internal class OpenAiCompatibleEmbeddingModel(
             "usage".takeIf { response._usage().asKnown().isEmpty },
         )
         if (omitted.isEmpty()) return
-        val model = response._model().asKnown().orElse(options.model)
-        if (OMISSIONS_REPORTED.add(options.model ?: model)) {
-            logger.info(OMISSION_MESSAGE, model, omitted)
-        } else {
-            logger.debug(OMISSION_MESSAGE, model, omitted)
-        }
+        // The model name as configured, since that is the name the user chose. The response's
+        // own `model` is used only when none was configured.
+        val model = options.model ?: response._model().asKnown().orElse("unknown")
+        val firstForModel = OMISSIONS_REPORTED.add(model)
+        logger.atLevel(if (firstForModel) Level.INFO else Level.DEBUG).log(OMISSION_MESSAGE, model, omitted)
     }
 
     private companion object {

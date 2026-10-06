@@ -66,8 +66,9 @@ fun validatedEmbeddingService(
         build(null).embed(EMBEDDING_VALIDATION_PROBE)
             .also { require(it.isNotEmpty()) { "the model returned an empty vector" } }
     } catch (e: Exception) {
-        // The provider's exception rides along as the cause: its type and stack say whether the
-        // key, the model or the answer was the problem, which the message alone cannot.
+        // Pass the provider's exception as the cause. The message below includes only its text;
+        // the cause adds its type and stack trace, which show whether the key, the model or the
+        // response was at fault.
         throw InvalidApiKeyException(
             "Could not validate embedding model '$model' on $provider: ${e.message ?: "no detail"}",
             e,
