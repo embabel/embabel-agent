@@ -15,7 +15,17 @@
  */
 package com.embabel.agent.config.models.openai
 
+import com.embabel.agent.api.models.OpenAiModels
+import com.embabel.agent.openai.OpenAiCompatibleModelFactory
+import com.embabel.agent.spi.loop.LlmMessageRequest
+import com.embabel.agent.spi.loop.NativeStructuredOutputRequest
+import com.embabel.agent.spi.loop.RequestAwareLlmMessageSender
 import com.embabel.agent.spi.loop.StructuredOutputRequest
+import com.embabel.chat.UserMessage as EmbabelUserMessage
+import com.embabel.common.ai.converters.JacksonOutputConverter
+import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.PricingModel
+import com.sun.net.httpserver.HttpServer
 import com.openai.client.OpenAIClient
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseCreateParams
@@ -25,10 +35,14 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.openai.OpenAiChatOptions
+import tools.jackson.databind.JsonNode
+import tools.jackson.module.kotlin.jacksonObjectMapper
+import java.net.InetSocketAddress
 import java.util.Optional
 
 /**
@@ -66,6 +80,68 @@ class OpenAiResponsesCatalogStructuredOutputTest {
         assertEquals("object", format.schema()._additionalProperties()["type"]?.asString()?.orElse(null))
     }
 
+    private data class Label(val label: String)
+
+    private data class Tags(val tags: Map<String, String>)
+
+    /**
+     * Sends [outputClass]'s schema through a factory-built Responses model that carries the
+     * catalog's native support, and returns the request body the endpoint received.
+     */
+    private fun <T : Any> requestForSchemaOf(outputClass: Class<T>): JsonNode {
+        val mapper = jacksonObjectMapper()
+        var body: JsonNode? = null
+        val server = HttpServer.create(InetSocketAddress(0), 0)
+        server.createContext("/") { exchange ->
+            body = mapper.readTree(exchange.requestBody.readBytes())
+            val reply = RESPONSE_JSON.toByteArray()
+            exchange.responseHeaders.add("Content-Type", "application/json")
+            exchange.sendResponseHeaders(200, reply.size.toLong())
+            exchange.responseBody.use { it.write(reply) }
+        }
+        server.start()
+        try {
+            OpenAiCompatibleModelFactory(baseUrl = "http://localhost:${server.address.port}/v1", apiKey = "test-key")
+                .openAiResponsesLlm(
+                    model = MODEL,
+                    pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+                    provider = OpenAiModels.PROVIDER,
+                    knowledgeCutoffDate = null,
+                    nativeSupport = OpenAiModelLoader().loadAutoConfigMetadata().nativeSupportDefaults,
+                )
+                .let { it.createMessageSender(LlmOptions.withModel(MODEL)) as RequestAwareLlmMessageSender }
+                .call(
+                    LlmMessageRequest(
+                        messages = listOf(EmbabelUserMessage("Label this")),
+                        tools = emptyList(),
+                        nativeStructuredOutputRequest = NativeStructuredOutputRequest(
+                            StructuredOutputRequest(
+                                name = outputClass.simpleName,
+                                schema = JacksonOutputConverter(outputClass, mapper).jsonSchema,
+                            ),
+                        ),
+                    )
+                )
+        } finally {
+            server.stop(0)
+        }
+        return body!!
+    }
+
+    @Test
+    fun `a factory-built Responses model with the catalog's native support sends a compatible schema natively`() {
+        val format = requestForSchemaOf(Label::class.java)["text"]["format"]
+
+        assertEquals("json_schema", format["type"].asString())
+        assertEquals("label", format["schema"]["required"][0].asString())
+    }
+
+    /** The compatibility gate of #2027 applies on this path: an open map is not sent natively. */
+    @Test
+    fun `a factory-built Responses model falls back to prompt-based output for an incompatible schema`() {
+        assertFalse(requestForSchemaOf(Tags::class.java).has("text"), "an incompatible schema must not reach text.format")
+    }
+
     private fun emptyResponse(model: String): Response =
         Response.builder()
             .id("resp_1")
@@ -82,4 +158,15 @@ class OpenAiResponsesCatalogStructuredOutputTest {
             .temperature(Optional.empty())
             .topP(Optional.empty())
             .build()
+
+    companion object {
+        private const val MODEL = "gpt-6-luna"
+
+        private const val RESPONSE_JSON =
+            """{"id":"resp_1","object":"response","created_at":0,"model":"$MODEL","status":"completed",
+               "output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed",
+               "content":[{"type":"output_text","text":"{\"label\":\"Invoice\"}","annotations":[]}]}],
+               "parallel_tool_calls":false,"tool_choice":"auto","tools":[],"error":null,
+               "incomplete_details":null,"instructions":null,"metadata":null,"temperature":null,"top_p":null}"""
+    }
 }

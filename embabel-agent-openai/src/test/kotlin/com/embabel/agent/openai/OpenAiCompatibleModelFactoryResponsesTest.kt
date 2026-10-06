@@ -146,6 +146,29 @@ class OpenAiCompatibleModelFactoryResponsesTest {
         assertEquals("low", captured.single().body["reasoning"]["effort"].asString())
     }
 
+    /** Naming the endpoint's own provider labels its metrics; it must not drop the requested effort. */
+    @Test
+    fun `an explicit reasoning effort is preserved for an endpoint with its own provider name`() {
+        val gateway = OpenAiCompatibleModelFactory(
+            baseUrl = "http://localhost:${server.address.port}/v1",
+            apiKey = "test-key",
+        ).openAiResponsesLlm(
+            model = LUNA,
+            pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+            provider = "Acme Gateway",
+            knowledgeCutoffDate = null,
+        ) as SpringAiLlmService
+
+        gateway.chatModel.call(
+            Prompt(
+                listOf(UserMessage("hi")),
+                gateway.optionsConverter.convertOptions(LlmOptions.withModel(LUNA).withOpenAiReasoningEffort("low"), LUNA),
+            )
+        )
+
+        assertEquals("low", captured.single().body["reasoning"]["effort"].asString())
+    }
+
     @Test
     fun `a tool call round trip pairs the tool result with its call id`() {
         replies += response(
@@ -181,21 +204,23 @@ class OpenAiCompatibleModelFactoryResponsesTest {
         assertEquals("sunny", functionOutput["output"].asString())
     }
 
+    /**
+     * Native structured output is the caller's choice, made by passing the catalog's native
+     * support (see `OpenAiResponsesCatalogStructuredOutputTest`); the factory keeps no copy of it.
+     */
     @Test
-    fun `structured output is requested natively and binds to the requested type`() {
-        replies += response(message("""{"label":"Invoice"}"""))
+    fun `without native support structured output is left to the prompt`() {
         val converter = JacksonOutputConverter<Label>(Label::class.java, mapper)
         val options = llm.nativeStructuredOutputConfigurer.configure(
             optionsFor(LlmOptions.withModel(LUNA)),
-            StructuredOutputRequest(name = "Label", schema = converter.jsonSchema, strict = false),
+            StructuredOutputRequest(name = "Label", schema = converter.jsonSchema),
             llm.nativeSupport,
             llm,
         )
 
-        val text = call(options, UserMessage("Label: quarterly invoice")).result.output.text.orEmpty()
+        call(options, UserMessage("Label: quarterly invoice"))
 
-        assertEquals("json_schema", captured.single().body["text"]["format"]["type"].asString())
-        assertEquals(Label("Invoice"), converter.convert(text))
+        assertFalse(captured.single().body.has("text"), "no native support was given, so no schema is sent")
     }
 
     companion object {

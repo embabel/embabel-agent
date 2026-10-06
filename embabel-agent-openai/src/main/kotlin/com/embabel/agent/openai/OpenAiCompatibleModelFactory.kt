@@ -25,7 +25,6 @@ import com.embabel.agent.config.models.openai.OpenAiResponsesChatModel
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
-import com.embabel.common.ai.autoconfig.NativeStructuredOutputCapability
 import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.*
 import com.embabel.common.byok.ByokFactory
@@ -133,16 +132,6 @@ open class OpenAiCompatibleModelFactory(
 
     companion object {
         private val OPEN_AI = ProviderEndpoint(OpenAiModels.PROVIDER, null)
-
-        /** The native structured-output defaults of the shipped OpenAI catalog. */
-        private val RESPONSE_FORMAT_SUPPORT = NativeSupport(
-            structuredOutput = NativeStructuredOutputCapability(
-                supported = true,
-                strategy = "response_format",
-                strict = false,
-                promptInstructions = "include",
-            ),
-        )
         private val DEEP_SEEK = ProviderEndpoint(DeepSeekModels.PROVIDER, "https://api.deepseek.com")
         private val MISTRAL = ProviderEndpoint(MistralAiModels.PROVIDER, "https://api.mistral.ai/v1")
         private val GEMINI = ProviderEndpoint(
@@ -550,9 +539,15 @@ open class OpenAiCompatibleModelFactory(
      * function tools there unless reasoning is turned off, and the `*-pro` models are not served
      * there at all. Requests carry no sampling parameters and send the caller's limit as
      * `max_output_tokens`, which is what [Gpt5ChatOptionsConverter] prepares for. An explicit
-     * reasoning effort ([withOpenAiReasoningEffort]) is forwarded for OpenAI's own models.
+     * reasoning effort ([withOpenAiReasoningEffort]) is forwarded whatever [provider] is called:
+     * choosing this transport is choosing the Responses API, whose `reasoning` field it fills.
      *
-     * Structured output is requested natively, as the shipped OpenAI catalog does for every model.
+     * Structured output is requested natively only when [nativeSupport] declares it. Pass the
+     * shipped OpenAI catalog's settings, `OpenAiModelLoader().loadAutoConfigMetadata().nativeSupportDefaults`
+     * from the OpenAI autoconfigure module, to get what catalog models get, including the schema
+     * compatibility check that falls back to prompt-based output. Without it, structured output
+     * is prompt-based, as with [openAiCompatibleLlm].
+     *
      * The transport does not stream and refuses media.
      */
     @JvmOverloads
@@ -562,18 +557,12 @@ open class OpenAiCompatibleModelFactory(
         provider: String,
         knowledgeCutoffDate: LocalDate?,
         optionsConverter: OptionsConverter = Gpt5ChatOptionsConverter,
-        nativeSupport: NativeSupport? = RESPONSE_FORMAT_SUPPORT,
+        nativeSupport: NativeSupport? = null,
     ): LlmService<*> = SpringAiLlmService(
         name = model,
         chatModel = responsesChatModelOf(model, provider),
         provider = provider,
-        optionsConverter = timeouts.optionsConverter(
-            if (provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) {
-                OpenAiReasoningEffortOptionsConverter(optionsConverter)
-            } else {
-                optionsConverter
-            }
-        ),
+        optionsConverter = timeouts.optionsConverter(OpenAiReasoningEffortOptionsConverter(optionsConverter)),
         pricingModel = pricingModel,
         knowledgeCutoffDate = knowledgeCutoffDate,
         thinkingSupported = true,
