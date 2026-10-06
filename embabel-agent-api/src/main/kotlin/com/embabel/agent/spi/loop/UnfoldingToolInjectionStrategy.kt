@@ -18,6 +18,7 @@ package com.embabel.agent.spi.loop
 import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.progressive.UnfoldingTool
+import com.embabel.agent.core.support.sameSourceAs
 import com.embabel.agent.spi.support.unwrapAs
 import org.slf4j.LoggerFactory
 
@@ -107,6 +108,23 @@ class UnfoldingToolInjectionStrategy : ToolInjectionStrategy {
                 toolsToAdd = selectedTools,
             )
         }
+
+        // The loop skips an added tool whose name is already taken. If the existing tool runs
+        // different code, two tools have the same name, and calls go to the existing tool.
+        selectedTools
+            .filter { selected ->
+                context.currentTools.any {
+                    it !== wrappedTool && it.definition.name == selected.definition.name && !it.sameSourceAs(selected)
+                }
+            }
+            .forEach { selected ->
+                logger.warn(
+                    "Unfolding '{}' added tool '{}', but a different tool with that name already exists. " +
+                        "The new tool is skipped, so calls to '{}' go to the existing tool. " +
+                        "Give the inner tools unique names, for example with the reference naming strategy.",
+                    invokedTool.definition.name, selected.definition.name, selected.definition.name,
+                )
+            }
 
         // Replace the parent with just the sub-tools. If the LLM calls the
         // parent name again, ToolNotFoundException will fire with a message

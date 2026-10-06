@@ -21,6 +21,7 @@ import com.embabel.common.util.StringTransformer
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.aop.framework.ProxyFactory
 
 class ToolUtilsTest {
 
@@ -218,6 +219,52 @@ class ToolUtilsTest {
 
             assertEquals("alpha", tools[0].definition.name)
             assertEquals("zulu", tools[1].definition.name)
+        }
+    }
+
+    @Nested
+    inner class NameCollisionWarningTest {
+
+        @Test
+        fun `safelyGetToolsFrom warns with class and method when two different tools have the same name`() {
+            val warnings = captureWarnings("com.embabel.agent.core.support.ToolUtils") {
+                safelyGetToolsFrom(ToolObject(listOf(LookupToolsA(), LookupToolsB())))
+            }
+
+            assertEquals(1, warnings.size, "warnings were $warnings")
+            assertTrue(warnings[0].contains("'lookup'"), warnings[0])
+            assertTrue(warnings[0].contains("LookupToolsA.lookup"), warnings[0])
+            assertTrue(warnings[0].contains("LookupToolsB.lookup"), warnings[0])
+        }
+
+        @Test
+        fun `safelyGetTools warns with class and method when tool objects collide`() {
+            val warnings = captureWarnings("com.embabel.agent.core.support.ToolUtils") {
+                safelyGetTools(listOf(ToolObject(LookupToolsA()), ToolObject(LookupToolsB())))
+            }
+
+            assertEquals(1, warnings.size, "warnings were $warnings")
+            assertTrue(warnings[0].contains("LookupToolsA.lookup"), warnings[0])
+            assertTrue(warnings[0].contains("LookupToolsB.lookup"), warnings[0])
+        }
+
+        @Test
+        fun `source description shows the real class of a Spring proxy`() {
+            val proxy = ProxyFactory(ProxiedLookupTools()).apply { isProxyTargetClass = true }.proxy
+            val tool = Tool.fromInstance(proxy).single()
+
+            assertEquals("${ProxiedLookupTools::class.java.name}.lookup", tool.sourceDescription())
+        }
+
+        @Test
+        fun `does not warn when the same object is added two times`() {
+            val tools = LookupToolsA()
+
+            val warnings = captureWarnings("com.embabel.agent.core.support.ToolUtils") {
+                safelyGetTools(listOf(ToolObject(tools), ToolObject(tools)))
+            }
+
+            assertTrue(warnings.isEmpty(), "warnings were $warnings")
         }
     }
 

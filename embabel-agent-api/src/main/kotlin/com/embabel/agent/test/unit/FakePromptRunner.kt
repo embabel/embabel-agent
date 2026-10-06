@@ -33,6 +33,7 @@ import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetTools
+import com.embabel.agent.core.support.warnOnRepeatedToolNames
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.chat.AssistantMessage
@@ -410,7 +411,7 @@ data class FakePromptRunner(
         LlmInteraction(
             llm = llm ?: LlmOptions(),
             toolGroups = this.toolGroups + toolGroups,
-            tools = safelyGetTools(toolObjects) + otherTools,
+            tools = (safelyGetTools(toolObjects) + otherTools).also { warnOnRepeatedToolNames(it, logger) },
             promptContributors = promptContributors + contextualPromptContributors.map {
                 it.toPromptContributor(
                     context

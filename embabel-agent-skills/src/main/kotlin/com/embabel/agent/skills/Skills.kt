@@ -28,6 +28,7 @@ import com.embabel.agent.skills.support.DirectorySkillDefinitionLoader
 import com.embabel.agent.skills.support.GitHubSkillDefinitionLoader
 import com.embabel.agent.skills.support.LoadedSkill
 import com.embabel.agent.skills.support.ResourceType
+import com.embabel.common.util.StringTransformer
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 
@@ -192,6 +193,9 @@ data class Skills @JvmOverloads constructor(
         return copy(skills = skills + loadedSkills)
     }
 
+    // The tool names are final: the skill body and the activation text refer to them by name.
+    override val namingStrategy: StringTransformer get() = StringTransformer.IDENTITY
+
     override fun tools(): List<Tool> {
         val annotationTools = Tool.fromInstance(this)
 
@@ -321,12 +325,11 @@ data class Skills @JvmOverloads constructor(
         if (skills.isEmpty()) return emptyList()
 
         val perSkill = skills.map { skill ->
-            LlmReference.of(
+            FinalNamesReference(
                 name = skill.name,
                 description = skill.description,
                 tools = listOf<Tool>(SkillActivationTool(skill)) +
                         skill.getScriptTools(scriptExecutionEngine),
-                notes = "",
             )
         }
 
@@ -337,14 +340,27 @@ data class Skills @JvmOverloads constructor(
         // now done via the per-skill tool above.
         val sharedResourceTools = Tool.fromInstance(this@Skills)
             .filter { it.definition.name != "activate" }
-        val sharedRef = LlmReference.of(
+        val sharedRef = FinalNamesReference(
             name = "skill_resources",
             description = "Inspect bundled files (references, scripts, assets) for any loaded skill.",
             tools = sharedResourceTools,
-            notes = "",
         )
 
         return perSkill + sharedRef
+    }
+
+    /**
+     * A reference whose tool names are final. The activation tool is named after the skill,
+     * and the skill body names the script tools, so a consumer must not prefix them.
+     */
+    private class FinalNamesReference(
+        override val name: String,
+        override val description: String,
+        private val tools: List<Tool>,
+    ) : LlmReference {
+        override val namingStrategy: StringTransformer get() = StringTransformer.IDENTITY
+        override fun notes(): String = ""
+        override fun tools(): List<Tool> = tools
     }
 
     /**

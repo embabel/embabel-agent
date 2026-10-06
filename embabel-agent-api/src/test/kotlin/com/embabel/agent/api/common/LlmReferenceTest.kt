@@ -19,6 +19,7 @@ import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.support.captureWarnings
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -117,7 +118,79 @@ class LlmReferenceTest {
             )
 
             val toolPrefix = reference.toolPrefix()
-            assertThat(toolPrefix).isEqualTo("my api reference")
+            assertThat(toolPrefix).isEqualTo("my_api_reference")
+        }
+
+        @Test
+        fun `default naming strategy prefixes a raw tool name`() {
+            val reference = LlmReference.of(name = "docs", description = "Docs", tools = emptyList())
+
+            assertThat(reference.namingStrategy.transform("search")).isEqualTo("docs_search")
+        }
+
+        @Test
+        fun `default naming strategy keeps a name that already has the prefix`() {
+            val reference = LlmReference.of(name = "docs", description = "Docs", tools = emptyList())
+
+            assertThat(reference.namingStrategy.transform("docs")).isEqualTo("docs")
+            assertThat(reference.namingStrategy.transform("docs_search")).isEqualTo("docs_search")
+        }
+
+        @Test
+        fun `default naming strategy warns when a tool name already has the prefix`() {
+            val reference = LlmReference.of(name = "memory", description = "Memory", tools = emptyList())
+
+            val warnings = captureWarnings(LlmReference::class.java.name) {
+                reference.namingStrategy.transform("memory")
+            }
+
+            assertThat(warnings).hasSize(1)
+            assertThat(warnings[0])
+                .contains("'memory'")
+                .contains("tools() should return unprefixed names")
+                .contains("StringTransformer.IDENTITY")
+                // LlmReference.of builds an internal class that means nothing to the developer.
+                .doesNotContain("SimpleLlmReference")
+        }
+
+        @Test
+        fun `default naming strategy warning names the class of a custom reference`() {
+            val warnings = captureWarnings(LlmReference::class.java.name) {
+                MemoryLikeReference().namingStrategy.transform("memory")
+            }
+
+            assertThat(warnings).hasSize(1)
+            assertThat(warnings[0]).contains(MemoryLikeReference::class.java.name)
+        }
+
+        @Test
+        fun `default naming strategy does not warn for a raw tool name`() {
+            val reference = LlmReference.of(name = "docs", description = "Docs", tools = emptyList())
+
+            val warnings = captureWarnings(LlmReference::class.java.name) {
+                reference.namingStrategy.transform("search")
+            }
+
+            assertThat(warnings).isEmpty()
+        }
+
+        @Test
+        fun `unfolded reference does not warn about its own wrapper tool name`() {
+            val tool = Tool.of("search", "Search") { Tool.Result.text("ok") }
+            val unfolding = LlmReference.of(name = "docs", description = "Docs", tools = listOf(tool)).withUnfolding()
+
+            val warnings = captureWarnings(LlmReference::class.java.name) {
+                unfolding.namingStrategy.transform(unfolding.tools().single().definition.name)
+            }
+
+            assertThat(warnings).isEmpty()
+        }
+
+        @Test
+        fun `default naming strategy gives the same name when applied twice`() {
+            val strategy = LlmReference.of(name = "docs", description = "Docs", tools = emptyList()).namingStrategy
+
+            assertThat(strategy.transform(strategy.transform("search"))).isEqualTo("docs_search")
         }
 
         @Test
@@ -314,8 +387,10 @@ class LlmReferenceTest {
             assertThat(outerTool).isInstanceOf(UnfoldingTool::class.java)
             val unfoldingTool = outerTool as UnfoldingTool
             assertThat(unfoldingTool.innerTools).hasSize(2)
+            // The inner tools get the reference naming strategy, so that the inner tools of
+            // two unfolded references do not collide after they unfold.
             assertThat(unfoldingTool.innerTools.map { it.definition.name })
-                .containsExactlyInAnyOrder("tool_one", "tool_two")
+                .containsExactlyInAnyOrder("test_api_tool_one", "test_api_tool_two")
         }
 
         @Test
@@ -391,4 +466,12 @@ class LlmReferenceTest {
             assertThat(unfolding.toolInstances()).isEmpty()
         }
     }
+}
+
+/** Like DICE Memory: a custom reference that returns one tool named after the reference. */
+private class MemoryLikeReference : LlmReference {
+    override val name: String = "memory"
+    override val description: String = "Memory"
+    override fun notes(): String = ""
+    override fun tools(): List<Tool> = listOf(Tool.of("memory", "Recall facts") { Tool.Result.text("ok") })
 }

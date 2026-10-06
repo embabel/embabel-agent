@@ -256,7 +256,7 @@ data class ToolishRag @JvmOverloads constructor(
         )
     }
 
-    // LlmReference: returns flat list of inner tools with naming strategy applied.
+    // LlmReference: returns a flat list of the inner tools, with unprefixed names.
     //
     // Items in [toolObjects] may already BE [Tool] instances (e.g. [TextSearchTools],
     // which is a Tool with a description composed dynamically from the store's
@@ -270,7 +270,6 @@ data class ToolishRag @JvmOverloads constructor(
                 else -> Tool.fromInstance(instance)
             }
         }
-        .map { tool -> tool.withName(namingStrategy.transform(tool.definition.name)) }
 
     // Tool interface implementation via lazy UnfoldingTool
     // When used directly as a Tool, wraps all inner tools in a UnfoldingTool
@@ -279,7 +278,8 @@ data class ToolishRag @JvmOverloads constructor(
         UnfoldingTool.of(
             name = name,
             description = description,
-            innerTools = tools(),
+            // When ToolishRag is used directly as a Tool, no consumer applies the naming strategy.
+            innerTools = tools().map { tool -> tool.withName(namingStrategy.transform(tool.definition.name)) },
             childToolUsageNotes = childToolUsageNotes,
         )
     }

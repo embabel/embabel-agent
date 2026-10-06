@@ -60,7 +60,7 @@ class ToolishRagEagerSearchTest {
                 searchOperations = vectorSearch,
             )
             val toolNames = rag.tools().map { it.definition.name }
-            assertTrue(toolNames.any { it == "test_rag_vectorSearch" })
+            assertTrue(toolNames.any { it == "vectorSearch" })
         }
 
         @Test
@@ -257,7 +257,7 @@ class ToolishRagEagerSearchTest {
             val eagerRag = rag.withEagerSearchAbout("query", 5)
             val toolNames = eagerRag.tools().map { it.definition.name }
 
-            assertTrue(toolNames.any { it == "test_rag_vectorSearch" })
+            assertTrue(toolNames.any { it == "vectorSearch" })
         }
 
         @Test

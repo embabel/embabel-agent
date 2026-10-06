@@ -226,6 +226,25 @@ class McpToolExportTest {
         }
 
         @Test
+        fun `does not double-prefix an unfolded reference`() {
+
+            // An unfolding reference exposes one wrapper tool already named with the prefix.
+            // The export must not apply the prefix again. See embabel/embabel-agent#2093.
+            val reference = TestLlmReference(name = "testref", description = "A test reference").withUnfolding()
+            val export = McpToolExport.fromLlmReference(reference)
+            assertEquals(1, export.toolCallbacks.size)
+            assertEquals("testref", export.toolCallbacks[0].toolDefinition.name())
+        }
+
+        @Test
+        fun `does not double-prefix a tool already named after the reference`() {
+            val tool = Tool.of("memory", "Recall facts") { Tool.Result.text("ok") }
+            val reference = LlmReference.of(name = "memory", description = "Memory", tools = listOf(tool))
+            val export = McpToolExport.fromLlmReference(reference)
+            assertEquals("memory", export.toolCallbacks.single().toolDefinition.name())
+        }
+
+        @Test
         fun `reference with special chars in name normalizes prefix`() {
             val reference = TestLlmReference(name = "My-API.v2", description = "API with special chars")
             val export = McpToolExport.fromLlmReference(reference)
@@ -233,10 +252,10 @@ class McpToolExportTest {
         }
 
         @Test
-        fun `reference with spaces preserves spaces in prefix`() {
+        fun `reference with spaces replaces them with underscores in prefix`() {
             val reference = TestLlmReference(name = "My API", description = "API with spaces")
             val export = McpToolExport.fromLlmReference(reference)
-            assertEquals("my api_reverse", export.toolCallbacks[0].toolDefinition.name())
+            assertEquals("my_api_reverse", export.toolCallbacks[0].toolDefinition.name())
         }
 
         @Test
