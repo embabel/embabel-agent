@@ -27,6 +27,9 @@ import org.springframework.ai.chat.messages.SystemMessage as SpringAiSystemMessa
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage as SpringAiUserMessage
 
+/** Where Spring AI's Anthropic model keeps a turn's thinking blocks on its assistant message. */
+private const val ANTHROPIC_THINKING_CONTENTS = "anthropicThinkingContents"
+
 /**
  * Convert one of our messages to a Spring AI message with multimodal support.
  *
@@ -52,7 +55,12 @@ fun Message.toSpringAiMessage(
             SpringAiAssistantMessage.builder()
                 .content(this.content)
                 .toolCalls(springToolCalls)
-                .properties(metadata + this.metadata)
+                // Spring AI's Anthropic model would send these thinking blocks back after the text,
+                // not where Claude produced them, and Claude 5 rejects an edited earlier turn with a
+                // 400. Thinking left out of earlier turns is accepted, at the cost of that reasoning.
+                // ponytail: drops all earlier Claude thinking; keep it once tool-loop messages can
+                // carry provider content blocks in order (#1716).
+                .properties(metadata + this.metadata - ANTHROPIC_THINKING_CONTENTS)
                 .build()
         }
 

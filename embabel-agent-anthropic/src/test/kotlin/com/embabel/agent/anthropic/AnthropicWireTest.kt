@@ -17,6 +17,7 @@ package com.embabel.agent.anthropic
 
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.chat.AssistantMessageWithToolCalls
+import com.embabel.chat.ToolResultMessage
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.Thinking
@@ -115,6 +116,32 @@ class AnthropicWireTest {
 
         assertEquals("Looking it up.", response.textContent)
         assertEquals("lookup", (response.message as AssistantMessageWithToolCalls).toolCalls.single().name)
+    }
+
+    /**
+     * Spring AI rebuilds a returned `[thinking, text, tool_use]` as `[text, thinking, tool_use]`,
+     * and Claude 5 rejects any edit to an earlier turn's thinking with a 400
+     * (platform.claude.com/docs/en/build-with-claude/preserved-thinking). Thinking left out of
+     * earlier turns is accepted, so the continuation sends none.
+     */
+    @Test
+    fun `a tool loop continuation sends earlier turns without their thinking, in order`() {
+        responseContent = """[{"type":"thinking","thinking":"","signature":"sig1"},
+            {"type":"text","text":"Looking it up."},
+            {"type":"tool_use","id":"toolu_1","name":"lookup","input":{"q":"x"}}]"""
+        val sender = AnthropicModelFactory(apiKey = "test-key", baseUrl = "http://localhost:${server.address.port}")
+            .build(AnthropicModels.CLAUDE_FABLE_5_1)
+            .createMessageSender(LlmOptions())
+        val user = UserMessage("Look it up")
+
+        val first = sender.call(listOf(user), emptyList())
+        responseContent = """[{"type":"text","text":"Done"}]"""
+        sender.call(listOf(user, first.message, ToolResultMessage("toolu_1", "lookup", "found")), emptyList())
+
+        val continued = request["messages"][1]["content"]
+        assertEquals(listOf("text", "tool_use"), continued.map { it["type"].asText() })
+        assertEquals("Looking it up.", continued[0]["text"].asText())
+        assertEquals("toolu_1", continued[1]["id"].asText())
     }
 
     /**

@@ -282,6 +282,24 @@ class MessageConversionTest {
             assertThat(signatures[1] as ByteArray).containsExactly(4, 5, 6)
         }
 
+        /**
+         * Spring AI's Anthropic model would send these thinking blocks back reordered, which
+         * Claude 5 rejects; other providers' metadata, such as Gemini's thought signatures, stays.
+         */
+        @Test
+        fun `leaves Anthropic thinking out of an earlier assistant turn`() {
+            val message = AssistantMessageWithToolCalls(
+                content = "Looking it up.",
+                toolCalls = listOf(ToolCall("toolu_1", "lookup", "{}")),
+                metadata = mapOf("anthropicThinkingContents" to listOf("thinking"), "thoughtSignatures" to listOf("sig")),
+            )
+
+            val metadata = message.toSpringAiMessage().metadata
+
+            assertThat(metadata).doesNotContainKey("anthropicThinkingContents")
+            assertThat(metadata).containsKey("thoughtSignatures")
+        }
+
         @Test
         fun `converts ToolResultMessage to Spring AI ToolResponseMessage`() {
             val message = ToolResultMessage(
