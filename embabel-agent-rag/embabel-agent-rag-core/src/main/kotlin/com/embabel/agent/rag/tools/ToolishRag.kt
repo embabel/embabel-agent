@@ -178,6 +178,7 @@ data class ToolishRag @JvmOverloads constructor(
                         searchDefaults = searchDefaults,
                         resultExpander = searchOperations as? ResultExpander,
                         entitiesOnly = entitiesOnly,
+                        formatter = formatter,
                     )
                 )
             }
@@ -198,6 +199,7 @@ data class ToolishRag @JvmOverloads constructor(
                         entityFilter = entityFilter,
                         resultsListener = listener,
                         entitiesOnly = entitiesOnly,
+                        formatter = formatter,
                     )
                 )
             }
@@ -217,6 +219,7 @@ data class ToolishRag @JvmOverloads constructor(
         searchDefaults,
         searchOperations as? ResultExpander,
         entitiesOnly,
+        formatter,
     )
 
     /**
@@ -246,6 +249,12 @@ data class ToolishRag @JvmOverloads constructor(
      */
     fun withGoal(goal: String): ToolishRag =
         copy(goal = goal)
+
+    /**
+     * Set the formatter that renders search results for the LLM
+     */
+    fun withFormatter(formatter: RetrievableResultsFormatter): ToolishRag =
+        copy(formatter = formatter)
 
     /**
      * With a listener that sees the raw (structured) results rather than strings.
