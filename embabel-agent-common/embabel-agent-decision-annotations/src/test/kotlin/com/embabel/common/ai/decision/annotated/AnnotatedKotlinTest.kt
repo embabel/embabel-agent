@@ -146,6 +146,20 @@ private data class KotlinRouting(
  */
 class AnnotatedKotlinTest {
 
+    @Test
+    fun `defaults reads and projects Kotlin while requiring explicit identity values`() {
+        val decision = AnnotatedDecisions.defaults().of(KotlinIdentity::class.java)
+        val response = StubDecisionService.builder("stub")
+            .proposition("urgent", PropositionResult.Answered(true, ModelProvenance("model", "provider")))
+            .build().ask("ticket", decision.spec())
+        val projection = decision.project(response, mapOf("revision" to 9))
+        assertEquals(KotlinIdentity(true, 9), projection.value)
+        assertEquals(response, projection.response)
+        assertThrows(com.embabel.common.ai.decision.DecisionProjectionException::class.java) {
+            decision.project(response)
+        }
+    }
+
     private val kotlinMapper = JsonMapper.builder().addModule(kotlinModule()).build()
 
     // Kotlin test sources compile before Java test sources, so the Java record is loaded by name.
@@ -328,3 +342,8 @@ class AnnotatedKotlinTest {
         return found
     }
 }
+
+private data class KotlinIdentity(
+    @PropositionQuestion(asking = "Urgent?") val urgent: Boolean,
+    val revision: Int = 7,
+)

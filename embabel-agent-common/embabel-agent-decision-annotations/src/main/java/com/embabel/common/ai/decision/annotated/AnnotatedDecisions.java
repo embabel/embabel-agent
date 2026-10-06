@@ -15,6 +15,7 @@
  */
 package com.embabel.common.ai.decision.annotated;
 
+import com.embabel.common.ai.classification.Category;
 import com.embabel.common.ai.classification.CategoryMapping;
 import org.jetbrains.annotations.ApiStatus;
 import tools.jackson.databind.DeserializationFeature;
@@ -22,13 +23,16 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Reads decision specs from annotated types under one Jackson mapper, and caches each result.
  * <p>
- * The mapper fixes question names, option ids, level ids and question order. Jackson 3 mappers
+ * Explicit annotation names and ids fix provider identifiers; the mapper supplies the remaining names and question order. Jackson 3 mappers
  * are immutable, so a cached spec always matches the mapper it was read with. To read with other
  * naming settings, create another instance over a mapper with those settings.
  *
@@ -53,7 +57,7 @@ public final class AnnotatedDecisions {
     // class, so an entry is collected together with the class and its loader.
     private final ClassValue<AnnotatedDecision<?>> decisions;
 
-    // Holds successful reads only, like the decision cache. Category ids are constant names, which
+    // Holds successful reads only, like the decision cache. Category ids are explicit @DecisionId values or constant names, which
     // no mapper setting changes, so one cache serves every instance.
     private static final ClassValue<CategoryMapping<?>> CLASSIFICATIONS = new ClassValue<>() {
         @Override
@@ -83,8 +87,8 @@ public final class AnnotatedDecisions {
     }
 
     /**
-     * Returns the shared instance over a default {@link JsonMapper} that fails on missing creator
-     * properties, the same default the core decision projection uses.
+     * Returns the shared instance over a default {@link JsonMapper}, with discovered Jackson modules
+     * including Kotlin when available. Missing creator properties and null primitives fail.
      *
      * @return the shared default instance
      */
@@ -112,9 +116,9 @@ public final class AnnotatedDecisions {
      * Returns the classification read from an enum annotated with {@link Classification}. Repeated
      * calls with the same enum return the same instance.
      * <p>
-     * Each constant is a category, in declaration order. The category id is the constant's name
+     * Each constant is a category, in declaration order. The category id is its @DecisionId, or the constant's name
      * and the description is its {@link Described} text. Unlike a choice option id, the category id
-     * does not follow the mapper, because {@link CategoryMapping#fromEnum} builds the mapping.
+     * does not follow the mapper.
      *
      * <pre>{@code
      * CategoryMapping<Department> ticketClass = AnnotatedDecisions.classification(Department.class);
@@ -140,7 +144,7 @@ public final class AnnotatedDecisions {
      * on both paths.
      *
      * @param type the type to read
-     * @return the mapping built by {@link CategoryMapping#fromEnum}
+     * @return the mapping built from the enum constants and their category ids
      * @throws AnnotatedDecisionException listing every problem found
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -164,11 +168,23 @@ public final class AnnotatedDecisions {
             problems.add(name + ": has no constants, so the classification has no categories. "
                 + "Add one constant per category to " + name + ".");
         }
+        Set<String> ids = new HashSet<>();
         for (Object constant : constants) {
-            if (DecisionTypeParser.describedOf((Enum<?>) constant) == null) {
-                String constantName = name + "." + ((Enum<?>) constant).name();
+            Enum<?> entry = (Enum<?>) constant;
+            String constantName = name + "." + entry.name();
+            Described described = EnumEntries.describedOf(entry);
+            if (described == null) {
                 problems.add(constantName + ": category has no @Described. "
                     + "Add @Described with the category's description to " + constantName + ".");
+            } else if (described.value().isBlank()) {
+                problems.add(constantName + ": category has a blank @Described value. Describe what this category means.");
+            }
+            DecisionId explicit = EnumEntries.idOf(entry);
+            String id = explicit == null ? entry.name() : explicit.value();
+            if (id.isBlank()) {
+                problems.add(constantName + ": has a blank @DecisionId. Set a stable nonblank id.");
+            } else if (!ids.add(id)) {
+                problems.add(constantName + ": repeats category id \"" + id + "\". Give each constant a unique @DecisionId.");
             }
         }
         if (!problems.isEmpty()) {
@@ -185,10 +201,16 @@ public final class AnnotatedDecisions {
      * @param enumType the enum type to build categories from
      * @param asking the instructions the model receives
      * @param <E> the enum type
-     * @return the mapping built by {@link CategoryMapping#fromEnum}
+     * @return the mapping built from the enum constants and their category ids
      */
     private static <E extends Enum<E>> CategoryMapping<E> buildCategoryMapping(Class<E> enumType, String asking) {
-        return CategoryMapping.fromEnum(enumType, asking, constant -> DecisionTypeParser.describedOf(constant).value());
+        var categories = new LinkedHashMap<Category, E>();
+        for (E constant : enumType.getEnumConstants()) {
+            DecisionId explicit = EnumEntries.idOf(constant);
+            String id = explicit == null ? constant.name() : explicit.value();
+            categories.put(new Category(id, EnumEntries.describedOf(constant).value()), constant);
+        }
+        return new CategoryMapping<>(asking, categories);
     }
 
     /**
@@ -203,6 +225,8 @@ public final class AnnotatedDecisions {
     // Created on first use of defaults().
     private static final class Defaults {
         static final AnnotatedDecisions INSTANCE = using(
-            JsonMapper.builder().enable(DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES).build());
+            JsonMapper.builder().findAndAddModules()
+                .enable(DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES)
+                .enable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES).build());
     }
 }

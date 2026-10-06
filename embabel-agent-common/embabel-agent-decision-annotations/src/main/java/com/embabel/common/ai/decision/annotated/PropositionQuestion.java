@@ -29,7 +29,7 @@ import java.lang.annotation.Target;
  * The property type is {@code boolean} or {@code Boolean}, and the projected value is the
  * answer: true when the proposition holds.
  * <p>
- * The question name is the Jackson property name. Put the annotation on a record component, or
+ * The question name comes from {@link #name()}, or the Jackson property name. Put the annotation on a record component, or
  * on the field, getter, setter or creator parameter of a Jackson property. Jackson merges these
  * members into one property, so the annotation may appear on several of them with the same
  * {@code asking} text.
@@ -46,4 +46,12 @@ public @interface PropositionQuestion {
      * @return the question's instructions, which must not be blank
      */
     String asking();
+
+    /**
+     * Stable question name. An empty value uses the Jackson property name.
+     *
+     * @return the provider-facing name, independent of the property's JSON name
+     */
+    String name() default "";
+
 }

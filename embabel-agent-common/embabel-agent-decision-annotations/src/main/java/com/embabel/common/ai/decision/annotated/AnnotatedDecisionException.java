@@ -32,6 +32,18 @@ public class AnnotatedDecisionException extends IllegalArgumentException {
 
     private final List<String> problems;
 
+    private final List<Problem> details;
+
+    /** A diagnostic's declaring type, member label (empty for a type problem), and rendered message. */
+    @ApiStatus.Experimental
+    public record Problem(Class<?> type, String member, String message) {
+        public Problem {
+            Objects.requireNonNull(type, "type");
+            Objects.requireNonNull(member, "member");
+            Objects.requireNonNull(message, "message");
+        }
+    }
+
     /**
      * Creates an exception for the given type and problems.
      *
@@ -43,6 +55,7 @@ public class AnnotatedDecisionException extends IllegalArgumentException {
         super(message(type, problems), cause);
         this.type = type;
         this.problems = List.copyOf(problems);
+        this.details = problems.stream().map(problem -> detail(type, problem)).toList();
     }
 
     /**
@@ -61,6 +74,23 @@ public class AnnotatedDecisionException extends IllegalArgumentException {
      */
     public List<String> problems() {
         return problems;
+    }
+
+    /** @return immutable diagnostics with an unambiguous declaring type and member label */
+    public List<Problem> details() {
+        return details;
+    }
+
+    private static Problem detail(Class<?> type, String message) {
+        String prefix = type.getSimpleName() + ".";
+        int colon = message.indexOf(':');
+        String member = "";
+        if (colon >= 0) {
+            String location = message.substring(0, colon);
+            member = location.startsWith(prefix) ? location.substring(prefix.length())
+                : location.equals(type.getSimpleName()) ? "" : location;
+        }
+        return new Problem(type, member, message);
     }
 
     /**
