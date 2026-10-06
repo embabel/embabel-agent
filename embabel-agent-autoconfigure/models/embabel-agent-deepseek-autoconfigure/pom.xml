@@ -36,6 +36,12 @@
             <artifactId>spring-ai-deepseek</artifactId>
         </dependency>
 
+        <!-- DeepSeek timeouts set under its own prefix build a reactor-netty client like the shared one. -->
+        <dependency>
+            <groupId>io.projectreactor.netty</groupId>
+            <artifactId>reactor-netty-http</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-test-internal</artifactId>

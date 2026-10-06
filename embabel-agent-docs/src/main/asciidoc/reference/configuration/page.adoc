@@ -721,7 +721,7 @@ implementation 'com.embabel.agent:embabel-agent-netty-client-autoconfigure'
 
 |`embabel.agent.platform.http-client.read-timeout`
 |Duration
-|`1m`
+|`5m`
 |Read timeout (response timeout) for receiving responses from model providers. Increase this value for models that generate long responses or when using extended thinking features.
 
 |===
@@ -745,9 +745,25 @@ NOTE: The `http-client` timeouts do not apply to OpenAI-compatible providers (`o
 
 * *Long-running LLM calls*: If you experience timeout errors during complex reasoning tasks, increase `read-timeout`
 * *Slow network environments*: Increase `connect-timeout` if connection establishment is failing
-* *Streaming responses*: The `read-timeout` applies to the initial response; streaming content has its own handling
+* *Streaming responses*: The `read-timeout` bounds the wait for the response and then each wait between reads, so a stream that stalls mid-response fails after `read-timeout` rather than hanging
 
 NOTE: The HTTP client configuration applies to all model providers that use Spring's `RestClient` and `WebClient`, including OpenAI, Anthropic, and OpenAI-compatible endpoints.
+
+DeepSeek and Mistral AI also accept `connect-timeout` and `read-timeout` under their own prefixes, `embabel.agent.platform.models.deepseek` and `embabel.agent.platform.models.mistralai`. Set there, they replace the `http-client` values for that provider. Setting only one of the two takes the other from `http-client`.
+
+Setting either gives that provider its own HTTP client, configured like the shared one but with its own timeouts. Anything else customised on the shared `aiModelRestClientBuilder` and `aiModelWebClientBuilder` beans' transport, such as a proxy or TLS settings, does not apply to that provider. The provider logs this at `INFO` on startup. That client is reactor-netty, like the shared one, unless `embabel.agent.platform.http-client.use-reactor-netty` is `false`. Then it is the JDK HTTP client, whose `read-timeout` bounds only the wait for response headers: a stream that stalls mid-response is not timed out. The provider logs a `WARN` saying so.
+
+A per-user (BYOK) DeepSeek or Mistral AI key reads the same two property names, but falls back differently when they are unset. It does not use `http-client`: an unset `connect-timeout` is `1m`, and an unset `read-timeout` leaves each chat completion or embedding call bounded at 60 seconds per attempt, with the call retried twice. For such a key, a set `read-timeout` bounds each whole attempt rather than each wait between reads.
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        mistralai:
+          read-timeout: 10m
+----
 
 ===== Template Renderer
 

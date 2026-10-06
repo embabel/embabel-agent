@@ -31,17 +31,17 @@
 			<artifactId>spring-ai-mistral-ai</artifactId>
 		</dependency>
 
-		<dependency>
-			<groupId>com.embabel.agent</groupId>
-			<artifactId>embabel-agent-test-internal</artifactId>
-			<scope>test</scope>
-		</dependency>
-
-		<!-- Reproduces the production classpath: presence of reactor-netty makes RestClient.builder()
-		     select ReactorClientHttpRequestFactory, whose default HttpClient carries a 10s responseTimeout. -->
+		<!-- Mistral AI timeouts set under its own prefix build a reactor-netty client like the shared one.
+		     Being on the classpath also makes RestClient.builder() select ReactorClientHttpRequestFactory,
+		     whose default HttpClient carries a 10s responseTimeout, as in production. -->
 		<dependency>
 			<groupId>io.projectreactor.netty</groupId>
 			<artifactId>reactor-netty-http</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>com.embabel.agent</groupId>
+			<artifactId>embabel-agent-test-internal</artifactId>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
