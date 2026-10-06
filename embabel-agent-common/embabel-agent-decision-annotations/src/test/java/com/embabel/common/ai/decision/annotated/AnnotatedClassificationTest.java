@@ -317,7 +317,7 @@ class AnnotatedClassificationTest {
                 .ask("The export job keeps timing out.", spec);
 
             assertEquals(new RoutingWithSource("ticket-42", Department.TECHNICAL),
-                decision.project(response, Map.of("sourceId", "ticket-42")));
+                decision.project(response, Map.of("sourceId", "ticket-42")).getValue());
         }
 
         @Test

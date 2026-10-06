@@ -19,6 +19,7 @@ import com.embabel.common.ai.classification.ClassificationResult;
 import com.embabel.common.ai.classification.ModelProvenance;
 import com.embabel.common.ai.decision.DecisionAnswer;
 import com.embabel.common.ai.decision.DecisionProjectionException;
+import com.embabel.common.ai.decision.DecisionProjection;
 import com.embabel.common.ai.decision.DecisionResponse;
 import com.embabel.common.ai.decision.PropositionQuestionSpec;
 import com.embabel.common.ai.decision.PropositionResult;
@@ -131,10 +132,11 @@ class DiceRevisionAnnotatedExampleTest {
 
         Disposition dispose(DecisionResponse response, String propositionId, long sourceRevision) {
             PropositionQuestionSpec supported = (PropositionQuestionSpec) review.spec().question("supported");
-            PropositionResult support = response.answer(supported);
             try {
-                PropositionReview entity = review.project(
+                DecisionProjection<PropositionReview> projection = review.project(
                     response, Map.of("propositionId", propositionId, "sourceRevision", sourceRevision));
+                PropositionReview entity = projection.getValue();
+                PropositionResult support = projection.getResponse().answer(supported);
                 String outcome = entity.getConfidence() == Confidence.LOW ? "HUMAN_REVIEW" : entity.getAction().name();
                 String model = ((PropositionResult.Answered) support).getProvenance().getModelName();
                 return new Disposition(entity.getPropositionId(), entity.getSourceRevision(), outcome, model);
@@ -173,7 +175,7 @@ class DiceRevisionAnnotatedExampleTest {
         DecisionResponse response = reviewStub().build().ask(EVIDENCE, review.spec());
 
         PropositionReview entity =
-            review.project(response, Map.of("propositionId", "prop-381", "sourceRevision", 12L));
+            review.project(response, Map.of("propositionId", "prop-381", "sourceRevision", 12L)).getValue();
 
         assertEquals(List.of("supported", "action", "confidence"),
             review.spec().getQuestions().stream().map(Question::getName).toList());

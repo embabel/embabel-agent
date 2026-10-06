@@ -210,7 +210,7 @@ class AnnotatedProjectionTest {
         AnnotatedDecision<SourcedTriage> sourced = AnnotatedDecisions.defaults().of(SourcedTriage.class);
         DecisionResponse response = answeredStub().build().ask(INPUT, sourced.spec());
 
-        SourcedTriage value = sourced.project(response, Map.of("sourceId", "ticket-42", "revision", 3));
+        SourcedTriage value = sourced.project(response, Map.of("sourceId", "ticket-42", "revision", 3)).getValue();
 
         assertEquals(new SourcedTriage("ticket-42", 3, true), value);
     }
@@ -284,7 +284,7 @@ class AnnotatedProjectionTest {
         others.put("sourceId", null);
         others.put("revision", 1);
 
-        SourcedTriage value = sourced.project(response, others);
+        SourcedTriage value = sourced.project(response, others).getValue();
 
         assertNull(value.sourceId());
     }

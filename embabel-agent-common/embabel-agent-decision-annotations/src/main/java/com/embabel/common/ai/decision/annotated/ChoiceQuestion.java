@@ -27,10 +27,10 @@ import java.lang.annotation.Target;
  * Declares that a property is a choice question in the decision spec read from its type.
  * <p>
  * The property type is an enum. Each constant is an option, in declaration order. The option id
- * is the constant's serialized form under the mapper, and every constant needs {@link Described}
+ * comes from {@link DecisionId}, or the constant's serialized form under the mapper, and every constant needs {@link Described}
  * to give the option's description.
  * <p>
- * The question name is the Jackson property name. Put the annotation on a record component, or
+ * The question name comes from {@link #name()}, or the Jackson property name. Put the annotation on a record component, or
  * on the field, getter, setter or creator parameter of a Jackson property. Jackson merges these
  * members into one property, so the annotation may appear on several of them with the same
  * {@code asking} text.
@@ -47,4 +47,12 @@ public @interface ChoiceQuestion {
      * @return the question's instructions, which must not be blank
      */
     String asking();
+
+    /**
+     * Stable question name. An empty value uses the Jackson property name.
+     *
+     * @return the provider-facing name, independent of the property's JSON name
+     */
+    String name() default "";
+
 }

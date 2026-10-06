@@ -1,7 +1,7 @@
 [[reference.decision-specs-annotated]]
 === Annotated records (prototype)
 
-The module `embabel-agent-decision-annotations` reads a `DecisionSpec` from an annotated Java record or bean.
+The module `embabel-agent-decision-annotations` reads a `DecisionSpec` from an annotated Java record, bean or Kotlin class.
 It is a prototype.
 It is optional, it is not published, and no Embabel module depends on it.
 The spec it reads is an ordinary `DecisionSpec`, equal to the spec the builder or the Kotlin DSL declares for the same questions.
@@ -38,12 +38,16 @@ include::../../../../../../embabel-agent-common/embabel-agent-decision-annotatio
 |A choice question with one option per enum constant
 
 |`@RatingQuestion(asking)`
-|A property of an enum type
+|An enum property, or `RatingResult` with `levels = Scale.class`
 |A rating question with one level per enum constant
 
 |`@Described(value)`
 |An enum constant
 |The description of an option, level or category
+
+|`@DecisionId(value)`
+|An enum constant
+|A stable option, level or category id shared by both declaration paths
 
 |`@Classification(asking)`
 |An enum
@@ -56,10 +60,12 @@ Jackson merges the accessor and the constructor parameter into one property, and
 `asking` has no default and holds the instructions the model receives.
 A record or bean takes no class-level annotation.
 
-Choices and rating levels are enums.
+Choices and rating scales are enums.
+A `RatingResult` property declares its scale with `@RatingQuestion(levels = Scale.class)`; an enum-valued property infers it.
 Options and levels follow the declaration order of the constants.
 Rating levels run from lowest to highest.
-Every choice constant needs `@Described`.
+Every choice constant needs a nonblank `@Described`.
+An explicitly supplied rating or category description must also be nonblank.
 A rating constant without `@Described` takes its id as its description, as `RatingQuestionSpec.Builder.level(label)` does.
 
 `AnnotatedDecisions.defaults().of(type)` reads the type under a default Jackson mapper:
@@ -71,14 +77,23 @@ include::../../../../../../embabel-agent-common/embabel-agent-decision-annotatio
 
 ==== Names and order
 
-Jackson supplies every name.
-The question name is the Jackson property name of the annotated member.
-The option or level id is the JSON string the mapper writes for the enum constant, and the parser checks that the mapper reads that string back as the same constant.
+A question annotation's optional `name` fixes a stable provider-facing name; an empty value uses the Jackson property name.
+An enum constant's `@DecisionId` fixes its provider-facing id for choices, ratings and standalone classification.
+Without an override, the question name is the Jackson property name of the annotated member.
+Without `@DecisionId`, the option or level id is the JSON string the mapper writes for the enum constant, and the parser checks that the mapper reads that string back as the same constant.
 The question order is Jackson's property order for the type.
 
-`@JsonProperty`, `@JsonNaming`, `@JsonPropertyOrder`, a mapper `PropertyNamingStrategy` and a mapper `EnumNamingStrategy` all change the spec.
+`@JsonProperty`, `@JsonNaming`, `@JsonPropertyOrder`, a mapper `PropertyNamingStrategy` and a mapper `EnumNamingStrategy` control the names and order that explicit identifiers do not override.
 Jackson 3 writes and reads enums with `toString()` by default, so an enum that overrides `toString()` takes its ids from it.
-The name and the order are part of the spec, so a naming change produces a different spec.
+The name and the order are part of the spec, so a naming change produces a different spec unless explicit identifiers pin the names.
+Explicit names and ids must be nonblank and unique within their question set or enum.
+Projection binds each stable question name back to its Jackson property and each stable option id back to its enum constant.
+The enum must still round-trip under the mapper used for projection.
+
+[source,java]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-decision-annotations/src/test/java/com/embabel/common/ai/decision/annotated/AnnotatedApiEnhancementsTest.java[tag=annotated-stable-ids,indent=0]
+----
 
 Under the default mapper the triage record reads with the Java component names:
 
@@ -112,14 +127,28 @@ A different mapper needs its own `AnnotatedDecisions` instance.
 It first checks the response with `DecisionResponse.requireMatches(spec)` and throws `DecisionProjectionException` with that message when the check fails.
 A response with missing, extra or reordered answers fails before conversion, and so does an answer whose kind, options or levels differ from its question.
 Instructions are not compared, so a response to reworded questions still projects.
-The conversion is `DecisionProjection.of(response, type, mapper)` with the mapper that read the type.
-Inconclusive, failed and unmatched answers, and ratings answered with only a score, throw the same `DecisionProjectionException` as in <<reference.decision-specs>>.
+The adapter converts answers with the mapper that read the type, resolving explicit names and ids through its bindings.
+For boolean and enum fields, inconclusive, failed and unmatched answers, and ratings answered with only a score, throw the same `DecisionProjectionException` as in <<reference.decision-specs>>.
+A `RatingResult` field retains answered, inconclusive and failed outcomes, including scores, distributions, confidence and provenance.
+This permits a valid Jev score-and-distribution response to project without inventing a selected level.
+An enum field still requires a provider-selected level; converting a distribution into one level is an application policy.
+
+[source,java]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-decision-annotations/src/test/java/com/embabel/common/ai/decision/annotated/AnnotatedApiEnhancementsTest.java[tag=annotated-rich-rating,indent=0]
+----
 The result holds the converted value and the response, so the provenance of each answer stays available.
 
 A type can hold properties that carry no question annotation, such as identity fields.
 `project(response, otherProperties)` takes their values from a map keyed by Jackson property name.
 Every such property needs a key, and a key that names a question or no property is rejected.
 The message lists every key problem at once.
+Both projection overloads return `DecisionProjection<T>`, retaining the original response.
+Every non-question property needs an explicit key, including Kotlin constructor properties with defaults.
+Null counts as a supplied value, but the default mapper rejects null for primitive fields.
+Scalar coercion follows the supplied mapper: the default accepts `"3"` and `3.0` for an integer and `"true"` for a boolean.
+An application can disable scalar coercion and floating-point-to-integer conversion in the mapper passed to `using(mapper)`.
+`defaults()` discovers Jackson modules on the classpath, including the Kotlin module when available, and enables missing creator property and null primitive checks.
 
 [source,java]
 ----
@@ -136,7 +165,6 @@ include::../../../../../../embabel-agent-common/embabel-agent-decision-annotatio
 Projection has these limits:
 
 * `AnnotatedDecisions.of` takes a `Class<T>`. A property whose type is a type variable is rejected when the type is read. A generic target type such as a map uses `DecisionProjection.of` with a `TypeReference<T>`.
-* `project(response, otherProperties)` returns `T`. The core `DecisionProjection` holds only values converted from answers, and its constructor is private, so it cannot hold values from `otherProperties`. The caller keeps the response for provenance.
 * A record component with `@JsonIgnore` stays a creator parameter in Jackson. The default mapper enables `FAIL_ON_MISSING_CREATOR_PROPERTIES`, so projection fails on the ignored component. Under a mapper without that feature the component projects as `null`. The ignored component is not an `otherProperties` key in either case.
 
 [source,java]
@@ -158,7 +186,7 @@ Every constant needs `@Described`, as a choice option does.
 include::../../../../../../embabel-agent-common/embabel-agent-decision-annotations/src/test/java/com/embabel/common/ai/decision/annotated/example/TicketClassificationAnnotatedExampleTest.java[tag=annotated-classification-enum,indent=0]
 ----
 
-`AnnotatedDecisions.classification(type)` returns a `CategoryMapping<E>` built by `CategoryMapping.fromEnum`.
+`AnnotatedDecisions.classification(type)` returns a `CategoryMapping<E>` built from the enum constants and their category ids.
 It is static and caches one mapping per enum. A failed read is not cached.
 `spec()` is the `ClassificationSpec` to pass to `ClassificationService.classify(input, spec)`.
 `map(result)` turns a selection into its constant and returns no match, inconclusive and failure unchanged.
@@ -169,13 +197,13 @@ A selection outside the categories throws `IllegalArgumentException`.
 include::../../../../../../embabel-agent-common/embabel-agent-decision-annotations/src/test/java/com/embabel/common/ai/decision/annotated/example/TicketClassificationAnnotatedExampleTest.java[tag=annotated-classification-route,indent=0]
 ----
 
-The category id is the constant's name.
+The category id is its explicit `@DecisionId`, or the constant's name.
 No mapper is involved, so `toString()`, `@JsonProperty` and enum naming strategies do not change it.
-A choice option id follows the mapper, so the same enum can give different ids on the two paths.
+An explicit `@DecisionId` gives the same id on both paths. Without it, a choice option id follows the mapper and a category id follows the constant name.
 The question is named `classification`, from `ClassificationSpec.QUESTION_NAME`.
 
 A record or bean whose only question is a `@ChoiceQuestion` reads as a `ClassificationSpec`, whatever other properties it has.
-`spec()` still returns `DecisionSpec`, so a caller casts it to pass it to a classification service.
+`spec()` returns `DecisionSpec`. `classificationSpec()` returns the same spec typed as `ClassificationSpec` and rejects a type that does not declare exactly one choice question.
 The question keeps its Jackson property name.
 The spec equals the plain `DecisionSpec`, writes the same JSON and projects the same way.
 Other properties, such as an id, are filled by `project(response, otherProperties)` as usual.
@@ -203,7 +231,8 @@ include::../../../../../../embabel-agent-common/embabel-agent-decision-annotatio
 
 A type that cannot become a spec throws `AnnotatedDecisionException`, an `IllegalArgumentException`.
 The parser collects every problem in the type and reports them in one exception.
-`problems()` returns one line per problem, in the form `<Type>.<member>: <cause>. <fix>.`
+`details()` returns an immutable list with the declaring type, member label and rendered message for tooling.
+`problems()` retains one line per problem, in the form `<Type>.<member>: <cause>. <fix>.`
 A problem that concerns the whole type starts with `<Type>:`.
 A Jackson or builder exception behind a problem is the cause of the exception, and further ones are suppressed exceptions.
 A failed read is not cached.
@@ -379,16 +408,16 @@ Question names and ids come from the application's Jackson settings, so the spec
 
 An annotated enum replaces a `CategoryMapping.fromEnum` call and its description function. The descriptions sit on the constants.
 
-The costs to a user are the rules a Java type must satisfy: a `boolean` or enum per question, `@Described` on each choice or category constant, and a Kotlin use-site target that reads.
+The costs to a user are the rules a Java type must satisfy: a `boolean`, enum or explicitly scaled `RatingResult` per question, `@Described` on each choice or category constant, and a Kotlin use-site target that reads.
 Each rule has a diagnostic that names the member and the fix.
 
 ===== Complexity
 
-The main code is 2,015 lines in ten Java files, 1,003 of them non-blank and outside comments.
-`DecisionTypeParser` holds 1,239 of the lines.
-`AnnotatedDecision` holds 218, `AnnotatedDecisions` 208, `AnnotatedDecisionException` 80, and the five annotations and `package-info` 270 together.
-Classification adds the `@Classification` annotation, 98 lines to `AnnotatedDecisions` and 17 to the parser, which picks the spec type. The mapping itself is `CategoryMapping`.
-The tests are 2,951 lines, most of them diagnostic cases.
+`DecisionTypeParser` discovers Jackson properties, builds their question bindings and reports orphan annotations.
+`EnumEntries` reads enum metadata, applies explicit ids and validates mapper round-trips.
+`KotlinAnnotationPlacement` isolates the compiler rules for repeated constructor, backing-field and `copy()` annotations.
+`AnnotatedDecision` validates responses and projects through these bindings while retaining evidence.
+The tests cover diagnostic cases, Java and Kotlin projection, provider-shaped rating evidence, stable identifiers and input conversion rules.
 
 The parser reads Jackson's creation view of a type through public calls: `DeserializationConfig.classIntrospectorInstance()`, `ClassIntrospector.introspectForCreation`, `BeanDescription.findProperties()`, `AccessorNamingStrategy` and `AnnotationIntrospector`.
 These calls are public and lower level than `ObjectMapper`.
@@ -398,10 +427,10 @@ The Kotlin data class rule reads the `kotlin.Metadata` annotation by name, so th
 
 ===== Supported types
 
-* Question properties: `boolean` or `Boolean` for propositions, a concrete enum for choices and ratings. Every other type is rejected.
+* Question properties: `boolean` or `Boolean` for propositions, a concrete enum for choices and ratings, or `RatingResult` with an explicit enum scale. Every other type is rejected.
 * Types: Java records, beans with a `@JsonCreator` constructor or setters, and Kotlin classes with the placements in the Kotlin table.
 * Reading: `Class<T>`. Generic types and type variables are rejected.
-* Projection into `T` with `DecisionProjection<T>` when every property is a question, and into `T` alone when `otherProperties` supplies the rest.
+* Projection into `T` with `DecisionProjection<T>` on both paths, with explicit identity values supplied through `otherProperties`.
 * Classification: an enum with `@Classification`, read into a `CategoryMapping<E>`.
 * `@JsonIgnore` on a record component: the component cannot hold a question and fails projection under the default mapper.
 
@@ -409,9 +438,8 @@ The Kotlin data class rule reads the `kotlin.Metadata` annotation by name, so th
 
 * The merged-name check is strict. A property whose field, getter and setter have different Java names is rejected even where Jackson accepts it, for example `@JsonProperty("urgent") boolean urgentFlag` with `isUrgent()`. Creator parameters are left out of the check.
 * The parser depends on the Jackson introspection calls listed under Complexity. A Jackson upgrade needs the module tests to pass before release.
-* `project(response, otherProperties)` returns `T` alone. A public factory on `DecisionProjection` that takes a value would let it return `DecisionProjection<T>`. That change belongs to `embabel-agent-ai`.
 * `defaults()` holds one shared mapper. Jackson's type and deserializer caches in that mapper keep references to the types it reads and projects, so an application that reloads classes passes a mapper it owns to `using(mapper)`. The decision cache itself keeps no class reachable.
-* Category ids are constant names and choice option ids follow the mapper. An enum used both ways can have two sets of ids.
+* Without explicit `@DecisionId` values, category ids are constant names and choice option ids follow the mapper. Pin ids for enums used on both paths or stored as a portable contract.
 * Kotlin support depends on use-site targets and on two rules that skip Kotlin's repeated annotations: one for `copy()` parameters and one for the backing field.
 
 ===== Removal
@@ -428,7 +456,6 @@ The conditions for accepting it are:
 
 . Exclude the module from Maven Central publication and confirm the exclusion in a release dry run. The module sets `maven.deploy.skip`.
 . Review the Jackson introspection calls against the Jackson version the release uses.
-. Add a public factory to `DecisionProjection` so that `project(response, otherProperties)` returns `DecisionProjection<T>`.
 . Name an owner and a consumer application, as the decision types require for promotion.
 
 Drop the module if no consumer application adopts it by the release that promotes the decision types.

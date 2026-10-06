@@ -16,6 +16,9 @@
 package com.embabel.common.ai.decision.annotated;
 
 import com.embabel.common.ai.decision.DecisionProjection;
+import com.embabel.common.ai.decision.DecisionAnswer;
+import com.embabel.common.ai.decision.RatingResult;
+import com.embabel.common.ai.classification.ClassificationSpec;
 import com.embabel.common.ai.decision.DecisionProjectionException;
 import com.embabel.common.ai.decision.DecisionResponse;
 import com.embabel.common.ai.decision.DecisionSpec;
@@ -50,6 +53,15 @@ public final class AnnotatedDecision<T> {
     // Properties Jackson sets that are not questions, in Jackson's order. Projection takes their values from otherProperties.
     private final List<String> otherNames;
 
+    private final Map<String, Binding> bindings;
+
+    /** Links a provider-facing question to the Jackson property and its enum domain. */
+    record Binding(String propertyName, boolean richRating, Map<String, Enum<?>> enumValues) {
+        Binding {
+            enumValues = Collections.unmodifiableMap(new LinkedHashMap<>(enumValues));
+        }
+    }
+
     private final ObjectMapper mapper;
 
     AnnotatedDecision(
@@ -57,11 +69,14 @@ public final class AnnotatedDecision<T> {
         DecisionSpec spec,
         Map<String, String> questionNames,
         List<String> settableNames,
+        Map<String, Binding> bindings,
         ObjectMapper mapper) {
         this.type = type;
         this.spec = spec;
         this.questionNames = Collections.unmodifiableMap(new LinkedHashMap<>(questionNames));
-        this.otherNames = settableNames.stream().filter(name -> !questionNames.containsValue(name)).toList();
+        this.bindings = Collections.unmodifiableMap(new LinkedHashMap<>(bindings));
+        List<String> questionProperties = bindings.values().stream().map(Binding::propertyName).toList();
+        this.otherNames = settableNames.stream().filter(name -> !questionProperties.contains(name)).toList();
         this.mapper = mapper;
     }
 
@@ -77,14 +92,26 @@ public final class AnnotatedDecision<T> {
     /**
      * Returns the decision spec read from the type.
      * <p>
-     * A type whose only property is a choice question gives a
+     * A type whose only question is a choice gives a
      * {@link com.embabel.common.ai.classification.ClassificationSpec}, which a classification
-     * service accepts once cast.
+     * service accepts through {@link #classificationSpec()}.
      *
      * @return the spec, with one question per annotated property in Jackson's property order
      */
     public DecisionSpec spec() {
         return spec;
+    }
+
+    /**
+     * Returns this spec as a classification spec.
+     *
+     * @return the spec for a type declaring exactly one choice question
+     * @throws IllegalStateException if the type declares another question shape
+     */
+    public ClassificationSpec classificationSpec() {
+        if (spec instanceof ClassificationSpec classification) return classification;
+        throw new IllegalStateException(type.getSimpleName() + " must declare exactly one choice question "
+            + "to be used as a classification spec.");
     }
 
     /**
@@ -111,12 +138,7 @@ public final class AnnotatedDecision<T> {
      *     not fit the type
      */
     public DecisionProjection<T> project(DecisionResponse response) {
-        requireSpecOf(response);
-        List<String> problems = otherPropertyProblems(Map.of());
-        if (!problems.isEmpty()) {
-            throw new DecisionProjectionException(String.join("\n", problems), List.of(), null);
-        }
-        return DecisionProjection.of(response, type, mapper);
+        return project(response, Map.of());
     }
 
     /**
@@ -128,32 +150,57 @@ public final class AnnotatedDecision<T> {
      * mapped to null counts as supplied. The response must answer this decision's spec, as in
      * {@link #project(DecisionResponse)}.
      * <p>
-     * This method returns the value alone. The core {@link DecisionProjection} holds only values
-     * converted from the answers, so it cannot carry the other properties. The caller keeps the
-     * response for its provenance.
+     * The result retains the original response and all of its evidence. Scalar coercion follows
+     * this decision's mapper. Default mapping rejects null for primitives. Every non-question
+     * property needs an explicit key, including a Kotlin property with a constructor default.
      *
      * @param response the response to project
      * @param otherProperties the values of the non-question properties, keyed by property name
-     * @return the projected value
+     * @return the projected value together with the original response
      * @throws DecisionProjectionException if the response does not match the spec, a key is missing,
      *     unknown or names a question, an answer has no representable value, or the values do not
      *     fit the type. The message lists every key problem at once.
      */
-    public T project(DecisionResponse response, Map<String, ?> otherProperties) {
+    public DecisionProjection<T> project(DecisionResponse response, Map<String, ?> otherProperties) {
         Objects.requireNonNull(otherProperties, "otherProperties");
         requireSpecOf(response);
         List<String> problems = otherPropertyProblems(otherProperties);
         if (!problems.isEmpty()) {
             throw new DecisionProjectionException(String.join("\n", problems), List.of(), null);
         }
-        Map<String, Object> values = new LinkedHashMap<>(DecisionProjection.answeredValues(response));
-        values.putAll(otherProperties);
         try {
-            return mapper.convertValue(values, type);
+            Map<String, Object> values = projectedValues(response);
+            values.putAll(otherProperties);
+            return DecisionProjection.ofValue(mapper.convertValue(values, type), response);
         } catch (JacksonException e) {
             throw new DecisionProjectionException(
                 "Cannot map the answered values and otherProperties to " + type.getName(), List.of(), e);
         }
+    }
+
+    /** Keeps rich outcomes intact while strictly reducing scalar fields through the core API. */
+    private Map<String, Object> projectedValues(DecisionResponse response) {
+        List<DecisionAnswer> scalarAnswers = response.getAnswers().stream()
+            .filter(answer -> !bindings.get(answer.getName()).richRating()).toList();
+        Map<String, Object> values = new LinkedHashMap<>();
+        DecisionProjection.answeredValues(scalarAnswers).forEach((name, value) -> {
+            Binding binding = bindings.get(name);
+            Object propertyValue = binding.enumValues().isEmpty() ? value : binding.enumValues().get(value);
+            if (propertyValue == null) {
+                throw new DecisionProjectionException("No enum constant for answer '" + name + "'", List.of(name), null);
+            }
+            values.put(binding.propertyName(), propertyValue);
+        });
+        for (DecisionAnswer answer : response.getAnswers()) {
+            Binding binding = bindings.get(answer.getName());
+            if (binding.richRating()) {
+                // A Map's Object-valued serialization drops polymorphic type ids. Write this value
+                // as RatingResult so Jackson includes the outcome's status for the target field.
+                values.put(binding.propertyName(), mapper.readTree(mapper.writerFor(RatingResult.class)
+                    .writeValueAsString(((DecisionAnswer.Rating) answer).getOutcome())));
+            }
+        }
+        return values;
     }
 
     /**
@@ -187,9 +234,14 @@ public final class AnnotatedDecision<T> {
         String name = type.getSimpleName();
         List<String> missing = otherNames.stream().filter(key -> !otherProperties.containsKey(key)).toList();
         // Question keys in spec order and unknown keys sorted, so the message does not depend on map order.
-        List<String> questions = questionNames.values().stream().filter(otherProperties::containsKey).toList();
+        List<String> questionKeys = new ArrayList<>(questionNames.values().stream()
+            .filter(questionName -> !otherNames.contains(questionName)).toList());
+        bindings.values().forEach(binding -> {
+            if (!questionKeys.contains(binding.propertyName())) questionKeys.add(binding.propertyName());
+        });
+        List<String> questions = questionKeys.stream().filter(otherProperties::containsKey).toList();
         List<String> unknown = otherProperties.keySet().stream()
-            .filter(key -> !questionNames.containsValue(key) && !otherNames.contains(key))
+            .filter(key -> !questionKeys.contains(key) && !otherNames.contains(key))
             .sorted()
             .toList();
         List<String> problems = new ArrayList<>();

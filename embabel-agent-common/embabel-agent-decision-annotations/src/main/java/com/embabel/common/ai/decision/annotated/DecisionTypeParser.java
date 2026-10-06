@@ -21,6 +21,8 @@ import com.embabel.common.ai.decision.DecisionSpec;
 import com.embabel.common.ai.decision.Question;
 import com.embabel.common.ai.decision.Questions;
 import com.embabel.common.ai.decision.RatingQuestionSpec;
+import com.embabel.common.ai.decision.RatingResult;
+import com.embabel.common.ai.decision.annotated.EnumEntries.Entry;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonIncludeProperties;
@@ -30,7 +32,6 @@ import tools.jackson.databind.AnnotationIntrospector;
 import tools.jackson.databind.BeanDescription;
 import tools.jackson.databind.DeserializationConfig;
 import tools.jackson.databind.JavaType;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.introspect.AccessorNamingStrategy;
 import tools.jackson.databind.introspect.AnnotatedClass;
@@ -91,10 +92,6 @@ final class DecisionTypeParser {
 
     private static final String CARRIES = ": carries ";
 
-    // The Kotlin compiler marks every class it emits with kotlin.Metadata. The annotation type is
-    // loaded by name so the module has no Kotlin dependency. It is null when Kotlin is absent.
-    private static final @Nullable Class<? extends Annotation> KOTLIN_METADATA = kotlinMetadata();
-
     /** The three question annotations, in the order problems name them. */
     private enum Kind {
         PROPOSITION(PropositionQuestion.class, question -> ((PropositionQuestion) question).asking()),
@@ -120,15 +117,6 @@ final class DecisionTypeParser {
         }
     }
 
-    /**
-     * One option or level read from an enum constant.
-     *
-     * @param id the constant's name
-     * @param description the constant's {@link Described} text, or null when it has none
-     */
-    private record Entry(String id, @Nullable String description) {
-    }
-
     private final Class<?> type;
 
     private final ObjectMapper mapper;
@@ -142,6 +130,8 @@ final class DecisionTypeParser {
     private final List<Throwable> causes = new ArrayList<>();
 
     private final Map<String, String> questionNames = new LinkedHashMap<>();
+
+    private final Map<String, AnnotatedDecision.Binding> bindings = new LinkedHashMap<>();
 
     private final List<Question<?>> questions = new ArrayList<>();
 
@@ -175,7 +165,7 @@ final class DecisionTypeParser {
     static <T> AnnotatedDecision<T> parse(Class<T> type, ObjectMapper mapper) {
         DecisionTypeParser parser = new DecisionTypeParser(type, mapper);
         Parsed parsed = parser.read();
-        return new AnnotatedDecision<>(type, parsed.spec, parsed.questionNames, parsed.settableNames, mapper);
+        return new AnnotatedDecision<>(type, parsed.spec, parsed.questionNames, parsed.settableNames, parser.bindings, mapper);
     }
 
     /**
@@ -339,14 +329,46 @@ final class DecisionTypeParser {
             problem(member + ": " + kind.label() + " has a blank asking value. "
                 + "Set asking to the instructions the model receives.");
         }
-        List<Entry> entries = checkType(member, kind, property);
+        Set<String> names = new LinkedHashSet<>();
+        Set<Class<?>> scales = new LinkedHashSet<>();
+        for (AnnotatedMember annotated : membersOf(property)) {
+            Annotation annotation = annotated.getAnnotation(kind.annotation);
+            if (annotation != null) {
+                names.add(switch (annotation) {
+                    case PropositionQuestion proposition -> proposition.name();
+                    case ChoiceQuestion choice -> choice.name();
+                    case RatingQuestion rating -> rating.name();
+                    default -> throw new IllegalStateException("Unknown question annotation");
+                });
+                if (annotation instanceof RatingQuestion rating) scales.add(rating.levels());
+            }
+        }
+        if (names.size() > 1 || scales.size() > 1) {
+            problem(member + ": members carry different question names or levels. "
+                + "Use the same annotation values on every member of the property.");
+            return;
+        }
+        String explicitName = names.iterator().next();
+        String name = explicitName.isEmpty() ? property.getName() : explicitName;
+        if (name.isBlank()) {
+            problem(member + ": has a blank question name. Set name to a nonblank stable id or leave it empty.");
+        }
+        if (bindings.containsKey(name)) {
+            problem(member + ": repeats question name \"" + name + "\". Give each question a unique name.");
+        }
+        Class<?> levels = scales.isEmpty() ? Void.class : scales.iterator().next();
+        List<Entry> entries = checkType(member, kind, property, levels);
         if (problems.size() > before) {
             return;
         }
-        Question<?> question = build(member, kind, property.getName(), asking, entries);
+        Question<?> question = build(member, kind, name, asking, entries);
         if (question != null) {
             questions.add(question);
-            questionNames.put(property.getInternalName(), property.getName());
+            questionNames.put(property.getInternalName(), name);
+            Map<String, Enum<?>> enums = new LinkedHashMap<>();
+            entries.forEach(entry -> enums.put(entry.id(), entry.constant()));
+            bindings.put(name, new AnnotatedDecision.Binding(property.getName(),
+                property.getRawPrimaryType() == RatingResult.class, enums));
         }
     }
 
@@ -435,8 +457,20 @@ final class DecisionTypeParser {
      * @return the options or levels read from the type, empty for a proposition or when the type
      *     does not fit
      */
-    private List<Entry> checkType(String member, Kind kind, BeanPropertyDefinition property) {
+    private List<Entry> checkType(String member, Kind kind, BeanPropertyDefinition property, Class<?> levels) {
         Class<?> raw = property.getRawPrimaryType();
+        if (kind == Kind.RATING && raw == RatingResult.class) {
+            if (!levels.isEnum()) {
+                problem(member + ": @RatingQuestion on RatingResult needs levels set to a concrete enum. "
+                    + "Set levels to the enum defining the scale, lowest first.");
+                return List.of();
+            }
+            return EnumEntries.read(member, false, levels, mapper, this::problem);
+        }
+        if (kind == Kind.RATING && levels != Void.class) {
+            problem(member + ": enum-valued @RatingQuestion infers its levels. "
+                + "Leave levels unset or declare the property as RatingResult.");
+        }
         boolean supported = kind == Kind.PROPOSITION
             ? raw == boolean.class || raw == Boolean.class
             : raw.isEnum();
@@ -459,115 +493,7 @@ final class DecisionTypeParser {
             }
             return List.of();
         }
-        return kind == Kind.PROPOSITION ? List.of() : entries(member, kind, raw);
-    }
-
-    /**
-     * Reads options or levels from enum constants in declaration order. Ids are the mapper's
-     * serialized form of each constant, and each id must read back as the same constant.
-     *
-     * @param member the member label used in problem messages
-     * @param kind the question annotation found on the property
-     * @param enumType the enum type to read
-     * @return the entries read, one per constant that reads back correctly
-     */
-    private List<Entry> entries(String member, Kind kind, Class<?> enumType) {
-        Object[] constants = enumType.getEnumConstants();
-        checkConstantCount(member, kind, enumType.getSimpleName(), constants.length);
-        List<Entry> entries = new ArrayList<>();
-        for (Object constant : constants) {
-            Entry entry = entryOf(member, kind, enumType, (Enum<?>) constant);
-            if (entry != null) {
-                entries.add(entry);
-            }
-        }
-        return entries;
-    }
-
-    /**
-     * Checks that an enum backing a choice or rating has enough constants.
-     *
-     * @param member the member label used in problem messages
-     * @param kind the question annotation found on the property
-     * @param enumName the enum type's simple name
-     * @param count the number of constants the enum declares
-     */
-    private void checkConstantCount(String member, Kind kind, String enumName, int count) {
-        if (kind == Kind.CHOICE && count == 0) {
-            problem(member + ": " + enumName + " has no constants, so the choice has no options. "
-                + "Add one constant per option to " + enumName + ".");
-        }
-        if (kind == Kind.RATING && count < 2) {
-            problem(member + ": " + enumName + " has " + count + (count == 1 ? " constant" : " constants")
-                + ", and a rating needs at least two levels. Add the levels to " + enumName + ", lowest first.");
-        }
-    }
-
-    /**
-     * Reads the option or level of one enum constant.
-     *
-     * @param member the member label used in problem messages
-     * @param kind the question annotation found on the property
-     * @param enumType the constant's enum type
-     * @param constant the constant to read
-     * @return the entry read, or null after reporting a problem with it
-     */
-    private @Nullable Entry entryOf(String member, Kind kind, Class<?> enumType, Enum<?> constant) {
-        String enumName = enumType.getSimpleName();
-        String entry = kind == Kind.CHOICE ? "option" : "level";
-        String constantName = enumName + "." + constant.name();
-        JsonNode node;
-        try {
-            node = mapper.valueToTree(constant);
-        } catch (JacksonException e) {
-            problem(member + ": " + constantName + " cannot be written under this mapper (" + messageOf(e) + "). "
-                + "Make each constant of " + enumName + " writable as a JSON string.", e);
-            return null;
-        }
-        if (node == null || !node.isString()) {
-            problem(member + ": " + constantName + " serializes as " + node + " under this mapper, and an " + entry
-                + " id must be a JSON string. Use a mapper that writes " + enumName + " constants as strings, "
-                + "for example with EnumFeature.WRITE_ENUMS_USING_INDEX disabled.");
-            return null;
-        }
-        String id = node.stringValue();
-        Object readBack;
-        try {
-            readBack = mapper.treeToValue(node, enumType);
-        } catch (JacksonException e) {
-            problem(member + ": " + entry + " id \"" + id + "\" of " + constantName + " does not read back under this "
-                + "mapper (" + messageOf(e) + "). Make each constant of " + enumName + " readable from its serialized form.", e);
-            return null;
-        }
-        if (readBack != constant) {
-            String other = readBack == null ? "null" : enumName + "." + ((Enum<?>) readBack).name();
-            problem(member + ": " + entry + " id \"" + id + "\" of " + constantName + " reads back as " + other
-                + " under this mapper. Give each constant of " + enumName
-                + " a distinct serialized form that the mapper reads back as the same constant.");
-            return null;
-        }
-        Described described = describedOf(constant);
-        if (kind == Kind.CHOICE && described == null) {
-            problem(member + ": choice option " + constantName + " has no @Described. "
-                + "Add @Described with the option's description to " + constantName + ".");
-            return null;
-        }
-        return new Entry(id, described == null ? null : described.value());
-    }
-
-    /**
-     * Reads the {@link Described} annotation from an enum constant's own field.
-     *
-     * @param constant the constant to read
-     * @return the annotation, or null when the constant has none
-     */
-    static @Nullable Described describedOf(Enum<?> constant) {
-        try {
-            return constant.getDeclaringClass().getField(constant.name()).getAnnotation(Described.class);
-        } catch (NoSuchFieldException e) {
-            // Every enum constant has a public field of its own name.
-            throw new IllegalStateException("No field for enum constant " + constant, e);
-        }
+        return kind == Kind.PROPOSITION ? List.of() : EnumEntries.read(member, kind == Kind.CHOICE, raw, mapper, this::problem);
     }
 
     /**
@@ -642,7 +568,7 @@ final class DecisionTypeParser {
         Set<String> componentFields = recordComponentNames(current);
         for (Field field : current.getDeclaredFields()) {
             if (field.isSynthetic() || componentFields.contains(field.getName()) || coverage.covers(field)
-                || isKotlinBackingField(current, field)) {
+                || KotlinAnnotationPlacement.isBackingField(current, field, byInternalName.get(field.getName()))) {
                 continue;
             }
             orphans.report(current, field.getName(), field, find(classInfo.fields(), field));
@@ -682,7 +608,7 @@ final class DecisionTypeParser {
             if (!coverage.covers(method)) {
                 orphans.report(current, method.getName() + "()", method, find(classInfo.memberMethods(), method));
             }
-            Constructor<?> copied = kotlinDataClassCopySource(current, method);
+            Constructor<?> copied = KotlinAnnotationPlacement.copySource(current, method);
             scanParameters(current, method, "parameter of " + method.getName() + "()", classInfo, orphans, copied);
         }
     }
@@ -733,97 +659,10 @@ final class DecisionTypeParser {
         Orphans orphans, @Nullable Constructor<?> copied) {
         Parameter[] parameters = executable.getParameters();
         for (int index = 0; index < parameters.length; index++) {
-            if (!coverage.covers(executable, index) && !repeatsCopySource(parameters[index], copied, index)) {
+            if (!coverage.covers(executable, index) && !KotlinAnnotationPlacement.repeatsCopySource(parameters[index], copied, index)) {
                 orphans.report(declaringClass, parameters[index].getName() + " (" + role + ")", parameters[index],
                     parameterOf(classInfo, executable, index));
             }
-        }
-    }
-
-    /**
-     * Checks whether a data class {@code copy()} parameter carries the same question annotations
-     * as the matching constructor parameter.
-     *
-     * @param parameter the copy() parameter to check
-     * @param copied the primary constructor, or null when the method is not a copy()
-     * @param index the parameter's index
-     * @return true when the parameter repeats the constructor parameter's question annotations
-     */
-    private static boolean repeatsCopySource(Parameter parameter, @Nullable Constructor<?> copied, int index) {
-        return copied != null
-            && questionAnnotationsOn(parameter).equals(questionAnnotationsOn(copied.getParameters()[index]));
-    }
-
-    /**
-     * Checks whether a field is a Kotlin backing field for a constructor parameter. Kotlin's later
-     * default site repeats a constructor parameter annotation on the private backing field. Jackson
-     * leaves that field out, but it is the same declaration, so it is skipped when its question
-     * annotations match the parameter's.
-     *
-     * @param owner the class declaring the field
-     * @param field the field to check
-     * @return true when the field backs a constructor parameter with the same question annotations
-     */
-    private boolean isKotlinBackingField(Class<?> owner, Field field) {
-        BeanPropertyDefinition property = byInternalName.get(field.getName());
-        if (property == null || !Modifier.isPrivate(field.getModifiers()) || !isKotlinClass(owner)) {
-            return false;
-        }
-        List<Annotation> onField = questionAnnotationsOn(field);
-        for (Iterator<AnnotatedParameter> parameters = property.getConstructorParameters(); parameters.hasNext(); ) {
-            AnnotatedParameter parameter = parameters.next();
-            Executable creator = (Executable) parameter.getOwner().getAnnotated();
-            if (onField.equals(questionAnnotationsOn(creator.getParameters()[parameter.getIndex()]))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Finds the primary constructor a Kotlin data class {@code copy()} method was generated from.
-     * A data class generates {@code copy()} with the primary constructor's parameters and repeats
-     * each constructor parameter annotation on it.
-     *
-     * @param owner the class declaring the method
-     * @param method the method to check
-     * @return the primary constructor when the method has this shape, otherwise null
-     */
-    private static @Nullable Constructor<?> kotlinDataClassCopySource(Class<?> owner, Method method) {
-        if (!method.getName().equals("copy") || method.getReturnType() != owner || !isKotlinClass(owner)) {
-            return null;
-        }
-        for (Constructor<?> constructor : owner.getDeclaredConstructors()) {
-            if (!constructor.isSynthetic()
-                && Arrays.equals(constructor.getGenericParameterTypes(), method.getGenericParameterTypes())) {
-                return constructor;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Checks whether a class was compiled by the Kotlin compiler.
-     *
-     * @param type the class to check
-     * @return true when the class carries {@code kotlin.Metadata}
-     */
-    private static boolean isKotlinClass(Class<?> type) {
-        return KOTLIN_METADATA != null && type.isAnnotationPresent(KOTLIN_METADATA);
-    }
-
-    /**
-     * Loads the Kotlin compiler's {@code kotlin.Metadata} annotation type by name, so the module
-     * has no compile-time dependency on Kotlin.
-     *
-     * @return the annotation type, or null when Kotlin is absent from the classpath
-     */
-    private static @Nullable Class<? extends Annotation> kotlinMetadata() {
-        try {
-            return Class.forName("kotlin.Metadata", false, DecisionTypeParser.class.getClassLoader())
-                .asSubclass(Annotation.class);
-        } catch (ClassNotFoundException | LinkageError e) {
-            return null;
         }
     }
 
@@ -841,23 +680,6 @@ final class DecisionTypeParser {
             }
         }
         return kinds;
-    }
-
-    /**
-     * Reads the question annotations a reflective element carries.
-     *
-     * @param element the field, method or parameter to check
-     * @return the annotation instances found, in {@link Kind} order
-     */
-    private static List<Annotation> questionAnnotationsOn(AnnotatedElement element) {
-        List<Annotation> annotations = new ArrayList<>();
-        for (Kind kind : Kind.values()) {
-            Annotation annotation = element.getAnnotation(kind.annotation);
-            if (annotation != null) {
-                annotations.add(annotation);
-            }
-        }
-        return annotations;
     }
 
     /** Reports question annotations on members that belong to no Jackson property. */
@@ -905,7 +727,7 @@ final class DecisionTypeParser {
                 problem(prefix + " but Jackson leaves this " + (jacksonMember instanceof AnnotatedField ? "field" : "method")
                     + " out of the property \"" + property.getName() + "\". Move the annotation to "
                     + String.join(" or ", membersOf(property).stream().map(DecisionTypeParser::describe).toList()) + "."
-                    + (isKotlinClass(declaringClass) ? KOTLIN_PLACEMENT : ""));
+                    + (KotlinAnnotationPlacement.isKotlinClass(declaringClass) ? KOTLIN_PLACEMENT : ""));
                 return;
             }
             problem(prefix + NOT_A_PROPERTY);
@@ -1108,9 +930,9 @@ final class DecisionTypeParser {
      * @param problem the problem message
      * @param cause the exception that caused the problem
      */
-    private void problem(String problem, Throwable cause) {
+    private void problem(String problem, @Nullable Throwable cause) {
         problems.add(problem);
-        causes.add(cause);
+        if (cause != null) causes.add(cause);
     }
 
     /**
