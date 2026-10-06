@@ -706,6 +706,8 @@ World"""
     data class WireValuePriorityHolder(val priority: WireValuePriority)
     data class BareEnumHolder(val value: BareEnum)
     data class NoDescriptionsHolder(val value: NoDescriptions)
+    // Enum nested inside a collection — the shape from issue #2028
+    data class ListPriorityHolder(val priorities: List<Priority>)
 
     @Nested
     inner class DescribedEnumTests {
@@ -796,6 +798,28 @@ World"""
             val valueNode = schema.path("properties").path("value")
             assertThat(valueNode.has("enum")).isTrue()
             assertThat(valueNode.has("oneOf")).isFalse()
+        }
+
+        @Test
+        fun `@DescribedEnum enum nested inside a List emits oneOf for the array items`() {
+            // Reproduces the real-world shape from issue #2028:
+            // record Holder(List<Priority> priorities) — the enum is not a direct field,
+            // it is the element type of a collection. Victools resolves the element type
+            // and calls the provider, so the annotation check inside the provider catches it.
+            val converter = object : JacksonOutputConverter<ListPriorityHolder>(ListPriorityHolder::class.java, objectMapper) {
+                override fun schemaGeneratorConfigBuilder() =
+                    super.schemaGeneratorConfigBuilder().withEnumConstantDescriptions(objectMapper)
+            }
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+            val itemsNode = schema.path("properties").path("priorities").path("items")
+
+            assertThat(itemsNode.has("oneOf")).isTrue()
+            assertThat(itemsNode.has("enum")).isFalse()
+            assertThat(itemsNode.path("type").asText()).isEqualTo("string")
+
+            val oneOf = itemsNode.path("oneOf")
+            val urgent = oneOf.first { it.path("const").asText() == "URGENT" }
+            assertThat(urgent.path("description").asText()).isEqualTo("Needs same-day response")
         }
     }
 }

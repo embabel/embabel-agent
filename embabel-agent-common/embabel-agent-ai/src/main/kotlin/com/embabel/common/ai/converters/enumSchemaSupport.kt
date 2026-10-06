@@ -95,9 +95,18 @@ fun SchemaGeneratorConfigBuilder.withEnumConstantDescriptions(
  * `@JsonValue`, `@JsonProperty`, and any custom serialiser are honoured — matching
  * exactly what the prompt example serialises.
  *
+ * This provider is installed unconditionally on the [SchemaGeneratorConfigBuilder].
+ * The [@DescribedEnum][DescribedEnum] annotation on the enum class is the opt-in signal —
+ * victools calls this provider for every type it resolves (including enums nested inside
+ * collections and nested records), and the annotation check here gates whether `oneOf`
+ * is emitted. Unannotated enums are returned as `null`, deferring to victools default behaviour.
+ *
  * Returns `null` (deferring to victools default behaviour) when:
- * - the type is not an enum, or
- * - no constant carries a non-empty [@JsonPropertyDescription][JsonPropertyDescription].
+ * - the type is not an enum,
+ * - the enum is not annotated with [@DescribedEnum][DescribedEnum],
+ * - no constant carries a non-empty [@JsonPropertyDescription][JsonPropertyDescription], or
+ * - any constant's serialised value is non-textual (e.g. a number from a `@JsonValue`
+ *   that returns `Int`) — in that case `type: string` would be incorrect.
  */
 internal class EnumConstantDescriptionProvider(
     private val objectMapper: ObjectMapper,
@@ -109,6 +118,7 @@ internal class EnumConstantDescriptionProvider(
     ): CustomDefinition? {
         val rawType: Class<*> = javaType.erasedType
         if (!rawType.isEnum) return null
+        if (!rawType.isAnnotationPresent(DescribedEnum::class.java)) return null
 
         val constants: Array<out Any> = rawType.enumConstants ?: return null
 
@@ -129,6 +139,7 @@ internal class EnumConstantDescriptionProvider(
         }
 
         if (meta.values.none { it.description != null }) return null
+        if (meta.values.any { !it.serializedName.isTextual }) return null
 
         val node = context.generatorConfig.createObjectNode()
         node.put("type", "string")
