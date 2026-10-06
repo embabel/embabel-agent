@@ -52,6 +52,9 @@ import com.embabel.chat.Message
 import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
 import com.embabel.common.ai.converters.JsonSchemaProvider
 import com.embabel.common.ai.converters.RequiredFieldNormalization
+import com.embabel.common.ai.converters.DescribedEnum
+import com.embabel.common.ai.converters.withEnumConstantDescriptions
+import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.core.thinking.ThinkingException
@@ -60,12 +63,15 @@ import com.embabel.common.core.thinking.spi.InternalThinkingApi
 import com.embabel.common.core.thinking.spi.extractAllThinkingBlocks
 import com.embabel.common.textio.template.TemplateRenderer
 import tools.jackson.databind.DatabindException
+import tools.jackson.databind.ObjectMapper
 import io.micrometer.observation.ObservationRegistry
 import jakarta.annotation.PostConstruct
 import jakarta.validation.Validator
 import org.springframework.beans.factory.annotation.Value
 import java.lang.reflect.ParameterizedType
+import java.lang.reflect.Field
 import java.util.Locale
+import java.util.function.Predicate
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
@@ -208,12 +214,18 @@ internal class ChatClientLlmOperations(
         // Our enclosing <O> is unbounded; erase via Class<Any> for the construction, then cast back.
         @Suppress("UNCHECKED_CAST")
         val outputClassAny = outputClass as Class<Any>
+        // Collect schema customisations driven by annotations on the output class.
+        // Each entry is a function that augments the SchemaGeneratorConfigBuilder returned by
+        // FilteringJacksonOutputConverter.schemaGeneratorConfigBuilder(). Adding a new annotation-driven
+        // behaviour means adding one more `if` here — no new subclasses or constructor changes needed.
+        val schemaCustomizers = buildSchemaCustomizers(outputClass, objectMapper)
         // Keep a reference to the JSON converter so it can supply the schema for native
         // structured output (#1715); FilteringJacksonOutputConverter is a JsonSchemaProvider.
-        val jsonConverter = FilteringJacksonOutputConverter<Any>(
+        val jsonConverter = buildFilteringConverter<Any>(
             clazz = outputClassAny,
             objectMapper = objectMapper,
             fieldFilter = interaction.fieldFilter,
+            schemaCustomizers = schemaCustomizers,
         )
         val springAiConverter = ExceptionWrappingConverter<Any>(
             expectedType = outputClassAny,
@@ -243,11 +255,12 @@ internal class ChatClientLlmOperations(
             MaybeReturn::class.java,
             outputClass,
         )
-        val jsonConverter = FilteringJacksonOutputConverter(
+        val jsonConverter = buildFilteringConverter(
             typeReference = typeReference,
             objectMapper = objectMapper,
             fieldFilter = interaction.fieldFilter,
             requiredFieldNormalization = RequiredFieldNormalization.DISABLED,
+            schemaCustomizers = buildSchemaCustomizers(outputClass, objectMapper),
         )
         val springAiConverter = ExceptionWrappingConverter(
             expectedType = MaybeReturn::class.java,
@@ -967,6 +980,79 @@ internal class ChatClientLlmOperations(
             super.createStreamingOperations(options)
         }
     }
+
+    // ====================================
+    // SCHEMA CUSTOMISATION HELPERS
+    // ====================================
+
+    // Detects whether the output class has any field whose enum type carries @DescribedEnum.
+    // Private — the decision of when to activate the feature belongs to the platform wiring
+    // layer, not to the schema generation layer (enumSchemaSupport.kt).
+    private fun Class<*>.hasDescribedEnum(): Boolean =
+        declaredFields.any { field ->
+            field.type.isEnum && field.type.isAnnotationPresent(DescribedEnum::class.java)
+        }
+
+    /**
+     * Builds a list of schema customisations based on annotations present on [outputClass].
+     *
+     * Each entry is a function `(SchemaGeneratorConfigBuilder) -> SchemaGeneratorConfigBuilder`.
+     * The list is folded over the builder returned by
+     * [FilteringJacksonOutputConverter.schemaGeneratorConfigBuilder], so every customisation
+     * composes cleanly without subclassing. To add a new annotation-driven behaviour, add one
+     * more `if` block here — no new converter subclasses or constructor changes are needed.
+     */
+    private fun buildSchemaCustomizers(
+        outputClass: Class<*>,
+        objectMapper: ObjectMapper,
+    ): List<(SchemaGeneratorConfigBuilder) -> SchemaGeneratorConfigBuilder> =
+        buildList {
+            if (outputClass.hasDescribedEnum()) {
+                add { builder -> builder.withEnumConstantDescriptions(objectMapper) }
+            }
+        }
+
+    /**
+     * Constructs a [FilteringJacksonOutputConverter] for a [Class]-typed output,
+     * applying [schemaCustomizers] via an anonymous override of
+     * [FilteringJacksonOutputConverter.schemaGeneratorConfigBuilder] when customisations are present.
+     * When [schemaCustomizers] is empty, the standard converter is returned with no overhead.
+     */
+    private fun <T : Any> buildFilteringConverter(
+        clazz: Class<T>,
+        objectMapper: ObjectMapper,
+        fieldFilter: Predicate<Field>,
+        schemaCustomizers: List<(SchemaGeneratorConfigBuilder) -> SchemaGeneratorConfigBuilder>,
+        requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
+    ): FilteringJacksonOutputConverter<T> =
+        if (schemaCustomizers.isEmpty()) {
+            FilteringJacksonOutputConverter(clazz, objectMapper, fieldFilter, requiredFieldNormalization)
+        } else {
+            object : FilteringJacksonOutputConverter<T>(clazz, objectMapper, fieldFilter, requiredFieldNormalization) {
+                override fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder =
+                    schemaCustomizers.fold(super.schemaGeneratorConfigBuilder()) { builder, fn -> fn(builder) }
+            }
+        }
+
+    /**
+     * Constructs a [FilteringJacksonOutputConverter] for a [ParameterizedTypeReference]-typed output,
+     * applying [schemaCustomizers] via an anonymous override when customisations are present.
+     */
+    private fun <T : Any> buildFilteringConverter(
+        typeReference: ParameterizedTypeReference<T>,
+        objectMapper: ObjectMapper,
+        fieldFilter: Predicate<Field>,
+        schemaCustomizers: List<(SchemaGeneratorConfigBuilder) -> SchemaGeneratorConfigBuilder>,
+        requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
+    ): FilteringJacksonOutputConverter<T> =
+        if (schemaCustomizers.isEmpty()) {
+            FilteringJacksonOutputConverter(typeReference, objectMapper, fieldFilter, requiredFieldNormalization)
+        } else {
+            object : FilteringJacksonOutputConverter<T>(typeReference, objectMapper, fieldFilter, requiredFieldNormalization) {
+                override fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder =
+                    schemaCustomizers.fold(super.schemaGeneratorConfigBuilder()) { builder, fn -> fn(builder) }
+            }
+        }
 }
 
 /**
