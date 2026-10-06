@@ -708,6 +708,11 @@ World"""
     data class NoDescriptionsHolder(val value: NoDescriptions)
     // Enum nested inside a collection — the shape from issue #2028
     data class ListPriorityHolder(val priorities: List<Priority>)
+    // Enum nested inside a record inside a List — Nathan's exact real-world shape:
+    //   record ColumnMappingMatcherLlmResult(List<LlmProposedMapping> mappings)
+    //   record KnownLlmProposedMapping(AvailableScheduleField scheduleField)
+    data class Mapping(val priority: Priority)
+    data class DeepHolder(val mappings: List<Mapping>)
 
     @Nested
     inner class DescribedEnumTests {
@@ -818,6 +823,33 @@ World"""
             assertThat(itemsNode.path("type").asText()).isEqualTo("string")
 
             val oneOf = itemsNode.path("oneOf")
+            val urgent = oneOf.first { it.path("const").asText() == "URGENT" }
+            assertThat(urgent.path("description").asText()).isEqualTo("Needs same-day response")
+        }
+
+        @Test
+        fun `@DescribedEnum enum inside a record inside a List emits oneOf — Nathan's exact shape`() {
+            // Reproduces the deepest shape from issue #2028:
+            // record DeepHolder(List<Mapping> mappings)
+            // record Mapping(Priority priority)
+            // The enum is two levels deep — inside a nested data class inside a List.
+            val converter = object : JacksonOutputConverter<DeepHolder>(DeepHolder::class.java, objectMapper) {
+                override fun schemaGeneratorConfigBuilder() =
+                    super.schemaGeneratorConfigBuilder().withEnumConstantDescriptions(objectMapper)
+            }
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+
+            // Navigate: properties -> mappings -> items -> properties -> priority
+            val priorityNode = schema
+                .path("properties").path("mappings")
+                .path("items")
+                .path("properties").path("priority")
+
+            assertThat(priorityNode.has("oneOf")).isTrue()
+            assertThat(priorityNode.has("enum")).isFalse()
+            assertThat(priorityNode.path("type").asText()).isEqualTo("string")
+
+            val oneOf = priorityNode.path("oneOf")
             val urgent = oneOf.first { it.path("const").asText() == "URGENT" }
             assertThat(urgent.path("description").asText()).isEqualTo("Needs same-day response")
         }
