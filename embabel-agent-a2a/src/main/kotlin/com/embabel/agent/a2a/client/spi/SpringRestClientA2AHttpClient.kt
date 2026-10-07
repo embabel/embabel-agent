@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.a2a.client.spi
 
+import com.embabel.agent.api.common.Asyncer
 import io.a2a.client.http.A2AHttpClient
 import io.a2a.client.http.A2AHttpResponse
 import org.springframework.http.HttpMethod
@@ -31,6 +32,7 @@ import java.util.function.Consumer
  */
 class SpringRestClientA2AHttpClient(
     private val restClient: RestClient,
+    private val asyncer: Asyncer,
 ) : A2AHttpClient {
 
     override fun createGet(): A2AHttpClient.GetBuilder = GetBuilderImpl()
@@ -111,29 +113,45 @@ class SpringRestClientA2AHttpClient(
         onData: Consumer<String>,
         onError: Consumer<Throwable>,
         onComplete: Runnable,
-    ): CompletableFuture<Void> = CompletableFuture.runAsync {
-        try {
-            val baseSpec: RestClient.RequestBodySpec = restClient.method(method).uri(url)
-                .headers { h ->
-                    headers.forEach { (k, v) -> h.add(k, v) }
-                    h.accept = listOf(MediaType.TEXT_EVENT_STREAM)
+    ): CompletableFuture<Void> {
+        // Run the entire SSE read on the Asyncer's executor so the calling thread is not
+        // blocked for the duration of the stream. ExecutorAsyncer also captures the current
+        // OTel/MDC context and restores it on the worker, keeping traces and log correlation
+        // correct across the thread hop. asyncer.async returns CompletableFuture<Unit>;
+        // the cast to Void is safe — type parameters are erased at runtime.
+        @Suppress("UNCHECKED_CAST")
+        return asyncer.async {
+            try {
+                // Build the request with caller-supplied headers plus SSE accept type.
+                val baseSpec: RestClient.RequestBodySpec = restClient.method(method).uri(url)
+                    .headers { h ->
+                        headers.forEach { (k, v) -> h.add(k, v) }
+                        h.accept = listOf(MediaType.TEXT_EVENT_STREAM)
+                    }
+                // POST streams carry a JSON body; GET streams do not.
+                val exchangeSpec: RestClient.RequestHeadersSpec<*> = if (body != null) {
+                    baseSpec.contentType(MediaType.APPLICATION_JSON).body(body)
+                } else {
+                    baseSpec
                 }
-            val exchangeSpec: RestClient.RequestHeadersSpec<*> = if (body != null) {
-                baseSpec.contentType(MediaType.APPLICATION_JSON).body(body)
-            } else {
-                baseSpec
-            }
-            exchangeSpec.exchange { _, response ->
-                response.body.bufferedReader().forEachLine { line ->
-                    if (line.startsWith("data:")) {
-                        onData.accept(line.removePrefix("data:").trim())
+                // exchange() bypasses RestClient's default error handlers, so check status
+                // explicitly — a 4xx/5xx would otherwise be silently read as an empty stream.
+                exchangeSpec.exchange { _, response ->
+                    if (response.statusCode.isError) {
+                        throw IllegalStateException("A2A stream to $url failed: HTTP ${response.statusCode.value()}")
+                    }
+                    // Parse SSE: forward only "data:" lines, stripping the prefix.
+                    response.body.bufferedReader().forEachLine { line ->
+                        if (line.startsWith("data:")) {
+                            onData.accept(line.removePrefix("data:").trim())
+                        }
                     }
                 }
+                onComplete.run()
+            } catch (e: Throwable) {
+                onError.accept(e)
             }
-            onComplete.run()
-        } catch (e: Throwable) {
-            onError.accept(e)
-        }
+        } as CompletableFuture<Void>
     }
 }
 

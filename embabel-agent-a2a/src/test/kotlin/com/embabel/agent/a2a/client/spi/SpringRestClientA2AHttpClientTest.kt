@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.a2a.client.spi
 
+import com.embabel.agent.spi.support.ExecutorAsyncer
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -27,6 +28,7 @@ import org.springframework.test.web.client.response.MockRestResponseCreators.*
 import org.springframework.web.client.RestClient
 import java.io.IOException
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -50,7 +52,7 @@ class SpringRestClientA2AHttpClientTest {
     fun setup() {
         val builder = RestClient.builder()
         mockServer = MockRestServiceServer.bindTo(builder).build()
-        client = SpringRestClientA2AHttpClient(builder.build())
+        client = SpringRestClientA2AHttpClient(builder.build(), ExecutorAsyncer(Executor { it.run() }))
     }
 
     @Test
@@ -138,7 +140,8 @@ class SpringRestClientA2AHttpClientTest {
         val errorClient = SpringRestClientA2AHttpClient(
             RestClient.builder()
                 .requestFactory { _, _ -> throw IOException("connection refused") }
-                .build()
+                .build(),
+            ExecutorAsyncer(Executor { it.run() }),
         )
         val error = AtomicReference<Throwable>()
 

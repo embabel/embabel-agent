@@ -18,6 +18,8 @@ package com.embabel.agent.autoconfigure.a2a;
 import com.embabel.agent.a2a.client.A2AHttpClientFactory;
 import com.embabel.agent.a2a.client.api.A2AClient;
 import com.embabel.agent.a2a.config.A2AConfigurationProperties;
+import com.embabel.agent.api.common.Asyncer;
+import com.embabel.agent.spi.support.ExecutorAsyncer;
 import com.embabel.common.util.EmbabelObjectMapperHolder;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -41,7 +43,8 @@ class A2AClientAutoConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(A2AClientAutoConfiguration.class))
             .withUserConfiguration(PropertiesConfiguration.class)
-            .withBean(EmbabelObjectMapperHolder.class, EmbabelObjectMapperHolder::createDefault);
+            .withBean(EmbabelObjectMapperHolder.class, EmbabelObjectMapperHolder::createDefault)
+            .withBean(Asyncer.class, () -> new ExecutorAsyncer(Runnable::run));
 
     @Test
     void registersA2AHttpClientFactoryAndClient() {
