@@ -22,8 +22,18 @@ package com.embabel.common.byok
  *
  * A [cause] may carry the provider's own exception. It is there for diagnosis — a log line that
  * shows WHY a probe failed — and callers still catch this type alone.
+ *
+ * [statusCode] is the HTTP status the provider answered with, or null when it did not answer or
+ * the key never reached it. It lets a caller tell a provider that does not recognise the key
+ * (401) from one that recognised it and refused for another reason — no credit (402), no
+ * permission (403), rate limited (429) — without reading the message.
  */
-class InvalidApiKeyException @JvmOverloads constructor(
+class InvalidApiKeyException(
     message: String,
-    cause: Throwable? = null,
-) : RuntimeException(message, cause)
+    cause: Throwable?,
+    val statusCode: Int?,
+) : RuntimeException(message, cause) {
+
+    @JvmOverloads
+    constructor(message: String, cause: Throwable? = null) : this(message, cause, null)
+}

@@ -28,12 +28,14 @@ import io.mockk.mockk
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.web.client.RestClient
 import java.net.InetSocketAddress
+import java.net.ServerSocket
 import java.util.function.Supplier
 
 class OpenAiCompatibleModelFactoryBuildValidatedTest {
@@ -162,5 +164,63 @@ class OpenAiCompatibleModelFactoryBuildValidatedTest {
             val e = assertThrows<InvalidApiKeyException> { spec.buildValidated() }
             assertEquals(BLANK_API_KEY_MESSAGE, e.message)
         }
+    }
+
+    private fun validate() = factory().buildValidated(
+        model = OpenAiModels.GPT_41_MINI,
+        pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+        provider = OpenAiModels.PROVIDER,
+        knowledgeCutoffDate = null,
+    )
+
+    private fun answerWith(status: Int, body: String) {
+        server.createContext("/") { exchange ->
+            exchange.requestBody.use { it.readBytes() }
+            val bytes = body.toByteArray()
+            exchange.responseHeaders.set("Content-Type", "application/json")
+            exchange.sendResponseHeaders(status, bytes.size.toLong())
+            exchange.responseBody.use { it.write(bytes) }
+        }
+        server.start()
+    }
+
+    /**
+     * A refusal that is not about the key. The provider recognised the key and declined for
+     * another reason; a caller racing several providers needs the status to tell this answer
+     * from the "not my key" every other provider gives.
+     */
+    @Test
+    fun `a refusal for another reason reports the provider's status and exception`() {
+        answerWith(402, """{"error":{"message":"Your prepayment credits are depleted.","status":"RESOURCE_EXHAUSTED"}}""")
+
+        val e = assertThrows<InvalidApiKeyException> { validate() }
+
+        assertEquals(402, e.statusCode)
+        assertNotNull(e.cause, "the provider's exception is the cause")
+    }
+
+    @Test
+    fun `a rejected key reports 401`() {
+        answerWith(401, """{"error":{"message":"Invalid API key","type":"invalid_request_error"}}""")
+
+        assertEquals(401, assertThrows<InvalidApiKeyException> { validate() }.statusCode)
+    }
+
+    @Test
+    fun `an address nothing answers at reports no status, and keeps the cause`() {
+        // A port that was bound and released, so nothing listens there and the connection is refused.
+        port = ServerSocket(0).use { it.localPort }
+
+        val e = assertThrows<InvalidApiKeyException> { validate() }
+
+        assertNull(e.statusCode, "no answer means no status")
+        assertNotNull(e.cause)
+    }
+
+    @Test
+    fun `a blank key reports no status`() {
+        val e = assertThrows<InvalidApiKeyException> { OpenAiCompatibleModelFactory.openAi(" ").buildValidated() }
+
+        assertNull(e.statusCode)
     }
 }

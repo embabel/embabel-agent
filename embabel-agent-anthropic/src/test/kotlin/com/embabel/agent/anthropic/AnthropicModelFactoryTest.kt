@@ -38,6 +38,7 @@ import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.web.client.RestClient
 import java.net.InetSocketAddress
+import java.net.ServerSocket
 import java.time.LocalDate
 import java.util.function.Supplier
 
@@ -214,5 +215,49 @@ class AnthropicModelFactoryBuildValidatedTest {
         val e = assertThrows<InvalidApiKeyException> { blankKeyFactory.buildValidated() }
         assertEquals(BLANK_API_KEY_MESSAGE, e.message)
         assertEquals(0, requests, "a blank key must not reach the provider")
+    }
+
+    private fun answerWith(status: Int, body: String) {
+        server.createContext("/v1/messages") { exchange ->
+            exchange.requestBody.use { it.readBytes() }
+            val bytes = body.toByteArray()
+            exchange.responseHeaders.set("Content-Type", "application/json")
+            exchange.sendResponseHeaders(status, bytes.size.toLong())
+            exchange.responseBody.use { it.write(bytes) }
+        }
+        server.start()
+    }
+
+    /**
+     * A refusal that is not about the key. The provider recognised the key and declined for
+     * another reason; a caller racing several providers needs the status to tell this answer
+     * from the "not my key" every other provider gives.
+     */
+    @Test
+    fun `a refusal for another reason reports the provider's status and exception`() {
+        answerWith(403, """{"type":"error","error":{"type":"permission_error","message":"This key may not use that model."}}""")
+
+        val e = assertThrows<InvalidApiKeyException> { factory().buildValidated() }
+
+        assertEquals(403, e.statusCode)
+        assertNotNull(e.cause, "the provider's exception is the cause")
+    }
+
+    @Test
+    fun `a rejected key reports 401`() {
+        answerWith(401, """{"type":"error","error":{"type":"authentication_error","message":"Invalid API Key"}}""")
+
+        assertEquals(401, assertThrows<InvalidApiKeyException> { factory().buildValidated() }.statusCode)
+    }
+
+    @Test
+    fun `an address nothing answers at reports no status, and keeps the cause`() {
+        // A port that was bound and released, so nothing listens there and the connection is refused.
+        port = ServerSocket(0).use { it.localPort }
+
+        val e = assertThrows<InvalidApiKeyException> { factory().buildValidated() }
+
+        assertNull(e.statusCode, "no answer means no status")
+        assertNotNull(e.cause)
     }
 }

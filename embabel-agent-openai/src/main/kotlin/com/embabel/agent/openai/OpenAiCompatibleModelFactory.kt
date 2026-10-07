@@ -36,6 +36,7 @@ import com.openai.client.OpenAIClientImpl
 import com.openai.client.okhttp.OpenAIOkHttpClient
 import com.openai.client.okhttp.OpenAIOkHttpClientAsync
 import com.openai.core.ClientOptions
+import com.openai.errors.OpenAIServiceException
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.ai.openai.http.okhttp.OpenAiHttpClientBuilderCustomizer
 import org.springframework.ai.openai.http.okhttp.SpringAiOpenAiHttpClient
@@ -562,7 +563,7 @@ open class OpenAiCompatibleModelFactory(
         try {
             probe.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())
         } catch (e: Exception) {
-            throw InvalidApiKeyException(e.message ?: "Invalid API key")
+            throw InvalidApiKeyException(e.message ?: "Invalid API key", e, providerStatus(e))
         }
         return openAiCompatibleLlm(
             model = model,
@@ -571,6 +572,16 @@ open class OpenAiCompatibleModelFactory(
             knowledgeCutoffDate = knowledgeCutoffDate,
         )
     }
+
+    /**
+     * The HTTP status the provider answered with, or null when it did not answer. Read from the
+     * SDK's exception type, wherever it sits in the cause chain.
+     */
+    private fun providerStatus(failure: Throwable): Int? =
+        generateSequence(failure) { it.cause?.takeIf { cause -> cause !== it } }
+            .filterIsInstance<OpenAIServiceException>()
+            .firstOrNull()
+            ?.statusCode()
 
     /**
      * Validates the configured API key by embedding a short probe text, then returns a

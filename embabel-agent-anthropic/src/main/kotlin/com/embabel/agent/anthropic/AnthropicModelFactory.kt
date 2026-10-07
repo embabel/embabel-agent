@@ -17,6 +17,7 @@ package com.embabel.agent.anthropic
 
 import com.anthropic.client.AnthropicClient
 import com.anthropic.client.okhttp.AnthropicOkHttpClient
+import com.anthropic.errors.AnthropicServiceException
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
@@ -186,8 +187,18 @@ open class AnthropicModelFactory(
         try {
             probe.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())
         } catch (e: Exception) {
-            throw InvalidApiKeyException(e.message ?: "Invalid API key")
+            throw InvalidApiKeyException(e.message ?: "Invalid API key", e, providerStatus(e))
         }
         return build(model)
     }
+
+    /**
+     * The HTTP status Anthropic answered with, or null when it did not answer. Read from the
+     * SDK's exception type, wherever it sits in the cause chain.
+     */
+    private fun providerStatus(failure: Throwable): Int? =
+        generateSequence(failure) { it.cause?.takeIf { cause -> cause !== it } }
+            .filterIsInstance<AnthropicServiceException>()
+            .firstOrNull()
+            ?.statusCode()
 }
