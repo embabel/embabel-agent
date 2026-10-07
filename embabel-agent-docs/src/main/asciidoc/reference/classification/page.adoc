@@ -10,7 +10,7 @@ The application decides what to do with the result: route work, ask for more inf
 [NOTE]
 ====
 These contracts are experimental and live in `embabel-agent-ai`.
-They can be implemented and injected today, but this release supplies no production provider adapter or default classification model.
+Two providers implement them: Jev through the TypeSafe integration (<<reference.typesafe>>) and prompted chat models (<<reference.llm-decisions>>).
 ====
 
 .Application and model responsibilities
@@ -135,8 +135,9 @@ Snapshots contain model metadata, not a live provider implementation, client, or
 Serializing arbitrary live service objects is not the snapshot contract.
 
 Use an ordinary constructor parameter in Java or Kotlin to depend on `ClassificationService` or `DecisionService`.
-In Spring, register your implementation with a user-defined `@Bean` and inject that interface normally.
-There is no automatic bean registration, `ModelProvider` lookup, role selection, default-model configuration, BYOK integration, or TypeSafe adapter for these contracts yet.
+In Spring, inject the interface normally.
+A prompted service configured under `embabel.agent.platform.decisions.llm.services` is registered as a decision service bean named after its key, and `TypeSafeModelFactory` builds Jev services. A decision service also classifies, so it can be injected as a `ClassificationService`.
+Your own implementation registers with an ordinary `@Bean`.
 
 ==== Observe Calls
 

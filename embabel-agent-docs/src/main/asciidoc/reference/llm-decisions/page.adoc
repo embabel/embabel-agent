@@ -1,0 +1,358 @@
+[[reference.llm-decisions]]
+=== LLM decision services (experimental)
+
+`LlmDecisionServiceFactory` builds decision and classification services that ask a chat model.
+The services implement the contracts in <<reference.classification>>.
+Application code calls them the same way it calls the TypeSafe services in <<reference.typesafe>>.
+The factory is in `embabel-agent-api`, in the package `com.embabel.agent.spi.decision`.
+
+|===
+|Service |Model family |Operations
+
+|`DecisionService`
+|`ModelType.DECISION`
+|`assess` and `classify`
+
+|`ClassificationService`
+|`ModelType.CLASSIFICATION`
+|`classify`
+|===
+
+Neither service is an `LlmService`.
+
+==== Factory
+
+A Spring application gets an `LlmDecisionServiceFactory` bean from the agent platform.
+Applications inject that bean to build services in code.
+The four methods in this table are the factory's public API.
+
+|===
+|Method |Returns
+
+|`decisionService(String llmName)`
+|A decision service for the named model
+
+|`decisionService(LlmService<?> llm)`
+|A decision service for a model the caller already holds
+
+|`classificationService(String llmName)`
+|A classification service for the named model
+
+|`classificationService(LlmService<?> llm)`
+|A classification service for a model the caller already holds
+|===
+
+The bean uses the application's `ObservationRegistry` when there is exactly one or one is marked primary.
+Otherwise the services it builds record no observations.
+Services built in code use the top-level retry settings described under <<reference.llm-decisions.configuration>>.
+
+The bean is declared with `@ConditionalOnMissingBean`.
+An application bean of the same type replaces it.
+The factory bean also builds every service declared in configuration, so a replacement bean builds those services too.
+
+==== Named model
+
+[source,java]
+----
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/spi/decision/LlmDecisionServiceJavaTest.java[tag=named,indent=0]
+----
+
+The factory looks up the named model once, when it builds the service.
+Every call then uses that exact model, and the service never switches to another one.
+A blank name throws `IllegalArgumentException`.
+A name the model provider does not know throws `NoSuitableModelException`.
+
+==== Supplied model and BYOK
+
+[source,java]
+----
+include::../../../../../../embabel-agent-api/src/test/java/com/embabel/agent/spi/decision/LlmDecisionServiceJavaTest.java[tag=supplied,indent=0]
+----
+
+A supplied `LlmService` goes straight to the service.
+The factory does not consult the model provider.
+
+Pass a supplied model to use a user's own API key.
+Validate the key with a BYOK factory as described in <<reference.customizing.byok>>.
+Then pass the `LlmService` that `buildValidated()` returns to `decisionService` or `classificationService`.
+The credential stays inside that `LlmService`, so the application needs no global credential property for it.
+
+The service takes its name and provider from the `LlmService`.
+
+[[reference.llm-decisions.configuration]]
+==== Configuration
+
+LLM decision settings live under `embabel.agent.platform.decisions.llm`.
+The retry settings at that level apply to every service the factory builds, in code or from configuration.
+This example keeps the TypeSafe default and adds two LLM services:
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        typesafe:
+          api-key: ${TYPESAFE_API_KEY}
+          model: jev-latest
+      decisions:
+        llm:
+          max-attempts: 4
+          backoff-millis: 200
+          backoff-multiplier: 2.0
+          backoff-max-interval: 10000
+          services:
+            triage:
+              llm: small-chat-model
+            routing:
+              llm: fast-chat-model
+----
+
+The context then holds three services:
+
+|===
+|Bean name |Type |Answered by
+
+|`typeSafeDecisionService`
+|`DecisionService`
+|Jev, from `embabel-agent-starter-typesafe`
+
+|`triage`
+|`DecisionService`
+|The LLM named `small-chat-model`
+
+|`routing`
+|`DecisionService`
+|The LLM named `fast-chat-model`
+|===
+
+These are the retry settings:
+
+|===
+|Property |Default |Purpose
+
+|`max-attempts`
+|`5`
+|Most calls made for one decision, counting the first
+
+|`backoff-millis`
+|`100`
+|Wait before the first retry, in milliseconds
+
+|`backoff-multiplier`
+|`5.0`
+|How much each wait grows over the last
+
+|`backoff-max-interval`
+|`180000`
+|Longest wait between retries, in milliseconds
+|===
+
+Each entry under `services` registers one `DecisionService` bean, and the entry's key is the bean name.
+The platform autoconfiguration registers these beans, and the factory bean builds each service.
+An entry has one property, `llm`: the name of the LLM that answers.
+Replace the `llm` values with names the application's model provider knows.
+A decision service also classifies, so inject it as a `ClassificationService` where only classification is needed.
+
+Several beans share the `DecisionService` type.
+Inject a specific service by its bean name, for example with the constructor parameter `@Qualifier("triage") DecisionService triage`.
+
+==== Startup checks
+
+Startup fails when any setting breaks a rule in this table.
+A retry setting out of range fails binding `embabel.agent.platform.decisions.llm`, and the cause carries the message.
+For an entry, `<entry>` is `embabel.agent.platform.decisions.llm.services.<key>`.
+
+|===
+|Rule |Message
+
+|`max-attempts` is at least 1
+|`max-attempts must be at least 1`
+
+|`backoff-millis` is at least 1
+|`backoff-millis must be at least 1`
+
+|`backoff-multiplier` is greater than 1
+|`backoff-multiplier must be greater than 1`
+
+|`backoff-max-interval` is greater than `backoff-millis`
+|`backoff-max-interval must be greater than backoff-millis`
+
+|An entry has an `llm`
+|`<entry>.llm must name an LLM`
+
+|The model provider knows the entry's `llm`
+|`<entry>.llm names unknown LLM '<name>'`
+|===
+
+A key under an entry that matches no property also fails startup, and the failure names that key.
+Keys that come from environment variables or system properties are not checked this way.
+The service beans are created eagerly, so an unknown `llm` fails startup even when the application makes beans lazy by default.
+
+==== Input
+
+The service sends the text to judge as data in a JSON envelope.
+The user message is a JSON object with one `input` field that holds the text, such as `{"input":"My card was charged twice"}`.
+JSON escaping keeps the text inside that field.
+Empty input is valid, and the service sends it to the model as `{"input":""}`.
+
+The system message holds the instructions and the categories or the proposition.
+It tells the model to treat the `input` field as data and to ignore any instructions inside it.
+Categories and propositions come from the application and are never read from the input.
+
+==== Results
+
+The model answers with a structured verdict.
+The service checks the verdict and turns it into a contract result.
+
+|===
+|Classification verdict |Result
+
+|`SELECTED` with one of the requested category IDs
+|`Selected` with that ID
+
+|`NO_MATCH` with no category ID
+|`NoMatch`
+
+|`INCONCLUSIVE` with no category ID
+|`Inconclusive`
+
+|`SELECTED` with a missing or unknown category ID
+|`Failure(INVALID_RESPONSE)`
+
+|`NO_MATCH` or `INCONCLUSIVE` with a category ID
+|`Failure(INVALID_RESPONSE)`
+
+|No verdict
+|`Failure(INVALID_RESPONSE)`
+|===
+
+A blank category ID counts as no category ID.
+The service passes category IDs and descriptions to the model exactly as written.
+
+|===
+|Proposition verdict |Result
+
+|`TRUE`
+|`Answered(true)`
+
+|`FALSE`
+|`Answered(false)`
+
+|`INCONCLUSIVE`
+|`Inconclusive`
+
+|No verdict
+|`Failure(INVALID_RESPONSE)`
+|===
+
+The prompt tells the model not to report a confidence.
+A selection has no confidence and an answer has no `pTrue`.
+Every result except `Failure` carries a `ModelProvenance` with the model name and provider of the `LlmService`.
+A `Failure` carries only its reason.
+The provenance has no version or request ID.
+
+==== Failures
+
+Each call returns a contract result for every outcome except interruption.
+
+|===
+|Event |Retried |Outcome
+
+|The reply cannot be read as a verdict
+|Yes, up to `max-attempts`
+|`Failure(INVALID_RESPONSE)` when the attempts run out
+
+|The verdict breaks a rule in the result tables
+|No
+|`Failure(INVALID_RESPONSE)`
+
+|The model call fails with an error the platform's LLM retry rules allow to retry
+|Yes, up to `max-attempts`
+|`Failure(UNAVAILABLE)` when the attempts run out
+
+|The model call times out while the thread's interrupt flag is clear
+|Yes, up to `max-attempts`
+|`Failure(UNAVAILABLE)` when the attempts run out
+
+|The model call fails with an error those rules do not retry
+|No
+|`Failure(UNAVAILABLE)`
+
+|The model call fails while the thread's interrupt flag is set
+|No
+|`CancellationException` is thrown
+
+|The failure has an `InterruptedException` in its cause chain
+|No
+|`CancellationException` is thrown, caused by that `InterruptedException`
+|===
+
+The retry rules are the same ones the platform's other model calls use.
+Backoff waits follow the service's retry settings.
+The service sets no timeout of its own.
+
+==== Interruption
+
+An interruption escapes as an unchecked `java.util.concurrent.CancellationException`, so callers never handle a checked exception.
+Its cause is the `InterruptedException`, and the service leaves the thread's interrupt flag set.
+When a model call fails while the flag is set and the cause chain holds no `InterruptedException`, the cause is a new one whose own cause is the failure.
+A reply that cannot be read is part of the model call, so with the flag set it also throws `CancellationException`.
+An interrupted wait between retries fails with the `InterruptedException` as its cause, and that original exception becomes the cause of the `CancellationException`.
+A call that succeeds returns its result even when the interrupt flag is set.
+A verdict that breaks a rule returns `Failure(INVALID_RESPONSE)` even when the interrupt flag is set.
+
+==== Logs
+
+A failure result carries only its reason.
+The service does not log the exception behind it.
+The platform's shared model-call path and the retry listener log failed attempts on their own terms.
+Those log lines include exception messages.
+The exception can hold parts of the model's reply or provider response data, and either may repeat the input.
+
+The retry listener logs each failed attempt at INFO under `com.embabel.agent.spi.common.RetryProperties`, as it does for the platform's other model calls.
+When a decision uses all its attempts, the listener logs one WARN under the same logger.
+Each line carries the service's retry log name, and the WARN names the property that sets the ceiling.
+
+|===
+|Service |Retry log name
+
+|Built with `decisionService`, in code or from configuration
+|`decision-<llm>`
+
+|Built with `classificationService`
+|`classification-<llm>`
+|===
+
+`<llm>` is the model's name.
+The WARN names `embabel.agent.platform.decisions.llm.max-attempts`.
+
+==== Observations
+
+Each call records one logical observation and leaves the chat model call to record its own.
+
+|===
+|Observation |Recorded by |Count
+
+|`embabel.ai.decision` for `assess`
+|The service
+|One for each call, with fixed `operation` and `outcome` tags
+
+|`embabel.ai.classification` for `classify`
+|The service
+|One for each call, with fixed `operation` and `outcome` tags
+
+|Chat model observations
+|The chat model, under the names Spring AI defines
+|One for each attempt, when the chat model was built with an observation registry
+|===
+
+When the chat model records observations, a decision that retries twice records one `embabel.ai.decision` observation and three chat model observations.
+The chat model observations start while the decision observation is current, so traces show them as its children.
+A `false` answer has the same `answered` outcome as `true`.
+An interruption records the `interrupted` outcome.
+
+Enable `com.embabel.agent.spi.support.decision` at DEBUG to log each decision's operation, model name and outcome.
+Enable `com.embabel.common.ai.model.observation` at DEBUG to log each call's operation and outcome.
+The DEBUG lines from these two packages never include inputs, categories, propositions or model replies.
+The observations never carry them as tags.
