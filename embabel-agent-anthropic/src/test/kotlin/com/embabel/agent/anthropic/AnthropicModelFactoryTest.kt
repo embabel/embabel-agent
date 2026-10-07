@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.anthropic
 
+import com.anthropic.errors.AnthropicServiceException
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.PricingModel
@@ -29,6 +30,7 @@ import io.mockk.just
 import io.mockk.mockk
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -239,7 +241,7 @@ class AnthropicModelFactoryBuildValidatedTest {
         val e = assertThrows<InvalidApiKeyException> { factory().buildValidated() }
 
         assertEquals(403, e.statusCode)
-        assertNotNull(e.cause, "the SDK's exception is the cause")
+        assertInstanceOf(AnthropicServiceException::class.java, e.cause, "the SDK's exception is the cause")
     }
 
     @Test

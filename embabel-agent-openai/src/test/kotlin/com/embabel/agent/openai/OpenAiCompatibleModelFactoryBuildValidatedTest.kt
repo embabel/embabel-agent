@@ -21,12 +21,14 @@ import com.embabel.common.byok.InvalidApiKeyException
 import com.embabel.common.ai.model.PricingModel
 import com.sun.net.httpserver.HttpServer
 import io.micrometer.observation.ObservationRegistry
+import com.openai.errors.OpenAIServiceException
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
@@ -195,7 +197,7 @@ class OpenAiCompatibleModelFactoryBuildValidatedTest {
         val e = assertThrows<InvalidApiKeyException> { validate() }
 
         assertEquals(402, e.statusCode)
-        assertNotNull(e.cause, "the SDK's exception is the cause")
+        assertInstanceOf(OpenAIServiceException::class.java, e.cause, "the SDK's exception is the cause")
     }
 
     @Test

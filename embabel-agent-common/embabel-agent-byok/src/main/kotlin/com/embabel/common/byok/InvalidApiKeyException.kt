@@ -28,12 +28,15 @@ package com.embabel.common.byok
  * before any request was made, as a blank key is.
  *
  * The status code shows why the provider refused the key, so a caller does not have to read the
- * message to find out:
- * - 401: the provider does not know the key. Google's OpenAI-compatible endpoint responds 400
- *   in this case.
- * - 402: the provider knows the key, and the account has no credit.
- * - 403: the provider knows the key, and the key is not permitted to make the request.
- * - 429: the provider knows the key, and the key is rate limited.
+ * message to find out. Providers do not use the same status code for the same reason, so a
+ * caller must know which provider responded before it decides what the code means. These are
+ * examples, not rules:
+ * - The provider does not know the key: OpenAI, DeepSeek, Mistral and Anthropic respond 401.
+ *   Google's OpenAI-compatible endpoint responds 400.
+ * - The provider knows the key, and the account has no credit: Google and DeepSeek respond 402.
+ *   OpenAI responds 429. Anthropic responds 400.
+ * - The provider knows the key, and the key is not permitted to make the request: 403.
+ * - The provider knows the key, and the key is rate limited: 429.
  */
 class InvalidApiKeyException(
     message: String,

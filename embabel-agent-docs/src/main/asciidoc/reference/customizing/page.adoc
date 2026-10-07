@@ -550,12 +550,41 @@ try {
     // store or use service
 } catch (e: InvalidApiKeyException) {
     // return 401 / surface error to user
-    // no Spring AI types to unwrap
+    // this is the only exception type to catch
 }
 ----
 
-`InvalidApiKeyException` is in `com.embabel.common.byok` and carries no provider-specific
-implementation details.
+`InvalidApiKeyException` is in `com.embabel.common.byok`. It is the only type a caller needs to
+catch.
+
+When a factory's `buildValidated()` throws it, the exception also holds what the provider said:
+
+* `statusCode` is the HTTP status code of the provider's response. It is null when the provider
+sent no response, for example when the connection was refused or the key was blank.
+* `cause` is the provider's own exception. Use it for logging.
+
+Providers do not use the same status code for the same reason. For example, a key the provider
+does not know gets 401 from OpenAI and 400 from Google's OpenAI-compatible endpoint. Decide what
+a status code means only after you know which provider responded.
+
+`detectProvider` tries several providers and throws a new `InvalidApiKeyException` when all of
+them fail. That exception has no status code and no cause. To get the status code from each
+provider, call `buildValidated()` on each factory yourself:
+
+[source,kotlin]
+----
+try {
+    val service = OpenAiCompatibleModelFactory.gemini(userKey).buildValidated()
+    // store or use service
+} catch (e: InvalidApiKeyException) {
+    val reason = when (e.statusCode) {
+        402 -> "Google knows the key, and the account has no credit"
+        null -> "Google sent no response"
+        else -> "Google refused the key"
+    }
+    // surface reason to user
+}
+----
 
 ===== Security considerations
 

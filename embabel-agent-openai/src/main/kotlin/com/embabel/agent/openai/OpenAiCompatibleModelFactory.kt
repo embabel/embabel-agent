@@ -533,8 +533,9 @@ open class OpenAiCompatibleModelFactory(
      *
      * Spring AI 2.0 no longer accepts a spring-retry [RetryTemplate] on the model builder,
      * so the probe relies on the openai-java SDK's own no-retry default (any 401 fails fast).
-     * On any exception the provider-specific error is translated to [InvalidApiKeyException],
-     * keeping Spring AI types out of the caller.
+     * On any exception this throws [InvalidApiKeyException], so the caller catches one type. The
+     * provider's exception is its cause, and the HTTP status code of the provider's response is
+     * its status code.
      *
      * A blank key is rejected before any network call — see [requireUsableApiKey] for why a key
      * is set-but-empty far more often than it looks.
@@ -582,14 +583,13 @@ open class OpenAiCompatibleModelFactory(
      * The SDK throws [OpenAIServiceException] when the provider responds with an error status, and
      * that exception holds the status code. It may be [failure] itself or one of its causes, so
      * this looks at [failure], then its cause, then that cause's cause, and uses the first
-     * [OpenAIServiceException] it finds. The search stops at an exception that has no cause,
-     * or that is its own cause.
+     * [OpenAIServiceException] it finds. The search stops at an exception that has no cause.
      *
      * It finds none when the request never got a response, for example when the connection was
      * refused. The result is then null.
      */
     private fun providerStatus(failure: Throwable): Int? =
-        generateSequence(failure) { it.cause?.takeIf { cause -> cause !== it } }
+        generateSequence(failure) { it.cause }
             .filterIsInstance<OpenAIServiceException>()
             .firstOrNull()
             ?.statusCode()
