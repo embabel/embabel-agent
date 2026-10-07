@@ -17,8 +17,9 @@ package com.embabel.common.byok
 
 /**
  * Thrown when an API key is invalid or not recognised by any supported provider.
- * Surfaces through [detectProvider] and the factory [ByokFactory.buildValidated] methods
- * without leaking any provider-specific (e.g. Spring AI) exception types to callers.
+ * [detectProvider] and the factory [ByokFactory.buildValidated] methods throw it, so a caller
+ * catches this one type and does not catch a provider-specific type, such as a Spring AI or
+ * SDK exception.
  *
  * A [cause] may carry the provider's own exception. It is there for diagnosis — a log line that
  * shows WHY a probe failed — and callers still catch this type alone.
@@ -33,8 +34,7 @@ package com.embabel.common.byok
  * examples, not rules:
  * - The provider does not know the key: OpenAI, DeepSeek, Mistral and Anthropic respond 401.
  *   Google's OpenAI-compatible endpoint responds 400.
- * - The provider knows the key, and the account has no credit: Google and DeepSeek respond 402.
- *   OpenAI responds 429. Anthropic responds 400.
+ * - The provider knows the key, and the account has no credit: Google responds 402.
  * - The provider knows the key, and the key is not permitted to make the request: 403.
  * - The provider knows the key, and the key is rate limited: 429.
  */

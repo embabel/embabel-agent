@@ -29,10 +29,14 @@ package com.embabel.common.byok
  */
 fun interface ByokFactory<out T> {
     /**
-     * Validates the configured API key with a single probe call and returns a production
+     * Validates the configured API key with a probe call and returns a production
      * service of type [T] on success.
      *
-     * @throws InvalidApiKeyException if the key is invalid or the provider is unreachable.
+     * The provider's SDK may send the probe request more than once. It retries a response it
+     * treats as temporary, such as a 429, before the failure is reported.
+     *
+     * @throws InvalidApiKeyException if the key is invalid or the provider is unreachable. Its
+     * status code is the HTTP status code of the provider's response, when there was a response.
      */
     fun buildValidated(): T
 }
