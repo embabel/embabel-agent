@@ -1649,3 +1649,73 @@ static class MonthItem {
 - **Streaming**: Native structured output is not supported for streaming by Spring AI currently
 - **`ifPossible` APIs**: `createObjectIfPossible` and related paths use `MaybeReturn` semantics and stay on Embabel's fallback object construction path.
 - **Provider coverage**: OpenAI-compatible `response_format` is the primary supported path. Anthropic native structured output is currently disabled by default until its semantics are verified.
+- **`@DescribedEnum`**: Annotating an enum with `@DescribedEnum` causes Embabel to emit `oneOf/const/description` instead of a bare `enum` array for that type. The `oneOf` keyword is not supported on the native structured-output path (OpenAI strict mode rejects it), so Embabel automatically falls back to the prompt-based schema path for any call whose output type contains a `@DescribedEnum` field. The per-constant descriptions still reach the model through the prompt schema on all providers.
+
+[[reference.llms.described-enum]]
+===== Per-Constant Enum Descriptions with `@DescribedEnum`
+
+By default, an enum type is emitted in the JSON Schema as a bare list of values:
+
+[source,json]
+----
+{ "type": "string", "enum": ["URGENT", "NORMAL", "OTHER"] }
+----
+
+When the model needs to distinguish between constants — for example, to pick the right urgency level from natural language — a flat list provides no guidance.
+Annotate the enum class with `@DescribedEnum` and each constant with `@JsonPropertyDescription` to emit per-constant descriptions instead:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+@DescribedEnum
+enum class Priority {
+    @JsonPropertyDescription("Needs same-day response") URGENT,
+    @JsonPropertyDescription("Standard turnaround")    NORMAL,
+    OTHER,
+}
+
+data class TaskResult(val priority: Priority)
+----
+
+Java::
++
+[source,java]
+----
+@DescribedEnum
+public enum Priority {
+    @JsonPropertyDescription("Needs same-day response") URGENT,
+    @JsonPropertyDescription("Standard turnaround")    NORMAL,
+    OTHER
+}
+
+public record TaskResult(Priority priority) {}
+----
+====
+
+Embabel emits the schema as:
+
+[source,json]
+----
+{
+  "type": "string",
+  "oneOf": [
+    { "const": "URGENT", "description": "Needs same-day response" },
+    { "const": "NORMAL", "description": "Standard turnaround" },
+    { "const": "OTHER" }
+  ]
+}
+----
+
+The enum can appear anywhere in the output type — as a direct field, as a collection element (`List<Priority>`), or nested inside another record — and the descriptions are emitted correctly in all cases.
+
+Constants without `@JsonPropertyDescription` appear in the `oneOf` with only a `const` entry.
+If no constant carries a description, the annotation has no effect and the bare `enum` array is used.
+
+`@JsonValue`, `@JsonProperty`, and any custom Jackson serialiser are honoured: the `const` value matches exactly what the configured `ObjectMapper` would serialize for that constant.
+
+NOTE: `@DescribedEnum` trades the native structured-output path for per-constant descriptions.
+The `oneOf` keyword is rejected by OpenAI strict mode, so Embabel falls back to the prompt-based schema path for any call whose output type contains a `@DescribedEnum` field.
+The descriptions still reach the model through the prompt schema on all providers, including Google GenAI, Anthropic, and OpenAI-compatible endpoints.
