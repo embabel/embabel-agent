@@ -126,16 +126,7 @@ class TypeSafeBoundaryTest {
                 {"answers":{"ok":{"type":"noul","noul":"0.5"}}}
                 """,
                 """
-                {"answers":{"ok":{"type":"noul","noul":1.1}}}
-                """,
-                """
                 {"answers":{"ok":{"type":"noul","noul":null}}}
-                """,
-                """
-                {"answers":{"ok":{"type":"score","score":1e999}}}
-                """,
-                """
-                {"answers":{"ok":{"type":"choice","choice":"a","probabilities":{"a":-0.1}}}}
                 """
             })
     void strictPrivateFailures(String body) {

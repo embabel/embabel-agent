@@ -184,6 +184,7 @@ final class TypeSafeDecisionService
                             Map.of(PROPOSITION_QUESTION, Noul.of(request.getProposition())));
             traceResponse(ASSESS_OPERATION, response);
             var probability = response.noulValue(PROPOSITION_QUESTION);
+            validateProbability(probability);
             var provenance = provenance(response);
             if (probability == UNDECIDED_PROBABILITY) {
                 return new PropositionResult.Inconclusive(provenance);
@@ -273,6 +274,8 @@ final class TypeSafeDecisionService
      */
     private static void validateDistribution(
             ClassificationRequest request, ChoiceAnswer answer) {
+        validateProbability(answer.confidence());
+        answer.probabilities().values().forEach(TypeSafeDecisionService::validateProbability);
         var expected = new LinkedHashSet<String>();
         request.getCategories().forEach(category -> expected.add(category.getId()));
         if (!answer.probabilities().keySet().equals(expected)) {
@@ -281,6 +284,13 @@ final class TypeSafeDecisionService
         var total = answer.probabilities().values().stream().mapToDouble(Double::doubleValue).sum();
         if (Math.abs(total - 1.0d) > DISTRIBUTION_TOLERANCE) {
             throw new IllegalArgumentException("TypeSafe choice probabilities are not normalized");
+        }
+    }
+
+    /** Scalar calls validate evidence here; question-set calls validate each answer in their mapper. */
+    private static void validateProbability(Double value) {
+        if (value == null || !Double.isFinite(value) || value < 0 || value > 1) {
+            throw new IllegalArgumentException("TypeSafe probability must be finite and between zero and one");
         }
     }
 

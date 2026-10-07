@@ -31,6 +31,7 @@ import com.embabel.common.ai.decision.DecisionAnswer;
 import com.embabel.common.ai.decision.DecisionSpec;
 import com.embabel.common.ai.decision.PropositionQuestionSpec;
 import com.embabel.common.ai.decision.PropositionResult;
+import com.embabel.common.ai.decision.PropositionRequest;
 import com.embabel.common.ai.decision.QuestionKind;
 import com.embabel.common.ai.decision.Questions;
 import com.embabel.common.ai.decision.RatingQuestionSpec;
@@ -44,6 +45,8 @@ import io.micrometer.observation.ObservationRegistry;
 
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -82,6 +85,60 @@ class TypeSafeQuestionSetAskTest {
                     .build();
 
     private final DecisionSpec spec = DecisionSpec.of(urgent, department, frustration);
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2})
+    void invalidNumericAnswerKeepsValidSiblingAnswers(int invalidIndex) {
+        String body = switch (invalidIndex) {
+            case 0 -> THREE_ANSWERS.replace("\"noul\":0.8", "\"noul\":1.2");
+            case 1 -> THREE_ANSWERS.replace("\"confidence\":0.8", "\"confidence\":1.2");
+            default -> THREE_ANSWERS.replace("\"score\":1.6", "\"score\":1e999");
+        };
+        assertThat(body).isNotEqualTo(THREE_ANSWERS);
+        var fixture = fixture();
+        fixture.server().expect(requestTo(SYSTEM_ONE_URI))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+
+        var response = fixture.factory().build().ask(INPUT, spec);
+
+        fixture.server().verify();
+        assertThat(response.getRequestFailure()).isNull();
+        assertThat(response.answer(urgent) instanceof PropositionResult.Failure)
+                .isEqualTo(invalidIndex == 0);
+        assertThat(response.answer(department) instanceof ClassificationResult.Failure)
+                .isEqualTo(invalidIndex == 1);
+        assertThat(response.answer(frustration) instanceof RatingResult.Failure)
+                .isEqualTo(invalidIndex == 2);
+    }
+
+    @Test
+    void scalarAssessmentStillRejectsAnOutOfRangeProbability() {
+        var fixture = fixture();
+        fixture.server().expect(requestTo(SYSTEM_ONE_URI))
+                .andRespond(withSuccess("""
+                        {"answers":{"proposition":{"type":"noul","noul":1.2}}}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(fixture.factory().build().assess(new PropositionRequest(INPUT, "Urgent?")))
+                .isEqualTo(new PropositionResult.Failure(FailureReason.INVALID_RESPONSE));
+        fixture.server().verify();
+    }
+
+    @Test
+    void scalarClassificationStillRejectsInvalidDistributionValues() {
+        var fixture = fixture();
+        fixture.server().expect(requestTo(SYSTEM_ONE_URI))
+                .andRespond(withSuccess("""
+                        {"answers":{"classification":{"type":"choice","choice":"billing",
+                        "probabilities":{"billing":1.1,"technical":-0.1},"confidence":0.8}}}
+                        """, MediaType.APPLICATION_JSON));
+        var classification = ClassificationSpec.builder().asking("Which team?")
+                .category("billing", "Billing").category("technical", "Technical").build();
+
+        assertThat(fixture.factory().build().classify(ClassificationRequest.of(INPUT, classification)))
+                .isEqualTo(new ClassificationResult.Failure(FailureReason.INVALID_RESPONSE));
+        fixture.server().verify();
+    }
 
     @Test
     void threeQuestionAskMakesOneRequestKeyedQ1ToQ3() {
