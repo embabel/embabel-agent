@@ -223,6 +223,13 @@ class AnthropicModelFactoryBuildValidatedTest {
     /** The number of requests the local server has received from [answerWith]'s handler. */
     private val requestCount = AtomicInteger()
 
+    /**
+     * Makes the local server answer every request with the given HTTP [status] and JSON [body],
+     * and starts it. Each request adds one to [requestCount].
+     *
+     * For example, `answerWith(401, """{"error":{"message":"Invalid API key"}}""")` makes the
+     * server stand in for a provider that does not know the key.
+     */
     private fun answerWith(status: Int, body: String) {
         server.createContext("/v1/messages") { exchange ->
             requestCount.incrementAndGet()
@@ -236,8 +243,8 @@ class AnthropicModelFactoryBuildValidatedTest {
     }
 
     /**
-     * The provider knows the key and refuses the request because the key is not permitted to use the model. The
-     * exception reports status code 403, and its cause is the SDK's exception.
+     * The provider knows the key and refuses the request because the key is not permitted to use
+     * the model. The exception reports status code 403, and its cause is the SDK's exception.
      */
     @Test
     fun `a 403 response reports status code 403 and keeps the SDK exception as the cause`() {

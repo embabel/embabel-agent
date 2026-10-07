@@ -24,9 +24,13 @@ package com.embabel.common.byok
  * A [cause] may carry the provider's own exception. It is there for diagnosis — a log line that
  * shows WHY a probe failed — and callers still catch this type alone.
  *
- * [statusCode] is the HTTP status code of the provider's response. It is null when the provider
- * sent no response, for example when the connection was refused, and when the key was rejected
- * before any request was made, as a blank key is.
+ * [statusCode] is the HTTP status code of the provider's response. The OpenAI-compatible and
+ * Anthropic factories set it, for chat validation and for embedding validation. From those
+ * factories it is null when the provider sent no response, for example when the connection was
+ * refused, and when the key was rejected before any request was made, as a blank key is.
+ *
+ * It is always null from [detectProvider], and from a factory that does not set it. The
+ * TypeSafe factory is one that does not set it.
  *
  * The status code shows why the provider refused the key, so a caller does not have to read the
  * message to find out. Providers do not use the same status code for the same reason, so a

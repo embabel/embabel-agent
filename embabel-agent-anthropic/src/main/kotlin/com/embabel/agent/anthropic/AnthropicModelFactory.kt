@@ -172,8 +172,9 @@ open class AnthropicModelFactory(
      * only retries are the anthropic-java SDK's own.
      * - The SDK does not retry a 401, 402 or 403 response. A refused key is reported after one
      *   request.
-     * - The SDK retries a 429 response twice, and also other failures it treats as temporary,
-     *   such as a failed connection. Those are reported after three requests.
+     * - The SDK retries a 429 response twice. A rate limited key is reported after three
+     *   requests.
+     * - The SDK also retries other failures it treats as temporary, such as a failed connection.
      * On any exception this throws [InvalidApiKeyException], so the caller catches one type. The
      * provider's exception is its cause, and the HTTP status code of the provider's response is
      * its status code.

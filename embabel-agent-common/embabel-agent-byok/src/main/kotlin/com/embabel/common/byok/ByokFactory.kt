@@ -35,8 +35,10 @@ fun interface ByokFactory<out T> {
      * The provider's SDK may send the probe request more than once. It retries a response it
      * treats as temporary, such as a 429, before the failure is reported.
      *
-     * @throws InvalidApiKeyException if the key is invalid or the provider is unreachable. Its
-     * status code is the HTTP status code of the provider's response, when there was a response.
+     * @throws InvalidApiKeyException if the key is invalid or the provider is unreachable. An
+     * implementation may set its status code to the HTTP status code of the provider's response.
+     * The OpenAI-compatible and Anthropic factories do. An implementation that does not set it
+     * leaves it null.
      */
     fun buildValidated(): T
 }

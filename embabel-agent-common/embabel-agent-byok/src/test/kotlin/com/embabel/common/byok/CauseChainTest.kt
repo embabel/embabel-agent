@@ -52,4 +52,26 @@ class CauseChainTest {
 
         assertNull(failure.firstOfType<IOException>())
     }
+
+    /**
+     * The causes form a loop: `first` is caused by `second`, and `second` is caused by `first`.
+     * Neither is an [IOException], so the search looks at each once, stops, and returns null.
+     */
+    @Test
+    fun `null is returned when the causes form a loop and none has the type`() {
+        val first = RuntimeException("first")
+        val second = IllegalStateException("second", first)
+        first.initCause(second)
+
+        assertNull(first.firstOfType<IOException>())
+    }
+
+    @Test
+    fun `an exception inside a loop of causes is returned when it has the type`() {
+        val first = RuntimeException("first")
+        val second = IOException("second", first)
+        first.initCause(second)
+
+        assertSame(second, first.firstOfType<IOException>())
+    }
 }

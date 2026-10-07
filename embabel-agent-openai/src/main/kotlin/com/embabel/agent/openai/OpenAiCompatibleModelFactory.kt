@@ -536,8 +536,9 @@ open class OpenAiCompatibleModelFactory(
      * only retries are the openai-java SDK's own.
      * - The SDK does not retry a 401, 402 or 403 response. A refused key is reported after one
      *   request.
-     * - The SDK retries a 429 response twice, and also other failures it treats as temporary,
-     *   such as a failed connection. Those are reported after three requests.
+     * - The SDK retries a 429 response twice. A rate limited key is reported after three
+     *   requests.
+     * - The SDK also retries other failures it treats as temporary, such as a failed connection.
      * On any exception this throws [InvalidApiKeyException], so the caller catches one type. The
      * provider's exception is its cause, and the HTTP status code of the provider's response is
      * its status code.
@@ -604,7 +605,8 @@ open class OpenAiCompatibleModelFactory(
      * OpenAI-compatible builder and the blank-key guard.
      *
      * @throws InvalidApiKeyException if the key is blank or invalid, the provider is
-     * unreachable, or the model returns no vector.
+     * unreachable, or the model returns no vector. Its status code is the HTTP status code of
+     * the provider's response, as it is for [buildValidated].
      */
     fun buildValidatedEmbeddingService(
         model: String,
@@ -612,7 +614,11 @@ open class OpenAiCompatibleModelFactory(
         pricingModel: PricingModel? = null,
     ): EmbeddingService {
         requireUsableApiKey(apiKey)
-        return validatedEmbeddingService(model = model, provider = provider) { configuredDimensions ->
+        return validatedEmbeddingService(
+            model = model,
+            provider = provider,
+            statusCodeOf = ::providerStatus,
+        ) { configuredDimensions ->
             openAiCompatibleEmbeddingService(
                 model = model,
                 provider = provider,

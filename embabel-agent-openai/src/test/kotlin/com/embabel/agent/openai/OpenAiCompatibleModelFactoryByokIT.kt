@@ -25,7 +25,9 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 
 /**
  * IT tests that validate BYOK endpoints against real provider APIs.
- * Each test requires the corresponding API key in the environment.
+ * Each `succeeds with valid key` test requires the corresponding API key in the environment, and
+ * is skipped without it. The `responds ... to a key it did not issue` tests need network access
+ * and no API key.
  */
 class OpenAiCompatibleModelFactoryByokIT {
 

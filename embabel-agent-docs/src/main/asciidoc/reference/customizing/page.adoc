@@ -231,8 +231,8 @@ val service: LlmService<*> = OpenAiCompatibleModelFactory.atlasCloud(userKey).bu
 
 `buildValidated()` validates the key with a probe call.
 The provider's SDK does not retry a 401, 402 or 403 response, so a refused key is reported after
-one request. The SDK retries a 429 response twice, and also other failures it treats as temporary,
-such as a failed connection. Those are reported after three requests.
+one request. The SDK retries a 429 response twice, so a rate limited key is reported after three
+requests. The SDK also retries other failures it treats as temporary, such as a failed connection.
 On success it returns a production `LlmService`; on failure it throws `InvalidApiKeyException`.
 
 A **blank** key is treated as absent and rejected before any network call, also with
@@ -560,7 +560,8 @@ try {
 `InvalidApiKeyException` is in `com.embabel.common.byok`. It is the only type a caller needs to
 catch.
 
-When a factory's `buildValidated()` throws it, the exception also holds what the provider said:
+When `buildValidated()` on an OpenAI-compatible or Anthropic factory throws it, the exception
+also holds what the provider said. This is the same for a chat model and an embedding model:
 
 * `statusCode` is the HTTP status code of the provider's response. It is null when the provider
 sent no response, for example when the connection was refused or the key was blank.
