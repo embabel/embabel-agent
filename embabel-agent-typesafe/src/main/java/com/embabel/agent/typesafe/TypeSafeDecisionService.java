@@ -77,7 +77,7 @@ final class TypeSafeDecisionService implements DecisionService {
             if (answer.confidence() == 0.0d) {
                 return new ClassificationResult.Inconclusive(provenance);
             }
-            return request.selected(answer.value(), provenance, answer.confidence());
+            return request.getSpec().selected(answer.value(), provenance, answer.confidence());
         } catch (TypeSafeException failure) {
             // The service returns typed failures; the helper logs the bounded reason.
             return classificationFailure(failureReason(failure));

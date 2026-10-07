@@ -32,8 +32,8 @@ import com.embabel.agent.spi.support.decision.PropositionVerdict
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.Message
-import com.embabel.common.ai.classification.Category
 import com.embabel.common.ai.classification.ClassificationRequest
+import com.embabel.common.ai.classification.ClassificationSpec
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
@@ -123,10 +123,13 @@ class LlmDecisionServiceFactoryTest {
 
     private val provenance = ModelProvenance("gpt-test", "TestProvider")
 
-    private val classification = ClassificationRequest(
+    private val classification = ClassificationRequest.of(
         "My card was charged twice",
-        "Which team should handle this?",
-        listOf(Category("billing", "Payments, invoices and refunds"), Category("technical", "Errors and outages")),
+        ClassificationSpec.builder()
+            .asking("Which team should handle this?")
+            .category("billing", "Payments, invoices and refunds")
+            .category("technical", "Errors and outages")
+            .build(),
     )
 
     private val proposition = PropositionRequest("My card was charged twice", "The customer wants a refund")

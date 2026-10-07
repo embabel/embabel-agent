@@ -96,6 +96,13 @@ The `@DecisionSpecDsl` marker sits on the scope and on the three question builde
 Code inside a question block cannot call the enclosing spec scope without an explicit label.
 Java code does not see `decisionSpec` or the scope methods.
 
+==== Classification specs
+
+A `ClassificationSpec` is a decision spec with one choice question.
+It equals a `DecisionSpec` that holds the same question, and it writes the same JSON.
+A `ClassificationRequest` is a `DecisionRequest` whose spec is a `ClassificationSpec`.
+<<reference.classification>> shows how to build one and classify with it.
+
 ==== Question kinds
 
 |===

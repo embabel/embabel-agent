@@ -25,8 +25,8 @@ import com.embabel.agent.spi.LlmService;
 import com.embabel.agent.spi.common.RetryProperties;
 import com.embabel.agent.spi.decision.LlmDecisionServiceFactory;
 import com.embabel.agent.spi.support.springai.SpringAiLlmService;
-import com.embabel.common.ai.classification.Category;
 import com.embabel.common.ai.classification.ClassificationRequest;
+import com.embabel.common.ai.classification.ClassificationSpec;
 import com.embabel.common.ai.classification.FailureReason;
 import com.embabel.common.ai.classification.ModelProvenance;
 import com.embabel.common.ai.decision.PropositionRequest;
@@ -158,11 +158,13 @@ class LlmDecisionServiceFactoryAutoConfigurationTest {
         @Test
         void theFactoryNamesTheRetryPropertyWhenRetriesRunOut() {
             failEveryCall();
-            var classification = new ClassificationRequest(
+            var classification = ClassificationRequest.of(
                     "My card was charged twice",
-                    "Which team should handle this?",
-                    List.of(new Category("billing", "Payments, invoices and refunds"),
-                            new Category("technical", "Errors and outages")));
+                    ClassificationSpec.builder()
+                            .asking("Which team should handle this?")
+                            .category("billing", "Payments, invoices and refunds")
+                            .category("technical", "Errors and outages")
+                            .build());
             runner.withPropertyValues(quickRetry).run(context -> {
                 var factory = context.getBean(LlmDecisionServiceFactory.class);
                 var warnings = capturingWarnings(() -> {
