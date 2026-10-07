@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.openai
 
+import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.common.byok.InvalidApiKeyException
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -77,6 +78,27 @@ class OpenAiCompatibleModelFactoryByokIT {
             .buildValidated()
         assertNotNull(service)
         assertEquals(1536, service.dimensions)
+    }
+
+    /**
+     * Gemini embeddings over Google's OpenAI-compatible endpoint, configured as a stored
+     * credential is: the base URL comes from [OpenAiCompatibleModelFactory.endpointFor] and the
+     * model is named by the caller. Google's response has no `index` and no `usage`.
+     */
+    @Test
+    @EnabledIfEnvironmentVariable(named = "GOOGLE_GENAI_API_KEY", matches = ".+")
+    fun `gemini embedding buildValidated succeeds with valid key`() {
+        val gemini = requireNotNull(OpenAiCompatibleModelFactory.endpointFor(GoogleGenAiModels.PROVIDER))
+        val service = OpenAiCompatibleModelFactory
+            .byokEmbedding(
+                baseUrl = gemini.baseUrl,
+                apiKey = System.getenv("GOOGLE_GENAI_API_KEY"),
+                model = GoogleGenAiModels.GEMINI_EMBEDDING_001,
+                provider = gemini.provider,
+            )
+            .buildValidated()
+        assertEquals(3072, service.dimensions)
+        assertEquals(3072, service.embed("hello").size)
     }
 
     @Test
