@@ -15,17 +15,24 @@
  */
 package com.embabel.common.ai.decision
 
+import com.embabel.common.ai.classification.ClassificationResult
+import com.embabel.common.ai.decision.spi.DecisionExecution
+import com.embabel.common.ai.model.observation.ObservedDecisionService
 import org.jetbrains.kotlin.cli.common.ExitCode
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSourceLocation
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
 import org.jetbrains.kotlin.config.Services
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
+import java.net.URLClassLoader
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -38,13 +45,15 @@ import javax.tools.ToolProvider
 private data class CompileOutcome(val success: Boolean, val errors: List<String>)
 
 // Compiles one Java source file against this test's own classpath, so it sees the classes this
-// module already built. Nothing here is printed; the caller decides what a result means.
-private fun compileJava(source: Path): CompileOutcome {
+// module already built. Nothing here is printed; the caller decides what a result means. The
+// output goes to [keepIn] when given, and the caller owns that directory. Otherwise it goes to a
+// temp directory that is deleted afterwards.
+private fun compileJava(source: Path, keepIn: Path? = null): CompileOutcome {
     val compiler = requireNotNull(ToolProvider.getSystemJavaCompiler()) {
         "No system Java compiler is available. Run this test with a JDK, not a JRE."
     }
     val diagnostics = javax.tools.DiagnosticCollector<JavaFileObject>()
-    val outDir = Files.createTempDirectory("compile-negative-java")
+    val outDir = keepIn ?: Files.createTempDirectory("compile-negative-java")
     val success = try {
         compiler.getStandardFileManager(diagnostics, null, null).use { fileManager ->
             fileManager.setLocation(StandardLocation.CLASS_OUTPUT, listOf(outDir.toFile()))
@@ -53,7 +62,7 @@ private fun compileJava(source: Path): CompileOutcome {
             compiler.getTask(null, fileManager, diagnostics, options, null, units).call()
         }
     } finally {
-        outDir.toFile().deleteRecursively()
+        if (keepIn == null) outDir.toFile().deleteRecursively()
     }
     val errors = diagnostics.diagnostics
         .filter { it.kind == Diagnostic.Kind.ERROR }
@@ -145,6 +154,11 @@ class CompileNegativeTest {
             check(java.success) {
                 "The Java triage fixture must compile before any negative result can be trusted. Errors: ${java.errors}"
             }
+            val legacy = compileJava(positive("java", "LegacyJavaDecisionService.java"))
+            check(legacy.success) {
+                "The Java legacy decision service fixture must compile before any negative result can be trusted. " +
+                    "Errors: ${legacy.errors}"
+            }
             val kotlin = compileKotlin(positive("kotlin", "DslExample.kt"))
             check(kotlin.success) {
                 "The Kotlin DSL fixture must compile before any negative result can be trusted. Errors: ${kotlin.errors}"
@@ -160,6 +174,51 @@ class CompileNegativeTest {
     @Test
     fun `the Kotlin DSL example compiles`() {
         assertCompiles(compileKotlin(positive("kotlin", "DslExample.kt")))
+    }
+
+    @Nested
+    inner class LegacyJavaImplementor {
+
+        private val newMembers = setOf("ask", "capabilities", "askQuestionSet", "rate")
+
+        private val proposition = Questions.named("urgent").proposition("Is it urgent?").build()
+
+        private val choice = Questions.named("team").choice("Which team?")
+            .option("billing", "Payments")
+            .option("support", "Help")
+            .build()
+
+        private val rating = Questions.named("anger").rating("How angry?")
+            .level("calm", "Calm")
+            .level("angry", "Angry")
+            .build()
+
+        @Test
+        fun `a base-API Java service declares no new member and works through the interface and the decorator`() {
+            val outDir = Files.createTempDirectory("compile-legacy-java")
+            try {
+                assertCompiles(compileJava(positive("java", "LegacyJavaDecisionService.java"), keepIn = outDir))
+                URLClassLoader(arrayOf(outDir.toUri().toURL()), javaClass.classLoader).use { loader ->
+                    val type = loader.loadClass("com.embabel.common.ai.decision.fixtures.LegacyJavaDecisionService")
+                    val declared = type.declaredMethods.map { it.name }.toSet()
+                    assertTrue(declared.intersect(newMembers).isEmpty()) {
+                        "The legacy fixture declares ${declared.intersect(newMembers)}"
+                    }
+
+                    val fixture = type.getDeclaredConstructor().newInstance() as DecisionService
+                    for (service in listOf(fixture, ObservedDecisionService(fixture))) {
+                        val response = service.ask("input", DecisionSpec.of(proposition))
+                        assertInstanceOf(PropositionResult.Answered::class.java, response.answer(proposition))
+                        assertEquals(DecisionExecution.LEGACY_CAPABILITIES, service.capabilities())
+                        val chosen = service.ask("input", DecisionSpec.of(choice))
+                        assertInstanceOf(ClassificationResult.NoMatch::class.java, chosen.answer(choice))
+                        assertThrows<UnsupportedDecisionException> { service.ask("input", DecisionSpec.of(rating)) }
+                    }
+                }
+            } finally {
+                outDir.toFile().deleteRecursively()
+            }
+        }
     }
 
     @Nested

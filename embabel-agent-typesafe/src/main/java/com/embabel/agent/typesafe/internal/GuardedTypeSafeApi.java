@@ -30,13 +30,8 @@ import org.springaicommunity.typesafe.exception.TypeSafeApiException;
 import org.springaicommunity.typesafe.exception.TypeSafeApiTimeoutException;
 import org.springaicommunity.typesafe.exception.TypeSafeException;
 import org.springaicommunity.typesafe.question.SystemOneRequest;
-import org.springaicommunity.typesafe.response.Answer;
-import org.springaicommunity.typesafe.response.ChoiceAnswer;
 import org.springaicommunity.typesafe.response.ListModelsResponse;
-import org.springaicommunity.typesafe.response.NoulAnswer;
-import org.springaicommunity.typesafe.response.ScoreAnswer;
 import org.springaicommunity.typesafe.response.SystemOneResponse;
-import org.springaicommunity.typesafe.response.UnknownAnswer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatusCode;
@@ -173,41 +168,9 @@ public final class GuardedTypeSafeApi extends TypeSafeApi {
                         throw new IllegalArgumentException(
                                 "TypeSafe response must contain answers");
                     }
-                    for (Answer answer : response.getBody().answers().values()) {
-                        switch (answer) {
-                            case NoulAnswer(double value) -> probability(value);
-                            case ChoiceAnswer c -> {
-                                probability(c.confidence());
-                                c.probabilities().values().forEach(GuardedTypeSafeApi::probability);
-                            }
-                            case ScoreAnswer s -> {
-                                if (!Double.isFinite(s.value())) {
-                                    throw new IllegalArgumentException(
-                                            "TypeSafe score must be finite");
-                                }
-                                probability(s.confidence());
-                                s.probabilities().values().forEach(GuardedTypeSafeApi::probability);
-                            }
-                            case UnknownAnswer ignored ->
-                                    logger.debug(
-                                            "TypeSafe response contains an unknown answer type");
-                            case null ->
-                                    throw new IllegalArgumentException(
-                                            "TypeSafe answer must not be null");
-                        }
-                    }
+                    // The adapter validates each answer so one invalid value cannot discard its siblings.
                     return response;
                 });
-    }
-
-    /**
-     * Rejects missing, non-finite and out-of-range confidence values before returning SDK answers.
-     */
-    private static void probability(Double value) {
-        if (value == null || !Double.isFinite(value) || value < 0 || value > 1) {
-            throw new IllegalArgumentException(
-                    "TypeSafe probability must be finite and between zero and one");
-        }
     }
 
     @Override
