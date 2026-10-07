@@ -22,6 +22,7 @@ import io.a2a.client.Client
 import io.a2a.client.ClientEvent
 import io.a2a.client.TaskEvent
 import io.a2a.client.TaskUpdateEvent
+import io.a2a.client.config.ClientConfig
 import io.a2a.client.transport.jsonrpc.JSONRPCTransport
 import io.a2a.client.transport.jsonrpc.JSONRPCTransportConfigBuilder
 import io.a2a.spec.AgentCard
@@ -59,13 +60,7 @@ class EmbabelA2AClient @JvmOverloads constructor(
         // When contextId was resolved from OTel baggage, inject it into the message body so the
         // receiving server sees it without requiring OTel-instrumented HTTP transport.
         val outboundMessage = if (contextId != null && contextId != message.contextId) {
-            var b = Message.Builder()
-                .messageId(message.messageId)
-                .role(message.role)
-                .parts(message.parts)
-                .contextId(contextId)
-            if (message.taskId != null) b = b.taskId(message.taskId)
-            b.build()
+            Message.Builder(message).contextId(contextId).build()
         } else {
             message
         }
@@ -150,6 +145,7 @@ class EmbabelA2AClient @JvmOverloads constructor(
         logger.debug("Building A2A client for {} (not cached)", baseUrl)
         val card = fetchCard(baseUrl)
         return Client.builder(card)
+            .clientConfig(ClientConfig.Builder().setStreaming(false).build())
             .withTransport(
                 JSONRPCTransport::class.java,
                 JSONRPCTransportConfigBuilder().httpClient(httpClientFactory.create()).build(),

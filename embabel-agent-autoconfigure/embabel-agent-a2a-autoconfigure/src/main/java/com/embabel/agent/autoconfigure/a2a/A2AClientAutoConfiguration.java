@@ -20,6 +20,7 @@ import com.embabel.agent.a2a.client.A2AHttpClientFactory;
 import com.embabel.agent.a2a.client.EmbabelA2AClient;
 import com.embabel.agent.a2a.client.api.A2AClient;
 import com.embabel.agent.a2a.client.spi.SpringRestClientA2AHttpClient;
+import com.embabel.agent.api.common.Asyncer;
 import com.embabel.common.util.EmbabelObjectMapperHolder;
 import io.a2a.client.http.JdkA2AHttpClient;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -38,8 +39,8 @@ public class A2AClientAutoConfiguration {
     @Bean
     @ConditionalOnClass(RestClient.class)
     @ConditionalOnMissingBean(A2AHttpClientFactory.class)
-    public A2AHttpClientFactory springRestClientA2AHttpClientFactory() {
-        return () -> new SpringRestClientA2AHttpClient(RestClient.create());
+    public A2AHttpClientFactory springRestClientA2AHttpClientFactory(Asyncer asyncer) {
+        return () -> new SpringRestClientA2AHttpClient(RestClient.create(), asyncer);
     }
 
     /**

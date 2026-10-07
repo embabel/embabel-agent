@@ -25,6 +25,8 @@ import com.embabel.agent.a2a.server.support.EmbabelServerGoalsAgentCardHandler
 import com.embabel.agent.api.common.ranking.Ranking
 import com.embabel.agent.api.common.ranking.Rankings
 import com.embabel.agent.core.AgentPlatform
+import com.embabel.agent.spi.support.ExecutorAsyncer
+import java.util.concurrent.Executor
 import com.embabel.agent.test.integration.FakeRanker
 import com.embabel.common.core.types.Described
 import com.embabel.common.core.types.Named
@@ -86,7 +88,7 @@ class MultiAgentTestConfiguration {
     @Bean
     fun multiAgentA2AClient(objectMapperHolder: EmbabelObjectMapperHolder): A2AClient =
         EmbabelA2AClient(
-            httpClientFactory = A2AHttpClientFactory { SpringRestClientA2AHttpClient(RestClient.create()) },
+            httpClientFactory = A2AHttpClientFactory { SpringRestClientA2AHttpClient(RestClient.create(), ExecutorAsyncer(Executor { it.run() })) },
             objectMapperHolder = objectMapperHolder,
         )
 }
