@@ -111,12 +111,12 @@ class OpenAiCompatibleModelFactoryByokIT {
         }
     }
 
-    /**
-     * The four tests below send a key that no provider issued to the real provider. They need
-     * network access and no API key. Each provider responds that it does not know the key, and
-     * [InvalidApiKeyException.statusCode] is the HTTP status code of that response: 401 from
-     * OpenAI, DeepSeek and Mistral, and 400 from Google.
-     */
+    // The four tests below send a key that no provider issued to the real provider. They need
+    // network access and no API key. Each provider responds that it does not know the key, and
+    // InvalidApiKeyException.statusCode is the HTTP status code of that response: 401 from
+    // OpenAI, DeepSeek and Mistral, and 400 from Google.
+
+    /** Validates [spec] and returns the status code of the [InvalidApiKeyException] it throws. */
     private fun statusCodeFor(spec: OpenAiCompatibleModelFactory.ByokSpec): Int? =
         assertThrows<InvalidApiKeyException> { spec.buildValidated() }.statusCode
 

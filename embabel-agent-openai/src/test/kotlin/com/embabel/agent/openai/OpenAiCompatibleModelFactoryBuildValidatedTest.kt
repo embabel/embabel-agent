@@ -38,6 +38,7 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.web.client.RestClient
 import java.net.InetSocketAddress
 import java.net.ServerSocket
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Supplier
 
 class OpenAiCompatibleModelFactoryBuildValidatedTest {
@@ -175,8 +176,12 @@ class OpenAiCompatibleModelFactoryBuildValidatedTest {
         knowledgeCutoffDate = null,
     )
 
+    /** The number of requests the local server has received from [answerWith]'s handler. */
+    private val requestCount = AtomicInteger()
+
     private fun answerWith(status: Int, body: String) {
         server.createContext("/") { exchange ->
+            requestCount.incrementAndGet()
             exchange.requestBody.use { it.readBytes() }
             val bytes = body.toByteArray()
             exchange.responseHeaders.set("Content-Type", "application/json")
@@ -201,10 +206,24 @@ class OpenAiCompatibleModelFactoryBuildValidatedTest {
     }
 
     @Test
-    fun `a 401 response reports status code 401`() {
+    fun `a 401 response reports status code 401 after one request`() {
         answerWith(401, """{"error":{"message":"Invalid API key","type":"invalid_request_error"}}""")
 
         assertEquals(401, assertThrows<InvalidApiKeyException> { validate() }.statusCode)
+        assertEquals(1, requestCount.get(), "the SDK does not retry a 401")
+    }
+
+    /**
+     * The provider knows the key and refuses the request because the key is rate limited. The SDK
+     * sends the request, then retries it twice, so the provider receives three requests. The
+     * exception reports status code 429.
+     */
+    @Test
+    fun `a 429 response reports status code 429 after the SDK has retried twice`() {
+        answerWith(429, """{"error":{"message":"Rate limit reached","type":"rate_limit_error"}}""")
+
+        assertEquals(429, assertThrows<InvalidApiKeyException> { validate() }.statusCode)
+        assertEquals(3, requestCount.get(), "one request and two retries")
     }
 
     @Test

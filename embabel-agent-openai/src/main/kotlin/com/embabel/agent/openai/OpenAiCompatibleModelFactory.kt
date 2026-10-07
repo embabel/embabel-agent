@@ -26,6 +26,7 @@ import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.*
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
+import com.embabel.common.byok.firstOfType
 import com.embabel.common.byok.requireUsableApiKey
 import com.embabel.common.byok.validatedEmbeddingService
 import com.embabel.common.util.ObjectProviders
@@ -531,8 +532,12 @@ open class OpenAiCompatibleModelFactory(
      * Validates the configured API key by making a probe call, then returns a production
      * [LlmService] if successful.
      *
-     * Spring AI 2.0 no longer accepts a spring-retry [RetryTemplate] on the model builder,
-     * so the probe relies on the openai-java SDK's own no-retry default (any 401 fails fast).
+     * Spring AI 2.0 no longer accepts a spring-retry [RetryTemplate] on the model builder, so the
+     * only retries are the openai-java SDK's own.
+     * - The SDK does not retry a 401, 402 or 403 response. A refused key is reported after one
+     *   request.
+     * - The SDK retries a 429 response twice, and also other failures it treats as temporary,
+     *   such as a failed connection. Those are reported after three requests.
      * On any exception this throws [InvalidApiKeyException], so the caller catches one type. The
      * provider's exception is its cause, and the HTTP status code of the provider's response is
      * its status code.
@@ -582,17 +587,13 @@ open class OpenAiCompatibleModelFactory(
      *
      * The SDK throws [OpenAIServiceException] when the provider responds with an error status, and
      * that exception holds the status code. It may be [failure] itself or one of its causes, so
-     * this looks at [failure], then its cause, then that cause's cause, and uses the first
-     * [OpenAIServiceException] it finds. The search stops at an exception that has no cause.
+     * [firstOfType] looks at [failure] and then at each of its causes.
      *
-     * It finds none when the request never got a response, for example when the connection was
-     * refused. The result is then null.
+     * There is no [OpenAIServiceException] when the request never got a response, for example
+     * when the connection was refused. The result is then null.
      */
     private fun providerStatus(failure: Throwable): Int? =
-        generateSequence(failure) { it.cause }
-            .filterIsInstance<OpenAIServiceException>()
-            .firstOrNull()
-            ?.statusCode()
+        failure.firstOfType<OpenAIServiceException>()?.statusCode()
 
     /**
      * Validates the configured API key by embedding a short probe text, then returns a

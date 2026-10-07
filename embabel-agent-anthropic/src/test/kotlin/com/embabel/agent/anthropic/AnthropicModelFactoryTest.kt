@@ -42,6 +42,7 @@ import org.springframework.web.client.RestClient
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.time.LocalDate
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Supplier
 
 class AnthropicModelFactoryTest {
@@ -219,8 +220,12 @@ class AnthropicModelFactoryBuildValidatedTest {
         assertEquals(0, requests, "a blank key must not reach the provider")
     }
 
+    /** The number of requests the local server has received from [answerWith]'s handler. */
+    private val requestCount = AtomicInteger()
+
     private fun answerWith(status: Int, body: String) {
         server.createContext("/v1/messages") { exchange ->
+            requestCount.incrementAndGet()
             exchange.requestBody.use { it.readBytes() }
             val bytes = body.toByteArray()
             exchange.responseHeaders.set("Content-Type", "application/json")
@@ -245,10 +250,24 @@ class AnthropicModelFactoryBuildValidatedTest {
     }
 
     @Test
-    fun `a 401 response reports status code 401`() {
+    fun `a 401 response reports status code 401 after one request`() {
         answerWith(401, """{"type":"error","error":{"type":"authentication_error","message":"Invalid API Key"}}""")
 
         assertEquals(401, assertThrows<InvalidApiKeyException> { factory().buildValidated() }.statusCode)
+        assertEquals(1, requestCount.get(), "the SDK does not retry a 401")
+    }
+
+    /**
+     * The provider knows the key and refuses the request because the key is rate limited. The SDK
+     * sends the request, then retries it twice, so the provider receives three requests. The
+     * exception reports status code 429.
+     */
+    @Test
+    fun `a 429 response reports status code 429 after the SDK has retried twice`() {
+        answerWith(429, """{"type":"error","error":{"type":"rate_limit_error","message":"Rate limit reached"}}""")
+
+        assertEquals(429, assertThrows<InvalidApiKeyException> { factory().buildValidated() }.statusCode)
+        assertEquals(3, requestCount.get(), "one request and two retries")
     }
 
     @Test
@@ -261,5 +280,12 @@ class AnthropicModelFactoryBuildValidatedTest {
 
         assertNull(e.statusCode, "there was no response, so there is no status code")
         assertNotNull(e.cause)
+    }
+
+    @Test
+    fun `a blank key reports no status code`() {
+        val e = assertThrows<InvalidApiKeyException> { AnthropicModelFactory(apiKey = " ").buildValidated() }
+
+        assertNull(e.statusCode)
     }
 }
