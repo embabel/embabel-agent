@@ -49,7 +49,7 @@ final class KotlinAnnotationPlacement {
      * @param index the parameter's index
      * @return true when the parameter repeats the constructor parameter's question annotations
      */
-    static boolean repeatsCopySource(Parameter parameter, @Nullable Constructor<?> copied, int index) {
+    static boolean repeatsCopySource(Parameter parameter, @Nullable Executable copied, int index) {
         return copied != null
             && questionAnnotationsOn(parameter).equals(questionAnnotationsOn(copied.getParameters()[index]));
     }
@@ -88,7 +88,7 @@ final class KotlinAnnotationPlacement {
      * @param method the method to check
      * @return the primary constructor when the method has this shape, otherwise null
      */
-    static @Nullable Constructor<?> copySource(Class<?> owner, Method method) {
+    static @Nullable Executable copySource(Class<?> owner, Method method) {
         if (!method.getName().equals("copy") || method.getReturnType() != owner || !isKotlinClass(owner)) {
             return null;
         }

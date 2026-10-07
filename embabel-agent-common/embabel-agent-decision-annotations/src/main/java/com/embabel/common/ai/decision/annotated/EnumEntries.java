@@ -125,6 +125,14 @@ final class EnumEntries {
                 + " a distinct serialized form that the mapper reads back as the same constant.");
             return null;
         }
+        return describedEntry(member, choice, constant, id, problems);
+    }
+
+    /** Reads explicit ids and descriptions after the constant has passed mapper round-trip checks. */
+    private static @Nullable Entry describedEntry(String member, boolean choice, Enum<?> constant,
+        String id, BiConsumer<String, Throwable> problems) {
+        String constantName = constant.getDeclaringClass().getSimpleName() + "." + constant.name();
+        String entry = choice ? "option" : "level";
         Described described = describedOf(constant);
         if (choice && described == null) {
             problem(problems, member + ": choice option " + constantName + " has no @Described. "

@@ -475,25 +475,30 @@ final class DecisionTypeParser {
             ? raw == boolean.class || raw == Boolean.class
             : raw.isEnum();
         if (!supported) {
-            Type declared = declaredType(property.getPrimaryMember());
-            if (declared instanceof TypeVariable<?> variable) {
-                String fix = kind == Kind.PROPOSITION
-                    ? "Declare the property as boolean or Boolean."
-                    : "Declare the property with a concrete enum type.";
-                problem(member + ": " + kind.label() + " needs " + (kind == Kind.PROPOSITION ? "boolean or Boolean" : "a concrete enum type")
-                    + ", found type variable " + variable.getName() + ", which Jackson reads as " + raw.getTypeName() + ". " + fix);
-            } else {
-                problem(member + ": " + kind.label() + switch (kind) {
-                    case PROPOSITION -> " needs boolean or Boolean, found " + raw.getTypeName()
-                        + ". Declare the property as boolean or Boolean.";
-                    case CHOICE -> " needs an enum type, found " + raw.getTypeName() + ". Declare the options as an enum.";
-                    case RATING -> " needs an enum type, found " + raw.getTypeName()
-                        + ". Declare the levels as an enum, lowest first.";
-                });
-            }
+            unsupportedType(member, kind, property, raw);
             return List.of();
         }
         return kind == Kind.PROPOSITION ? List.of() : EnumEntries.read(member, kind == Kind.CHOICE, raw, mapper, this::problem);
+    }
+
+    /** Reports the concrete type needed for an unsupported question property. */
+    private void unsupportedType(String member, Kind kind, BeanPropertyDefinition property, Class<?> raw) {
+        Type declared = declaredType(property.getPrimaryMember());
+        if (declared instanceof TypeVariable<?> variable) {
+            String fix = kind == Kind.PROPOSITION
+                ? "Declare the property as boolean or Boolean."
+                : "Declare the property with a concrete enum type.";
+            problem(member + ": " + kind.label() + " needs " + (kind == Kind.PROPOSITION ? "boolean or Boolean" : "a concrete enum type")
+                + ", found type variable " + variable.getName() + ", which Jackson reads as " + raw.getTypeName() + ". " + fix);
+        } else {
+            problem(member + ": " + kind.label() + switch (kind) {
+                case PROPOSITION -> " needs boolean or Boolean, found " + raw.getTypeName()
+                    + ". Declare the property as boolean or Boolean.";
+                case CHOICE -> " needs an enum type, found " + raw.getTypeName() + ". Declare the options as an enum.";
+                case RATING -> " needs an enum type, found " + raw.getTypeName()
+                    + ". Declare the levels as an enum, lowest first.";
+            });
+        }
     }
 
     /**
@@ -608,7 +613,7 @@ final class DecisionTypeParser {
             if (!coverage.covers(method)) {
                 orphans.report(current, method.getName() + "()", method, find(classInfo.memberMethods(), method));
             }
-            Constructor<?> copied = KotlinAnnotationPlacement.copySource(current, method);
+            Executable copied = KotlinAnnotationPlacement.copySource(current, method);
             scanParameters(current, method, "parameter of " + method.getName() + "()", classInfo, orphans, copied);
         }
     }
@@ -656,7 +661,7 @@ final class DecisionTypeParser {
      */
     private void scanParameters(
         Class<?> declaringClass, Executable executable, String role, AnnotatedClass classInfo,
-        Orphans orphans, @Nullable Constructor<?> copied) {
+        Orphans orphans, @Nullable Executable copied) {
         Parameter[] parameters = executable.getParameters();
         for (int index = 0; index < parameters.length; index++) {
             if (!coverage.covers(executable, index) && !KotlinAnnotationPlacement.repeatsCopySource(parameters[index], copied, index)) {

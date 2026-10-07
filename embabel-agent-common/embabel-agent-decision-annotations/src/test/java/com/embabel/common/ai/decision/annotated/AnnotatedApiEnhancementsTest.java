@@ -36,10 +36,16 @@ import tools.jackson.databind.json.JsonMapper;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class AnnotatedApiEnhancementsTest {
+
+    private static final AnnotatedDecisions DEFAULTS = AnnotatedDecisions.defaults();
 
     private static final ModelProvenance PROVENANCE = new ModelProvenance("model", "provider");
 
@@ -104,7 +110,7 @@ class AnnotatedApiEnhancementsTest {
 
     @Test
     void classificationAccessorRejectsSeveralQuestionsClearly() {
-        var decision = AnnotatedDecisions.defaults().of(Mixed.class);
+        var decision = DEFAULTS.of(Mixed.class);
         var error = assertThrows(IllegalStateException.class, decision::classificationSpec);
         assertTrue(error.getMessage().contains("exactly one choice question"));
     }
@@ -118,7 +124,7 @@ class AnnotatedApiEnhancementsTest {
             new RatingResult.Answered(PROVENANCE, "high-v1"),
             new RatingResult.Inconclusive(PROVENANCE),
             new RatingResult.Failure(FailureReason.UNAVAILABLE))) {
-            var decision = AnnotatedDecisions.defaults().of(RichRating.class);
+            var decision = DEFAULTS.of(RichRating.class);
             var response = StubDecisionService.builder("stub").rating("impact-v1", outcome)
                 .build().ask("ticket", decision.spec());
             var projection = decision.project(response);
@@ -129,7 +135,7 @@ class AnnotatedApiEnhancementsTest {
 
     @Test
     void enumRatingStillRequiresAProviderSelection() {
-        var decision = AnnotatedDecisions.defaults().of(EnumRating.class);
+        var decision = DEFAULTS.of(EnumRating.class);
         var answered = StubDecisionService.builder("stub")
             .rating("impact-v1", new RatingResult.Answered(PROVENANCE, "high-v1"))
             .build().ask("ticket", decision.spec());
@@ -143,7 +149,7 @@ class AnnotatedApiEnhancementsTest {
 
     @Test
     void coercionFollowsTheSuppliedMapperAndDefaultPrimitiveNullsFail() {
-        var defaults = AnnotatedDecisions.defaults().of(Identity.class);
+        var defaults = DEFAULTS.of(Identity.class);
         var response = StubDecisionService.builder("stub").proposition("urgent", new PropositionResult.Answered(true, PROVENANCE))
             .build().ask("ticket", defaults.spec());
         assertEquals(new Identity(3, true, true), defaults.project(response,
@@ -156,10 +162,10 @@ class AnnotatedApiEnhancementsTest {
         var strict = AnnotatedDecisions.using(JsonMapper.builder()
             .disable(MapperFeature.ALLOW_COERCION_OF_SCALARS)
             .disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT).build()).of(Identity.class);
-        assertThrows(DecisionProjectionException.class, () -> strict.project(response,
-            Map.of("revision", "3", "reviewed", "true")));
-        assertThrows(DecisionProjectionException.class, () -> strict.project(response,
-            Map.of("revision", 3.0, "reviewed", true)));
+        var strings = Map.of("revision", "3", "reviewed", "true");
+        var floatingPoint = Map.of("revision", 3.0, "reviewed", true);
+        assertThrows(DecisionProjectionException.class, () -> strict.project(response, strings));
+        assertThrows(DecisionProjectionException.class, () -> strict.project(response, floatingPoint));
     }
 
     enum BlankDescription {
@@ -181,18 +187,34 @@ class AnnotatedApiEnhancementsTest {
     }
 
     @Test
+    void diagnosticDetailsSurviveExceptionSerialization() throws Exception {
+        var error = new AnnotatedDecisionException(Invalid.class,
+            List.of("Invalid.pick: has a blank description"), null);
+        var bytes = new ByteArrayOutputStream();
+        try (var output = new ObjectOutputStream(bytes)) {
+            output.writeObject(error);
+        }
+        try (var input = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
+            var restored = (AnnotatedDecisionException) input.readObject();
+            assertEquals(error.details(), restored.details());
+            assertEquals(error.problems(), restored.problems());
+        }
+    }
+
+    @Test
     void diagnosticsIdentifyTheTypeAndMemberForTooling() {
-        var error = assertThrows(AnnotatedDecisionException.class, () -> AnnotatedDecisions.defaults().of(Invalid.class));
+        var error = assertThrows(AnnotatedDecisionException.class, () -> DEFAULTS.of(Invalid.class));
         assertTrue(error.problems().getFirst().contains("blank @Described"));
         assertEquals(Invalid.class, error.details().getFirst().type());
         assertEquals("pick", error.details().getFirst().member());
         assertEquals(error.problems().getFirst(), error.details().getFirst().message());
-        assertThrows(UnsupportedOperationException.class, () -> error.details().clear());
+        var details = error.details();
+        assertThrows(UnsupportedOperationException.class, details::clear);
         var missing = assertThrows(AnnotatedDecisionException.class,
-            () -> AnnotatedDecisions.defaults().of(MissingLevels.class));
+            () -> DEFAULTS.of(MissingLevels.class));
         assertTrue(missing.getMessage().contains("levels"));
         var duplicate = assertThrows(AnnotatedDecisionException.class,
-            () -> AnnotatedDecisions.defaults().of(DuplicateChoices.class));
+            () -> DEFAULTS.of(DuplicateChoices.class));
         assertTrue(duplicate.getMessage().contains("same"));
     }
 
@@ -224,7 +246,7 @@ class AnnotatedApiEnhancementsTest {
     void invalidNamesScalesAndCategoryMetadataFailAtDeclaration() {
         for (Class<?> type : List.of(DuplicateNames.class, BlankName.class,
             InvalidScale.class, RedundantScale.class)) {
-            assertThrows(AnnotatedDecisionException.class, () -> AnnotatedDecisions.defaults().of(type));
+            assertThrows(AnnotatedDecisionException.class, () -> DEFAULTS.of(type));
         }
         assertTrue(assertThrows(AnnotatedDecisionException.class,
             () -> AnnotatedDecisions.classification(BlankCategory.class)).getMessage().contains("blank @Described"));
@@ -234,13 +256,14 @@ class AnnotatedApiEnhancementsTest {
 
     @Test
     void otherPropertiesCannotOverrideProviderNamesOrJacksonQuestionProperties() {
-        var decision = AnnotatedDecisions.defaults().of(Routing.class);
+        var decision = DEFAULTS.of(Routing.class);
         var response = StubDecisionService.builder("stub")
             .choice("route-v1", new ClassificationResult.Selected("billing-v1", PROVENANCE))
             .build().ask("ticket", decision.spec());
         for (String key : List.of("route-v1", "assignedTeam")) {
+            var otherProperties = Map.of("sourceId", "ticket-1", key, Team.TECHNICAL);
             assertThrows(DecisionProjectionException.class,
-                () -> decision.project(response, Map.of("sourceId", "ticket-1", key, Team.TECHNICAL)));
+                () -> decision.project(response, otherProperties));
         }
     }
 
@@ -251,7 +274,7 @@ class AnnotatedApiEnhancementsTest {
 
     @Test
     void providerNamesCanCoincideWithAnIdentityProperty() {
-        var decision = AnnotatedDecisions.defaults().of(OverlappingNames.class);
+        var decision = DEFAULTS.of(OverlappingNames.class);
         var response = StubDecisionService.builder("stub")
             .choice("sourceId", new ClassificationResult.Selected("billing-v1", PROVENANCE))
             .build().ask("ticket", decision.spec());

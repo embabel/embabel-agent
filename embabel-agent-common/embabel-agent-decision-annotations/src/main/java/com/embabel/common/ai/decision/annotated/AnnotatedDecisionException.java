@@ -18,6 +18,7 @@ package com.embabel.common.ai.decision.annotated;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Objects;
 
@@ -36,7 +37,7 @@ public class AnnotatedDecisionException extends IllegalArgumentException {
 
     /** A diagnostic's declaring type, member label (empty for a type problem), and rendered message. */
     @ApiStatus.Experimental
-    public record Problem(Class<?> type, String member, String message) {
+    public record Problem(Class<?> type, String member, String message) implements Serializable {
         public Problem {
             Objects.requireNonNull(type, "type");
             Objects.requireNonNull(member, "member");
@@ -87,8 +88,11 @@ public class AnnotatedDecisionException extends IllegalArgumentException {
         String member = "";
         if (colon >= 0) {
             String location = message.substring(0, colon);
-            member = location.startsWith(prefix) ? location.substring(prefix.length())
-                : location.equals(type.getSimpleName()) ? "" : location;
+            if (location.startsWith(prefix)) {
+                member = location.substring(prefix.length());
+            } else if (!location.equals(type.getSimpleName())) {
+                member = location;
+            }
         }
         return new Problem(type, member, message);
     }
