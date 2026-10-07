@@ -110,4 +110,38 @@ class OpenAiCompatibleModelFactoryByokIT {
                 .buildValidated()
         }
     }
+
+    /**
+     * The four tests below send a key that no provider issued to the real provider. They need
+     * network access and no API key. Each provider responds that it does not know the key, and
+     * [InvalidApiKeyException.statusCode] is the HTTP status code of that response: 401 from
+     * OpenAI, DeepSeek and Mistral, and 400 from Google.
+     */
+    private fun statusCodeFor(spec: OpenAiCompatibleModelFactory.ByokSpec): Int? =
+        assertThrows<InvalidApiKeyException> { spec.buildValidated() }.statusCode
+
+    @Test
+    fun `openAi responds 401 to a key it did not issue`() {
+        assertEquals(401, statusCodeFor(OpenAiCompatibleModelFactory.openAi(UNKNOWN_KEY)))
+    }
+
+    @Test
+    fun `deepSeek responds 401 to a key it did not issue`() {
+        assertEquals(401, statusCodeFor(OpenAiCompatibleModelFactory.deepSeek(UNKNOWN_KEY)))
+    }
+
+    @Test
+    fun `mistral responds 401 to a key it did not issue`() {
+        assertEquals(401, statusCodeFor(OpenAiCompatibleModelFactory.mistral(UNKNOWN_KEY)))
+    }
+
+    @Test
+    fun `gemini responds 400 to a key it did not issue`() {
+        assertEquals(400, statusCodeFor(OpenAiCompatibleModelFactory.gemini(UNKNOWN_KEY)))
+    }
+
+    private companion object {
+        /** Not a key any provider issued. */
+        const val UNKNOWN_KEY = "not-a-real-key"
+    }
 }

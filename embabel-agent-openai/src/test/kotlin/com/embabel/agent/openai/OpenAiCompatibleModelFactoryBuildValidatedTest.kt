@@ -185,40 +185,40 @@ class OpenAiCompatibleModelFactoryBuildValidatedTest {
     }
 
     /**
-     * A refusal that is not about the key. The provider recognised the key and declined for
-     * another reason; a caller racing several providers needs the status to tell this answer
-     * from the "not my key" every other provider gives.
+     * The provider knows the key and refuses the request because the account has no credit. The
+     * exception reports status code 402, and its cause is the SDK's exception.
      */
     @Test
-    fun `a refusal for another reason reports the provider's status and exception`() {
+    fun `a 402 response reports status code 402 and keeps the SDK exception as the cause`() {
         answerWith(402, """{"error":{"message":"Your prepayment credits are depleted.","status":"RESOURCE_EXHAUSTED"}}""")
 
         val e = assertThrows<InvalidApiKeyException> { validate() }
 
         assertEquals(402, e.statusCode)
-        assertNotNull(e.cause, "the provider's exception is the cause")
+        assertNotNull(e.cause, "the SDK's exception is the cause")
     }
 
     @Test
-    fun `a rejected key reports 401`() {
+    fun `a 401 response reports status code 401`() {
         answerWith(401, """{"error":{"message":"Invalid API key","type":"invalid_request_error"}}""")
 
         assertEquals(401, assertThrows<InvalidApiKeyException> { validate() }.statusCode)
     }
 
     @Test
-    fun `an address nothing answers at reports no status, and keeps the cause`() {
-        // A port that was bound and released, so nothing listens there and the connection is refused.
+    fun `a refused connection reports no status code and keeps the cause`() {
+        // Bind a free port and release it. Nothing listens on it afterwards, so the connection
+        // is refused and the provider sends no response.
         port = ServerSocket(0).use { it.localPort }
 
         val e = assertThrows<InvalidApiKeyException> { validate() }
 
-        assertNull(e.statusCode, "no answer means no status")
+        assertNull(e.statusCode, "there was no response, so there is no status code")
         assertNotNull(e.cause)
     }
 
     @Test
-    fun `a blank key reports no status`() {
+    fun `a blank key reports no status code`() {
         val e = assertThrows<InvalidApiKeyException> { OpenAiCompatibleModelFactory.openAi(" ").buildValidated() }
 
         assertNull(e.statusCode)

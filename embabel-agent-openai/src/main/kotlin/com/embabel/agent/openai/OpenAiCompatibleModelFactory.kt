@@ -563,6 +563,8 @@ open class OpenAiCompatibleModelFactory(
         try {
             probe.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())
         } catch (e: Exception) {
+            // The message is the text of the provider's exception. The exception itself is passed
+            // as the cause, and the HTTP status code of the response as the status code.
             throw InvalidApiKeyException(e.message ?: "Invalid API key", e, providerStatus(e))
         }
         return openAiCompatibleLlm(
@@ -574,8 +576,17 @@ open class OpenAiCompatibleModelFactory(
     }
 
     /**
-     * The HTTP status the provider answered with, or null when it did not answer. Read from the
-     * SDK's exception type, wherever it sits in the cause chain.
+     * Returns the HTTP status code of the response that caused [failure], or null if there was
+     * no response.
+     *
+     * The SDK throws [OpenAIServiceException] when the provider responds with an error status, and
+     * that exception holds the status code. It may be [failure] itself or one of its causes, so
+     * this looks at [failure], then its cause, then that cause's cause, and uses the first
+     * [OpenAIServiceException] it finds. The search stops at an exception that has no cause,
+     * or that is its own cause.
+     *
+     * It finds none when the request never got a response, for example when the connection was
+     * refused. The result is then null.
      */
     private fun providerStatus(failure: Throwable): Int? =
         generateSequence(failure) { it.cause?.takeIf { cause -> cause !== it } }

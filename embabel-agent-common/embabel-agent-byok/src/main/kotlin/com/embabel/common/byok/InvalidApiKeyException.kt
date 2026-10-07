@@ -23,10 +23,17 @@ package com.embabel.common.byok
  * A [cause] may carry the provider's own exception. It is there for diagnosis — a log line that
  * shows WHY a probe failed — and callers still catch this type alone.
  *
- * [statusCode] is the HTTP status the provider answered with, or null when it did not answer or
- * the key never reached it. It lets a caller tell a provider that does not recognise the key
- * (401) from one that recognised it and refused for another reason — no credit (402), no
- * permission (403), rate limited (429) — without reading the message.
+ * [statusCode] is the HTTP status code of the provider's response. It is null when the provider
+ * sent no response, for example when the connection was refused, and when the key was rejected
+ * before any request was made, as a blank key is.
+ *
+ * The status code shows why the provider refused the key, so a caller does not have to read the
+ * message to find out:
+ * - 401: the provider does not know the key. Google's OpenAI-compatible endpoint responds 400
+ *   in this case.
+ * - 402: the provider knows the key, and the account has no credit.
+ * - 403: the provider knows the key, and the key is not permitted to make the request.
+ * - 429: the provider knows the key, and the key is rate limited.
  */
 class InvalidApiKeyException(
     message: String,
@@ -34,6 +41,7 @@ class InvalidApiKeyException(
     val statusCode: Int?,
 ) : RuntimeException(message, cause) {
 
+    /** Creates the exception with no status code. Use this when the provider sent no response. */
     @JvmOverloads
     constructor(message: String, cause: Throwable? = null) : this(message, cause, null)
 }
