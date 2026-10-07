@@ -216,9 +216,7 @@ public class TypeSafeModelFactory implements ByokFactory<DecisionService> {
         } catch (TypeSafeException failure) {
             // The guarded transport has already removed credentials and response content.
             logger.warn("TypeSafe provider credential validation failed", failure);
-            var invalidKey = new InvalidApiKeyException(CREDENTIAL_VALIDATION_FAILURE);
-            invalidKey.initCause(failure);
-            throw invalidKey;
+            throw new InvalidApiKeyException(CREDENTIAL_VALIDATION_FAILURE, failure);
         } catch (RuntimeException failure) {
             // Application callbacks can contain credentials; log the type without wrapping.
             logger.warn(
