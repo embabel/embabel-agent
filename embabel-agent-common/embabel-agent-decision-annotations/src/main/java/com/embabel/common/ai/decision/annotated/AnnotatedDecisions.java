@@ -196,7 +196,7 @@ public final class AnnotatedDecisions {
     /**
      * Builds the category mapping for an enum type that {@link #readClassification} has already checked.
      * Taking the enum's type parameter here, rather than a raw {@code Class}, means the constant handed
-     * to {@link DecisionTypeParser#describedOf} is already an {@code Enum}, so no cast is needed.
+     * to {@link EnumEntries#describedOf} is already an {@code Enum}, so no cast is needed.
      *
      * @param enumType the enum type to build categories from
      * @param asking the instructions the model receives
