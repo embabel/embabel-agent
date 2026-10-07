@@ -89,6 +89,7 @@ include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/java/c
 
 Depend on a `ClassificationService` like any other constructor parameter.
 Pass one you registered as a bean, or select one by model name with `LlmDecisionServiceFactory.classificationService` (see <<reference.llm-decisions>>).
+Inside a workflow, select one through `Ai.classifications()` as shown in <<reference.decision-execution.classification-only>>.
 Call `classify(input, spec)` and switch over the four outcomes:
 
 [source,java]

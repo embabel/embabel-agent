@@ -18,9 +18,13 @@ package com.embabel.agent.config.models.typesafe
 import com.embabel.agent.typesafe.TypeSafeClientOptions
 import com.embabel.agent.typesafe.TypeSafeModelFactory
 import com.embabel.common.ai.decision.DecisionService
+import com.embabel.common.ai.model.DecisionServiceRegistry
 import io.micrometer.observation.ObservationRegistry
+import org.springframework.beans.factory.BeanFactory
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -34,7 +38,8 @@ import java.util.function.Supplier
  *
  * Extends [TypeSafeModelFactory] so native provider construction is shared with the BYOK path,
  * matching the Anthropic and OpenAI provider pattern. This class adds property resolution,
- * application transport selection and the default named decision-service bean.
+ * application transport selection, the default named decision-service bean, its default
+ * candidate and the named services configured under `services`.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(TypeSafeProperties::class)
@@ -58,17 +63,54 @@ class TypeSafeModelsConfig(
         logger.info("TypeSafe models are available: {}", properties)
     }
 
-    /** The configured default remains replaceable without suppressing other decision providers. */
-    @Bean("typeSafeDecisionService")
-    fun typeSafeDecisionService(): DecisionService = build()
+    /**
+     * Defines the default TypeSafe decision service and offers it as the decision and
+     * classification family default. An application bean named `typeSafeDecisionService` replaces
+     * both. The named services under `services` still register.
+     */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnMissingBean(name = [DEFAULT_SERVICE])
+    class DefaultServiceConfiguration {
+
+        /** Builds the default service from the configured model. */
+        @Bean(DEFAULT_SERVICE)
+        fun typeSafeDecisionService(factory: TypeSafeModelsConfig): DecisionService = factory.build()
+
+        /** Offers `typeSafeDecisionService` as the decision and classification family default. */
+        @Bean
+        fun typeSafeDefaultCandidate(): DecisionServiceRegistry.DefaultCandidate =
+            DecisionServiceRegistry.DefaultCandidate(DEFAULT_SERVICE)
+    }
 
     companion object {
+
+        /**
+         * Registers the services configured under `embabel.agent.platform.models.typesafe.services`.
+         * Static, so Spring creates it before ordinary beans and the service definitions exist before
+         * anything that injects them by name.
+         */
+        @JvmStatic
+        @Bean
+        fun typeSafeServicesRegistrar(
+            environment: Environment,
+            beanFactory: BeanFactory,
+        ): BeanDefinitionRegistryPostProcessor =
+            TypeSafeServicesRegistrar(TypeSafeServicesRegistrar.bind(environment), beanFactory)
+
+        /** Bean name of the default TypeSafe decision service. */
+        const val DEFAULT_SERVICE = "typeSafeDecisionService"
+
         private const val API_KEY_ENVIRONMENT_VARIABLE = "TYPESAFE_API_KEY"
         private const val AI_MODEL_REST_CLIENT_BUILDER = "aiModelRestClientBuilder"
 
         private val logger = org.slf4j.LoggerFactory.getLogger(TypeSafeModelsConfig::class.java)
 
-        /** Keep property conversion at the configuration edge and native options immutable. */
+        /**
+         * Builds the client options from configuration, keeping the default timeouts.
+         *
+         * @param properties the TypeSafe configuration properties
+         * @return the client options
+         */
         private fun options(properties: TypeSafeProperties): TypeSafeClientOptions {
             val defaults = TypeSafeClientOptions.defaults()
             return TypeSafeClientOptions(
@@ -79,14 +121,28 @@ class TypeSafeModelsConfig(
             )
         }
 
-        /** Translate parsing failures without retaining an endpoint that may contain credentials. */
+        /**
+         * Parses the base URL. The error leaves the URL out, since it may hold credentials.
+         *
+         * @param value the configured base URL
+         * @return the parsed URI
+         * @throws IllegalArgumentException if the URL is invalid
+         */
         private fun parseBaseUri(value: String): URI = try {
             URI.create(value)
         } catch (_: IllegalArgumentException) {
             throw IllegalArgumentException("TypeSafe base URL is invalid")
         }
 
-        /** Select and clone the same application transport hierarchy used by other providers. */
+        /**
+         * Picks the same REST client builder the other model providers use, and adds the observation
+         * registry to a copy of it when there is exactly one.
+         *
+         * @param platformBuilders the platform's model REST client builder
+         * @param builders any other REST client builders in the context
+         * @param registries the observation registries in the context
+         * @return the builder to use, or null to use the client's own
+         */
         private fun selectedBuilder(
             platformBuilders: ObjectProvider<RestClient.Builder>,
             builders: ObjectProvider<RestClient.Builder>,
@@ -97,7 +153,15 @@ class TypeSafeModelsConfig(
             return selected.clone().observationRegistry(registry)
         }
 
-        /** Resolve the environment key first and never include credential contents in failures. */
+        /**
+         * Reads the API key, preferring the environment variable over the configured property. The
+         * error never includes the key.
+         *
+         * @param properties the TypeSafe configuration properties
+         * @param environment the Spring environment
+         * @return the API key
+         * @throws IllegalStateException if neither source has a key
+         */
         private fun requireApiKey(properties: TypeSafeProperties, environment: Environment): String {
             val environmentKey = environment.getProperty(API_KEY_ENVIRONMENT_VARIABLE)
             return environmentKey.takeUnless { it.isNullOrBlank() }
