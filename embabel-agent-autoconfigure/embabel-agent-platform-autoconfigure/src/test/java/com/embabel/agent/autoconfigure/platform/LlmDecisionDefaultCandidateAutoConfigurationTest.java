@@ -250,7 +250,7 @@ class LlmDecisionDefaultCandidateAutoConfigurationTest {
                             .rootCause()
                             .isInstanceOf(IllegalStateException.class)
                             .hasMessageContaining(LlmDecisionDefaultCandidateRegistrar.PROPERTY)
-                            .hasMessageContaining("ModelProvider"));
+                            .hasMessageContaining("ModelProvider bean is missing or ambiguous"));
         }
     }
 
