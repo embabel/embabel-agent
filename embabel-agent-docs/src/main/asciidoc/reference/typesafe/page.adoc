@@ -59,12 +59,10 @@ embabel:
           model: jev-latest
 ----
 
-A nonblank environment value takes precedence over the property and is resolved for every
-request. Credential rotation therefore takes effect without rebuilding the service.
-When neither source supplies a credential and `base-url` points somewhere other than the TypeSafe
-cloud, the services call that server anonymously, with no `Authorization` header, and one INFO
-line says so. When neither source supplies a credential and `base-url` is the TypeSafe cloud,
-startup fails.
+A configured key is sent as a bearer credential: `TYPESAFE_API_KEY` when it is set and nonblank, `api-key` otherwise.
+The environment value takes precedence over the property and is resolved for every request, so credential rotation takes effect without rebuilding the service.
+With neither set, the services call the configured `base-url` with no `Authorization` header, and one INFO line says so.
+The URL plays no part in this rule.
 
 The complete property set under `embabel.agent.platform.models.typesafe` is:
 
@@ -104,10 +102,10 @@ Auto-configuration contributes the following beans:
 * One `DecisionService` bean for each entry under `services`, described below.
 
 An application bean named `typeSafeDecisionService` replaces the default service, and the
-auto-configuration then contributes no default candidate. Entries under `services` still register
-their named services, and they need the credential. With the application bean and no entries under
-`services`, the factory configuration does not run and no credential is required. Other decision
-providers and additional named TypeSafe services can coexist in the same context.
+auto-configuration then contributes no default candidate.
+Entries under `services` register their named services and follow the entry rule below.
+With the application bean and no entries under `services`, the factory configuration does not run.
+Other decision providers and additional named TypeSafe services can coexist in the same context.
 
 ===== Named services
 
@@ -134,12 +132,8 @@ An entry with only `model` shares the default factory, with its credential, base
 name and response limit.
 An entry with any other key gets a factory of its own, with its own client, credential and provider
 name, built from the same HTTP client builder and keeping the top-level response limit.
-An entry with its own `base-url` sends only its own `api-key`, and calls its server anonymously
-when it has none, so the shared credential never reaches another endpoint.
-Such an entry needs its own `api-key` when its `base-url` is the TypeSafe cloud, and startup fails
-without one.
-An entry without its own `base-url` uses its own `api-key` if it has one and the shared credential
-otherwise.
+An entry sends its own `api-key` when it sets one.
+Without one, an entry with no `base-url` shares the default credential, and an entry with its own `base-url` calls that server anonymously, so the shared credential never reaches another endpoint.
 The `typeSafeDecisionService` bean stays registered. A bean
 the application defines under an entry's key replaces that entry, and one INFO line names it.
 Startup fails when an entry has a blank value or an unknown key, and the error names the property.
@@ -147,14 +141,14 @@ Unknown keys are detected in configuration files and other property sources. Env
 and system properties are not checked for them.
 
 An application that supplies its own `TypeSafeModelFactory` bean also keeps it: auto-configuration
-then creates no factory, no default service, and needs no API key. Named services come from the
+then creates no factory and no default service. Named services come from the
 auto-configured factory, so a configured `services` entry is not registered when the application
 builds its own factory instead.
 
 ===== Compatible self-hosted servers
 
 A server that speaks the TypeSafe protocol without checking authorization, such as a self-hosted
-Jev, can sit beside the TypeSafe cloud as a named service:
+Jev, can sit beside the default service as a named service:
 
 [source,yaml]
 ----
@@ -167,13 +161,12 @@ embabel:
             local:
               model: jev-latest
               base-url: http://127.0.0.1:8000
-              provider: decider
+              provider: self-hosted
 ----
 
 The `local` entry has its own `base-url` and no `api-key`, so it calls the local server with no
-credential, and its services and answers report the provider `decider`.
-The top-level properties still configure `typeSafeDecisionService`, so while the top-level
-`base-url` is the TypeSafe cloud, startup still needs `TYPESAFE_API_KEY` or `api-key`.
+credential, and its services and answers report the provider `self-hosted`.
+The top-level properties configure `typeSafeDecisionService` independently of the entry.
 In plain Java, pass `TypeSafeCredential.none()` to a `TypeSafeModelFactory` constructor for the same
 anonymous calls.
 

@@ -148,12 +148,14 @@ These are the retry settings and the family default switch:
 |Longest wait between retries, in milliseconds
 
 |`default-candidate`
-|`true`
-|Whether the platform offers a prompted service over the default LLM as the family default when no other decision service is registered
+|`false`
+|Offers a prompted service over the default LLM as the family default when set to `true` and no other decision service is registered
 |===
 
-With `default-candidate` left at `true`, a context with no decision or classification service and no default candidate gets a prompted service named `llmDefaultDecisionService` over the default LLM, offered as the default of both families through a candidate bean named `llmDefaultDecisionCandidate`.
-Any configured service, application service bean or other default candidate leaves the context as it was, and setting `default-candidate` to `false` turns the fallback off.
+With `default-candidate` set to `true`, a context with no decision or classification service and no default candidate gets a prompted service named `llmDefaultDecisionService` over the default LLM, offered as the default of both families through a candidate bean named `llmDefaultDecisionCandidate`.
+Any configured service, application service bean or other default candidate leaves the context as it was.
+With `default-candidate` unset or `false`, the platform registers no prompted default.
+The check reads declared bean types, so a service defined by a `FactoryBean` or by an `Object`-typed `@Bean` method is not seen; leave `default-candidate` unset in that case.
 <<reference.decision-execution>> describes how the family default resolves.
 
 Each entry under `services` registers one `DecisionService` bean, and the entry's key is the bean name.
