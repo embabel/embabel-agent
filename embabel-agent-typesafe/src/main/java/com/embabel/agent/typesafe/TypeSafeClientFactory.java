@@ -102,10 +102,46 @@ final class TypeSafeClientFactory {
             Supplier<String> keySupplier,
             RestClient.@Nullable Builder builder,
             ObservationRegistry registry) {
+        this(
+                options,
+                TypeSafeCredential.of(Objects.requireNonNull(keySupplier, "keySupplier")),
+                builder,
+                registry);
+    }
+
+    /**
+     * Uses an explicit credential mode with an application transport and no observation handlers.
+     *
+     * @param options non-secret provider settings
+     * @param credential keyed credential, or {@link TypeSafeCredential#none()} for no header
+     * @param builder application builder to clone, or null for the fallback transport
+     */
+    TypeSafeClientFactory(
+            TypeSafeClientOptions options,
+            TypeSafeCredential credential,
+            RestClient.@Nullable Builder builder) {
+        this(options, credential, builder, ObservationRegistry.NOOP);
+    }
+
+    /**
+     * Configures the shared guarded API for an explicit credential mode. Anonymous mode keeps the
+     * same transport, decoding limits and sanitized failures, and only drops the auth header.
+     *
+     * @param options non-secret provider settings
+     * @param credential keyed credential, or {@link TypeSafeCredential#none()} for no header
+     * @param builder application builder to clone, or null for the fallback transport
+     * @param registry registry for logical observations and fallback HTTP observations
+     * @throws NullPointerException if options, credential or registry is null
+     */
+    TypeSafeClientFactory(
+            TypeSafeClientOptions options,
+            TypeSafeCredential credential,
+            RestClient.@Nullable Builder builder,
+            ObservationRegistry registry) {
         Objects.requireNonNull(options, "options");
-        Objects.requireNonNull(keySupplier, "keySupplier");
+        Objects.requireNonNull(credential, "credential");
         Objects.requireNonNull(registry, "registry");
-        this.api = new GuardedTypeSafeApi(options, keySupplier, builder, registry);
+        this.api = GuardedTypeSafeApi.create(options, credential, builder, registry);
     }
 
     /**

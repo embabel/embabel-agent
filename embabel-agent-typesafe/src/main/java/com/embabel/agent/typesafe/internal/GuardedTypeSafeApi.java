@@ -16,6 +16,7 @@
 package com.embabel.agent.typesafe.internal;
 
 import com.embabel.agent.typesafe.TypeSafeClientOptions;
+import com.embabel.agent.typesafe.TypeSafeCredential;
 
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
@@ -35,6 +36,7 @@ import org.springaicommunity.typesafe.response.SystemOneResponse;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -100,6 +102,51 @@ public final class GuardedTypeSafeApi extends TypeSafeApi {
                 configure(options, builder, registry),
                 new SafeErrors());
         this.registry = registry;
+    }
+
+    /** Wraps a client that already carries everything it needs, including any auth it sends. */
+    private GuardedTypeSafeApi(RestClient client, ObservationRegistry registry) {
+        super(SYSTEM_ONE_PATH, MODELS_PATH, client);
+        this.registry = registry;
+    }
+
+    /**
+     * Builds the guarded API for either a keyed or an anonymous credential. Both paths get the
+     * same decoding, response limits and sanitized error handling; only the anonymous one leaves
+     * out the {@code Authorization} header.
+     *
+     * @param options non-secret provider settings
+     * @param credential how to authenticate, or {@link TypeSafeCredential#none()} for no header
+     * @param builder application builder to clone, or null for the fallback transport
+     * @param registry registry for logical observations and fallback HTTP observations
+     * @return the guarded API
+     */
+    public static GuardedTypeSafeApi create(
+            TypeSafeClientOptions options,
+            TypeSafeCredential credential,
+            RestClient.@Nullable Builder builder,
+            ObservationRegistry registry) {
+        if (credential.isAnonymous()) {
+            return new GuardedTypeSafeApi(anonymousClient(options, builder, registry), registry);
+        }
+        return new GuardedTypeSafeApi(options, credential::resolve, builder, registry);
+    }
+
+    /**
+     * The SDK's no-credential constructor installs nothing on the client it is given, so this
+     * adds back what the keyed constructor would: base URL, JSON headers and the safe error
+     * handler. Leaving any of those out would let raw error bodies or wrong content types through.
+     */
+    private static RestClient anonymousClient(
+            TypeSafeClientOptions options,
+            RestClient.@Nullable Builder builder,
+            ObservationRegistry registry) {
+        return configure(options, builder, registry)
+                .baseUrl(options.baseUri().toString())
+                .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+                .defaultStatusHandler(new SafeErrors())
+                .build();
     }
 
     /**

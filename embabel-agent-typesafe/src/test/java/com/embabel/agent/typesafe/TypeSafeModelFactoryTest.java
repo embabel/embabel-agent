@@ -18,6 +18,7 @@ package com.embabel.agent.typesafe;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.headerDoesNotExist;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
@@ -42,9 +43,11 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.util.List;
 import java.util.concurrent.CancellationException;
 
 class TypeSafeModelFactoryTest {
@@ -360,6 +363,77 @@ class TypeSafeModelFactoryTest {
         assertThat(service.assess(request))
                 .isEqualTo(new PropositionResult.Failure(FailureReason.INVALID_RESPONSE));
         fixture.server().verify();
+    }
+
+    @Test
+    void anonymousFactoryValidatesByListingModelsWithoutACredential() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo(MODELS_URI))
+                .andExpect(headerDoesNotExist("Authorization"))
+                .andRespond(
+                        withSuccess(
+                                """
+                                {"models":[{"name":"jev-latest"}]}
+                                """,
+                                MediaType.APPLICATION_JSON));
+        var factory =
+                new TypeSafeModelFactory(
+                        TypeSafeClientOptions.defaults(),
+                        TypeSafeCredential.none(),
+                        builder,
+                        io.micrometer.observation.ObservationRegistry.NOOP);
+
+        assertThat(factory.buildValidated().getName())
+                .isEqualTo(TypeSafeModelFactory.DEFAULT_MODEL);
+        server.verify();
+    }
+
+    @Test
+    void supplierConstructorsStillRequireAUsableKey() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(ExpectedCount.never(), requestTo(MODELS_URI));
+        var factory =
+                new TypeSafeModelFactory(
+                        TypeSafeClientOptions.defaults(),
+                        () -> "",
+                        builder,
+                        io.micrometer.observation.ObservationRegistry.NOOP);
+
+        assertThatThrownBy(factory::buildValidated)
+                .isInstanceOf(InvalidApiKeyException.class)
+                .hasMessage("TypeSafe credential could not be validated")
+                .hasNoCause();
+        server.verify();
+    }
+
+    @Test
+    void initializationLogReportsCredentialMode() {
+        var logger = (Logger) LoggerFactory.getLogger(TypeSafeModelFactory.class);
+        var oldLevel = logger.getLevel();
+        var appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        logger.setLevel(Level.INFO);
+        try {
+            new TypeSafeModelFactory(TypeSafeClientOptions.defaults(), TypeSafeCredential.none());
+            new TypeSafeModelFactory(() -> "PRIVATE_KEY");
+
+            List<String> lines =
+                    appender.list.stream()
+                            .filter(event -> event.getLevel() == Level.INFO)
+                            .map(ILoggingEvent::getFormattedMessage)
+                            .filter(line -> line.startsWith("TypeSafe model factory initialized"))
+                            .toList();
+            assertThat(lines).hasSize(2);
+            assertThat(lines.get(0)).endsWith("credential=anonymous");
+            assertThat(lines.get(1)).endsWith("credential=keyed").doesNotContain("PRIVATE");
+        } finally {
+            logger.detachAppender(appender);
+            logger.setLevel(oldLevel);
+            appender.stop();
+        }
     }
 
     private static Fixture fixture() {
