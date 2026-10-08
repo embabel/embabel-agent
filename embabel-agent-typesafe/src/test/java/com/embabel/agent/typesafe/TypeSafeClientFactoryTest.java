@@ -172,7 +172,8 @@ class TypeSafeClientFactoryTest {
                     new TypeSafeClientFactory(
                                     localOptions(), TypeSafeCredential.of(() -> key), builder)
                             .build();
-            assertThatThrownBy(() -> client.systemOne("state", Map.of("ok", Noul.of("ok?"))))
+            var questions = Map.of("ok", Noul.of("ok?"));
+            assertThatThrownBy(() -> client.systemOne("state", questions))
                     .isInstanceOf(TypeSafeException.class)
                     .hasMessage("TypeSafe request or response invalid");
             server.verify();
@@ -203,16 +204,17 @@ class TypeSafeClientFactoryTest {
     @Test
     void credentialDescriptionsNeverContainTheKey() {
         var keyed = TypeSafeCredential.of(() -> "PRIVATE_KEY");
-        assertThat(keyed.toString()).isEqualTo("TypeSafeCredential[keyed]");
+        assertThat(keyed).hasToString("TypeSafeCredential[keyed]");
         assertThat(keyed.isAnonymous()).isFalse();
         assertThat(keyed.resolve()).isEqualTo("PRIVATE_KEY");
         var anonymous = TypeSafeCredential.none();
-        assertThat(anonymous.toString()).isEqualTo("TypeSafeCredential[anonymous]");
+        assertThat(anonymous).hasToString("TypeSafeCredential[anonymous]");
         assertThat(anonymous.isAnonymous()).isTrue();
         assertThatThrownBy(anonymous::resolve)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("TypeSafe credential is anonymous");
-        assertThatThrownBy(() -> TypeSafeCredential.of(() -> "bad\nkey").resolve())
+        var controlCharacters = TypeSafeCredential.of(() -> "bad\nkey");
+        assertThatThrownBy(controlCharacters::resolve)
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("TypeSafe credential unavailable");
     }

@@ -371,11 +371,12 @@ class TypeSafeModelFactoryTest {
 
     @Test
     void blankProviderNameIsRejectedAtConstruction() {
+        var options = TypeSafeClientOptions.defaults();
         for (var blank : new String[] {"", "   ", "\t\n"}) {
             assertThatThrownBy(
                             () ->
                                     new TypeSafeModelFactory(
-                                            TypeSafeClientOptions.defaults(),
+                                            options,
                                             TypeSafeCredential.none(),
                                             null,
                                             io.micrometer.observation.ObservationRegistry.NOOP,
@@ -387,7 +388,7 @@ class TypeSafeModelFactoryTest {
         assertThatThrownBy(
                         () ->
                                 new TypeSafeModelFactory(
-                                        TypeSafeClientOptions.defaults(),
+                                        options,
                                         TypeSafeCredential.none(),
                                         null,
                                         io.micrometer.observation.ObservationRegistry.NOOP,

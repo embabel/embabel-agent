@@ -56,6 +56,9 @@ import org.springframework.context.annotation.Bean;
         matchIfMissing = false)
 public class LlmDecisionDefaultCandidateAutoConfiguration {
 
+    private LlmDecisionDefaultCandidateAutoConfiguration() {
+    }
+
     /**
      * Static, so Spring creates it before any ordinary bean, and registered after the configured
      * service registrars so it can see what they define.
