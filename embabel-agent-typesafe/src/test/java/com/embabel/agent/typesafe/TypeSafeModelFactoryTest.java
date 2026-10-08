@@ -278,6 +278,90 @@ class TypeSafeModelFactoryTest {
     }
 
     @Test
+    void providerNameIsReportedInMetadataAndProvenance() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo(SYSTEM_ONE_URI))
+                .andExpect(headerDoesNotExist("Authorization"))
+                .andRespond(
+                        withSuccess(
+                                        """
+                                        {"model":"jev-local","answers":{"classification":{"type":"choice","choice":"dog","probabilities":{"dog":0.9,"cat":0.1},"confidence":0.8}}}
+                                        """,
+                                        MediaType.APPLICATION_JSON)
+                                .header("x-typesafe-request-id", "request-23"));
+        var factory =
+                new TypeSafeModelFactory(
+                        TypeSafeClientOptions.defaults(),
+                        TypeSafeCredential.none(),
+                        builder,
+                        io.micrometer.observation.ObservationRegistry.NOOP,
+                        TypeSafeModelFactory.DEFAULT_MODEL,
+                        "decider");
+
+        var service = factory.build();
+
+        assertThat(factory.getProviderName()).isEqualTo("decider");
+        assertThat(service.getProvider()).isEqualTo("decider");
+        assertThat(service.classify(CLASSIFICATION_REQUEST))
+                .isInstanceOfSatisfying(
+                        ClassificationResult.Selected.class,
+                        selected -> {
+                            assertThat(selected.getProvenance().getProvider())
+                                    .isEqualTo("decider");
+                            assertThat(selected.getProvenance().getModelName())
+                                    .isEqualTo("jev-local");
+                            assertThat(selected.getProvenance().getRequestId())
+                                    .isEqualTo("request-23");
+                        });
+        server.verify();
+    }
+
+    @Test
+    void defaultProviderNameIsTypeSafe() {
+        var factory =
+                new TypeSafeModelFactory(
+                        TypeSafeClientOptions.defaults(),
+                        TypeSafeCredential.none(),
+                        null,
+                        io.micrometer.observation.ObservationRegistry.NOOP,
+                        TypeSafeModelFactory.DEFAULT_MODEL);
+
+        assertThat(factory.getProviderName()).isEqualTo("TypeSafe");
+        assertThat(factory.build().getProvider()).isEqualTo("TypeSafe");
+        assertThat(new TypeSafeModelFactory(() -> "test-key").build("jev-one").getProvider())
+                .isEqualTo("TypeSafe");
+    }
+
+    @Test
+    void blankProviderNameIsRejectedAtConstruction() {
+        for (var blank : new String[] {"", "   ", "\t\n"}) {
+            assertThatThrownBy(
+                            () ->
+                                    new TypeSafeModelFactory(
+                                            TypeSafeClientOptions.defaults(),
+                                            TypeSafeCredential.none(),
+                                            null,
+                                            io.micrometer.observation.ObservationRegistry.NOOP,
+                                            TypeSafeModelFactory.DEFAULT_MODEL,
+                                            blank))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("TypeSafe provider name must not be blank");
+        }
+        assertThatThrownBy(
+                        () ->
+                                new TypeSafeModelFactory(
+                                        TypeSafeClientOptions.defaults(),
+                                        TypeSafeCredential.none(),
+                                        null,
+                                        io.micrometer.observation.ObservationRegistry.NOOP,
+                                        TypeSafeModelFactory.DEFAULT_MODEL,
+                                        null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("providerName");
+    }
+
+    @Test
     void flatChoiceIsInconclusiveRatherThanAnArbitrarySelection() {
         var fixture = fixture();
         fixture.server()
