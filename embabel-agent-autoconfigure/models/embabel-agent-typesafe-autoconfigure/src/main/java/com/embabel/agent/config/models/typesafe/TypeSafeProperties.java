@@ -28,18 +28,22 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *
  * @param apiKey API credential used when {@code TYPESAFE_API_KEY} is absent or blank; excluded from
  *     {@link #toString()}. The environment key is resolved for each request.
- * @param baseUrl provider endpoint; defaults to {@code https://api.typesafe.ai}. Endpoint
- *     validation belongs to the HTTP client.
+ * @param baseUrl provider endpoint; defaults to {@code https://api.typesafe.ai}. The TypeSafe cloud
+ *     needs a credential; any other endpoint without one is called with no credential at all.
+ *     Endpoint validation belongs to the HTTP client.
  * @param model default model for requests without an explicit model; defaults to {@code jev-latest}
  *     and must be nonblank
  * @param maxResponseBytes positive maximum response body size in bytes; defaults to 1 MiB
+ * @param provider the provider name the services and their answers report; defaults to {@code
+ *     TypeSafe} and must be nonblank
  */
 @ConfigurationProperties(TypeSafeProperties.PREFIX)
 public record TypeSafeProperties(
         String apiKey,
         @DefaultValue("https://api.typesafe.ai") String baseUrl,
         @DefaultValue(TypeSafeModelFactory.DEFAULT_MODEL) String model,
-        @DefaultValue("1048576") int maxResponseBytes) {
+        @DefaultValue("1048576") int maxResponseBytes,
+        @DefaultValue(TypeSafeModelFactory.PROVIDER) String provider) {
 
     /** Spring property namespace for TypeSafe decision services. */
     public static final String PREFIX = "embabel.agent.platform.models.typesafe";
@@ -51,7 +55,7 @@ public record TypeSafeProperties(
      */
     @Override
     public String toString() {
-        return "TypeSafeProperties[apiKey=[REDACTED], baseUrl=[CONFIGURED], model=[CONFIGURED], maxResponseBytes=%d]"
-                .formatted(maxResponseBytes);
+        return "TypeSafeProperties[apiKey=[REDACTED], baseUrl=[CONFIGURED], model=[CONFIGURED], maxResponseBytes=%d, provider=%s]"
+                .formatted(maxResponseBytes, provider);
     }
 }

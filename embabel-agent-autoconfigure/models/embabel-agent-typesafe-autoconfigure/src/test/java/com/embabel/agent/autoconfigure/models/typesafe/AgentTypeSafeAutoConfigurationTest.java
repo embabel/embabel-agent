@@ -20,6 +20,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.headerDoesNotExist;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -70,6 +71,74 @@ class AgentTypeSafeAutoConfigurationTest {
                     assertThat(context.getStartupFailure())
                             .hasRootCauseMessage("TypeSafe API key is required");
                 });
+    }
+
+    @Test
+    void customEndpointBootsWithoutACredential() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://127.0.0.1:1/v1/systemone"))
+                .andExpect(headerDoesNotExist("Authorization"))
+                .andRespond(withSuccess(RESPONSE, MediaType.APPLICATION_JSON));
+
+        runner.withPropertyValues(PREFIX + "base-url=http://127.0.0.1:1")
+                .withBean(RestClient.Builder.class, () -> builder)
+                .run(
+                        context -> {
+                            assertThat(context).hasNotFailed();
+                            assertThat(context).hasBean("typeSafeDecisionService");
+                            assertAnswered(
+                                    context.getBean("typeSafeDecisionService", DecisionService.class)
+                                            .assess(REQUEST));
+                        });
+        server.verify();
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "https://api.typesafe.ai/",
+                "HTTPS://API.TYPESAFE.AI",
+                "HTTPS://API.TYPESAFE.AI/",
+                "https://api.typesafe.ai:443"
+            })
+    void cloudEndpointWithTrailingSlashStillRequiresACredential(String baseUrl) {
+        runner.withPropertyValues(PREFIX + "base-url=" + baseUrl)
+                .run(
+                        context -> {
+                            assertThat(context).hasFailed();
+                            assertThat(context.getStartupFailure())
+                                    .hasRootCauseMessage("TypeSafe API key is required");
+                        });
+    }
+
+    @Test
+    void providerNameIsReported() {
+        configured()
+                .withPropertyValues(PREFIX + "provider=decider")
+                .run(
+                        context -> {
+                            assertThat(context).hasNotFailed();
+                            assertThat(
+                                            context.getBean(
+                                                            "typeSafeDecisionService",
+                                                            DecisionService.class)
+                                                    .getProvider())
+                                    .isEqualTo("decider");
+                        });
+    }
+
+    @Test
+    void blankProviderNameFailsStartup() {
+        configured()
+                .withPropertyValues(PREFIX + "provider= ")
+                .run(
+                        context -> {
+                            assertThat(context).hasFailed();
+                            assertThat(context.getStartupFailure())
+                                    .hasRootCauseMessage(
+                                            TypeSafeProperties.PREFIX + ".provider must not be blank");
+                        });
     }
 
     @Test
@@ -261,7 +330,8 @@ class AgentTypeSafeAutoConfigurationTest {
                         "test-key",
                         "https://user:proxy-secret@example.test/gateway?token=query-secret",
                         "model\nforged-log-record",
-                        1024);
+                        1024,
+                        "decider");
 
         assertThat(properties.toString())
                 .doesNotContain(
@@ -269,7 +339,8 @@ class AgentTypeSafeAutoConfigurationTest {
                         "proxy-secret",
                         "query-secret",
                         "gateway",
-                        "forged-log-record");
+                        "forged-log-record")
+                .contains("provider=decider");
     }
 
     @Test

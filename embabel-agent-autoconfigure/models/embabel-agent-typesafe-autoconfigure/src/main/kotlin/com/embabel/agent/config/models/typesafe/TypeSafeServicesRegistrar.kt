@@ -48,14 +48,20 @@ import org.springframework.util.ClassUtils
  *               model: jev-latest
  *             jev-fast:
  *               model: jev-fast
+ *             local:
+ *               model: decider-2b
+ *               base-url: http://localhost:8080
+ *               provider: decider
  * ```
  *
- * Every service shares the credential, base URL and response limit of [TypeSafeProperties] and is
- * built by the [TypeSafeModelsConfig] bean. A decision or classification service bean the
+ * A service that only names a model shares the credential, base URL, provider name and response
+ * limit of [TypeSafeProperties]. One that sets its own `base-url`, `api-key` or `provider` gets a
+ * factory of its own; with its own `base-url` it sends only its own `api-key`, never the shared
+ * one. [TypeSafeModelsConfig] builds both kinds. A decision or classification service bean the
  * application defines under an entry's key replaces that entry. Startup fails when the key names a
  * bean of another type, or an entry under `embabel.agent.platform.decisions.llm.services` with the
  * same key. The error names both and asks for one key to be renamed. Startup also fails when an
- * entry has a blank model or a key this class does not know. The error names the property. Unknown keys are detected in configuration files and other
+ * entry has a blank value or a key this class does not know. The error names the property. Unknown keys are detected in configuration files and other
  * property sources, and not in environment variables or system properties.
  */
 internal class TypeSafeServicesRegistrar(
@@ -67,11 +73,18 @@ internal class TypeSafeServicesRegistrar(
      * One configured TypeSafe service.
      *
      * @property model the model identifier or alias the service calls
+     * @property baseUrl the endpoint this service calls instead of the shared one
+     * @property apiKey the key this service sends instead of the shared one
+     * @property provider the provider name this service reports instead of the shared one
      */
     class ServiceProperties {
         var model: String? = null
+        var baseUrl: String? = null
+        var apiKey: String? = null
+        var provider: String? = null
 
-        override fun toString(): String = "ServiceProperties(model=$model)"
+        override fun toString(): String =
+            "ServiceProperties(model=$model, baseUrl=[CONFIGURED], apiKey=[REDACTED], provider=$provider)"
     }
 
     // The prompted-service registrar can run before or after this one. Each marks its definitions
@@ -148,10 +161,9 @@ internal class TypeSafeServicesRegistrar(
      * @throws IllegalStateException if the service has no model configured
      */
     private fun definition(key: String, service: ServiceProperties): BeanDefinition {
-        val model = service.model?.takeIf { it.isNotBlank() }
-            ?: throw IllegalStateException("$PREFIX.$key.model must name a TypeSafe model")
+        check(!service.model.isNullOrBlank()) { "$PREFIX.$key.model must name a TypeSafe model" }
         return BeanDefinitionBuilder.genericBeanDefinition(DecisionService::class.java) {
-            beanFactory.getBean(TypeSafeModelsConfig::class.java).build(model)
+            beanFactory.getBean(TypeSafeModelsConfig::class.java).build(key, service)
         }.setLazyInit(false).beanDefinition
     }
 
