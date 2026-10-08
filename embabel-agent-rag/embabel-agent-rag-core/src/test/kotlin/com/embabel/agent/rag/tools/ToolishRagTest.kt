@@ -1754,4 +1754,37 @@ class ToolishRagTest {
             )
         }
     }
+
+    @Nested
+    inner class ToolNaming {
+
+        private val mockVectorSearch = mockk<VectorSearch>(relaxed = true)
+
+        @Test
+        fun `tools returns prefixed names - backward compatibility`() {
+            val rag = ToolishRag("docs", "Documentation", mockVectorSearch)
+
+            val names = rag.tools().map { it.definition.name }
+
+            assertTrue(names.isNotEmpty())
+            assertTrue(names.all { it.startsWith("docs_") }, "tools() must return prefixed names; got: $names")
+        }
+
+        @Test
+        fun `unprefixedTools returns unprefixed names`() {
+            val rag = ToolishRag("docs", "Documentation", mockVectorSearch)
+
+            val names = rag.unprefixedTools().map { it.definition.name }
+
+            assertTrue(names.isNotEmpty())
+            assertFalse(names.any { it.startsWith("docs_") }, "unprefixedTools() must return unprefixed names; got: $names")
+        }
+
+        @Test
+        fun `unprefixedTools and tools expose the same tools under different names`() {
+            val rag = ToolishRag("docs", "Documentation", mockVectorSearch)
+
+            assertEquals(rag.tools().size, rag.unprefixedTools().size)
+        }
+    }
 }

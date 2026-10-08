@@ -24,6 +24,58 @@ So that tool naming can be disambiguated, an `LlmReference` must also include na
 
 Add `LlmReference` instances to a `PromptRunner` using the `withReference()` method.
 
+=== Tool naming
+
+`withReference()` prefixes each tool name with the reference's `toolPrefix()` (the reference name,
+lowercased with non-alphanumeric characters replaced by underscores) and registers every tool
+exactly once.
+
+A reference named `"docs"` with a tool named `"vectorSearch"` is exposed to the model as
+`docs_vectorSearch`.
+
+To implement your own `LlmReference`, override `unprefixedTools()` to return tools with **unprefixed** names.
+`withReference()` calls `unprefixedTools()` and applies the naming strategy to every tool name it returns.
+
+The default `unprefixedTools()` falls through to `tools()`.
+If your `tools()` already returns prefixed names (e.g. `"docs_vectorSearch"`) and you do not
+override `unprefixedTools()`, the naming strategy is applied a second time, turning
+`"docs_vectorSearch"` into `"docs_docs_vectorSearch"`.
+Override `unprefixedTools()` to return the bare names (`"vectorSearch"`) so the prefix is added exactly once.
+
+==== Unfolding references and IDENTITY naming
+
+Calling `withUnfolding()` on an `LlmReference` wraps all its inner tools in a single placeholder
+tool named after the reference prefix (e.g. `"docs"`).
+The model only sees this one tool up front.
+When it calls `docs({})`, the framework responds with the inner tool names and injects them into
+the conversation — a two-step reveal:
+
+----
+Tool catalog visible to the model:
+  docs   "Documentation search"
+
+Step 1 — model calls:
+  docs({})
+
+Step 1 result:
+  "Tools now available: docs_vectorSearch, docs_textSearch.
+   You MUST call one of these tools to complete the user's request."
+
+Step 2 — model calls:
+  docs_vectorSearch({"query": "spring boot config"})
+----
+
+This reduces catalog noise when you have several references: the model picks the right one first,
+then gets the specific tools it needs.
+
+Because the `UnfoldingTool` placeholder is already named `"docs"` (the prefix), applying the
+default naming strategy on top would produce `"docs_docs"`.
+`withUnfolding()` therefore overrides `namingStrategy` to `StringTransformer.IDENTITY`,
+which tells `withReference()` to leave the name unchanged.
+
+NOTE: Any `LlmReference` whose `unprefixedTools()` already returns tools with their final names
+should override `namingStrategy` to return `StringTransformer.IDENTITY`.
+
 Use `LlmReference` if:
 
 - You want to provide both prompt content and tools from the same object

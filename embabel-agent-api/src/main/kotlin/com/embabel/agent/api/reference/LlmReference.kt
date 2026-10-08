@@ -114,6 +114,19 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
     }
 
     /**
+     * Return tools with unprefixed names. [PromptRunner.withReference] calls this and
+     * applies [namingStrategy] to the result, so each tool gets its prefix exactly once.
+     *
+     * Override this (rather than [tools]) in new implementations. The default bridges
+     * to [tools], so existing implementations that return unprefixed names from [tools]
+     * work without change. Implementations whose [tools] already returns prefixed names
+     * (for backward compatibility) should override this to return the unprefixed variants.
+     *
+     * @see tools for the legacy method that may return pre-prefixed names
+     */
+    fun unprefixedTools(): List<Tool> = tools()
+
+    /**
      * Convert this reference to a reference exposing a single unfolding tool.
      * Does not rewrap an unfolding reference. Thus
      * repeated calls to this method are safe.
@@ -239,6 +252,12 @@ private class UnfoldingReference(
     override val description: String get() = delegate.description
 
     override fun toolPrefix(): String = delegate.toolPrefix()
+
+    // tools() wraps all inner tools in one UnfoldingTool named after the prefix (e.g. "docs").
+    // unprefixedTools() inherits the interface default and returns that same single UnfoldingTool.
+    // withReference() applies namingStrategy to its name; IDENTITY keeps "docs" as-is.
+    // The default strategy would produce "docs_docs" — IDENTITY prevents that.
+    override val namingStrategy: StringTransformer get() = StringTransformer.IDENTITY
 
     override fun notes(): String = delegate.notes()
 

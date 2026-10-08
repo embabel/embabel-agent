@@ -327,13 +327,20 @@ data class ToolishRag @JvmOverloads constructor(
     // [TextSearch.luceneSyntaxNotes]) or they may be classes carrying `@LlmTool`-annotated
     // methods (most other SearchTools). Handle both — `Tool.fromInstance` would throw
     // "no @LlmTool methods" on the Tool branch.
-    override fun tools(): List<Tool> = toolObjects
+
+    // unprefixedTools() returns unprefixed names. PromptRunner.withReference() calls this and
+    // applies namingStrategy itself, so the prefix is added exactly once.
+    override fun unprefixedTools(): List<Tool> = toolObjects
         .flatMap { instance ->
             when (instance) {
                 is Tool -> listOf(instance)
                 else -> Tool.fromInstance(instance)
             }
         }
+
+    // tools() preserves the historical behaviour of returning prefixed names.
+    // Direct callers that rely on rag.tools() returning "docs_vectorSearch" continue to work.
+    override fun tools(): List<Tool> = unprefixedTools()
         .map { tool -> tool.withName(namingStrategy.transform(tool.definition.name)) }
 
     // Tool interface implementation via lazy UnfoldingTool
