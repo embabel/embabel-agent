@@ -66,10 +66,78 @@ class StreamingToolLoopTest {
             .execute(listOf(UserMessage("question")), listOf(lookup))
 
         StepVerifier.create(result)
-            .expectNext("<think>checking</think>", "final")
+            .expectNext("<think>checking</think>", "\n", "final")
             .verifyComplete()
         assertEquals(2, histories.size)
         assertEquals("tool-result", histories[1].filterIsInstance<ToolResultMessage>().single().content)
+    }
+
+    @Test
+    fun `separates unterminated content across tool turns`() {
+        var calls = 0
+        val streamer = inferenceStreamer { _, _ ->
+            calls++
+            if (calls == 1) {
+                Flux.just(
+                    LlmInferenceStreamEvent.Content("reasoning before tool"),
+                    LlmInferenceStreamEvent.Complete(
+                        AssistantMessageWithToolCalls(
+                            content = "reasoning before tool",
+                            toolCalls = listOf(ToolCall("call-1", "lookup", "{}")),
+                        )
+                    ),
+                )
+            } else {
+                Flux.just(
+                    LlmInferenceStreamEvent.Content("<think>reasoning after tool</think>\n"),
+                    LlmInferenceStreamEvent.Complete(AssistantMessage("done")),
+                )
+            }
+        }
+        val lookup = Tool.of("lookup", "Lookup") { Tool.Result.text("tool-result") }
+
+        StepVerifier.create(
+            DefaultStreamingToolLoop(streamer, jacksonObjectMapper())
+                .execute(listOf(UserMessage("question")), listOf(lookup))
+        )
+            .expectNext("reasoning before tool", "\n", "<think>reasoning after tool</think>\n")
+            .verifyComplete()
+    }
+
+    @Test
+    fun `preserves native thinking identity across tool turns`() {
+        var calls = 0
+        val streamer = inferenceStreamer { _, _ ->
+            calls++
+            if (calls == 1) {
+                Flux.just(
+                    LlmInferenceStreamEvent.Thinking("reasoning before tool"),
+                    LlmInferenceStreamEvent.Complete(
+                        AssistantMessageWithToolCalls(
+                            content = "",
+                            toolCalls = listOf(ToolCall("call-1", "lookup", "{}")),
+                        )
+                    ),
+                )
+            } else {
+                Flux.just(
+                    LlmInferenceStreamEvent.Thinking("reasoning after tool"),
+                    LlmInferenceStreamEvent.Content("result\n"),
+                    LlmInferenceStreamEvent.Complete(AssistantMessage("result")),
+                )
+            }
+        }
+        val lookup = Tool.of("lookup", "Lookup") { Tool.Result.text("tool-result") }
+
+        StepVerifier.create(
+            DefaultStreamingToolLoop(streamer, jacksonObjectMapper())
+                .executeEvents(listOf(UserMessage("question")), listOf(lookup))
+        )
+            .expectNext(LlmInferenceStreamEvent.Thinking("reasoning before tool"))
+            .expectNext(LlmInferenceStreamEvent.Content("\n"))
+            .expectNext(LlmInferenceStreamEvent.Thinking("reasoning after tool"))
+            .expectNext(LlmInferenceStreamEvent.Content("result\n"))
+            .verifyComplete()
     }
 
     @Test

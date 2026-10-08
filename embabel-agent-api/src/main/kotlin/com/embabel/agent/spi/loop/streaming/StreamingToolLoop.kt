@@ -117,7 +117,23 @@ internal class DefaultStreamingToolLoop(
     override fun execute(
         initialMessages: List<Message>,
         initialTools: List<Tool>,
-    ): Flux<String> = Flux.defer {
+    ): Flux<String> = executeEvents(initialMessages, initialTools)
+        .map { event ->
+            when (event) {
+                is LlmInferenceStreamEvent.Content -> event.text
+                is LlmInferenceStreamEvent.Thinking -> event.text
+                is LlmInferenceStreamEvent.Complete -> error("Completion events are internal to the streaming tool loop")
+            }
+        }
+
+    /**
+     * Execute the tool loop while retaining the distinction between ordinary content
+     * and provider-identified native thinking. Completion events remain internal.
+     */
+    internal fun executeEvents(
+        initialMessages: List<Message>,
+        initialTools: List<Tool>,
+    ): Flux<LlmInferenceStreamEvent> = Flux.defer {
         streamTurn(
             State(
                 conversationHistory = initialMessages.toMutableList(),
@@ -126,11 +142,13 @@ internal class DefaultStreamingToolLoop(
         )
     }
 
-    private fun streamTurn(state: State): Flux<String> = Flux.defer {
+    private fun streamTurn(state: State): Flux<LlmInferenceStreamEvent> = Flux.defer {
         if (state.iterations >= maxIterations) {
             return@defer Flux.error(MaxIterationsExceededException(maxIterations))
         }
         state.iterations++
+        state.turnHasContent = false
+        state.turnEndsWithNewline = false
         logger.debug(
             "Streaming tool loop iteration {} with {} available tools",
             state.iterations,
@@ -142,7 +160,19 @@ internal class DefaultStreamingToolLoop(
             tools = state.availableTools.toList(),
         ).concatMap { event ->
             when (event) {
-                is LlmInferenceStreamEvent.Content -> Flux.just(event.text)
+                is LlmInferenceStreamEvent.Content,
+                is LlmInferenceStreamEvent.Thinking -> {
+                    val text = when (event) {
+                        is LlmInferenceStreamEvent.Content -> event.text
+                        is LlmInferenceStreamEvent.Thinking -> event.text
+                        is LlmInferenceStreamEvent.Complete -> error("Already handled")
+                    }
+                    if (text.isNotEmpty()) {
+                        state.turnHasContent = true
+                        state.turnEndsWithNewline = text.endsWith('\n')
+                    }
+                    Flux.just<LlmInferenceStreamEvent>(event)
+                }
                 is LlmInferenceStreamEvent.Complete -> continueFrom(event, state)
             }
         }
@@ -159,7 +189,7 @@ internal class DefaultStreamingToolLoop(
     private fun continueFrom(
         event: LlmInferenceStreamEvent.Complete,
         state: State,
-    ): Flux<String> {
+    ): Flux<LlmInferenceStreamEvent> {
         state.conversationHistory.add(event.message)
         val assistant = event.message as? AssistantMessageWithToolCalls
             ?: return Flux.empty()
@@ -167,10 +197,29 @@ internal class DefaultStreamingToolLoop(
 
         for (toolCall in assistant.toolCalls) {
             val directResult = executeToolCall(toolCall, state)
-            if (directResult != null) return Flux.just(directResult)
+            if (directResult != null) {
+                return separateFromCurrentTurn(
+                    Flux.just<LlmInferenceStreamEvent>(LlmInferenceStreamEvent.Content(directResult)),
+                    state,
+                )
+            }
         }
-        return streamTurn(state)
+        return separateFromCurrentTurn(streamTurn(state), state)
     }
+
+    /**
+     * Prevent the final unterminated line of one inference from being joined to the
+     * first chunk of the next inference after tool execution.
+     */
+    private fun separateFromCurrentTurn(
+        next: Flux<LlmInferenceStreamEvent>,
+        state: State,
+    ): Flux<LlmInferenceStreamEvent> =
+        if (state.turnHasContent && !state.turnEndsWithNewline) {
+            Flux.just<LlmInferenceStreamEvent>(LlmInferenceStreamEvent.Content("\n")).concatWith(next)
+        } else {
+            next
+        }
 
     /**
      * Executes one tool call and returns direct content when the tool short-circuits the loop.
@@ -226,5 +275,7 @@ internal class DefaultStreamingToolLoop(
         val conversationHistory: MutableList<Message>,
         val availableTools: MutableList<Tool>,
         var iterations: Int = 0,
+        var turnHasContent: Boolean = false,
+        var turnEndsWithNewline: Boolean = false,
     )
 }
