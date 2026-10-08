@@ -36,7 +36,10 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.web.client.RestClient;
 
-/** A configured TypeSafe service stays the family default; the prompted fallback stands down. */
+/**
+ * A configured TypeSafe service stays the family default, even with the prompted default service
+ * turned on; the prompted one stands down.
+ */
 class DecisionDefaultPrecedenceTest {
 
     private final ModelProvider modelProvider = mock(ModelProvider.class);
@@ -59,7 +62,8 @@ class DecisionDefaultPrecedenceTest {
                 .withBean(ModelProvider.class, () -> modelProvider)
                 .withPropertyValues(
                         "TYPESAFE_API_KEY=",
-                        "embabel.agent.platform.models.typesafe.api-key=test-key")
+                        "embabel.agent.platform.models.typesafe.api-key=test-key",
+                        "embabel.agent.platform.decisions.llm.default-candidate=true")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).doesNotHaveBean(LlmDecisionDefaultCandidateRegistrar.DEFAULT_SERVICE);

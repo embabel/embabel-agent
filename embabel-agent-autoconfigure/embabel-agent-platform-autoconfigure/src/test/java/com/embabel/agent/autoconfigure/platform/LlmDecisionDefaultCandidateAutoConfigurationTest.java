@@ -22,6 +22,7 @@ import ch.qos.logback.core.read.ListAppender;
 import com.embabel.agent.core.internal.LlmOperations;
 import com.embabel.agent.spi.LlmService;
 import com.embabel.agent.spi.PlaceholderLlmService;
+import com.embabel.agent.spi.decision.LlmDecisionServiceFactory;
 import com.embabel.agent.spi.support.springai.SpringAiLlmService;
 import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.decision.support.NoOpDecisionService;
@@ -34,8 +35,13 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.beans.factory.support.BeanDefinitionBuilder;
+import org.springframework.beans.factory.support.BeanDefinitionRegistry;
+import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 
@@ -45,10 +51,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
-/** With no decision service of any kind registered, the platform offers a prompted one over the default LLM. */
+/**
+ * When the property is true and no decision service of any kind is registered, the platform offers a
+ * prompted one over the default LLM.
+ */
 class LlmDecisionDefaultCandidateAutoConfigurationTest {
 
-    private static final String FALLBACK = LlmDecisionDefaultCandidateRegistrar.DEFAULT_SERVICE;
+    private static final String TURNED_ON = LlmDecisionDefaultCandidateRegistrar.PROPERTY + "=true";
 
     private final LlmService<?> llm = new SpringAiLlmService("gpt-test", "TestProvider", mock(ChatModel.class));
 
@@ -70,40 +79,66 @@ class LlmDecisionDefaultCandidateAutoConfigurationTest {
     }
 
     @Nested
+    class TurnedOff {
+
+        @Test
+        void nothingIsRegisteredUnlessThePropertyIsTrue() {
+            runner.run(context -> {
+                assertThat(context).hasNotFailed();
+                assertThat(context).doesNotHaveBean(LlmDecisionDefaultCandidateRegistrar.DEFAULT_SERVICE);
+                assertThat(context).doesNotHaveBean(LlmDecisionDefaultCandidateRegistrar.CANDIDATE);
+                assertNoDefault(context.getBean(DecisionServiceRegistry.class));
+            });
+        }
+
+        @Test
+        void thePropertySetToFalseRemovesBothBeansAndLeavesNoDefault() {
+            runner.withPropertyValues(LlmDecisionDefaultCandidateRegistrar.PROPERTY + "=false")
+                    .run(context -> {
+                        assertThat(context).hasNotFailed();
+                        assertThat(context).doesNotHaveBean(LlmDecisionDefaultCandidateRegistrar.DEFAULT_SERVICE);
+                        assertThat(context).doesNotHaveBean(DecisionServiceRegistry.DefaultCandidate.class);
+                        assertNoDefault(context.getBean(DecisionServiceRegistry.class));
+                    });
+        }
+    }
+
+    @Nested
     class EmptyRegistry {
+
+        private final ApplicationContextRunner on = runner.withPropertyValues(TURNED_ON);
 
         @Test
         void aPromptedServiceOverTheDefaultLlmIsRegistered() {
-            runner.run(context -> {
+            on.run(context -> {
                 assertThat(context).hasNotFailed();
-                assertThat(context).hasBean(FALLBACK);
-                assertThat(context.getBean(FALLBACK, DecisionService.class).getName()).isEqualTo("gpt-test");
+                assertThat(context).hasBean(LlmDecisionDefaultCandidateRegistrar.DEFAULT_SERVICE);
+                assertThat(context.getBean(LlmDecisionDefaultCandidateRegistrar.DEFAULT_SERVICE, DecisionService.class).getName()).isEqualTo("gpt-test");
             });
         }
 
         @Test
         void theServiceIsOfferedAsTheDefaultCandidate() {
-            runner.run(context -> assertThat(context.getBean(DecisionServiceRegistry.DefaultCandidate.class))
-                    .isEqualTo(new DecisionServiceRegistry.DefaultCandidate(FALLBACK)));
+            on.run(context -> assertThat(context.getBean(DecisionServiceRegistry.DefaultCandidate.class))
+                    .isEqualTo(new DecisionServiceRegistry.DefaultCandidate(LlmDecisionDefaultCandidateRegistrar.DEFAULT_SERVICE)));
         }
 
         @Test
         void theServiceIsTheDefaultOfBothFamilies() {
-            runner.run(context -> {
-                var fallback = context.getBean(FALLBACK);
+            on.run(context -> {
+                var prompted = context.getBean(LlmDecisionDefaultCandidateRegistrar.DEFAULT_SERVICE);
                 var registry = context.getBean(DecisionServiceRegistry.class);
-                assertThat(registry.decisions().defaultService()).isSameAs(fallback);
-                assertThat(registry.classifications().defaultService()).isSameAs(fallback);
+                assertThat(registry.decisions().defaultService()).isSameAs(prompted);
+                assertThat(registry.classifications().defaultService()).isSameAs(prompted);
             });
         }
 
         @Test
-        void anInfoLineNamesTheModelAndTheOptOutProperty() {
-            var lines = capturing(Level.INFO, () -> runner.run(context -> assertThat(context).hasNotFailed()));
+        void anInfoLineNamesTheModelAndTheProperty() {
+            var lines = capturing(Level.INFO, () -> on.run(context -> assertThat(context).hasNotFailed()));
             assertThat(lines).containsExactly(
                     "Decision and classification family default is the prompted service 'llmDefaultDecisionService'"
-                            + " over LLM 'gpt-test'; set embabel.agent.platform.decisions.llm.default-candidate=false"
-                            + " to turn this off");
+                            + " over LLM 'gpt-test', turned on by embabel.agent.platform.decisions.llm.default-candidate=true");
         }
 
         @Test
@@ -112,9 +147,9 @@ class LlmDecisionDefaultCandidateAutoConfigurationTest {
             when(placeholder.getName()).thenReturn("setup-required");
             when(placeholder.getProvider()).thenReturn("none");
             when(modelProvider.getLlm(DefaultModelSelectionCriteria.INSTANCE)).thenAnswer(call -> placeholder);
-            var warnings = capturing(Level.WARN, () -> runner.run(context -> {
+            var warnings = capturing(Level.WARN, () -> on.run(context -> {
                 assertThat(context).hasNotFailed();
-                assertThat(context).hasBean(FALLBACK);
+                assertThat(context).hasBean(LlmDecisionDefaultCandidateRegistrar.DEFAULT_SERVICE);
             }));
             assertThat(warnings).singleElement().asString()
                     .startsWith("Decision and classification family default is backed by a placeholder model");
@@ -124,12 +159,14 @@ class LlmDecisionDefaultCandidateAutoConfigurationTest {
     @Nested
     class StandingDown {
 
+        private final ApplicationContextRunner on = runner.withPropertyValues(TURNED_ON);
+
         @Test
         void aConfiguredPromptedServiceKeepsTheSingleServiceRule() {
-            runner.withPropertyValues("embabel.agent.platform.decisions.llm.services.triage.llm=gpt-test")
+            on.withPropertyValues("embabel.agent.platform.decisions.llm.services.triage.llm=gpt-test")
                     .run(context -> {
                         assertThat(context).hasNotFailed();
-                        assertThat(context).doesNotHaveBean(FALLBACK);
+                        assertThat(context).doesNotHaveBean(LlmDecisionDefaultCandidateRegistrar.DEFAULT_SERVICE);
                         assertThat(context).doesNotHaveBean(LlmDecisionDefaultCandidateRegistrar.CANDIDATE);
                         assertThat(context).doesNotHaveBean(DecisionServiceRegistry.DefaultCandidate.class);
                         assertThat(context.getBean(DecisionServiceRegistry.class).decisions().defaultService())
@@ -138,40 +175,49 @@ class LlmDecisionDefaultCandidateAutoConfigurationTest {
         }
 
         @Test
-        void anApplicationServiceBeanKeepsTheFallbackAway() {
-            runner.withBean("mine", DecisionService.class, () -> new NoOpDecisionService("mine"))
+        void anApplicationServiceBeanKeepsTheDefaultAway() {
+            on.withBean("mine", DecisionService.class, () -> new NoOpDecisionService("mine"))
                     .run(context -> {
                         assertThat(context).hasNotFailed();
-                        assertThat(context).doesNotHaveBean(FALLBACK);
+                        assertThat(context).doesNotHaveBean(LlmDecisionDefaultCandidateRegistrar.DEFAULT_SERVICE);
                         assertThat(context).doesNotHaveBean(LlmDecisionDefaultCandidateRegistrar.CANDIDATE);
                     });
         }
 
         @Test
-        void anotherDefaultCandidateKeepsTheFallbackAway() {
+        void anotherDefaultCandidateKeepsTheDefaultAway() {
             DecisionService other = new NoOpDecisionService("other");
-            runner.withBean("otherCandidate", DecisionServiceRegistry.DefaultCandidate.class,
+            on.withBean("otherCandidate", DecisionServiceRegistry.DefaultCandidate.class,
                             () -> new DecisionServiceRegistry.DefaultCandidate("other"))
                     .withBean("other", DecisionService.class, () -> other)
                     .run(context -> {
                         assertThat(context).hasNotFailed();
-                        assertThat(context).doesNotHaveBean(FALLBACK);
+                        assertThat(context).doesNotHaveBean(LlmDecisionDefaultCandidateRegistrar.DEFAULT_SERVICE);
                         assertThat(context.getBean(DecisionServiceRegistry.class).decisions().defaultService())
                                 .isSameAs(other);
                     });
         }
 
         @Test
-        void theOptOutPropertyRemovesBothBeansAndLeavesNoDefault() {
-            runner.withPropertyValues("embabel.agent.platform.decisions.llm.default-candidate=false")
+        void anExplicitFamilyDefaultNamingAnApplicationServiceWins() {
+            on.withBean("triage", DecisionService.class, () -> new NoOpDecisionService("triage"))
+                    .withPropertyValues("embabel.models.decision.default=triage")
                     .run(context -> {
                         assertThat(context).hasNotFailed();
-                        assertThat(context).doesNotHaveBean(FALLBACK);
-                        assertThat(context).doesNotHaveBean(DecisionServiceRegistry.DefaultCandidate.class);
-                        var decisions = context.getBean(DecisionServiceRegistry.class).decisions();
-                        assertThatThrownBy(decisions::defaultService)
-                                .isInstanceOfSatisfying(ServiceSelectionException.class, e ->
-                                        assertThat(e.getReason()).isEqualTo(ServiceSelectionException.Reason.NO_DEFAULT));
+                        assertThat(context).doesNotHaveBean(LlmDecisionDefaultCandidateRegistrar.DEFAULT_SERVICE);
+                        assertThat(context.getBean(DecisionServiceRegistry.class).decisions().defaultService())
+                                .isSameAs(context.getBean("triage"));
+                    });
+        }
+
+        @Test
+        void aServiceRegisteredByAnApplicationPostProcessorKeepsTheDefaultAway() {
+            on.withUserConfiguration(PostProcessorRegisteredService.class)
+                    .run(context -> {
+                        assertThat(context).hasNotFailed();
+                        assertThat(context).hasBean("registered");
+                        assertThat(context).doesNotHaveBean(LlmDecisionDefaultCandidateRegistrar.DEFAULT_SERVICE);
+                        assertThat(context).doesNotHaveBean(LlmDecisionDefaultCandidateRegistrar.CANDIDATE);
                     });
         }
 
@@ -183,12 +229,50 @@ class LlmDecisionDefaultCandidateAutoConfigurationTest {
                             LlmDecisionDefaultCandidateAutoConfiguration.class,
                             DecisionServiceRegistryAutoConfiguration.class))
                     .withBean(LlmOperations.class, () -> llmOperations)
+                    .withPropertyValues(TURNED_ON)
                     .run(context -> {
                         assertThat(context).hasNotFailed();
-                        assertThat(context).doesNotHaveBean(FALLBACK);
+                        assertThat(context).doesNotHaveBean(LlmDecisionDefaultCandidateRegistrar.DEFAULT_SERVICE);
                         assertThat(context).doesNotHaveBean(DecisionServiceRegistry.DefaultCandidate.class);
                     });
         }
+    }
+
+    @Nested
+    class Failing {
+
+        @Test
+        void aSecondModelProviderFailsStartupWithAMessageNamingTheProperty() {
+            runner.withPropertyValues(TURNED_ON)
+                    .withBean("secondModelProvider", ModelProvider.class, () -> mock(ModelProvider.class))
+                    .withBean(LlmDecisionServiceFactory.class, () -> mock(LlmDecisionServiceFactory.class))
+                    .run(context -> assertThat(context).getFailure()
+                            .rootCause()
+                            .isInstanceOf(IllegalStateException.class)
+                            .hasMessageContaining(LlmDecisionDefaultCandidateRegistrar.PROPERTY)
+                            .hasMessageContaining("ModelProvider"));
+        }
+    }
+
+    /** Registers a decision service from a post-processor, the way a library might. */
+    @Configuration(proxyBeanMethods = false)
+    static class PostProcessorRegisteredService {
+
+        @Bean
+        static BeanDefinitionRegistryPostProcessor registersADecisionService() {
+            return (BeanDefinitionRegistry registry) -> registry.registerBeanDefinition(
+                    "registered",
+                    BeanDefinitionBuilder.genericBeanDefinition(
+                                    DecisionService.class, () -> new NoOpDecisionService("registered"))
+                            .getBeanDefinition());
+        }
+    }
+
+    private static void assertNoDefault(DecisionServiceRegistry registry) {
+        var decisions = registry.decisions();
+        assertThatThrownBy(decisions::defaultService)
+                .isInstanceOfSatisfying(ServiceSelectionException.class, e ->
+                        assertThat(e.getReason()).isEqualTo(ServiceSelectionException.Reason.NO_DEFAULT));
     }
 
     private static List<String> capturing(Level level, Runnable block) {
