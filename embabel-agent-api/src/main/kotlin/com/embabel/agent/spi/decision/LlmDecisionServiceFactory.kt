@@ -20,8 +20,18 @@ import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.decision.LlmClassificationService
 import com.embabel.agent.spi.support.decision.LlmDecisionService
+import com.embabel.common.ai.classification.ClassificationRequest
+import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.ClassificationService
+import com.embabel.common.ai.classification.ClassificationSpec
+import com.embabel.common.ai.decision.DecisionCapabilities
+import com.embabel.common.ai.decision.DecisionRequest
+import com.embabel.common.ai.decision.DecisionResponse
 import com.embabel.common.ai.decision.DecisionService
+import com.embabel.common.ai.decision.DecisionServiceMetadata
+import com.embabel.common.ai.decision.DecisionSpec
+import com.embabel.common.ai.decision.PropositionRequest
+import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
@@ -37,7 +47,8 @@ import org.jetbrains.annotations.ApiStatus
  *
  * Each service records one `embabel.ai.decision` or `embabel.ai.classification` observation per
  * call. A model named here is looked up once, when the service is built. To use a model the caller
- * already holds, such as one built for a user's own API key, pass the [LlmService] instead.
+ * already holds, such as one built for a user's own API key, pass the [LlmService] instead. A service
+ * built from [ModelSelectionCriteria] looks its model up on every call.
  *
  * Applications inject the `LlmDecisionServiceFactory` bean from the Spring context.
  */
@@ -61,6 +72,15 @@ class LlmDecisionServiceFactory @ApiStatus.Internal @JvmOverloads constructor(
     /** Builds a decision service for a model the caller already holds. */
     fun decisionService(llm: LlmService<*>): DecisionService =
         observedDecisionService(llmDecisionService(llm, retry, "decision-${llm.name}"))
+
+    /**
+     * Builds a decision service that asks the model provider for its model on every call,
+     * for criteria whose answer can change while the application runs, such as the default
+     * model or a role. A model configured after startup is used without a restart. Each call
+     * builds the service it forwards to, which only wraps objects.
+     */
+    fun decisionService(criteria: ModelSelectionCriteria): DecisionService =
+        ResolvingDecisionService(criteria)
 
     /**
      * Builds a classification service for the model with this name.
@@ -117,4 +137,43 @@ class LlmDecisionServiceFactory @ApiStatus.Internal @JvmOverloads constructor(
      */
     private fun llmDecisionService(llm: LlmService<*>, retry: RetryProperties, retryName: String) =
         LlmDecisionService(llmOperations, llm, LlmOptions(PreResolvedModelSelectionCriteria(llm)), retry, retryName)
+
+    /**
+     * A decision service that asks the model provider for its model on every call and forwards the
+     * call to a service built over that model. One ask resolves the model once, so every question
+     * in it is answered by the same model.
+     *
+     * @param criteria how to pick the model on each call
+     */
+    private inner class ResolvingDecisionService(private val criteria: ModelSelectionCriteria) : DecisionService {
+
+        override val name: String get() = current().name
+
+        override val provider: String get() = current().provider
+
+        override fun classify(request: ClassificationRequest): ClassificationResult = current().classify(request)
+
+        override fun classify(input: String, spec: ClassificationSpec): ClassificationResult =
+            current().classify(input, spec)
+
+        override fun assess(request: PropositionRequest): PropositionResult = current().assess(request)
+
+        override fun capabilities(): DecisionCapabilities = current().capabilities()
+
+        override fun ask(input: String, spec: DecisionSpec): DecisionResponse = current().ask(input, spec)
+
+        override fun ask(request: DecisionRequest): DecisionResponse = current().ask(request)
+
+        override fun metadata(): DecisionServiceMetadata = current().metadata()
+
+        override fun infoString(verbose: Boolean?, indent: Int): String = current().infoString(verbose, indent)
+
+        /**
+         * Builds the service for the model the provider picks right now.
+         *
+         * @return a decision service over the current model
+         * @throws NoSuitableModelException if no model matches the criteria
+         */
+        private fun current(): DecisionService = decisionService(modelProvider.getLlm(criteria))
+    }
 }

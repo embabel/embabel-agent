@@ -46,10 +46,10 @@ import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProce
  * decision service that way should set {@code embabel.agent.platform.decisions.llm.default-candidate}
  * to {@code false}.
  *
- * <p>The model is resolved once, when the service bean is created, the same way a configured
- * prompted service resolves its model. A placeholder model, standing in when no chat model is
- * configured yet, is accepted and logged at WARN. The service keeps that placeholder if a real model
- * arrives later. A model supplied per user still reaches a decision through {@code using(service)}.
+ * <p>The model is resolved through the model provider on every call, the way the platform resolves
+ * the default chat model, so a model configured after startup is used without a restart. A placeholder
+ * model standing in at startup, when no chat model is configured yet, is logged at WARN. A model
+ * supplied per user still reaches a decision through {@code using(service)}.
  */
 public final class LlmDecisionDefaultCandidateRegistrar implements BeanDefinitionRegistryPostProcessor {
 
@@ -104,7 +104,8 @@ public final class LlmDecisionDefaultCandidateRegistrar implements BeanDefinitio
     }
 
     /**
-     * Builds the default service over the default LLM.
+     * Builds the default service, which asks for the default LLM on every call. The LLM looked up
+     * here only names the model in the startup log line.
      *
      * @return the prompted service
      * @throws IllegalStateException when there is not exactly one {@link ModelProvider} or one
@@ -115,9 +116,9 @@ public final class LlmDecisionDefaultCandidateRegistrar implements BeanDefinitio
         var llm = unique(ModelProvider.class).getLlm(DefaultModelSelectionCriteria.INSTANCE);
         if (llm instanceof PlaceholderLlmService) {
             logger.warn(
-                    "Decision and classification family default is backed by a placeholder model '{}', because no "
-                            + "chat model is configured. It keeps that model after one is configured; restart to use "
-                            + "it, or unset {} to turn this off",
+                    "Decision and classification family default has no chat model yet and is backed by the "
+                            + "placeholder '{}'; it uses the default model as soon as one is configured, or unset {} "
+                            + "to turn this off",
                     llm.getName(), PROPERTY);
         } else {
             logger.info(
@@ -125,7 +126,7 @@ public final class LlmDecisionDefaultCandidateRegistrar implements BeanDefinitio
                             + "turned on by {}=true",
                     DEFAULT_SERVICE, llm.getName(), PROPERTY);
         }
-        return factory.decisionService(llm);
+        return factory.decisionService(DefaultModelSelectionCriteria.INSTANCE);
     }
 
     /**

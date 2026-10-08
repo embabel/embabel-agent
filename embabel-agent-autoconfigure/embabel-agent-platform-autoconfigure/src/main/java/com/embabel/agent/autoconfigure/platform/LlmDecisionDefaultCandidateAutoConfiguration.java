@@ -30,9 +30,10 @@ import org.springframework.context.annotation.Bean;
  * classification service and no default candidate is defined. An application service bean, a
  * configured prompted or TypeSafe service, or another default candidate leaves everything as it was.
  *
- * <p>The default LLM is resolved once, at startup. When no chat model is configured yet the service
- * is built over the placeholder model and a WARN says so; it does not pick up a model that arrives
- * later. A model supplied per user can still be used by passing a service to {@code using(service)}.
+ * <p>The default LLM is resolved through the model provider on every call, the way the platform
+ * resolves the default chat model, so a model configured after startup is used without a restart. A
+ * placeholder standing in at startup, when no chat model is configured yet, is logged at WARN. A model
+ * supplied per user can still be used by passing a service to {@code using(service)}.
  *
  * <p>Turn it on with:
  *

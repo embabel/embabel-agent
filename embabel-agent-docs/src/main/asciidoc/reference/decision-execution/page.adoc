@@ -192,10 +192,10 @@ When TypeSafe is configured and no explicit default is set, Jev is the default o
 The prompted family default is opt-in: the platform registers nothing unless `embabel.agent.platform.decisions.llm.default-candidate` is `true`, and the setting defaults to `false`.
 When the setting is `true`, and the context has no decision or classification service and no default candidate, the platform registers `llmDefaultDecisionService` over the default LLM and contributes `DecisionServiceRegistry.DefaultCandidate("llmDefaultDecisionService")`, so it becomes the default of both families.
 One INFO line reads "Decision and classification family default is the prompted service 'llmDefaultDecisionService' over LLM '<name>', turned on by embabel.agent.platform.decisions.llm.default-candidate=true".
-When no chat model is configured yet, it is built over the placeholder model and a WARN says so instead.
+When no chat model is configured yet, the placeholder answers until one is configured, and a WARN at startup says so.
 An explicit default, any registered decision or classification service or a provider's default candidate each make it stand down, so it acts only on an otherwise empty registry.
 The check reads declared bean types, so a service defined by a `FactoryBean` or by an `Object`-typed `@Bean` method is not seen; leave the setting unset in that case.
-It resolves the default LLM once at startup, the same way a configured prompted service does, and keeps that LLM for the life of the application.
+It asks the model provider for the default LLM on every call, the same way the platform resolves the default chat model, so a model configured after startup is used without a restart.
 Like any prompted service, it reports a selected category, no match or inconclusive, with no confidence and no distribution.
 With the setting unset or `false`, an empty registry gives `NO_DEFAULT`, and several prompted services with no candidate give `AMBIGUOUS_DEFAULT`.
 

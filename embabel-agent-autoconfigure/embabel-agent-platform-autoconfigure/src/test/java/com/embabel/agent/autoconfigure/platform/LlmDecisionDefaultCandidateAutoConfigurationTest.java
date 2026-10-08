@@ -44,6 +44,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -152,7 +153,24 @@ class LlmDecisionDefaultCandidateAutoConfigurationTest {
                 assertThat(context).hasBean(LlmDecisionDefaultCandidateRegistrar.DEFAULT_SERVICE);
             }));
             assertThat(warnings).singleElement().asString()
-                    .startsWith("Decision and classification family default is backed by a placeholder model");
+                    .startsWith("Decision and classification family default has no chat model yet");
+        }
+
+        @Test
+        void aModelConfiguredAfterStartupIsUsedWithoutRestart() {
+            LlmService<?> placeholder = mock(LlmService.class, withSettings().extraInterfaces(PlaceholderLlmService.class));
+            when(placeholder.getName()).thenReturn("setup-required");
+            when(placeholder.getProvider()).thenReturn("none");
+            var calls = new AtomicInteger();
+            when(modelProvider.getLlm(DefaultModelSelectionCriteria.INSTANCE))
+                    .thenAnswer(call -> calls.getAndIncrement() == 0 ? placeholder : llm);
+            var warnings = capturing(Level.WARN, () -> on.run(context -> {
+                assertThat(context).hasNotFailed();
+                var service = context.getBean(LlmDecisionDefaultCandidateRegistrar.DEFAULT_SERVICE, DecisionService.class);
+                assertThat(service.getName()).isEqualTo("gpt-test");
+                assertThat(service.getProvider()).isEqualTo("TestProvider");
+            }));
+            assertThat(warnings).singleElement().asString().contains("'setup-required'");
         }
     }
 
