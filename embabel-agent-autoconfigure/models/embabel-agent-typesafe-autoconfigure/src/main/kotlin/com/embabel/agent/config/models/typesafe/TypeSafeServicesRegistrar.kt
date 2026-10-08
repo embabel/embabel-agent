@@ -49,9 +49,9 @@ import org.springframework.util.ClassUtils
  *             jev-fast:
  *               model: jev-fast
  *             local:
- *               model: decider-2b
- *               base-url: http://localhost:8080
- *               provider: decider
+ *               model: jev-latest
+ *               base-url: http://127.0.0.1:8000
+ *               provider: self-hosted
  * ```
  *
  * A service that only names a model shares the credential, base URL, provider name and response

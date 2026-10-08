@@ -64,13 +64,22 @@ class AgentTypeSafeAutoConfigurationTest {
                     .withPropertyValues("TYPESAFE_API_KEY=");
 
     @Test
-    void requiresCredential() {
-        runner.run(
-                context -> {
-                    assertThat(context).hasFailed();
-                    assertThat(context.getStartupFailure())
-                            .hasRootCauseMessage("TypeSafe API key is required");
-                });
+    void missingCredentialRunsAnonymously() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo(SYSTEM_ONE_URI))
+                .andExpect(headerDoesNotExist("Authorization"))
+                .andRespond(withSuccess(RESPONSE, MediaType.APPLICATION_JSON));
+
+        runner.withBean(RestClient.Builder.class, () -> builder)
+                .run(
+                        context -> {
+                            assertThat(context).hasNotFailed();
+                            assertAnswered(
+                                    context.getBean("typeSafeDecisionService", DecisionService.class)
+                                            .assess(REQUEST));
+                        });
+        server.verify();
     }
 
     @Test
@@ -92,24 +101,6 @@ class AgentTypeSafeAutoConfigurationTest {
                                             .assess(REQUEST));
                         });
         server.verify();
-    }
-
-    @ParameterizedTest
-    @ValueSource(
-            strings = {
-                "https://api.typesafe.ai/",
-                "HTTPS://API.TYPESAFE.AI",
-                "HTTPS://API.TYPESAFE.AI/",
-                "https://api.typesafe.ai:443"
-            })
-    void cloudEndpointWithTrailingSlashStillRequiresACredential(String baseUrl) {
-        runner.withPropertyValues(PREFIX + "base-url=" + baseUrl)
-                .run(
-                        context -> {
-                            assertThat(context).hasFailed();
-                            assertThat(context.getStartupFailure())
-                                    .hasRootCauseMessage("TypeSafe API key is required");
-                        });
     }
 
     @Test

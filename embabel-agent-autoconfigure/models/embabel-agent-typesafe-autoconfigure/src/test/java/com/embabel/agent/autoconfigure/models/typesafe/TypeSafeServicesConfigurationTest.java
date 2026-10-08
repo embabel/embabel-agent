@@ -23,6 +23,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.embabel.agent.config.models.typesafe.TypeSafeProperties;
+import com.embabel.agent.config.models.typesafe.TypeSafeServicesRegistrar;
 import com.embabel.agent.typesafe.TypeSafeModelFactory;
 import com.embabel.common.ai.classification.ClassificationService;
 import com.embabel.common.ai.decision.DecisionService;
@@ -314,17 +315,30 @@ class TypeSafeServicesConfigurationTest {
     }
 
     @Test
-    void entryAtTheCloudEndpointWithoutItsOwnCredentialFails() {
+    void entryWithItsOwnEndpointAndNoKeyCallsItAnonymously() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("https://api.typesafe.ai/v1/systemone"))
+                .andExpect(headerDoesNotExist("Authorization"))
+                .andRespond(withSuccess(RESPONSE, MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://api.typesafe.ai/v1/systemone"))
+                .andExpect(header("Authorization", "Bearer test-key"))
+                .andRespond(withSuccess(RESPONSE, MediaType.APPLICATION_JSON));
+
         runner.withPropertyValues(
-                        SERVICES + "cloud.model=jev-latest",
-                        SERVICES + "cloud.base-url=https://api.typesafe.ai")
+                        SERVICES + "remote.model=jev-latest",
+                        SERVICES + "remote.base-url=https://api.typesafe.ai")
+                .withBean(RestClient.Builder.class, () -> builder)
                 .run(
                         context -> {
-                            assertThat(context).hasFailed();
-                            assertThat(failureMessages(context.getStartupFailure()))
-                                    .contains(SERVICES + "cloud.api-key")
-                                    .doesNotContain("test-key");
+                            assertThat(context).hasNotFailed();
+                            assertAnswered(
+                                    context.getBean("remote", DecisionService.class).assess(REQUEST));
+                            assertAnswered(
+                                    context.getBean("typeSafeDecisionService", DecisionService.class)
+                                            .assess(REQUEST));
                         });
+        server.verify();
     }
 
     @Test
@@ -338,14 +352,18 @@ class TypeSafeServicesConfigurationTest {
                         });
         runner.withPropertyValues(SERVICES + "local.model=decider-2b", SERVICES + "local.api-key= ")
                 .run(
-                        context ->
-                                assertThat(failureMessages(context.getStartupFailure()))
-                                        .contains(SERVICES + "local.api-key must not be blank"));
+                        context -> {
+                            assertThat(context).hasFailed();
+                            assertThat(failureMessages(context.getStartupFailure()))
+                                    .contains(SERVICES + "local.api-key must not be blank");
+                        });
         runner.withPropertyValues(SERVICES + "local.model=decider-2b", SERVICES + "local.provider= ")
                 .run(
-                        context ->
-                                assertThat(failureMessages(context.getStartupFailure()))
-                                        .contains(SERVICES + "local.provider must not be blank"));
+                        context -> {
+                            assertThat(context).hasFailed();
+                            assertThat(failureMessages(context.getStartupFailure()))
+                                    .contains(SERVICES + "local.provider must not be blank");
+                        });
     }
 
     @Test
@@ -362,9 +380,7 @@ class TypeSafeServicesConfigurationTest {
 
     @Test
     void entryPropertiesRedactTheirCredentialAndEndpoint() {
-        var service =
-                new com.embabel.agent.config.models.typesafe.TypeSafeServicesRegistrar
-                        .ServiceProperties();
+        var service = new TypeSafeServicesRegistrar.ServiceProperties();
         service.setModel("decider-2b");
         service.setBaseUrl("https://user:url-secret@example.test/gateway");
         service.setApiKey("entry-secret");

@@ -42,8 +42,8 @@ import java.net.URI
  * application transport selection, the default named decision-service bean, its default
  * candidate and the named services configured under `services`.
  *
- * The TypeSafe cloud always needs a credential. A compatible server at any other `base-url` can
- * run without one, and then requests go out with no `Authorization` header at all.
+ * The API key is optional, as it is for the other model providers. When one is configured it goes
+ * out as a bearer token; when none is, requests go out with no `Authorization` header at all.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(TypeSafeProperties::class)
@@ -71,7 +71,7 @@ class TypeSafeModelsConfig(
 
     init {
         if (sharedCredential.isAnonymous) {
-            logger.info("TypeSafe decision services call {} without a credential", "[CONFIGURED]")
+            logger.info("TypeSafe decision services call the configured endpoint without a credential")
         }
         logger.info("TypeSafe models are available: {}", properties)
     }
@@ -82,13 +82,12 @@ class TypeSafeModelsConfig(
      * An entry that only names a model shares this factory. One that sets its own `base-url`,
      * `api-key` or `provider` gets a factory of its own on the same transport. An entry with its
      * own `base-url` only ever sends its own `api-key`, so the shared credential never reaches
-     * another server; without one it calls that server anonymously, unless the server is the
-     * TypeSafe cloud.
+     * another server; without one it calls that server anonymously.
      *
      * @param key the entry's key, used in error messages
      * @param service the entry's configured values
      * @return the decision service for the entry
-     * @throws IllegalStateException if a value is blank, or the entry points at the cloud without its own key
+     * @throws IllegalStateException if a value is blank
      */
     internal fun build(key: String, service: ServiceProperties): DecisionService {
         val property = "${TypeSafeServicesRegistrar.PREFIX}.$key"
@@ -104,12 +103,10 @@ class TypeSafeModelsConfig(
         val entryCredential = when {
             apiKey != null -> TypeSafeCredential.of { apiKey }
             baseUrl == null -> sharedCredential
-            isCloudEndpoint(entryOptions.baseUri()) ->
-                error("$property.api-key is required when $property.base-url is the TypeSafe cloud")
             else -> TypeSafeCredential.none()
         }
         if (entryCredential.isAnonymous) {
-            logger.info("TypeSafe service '{}' calls {} without a credential", key, "[CONFIGURED]")
+            logger.info("TypeSafe service '{}' calls its configured endpoint without a credential", key)
         }
         return TypeSafeModelFactory(
             entryOptions,
@@ -215,50 +212,24 @@ class TypeSafeModelsConfig(
         /**
          * Works out how the default services authenticate.
          *
-         * With a key in the environment variable or the property, the credential reads the key
+         * A key in the `TYPESAFE_API_KEY` environment variable or the `api-key` property is read
          * again for every request, preferring the environment, so a rotated key takes effect.
-         * Without either, only an endpoint other than the TypeSafe cloud may run anonymously; the
-         * cloud fails here instead of quietly sending unauthenticated calls. Errors never include
-         * the key or the URL.
+         * With neither set, the services call their endpoint without a credential.
          *
          * @param properties the TypeSafe configuration properties
          * @param environment the Spring environment
          * @return the credential for the default endpoint
-         * @throws IllegalStateException if there is no key and the endpoint is the TypeSafe cloud
          */
         private fun credential(properties: TypeSafeProperties, environment: Environment): TypeSafeCredential {
             val key = {
                 environment.getProperty(API_KEY_ENVIRONMENT_VARIABLE).takeUnless { it.isNullOrBlank() }
                     ?: properties.apiKey().takeUnless { it.isNullOrBlank() }
             }
-            return when {
-                key() != null -> TypeSafeCredential.of { key() ?: error("TypeSafe API key is required") }
-                !isCloudEndpoint(parseBaseUri(properties.baseUrl())) -> TypeSafeCredential.none()
-                else -> error("TypeSafe API key is required")
+            return if (key() != null) {
+                TypeSafeCredential.of { key() ?: error("TypeSafe API key is required") }
+            } else {
+                TypeSafeCredential.none()
             }
-        }
-
-        /**
-         * Tells whether a base URI is the TypeSafe cloud. Scheme and host match regardless of case,
-         * a missing port means the scheme's default, and an empty path is the same as `/`, so
-         * `HTTPS://API.TYPESAFE.AI/` and `https://api.typesafe.ai:443` both count.
-         *
-         * @param uri the configured base URI
-         * @return true if requests to it would reach the TypeSafe cloud
-         */
-        private fun isCloudEndpoint(uri: URI): Boolean {
-            val cloud = TypeSafeClientOptions.defaults().baseUri()
-            fun port(u: URI): Int = when {
-                u.port != -1 -> u.port
-                u.scheme.equals("https", ignoreCase = true) -> 443
-                u.scheme.equals("http", ignoreCase = true) -> 80
-                else -> -1
-            }
-            fun path(u: URI): String = u.rawPath.orEmpty().ifEmpty { "/" }
-            return uri.scheme.equals(cloud.scheme, ignoreCase = true) &&
-                uri.host.equals(cloud.host, ignoreCase = true) &&
-                port(uri) == port(cloud) &&
-                path(uri) == path(cloud)
         }
 
         /**

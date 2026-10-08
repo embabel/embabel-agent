@@ -290,6 +290,17 @@ class TypeSafeModelFactoryTest {
                                         """,
                                         MediaType.APPLICATION_JSON)
                                 .header("x-typesafe-request-id", "request-23"));
+        server.expect(requestTo(SYSTEM_ONE_URI))
+                .andExpect(headerDoesNotExist("Authorization"))
+                .andRespond(
+                        withSuccess(
+                                """
+                                {"model":"jev-local","answers":{"classification":{"type":"choice","choice":"dog","probabilities":{"dog":0.5,"cat":0.5},"confidence":0.0}}}
+                                """,
+                                MediaType.APPLICATION_JSON));
+        server.expect(requestTo(SYSTEM_ONE_URI))
+                .andExpect(headerDoesNotExist("Authorization"))
+                .andRespond(withSuccess("not json", MediaType.APPLICATION_JSON));
         var factory =
                 new TypeSafeModelFactory(
                         TypeSafeClientOptions.defaults(),
@@ -314,6 +325,31 @@ class TypeSafeModelFactoryTest {
                             assertThat(selected.getProvenance().getRequestId())
                                     .isEqualTo("request-23");
                         });
+        assertThat(service.classify(CLASSIFICATION_REQUEST))
+                .isInstanceOfSatisfying(
+                        ClassificationResult.Inconclusive.class,
+                        inconclusive ->
+                                assertThat(inconclusive.getProvenance().getProvider())
+                                        .isEqualTo("decider"));
+
+        // A failure has no provenance, so the provider name shows up on its WARN line instead.
+        var logger = (Logger) LoggerFactory.getLogger(TypeSafeDecisionService.class);
+        var appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            assertThat(service.classify(CLASSIFICATION_REQUEST))
+                    .isEqualTo(new ClassificationResult.Failure(FailureReason.INVALID_RESPONSE));
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+        assertThat(appender.list)
+                .filteredOn(event -> event.getLevel() == Level.WARN)
+                .singleElement()
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .asString()
+                .contains("provider=decider");
         server.verify();
     }
 
@@ -466,7 +502,8 @@ class TypeSafeModelFactoryTest {
                         TypeSafeClientOptions.defaults(),
                         TypeSafeCredential.none(),
                         builder,
-                        io.micrometer.observation.ObservationRegistry.NOOP);
+                        io.micrometer.observation.ObservationRegistry.NOOP,
+                        TypeSafeModelFactory.DEFAULT_MODEL);
 
         assertThat(factory.buildValidated().getName())
                 .isEqualTo(TypeSafeModelFactory.DEFAULT_MODEL);
@@ -474,7 +511,7 @@ class TypeSafeModelFactoryTest {
     }
 
     @Test
-    void supplierConstructorsStillRequireAUsableKey() {
+    void supplierConstructorsRequireAUsableKey() {
         var builder = RestClient.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
         server.expect(ExpectedCount.never(), requestTo(MODELS_URI));
@@ -501,7 +538,12 @@ class TypeSafeModelFactoryTest {
         logger.addAppender(appender);
         logger.setLevel(Level.INFO);
         try {
-            new TypeSafeModelFactory(TypeSafeClientOptions.defaults(), TypeSafeCredential.none());
+            new TypeSafeModelFactory(
+                    TypeSafeClientOptions.defaults(),
+                    TypeSafeCredential.none(),
+                    null,
+                    io.micrometer.observation.ObservationRegistry.NOOP,
+                    TypeSafeModelFactory.DEFAULT_MODEL);
             new TypeSafeModelFactory(() -> "PRIVATE_KEY");
 
             List<String> lines =

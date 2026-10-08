@@ -24,13 +24,13 @@ import java.util.function.Supplier;
 /**
  * Says how the TypeSafe adapter authenticates: with an API key, or not at all.
  *
- * <p>The TypeSafe cloud needs a key, and {@link #of(Supplier)} is the normal choice. Some servers
- * speak the same wire protocol without asking for one, such as a self-hosted Jev listening on a
- * local port. {@link #none()} is for those: requests go out with no {@code Authorization} header.
+ * <p>{@link #of(Supplier)} sends the key as a bearer token on every request. {@link #none()} sends
+ * no {@code Authorization} header, for servers that speak the same wire protocol without checking
+ * authorization.
  *
- * <p>Anonymous mode has to be asked for by name. A key that turns out to be null, blank or full of
- * control characters is still a configuration error, so a missing secret can never quietly turn
- * into unauthenticated calls against the cloud endpoint.
+ * <p>Anonymous mode is its own value rather than an empty key. A keyed credential whose key turns
+ * out to be null, blank or full of control characters fails the request instead of quietly going
+ * out unauthenticated.
  */
 @ApiStatus.Experimental
 public final class TypeSafeCredential {
@@ -90,8 +90,11 @@ public final class TypeSafeCredential {
     }
 
     /**
-     * Reads the key without checking it, so BYOK validation can apply its own rule first and
-     * report problems the way it always has.
+     * Reads the key without checking it, so the factory's key validation applies its own rule and
+     * error.
+     *
+     * @return the raw key, possibly null or blank
+     * @throws IllegalStateException if this credential is anonymous
      */
     @Nullable
     String unchecked() {

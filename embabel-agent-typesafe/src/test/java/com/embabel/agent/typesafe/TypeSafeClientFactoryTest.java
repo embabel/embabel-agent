@@ -163,7 +163,7 @@ class TypeSafeClientFactoryTest {
     }
 
     @Test
-    void blankSuppliedKeyStillFailsRatherThanGoingAnonymous() {
+    void blankSuppliedKeyFailsRatherThanGoingAnonymous() {
         for (var key : new String[] {"", "   ", null}) {
             var builder = RestClient.builder();
             var server = MockRestServiceServer.bindTo(builder).build();

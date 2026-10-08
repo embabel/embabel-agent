@@ -104,7 +104,12 @@ public final class GuardedTypeSafeApi extends TypeSafeApi {
         this.registry = registry;
     }
 
-    /** Wraps a client that already carries everything it needs, including any auth it sends. */
+    /**
+     * Wraps a client that already carries everything it needs, including any auth it sends.
+     *
+     * @param client the fully configured client
+     * @param registry registry for logical observations
+     */
     private GuardedTypeSafeApi(RestClient client, ObservationRegistry registry) {
         super(SYSTEM_ONE_PATH, MODELS_PATH, client);
         this.registry = registry;
@@ -133,9 +138,14 @@ public final class GuardedTypeSafeApi extends TypeSafeApi {
     }
 
     /**
-     * The SDK's no-credential constructor installs nothing on the client it is given, so this
-     * adds back what the keyed constructor would: base URL, JSON headers and the safe error
-     * handler. Leaving any of those out would let raw error bodies or wrong content types through.
+     * Builds the client for anonymous calls, with the base URL, JSON headers and sanitized error
+     * handler the keyed constructor would install. The SDK's no-credential constructor adds none
+     * of these.
+     *
+     * @param options non-secret provider settings
+     * @param builder application builder to clone, or null for the fallback transport
+     * @param registry registry for fallback HTTP observations
+     * @return the configured client
      */
     private static RestClient anonymousClient(
             TypeSafeClientOptions options,

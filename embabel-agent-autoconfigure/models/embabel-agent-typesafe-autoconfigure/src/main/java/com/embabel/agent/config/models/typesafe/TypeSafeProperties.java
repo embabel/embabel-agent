@@ -18,6 +18,7 @@ package com.embabel.agent.config.models.typesafe;
 import com.embabel.agent.typesafe.TypeSafeModelFactory;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
@@ -27,10 +28,10 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * RestClient.Builder}.
  *
  * @param apiKey API credential used when {@code TYPESAFE_API_KEY} is absent or blank; excluded from
- *     {@link #toString()}. The environment key is resolved for each request.
- * @param baseUrl provider endpoint; defaults to {@code https://api.typesafe.ai}. The TypeSafe cloud
- *     needs a credential; any other endpoint without one is called with no credential at all.
- *     Endpoint validation belongs to the HTTP client.
+ *     {@link #toString()}. The environment key is resolved for each request. With neither set,
+ *     requests go out with no credential at all.
+ * @param baseUrl provider endpoint; defaults to {@code https://api.typesafe.ai}. Endpoint
+ *     validation belongs to the HTTP client.
  * @param model default model for requests without an explicit model; defaults to {@code jev-latest}
  *     and must be nonblank
  * @param maxResponseBytes positive maximum response body size in bytes; defaults to 1 MiB
@@ -47,6 +48,15 @@ public record TypeSafeProperties(
 
     /** Spring property namespace for TypeSafe decision services. */
     public static final String PREFIX = "embabel.agent.platform.models.typesafe";
+
+    /** Marks the full constructor as the one Spring binds, since the record has two. */
+    @ConstructorBinding
+    public TypeSafeProperties {}
+
+    /** Creates the properties with the default provider name, {@link TypeSafeModelFactory#PROVIDER}. */
+    public TypeSafeProperties(String apiKey, String baseUrl, String model, int maxResponseBytes) {
+        this(apiKey, baseUrl, model, maxResponseBytes, TypeSafeModelFactory.PROVIDER);
+    }
 
     /**
      * Keeps credentials out of configuration diagnostics.

@@ -171,35 +171,6 @@ public class TypeSafeModelFactory implements ByokFactory<DecisionService> {
     }
 
     /**
-     * Uses configured transport bounds, the fallback transport, the default model and no-op
-     * observations, with an explicit credential mode.
-     *
-     * @param options non-secret provider settings
-     * @param credential keyed credential, or {@link TypeSafeCredential#none()} for a compatible
-     *     server that needs no authorization
-     */
-    public TypeSafeModelFactory(TypeSafeClientOptions options, TypeSafeCredential credential) {
-        this(options, credential, null, ObservationRegistry.NOOP, DEFAULT_MODEL);
-    }
-
-    /**
-     * Uses an application HTTP builder and the default model with an explicit credential mode.
-     *
-     * @param options non-secret provider settings
-     * @param credential keyed credential, or {@link TypeSafeCredential#none()} for a compatible
-     *     server that needs no authorization
-     * @param restClientBuilder application builder to clone, or null for the fallback transport
-     * @param observationRegistry registry for framework, provider and fallback HTTP observations
-     */
-    public TypeSafeModelFactory(
-            TypeSafeClientOptions options,
-            TypeSafeCredential credential,
-            RestClient.@Nullable Builder restClientBuilder,
-            ObservationRegistry observationRegistry) {
-        this(options, credential, restClientBuilder, observationRegistry, DEFAULT_MODEL);
-    }
-
-    /**
      * Configures the guarded provider boundary with an explicit credential mode.
      *
      * <p>Anonymous mode is only for servers that speak TypeSafe's protocol without checking
