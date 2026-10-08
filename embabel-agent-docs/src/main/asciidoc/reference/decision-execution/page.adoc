@@ -189,8 +189,14 @@ The classification family resolves its default the same way with `embabel.models
 
 The TypeSafe auto-configuration contributes `DecisionServiceRegistry.DefaultCandidate("typeSafeDecisionService")`.
 When TypeSafe is configured and no explicit default is set, Jev is the default of both families.
-Prompted LLM services contribute no candidate.
-An application that has only prompted services and several of them sets the default explicitly.
+When no decision or classification service and no default candidate is registered, and the platform has a model provider, the platform contributes `DecisionServiceRegistry.DefaultCandidate("llmDefaultDecisionService")`.
+`llmDefaultDecisionService` is a prompted service over the default LLM, and one INFO line names it and that LLM.
+When no chat model is configured yet, it is built over the placeholder model and a WARN says so instead.
+Set `embabel.agent.platform.decisions.llm.default-candidate` to `false` to turn it off.
+An explicit default, any registered decision or classification service, a provider's default candidate or that setting each make it stand down, so it acts only on an otherwise empty registry.
+It resolves the default LLM once at startup, the same way a configured prompted service does, and keeps that LLM for the life of the application.
+Like any prompted service, it reports a selected category, no match or inconclusive, with no confidence and no distribution.
+With the setting off, the previous behaviour returns: an empty registry gives `NO_DEFAULT`, and several prompted services with no candidate give `AMBIGUOUS_DEFAULT`.
 
 ===== Startup snapshot
 

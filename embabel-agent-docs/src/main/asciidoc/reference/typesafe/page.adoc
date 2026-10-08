@@ -60,8 +60,11 @@ embabel:
 ----
 
 A nonblank environment value takes precedence over the property and is resolved for every
-request. Credential rotation therefore takes effect without rebuilding the service. Startup fails
-when neither source supplies a credential.
+request. Credential rotation therefore takes effect without rebuilding the service.
+When neither source supplies a credential and `base-url` points somewhere other than the TypeSafe
+cloud, the services call that server anonymously, with no `Authorization` header, and one INFO
+line says so. When neither source supplies a credential and `base-url` is the TypeSafe cloud,
+startup fails.
 
 The complete property set under `embabel.agent.platform.models.typesafe` is:
 
@@ -83,6 +86,10 @@ The complete property set under `embabel.agent.platform.models.typesafe` is:
 |`max-response-bytes`
 |`1048576`
 |Maximum response size decoded by the guarded provider boundary
+
+|`provider`
+|`TypeSafe`
+|Provider name the services and their answers report; must not be blank
 |===
 
 Auto-configuration contributes the following beans:
@@ -121,10 +128,21 @@ embabel:
               model: jev-fast
 ----
 
-`model` is the only key of an entry. Named services share the credential, base URL and response
-limit of the top-level properties, and the `typeSafeDecisionService` bean stays registered. A bean
+An entry has four keys: `model`, which is required, and `base-url`, `api-key` and `provider`, which
+override the top-level values for that entry alone.
+An entry with only `model` shares the default factory, with its credential, base URL, provider
+name and response limit.
+An entry with any other key gets a factory of its own, with its own client, credential and provider
+name, built from the same HTTP client builder and keeping the top-level response limit.
+An entry with its own `base-url` sends only its own `api-key`, and calls its server anonymously
+when it has none, so the shared credential never reaches another endpoint.
+Such an entry needs its own `api-key` when its `base-url` is the TypeSafe cloud, and startup fails
+without one.
+An entry without its own `base-url` uses its own `api-key` if it has one and the shared credential
+otherwise.
+The `typeSafeDecisionService` bean stays registered. A bean
 the application defines under an entry's key replaces that entry, and one INFO line names it.
-Startup fails when an entry has a blank model or an unknown key, and the error names the property.
+Startup fails when an entry has a blank value or an unknown key, and the error names the property.
 Unknown keys are detected in configuration files and other property sources. Environment variables
 and system properties are not checked for them.
 
@@ -132,6 +150,32 @@ An application that supplies its own `TypeSafeModelFactory` bean also keeps it: 
 then creates no factory, no default service, and needs no API key. Named services come from the
 auto-configured factory, so a configured `services` entry is not registered when the application
 builds its own factory instead.
+
+===== Compatible self-hosted servers
+
+A server that speaks the TypeSafe protocol without checking authorization, such as a self-hosted
+Jev, can sit beside the TypeSafe cloud as a named service:
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        typesafe:
+          services:
+            local:
+              model: jev-latest
+              base-url: http://127.0.0.1:8000
+              provider: decider
+----
+
+The `local` entry has its own `base-url` and no `api-key`, so it calls the local server with no
+credential, and its services and answers report the provider `decider`.
+The top-level properties still configure `typeSafeDecisionService`, so while the top-level
+`base-url` is the TypeSafe cloud, startup still needs `TYPESAFE_API_KEY` or `api-key`.
+In plain Java, pass `TypeSafeCredential.none()` to a `TypeSafeModelFactory` constructor for the same
+anonymous calls.
 
 ==== Classification and proposition assessment
 
@@ -158,7 +202,7 @@ to `PropositionResult.Inconclusive`. Values above `0.5` produce `Answered(true, 
 it produce `Answered(false, ...)`. The original probability is retained as `pTrue`. The adapter does
 not add an application acceptance threshold.
 
-Successful results carry the model reported by TypeSafe, the `TypeSafe` provider name and the
+Successful results carry the model reported by TypeSafe, the configured provider name and the
 provider request identifier when present. If a successful response omits its resolved model name,
 provenance falls back to the configured model alias.
 
