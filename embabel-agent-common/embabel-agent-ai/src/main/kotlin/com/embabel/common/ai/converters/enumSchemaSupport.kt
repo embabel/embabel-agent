@@ -46,7 +46,7 @@ import tools.jackson.databind.ObjectMapper
  *
  * Usage:
  * ```kotlin
- * @DescribedEnum
+ * @EnumAsOneOf
  * enum class Priority {
  *     @JsonPropertyDescription("Needs same-day response") URGENT,
  *     @JsonPropertyDescription("Standard turnaround")    NORMAL,
@@ -56,11 +56,11 @@ import tools.jackson.databind.ObjectMapper
  */
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.RUNTIME)
-annotation class DescribedEnum
+annotation class EnumAsOneOf
 
 /**
  * Installs [EnumConstantDescriptionProvider] on this [SchemaGeneratorConfigBuilder],
- * enabling per-constant descriptions for enums annotated with [@DescribedEnum][DescribedEnum].
+ * enabling per-constant descriptions for enums annotated with [@EnumAsOneOf][EnumAsOneOf].
  *
  * This is an extension function so callers can compose schema customisations without
  * subclassing [JacksonOutputConverter] or [FilteringJacksonOutputConverter].
@@ -75,7 +75,7 @@ fun SchemaGeneratorConfigBuilder.withEnumConstantDescriptions(
  *
  * For an enum like:
  * ```kotlin
- * @DescribedEnum
+ * @EnumAsOneOf
  * enum class Priority {
  *     @JsonPropertyDescription("Needs same-day response") URGENT,
  *     @JsonPropertyDescription("Standard turnaround")    NORMAL,
@@ -96,14 +96,14 @@ fun SchemaGeneratorConfigBuilder.withEnumConstantDescriptions(
  * exactly what the prompt example serialises.
  *
  * This provider is installed unconditionally on the [SchemaGeneratorConfigBuilder].
- * The [@DescribedEnum][DescribedEnum] annotation on the enum class is the opt-in signal —
+ * The [@EnumAsOneOf][EnumAsOneOf] annotation on the enum class is the opt-in signal —
  * victools calls this provider for every type it resolves (including enums nested inside
  * collections and nested records), and the annotation check here gates whether `oneOf`
  * is emitted. Unannotated enums are returned as `null`, deferring to victools default behaviour.
  *
  * Returns `null` (deferring to victools default behaviour) when:
  * - the type is not an enum,
- * - the enum is not annotated with [@DescribedEnum][DescribedEnum],
+ * - the enum is not annotated with [@EnumAsOneOf][EnumAsOneOf],
  * - no constant carries a non-empty [@JsonPropertyDescription][JsonPropertyDescription], or
  * - any constant's serialised value is non-textual (e.g. a number from a `@JsonValue`
  *   that returns `Int`) — in that case `type: string` would be incorrect.
@@ -118,7 +118,7 @@ internal class EnumConstantDescriptionProvider(
     ): CustomDefinition? {
         val rawType: Class<*> = javaType.erasedType
         if (!rawType.isEnum) return null
-        if (!rawType.isAnnotationPresent(DescribedEnum::class.java)) return null
+        if (!rawType.isAnnotationPresent(EnumAsOneOf::class.java)) return null
 
         val constants: Array<out Any> = rawType.enumConstants ?: return null
 
