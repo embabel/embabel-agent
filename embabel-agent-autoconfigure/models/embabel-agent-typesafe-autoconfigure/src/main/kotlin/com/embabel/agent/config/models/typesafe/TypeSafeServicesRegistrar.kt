@@ -84,7 +84,11 @@ internal class TypeSafeServicesRegistrar(
         var provider: String? = null
 
         override fun toString(): String =
-            "ServiceProperties(model=$model, baseUrl=[CONFIGURED], apiKey=[REDACTED], provider=$provider)"
+            "ServiceProperties(model=$model, baseUrl=${presence(baseUrl, "[CONFIGURED]")}, " +
+                "apiKey=${presence(apiKey, "[REDACTED]")}, provider=$provider)"
+
+        // Says whether a value is set without printing it.
+        private fun presence(value: String?, label: String): String = if (value == null) "[unset]" else label
     }
 
     // The prompted-service registrar can run before or after this one. Each marks its definitions

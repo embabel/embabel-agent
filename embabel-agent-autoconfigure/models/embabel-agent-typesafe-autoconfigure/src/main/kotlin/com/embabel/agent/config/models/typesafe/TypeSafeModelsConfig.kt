@@ -66,7 +66,7 @@ class TypeSafeModelsConfig(
     // Kept so the named services that override something can build factories of their own on
     // the same transport. Selecting again is cheap: it only clones a builder.
     private val transport: RestClient.Builder? = selectedBuilder(platformBuilders, builders, registries)
-    private val registry: ObservationRegistry = registries.getIfUnique { ObservationRegistry.NOOP }
+    private val registry: ObservationRegistry = observationRegistry
     private val sharedCredential: TypeSafeCredential = credential(properties, environment)
 
     init {
