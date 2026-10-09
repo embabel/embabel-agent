@@ -16,6 +16,7 @@
 package com.embabel.agent.openai
 
 import com.embabel.agent.api.models.AtlasCloudModels
+import com.embabel.agent.api.models.CheaperInferenceModels
 import com.embabel.agent.api.models.DeepSeekModels
 import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.api.models.MistralAiModels
@@ -52,6 +53,11 @@ class OpenAiCompatibleModelFactoryByokSpecTest {
     }
 
     @Test
+    fun `cheaperInference returns ByokFactory`() {
+        assertInstanceOf(ByokFactory::class.java, OpenAiCompatibleModelFactory.cheaperInference("key"))
+    }
+
+    @Test
     fun `byok with explicit params returns ByokFactory`() {
         assertInstanceOf(
             ByokFactory::class.java,
@@ -81,6 +87,7 @@ class OpenAiCompatibleModelFactoryByokSpecTest {
         val mistralSpec = OpenAiCompatibleModelFactory.mistral("key")
         val geminiSpec = OpenAiCompatibleModelFactory.gemini("key")
         val atlasCloudSpec = OpenAiCompatibleModelFactory.atlasCloud("key")
+        val cheaperInferenceSpec = OpenAiCompatibleModelFactory.cheaperInference("key")
 
         // Each spec should construct without error (no network call at this stage)
         assertInstanceOf(ByokFactory::class.java, openAiSpec)
@@ -88,8 +95,13 @@ class OpenAiCompatibleModelFactoryByokSpecTest {
         assertInstanceOf(ByokFactory::class.java, mistralSpec)
         assertInstanceOf(ByokFactory::class.java, geminiSpec)
         assertInstanceOf(ByokFactory::class.java, atlasCloudSpec)
+        assertInstanceOf(ByokFactory::class.java, cheaperInferenceSpec)
 
         val overridden = atlasCloudSpec.validating(AtlasCloudModels.QWEN3_8_MAX, AtlasCloudModels.PROVIDER)
         assertInstanceOf(ByokFactory::class.java, overridden)
+
+        val cheaperInferenceOverridden =
+            cheaperInferenceSpec.validating(CheaperInferenceModels.GPT_5_4, CheaperInferenceModels.PROVIDER)
+        assertInstanceOf(ByokFactory::class.java, cheaperInferenceOverridden)
     }
 }

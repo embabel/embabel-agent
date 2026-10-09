@@ -71,6 +71,15 @@ class OpenAiCompatibleModelFactoryByokIT {
     }
 
     @Test
+    @EnabledIfEnvironmentVariable(named = "CHEAPERINFERENCE_API_KEY", matches = ".+")
+    fun `cheaperInference buildValidated succeeds with valid key`() {
+        val service = OpenAiCompatibleModelFactory.cheaperInference(System.getenv("CHEAPERINFERENCE_API_KEY"))
+            .buildValidated()
+        assertNotNull(service)
+        assertEquals("Cheaper Inference", service.provider)
+    }
+
+    @Test
     @EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+")
     fun `openAiEmbedding buildValidated succeeds with valid key`() {
         val service = OpenAiCompatibleModelFactory

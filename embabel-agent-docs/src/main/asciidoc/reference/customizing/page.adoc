@@ -227,6 +227,9 @@ val service: LlmService<*> = OpenAiCompatibleModelFactory.gemini(userKey).buildV
 
 // Atlas Cloud (OpenAI-compatible endpoint)
 val service: LlmService<*> = OpenAiCompatibleModelFactory.atlasCloud(userKey).buildValidated()
+
+// Cheaper Inference (OpenAI-compatible endpoint)
+val service: LlmService<*> = OpenAiCompatibleModelFactory.cheaperInference(userKey).buildValidated()
 ----
 
 `buildValidated()` makes a single probe call with no retries.
@@ -262,6 +265,7 @@ val service: LlmService<*> = detectProvider(
     OpenAiCompatibleModelFactory.mistral(userKey),
     OpenAiCompatibleModelFactory.gemini(userKey),
     OpenAiCompatibleModelFactory.atlasCloud(userKey),
+    OpenAiCompatibleModelFactory.cheaperInference(userKey),
 )
 val detectedProvider: String = service.provider
 ----
