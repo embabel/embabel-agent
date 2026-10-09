@@ -49,6 +49,14 @@ class DecisionProjection<T : Any> private constructor(val value: T, val response
 
     companion object {
 
+        /**
+         * Keeps a caller-projected value together with its original response. The caller is
+         * responsible for validating the response and converting the value before calling this.
+         */
+        @JvmStatic
+        fun <T : Any> ofValue(value: T, response: DecisionResponse): DecisionProjection<T> =
+            DecisionProjection(value, response)
+
         private val defaultMapper: ObjectMapper by lazy {
             JsonMapper.builder().enable(DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES).build()
         }
@@ -115,10 +123,17 @@ class DecisionProjection<T : Any> private constructor(val value: T, val response
          * together with its outcome
          */
         @JvmStatic
-        fun answeredValues(response: DecisionResponse): Map<String, Any> {
+        fun answeredValues(response: DecisionResponse): Map<String, Any> = answeredValues(response.answers)
+
+        /**
+         * Reduces selected answers with the same strict rules as [answeredValues]. Adapters may
+         * preserve richer outcomes for other fields; an empty list produces an empty map.
+         */
+        @JvmStatic
+        fun answeredValues(answers: List<DecisionAnswer>): Map<String, Any> {
             val values = LinkedHashMap<String, Any>()
             val unresolved = LinkedHashMap<String, String>()
-            for (answer in response.answers) {
+            for (answer in answers) {
                 val value = projectedValue(answer)
                 if (value != null) {
                     values[answer.name] = value

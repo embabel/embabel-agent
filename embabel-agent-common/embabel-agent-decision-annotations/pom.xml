@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.embabel.agent</groupId>
+        <artifactId>embabel-agent-common</artifactId>
+        <version>1.5.4-SNAPSHOT</version>
+    </parent>
+    <artifactId>embabel-agent-decision-annotations</artifactId>
+    <packaging>jar</packaging>
+    <name>Embabel Agent Decision Annotations (prototype)</name>
+    <description>Reads decision specs from annotated Java types. Prototype module.</description>
+    <url>https://github.com/embabel/embabel-agent</url>
+
+    <properties>
+        <!-- This module is a prototype. It is built and tested in the reactor and is not published. -->
+        <maven.deploy.skip>true</maven.deploy.skip>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-ai</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- jackson-module-kotlin reaches the Kotlin tests through embabel-agent-ai at compile scope. -->
+
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Spring Boot 4 keeps JacksonAutoConfiguration in its own module. Tests import it explicitly. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-jackson</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
