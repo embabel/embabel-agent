@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.core.support
 
+import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolObject
 
@@ -63,8 +64,26 @@ fun safelyGetToolsFrom(toolObject: ToolObject): List<Tool> {
         .filter { toolObject.filter(it.definition.name) }
         .map {
             val newName = toolObject.namingStrategy.transform(it.definition.name)
-            if (newName != it.definition.name) it.withName(newName) else it
+            if (newName != it.definition.name) RenamedTool(it, newName) else it
         }
         .distinctBy { it.definition.name }
         .sortedBy { it.definition.name }
+}
+
+/**
+ * Renames a Tool while preserving all behaviour including ToolCallContext propagation.
+ * Implements DelegatingTool so call(input, context) delegates to the wrapped tool.
+ */
+internal class RenamedTool(
+    override val delegate: Tool,
+    private val newName: String,
+) : DelegatingTool {
+
+    override val definition: Tool.Definition = object : Tool.Definition {
+        override val name: String = newName
+        override val description: String = delegate.definition.description
+        override val inputSchema: Tool.InputSchema = delegate.definition.inputSchema
+    }
+
+    override val metadata: Tool.Metadata = delegate.metadata
 }
