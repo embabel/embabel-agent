@@ -26,6 +26,8 @@ import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import com.github.victools.jsonschema.generator.SchemaVersion
 import com.github.victools.jsonschema.module.jackson.JacksonModule
 import com.github.victools.jsonschema.module.jackson.JacksonOption
+import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule
+import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption
 import org.jetbrains.annotations.ApiStatus
 import java.lang.reflect.Method
 import java.lang.reflect.Type
@@ -51,6 +53,12 @@ internal object VictoolsSchemaGenerator {
                 // Keep nested input types consistent with the existing Jackson-aware output schema.
                 JacksonOption.RESPECT_JSONPROPERTY_REQUIRED,
                 JacksonOption.RESPECT_JSONPROPERTY_ORDER,
+            )
+        ).with(
+            JakartaValidationModule(
+                JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED,
+                JakartaValidationOption.NOT_NULLABLE_METHOD_IS_REQUIRED,
+                JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
             )
         )
         // Don't include $schema and $id in generated schemas

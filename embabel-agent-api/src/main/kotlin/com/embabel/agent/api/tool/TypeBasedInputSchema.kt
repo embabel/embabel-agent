@@ -15,9 +15,15 @@
  */
 package com.embabel.agent.api.tool
 
+import com.fasterxml.jackson.annotation.JsonPropertyDescription
 import tools.jackson.databind.ObjectMapper
 import kotlin.reflect.KClass
+import kotlin.reflect.KProperty1
+import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.memberProperties
+import kotlin.reflect.full.primaryConstructor
+import kotlin.reflect.jvm.javaField
+import kotlin.reflect.jvm.javaGetter
 import kotlin.reflect.jvm.javaType
 
 /**
@@ -36,6 +42,39 @@ class TypeBasedInputSchema(
 
         @JvmStatic
         fun of(type: KClass<*>): TypeBasedInputSchema = TypeBasedInputSchema(type.java)
+
+        private fun findPropertyDescription(prop: KProperty1<*, *>, kClass: KClass<*>): String {
+            val description = prop.getter.findAnnotation<JsonPropertyDescription>()?.value
+                ?: prop.findAnnotation<JsonPropertyDescription>()?.value
+                ?: prop.javaField?.getAnnotation(JsonPropertyDescription::class.java)?.value
+                ?: prop.javaGetter?.getAnnotation(JsonPropertyDescription::class.java)?.value
+                ?: kClass.primaryConstructor?.parameters?.firstOrNull { it.name == prop.name }
+                    ?.findAnnotation<JsonPropertyDescription>()?.value
+            return if (!description.isNullOrEmpty()) description else prop.name
+        }
+
+        private fun findFieldDescription(field: java.lang.reflect.Field, type: Class<*>): String {
+            if (type.isRecord) {
+                val recordComponent = type.recordComponents?.firstOrNull { it.name == field.name }
+                val componentDesc = recordComponent?.getAnnotation(JsonPropertyDescription::class.java)?.value
+                if (!componentDesc.isNullOrEmpty()) return componentDesc
+            }
+            val fieldDesc = field.getAnnotation(JsonPropertyDescription::class.java)?.value
+            if (!fieldDesc.isNullOrEmpty()) return fieldDesc
+
+            try {
+                val getter = type.methods.firstOrNull {
+                    (it.name == field.name ||
+                        it.name == "get" + field.name.replaceFirstChar { c -> c.uppercase() } ||
+                        it.name == "is" + field.name.replaceFirstChar { c -> c.uppercase() }) &&
+                        it.parameterCount == 0
+                }
+                val getterDesc = getter?.getAnnotation(JsonPropertyDescription::class.java)?.value
+                if (!getterDesc.isNullOrEmpty()) return getterDesc
+            } catch (_: Exception) {}
+
+            return field.name
+        }
 
         private fun mapPropertyTypeToParameterType(type: Class<*>): Tool.ParameterType = when {
             type == String::class.java || type == java.lang.String::class.java ->
@@ -80,7 +119,7 @@ class TypeBasedInputSchema(
                     VictoolsSchemaGenerator.ParameterInfo(
                         name = prop.name,
                         type = javaType,
-                        description = prop.name,
+                        description = findPropertyDescription(prop, kClass),
                         required = !prop.returnType.isMarkedNullable,
                     )
                 )
@@ -89,12 +128,12 @@ class TypeBasedInputSchema(
             // Fallback for non-Kotlin classes or reflection failures
             // For Java classes, try to get generic type info from fields
             for (field in type.declaredFields) {
-                if (java.lang.reflect.Modifier.isStatic(field.modifiers)) continue
+                if (java.lang.reflect.Modifier.isStatic(field.modifiers) || field.isSynthetic) continue
                 parameterInfos.add(
                     VictoolsSchemaGenerator.ParameterInfo(
                         name = field.name,
                         type = field.genericType, // Use genericType for full type info
-                        description = field.name,
+                        description = findFieldDescription(field, type),
                         required = true,
                     )
                 )
@@ -122,7 +161,7 @@ class TypeBasedInputSchema(
                     Tool.Parameter(
                         name = prop.name,
                         type = mapPropertyTypeToParameterType(propType),
-                        description = prop.name,
+                        description = findPropertyDescription(prop, kClass),
                         required = !prop.returnType.isMarkedNullable,
                     )
                 )
@@ -130,12 +169,12 @@ class TypeBasedInputSchema(
         } catch (e: Exception) {
             // Fallback for non-Kotlin classes
             for (field in type.declaredFields) {
-                if (java.lang.reflect.Modifier.isStatic(field.modifiers)) continue
+                if (java.lang.reflect.Modifier.isStatic(field.modifiers) || field.isSynthetic) continue
                 params.add(
                     Tool.Parameter(
                         name = field.name,
                         type = mapPropertyTypeToParameterType(field.type),
-                        description = field.name,
+                        description = findFieldDescription(field, type),
                         required = true,
                     )
                 )

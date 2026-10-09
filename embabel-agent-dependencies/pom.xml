@@ -492,6 +492,12 @@
                 <artifactId>opentelemetry-semconv</artifactId>
                 <version>1.29.0-alpha</version>
             </dependency>
+
+            <dependency>
+                <groupId>com.github.victools</groupId>
+                <artifactId>jsonschema-module-jakarta-validation</artifactId>
+                <version>5.0.0</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
