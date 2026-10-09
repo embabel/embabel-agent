@@ -32,13 +32,15 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
     optionsConverter = AnthropicOptionsConverter
 ) {
 
+    /**
+     * Claude Opus 5.5, Sonnet 5.5 and Fable 5.1 reject `thinking: {type: "disabled"}` with a 400.
+     * Omitting the field means "thinking off" on Claude 4.x and the model's own default on the
+     * Claude 5 generation.
+     */
     @Test
-    fun `should default to no thinking`() {
+    fun `should leave thinking unset by default`() {
         val options = (optionsConverter.convertOptions(LlmOptions(), "test-model") as AnthropicChatOptions)
-        // Spring AI 2.0 replaced AnthropicApi.ThinkingType with anthropic-java's
-        // ThinkingConfigParam (a sealed union of enabled/disabled/adaptive).
-        // isDisabled() / isEnabled() are functions (not Kotlin properties), so call them.
-        assertTrue(options.thinking.isDisabled(), "expected thinking to be disabled")
+        assertNull(options.thinking, "expected no thinking field")
     }
 
     @Test

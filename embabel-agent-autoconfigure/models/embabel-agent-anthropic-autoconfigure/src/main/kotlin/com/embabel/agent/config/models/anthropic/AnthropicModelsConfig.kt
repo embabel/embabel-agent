@@ -26,7 +26,9 @@ import com.embabel.agent.spi.support.springai.SpringAiNativeStructuredOutputConf
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
+import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.PerTokenPricingModel
+import com.embabel.common.ai.model.Thinking
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.ai.anthropic.AnthropicChatModel
@@ -197,29 +199,18 @@ class AnthropicModelsConfig(
     }
 
     /**
-     * Creates default options for a model based on YAML configuration.
-     *
-     * Spring AI 2.0 replaced the `AnthropicApi.ChatCompletionRequest.ThinkingConfig`
-     * constructor with first-class `thinkingEnabled(tokenBudget)` / `thinkingDisabled()`
-     * methods on the options builder.
+     * Creates default options for a model based on YAML configuration, through the same converter
+     * as each call so a model gets only the thinking and sampling fields it accepts.
      */
-    private fun createDefaultOptions(modelDef: AnthropicModelDefinition): AnthropicChatOptions {
-        return AnthropicChatOptions.builder()
-            .model(modelDef.modelId)
-            .maxTokens(modelDef.maxTokens)
-            .temperature(modelDef.temperature)
-            .apply {
-                modelDef.topP?.let { topP(it) }
-                modelDef.topK?.let { topK(it) }
-
-                // Configure thinking mode if specified
-                val thinkingBudget = modelDef.thinking?.tokenBudget
-                if (thinkingBudget != null && thinkingBudget > 0) {
-                    thinkingEnabled(thinkingBudget.toLong())
-                } else {
-                    thinkingDisabled()
-                }
-            }
-            .build()
-    }
+    private fun createDefaultOptions(modelDef: AnthropicModelDefinition): AnthropicChatOptions =
+        AnthropicOptionsConverter.convertOptions(
+            LlmOptions(
+                maxTokens = modelDef.maxTokens,
+                temperature = modelDef.temperature,
+                topP = modelDef.topP,
+                topK = modelDef.topK,
+                thinking = modelDef.thinking?.tokenBudget?.let { Thinking.withTokenBudget(it) },
+            ),
+            modelDef.modelId,
+        ) as AnthropicChatOptions
 }

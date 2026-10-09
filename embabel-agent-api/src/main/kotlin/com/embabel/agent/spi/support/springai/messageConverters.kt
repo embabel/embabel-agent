@@ -16,6 +16,8 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.chat.*
+import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
 import org.springframework.ai.content.Media
 import org.springframework.core.io.ByteArrayResource
 import org.springframework.util.MimeTypeUtils
@@ -24,6 +26,9 @@ import org.springframework.ai.chat.messages.Message as SpringAiMessage
 import org.springframework.ai.chat.messages.SystemMessage as SpringAiSystemMessage
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage as SpringAiUserMessage
+
+/** Where Spring AI's Anthropic model keeps a turn's thinking blocks on its assistant message. */
+private const val ANTHROPIC_THINKING_CONTENTS = "anthropicThinkingContents"
 
 /**
  * Convert one of our messages to a Spring AI message with multimodal support.
@@ -50,7 +55,12 @@ fun Message.toSpringAiMessage(
             SpringAiAssistantMessage.builder()
                 .content(this.content)
                 .toolCalls(springToolCalls)
-                .properties(metadata + this.metadata)
+                // Spring AI's Anthropic model would send these thinking blocks back after the text,
+                // not where Claude produced them, and Claude 5 rejects an edited earlier turn with a
+                // 400. Thinking left out of earlier turns is accepted, at the cost of that reasoning.
+                // ponytail: drops all earlier Claude thinking; keep it once tool-loop messages can
+                // carry provider content blocks in order (#1716).
+                .properties(metadata + this.metadata - ANTHROPIC_THINKING_CONTENTS)
                 .build()
         }
 
@@ -134,6 +144,26 @@ internal fun List<SpringAiMessage>.mergeConsecutiveToolResponses(): List<SpringA
     }
     return result
 }
+
+/**
+ * The generation that carries the model's answer.
+ *
+ * Spring AI's Anthropic model returns each thinking block as its own generation ahead of the
+ * answer, so the first generation is not necessarily the answer. A response of thinking alone,
+ * as when reasoning used up the output limit, has an empty answer rather than its reasoning.
+ * Null only when there are no generations at all.
+ */
+internal fun ChatResponse.answerGeneration(): Generation? =
+    results.firstOrNull { !it.output.isThinkingBlock() }
+        ?: result?.let { Generation(SpringAiAssistantMessage(""), it.metadata) }
+
+/**
+ * A thinking block Spring AI's Anthropic model returned as a generation of its own:
+ * `signature` marks a thinking block, `data` with no text a redacted one.
+ */
+internal fun SpringAiAssistantMessage.isThinkingBlock(): Boolean =
+    toolCalls.isEmpty() &&
+        (metadata.containsKey("signature") || (metadata.containsKey("data") && text.isNullOrEmpty()))
 
 /**
  * Convert a Spring AI AssistantMessage to an Embabel message.

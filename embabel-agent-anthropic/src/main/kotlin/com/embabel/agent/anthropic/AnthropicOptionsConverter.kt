@@ -33,23 +33,46 @@ object AnthropicOptionsConverter : OptionsConverter {
      */
     const val DEFAULT_MAX_TOKENS = 8192
 
+    private const val DEFAULT_TEMPERATURE = 1.0
+
     override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
+        val capabilities = ClaudeCapabilities.of(model)
+        if (!capabilities.acceptsSampling) {
+            warnAboutIgnoredSampling(options, model)
+        }
         val builder = AnthropicChatOptions.builder()
             .model(model)
-            .temperature(options.temperature)
-            .topP(options.topP)
-            .maxTokens(options.maxTokens ?: DEFAULT_MAX_TOKENS)
             .apply {
-                // Spring AI 2.0 replaced AnthropicApi.ChatCompletionRequest.ThinkingConfig with
-                // first-class thinkingEnabled(tokenBudget) / thinkingDisabled() builder methods.
-                val thinkingBudget = options.thinking?.tokenBudget
-                if (options.thinking?.enabled == true && thinkingBudget != null) {
-                    thinkingEnabled(thinkingBudget.toLong())
-                } else {
-                    thinkingDisabled()
+                if (capabilities.acceptsSampling) {
+                    temperature(options.temperature)
+                    topP(options.topP)
+                    topK(options.topK)
                 }
             }
-            .topK(options.topK)
+            .maxTokens(options.maxTokens ?: DEFAULT_MAX_TOKENS)
+            .apply {
+                val thinking = options.thinking
+                val thinkingBudget = thinking?.tokenBudget
+                if (thinking != null && !thinking.enabled && !thinking.extractThinking) {
+                    // withoutThinking(). Extraction alone leaves the model's own default alone.
+                    if (capabilities.acceptsThinkingDisabled) {
+                        thinkingDisabled()
+                    } else {
+                        logger.warn("Model '{}' cannot turn thinking off, so it thinks adaptively", model)
+                    }
+                } else if (thinking?.enabled == true && thinkingBudget != null) {
+                    if (capabilities.acceptsThinkingBudget) {
+                        thinkingEnabled(thinkingBudget.toLong())
+                    } else {
+                        logger.warn(
+                            "Model '{}' rejects a thinking budget, so thinking is adaptive and the budget of {} tokens is ignored",
+                            model,
+                            thinkingBudget,
+                        )
+                        thinkingAdaptive()
+                    }
+                }
+            }
 
         // Apply Anthropic caching if configured
         options.getAnthropicCaching()?.let { caching ->
@@ -73,6 +96,25 @@ object AnthropicOptionsConverter : OptionsConverter {
         }
 
         return builder.build()
+    }
+
+    /**
+     * Warn-and-drop, as for OpenAI: refusing the call would cost the caller an answer over a
+     * parameter that was never essential. Default temperature is what the model uses anyway.
+     */
+    private fun warnAboutIgnoredSampling(options: LlmOptions, model: String) {
+        val ignored = listOfNotNull(
+            options.temperature?.takeIf { it != DEFAULT_TEMPERATURE }?.let { "temperature=$it" },
+            options.topP?.let { "topP=$it" },
+            options.topK?.let { "topK=$it" },
+        )
+        if (ignored.isNotEmpty()) {
+            logger.warn(
+                "Model '{}' rejects sampling parameters, so the following are ignored rather than sent: {}",
+                model,
+                ignored.joinToString(", "),
+            )
+        }
     }
 
     /**
@@ -103,6 +145,58 @@ object AnthropicOptionsConverter : OptionsConverter {
             MessageRole.SYSTEM -> MessageType.SYSTEM
             MessageRole.USER -> MessageType.USER
             MessageRole.ASSISTANT -> MessageType.ASSISTANT
+        }
+    }
+}
+
+/**
+ * What a Claude model accepts, per platform.claude.com/docs/en/build-with-claude/thinking.
+ *
+ * Read from the model id rather than the catalogue because BYOK callers name any model.
+ * ponytail: parses family and version from the id; an id it can't parse (a gateway alias,
+ * Claude 3) keeps the Claude 4.5 behaviour. Move to catalogue flags if ids stop following
+ * `claude-<family>-<major>-<minor>`.
+ *
+ * @property acceptsThinkingBudget `thinking: {type: "enabled", budget_tokens}` works; Claude Opus 4.7
+ * and later, the Claude 5 generation, Fable and Mythos reject it and take adaptive thinking instead.
+ * Claude Mythos Preview is the exception: it takes a budget.
+ * @property acceptsThinkingDisabled `thinking: {type: "disabled"}` works; Claude Opus 5.5, Sonnet 5.5,
+ * Fable and Mythos reject it. Opus 5 and Sonnet 5 accept it.
+ * @property acceptsSampling non-default `temperature`, `top_p` and `top_k` work; Claude Opus 4.7 and
+ * later, the Claude 5 generation, Fable and Mythos reject them on every request.
+ */
+internal data class ClaudeCapabilities(
+    val acceptsThinkingBudget: Boolean,
+    val acceptsThinkingDisabled: Boolean,
+    val acceptsSampling: Boolean,
+) {
+    companion object {
+        private val ID = Regex("""^claude-(opus|sonnet|haiku|fable|mythos)(?:-(\d+)(?:-(\d)(?!\d))?)?""")
+
+        private val MYTHOS_PREVIEW = ClaudeCapabilities(
+            acceptsThinkingBudget = true,
+            acceptsThinkingDisabled = false,
+            acceptsSampling = false,
+        )
+
+        fun of(model: String): ClaudeCapabilities {
+            if (model.startsWith("claude-mythos-preview")) {
+                return MYTHOS_PREVIEW
+            }
+            val match = ID.find(model)
+            val family = match?.groupValues?.get(1)
+            // Fable and Mythos only exist in the adaptive-thinking generation.
+            val version = if (family == "fable" || family == "mythos") {
+                Int.MAX_VALUE
+            } else {
+                (match?.groupValues?.get(2)?.toIntOrNull() ?: 0) * 10 +
+                    (match?.groupValues?.get(3)?.toIntOrNull() ?: 0)
+            }
+            return ClaudeCapabilities(
+                acceptsThinkingBudget = version < 47,
+                acceptsThinkingDisabled = version < 55,
+                acceptsSampling = version < 47,
+            )
         }
     }
 }

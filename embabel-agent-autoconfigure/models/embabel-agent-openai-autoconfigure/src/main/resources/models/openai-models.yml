@@ -3,9 +3,11 @@
 # ============================================
 # OpenAI and compatible models configuration
 # Model IDs verified against GET /v1/models on 2026-03-29; the GPT-5.5 and
-# GPT-5.6 families against developers.openai.com/api/docs/models on 2026-08-04.
+# GPT-5.6 families against developers.openai.com/api/docs/models on 2026-08-04,
+# the GPT-6 family on 2026-10-05.
 # Pricing verified against official OpenAI model pages and openai.com/api/pricing
-# on 2026-04-02, and for GPT-5.5/5.6 on 2026-08-04.
+# on 2026-04-02, for GPT-5.5/5.6 on 2026-08-04, and for GPT-6/5.6 on 2026-10-05.
+# Lifecycle per developers.openai.com/api/docs/deprecations on 2026-10-05.
 # Note: undated aliases (e.g. "gpt-5.4") resolve to OpenAI's current recommended
 #       pinned version and may change over time. Use dated model IDs in the
 #       OpenAiModels constants if reproducibility is required.
@@ -39,7 +41,84 @@ native_support_defaults:
 
 models:
   # ========================================
-  # GPT-5.6 FAMILY (Current Flagship - July 2026)
+  # GPT-6 FAMILY (Current Flagship)
+  # Model pages and pricing verified: developers.openai.com 2026-10-05
+  # Astra is the flagship, 6.1 Sol balances intelligence and cost, Luna is
+  # the high-volume tier. GPT-6 Sol is the previous Sol, superseded by 6.1 Sol.
+  # Prices are the short-context tier (<272K); long context is billed higher.
+  #
+  # Same transport constraint as GPT-5.6: Astra and 6.1 Sol take tool calls
+  # only over Responses, and 6 Sol and Luna accept function tools on Chat
+  # Completions only at reasoning effort `none`. All four are pinned to
+  # Responses for the reason given under GPT-5.6 below.
+  # ========================================
+
+  - name: "gpt6astra"
+    model_id: "gpt-6-astra"
+    api_format: "RESPONSES"
+    display_name: "GPT-6 Astra"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 10.00
+      usd_per1m_output_tokens: 50.00
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  - name: "gpt61sol"
+    model_id: "gpt-6.1-sol"
+    api_format: "RESPONSES"
+    display_name: "GPT-6.1 Sol"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 2.00
+      usd_per1m_output_tokens: 10.00
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  - name: "gpt6sol"
+    model_id: "gpt-6-sol"
+    api_format: "RESPONSES"
+    display_name: "GPT-6 Sol"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 2.00
+      usd_per1m_output_tokens: 10.00
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  - name: "gpt6luna"
+    model_id: "gpt-6-luna"
+    api_format: "RESPONSES"
+    display_name: "GPT-6 Luna"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 0.10
+      usd_per1m_output_tokens: 0.50
+    special_handling:
+      supports_temperature: false
+      supports_top_p: false
+      supports_frequency_penalty: false
+      supports_presence_penalty: false
+      uses_max_completion_tokens: true
+
+  # ========================================
+  # GPT-5.6 FAMILY (July 2026)
   # Model pages and pricing verified: developers.openai.com 2026-08-04
   # Tiers are Luna/Terra/Sol, not nano/mini/pro: "pro" became a Responses-only
   # reasoning MODE (reasoning.mode) rather than a model.
@@ -64,9 +143,11 @@ models:
     display_name: "GPT-5.6 Sol"
     max_tokens: 16384
     temperature: 1.0
+    # Promotional price, "available at least through November 21, 2026"
+    # (developers.openai.com/api/docs/models/gpt-5.6-sol, 2026-10-05).
     pricing_model:
-      usd_per1m_input_tokens: 5.00
-      usd_per1m_output_tokens: 30.00
+      usd_per1m_input_tokens: 4.00
+      usd_per1m_output_tokens: 20.00
     special_handling:
       supports_temperature: false
       supports_top_p: false
@@ -178,6 +259,7 @@ models:
       supports_presence_penalty: false
       uses_max_completion_tokens: true
 
+  # Deprecated: removed from the API on 2027-04-01 (replacement gpt-6-luna).
   - name: "gpt54nano"
     model_id: "gpt-5.4-nano"
     display_name: "GPT-5.4 Nano"
@@ -202,27 +284,6 @@ models:
     pricing_model:
       usd_per1m_input_tokens: 30.0
       usd_per1m_output_tokens: 180.0
-    special_handling:
-      supports_temperature: false
-      supports_top_p: false
-      supports_frequency_penalty: false
-      supports_presence_penalty: false
-      uses_max_completion_tokens: true
-
-# ========================================
-# GPT-5.3 CHAT (March 2026)
-# Model details and cost verified:
-# https://developers.openai.com/api/docs/models/gpt-5.3-chat-latest
-# Cached input cost: $0.175
-# ========================================
-  - name: "gpt53chat"
-    model_id: "gpt-5.3-chat-latest"
-    display_name: "GPT-5.3 Chat"
-    max_tokens: 16384
-    temperature: 1.0
-    pricing_model:
-      usd_per1m_input_tokens: 1.75
-      usd_per1m_output_tokens: 14.0
     special_handling:
       supports_temperature: false
       supports_top_p: false
@@ -267,6 +328,7 @@ models:
 
   # ========================================
   # GPT-5.1 FAMILY (November 2025)
+  # Deprecated: removed from the API on 2027-04-01 (replacement gpt-6-sol).
   # ========================================
 
   - name: "gpt51"
@@ -286,6 +348,8 @@ models:
 
   # ========================================
   # GPT-5 FAMILY (August 2025)
+  # Deprecated: the 2025 snapshots behind these aliases are removed from the
+  # API on 2026-12-11 (replacements gpt-5.6-sol/-terra/-luna).
   # ========================================
 
   - name: "gpt5"
@@ -375,6 +439,7 @@ models:
     special_handling:
       supports_temperature: false
 
+  # Deprecated: removed from the API on 2026-10-23 (replacement gpt-5.6-luna).
   - name: "gpt41nano"
     model_id: "gpt-4.1-nano"
     display_name: "GPT-4.1 Nano"
