@@ -52,7 +52,7 @@ import com.embabel.chat.Message
 import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
 import com.embabel.common.ai.converters.JsonSchemaProvider
 import com.embabel.common.ai.converters.RequiredFieldNormalization
-import com.embabel.common.ai.converters.DescribedEnum
+import com.embabel.common.ai.converters.EnumAsOneOf
 import com.embabel.common.ai.converters.withEnumConstantDescriptions
 import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import com.embabel.common.ai.model.LlmOptions
@@ -336,7 +336,7 @@ internal class ChatClientLlmOperations(
                 expectedType = outputClassAny,
                 delegate = WithExampleConverter<Any>(
                     delegate = SuppressThinkingConverter<Any>(
-                        FilteringJacksonOutputConverter<Any>(
+                        buildFilteringConverter(
                             clazz = outputClassAny,
                             objectMapper = objectMapper,
                             fieldFilter = interaction.fieldFilter,
@@ -502,7 +502,7 @@ internal class ChatClientLlmOperations(
                 expectedType = MaybeReturn::class.java,
                 delegate = WithExampleConverter(
                     delegate = SuppressThinkingConverter(
-                        FilteringJacksonOutputConverter(
+                        buildFilteringConverter(
                             typeReference = typeReference,
                             objectMapper = objectMapper,
                             fieldFilter = interaction.fieldFilter,
@@ -982,10 +982,10 @@ internal class ChatClientLlmOperations(
      * Constructs a [FilteringJacksonOutputConverter] for a [Class]-typed output with
      * [EnumConstantDescriptionProvider] installed unconditionally on the schema builder.
      *
-     * The provider is a no-op for any enum not annotated with [@DescribedEnum][DescribedEnum],
+     * The provider is a no-op for any enum not annotated with [@EnumAsOneOf][EnumAsOneOf],
      * so installing it unconditionally has no effect on existing output types. Victools resolves
      * every type in the object graph — including enums nested inside collections or nested
-     * records — and the provider's [@DescribedEnum][DescribedEnum] check inside
+     * records — and the provider's [@EnumAsOneOf][EnumAsOneOf] check inside
      * [EnumConstantDescriptionProvider.provideCustomSchemaDefinition] gates whether `oneOf`
      * is emitted for any given enum.
      */

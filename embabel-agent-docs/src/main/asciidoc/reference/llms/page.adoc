@@ -1649,10 +1649,10 @@ static class MonthItem {
 - **Streaming**: Native structured output is not supported for streaming by Spring AI currently
 - **`ifPossible` APIs**: `createObjectIfPossible` and related paths use `MaybeReturn` semantics and stay on Embabel's fallback object construction path.
 - **Provider coverage**: OpenAI-compatible `response_format` is the primary supported path. Anthropic native structured output is currently disabled by default until its semantics are verified.
-- **`@DescribedEnum`**: Annotating an enum with `@DescribedEnum` causes Embabel to emit `oneOf/const/description` instead of a bare `enum` array for that type. The `oneOf` keyword is not supported on the native structured-output path (OpenAI strict mode rejects it), so Embabel automatically falls back to the prompt-based schema path for any call whose output type contains a `@DescribedEnum` field. The per-constant descriptions still reach the model through the prompt schema on all providers.
+- **`@EnumAsOneOf`**: Annotating an enum with `@EnumAsOneOf` causes Embabel to emit `oneOf/const/description` instead of a bare `enum` array for that type. The `oneOf` keyword is not supported on the native structured-output path (OpenAI strict mode rejects it), so Embabel automatically falls back to the prompt-based schema path for any call whose output type contains a `@EnumAsOneOf` field. The per-constant descriptions still reach the model through the prompt schema on all providers.
 
-[[reference.llms.described-enum]]
-===== Per-Constant Enum Descriptions with `@DescribedEnum`
+[[reference.llms.enum-as-one-of]]
+===== Per-Constant Enum Descriptions with `@EnumAsOneOf`
 
 By default, an enum type is emitted in the JSON Schema as a bare list of values:
 
@@ -1662,7 +1662,7 @@ By default, an enum type is emitted in the JSON Schema as a bare list of values:
 ----
 
 When the model needs to distinguish between constants — for example, to pick the right urgency level from natural language — a flat list provides no guidance.
-Annotate the enum class with `@DescribedEnum` and each constant with `@JsonPropertyDescription` to emit per-constant descriptions instead:
+Annotate the enum class with `@EnumAsOneOf` and each constant with `@JsonPropertyDescription` to emit per-constant descriptions instead:
 
 [tabs]
 ====
@@ -1670,7 +1670,7 @@ Kotlin::
 +
 [source,kotlin]
 ----
-@DescribedEnum
+@EnumAsOneOf
 enum class Priority {
     @JsonPropertyDescription("Needs same-day response") URGENT,
     @JsonPropertyDescription("Standard turnaround")    NORMAL,
@@ -1684,7 +1684,7 @@ Java::
 +
 [source,java]
 ----
-@DescribedEnum
+@EnumAsOneOf
 public enum Priority {
     @JsonPropertyDescription("Needs same-day response") URGENT,
     @JsonPropertyDescription("Standard turnaround")    NORMAL,
@@ -1716,6 +1716,6 @@ If no constant carries a description, the annotation has no effect and the bare 
 
 `@JsonValue`, `@JsonProperty`, and any custom Jackson serialiser are honoured: the `const` value matches exactly what the configured `ObjectMapper` would serialize for that constant.
 
-NOTE: `@DescribedEnum` trades the native structured-output path for per-constant descriptions.
-The `oneOf` keyword is rejected by OpenAI strict mode, so Embabel falls back to the prompt-based schema path for any call whose output type contains a `@DescribedEnum` field.
+NOTE: `@EnumAsOneOf` trades the native structured-output path for per-constant descriptions.
+The `oneOf` keyword is rejected by OpenAI strict mode, so Embabel falls back to the prompt-based schema path for any call whose output type contains a `@EnumAsOneOf` field.
 The descriptions still reach the model through the prompt schema on all providers, including Google GenAI, Anthropic, and OpenAI-compatible endpoints.

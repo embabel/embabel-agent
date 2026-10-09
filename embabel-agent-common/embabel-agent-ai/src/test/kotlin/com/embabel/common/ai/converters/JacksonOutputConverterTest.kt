@@ -673,9 +673,9 @@ World"""
         }
     }
 
-    // --- fixtures for @DescribedEnum tests ---
+    // --- fixtures for @EnumAsOneOf tests ---
 
-    @DescribedEnum
+    @EnumAsOneOf
     enum class Priority {
         @com.fasterxml.jackson.annotation.JsonPropertyDescription("Needs same-day response") URGENT,
         @com.fasterxml.jackson.annotation.JsonPropertyDescription("Standard turnaround")    NORMAL,
@@ -683,7 +683,7 @@ World"""
     }
 
     // Enum with @JsonValue — wire value comes from method, not .name()
-    @DescribedEnum
+    @EnumAsOneOf
     enum class WireValuePriority(private val wire: String) {
         @com.fasterxml.jackson.annotation.JsonPropertyDescription("Needs same-day response")
         URGENT("urgent-wire"),
@@ -695,11 +695,11 @@ World"""
         fun toWire(): String = wire
     }
 
-    // Plain enum — no @DescribedEnum, no @JsonPropertyDescription
+    // Plain enum — no @EnumAsOneOf, no @JsonPropertyDescription
     enum class BareEnum { A, B, C }
 
-    // @DescribedEnum present but no @JsonPropertyDescription on any constant
-    @DescribedEnum
+    // @EnumAsOneOf present but no @JsonPropertyDescription on any constant
+    @EnumAsOneOf
     enum class NoDescriptions { A, B, C }
 
     data class PriorityHolder(val priority: Priority)
@@ -715,10 +715,10 @@ World"""
     data class DeepHolder(val mappings: List<Mapping>)
 
     @Nested
-    inner class DescribedEnumTests {
+    inner class EnumAsOneOfTests {
 
         @Test
-        fun `bare enum without @DescribedEnum stays as enum array`() {
+        fun `bare enum without @EnumAsOneOf stays as enum array`() {
             val converter = JacksonOutputConverter(BareEnumHolder::class.java, objectMapper)
             val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
             val valueNode = schema.path("properties").path("value")
@@ -728,7 +728,7 @@ World"""
 
         @Test
         fun `withEnumConstantDescriptions extension emits oneOf with type string and per-constant descriptions`() {
-            // Simulate what ChatClientLlmOperations.buildFilteringConverter does when @DescribedEnum is detected
+            // Simulate what ChatClientLlmOperations.buildFilteringConverter does when @EnumAsOneOf is detected
             val converter = object : JacksonOutputConverter<PriorityHolder>(PriorityHolder::class.java, objectMapper) {
                 override fun schemaGeneratorConfigBuilder() =
                     super.schemaGeneratorConfigBuilder().withEnumConstantDescriptions(objectMapper)
@@ -778,8 +778,8 @@ World"""
         }
 
         @Test
-        fun `enum without @DescribedEnum is not affected by withEnumConstantDescriptions`() {
-            // BareEnum has no @DescribedEnum and no @JsonPropertyDescription — provider returns null,
+        fun `enum without @EnumAsOneOf is not affected by withEnumConstantDescriptions`() {
+            // BareEnum has no @EnumAsOneOf and no @JsonPropertyDescription — provider returns null,
             // victools falls back to default bare enum array regardless of the extension being installed.
             val converter = object : JacksonOutputConverter<BareEnumHolder>(BareEnumHolder::class.java, objectMapper) {
                 override fun schemaGeneratorConfigBuilder() =
@@ -792,8 +792,8 @@ World"""
         }
 
         @Test
-        fun `enum with @DescribedEnum but no @JsonPropertyDescription on any constant is not affected`() {
-            // @DescribedEnum is present but none of the constants carry @JsonPropertyDescription.
+        fun `enum with @EnumAsOneOf but no @JsonPropertyDescription on any constant is not affected`() {
+            // @EnumAsOneOf is present but none of the constants carry @JsonPropertyDescription.
             // The provider returns null — no oneOf is emitted.
             val converter = object : JacksonOutputConverter<NoDescriptionsHolder>(NoDescriptionsHolder::class.java, objectMapper) {
                 override fun schemaGeneratorConfigBuilder() =
@@ -806,7 +806,7 @@ World"""
         }
 
         @Test
-        fun `@DescribedEnum enum nested inside a List emits oneOf for the array items`() {
+        fun `@EnumAsOneOf enum nested inside a List emits oneOf for the array items`() {
             // Reproduces the real-world shape from issue #2028:
             // record Holder(List<Priority> priorities) — the enum is not a direct field,
             // it is the element type of a collection. Victools resolves the element type
@@ -828,7 +828,7 @@ World"""
         }
 
         @Test
-        fun `@DescribedEnum enum inside a record inside a List emits oneOf — Nathan's exact shape`() {
+        fun `@EnumAsOneOf enum inside a record inside a List emits oneOf — Nathan's exact shape`() {
             // Reproduces the deepest shape from issue #2028:
             // record DeepHolder(List<Mapping> mappings)
             // record Mapping(Priority priority)
