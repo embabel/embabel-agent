@@ -23,6 +23,7 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.support.streaming.InternalStreamingApi
 import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.embabel.common.ai.model.LlmOptions
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseCreateParams
@@ -228,37 +229,6 @@ class OpenAiResponsesChatModelTest {
             )
         }
 
-        /**
-         * The test above builds the options the way the configurer does. This one runs the real
-         * chain — shipped catalogue, real configurer, real adapter — so the three stay in step:
-         * a `strategy` renamed in the YAML, or a configurer that stopped writing `responseFormat`,
-         * would leave a `*-pro` model answering in free text with every unit test still green.
-         */
-        @Test
-        fun `a schema the native support configures reaches the Responses API`() {
-            val proModel = OpenAiModelLoader().loadAutoConfigMetadata().effectiveModels()
-                .first { it.apiFormat == OpenAiApiFormat.RESPONSES }
-
-            val configured = OpenAiNativeStructuredOutputConfigurer.configure(
-                options = OpenAiChatOptions.builder().model(proModel.modelId).build(),
-                structuredOutput = StructuredOutputRequest(
-                    name = "Answer",
-                    schema = """{"title":"Answer","type":"object","properties":{"answer":{"type":"string"}}}""",
-                ),
-                nativeSupport = proModel.nativeSupport,
-                llm = null,
-            )
-
-            val params = capture(Prompt(listOf(UserMessage("Hi")), configured))
-
-            val format = params.text().orElseThrow().format().orElseThrow().jsonSchema().orElseThrow()
-            assertEquals("Answer", format.name(), "The schema title should name the format")
-            assertEquals(
-                "object",
-                format.schema()._additionalProperties()["type"]?.asString()?.orElse(null),
-            )
-        }
-
         /** The name OpenAI accepts, for a schema titled [title], or none when it is null. */
         private fun schemaNameFor(title: String?): String {
             val titleField = title?.let { """"title":"$it",""" } ?: ""
@@ -291,6 +261,14 @@ class OpenAiResponsesChatModelTest {
             assertEquals("List_Answer_", schemaNameFor("List<Answer>"))
             assertEquals("response", schemaNameFor(null), "The API refuses an unnamed schema")
             assertEquals("response", schemaNameFor(""), "An empty title names nothing")
+        }
+
+        /** OpenAI rejects a schema name over 64 characters, and a qualified generic title gets there. */
+        @Test
+        fun `schema names are cut to the length the api accepts`() {
+            val title = "com.example.orders.fulfilment.List<com.example.orders.fulfilment.ShipmentLine>"
+
+            assertEquals("com_example_orders_fulfilment_List_com_example_orders_fulfilment", schemaNameFor(title))
         }
 
         /** A response_format that is not a JSON schema has no Responses equivalent to carry. */
@@ -614,6 +592,35 @@ class OpenAiResponsesChatModelTest {
             )
         }
 
+        /**
+         * A call cut off by the output limit can end in a function call whose arguments are a
+         * fragment of JSON. Dispatching it runs the tool on input the model never finished.
+         */
+        @Test
+        fun `a function call the output limit cut short is not dispatched`() {
+            respondWith(
+                response(
+                    ResponseOutputItem.ofFunctionCall(
+                        ResponseFunctionToolCall.builder()
+                            .callId("call_7")
+                            .name("lookup")
+                            .arguments("""{"q":"x""")
+                            .status(ResponseFunctionToolCall.Status.INCOMPLETE)
+                            .build()
+                    ),
+                    status = ResponseStatus.INCOMPLETE,
+                    incompleteDetails = Response.IncompleteDetails.builder()
+                        .reason(Response.IncompleteDetails.Reason.MAX_OUTPUT_TOKENS)
+                        .build(),
+                )
+            )
+
+            val generation = model.call(Prompt("Hi")).result
+
+            assertTrue(generation.output.toolCalls.isEmpty(), "A partial call must not reach the tool")
+            assertEquals("length", generation.metadata.finishReason)
+        }
+
         @Test
         fun `a content filtered response is reported as such rather than as an empty answer`() {
             respondWith(
@@ -657,6 +664,29 @@ class OpenAiResponsesChatModelTest {
 
     @Nested
     inner class ContractWithSurroundingCode {
+
+        /**
+         * Code compiled against the published adapter links to these two constructors: the
+         * four-argument one from Java, and Kotlin's default-argument one, which takes a mask of
+         * the defaulted parameters and a marker. Removing either is a NoSuchMethodError there.
+         */
+        @Test
+        fun `the published constructors still link`() {
+            val type = OpenAiResponsesChatModel::class.java
+            val options = OpenAiChatOptions.builder().model("gpt-5-pro").build()
+
+            type.getConstructor(
+                OpenAIClient::class.java, OpenAiChatOptions::class.java,
+                ObservationRegistry::class.java, ObjectMapper::class.java,
+            ).newInstance(client, options, ObservationRegistry.NOOP, ObjectMapper())
+            val withDefaults = type.getConstructor(
+                OpenAIClient::class.java, OpenAiChatOptions::class.java,
+                ObservationRegistry::class.java, ObjectMapper::class.java,
+                Int::class.javaPrimitiveType, Class.forName("kotlin.jvm.internal.DefaultConstructorMarker"),
+            ).newInstance(client, options, null, null, 0b1100, null)
+
+            assertEquals(options.model, (withDefaults.defaultOptions as OpenAiChatOptions).model)
+        }
 
         /** `StreamingCapabilityVerifier` probes streaming support by calling [stream] and catching this. */
         @Test

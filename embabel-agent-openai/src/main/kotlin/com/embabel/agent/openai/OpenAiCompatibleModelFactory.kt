@@ -20,15 +20,19 @@ import com.embabel.agent.api.models.DeepSeekModels
 import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.api.models.MistralAiModels
 import com.embabel.agent.api.models.OpenAiModels
+import com.embabel.agent.config.models.openai.OpenAiNativeStructuredOutputConfigurer
+import com.embabel.agent.config.models.openai.OpenAiResponsesChatModel
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.*
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
 import com.embabel.common.byok.requireUsableApiKey
 import com.embabel.common.byok.validatedEmbeddingService
 import com.embabel.common.util.ObjectProviders
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
 import com.openai.client.OpenAIClientAsync
 import com.openai.client.OpenAIClientAsyncImpl
@@ -527,6 +531,44 @@ open class OpenAiCompatibleModelFactory(
     }
 
     /**
+     * An [LlmService] for [model] served over the OpenAI Responses API rather than Chat Completions.
+     *
+     * Use it for models that refuse part of Chat Completions: the GPT-5.6 and GPT-6 tiers reject
+     * function tools there unless reasoning is turned off, and the `*-pro` models are not served
+     * there at all. Requests carry no sampling parameters and send the caller's limit as
+     * `max_output_tokens`, which is what [Gpt5ChatOptionsConverter] prepares for. An explicit
+     * reasoning effort ([withOpenAiReasoningEffort]) is forwarded whatever [provider] is called:
+     * choosing this transport is choosing the Responses API, whose `reasoning` field it fills.
+     *
+     * Structured output is requested natively only when [nativeSupport] declares it. Pass the
+     * shipped OpenAI catalog's settings, `OpenAiModelLoader().loadAutoConfigMetadata().nativeSupportDefaults`
+     * from the OpenAI autoconfigure module, to get what catalog models get, including the schema
+     * compatibility check that falls back to prompt-based output. Without it, structured output
+     * is prompt-based, as with [openAiCompatibleLlm].
+     *
+     * The transport does not stream and refuses media.
+     */
+    @JvmOverloads
+    fun openAiResponsesLlm(
+        model: String,
+        pricingModel: PricingModel?,
+        provider: String,
+        knowledgeCutoffDate: LocalDate?,
+        optionsConverter: OptionsConverter = Gpt5ChatOptionsConverter,
+        nativeSupport: NativeSupport? = null,
+    ): LlmService<*> = SpringAiLlmService(
+        name = model,
+        chatModel = responsesChatModelOf(model, provider),
+        provider = provider,
+        optionsConverter = timeouts.optionsConverter(OpenAiReasoningEffortOptionsConverter(optionsConverter)),
+        pricingModel = pricingModel,
+        knowledgeCutoffDate = knowledgeCutoffDate,
+        thinkingSupported = true,
+        nativeStructuredOutputConfigurer = OpenAiNativeStructuredOutputConfigurer,
+        nativeSupport = nativeSupport,
+    )
+
+    /**
      * Validates the configured API key by making a probe call, then returns a production
      * [LlmService] if successful.
      *
@@ -620,6 +662,20 @@ open class OpenAiCompatibleModelFactory(
             pricingModel = pricingModel,
         )
     }
+
+    /**
+     * The Responses API counterpart of [chatModelOf], sharing this factory's client. Its chat
+     * observations report [provider].
+     */
+    @JvmOverloads
+    protected fun responsesChatModelOf(model: String, provider: String = OpenAiModels.PROVIDER): ChatModel =
+        OpenAiResponsesChatModel(
+            client = openAiClient,
+            defaultOptions = OpenAiChatOptions.builder().model(model).build(),
+            observationRegistry = observationRegistry,
+            objectMapper = ObjectMapper(),
+            provider = provider,
+        )
 
     /**
      * Build the underlying [ChatModel] for [model].

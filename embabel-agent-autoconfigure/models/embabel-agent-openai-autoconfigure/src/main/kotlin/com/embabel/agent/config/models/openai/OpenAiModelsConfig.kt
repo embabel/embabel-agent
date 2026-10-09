@@ -39,7 +39,6 @@ import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.embabel.common.util.ObjectProviders
 import io.micrometer.observation.ObservationRegistry
-import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.ai.openai.http.okhttp.OpenAiHttpClientBuilderCustomizer
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
@@ -148,13 +147,6 @@ class OpenAiModelsConfig(
     timeouts = properties.clientTimeouts(),
 ) {
 
-    /**
-     * Resolved the same way as the one handed to the superclass, which keeps it private. Only the
-     * Responses adapter needs it here — Spring AI's own chat model is given it by the factory.
-     */
-    private val resolvedObservationRegistry: ObservationRegistry =
-        observationRegistry.getIfUnique { ObservationRegistry.NOOP }
-
     init {
         logger.info("OpenAI models are available: {}", properties)
     }
@@ -229,11 +221,7 @@ class OpenAiModelsConfig(
                 model = modelDef.modelId, retryTemplate = properties.retryTemplate(modelDef.modelId)
             )
 
-            OpenAiApiFormat.RESPONSES -> OpenAiResponsesChatModel(
-                client = openAiClient,
-                defaultOptions = OpenAiChatOptions.builder().model(modelDef.modelId).build(),
-                observationRegistry = resolvedObservationRegistry,
-            )
+            OpenAiApiFormat.RESPONSES -> responsesChatModelOf(modelDef.modelId)
         }
 
         // Create pricing model if present

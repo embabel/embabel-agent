@@ -77,9 +77,19 @@ import com.openai.models.responses.Response as OpenAiResponse
 class OpenAiResponsesChatModel(
     private val client: OpenAIClient,
     private val defaultOptions: OpenAiChatOptions,
-    private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
-    private val objectMapper: ObjectMapper = ObjectMapper(),
+    private val observationRegistry: ObservationRegistry,
+    private val objectMapper: ObjectMapper,
+    /** Reported on the chat observation; a compatible endpoint names its own provider. */
+    private val provider: String,
 ) : ChatModel {
+
+    /** The published constructor, kept so code compiled against it still links; reports OpenAI. */
+    constructor(
+        client: OpenAIClient,
+        defaultOptions: OpenAiChatOptions,
+        observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
+        objectMapper: ObjectMapper = ObjectMapper(),
+    ) : this(client, defaultOptions, observationRegistry, objectMapper, OpenAiModels.PROVIDER)
 
     /**
      * Observed under the same convention as Spring AI's own chat models. Embabel's `embabel.llm`
@@ -90,7 +100,7 @@ class OpenAiResponsesChatModel(
     override fun call(prompt: Prompt): ChatResponse {
         val context = ChatModelObservationContext.builder()
             .prompt(prompt)
-            .provider(OpenAiModels.PROVIDER)
+            .provider(provider)
             .build()
 
         return ChatModelObservationDocumentation.CHAT_MODEL_OPERATION
@@ -270,8 +280,9 @@ class OpenAiResponsesChatModel(
         }
 
     /**
-     * The Responses API requires the schema to be named and accepts only `[a-zA-Z0-9_-]` in that
-     * name, so every other character is folded to an underscore, one for one:
+     * The Responses API requires the schema to be named, accepts only `[a-zA-Z0-9_-]` in that name
+     * and at most [MAX_SCHEMA_NAME_LENGTH] characters, so every other character is folded to an
+     * underscore, one for one, and a longer name is cut:
      *
      * - `Answer` stays `Answer`
      * - `com.example.Answer` becomes `com_example_Answer`
@@ -287,6 +298,7 @@ class OpenAiResponsesChatModel(
     private fun schemaNameOf(schema: Map<String, Any?>): String =
         (schema["title"] as? String)
             ?.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            ?.take(MAX_SCHEMA_NAME_LENGTH)
             ?.takeIf { it.isNotBlank() }
             ?: DEFAULT_SCHEMA_NAME
 
@@ -312,9 +324,11 @@ class OpenAiResponsesChatModel(
         raiseIfRefused(content)
 
         val text = content.mapNotNull { it.outputText().orElse(null)?.text() }.joinToString("\n")
+        // A call the output limit cut short carries a fragment of its arguments: never dispatch it.
         val toolCalls = response.output()
             .filter { it.isFunctionCall() }
             .map { it.asFunctionCall() }
+            .filter { it.status().orElse(null) in DISPATCHABLE_CALL_STATUSES }
             .map { AssistantMessage.ToolCall(it.callId(), FUNCTION_CALL_TYPE, it.name(), it.arguments()) }
 
         val usage = response.usage().orElse(null)?.let {
@@ -394,6 +408,12 @@ class OpenAiResponsesChatModel(
 
         /** Used when the schema carries no usable title. */
         const val DEFAULT_SCHEMA_NAME = "response"
+
+        /** The longest schema name the Responses API accepts. */
+        const val MAX_SCHEMA_NAME_LENGTH = 64
+
+        /** Function-call statuses safe to dispatch; a call with no status is treated as finished. */
+        val DISPATCHABLE_CALL_STATUSES = setOf(null, ResponseFunctionToolCall.Status.COMPLETED)
 
         /** Terminal statuses that carry no answer at all. */
         val ANSWERLESS_STATUSES = setOf(ResponseStatus.FAILED, ResponseStatus.CANCELLED)
