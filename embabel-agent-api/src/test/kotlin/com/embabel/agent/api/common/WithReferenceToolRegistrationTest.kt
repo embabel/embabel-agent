@@ -18,6 +18,7 @@ package com.embabel.agent.api.common
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.common.ai.model.LlmOptions
 import io.mockk.mockk
@@ -85,6 +86,28 @@ class WithReferenceToolRegistrationTest {
             assertEquals(2, tools.size, "Both tools must appear, each exactly once")
             val names = tools.map { it.definition.name }.toSet()
             assertEquals(setOf("api_search", "api_fetch"), names)
+        }
+    }
+
+    @Nested
+    inner class ContextAware {
+
+        @Test
+        fun `context-aware tool inside LlmReference receives ToolCallContext`() {
+            var capturedContext: ToolCallContext? = null
+            val tool = Tool.of("search", "Search") { _, ctx ->
+                capturedContext = ctx
+                Tool.Result.text("ok")
+            }
+            val reference = LlmReference.of("docs", "Documentation", listOf(tool))
+
+            val runner = makeRunner().withReference(reference) as OperationContextPromptRunner
+
+            val resolved = safelyGetTools(runner.toolObjects)
+            val ctx = ToolCallContext.EMPTY
+            resolved[0].call("{}", ctx)
+
+            assertEquals(ctx, capturedContext, "ToolCallContext must propagate through RenamedTool")
         }
     }
 
