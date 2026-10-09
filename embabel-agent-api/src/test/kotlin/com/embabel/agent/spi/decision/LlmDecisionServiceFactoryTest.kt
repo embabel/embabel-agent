@@ -37,9 +37,14 @@ import com.embabel.common.ai.classification.ClassificationSpec
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
+import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionService
+import com.embabel.common.ai.decision.DecisionServiceMetadata
+import com.embabel.common.ai.decision.DecisionSpec
 import com.embabel.common.ai.decision.PropositionRequest
+import com.embabel.common.ai.decision.Questions
 import com.embabel.common.ai.decision.PropositionResult
+import com.embabel.common.ai.model.DefaultModelSelectionCriteria
 import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byName
@@ -246,6 +251,128 @@ class LlmDecisionServiceFactoryTest {
             assertEquals(1, chatModel.promptsPassed.size)
             verify(exactly = 1) { provider.getLlm(byName("fake")) }
             confirmVerified(provider)
+        }
+    }
+
+    @Nested
+    inner class ResolvingPerCall {
+
+        private val claude = mockk<LlmService<*>> {
+            every { name } returns "claude-test"
+            every { provider } returns "OtherProvider"
+        }
+
+        private val urgent = Questions.named("urgent").proposition("Does this convey urgency?").build()
+
+        private val department = Questions.named("department")
+            .choice("Which team should handle this?")
+            .option("billing", "Payments, invoicing, refunds")
+            .option("technical", "Bugs, outages, integrations")
+            .build()
+
+        private val twoQuestions = DecisionRequest.of("My card was charged twice", DecisionSpec.of(urgent, department))
+
+        private val twoAnswers =
+            """{"answers":[{"question":"q1","verdict":"TRUE"},""" +
+                """{"question":"q2","verdict":"SELECTED","categoryId":"billing"}]}"""
+
+        private fun defaultIsGptThenClaude() {
+            every { modelProvider.getLlm(DefaultModelSelectionCriteria) } returns llm andThen claude
+        }
+
+        @Test
+        fun `building the service asks the provider nothing`() {
+            factory.decisionService(DefaultModelSelectionCriteria)
+            verify { modelProvider wasNot Called }
+        }
+
+        @Test
+        fun `every call asks the provider for the current model`() {
+            defaultIsGptThenClaude()
+            val service = factory.decisionService(DefaultModelSelectionCriteria)
+            assertEquals("gpt-test", service.name)
+            assertEquals("claude-test", service.name)
+            assertEquals("OtherProvider", service.provider)
+
+            assertEquals(
+                ClassificationResult.Selected("billing", ModelProvenance("claude-test", "OtherProvider")),
+                service.classify(classification),
+            )
+            assertSame(claude, (interactions.single().llm.criteria as PreResolvedModelSelectionCriteria<*>).resolved)
+            assertEquals(listOf("embabel.ai.classification"), observationNames())
+            verify(exactly = 4) { modelProvider.getLlm(DefaultModelSelectionCriteria) }
+        }
+
+        @Test
+        fun `assess and classify with a spec each resolve the model`() {
+            defaultIsGptThenClaude()
+            val service = factory.decisionService(DefaultModelSelectionCriteria)
+            assertEquals(PropositionResult.Answered(false, provenance), service.assess(proposition))
+            assertEquals(
+                ClassificationResult.Selected("billing", ModelProvenance("claude-test", "OtherProvider")),
+                service.classify(classification.input, classification.spec),
+            )
+            verify(exactly = 2) { modelProvider.getLlm(DefaultModelSelectionCriteria) }
+        }
+
+        @Test
+        fun `one ask with two questions resolves the model once`() {
+            every {
+                llmOperations.doTransform(any<List<Message>>(), capture(interactions), String::class.java, null)
+            } returns twoAnswers
+            defaultIsGptThenClaude()
+            val service = factory.decisionService(DefaultModelSelectionCriteria)
+
+            val response = service.ask(twoQuestions)
+
+            assertEquals(null, response.requestFailure)
+            assertEquals(PropositionResult.Answered(true, provenance), response.answer(urgent))
+            assertEquals(ClassificationResult.Selected("billing", provenance), response.answer(department))
+            verify(exactly = 1) { modelProvider.getLlm(DefaultModelSelectionCriteria) }
+            val ask = recorder.stopped.single { it.name == "embabel.ai.ask" }
+            assertEquals("gpt-test", ask.lowCardinalityKeyValues.single { it.key == "service" }.value)
+        }
+
+        @Test
+        fun `one ask with an input and a spec resolves the model once`() {
+            every {
+                llmOperations.doTransform(any<List<Message>>(), capture(interactions), String::class.java, null)
+            } returns twoAnswers
+            defaultIsGptThenClaude()
+            val service = factory.decisionService(DefaultModelSelectionCriteria)
+
+            val response = service.ask(twoQuestions.input, twoQuestions.spec)
+
+            assertEquals(PropositionResult.Answered(true, provenance), response.answer(urgent))
+            verify(exactly = 1) { modelProvider.getLlm(DefaultModelSelectionCriteria) }
+        }
+
+        @Test
+        fun `capabilities and metadata come from the current model and metadata is a plain value`() {
+            defaultIsGptThenClaude()
+            val service = factory.decisionService(DefaultModelSelectionCriteria)
+
+            assertEquals(factory.decisionService(llm).capabilities(), service.capabilities())
+            val metadata = service.metadata()
+            assertEquals(DecisionServiceMetadata.create("claude-test", "OtherProvider"), metadata)
+            assertFalse(metadata is DecisionService)
+            assertEquals(ModelType.DECISION, metadata.type)
+        }
+
+        @Test
+        fun `info string describes the current model`() {
+            defaultIsGptThenClaude()
+            val service = factory.decisionService(DefaultModelSelectionCriteria)
+            assertEquals("name: gpt-test, provider: TestProvider", service.infoString(false, 0))
+            assertEquals("name: claude-test, provider: OtherProvider", service.infoString(false, 0))
+        }
+
+        @Test
+        fun `a missing model fails the call, not the build`() {
+            val criteria = byName("missing")
+            every { modelProvider.getLlm(criteria) } throws NoSuitableModelException(criteria, listOf("gpt-test"))
+            val service = factory.decisionService(criteria)
+            assertThrows<NoSuitableModelException> { service.assess(proposition) }
         }
     }
 

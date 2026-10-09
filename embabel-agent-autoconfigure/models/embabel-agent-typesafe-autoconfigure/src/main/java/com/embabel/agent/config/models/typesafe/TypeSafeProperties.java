@@ -18,6 +18,7 @@ package com.embabel.agent.config.models.typesafe;
 import com.embabel.agent.typesafe.TypeSafeModelFactory;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
@@ -27,22 +28,35 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * RestClient.Builder}.
  *
  * @param apiKey API credential used when {@code TYPESAFE_API_KEY} is absent or blank; excluded from
- *     {@link #toString()}. The environment key is resolved for each request.
+ *     {@link #toString()}. The environment key is resolved for each request. With neither set,
+ *     requests go out with no credential at all.
  * @param baseUrl provider endpoint; defaults to {@code https://api.typesafe.ai}. Endpoint
  *     validation belongs to the HTTP client.
  * @param model default model for requests without an explicit model; defaults to {@code jev-latest}
  *     and must be nonblank
  * @param maxResponseBytes positive maximum response body size in bytes; defaults to 1 MiB
+ * @param provider the provider name the services and their answers report; defaults to {@code
+ *     TypeSafe} and must be nonblank
  */
 @ConfigurationProperties(TypeSafeProperties.PREFIX)
 public record TypeSafeProperties(
         String apiKey,
         @DefaultValue("https://api.typesafe.ai") String baseUrl,
         @DefaultValue(TypeSafeModelFactory.DEFAULT_MODEL) String model,
-        @DefaultValue("1048576") int maxResponseBytes) {
+        @DefaultValue("1048576") int maxResponseBytes,
+        @DefaultValue(TypeSafeModelFactory.PROVIDER) String provider) {
 
     /** Spring property namespace for TypeSafe decision services. */
     public static final String PREFIX = "embabel.agent.platform.models.typesafe";
+
+    /** Marks the full constructor as the one Spring binds, since the record has two. */
+    @ConstructorBinding
+    public TypeSafeProperties {}
+
+    /** Creates the properties with the default provider name, {@link TypeSafeModelFactory#PROVIDER}. */
+    public TypeSafeProperties(String apiKey, String baseUrl, String model, int maxResponseBytes) {
+        this(apiKey, baseUrl, model, maxResponseBytes, TypeSafeModelFactory.PROVIDER);
+    }
 
     /**
      * Keeps credentials out of configuration diagnostics.
@@ -51,7 +65,7 @@ public record TypeSafeProperties(
      */
     @Override
     public String toString() {
-        return "TypeSafeProperties[apiKey=[REDACTED], baseUrl=[CONFIGURED], model=[CONFIGURED], maxResponseBytes=%d]"
-                .formatted(maxResponseBytes);
+        return "TypeSafeProperties[apiKey=[REDACTED], baseUrl=[CONFIGURED], model=[CONFIGURED], maxResponseBytes=%d, provider=%s]"
+                .formatted(maxResponseBytes, provider);
     }
 }

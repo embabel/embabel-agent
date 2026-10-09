@@ -320,7 +320,7 @@ The response from the typed lookup example writes this JSON, shown here with lin
         "status": "answered",
         "answer": true,
         "pTrue": 0.93,
-        "provenance": { "modelName": "jev-latest", "provider": "typesafe" }
+        "provenance": { "modelName": "jev-latest", "provider": "TypeSafe" }
       }
     },
     {
@@ -335,7 +335,7 @@ The response from the typed lookup example writes this JSON, shown here with lin
         "status": "selected",
         "categoryId": "billing",
         "confidence": 0.91,
-        "provenance": { "modelName": "jev-latest", "provider": "typesafe" }
+        "provenance": { "modelName": "jev-latest", "provider": "TypeSafe" }
       }
     },
     {
@@ -349,7 +349,7 @@ The response from the typed lookup example writes this JSON, shown here with lin
       "outcome": {
         "status": "answered",
         "selectedLevelId": "Frustrated",
-        "provenance": { "modelName": "jev-latest", "provider": "typesafe" }
+        "provenance": { "modelName": "jev-latest", "provider": "TypeSafe" }
       }
     }
   ]

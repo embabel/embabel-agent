@@ -2,4 +2,5 @@ com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration
 com.embabel.agent.autoconfigure.platform.cache.AgentCacheProviderAutoConfiguration
 com.embabel.agent.autoconfigure.platform.cache.CacheSnapshotStoreAutoConfiguration
 com.embabel.agent.autoconfigure.platform.LlmDecisionServicesAutoConfiguration
+com.embabel.agent.autoconfigure.platform.LlmDecisionDefaultCandidateAutoConfiguration
 com.embabel.agent.autoconfigure.platform.DecisionServiceRegistryAutoConfiguration

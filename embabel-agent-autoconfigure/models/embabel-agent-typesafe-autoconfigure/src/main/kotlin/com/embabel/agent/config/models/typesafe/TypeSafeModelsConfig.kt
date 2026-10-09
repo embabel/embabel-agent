@@ -15,7 +15,9 @@
  */
 package com.embabel.agent.config.models.typesafe
 
+import com.embabel.agent.config.models.typesafe.TypeSafeServicesRegistrar.ServiceProperties
 import com.embabel.agent.typesafe.TypeSafeClientOptions
+import com.embabel.agent.typesafe.TypeSafeCredential
 import com.embabel.agent.typesafe.TypeSafeModelFactory
 import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.model.DecisionServiceRegistry
@@ -31,7 +33,6 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
 import org.springframework.web.client.RestClient
 import java.net.URI
-import java.util.function.Supplier
 
 /**
  * Spring configuration for TypeSafe models.
@@ -40,6 +41,9 @@ import java.util.function.Supplier
  * matching the Anthropic and OpenAI provider pattern. This class adds property resolution,
  * application transport selection, the default named decision-service bean, its default
  * candidate and the named services configured under `services`.
+ *
+ * The API key is optional, as it is for the other model providers. When one is configured it goes
+ * out as a bearer token; when none is, requests go out with no `Authorization` header at all.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(TypeSafeProperties::class)
@@ -51,16 +55,67 @@ class TypeSafeModelsConfig(
     builders: ObjectProvider<RestClient.Builder>,
     registries: ObjectProvider<ObservationRegistry>,
 ) : TypeSafeModelFactory(
-    options(properties),
-    Supplier { requireApiKey(properties, environment) },
+    options(properties.baseUrl(), properties.maxResponseBytes()),
+    credential(properties, environment),
     selectedBuilder(platformBuilders, builders, registries),
     registries.getIfUnique { ObservationRegistry.NOOP },
     properties.model(),
+    requireProvider(properties),
 ) {
 
+    // Kept so the named services that override something can build factories of their own on
+    // the same transport. Selecting again is cheap: it only clones a builder.
+    private val transport: RestClient.Builder? = selectedBuilder(platformBuilders, builders, registries)
+    private val registry: ObservationRegistry = observationRegistry
+    private val sharedCredential: TypeSafeCredential = credential(properties, environment)
+
     init {
-        requireApiKey(properties, environment)
+        if (sharedCredential.isAnonymous) {
+            logger.info("TypeSafe decision services call the configured endpoint without a credential")
+        }
         logger.info("TypeSafe models are available: {}", properties)
+    }
+
+    /**
+     * Builds the decision service for one entry under `services`.
+     *
+     * An entry that only names a model shares this factory. One that sets its own `base-url`,
+     * `api-key` or `provider` gets a factory of its own on the same transport. An entry with its
+     * own `base-url` only ever sends its own `api-key`, so the shared credential never reaches
+     * another server; without one it calls that server anonymously.
+     *
+     * @param key the entry's key, used in error messages
+     * @param service the entry's configured values
+     * @return the decision service for the entry
+     * @throws IllegalStateException if a value is blank
+     */
+    internal fun build(key: String, service: ServiceProperties): DecisionService {
+        val property = "${TypeSafeServicesRegistrar.PREFIX}.$key"
+        val model = service.model?.takeIf { it.isNotBlank() }
+            ?: error("$property.model must name a TypeSafe model")
+        val baseUrl = service.baseUrl?.let { nonBlank(it, "$property.base-url") }
+        val apiKey = service.apiKey?.let { nonBlank(it, "$property.api-key") }
+        val provider = service.provider?.let { nonBlank(it, "$property.provider") }
+        if (baseUrl == null && apiKey == null && provider == null) {
+            return build(model)
+        }
+        val entryOptions = options(baseUrl ?: properties.baseUrl(), properties.maxResponseBytes())
+        val entryCredential = when {
+            apiKey != null -> TypeSafeCredential.of { apiKey }
+            baseUrl == null -> sharedCredential
+            else -> TypeSafeCredential.none()
+        }
+        if (entryCredential.isAnonymous) {
+            logger.info("TypeSafe service '{}' calls its configured endpoint without a credential", key)
+        }
+        return TypeSafeModelFactory(
+            entryOptions,
+            entryCredential,
+            transport,
+            registry,
+            model,
+            provider ?: providerName,
+        ).build()
     }
 
     /**
@@ -106,18 +161,19 @@ class TypeSafeModelsConfig(
         private val logger = org.slf4j.LoggerFactory.getLogger(TypeSafeModelsConfig::class.java)
 
         /**
-         * Builds the client options from configuration, keeping the default timeouts.
+         * Builds the client options for one endpoint, keeping the default timeouts.
          *
-         * @param properties the TypeSafe configuration properties
+         * @param baseUrl the configured base URL
+         * @param maxResponseBytes the response size limit
          * @return the client options
          */
-        private fun options(properties: TypeSafeProperties): TypeSafeClientOptions {
+        private fun options(baseUrl: String, maxResponseBytes: Int): TypeSafeClientOptions {
             val defaults = TypeSafeClientOptions.defaults()
             return TypeSafeClientOptions(
-                parseBaseUri(properties.baseUrl()),
+                parseBaseUri(baseUrl),
                 defaults.connectTimeout(),
                 defaults.readTimeout(),
-                properties.maxResponseBytes(),
+                maxResponseBytes,
             )
         }
 
@@ -154,19 +210,47 @@ class TypeSafeModelsConfig(
         }
 
         /**
-         * Reads the API key, preferring the environment variable over the configured property. The
-         * error never includes the key.
+         * Works out how the default services authenticate.
+         *
+         * A key in the `TYPESAFE_API_KEY` environment variable or the `api-key` property is read
+         * again for every request, preferring the environment, so a rotated key takes effect.
+         * With neither set, the services call their endpoint without a credential.
          *
          * @param properties the TypeSafe configuration properties
          * @param environment the Spring environment
-         * @return the API key
-         * @throws IllegalStateException if neither source has a key
+         * @return the credential for the default endpoint
          */
-        private fun requireApiKey(properties: TypeSafeProperties, environment: Environment): String {
-            val environmentKey = environment.getProperty(API_KEY_ENVIRONMENT_VARIABLE)
-            return environmentKey.takeUnless { it.isNullOrBlank() }
-                ?: properties.apiKey().takeUnless { it.isNullOrBlank() }
-                ?: error("TypeSafe API key is required")
+        private fun credential(properties: TypeSafeProperties, environment: Environment): TypeSafeCredential {
+            val key = {
+                environment.getProperty(API_KEY_ENVIRONMENT_VARIABLE).takeUnless { it.isNullOrBlank() }
+                    ?: properties.apiKey().takeUnless { it.isNullOrBlank() }
+            }
+            return if (key() != null) {
+                TypeSafeCredential.of { key() ?: error("TypeSafe API key is required") }
+            } else {
+                TypeSafeCredential.none()
+            }
         }
+
+        /**
+         * Reads the provider name the default services report.
+         *
+         * @param properties the TypeSafe configuration properties
+         * @return the provider name
+         * @throws IllegalStateException if it is blank
+         */
+        private fun requireProvider(properties: TypeSafeProperties): String =
+            nonBlank(properties.provider().orEmpty(), "${TypeSafeProperties.PREFIX}.provider")
+
+        /**
+         * Returns the value, or fails naming the property when it is blank.
+         *
+         * @param value the configured value
+         * @param property the full property path, used in the error message
+         * @return the value
+         * @throws IllegalStateException if the value is blank
+         */
+        private fun nonBlank(value: String, property: String): String =
+            value.takeIf { it.isNotBlank() } ?: error("$property must not be blank")
     }
 }

@@ -20,8 +20,13 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
 
 import org.junit.jupiter.api.Test;
+import org.springaicommunity.typesafe.TypeSafeClient;
+import org.springaicommunity.typesafe.exception.TypeSafeApiException;
+import org.springaicommunity.typesafe.exception.TypeSafeException;
 import org.springaicommunity.typesafe.question.Noul;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
@@ -31,6 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 class TypeSafeClientFactoryTest {
     private static final String SYSTEM_ONE_URI = "https://api.typesafe.ai/v1/systemone";
+    private static final String LOCAL_BASE = "http://127.0.0.1:1";
     private static final String RESPONSE =
             """
             {"answers":{"ok":{"type":"noul","noul":0.8}}}
@@ -121,5 +127,121 @@ class TypeSafeClientFactoryTest {
         assertThat(client.systemOne("state", Map.of("ok", Noul.of("ok?"))).noulValue("ok"))
                 .isEqualTo(0.8);
         server.verify();
+    }
+
+    @Test
+    void anonymousCredentialSendsNoAuthorizationHeader() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo(LOCAL_BASE + "/v1/systemone"))
+                .andExpect(headerDoesNotExist("Authorization"))
+                .andExpect(header("Content-Type", "application/json"))
+                .andExpect(header("Accept", "application/json"))
+                .andRespond(withSuccess(RESPONSE, MediaType.APPLICATION_JSON));
+        var client =
+                new TypeSafeClientFactory(localOptions(), TypeSafeCredential.none(), builder)
+                        .build();
+        assertThat(client.systemOne("state", Map.of("ok", Noul.of("ok?"))).noulValue("ok"))
+                .isEqualTo(0.8);
+        server.verify();
+    }
+
+    @Test
+    void anonymousModeListsModelsWithoutAuthorization() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo(LOCAL_BASE + "/v1/models"))
+                .andExpect(headerDoesNotExist("Authorization"))
+                .andExpect(header("Accept", "application/json"))
+                .andRespond(
+                        withSuccess(
+                                "{\"models\":[{\"name\":\"jev-latest\"}]}",
+                                MediaType.APPLICATION_JSON));
+        new TypeSafeClientFactory(localOptions(), TypeSafeCredential.none(), builder)
+                .validate(TypeSafeModelFactory.DEFAULT_MODEL);
+        server.verify();
+    }
+
+    @Test
+    void blankSuppliedKeyFailsRatherThanGoingAnonymous() {
+        for (var key : new String[] {"", "   ", null}) {
+            var builder = RestClient.builder();
+            var server = MockRestServiceServer.bindTo(builder).build();
+            server.expect(ExpectedCount.never(), anything());
+            var client =
+                    new TypeSafeClientFactory(
+                                    localOptions(), TypeSafeCredential.of(() -> key), builder)
+                            .build();
+            var questions = Map.of("ok", Noul.of("ok?"));
+            assertThatThrownBy(() -> client.systemOne("state", questions))
+                    .isInstanceOf(TypeSafeException.class)
+                    .hasMessage("TypeSafe request or response invalid");
+            server.verify();
+        }
+    }
+
+    @Test
+    void anonymousFailuresStaySanitized() {
+        var keyed = failureFrom(TypeSafeCredential.of(() -> "PRIVATE_KEY"));
+        var anonymous = failureFrom(TypeSafeCredential.none());
+        for (var failure : new Throwable[] {keyed, anonymous}) {
+            assertThat(failure)
+                    .isInstanceOfSatisfying(
+                            TypeSafeApiException.class,
+                            e -> {
+                                assertThat(e.status()).isEqualTo(500);
+                                assertThat(e.body()).isNull();
+                                assertThat(e.headers().isEmpty()).isTrue();
+                                assertThat(e.endpoint()).isEmpty();
+                                assertThat(e.getCause()).isNull();
+                                assertThat(e.getMessage())
+                                        .isEqualTo("TypeSafe HTTP request failed");
+                            });
+        }
+        assertThat(anonymous.getClass()).isEqualTo(keyed.getClass());
+    }
+
+    @Test
+    void credentialDescriptionsNeverContainTheKey() {
+        var keyed = TypeSafeCredential.of(() -> "PRIVATE_KEY");
+        assertThat(keyed).hasToString("TypeSafeCredential[keyed]");
+        assertThat(keyed.isAnonymous()).isFalse();
+        assertThat(keyed.resolve()).isEqualTo("PRIVATE_KEY");
+        var anonymous = TypeSafeCredential.none();
+        assertThat(anonymous).hasToString("TypeSafeCredential[anonymous]");
+        assertThat(anonymous.isAnonymous()).isTrue();
+        assertThatThrownBy(anonymous::resolve)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("TypeSafe credential is anonymous");
+        var controlCharacters = TypeSafeCredential.of(() -> "bad\nkey");
+        assertThatThrownBy(controlCharacters::resolve)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("TypeSafe credential unavailable");
+    }
+
+    private static Throwable failureFrom(TypeSafeCredential credential) {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo(LOCAL_BASE + "/v1/systemone"))
+                .andRespond(
+                        withStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+                                .body("PRIVATE_BODY")
+                                .header("x-typesafe-request-id", "PRIVATE_ID"));
+        TypeSafeClient client =
+                new TypeSafeClientFactory(localOptions(), credential, builder).build();
+        var failure =
+                catchThrowable(() -> client.systemOne("state", Map.of("ok", Noul.of("ok?"))));
+        server.verify();
+        assertThat(failure).isNotNull();
+        return failure;
+    }
+
+    private static TypeSafeClientOptions localOptions() {
+        var defaults = TypeSafeClientOptions.defaults();
+        return new TypeSafeClientOptions(
+                URI.create(LOCAL_BASE),
+                defaults.connectTimeout(),
+                defaults.readTimeout(),
+                defaults.maxResponseBytes());
     }
 }

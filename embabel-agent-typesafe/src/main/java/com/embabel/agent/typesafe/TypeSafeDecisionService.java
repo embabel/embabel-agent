@@ -101,9 +101,15 @@ final class TypeSafeDecisionService
     private static final int ATTEMPTS = 1;
 
     private final TypeSafeClient client;
+    private final String provider;
 
     TypeSafeDecisionService(TypeSafeClient client) {
+        this(client, TypeSafeModelFactory.PROVIDER);
+    }
+
+    TypeSafeDecisionService(TypeSafeClient client, String provider) {
         this.client = Objects.requireNonNull(client, "client");
+        this.provider = Objects.requireNonNull(provider, "provider");
     }
 
     @Override
@@ -113,7 +119,7 @@ final class TypeSafeDecisionService
 
     @Override
     public String getProvider() {
-        return TypeSafeModelFactory.PROVIDER;
+        return provider;
     }
 
     @Override
@@ -305,8 +311,7 @@ final class TypeSafeDecisionService
                 response.model() == null || response.model().isBlank()
                         ? client.defaultModel()
                         : response.model();
-        return new ModelProvenance(
-                resolvedModel, TypeSafeModelFactory.PROVIDER, null, response.requestId());
+        return new ModelProvenance(resolvedModel, provider, null, response.requestId());
     }
 
     /**
@@ -339,7 +344,7 @@ final class TypeSafeDecisionService
         logger.debug(
                 "TypeSafe call interrupted: service={}, provider={}, operation={}",
                 getName(),
-                TypeSafeModelFactory.PROVIDER,
+                provider,
                 operation);
         var cancelled = new CancellationException("TypeSafe " + operation + " call was interrupted");
         cancelled.initCause(interrupted);
@@ -403,7 +408,7 @@ final class TypeSafeDecisionService
                 label,
                 reason,
                 getName(),
-                TypeSafeModelFactory.PROVIDER,
+                provider,
                 operation,
                 causeCategory(failure),
                 statusClass(failure),

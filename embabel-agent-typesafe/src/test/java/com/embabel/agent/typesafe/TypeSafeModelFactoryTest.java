@@ -18,6 +18,7 @@ package com.embabel.agent.typesafe;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.headerDoesNotExist;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
@@ -42,9 +43,11 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.util.List;
 import java.util.concurrent.CancellationException;
 
 class TypeSafeModelFactoryTest {
@@ -275,6 +278,128 @@ class TypeSafeModelFactoryTest {
     }
 
     @Test
+    void providerNameIsReportedInMetadataAndProvenance() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo(SYSTEM_ONE_URI))
+                .andExpect(headerDoesNotExist("Authorization"))
+                .andRespond(
+                        withSuccess(
+                                        """
+                                        {"model":"jev-local","answers":{"classification":{"type":"choice","choice":"dog","probabilities":{"dog":0.9,"cat":0.1},"confidence":0.8}}}
+                                        """,
+                                        MediaType.APPLICATION_JSON)
+                                .header("x-typesafe-request-id", "request-23"));
+        server.expect(requestTo(SYSTEM_ONE_URI))
+                .andExpect(headerDoesNotExist("Authorization"))
+                .andRespond(
+                        withSuccess(
+                                """
+                                {"model":"jev-local","answers":{"classification":{"type":"choice","choice":"dog","probabilities":{"dog":0.5,"cat":0.5},"confidence":0.0}}}
+                                """,
+                                MediaType.APPLICATION_JSON));
+        server.expect(requestTo(SYSTEM_ONE_URI))
+                .andExpect(headerDoesNotExist("Authorization"))
+                .andRespond(withSuccess("not json", MediaType.APPLICATION_JSON));
+        var factory =
+                new TypeSafeModelFactory(
+                        TypeSafeClientOptions.defaults(),
+                        TypeSafeCredential.none(),
+                        builder,
+                        io.micrometer.observation.ObservationRegistry.NOOP,
+                        TypeSafeModelFactory.DEFAULT_MODEL,
+                        "decider");
+
+        var service = factory.build();
+
+        assertThat(factory.getProviderName()).isEqualTo("decider");
+        assertThat(service.getProvider()).isEqualTo("decider");
+        assertThat(service.classify(CLASSIFICATION_REQUEST))
+                .isInstanceOfSatisfying(
+                        ClassificationResult.Selected.class,
+                        selected -> {
+                            assertThat(selected.getProvenance().getProvider())
+                                    .isEqualTo("decider");
+                            assertThat(selected.getProvenance().getModelName())
+                                    .isEqualTo("jev-local");
+                            assertThat(selected.getProvenance().getRequestId())
+                                    .isEqualTo("request-23");
+                        });
+        assertThat(service.classify(CLASSIFICATION_REQUEST))
+                .isInstanceOfSatisfying(
+                        ClassificationResult.Inconclusive.class,
+                        inconclusive ->
+                                assertThat(inconclusive.getProvenance().getProvider())
+                                        .isEqualTo("decider"));
+
+        // A failure has no provenance, so the provider name shows up on its WARN line instead.
+        var logger = (Logger) LoggerFactory.getLogger(TypeSafeDecisionService.class);
+        var appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            assertThat(service.classify(CLASSIFICATION_REQUEST))
+                    .isEqualTo(new ClassificationResult.Failure(FailureReason.INVALID_RESPONSE));
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+        assertThat(appender.list)
+                .filteredOn(event -> event.getLevel() == Level.WARN)
+                .singleElement()
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .asString()
+                .contains("provider=decider");
+        server.verify();
+    }
+
+    @Test
+    void defaultProviderNameIsTypeSafe() {
+        var factory =
+                new TypeSafeModelFactory(
+                        TypeSafeClientOptions.defaults(),
+                        TypeSafeCredential.none(),
+                        null,
+                        io.micrometer.observation.ObservationRegistry.NOOP,
+                        TypeSafeModelFactory.DEFAULT_MODEL);
+
+        assertThat(factory.getProviderName()).isEqualTo("TypeSafe");
+        assertThat(factory.build().getProvider()).isEqualTo("TypeSafe");
+        assertThat(new TypeSafeModelFactory(() -> "test-key").build("jev-one").getProvider())
+                .isEqualTo("TypeSafe");
+    }
+
+    @Test
+    void blankProviderNameIsRejectedAtConstruction() {
+        var options = TypeSafeClientOptions.defaults();
+        var anonymous = TypeSafeCredential.none();
+        for (var blank : new String[] {"", "   ", "\t\n"}) {
+            assertThatThrownBy(
+                            () ->
+                                    new TypeSafeModelFactory(
+                                            options,
+                                            anonymous,
+                                            null,
+                                            io.micrometer.observation.ObservationRegistry.NOOP,
+                                            TypeSafeModelFactory.DEFAULT_MODEL,
+                                            blank))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("TypeSafe provider name must not be blank");
+        }
+        assertThatThrownBy(
+                        () ->
+                                new TypeSafeModelFactory(
+                                        options,
+                                        anonymous,
+                                        null,
+                                        io.micrometer.observation.ObservationRegistry.NOOP,
+                                        TypeSafeModelFactory.DEFAULT_MODEL,
+                                        null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("providerName");
+    }
+
+    @Test
     void flatChoiceIsInconclusiveRatherThanAnArbitrarySelection() {
         var fixture = fixture();
         fixture.server()
@@ -360,6 +485,83 @@ class TypeSafeModelFactoryTest {
         assertThat(service.assess(request))
                 .isEqualTo(new PropositionResult.Failure(FailureReason.INVALID_RESPONSE));
         fixture.server().verify();
+    }
+
+    @Test
+    void anonymousFactoryValidatesByListingModelsWithoutACredential() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo(MODELS_URI))
+                .andExpect(headerDoesNotExist("Authorization"))
+                .andRespond(
+                        withSuccess(
+                                """
+                                {"models":[{"name":"jev-latest"}]}
+                                """,
+                                MediaType.APPLICATION_JSON));
+        var factory =
+                new TypeSafeModelFactory(
+                        TypeSafeClientOptions.defaults(),
+                        TypeSafeCredential.none(),
+                        builder,
+                        io.micrometer.observation.ObservationRegistry.NOOP,
+                        TypeSafeModelFactory.DEFAULT_MODEL);
+
+        assertThat(factory.buildValidated().getName())
+                .isEqualTo(TypeSafeModelFactory.DEFAULT_MODEL);
+        server.verify();
+    }
+
+    @Test
+    void supplierConstructorsRequireAUsableKey() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(ExpectedCount.never(), requestTo(MODELS_URI));
+        var factory =
+                new TypeSafeModelFactory(
+                        TypeSafeClientOptions.defaults(),
+                        () -> "",
+                        builder,
+                        io.micrometer.observation.ObservationRegistry.NOOP);
+
+        assertThatThrownBy(factory::buildValidated)
+                .isInstanceOf(InvalidApiKeyException.class)
+                .hasMessage("TypeSafe credential could not be validated")
+                .hasNoCause();
+        server.verify();
+    }
+
+    @Test
+    void initializationLogReportsCredentialMode() {
+        var logger = (Logger) LoggerFactory.getLogger(TypeSafeModelFactory.class);
+        var oldLevel = logger.getLevel();
+        var appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        logger.setLevel(Level.INFO);
+        try {
+            new TypeSafeModelFactory(
+                    TypeSafeClientOptions.defaults(),
+                    TypeSafeCredential.none(),
+                    null,
+                    io.micrometer.observation.ObservationRegistry.NOOP,
+                    TypeSafeModelFactory.DEFAULT_MODEL);
+            new TypeSafeModelFactory(() -> "PRIVATE_KEY");
+
+            List<String> lines =
+                    appender.list.stream()
+                            .filter(event -> event.getLevel() == Level.INFO)
+                            .map(ILoggingEvent::getFormattedMessage)
+                            .filter(line -> line.startsWith("TypeSafe model factory initialized"))
+                            .toList();
+            assertThat(lines).hasSize(2);
+            assertThat(lines.get(0)).endsWith("credential=anonymous");
+            assertThat(lines.get(1)).endsWith("credential=keyed").doesNotContain("PRIVATE");
+        } finally {
+            logger.detachAppender(appender);
+            logger.setLevel(oldLevel);
+            appender.stop();
+        }
     }
 
     private static Fixture fixture() {

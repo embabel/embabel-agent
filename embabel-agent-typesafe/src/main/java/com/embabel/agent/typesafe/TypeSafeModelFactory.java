@@ -49,7 +49,9 @@ import java.util.function.Supplier;
  */
 @ApiStatus.Experimental
 public class TypeSafeModelFactory implements ByokFactory<DecisionService> {
-    /** Provider name reported by every service and result produced by this factory. */
+    /**
+     * Provider name reported by services and results when the factory isn't given one of its own.
+     */
     public static final String PROVIDER = "TypeSafe";
 
     /** TypeSafe's default Jev model alias. */
@@ -61,9 +63,10 @@ public class TypeSafeModelFactory implements ByokFactory<DecisionService> {
     private static final Logger logger = LoggerFactory.getLogger(TypeSafeModelFactory.class);
 
     private final TypeSafeClientFactory clients;
-    private final Supplier<String> keySupplier;
+    private final TypeSafeCredential credential;
     private final String defaultModel;
     private final ObservationRegistry observationRegistry;
+    private final String providerName;
 
     /**
      * Uses provider defaults, the fallback transport and a no-op observation registry.
@@ -159,17 +162,86 @@ public class TypeSafeModelFactory implements ByokFactory<DecisionService> {
             RestClient.@Nullable Builder restClientBuilder,
             ObservationRegistry observationRegistry,
             String defaultModel) {
-        this.keySupplier = Objects.requireNonNull(keySupplier, "keySupplier");
+        this(
+                options,
+                TypeSafeCredential.of(Objects.requireNonNull(keySupplier, "keySupplier")),
+                restClientBuilder,
+                observationRegistry,
+                defaultModel);
+    }
+
+    /**
+     * Configures the guarded provider boundary with an explicit credential mode.
+     *
+     * <p>Anonymous mode is only for servers that speak TypeSafe's protocol without checking
+     * authorization, such as a self-hosted Jev. Its {@link #buildValidated()} still lists models,
+     * so an unreachable or incompatible server is caught; it just sends no key.
+     *
+     * @param options non-secret provider settings
+     * @param credential keyed credential, or {@link TypeSafeCredential#none()} for a compatible
+     *     server that needs no authorization
+     * @param restClientBuilder application builder to clone, or null for the fallback transport
+     * @param observationRegistry registry for framework, provider and fallback HTTP observations
+     * @param defaultModel model returned by {@link #build()} and {@link #buildValidated()}
+     */
+    public TypeSafeModelFactory(
+            TypeSafeClientOptions options,
+            TypeSafeCredential credential,
+            RestClient.@Nullable Builder restClientBuilder,
+            ObservationRegistry observationRegistry,
+            String defaultModel) {
+        this(options, credential, restClientBuilder, observationRegistry, defaultModel, PROVIDER);
+    }
+
+    /**
+     * Configures the guarded provider boundary and names the provider its services report.
+     *
+     * <p>Use this for a self-hosted server that speaks TypeSafe's protocol, so service metadata and
+     * every answer's provenance name that server rather than TypeSafe.
+     *
+     * @param options non-secret provider settings
+     * @param credential keyed credential, or {@link TypeSafeCredential#none()} for a compatible
+     *     server that needs no authorization
+     * @param restClientBuilder application builder to clone, or null for the fallback transport
+     * @param observationRegistry registry for framework, provider and fallback HTTP observations
+     * @param defaultModel model returned by {@link #build()} and {@link #buildValidated()}
+     * @param providerName provider name reported by built services and their results
+     * @throws IllegalArgumentException if the provider name is blank
+     */
+    public TypeSafeModelFactory(
+            TypeSafeClientOptions options,
+            TypeSafeCredential credential,
+            RestClient.@Nullable Builder restClientBuilder,
+            ObservationRegistry observationRegistry,
+            String defaultModel,
+            String providerName) {
+        Objects.requireNonNull(providerName, "providerName");
+        if (providerName.isBlank()) {
+            throw new IllegalArgumentException("TypeSafe provider name must not be blank");
+        }
+        this.providerName = providerName;
+        this.credential = Objects.requireNonNull(credential, "credential");
         this.defaultModel = Objects.requireNonNull(defaultModel, "defaultModel");
         this.observationRegistry =
                 Objects.requireNonNull(observationRegistry, "observationRegistry");
         this.clients =
                 new TypeSafeClientFactory(
-                        options, keySupplier, restClientBuilder, observationRegistry);
+                        options, credential, restClientBuilder, observationRegistry);
         logger.info(
-                "TypeSafe model factory initialized: transport={}, observations={}",
+                "TypeSafe model factory initialized: transport={}, observations={}, credential={}",
                 restClientBuilder == null ? "fallback" : "application",
-                observationRegistry.isNoop() ? "noop" : "enabled");
+                observationRegistry.isNoop() ? "noop" : "enabled",
+                credential.isAnonymous() ? "anonymous" : "keyed");
+    }
+
+    /**
+     * Returns the provider name this factory's services report, which is {@link #PROVIDER} unless
+     * one was given.
+     *
+     * @return provider name for service metadata and provenance
+     */
+    public final String getProviderName() {
+        return providerName;
     }
 
     /**
@@ -203,7 +275,8 @@ public class TypeSafeModelFactory implements ByokFactory<DecisionService> {
     public final DecisionService build(String model) {
         var service =
                 new ObservedDecisionService(
-                        new TypeSafeDecisionService(clients.build(model)), observationRegistry);
+                        new TypeSafeDecisionService(clients.build(model), providerName),
+                        observationRegistry);
         logger.debug(
                 "TypeSafe decision service built: model.selection={}",
                 defaultModel.equals(model) ? "default" : "explicit");
@@ -222,7 +295,9 @@ public class TypeSafeModelFactory implements ByokFactory<DecisionService> {
     @Override
     public DecisionService buildValidated() {
         logger.debug("TypeSafe credential validation started");
-        validateCredentialSource();
+        if (!credential.isAnonymous()) {
+            validateCredentialSource();
+        }
         try {
             clients.validate(defaultModel);
         } catch (CancellationException cancelled) {
@@ -249,7 +324,7 @@ public class TypeSafeModelFactory implements ByokFactory<DecisionService> {
      */
     private void validateCredentialSource() {
         try {
-            requireUsableApiKey(keySupplier.get());
+            requireUsableApiKey(credential.unchecked());
         } catch (CancellationException cancelled) {
             logger.debug("TypeSafe credential resolution cancelled");
             throw cancelled;

@@ -189,8 +189,15 @@ The classification family resolves its default the same way with `embabel.models
 
 The TypeSafe auto-configuration contributes `DecisionServiceRegistry.DefaultCandidate("typeSafeDecisionService")`.
 When TypeSafe is configured and no explicit default is set, Jev is the default of both families.
-Prompted LLM services contribute no candidate.
-An application that has only prompted services and several of them sets the default explicitly.
+The prompted family default is opt-in: the platform registers nothing unless `embabel.agent.platform.decisions.llm.default-candidate` is `true`, and the setting defaults to `false`.
+When the setting is `true`, and the context has no decision or classification service and no default candidate, the platform registers `llmDefaultDecisionService` over the default LLM and contributes `DecisionServiceRegistry.DefaultCandidate("llmDefaultDecisionService")`, so it becomes the default of both families.
+One INFO line reads "Decision and classification family default is the prompted service 'llmDefaultDecisionService' over LLM '<name>', turned on by embabel.agent.platform.decisions.llm.default-candidate=true".
+When no chat model is configured yet, the placeholder answers until one is configured, and a WARN at startup says so.
+An explicit default, any registered decision or classification service or a provider's default candidate each make it stand down, so it acts only on an otherwise empty registry.
+The check reads declared bean types, so a service defined by a `FactoryBean` or by an `Object`-typed `@Bean` method is not seen; leave the setting unset in that case.
+It asks the model provider for the default LLM on every call, the same way the platform resolves the default chat model, so a model configured after startup is used without a restart.
+Like any prompted service, it reports a selected category, no match or inconclusive, with no confidence and no distribution.
+With the setting unset or `false`, an empty registry gives `NO_DEFAULT`, and several prompted services with no candidate give `AMBIGUOUS_DEFAULT`.
 
 ===== Startup snapshot
 
@@ -227,9 +234,29 @@ These properties configure services and selection together:
 |none
 |Registers a Jev decision service under `<name>` for the given TypeSafe model
 
+|`embabel.agent.platform.models.typesafe.services.<name>.base-url`
+|none
+|Endpoint for the `<name>` entry, overriding the top-level `base-url` for that entry
+
+|`embabel.agent.platform.models.typesafe.services.<name>.api-key`
+|none
+|Credential for the `<name>` entry, overriding the top-level `api-key` for that entry
+
+|`embabel.agent.platform.models.typesafe.services.<name>.provider`
+|none
+|Provider name for the `<name>` entry, overriding the top-level `provider` for that entry
+
+|`embabel.agent.platform.models.typesafe.provider`
+|`TypeSafe`
+|Provider name the TypeSafe services and their answers report
+
 |`embabel.agent.platform.decisions.llm.services.<name>.llm`
 |none
 |Registers a prompted decision service under `<name>`, answered by the named LLM. See <<reference.llm-decisions.configuration>>.
+
+|`embabel.agent.platform.decisions.llm.default-candidate`
+|`false`
+|Offers a prompted service over the default LLM as the family default when `true` and no other decision service is registered. See <<reference.llm-decisions.configuration>>.
 
 |`embabel.agent.platform.decisions.capture-content`
 |`false`
@@ -238,7 +265,8 @@ These properties configure services and selection together:
 
 The registration name of a Spring service is its bean name.
 The service's own `name` is its model name.
-Named Jev services share the credential, base URL and response limit set under `embabel.agent.platform.models.typesafe`.
+Named Jev services share the credential, base URL, provider name and response limit set under `embabel.agent.platform.models.typesafe`, unless an entry sets its own `base-url`, `api-key` or `provider`.
+See <<reference.typesafe>>.
 The default `typeSafeDecisionService` bean stays registered next to them.
 
 [source,yaml]
@@ -248,7 +276,7 @@ include::../../../../../../embabel-agent-starters/embabel-agent-starter-typesafe
 
 Startup fails when a default or role names a missing service, or when a decision default or role names a classification-only service.
 The error names the property.
-Startup also fails when a Jev entry has a blank model or an unknown key, naming the property.
+Startup also fails when a Jev entry has a blank value or an unknown key, naming the property.
 A default that is missing or ambiguous fails at lookup, when `defaultService()` is called.
 
 An application bean replaces configuration in these cases:
@@ -263,7 +291,7 @@ An application bean replaces configuration in these cases:
 |Replaces that entry only. One INFO line names the skipped entry.
 
 |A bean named `typeSafeDecisionService`
-|Replaces the default Jev service. The TypeSafe auto-configuration contributes no default candidate. Named Jev services still register, and they need the TypeSafe credential.
+|Replaces the default Jev service. The TypeSafe auto-configuration contributes no default candidate. Named Jev services still register and use the credential rule above.
 |===
 
 ==== Plain Java

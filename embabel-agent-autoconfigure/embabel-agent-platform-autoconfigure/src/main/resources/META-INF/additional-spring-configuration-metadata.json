@@ -1,4 +1,12 @@
 {
+  "properties": [
+    {
+      "name": "embabel.agent.platform.decisions.llm.default-candidate",
+      "type": "java.lang.Boolean",
+      "defaultValue": false,
+      "description": "Offer a prompted decision and classification service over the default LLM as the family default when no other decision service is registered."
+    }
+  ],
   "hints": [
     {
       "name": "embabel.agent.logging.personality",
