@@ -16,6 +16,8 @@
 package com.embabel.agent.rag.tools
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolObject
+import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.agent.filter.PropertyFilter
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.ContentElement
@@ -1785,6 +1787,17 @@ class ToolishRagTest {
             val rag = ToolishRag("docs", "Documentation", mockVectorSearch)
 
             assertEquals(rag.tools().size, rag.unprefixedTools().size)
+        }
+
+        @Test
+        fun `withReference naming applies prefix exactly once - no docs_docs prefix`() {
+            val rag = ToolishRag("docs", "Documentation", mockVectorSearch)
+
+            val tools = safelyGetToolsFrom(ToolObject(rag.unprefixedTools(), rag.namingStrategy))
+
+            assertTrue(tools.isNotEmpty())
+            assertTrue(tools.all { it.definition.name.startsWith("docs_") }, "All tools must be prefixed with docs_; got: ${tools.map { it.definition.name }}")
+            assertFalse(tools.any { it.definition.name.startsWith("docs_docs_") }, "No tool must be double-prefixed; got: ${tools.map { it.definition.name }}")
         }
     }
 }

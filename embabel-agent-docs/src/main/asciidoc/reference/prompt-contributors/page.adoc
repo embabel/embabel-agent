@@ -58,15 +58,20 @@ Step 1 — model calls:
   docs({})
 
 Step 1 result:
-  "Tools now available: docs_vectorSearch, docs_textSearch.
+  "Tools now available: vectorSearch, textSearch.
    You MUST call one of these tools to complete the user's request."
 
 Step 2 — model calls:
-  docs_vectorSearch({"query": "spring boot config"})
+  vectorSearch({"query": "spring boot config"})
 ----
 
 This reduces catalog noise when you have several references: the model picks the right one first,
 then gets the specific tools it needs.
+
+NOTE: The inner tool names shown above come from what the delegate's `tools()` returns.
+For a standard `LlmReference.of("docs", ...)` the inner tools have bare names (`vectorSearch`).
+For a `ToolishRag` whose `tools()` already returns prefixed names, the inner tools are shown as
+`docs_vectorSearch`.
 
 Because the `UnfoldingTool` placeholder is already named `"docs"` (the prefix), applying the
 default naming strategy on top would produce `"docs_docs"`.

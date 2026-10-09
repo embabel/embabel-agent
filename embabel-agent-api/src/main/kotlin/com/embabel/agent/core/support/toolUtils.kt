@@ -83,6 +83,7 @@ internal class RenamedTool(
         override val name: String = newName
         override val description: String = delegate.definition.description
         override val inputSchema: Tool.InputSchema = delegate.definition.inputSchema
+        override val metadata: Map<String, Any> = delegate.definition.metadata
     }
 
     override val metadata: Tool.Metadata = delegate.metadata

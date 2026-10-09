@@ -129,6 +129,35 @@ class WithReferenceToolRegistrationTest {
     }
 
     @Nested
+    inner class DoublePrefix {
+
+        @Test
+        fun `withReference does not double-prefix when tools() already returns prefixed names`() {
+            // Simulate a reference whose tools() returns pre-prefixed names (e.g. ToolishRag)
+            // but unprefixedTools() returns bare names. Before the fix, toolObject() used
+            // tools() and applied namingStrategy again, producing "docs_docs_search".
+            val prefixedTool = Tool.of("docs_search", "Search") { Tool.Result.text("ok") }
+            val bareTool = Tool.of("search", "Search") { Tool.Result.text("ok") }
+            val reference = object : LlmReference {
+                override val name = "docs"
+                override val description = "Documentation"
+                override fun notes() = ""
+                override fun tools() = listOf(prefixedTool)
+                override fun unprefixedTools() = listOf(bareTool)
+            }
+
+            val runner = makeRunner().withReference(reference) as OperationContextPromptRunner
+
+            val fromToolObjects = safelyGetTools(runner.toolObjects)
+            assertFalse(
+                fromToolObjects.any { it.definition.name.startsWith("docs_docs_") },
+                "toolObject() path must not double-prefix: got ${fromToolObjects.map { it.definition.name }}"
+            )
+            assertEquals("docs_search", fromToolObjects[0].definition.name)
+        }
+    }
+
+    @Nested
     inner class RawTools {
 
         @Test

@@ -359,7 +359,6 @@ class OperationContextPromptRunnerTest {
             every { mockReference.notes() } returns "Test API documentation"
             every { mockReference.contribution() } returns "Reference: TestAPI\nDescription: Test API\nTool prefix: testapi\nNotes: Test API documentation"
             every { mockReference.namingStrategy } returns StringTransformer { "testapi_$it" }
-            every { mockReference.tools() } returns emptyList()
             every { mockReference.unprefixedTools() } returns emptyList()
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
@@ -384,7 +383,6 @@ class OperationContextPromptRunnerTest {
             every { mockReference.notes() } returns "Test API v2 documentation"
             every { mockReference.contribution() } returns "Reference: Test-API@v2!\nDescription: Test API v2\nTool prefix: test-api_v2_\nNotes: Test API v2 documentation"
             every { mockReference.namingStrategy } returns StringTransformer { "test_api_v2__$it" }
-            every { mockReference.tools() } returns emptyList()
             every { mockReference.unprefixedTools() } returns emptyList()
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
@@ -407,7 +405,6 @@ class OperationContextPromptRunnerTest {
             every { mockReference1.notes() } returns "API 1 documentation"
             every { mockReference1.contribution() } returns "Reference: API1\nDescription: API 1\nTool prefix: api1\nNotes: API 1 documentation"
             every { mockReference1.namingStrategy } returns StringTransformer { "api1_$it" }
-            every { mockReference1.tools() } returns emptyList()
             every { mockReference1.unprefixedTools() } returns emptyList()
 
             val mockReference2 = mockk<LlmReference>()
@@ -417,7 +414,6 @@ class OperationContextPromptRunnerTest {
             every { mockReference2.notes() } returns "API 2 documentation"
             every { mockReference2.contribution() } returns "Reference: API2\nDescription: API 2\nTool prefix: api2\nNotes: API 2 documentation"
             every { mockReference2.namingStrategy } returns StringTransformer { "api2_$it" }
-            every { mockReference2.tools() } returns emptyList()
             every { mockReference2.unprefixedTools() } returns emptyList()
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
@@ -438,7 +434,6 @@ class OperationContextPromptRunnerTest {
             every { mockReference1.notes() } returns "API 1 documentation"
             every { mockReference1.contribution() } returns "Reference: API1\nDescription: API 1\nTool prefix: api1\nNotes: API 1 documentation"
             every { mockReference1.namingStrategy } returns StringTransformer { "api1_$it" }
-            every { mockReference1.tools() } returns emptyList()
             every { mockReference1.unprefixedTools() } returns emptyList()
 
             val mockReference2 = mockk<LlmReference>()
@@ -448,7 +443,6 @@ class OperationContextPromptRunnerTest {
             every { mockReference2.notes() } returns "API 2 documentation"
             every { mockReference2.contribution() } returns "Reference: API2\nDescription: API 2\nTool prefix: api2\nNotes: API 2 documentation"
             every { mockReference2.namingStrategy } returns StringTransformer { "api2_$it" }
-            every { mockReference2.tools() } returns emptyList()
             every { mockReference2.unprefixedTools() } returns emptyList()
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
@@ -467,7 +461,6 @@ class OperationContextPromptRunnerTest {
             every { mockReference.notes() } returns "Test API documentation"
             every { mockReference.contribution() } returns "Reference: TestAPI\nDescription: Test API\nTool prefix: testapi\nNotes: Test API documentation"
             every { mockReference.namingStrategy } returns StringTransformer { "testapi_$it" }
-            every { mockReference.tools() } returns emptyList()
             every { mockReference.unprefixedTools() } returns emptyList()
 
             val systemPrompt = "You are a helpful assistant."
@@ -508,7 +501,6 @@ class OperationContextPromptRunnerTest {
             every { mockReference.notes() } returns "API documentation"
             every { mockReference.contribution() } returns "Reference: ToolsAPI"
             every { mockReference.namingStrategy } returns StringTransformer { "toolsapi_$it" }
-            every { mockReference.tools() } returns listOf(referenceTool)
             every { mockReference.unprefixedTools() } returns listOf(referenceTool)
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
@@ -531,7 +523,6 @@ class OperationContextPromptRunnerTest {
             every { mockReference.notes() } returns "API documentation"
             every { mockReference.contribution() } returns "Reference: MultiToolAPI"
             every { mockReference.namingStrategy } returns StringTransformer { "multitoolapi_$it" }
-            every { mockReference.tools() } returns listOf(tool1, tool2)
             every { mockReference.unprefixedTools() } returns listOf(tool1, tool2)
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
@@ -556,7 +547,6 @@ class OperationContextPromptRunnerTest {
             every { mockReference1.notes() } returns "API 1 docs"
             every { mockReference1.contribution() } returns "Reference: API1"
             every { mockReference1.namingStrategy } returns StringTransformer.IDENTITY
-            every { mockReference1.tools() } returns listOf(tool1)
             every { mockReference1.unprefixedTools() } returns listOf(tool1)
 
             val mockReference2 = mockk<LlmReference>()
@@ -566,7 +556,6 @@ class OperationContextPromptRunnerTest {
             every { mockReference2.notes() } returns "API 2 docs"
             every { mockReference2.contribution() } returns "Reference: API2"
             every { mockReference2.namingStrategy } returns StringTransformer.IDENTITY
-            every { mockReference2.tools() } returns listOf(tool2)
             every { mockReference2.unprefixedTools() } returns listOf(tool2)
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
