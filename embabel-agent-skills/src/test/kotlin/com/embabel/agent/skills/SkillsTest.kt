@@ -426,6 +426,26 @@ class SkillsTest {
         assertTrue(notes.contains("Second skill"))
     }
 
+    @Test
+    fun `notes references prefixed tool names matching withReference naming strategy`() {
+        // withReference applies namingStrategy (toolPrefix()_$name) to unprefixedTools().
+        // notes() must reference the same prefixed names so the model prompt matches
+        // the tool catalog it actually sees.
+        val skills = Skills(
+            name = "Skills",
+            description = "test",
+            skills = emptyList(),
+        )
+        val prefix = skills.toolPrefix() // "skills"
+
+        val notes = skills.notes()
+
+        assertTrue(notes.contains("${prefix}_activate"), "notes must reference ${prefix}_activate, was:\n$notes")
+        assertTrue(notes.contains("${prefix}_listResources"), "notes must reference ${prefix}_listResources, was:\n$notes")
+        assertTrue(notes.contains("${prefix}_readResource"), "notes must reference ${prefix}_readResource, was:\n$notes")
+        assertFalse(notes.contains("\"activate\""), "notes must not reference bare 'activate', was:\n$notes")
+    }
+
     // Script tools tests
 
     @Test
