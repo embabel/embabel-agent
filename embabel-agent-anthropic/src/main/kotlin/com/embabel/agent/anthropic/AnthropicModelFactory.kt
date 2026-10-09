@@ -16,7 +16,9 @@
 package com.embabel.agent.anthropic
 
 import com.anthropic.client.AnthropicClient
+import com.anthropic.client.AnthropicClientAsync
 import com.anthropic.client.okhttp.AnthropicOkHttpClient
+import com.anthropic.client.okhttp.AnthropicOkHttpClientAsync
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
@@ -37,6 +39,7 @@ import org.springframework.retry.support.RetryTemplate
 import org.springframework.web.client.RestClient
 import java.time.Duration
 import java.time.LocalDate
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Builds Anthropic [LlmService] instances from a raw API key.
@@ -77,7 +80,7 @@ open class AnthropicModelFactory(
     protected val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
     @Suppress("UNUSED_PARAMETER")
     restClientBuilder: ObjectProvider<RestClient.Builder> = ObjectProviders.empty(),
-) : ByokFactory<LlmService<*>> {
+) : ByokFactory<LlmService<*>>, AutoCloseable {
 
     protected val logger = LoggerFactory.getLogger(javaClass)
 
@@ -97,7 +100,7 @@ open class AnthropicModelFactory(
      * precedence — the factory's caller has already resolved env vs. properties at construction
      * time.
      */
-    protected fun createAnthropicClient(): AnthropicClient {
+    protected open fun createAnthropicClient(): AnthropicClient {
         val builder = AnthropicOkHttpClient.builder()
             .apiKey(apiKey)
             .timeout(READ_TIMEOUT)
@@ -106,6 +109,38 @@ open class AnthropicModelFactory(
             builder.baseUrl(baseUrl)
         }
         return builder.build()
+    }
+
+    /**
+     * The async counterpart of [createAnthropicClient], from the same credentials.
+     *
+     * Given only a sync client, Spring AI's [AnthropicChatModel] builds the async one itself, from its
+     * chat options rather than from this factory — so it does not carry a custom base URL — and with the
+     * observation registry wired into an OkHttp interceptor. The SDK closes that client only once it is
+     * phantom-reachable, which a client whose interceptor reaches back through the registry into the
+     * application context never is: every closed context that had built one stayed in memory.
+     */
+    protected open fun createAnthropicClientAsync(): AnthropicClientAsync {
+        val builder = AnthropicOkHttpClientAsync.builder()
+            .apiKey(apiKey)
+            .timeout(READ_TIMEOUT)
+        if (!baseUrl.isNullOrBlank()) builder.baseUrl(baseUrl)
+        return builder.build()
+    }
+
+    /* Every client this factory built, closed with it: Spring calls [close] when the context shuts down. */
+    private val clients = CopyOnWriteArrayList<() -> Unit>()
+
+    /** A sync client, kept to be closed with this factory. */
+    protected fun syncClient(): AnthropicClient = createAnthropicClient().also { c -> clients += { c.close() } }
+
+    /** An async client, kept to be closed with this factory. */
+    protected fun asyncClient(): AnthropicClientAsync = createAnthropicClientAsync().also { c -> clients += { c.close() } }
+
+    /** Close every client this factory built. */
+    override fun close() {
+        clients.forEach { closeClient -> runCatching(closeClient).onFailure { logger.warn("Could not close an Anthropic client: {}", it.message) } }
+        clients.clear()
     }
 
     /**
@@ -136,7 +171,8 @@ open class AnthropicModelFactory(
     ): LlmService<*> {
         val chatModel = AnthropicChatModel.builder()
             .options(AnthropicChatOptions.builder().model(model).build())
-            .anthropicClient(createAnthropicClient())
+            .anthropicClient(syncClient())
+            .anthropicClientAsync(asyncClient())
             .toolCallingManager(
                 ToolCallingManager.builder().observationRegistry(observationRegistry).build()
             )
