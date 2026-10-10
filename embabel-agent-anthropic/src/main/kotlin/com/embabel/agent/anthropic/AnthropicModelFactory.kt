@@ -17,6 +17,7 @@ package com.embabel.agent.anthropic
 
 import com.anthropic.client.AnthropicClient
 import com.anthropic.client.okhttp.AnthropicOkHttpClient
+import com.anthropic.errors.AnthropicServiceException
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
@@ -25,6 +26,7 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
+import com.embabel.common.byok.firstOfType
 import com.embabel.common.byok.requireUsableApiKey
 import com.embabel.common.util.ObjectProviders
 import io.micrometer.observation.ObservationRegistry
@@ -166,10 +168,16 @@ open class AnthropicModelFactory(
      * Validates the API key with a probe call on the given [model], then returns a production
      * [LlmService] if successful.
      *
-     * Spring AI 2.0 no longer accepts a spring-retry [RetryTemplate] on the model builder,
-     * so the probe relies on the anthropic-java SDK's own no-retry default (any 401 fails fast).
-     * On any exception the provider-specific error is translated to [InvalidApiKeyException],
-     * keeping Spring AI types out of the caller.
+     * Spring AI 2.0 no longer accepts a spring-retry [RetryTemplate] on the model builder, so the
+     * only retries are the anthropic-java SDK's own.
+     * - The SDK does not retry a 401, 402 or 403 response. A refused key is reported after one
+     *   request.
+     * - The SDK retries a 429 response twice. A rate limited key is reported after three
+     *   requests.
+     * - The SDK also retries other failures it treats as temporary, such as a failed connection.
+     * On any exception this throws [InvalidApiKeyException], so the caller catches one type. The
+     * provider's exception is its cause, and the HTTP status code of the provider's response is
+     * its status code.
      *
      * A blank key is rejected before any network call. A key is routinely blank rather than
      * absent: Compose passes `ANTHROPIC_API_KEY=${'$'}{ANTHROPIC_API_KEY:-}`, so in a container the
@@ -186,8 +194,24 @@ open class AnthropicModelFactory(
         try {
             probe.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())
         } catch (e: Exception) {
-            throw InvalidApiKeyException(e.message ?: "Invalid API key")
+            // The message is the text of the provider's exception. The exception itself is passed
+            // as the cause, and the HTTP status code of the response as the status code.
+            throw InvalidApiKeyException(e.message ?: "Invalid API key", e, providerStatus(e))
         }
         return build(model)
     }
+
+    /**
+     * Returns the HTTP status code of the response that caused [failure], or null if there was
+     * no response.
+     *
+     * The SDK throws [AnthropicServiceException] when Anthropic responds with an error status, and
+     * that exception holds the status code. It may be [failure] itself or one of its causes, so
+     * [firstOfType] looks at [failure] and then at each of its causes.
+     *
+     * There is no [AnthropicServiceException] when the request never got a response, for example
+     * when the connection was refused. The result is then null.
+     */
+    private fun providerStatus(failure: Throwable): Int? =
+        failure.firstOfType<AnthropicServiceException>()?.statusCode()
 }

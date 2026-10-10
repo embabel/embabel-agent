@@ -17,13 +17,38 @@ package com.embabel.common.byok
 
 /**
  * Thrown when an API key is invalid or not recognised by any supported provider.
- * Surfaces through [detectProvider] and the factory [ByokFactory.buildValidated] methods
- * without leaking any provider-specific (e.g. Spring AI) exception types to callers.
+ * [detectProvider] and the factory [ByokFactory.buildValidated] methods throw it, so a caller
+ * catches this one type and does not catch a provider-specific type, such as a Spring AI or
+ * SDK exception.
  *
  * A [cause] may carry the provider's own exception. It is there for diagnosis — a log line that
  * shows WHY a probe failed — and callers still catch this type alone.
+ *
+ * [statusCode] is the HTTP status code of the provider's response. The OpenAI-compatible and
+ * Anthropic factories set it, for chat validation and for embedding validation. From those
+ * factories it is null when the provider sent no response, for example when the connection was
+ * refused, and when the key was rejected before any request was made, as a blank key is.
+ *
+ * It is always null from [detectProvider], and from a factory that does not set it. The
+ * TypeSafe factory is one that does not set it.
+ *
+ * The status code shows why the provider refused the key, so a caller does not have to read the
+ * message to find out. Providers do not use the same status code for the same reason, so a
+ * caller must know which provider responded before it decides what the code means. These are
+ * examples, not rules:
+ * - The provider does not know the key: OpenAI, DeepSeek, Mistral and Anthropic respond 401.
+ *   Google's OpenAI-compatible endpoint responds 400.
+ * - The provider knows the key, and the account has no credit: Google responds 402.
+ * - The provider knows the key, and the key is not permitted to make the request: 403.
+ * - The provider knows the key, and the key is rate limited: 429.
  */
-class InvalidApiKeyException @JvmOverloads constructor(
+class InvalidApiKeyException(
     message: String,
-    cause: Throwable? = null,
-) : RuntimeException(message, cause)
+    cause: Throwable?,
+    val statusCode: Int?,
+) : RuntimeException(message, cause) {
+
+    /** Creates the exception with no status code. Use this when the provider sent no response. */
+    @JvmOverloads
+    constructor(message: String, cause: Throwable? = null) : this(message, cause, null)
+}

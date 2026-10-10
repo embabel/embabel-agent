@@ -26,6 +26,7 @@ import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.*
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
+import com.embabel.common.byok.firstOfType
 import com.embabel.common.byok.requireUsableApiKey
 import com.embabel.common.byok.validatedEmbeddingService
 import com.embabel.common.util.ObjectProviders
@@ -36,6 +37,7 @@ import com.openai.client.OpenAIClientImpl
 import com.openai.client.okhttp.OpenAIOkHttpClient
 import com.openai.client.okhttp.OpenAIOkHttpClientAsync
 import com.openai.core.ClientOptions
+import com.openai.errors.OpenAIServiceException
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.ai.openai.http.okhttp.OpenAiHttpClientBuilderCustomizer
 import org.springframework.ai.openai.http.okhttp.SpringAiOpenAiHttpClient
@@ -530,10 +532,16 @@ open class OpenAiCompatibleModelFactory(
      * Validates the configured API key by making a probe call, then returns a production
      * [LlmService] if successful.
      *
-     * Spring AI 2.0 no longer accepts a spring-retry [RetryTemplate] on the model builder,
-     * so the probe relies on the openai-java SDK's own no-retry default (any 401 fails fast).
-     * On any exception the provider-specific error is translated to [InvalidApiKeyException],
-     * keeping Spring AI types out of the caller.
+     * Spring AI 2.0 no longer accepts a spring-retry [RetryTemplate] on the model builder, so the
+     * only retries are the openai-java SDK's own.
+     * - The SDK does not retry a 401, 402 or 403 response. A refused key is reported after one
+     *   request.
+     * - The SDK retries a 429 response twice. A rate limited key is reported after three
+     *   requests.
+     * - The SDK also retries other failures it treats as temporary, such as a failed connection.
+     * On any exception this throws [InvalidApiKeyException], so the caller catches one type. The
+     * provider's exception is its cause, and the HTTP status code of the provider's response is
+     * its status code.
      *
      * A blank key is rejected before any network call — see [requireUsableApiKey] for why a key
      * is set-but-empty far more often than it looks.
@@ -562,7 +570,9 @@ open class OpenAiCompatibleModelFactory(
         try {
             probe.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())
         } catch (e: Exception) {
-            throw InvalidApiKeyException(e.message ?: "Invalid API key")
+            // The message is the text of the provider's exception. The exception itself is passed
+            // as the cause, and the HTTP status code of the response as the status code.
+            throw InvalidApiKeyException(e.message ?: "Invalid API key", e, providerStatus(e))
         }
         return openAiCompatibleLlm(
             model = model,
@@ -573,6 +583,20 @@ open class OpenAiCompatibleModelFactory(
     }
 
     /**
+     * Returns the HTTP status code of the response that caused [failure], or null if there was
+     * no response.
+     *
+     * The SDK throws [OpenAIServiceException] when the provider responds with an error status, and
+     * that exception holds the status code. It may be [failure] itself or one of its causes, so
+     * [firstOfType] looks at [failure] and then at each of its causes.
+     *
+     * There is no [OpenAIServiceException] when the request never got a response, for example
+     * when the connection was refused. The result is then null.
+     */
+    private fun providerStatus(failure: Throwable): Int? =
+        failure.firstOfType<OpenAIServiceException>()?.statusCode()
+
+    /**
      * Validates the configured API key by embedding a short probe text, then returns a
      * production [EmbeddingService] carrying the width the model actually produced.
      *
@@ -581,7 +605,8 @@ open class OpenAiCompatibleModelFactory(
      * OpenAI-compatible builder and the blank-key guard.
      *
      * @throws InvalidApiKeyException if the key is blank or invalid, the provider is
-     * unreachable, or the model returns no vector.
+     * unreachable, or the model returns no vector. Its status code is the HTTP status code of
+     * the provider's response, as it is for [buildValidated].
      */
     fun buildValidatedEmbeddingService(
         model: String,
@@ -589,7 +614,11 @@ open class OpenAiCompatibleModelFactory(
         pricingModel: PricingModel? = null,
     ): EmbeddingService {
         requireUsableApiKey(apiKey)
-        return validatedEmbeddingService(model = model, provider = provider) { configuredDimensions ->
+        return validatedEmbeddingService(
+            model = model,
+            provider = provider,
+            statusCodeOf = ::providerStatus,
+        ) { configuredDimensions ->
             openAiCompatibleEmbeddingService(
                 model = model,
                 provider = provider,

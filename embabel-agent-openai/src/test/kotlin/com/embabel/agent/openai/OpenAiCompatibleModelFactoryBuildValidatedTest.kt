@@ -19,6 +19,7 @@ import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.common.byok.BLANK_API_KEY_MESSAGE
 import com.embabel.common.byok.InvalidApiKeyException
 import com.embabel.common.ai.model.PricingModel
+import com.openai.errors.OpenAIServiceException
 import com.sun.net.httpserver.HttpServer
 import io.micrometer.observation.ObservationRegistry
 import io.mockk.Runs
@@ -27,13 +28,17 @@ import io.mockk.just
 import io.mockk.mockk
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.web.client.RestClient
 import java.net.InetSocketAddress
+import java.net.ServerSocket
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Supplier
 
 class OpenAiCompatibleModelFactoryBuildValidatedTest {
@@ -162,5 +167,108 @@ class OpenAiCompatibleModelFactoryBuildValidatedTest {
             val e = assertThrows<InvalidApiKeyException> { spec.buildValidated() }
             assertEquals(BLANK_API_KEY_MESSAGE, e.message)
         }
+    }
+
+    /**
+     * Validates the test key for a chat model against the local server. Returns the service when
+     * the server accepts the key, and throws [InvalidApiKeyException] when it does not.
+     */
+    private fun validate() = factory().buildValidated(
+        model = OpenAiModels.GPT_41_MINI,
+        pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+        provider = OpenAiModels.PROVIDER,
+        knowledgeCutoffDate = null,
+    )
+
+    /** The number of requests the local server has received from [answerWith]'s handler. */
+    private val requestCount = AtomicInteger()
+
+    /**
+     * Makes the local server answer every request with the given HTTP [status] and JSON [body],
+     * and starts it. Each request adds one to [requestCount].
+     *
+     * For example, `answerWith(401, """{"error":{"message":"Invalid API key"}}""")` makes the
+     * server stand in for a provider that does not know the key.
+     */
+    private fun answerWith(status: Int, body: String) {
+        server.createContext("/") { exchange ->
+            requestCount.incrementAndGet()
+            exchange.requestBody.use { it.readBytes() }
+            val bytes = body.toByteArray()
+            exchange.responseHeaders.set("Content-Type", "application/json")
+            exchange.sendResponseHeaders(status, bytes.size.toLong())
+            exchange.responseBody.use { it.write(bytes) }
+        }
+        server.start()
+    }
+
+    /**
+     * The provider knows the key and refuses the request because the account has no credit. The
+     * exception reports status code 402, and its cause is the SDK's exception.
+     */
+    @Test
+    fun `a 402 response reports status code 402 and keeps the SDK exception as the cause`() {
+        answerWith(402, """{"error":{"message":"Your prepayment credits are depleted.","status":"RESOURCE_EXHAUSTED"}}""")
+
+        val e = assertThrows<InvalidApiKeyException> { validate() }
+
+        assertEquals(402, e.statusCode)
+        assertInstanceOf(OpenAIServiceException::class.java, e.cause, "the SDK's exception is the cause")
+    }
+
+    /**
+     * Embedding validation reports the status code as chat validation does. The provider knows
+     * the key and refuses the embedding request because the account has no credit.
+     */
+    @Test
+    fun `a 402 response to an embedding request reports status code 402`() {
+        answerWith(402, """{"error":{"message":"Your prepayment credits are depleted.","status":"RESOURCE_EXHAUSTED"}}""")
+
+        val e = assertThrows<InvalidApiKeyException> {
+            factory().buildValidatedEmbeddingService(model = "acme-embed-small", provider = "Acme")
+        }
+
+        assertEquals(402, e.statusCode)
+        assertInstanceOf(OpenAIServiceException::class.java, e.cause, "the SDK's exception is the cause")
+    }
+
+    @Test
+    fun `a 401 response reports status code 401 after one request`() {
+        answerWith(401, """{"error":{"message":"Invalid API key","type":"invalid_request_error"}}""")
+
+        assertEquals(401, assertThrows<InvalidApiKeyException> { validate() }.statusCode)
+        assertEquals(1, requestCount.get(), "the SDK does not retry a 401")
+    }
+
+    /**
+     * The provider knows the key and refuses the request because the key is rate limited. The SDK
+     * sends the request, then retries it twice, so the provider receives three requests. The
+     * exception reports status code 429.
+     */
+    @Test
+    fun `a 429 response reports status code 429 after the SDK has retried twice`() {
+        answerWith(429, """{"error":{"message":"Rate limit reached","type":"rate_limit_error"}}""")
+
+        assertEquals(429, assertThrows<InvalidApiKeyException> { validate() }.statusCode)
+        assertEquals(3, requestCount.get(), "one request and two retries")
+    }
+
+    @Test
+    fun `a refused connection reports no status code and keeps the cause`() {
+        // Bind a free port and release it. Nothing listens on it afterwards, so the connection
+        // is refused and the provider sends no response.
+        port = ServerSocket(0).use { it.localPort }
+
+        val e = assertThrows<InvalidApiKeyException> { validate() }
+
+        assertNull(e.statusCode, "there was no response, so there is no status code")
+        assertNotNull(e.cause)
+    }
+
+    @Test
+    fun `a blank key reports no status code`() {
+        val e = assertThrows<InvalidApiKeyException> { OpenAiCompatibleModelFactory.openAi(" ").buildValidated() }
+
+        assertNull(e.statusCode)
     }
 }

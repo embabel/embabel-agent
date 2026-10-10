@@ -46,13 +46,19 @@ private const val EMBEDDING_VALIDATION_PROBE = "Hi"
  * defaulted and never detected, because the width it commits an index to must not be decided by
  * whichever provider happens to answer first.
  * @param provider provider name, used only in the failure message
+ * @param statusCodeOf returns the HTTP status code of the provider's response, given the
+ * exception the probe threw, or null if the provider sent no response. This function does not
+ * know the provider's SDK, so the caller supplies it. For example, the OpenAI-compatible factory
+ * passes a function that finds the SDK's `OpenAIServiceException` and returns its status code.
  * @param build builds the provider's service, given the width to stamp (null while probing)
  * @throws InvalidApiKeyException if the probe fails - an invalid key, an unreachable provider, a
- * model the key cannot use - or if the model returns no vector
+ * model the key cannot use - or if the model returns no vector. Its status code is the result of
+ * [statusCodeOf].
  */
 fun validatedEmbeddingService(
     model: String,
     provider: String,
+    statusCodeOf: (Throwable) -> Int?,
     build: (configuredDimensions: Int?) -> EmbeddingService,
 ): EmbeddingService {
     // All three failure modes here mean the same thing to the caller - the model could not be
@@ -72,6 +78,7 @@ fun validatedEmbeddingService(
         throw InvalidApiKeyException(
             "Could not validate embedding model '$model' on $provider: ${e.message ?: "no detail"}",
             e,
+            statusCodeOf(e),
         )
     }
     // Outside the try, unlike the call above. The credential and the model have both just been
@@ -79,3 +86,23 @@ fun validatedEmbeddingService(
     // a rejected key - that would send someone to re-check a key this function just validated.
     return build(vector.size)
 }
+
+/**
+ * Validates an embedding key as the function above does, and reports no status code.
+ *
+ * Use this when the provider's exception does not hold an HTTP status code. The
+ * [InvalidApiKeyException] it throws has a null status code, whether or not the provider sent a
+ * response.
+ */
+fun validatedEmbeddingService(
+    model: String,
+    provider: String,
+    build: (configuredDimensions: Int?) -> EmbeddingService,
+): EmbeddingService =
+    validatedEmbeddingService(
+        model = model,
+        provider = provider,
+        // No status code is known, so every failure reports null.
+        statusCodeOf = { null },
+        build = build,
+    )

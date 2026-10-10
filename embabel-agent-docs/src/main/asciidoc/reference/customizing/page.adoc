@@ -229,7 +229,10 @@ val service: LlmService<*> = OpenAiCompatibleModelFactory.gemini(userKey).buildV
 val service: LlmService<*> = OpenAiCompatibleModelFactory.atlasCloud(userKey).buildValidated()
 ----
 
-`buildValidated()` makes a single probe call with no retries.
+`buildValidated()` validates the key with a probe call.
+The provider's SDK does not retry a 401, 402 or 403 response, so a refused key is reported after
+one request. The SDK retries a 429 response twice, so a rate limited key is reported after three
+requests. The SDK also retries other failures it treats as temporary, such as a failed connection.
 On success it returns a production `LlmService`; on failure it throws `InvalidApiKeyException`.
 
 A **blank** key is treated as absent and rejected before any network call, also with
@@ -550,12 +553,42 @@ try {
     // store or use service
 } catch (e: InvalidApiKeyException) {
     // return 401 / surface error to user
-    // no Spring AI types to unwrap
+    // this is the only exception type to catch
 }
 ----
 
-`InvalidApiKeyException` is in `com.embabel.common.byok` and carries no provider-specific
-implementation details.
+`InvalidApiKeyException` is in `com.embabel.common.byok`. It is the only type a caller needs to
+catch.
+
+When `buildValidated()` on an OpenAI-compatible or Anthropic factory throws it, the exception
+also holds what the provider said. This is the same for a chat model and an embedding model:
+
+* `statusCode` is the HTTP status code of the provider's response. It is null when the provider
+sent no response, for example when the connection was refused or the key was blank.
+* `cause` is the provider's own exception. Use it for logging.
+
+Providers do not use the same status code for the same reason. For example, a key the provider
+does not know gets 401 from OpenAI and 400 from Google's OpenAI-compatible endpoint. Decide what
+a status code means only after you know which provider responded.
+
+`detectProvider` tries several providers and throws a new `InvalidApiKeyException` when all of
+them fail. That exception has no status code and no cause. To get the status code from each
+provider, call `buildValidated()` on each factory yourself:
+
+[source,kotlin]
+----
+try {
+    val service = OpenAiCompatibleModelFactory.gemini(userKey).buildValidated()
+    // store or use service
+} catch (e: InvalidApiKeyException) {
+    val reason = when (e.statusCode) {
+        402 -> "Google knows the key, and the account has no credit"
+        null -> "Google sent no response"
+        else -> "Google refused the key"
+    }
+    // surface reason to user
+}
+----
 
 ===== Security considerations
 
