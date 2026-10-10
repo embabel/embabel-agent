@@ -21,6 +21,7 @@ import com.embabel.agent.api.tool.TerminateAgentException
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolControlFlowSignal
+import com.embabel.agent.api.tool.callback.ToolCallDisposition
 import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
@@ -34,6 +35,7 @@ import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolNotFoundAction
 import com.embabel.agent.spi.loop.ToolNotFoundPolicy
+import com.embabel.chat.Message
 import com.embabel.chat.ToolCall
 import tools.jackson.databind.ObjectMapper
 import java.util.Locale
@@ -120,10 +122,12 @@ internal class ParallelToolLoop(
 
         // 1. Submit all tools with per-tool timeout
         val availableToolsSnapshot = state.availableTools.toList()
+        val historySnapshot = state.conversationHistory.toList()
+        val iteration = state.iterations
         val perToolTimeoutMs = parallelConfig.perToolTimeout.toMillis()
 
         val futures: List<CompletableFuture<ParallelToolResult>> = toolCalls.map { toolCall ->
-            asyncer.async { executeSingleToolCall(toolCall, availableToolsSnapshot) }
+            asyncer.async { executeSingleToolCall(toolCall, availableToolsSnapshot, historySnapshot, iteration) }
                 .orTimeout(perToolTimeoutMs, TimeUnit.MILLISECONDS)
                 .exceptionally { e ->
                     when (val cause = e.cause ?: e) {
@@ -213,6 +217,8 @@ internal class ParallelToolLoop(
     private fun executeSingleToolCall(
         toolCall: ToolCall,
         availableTools: List<Tool>,
+        history: List<Message>,
+        iteration: Int,
     ): ParallelToolResult {
         val tool = findTool(availableTools, toolCall.name)
         if (tool == null) {
@@ -224,8 +230,15 @@ internal class ParallelToolLoop(
         toolNotFoundPolicy.onToolFound()
 
         return try {
-            val (result, resultContent) = executeToolCall(tool, toolCall)
-            ParallelToolResult.Success(toolCall, result, resultContent)
+            when (val disposition = decideToolCall(toolCall, tool, history, iteration)) {
+                is ToolCallDisposition.ShortCircuit ->
+                    ParallelToolResult.Success(toolCall, disposition.result, disposition.result.contentForLlm())
+
+                is ToolCallDisposition.Proceed -> {
+                    val (result, resultContent) = executeToolCall(tool, disposition.toolCall)
+                    ParallelToolResult.Success(disposition.toolCall, result, resultContent)
+                }
+            }
         } catch (e: ReplanRequestedException) {
             ParallelToolResult.ReplanRequest(toolCall, e.reason, e.blackboardUpdater)
         } catch (e: Exception) {
