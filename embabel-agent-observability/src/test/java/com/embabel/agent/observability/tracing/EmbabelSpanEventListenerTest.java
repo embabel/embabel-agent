@@ -43,6 +43,7 @@ import com.embabel.agent.api.event.ToolCallRequestEvent;
 import com.embabel.agent.api.event.ToolCallResponseEvent;
 import com.embabel.agent.api.event.ToolLoopCompletedEvent;
 import com.embabel.agent.api.event.observation.ToolCallOutcomes;
+import com.embabel.agent.api.tool.ToolReturnedError;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.ToolGroupMetadata;
 import com.embabel.agent.core.AgentProcessStatusCode;
@@ -1160,6 +1161,36 @@ class EmbabelSpanEventListenerTest {
             assertEquals("IllegalStateException", kv.get("embabel.tool.error.type"));
             assertEquals("boom", kv.get("embabel.tool.error.message"));
             assertNotNull(ctx.getError(), "errored tool call should attach the throwable to the span");
+        }
+
+        @Test
+        @DisplayName("returned tool error reports its cause type as the error type")
+        void toolCallReturnedErrorReportsCauseType() {
+            ToolCallResponseEvent event = toolResponse(null);
+            try (MockedStatic<ToolCallOutcomes> outcomes = mockStatic(ToolCallOutcomes.class)) {
+                outcomes.when(() -> ToolCallOutcomes.error(event))
+                        .thenReturn(new ToolReturnedError("myTool", "boom", new IllegalArgumentException("bad arg")));
+                listener().onProcessEvent(event);
+            }
+
+            Map<String, String> kv = kvOf("embabel.tool");
+            assertEquals("error", kv.get("embabel.tool.status"));
+            assertEquals("IllegalArgumentException", kv.get("embabel.tool.error.type"));
+            assertEquals("boom", kv.get("embabel.tool.error.message"));
+        }
+
+        @Test
+        @DisplayName("returned tool error without a cause keeps ToolReturnedError as the error type")
+        void toolCallReturnedErrorWithoutCause() {
+            ToolCallResponseEvent event = toolResponse(null);
+            try (MockedStatic<ToolCallOutcomes> outcomes = mockStatic(ToolCallOutcomes.class)) {
+                outcomes.when(() -> ToolCallOutcomes.error(event))
+                        .thenReturn(new ToolReturnedError("myTool", "boom", null));
+                listener().onProcessEvent(event);
+            }
+
+            Map<String, String> kv = kvOf("embabel.tool");
+            assertEquals("ToolReturnedError", kv.get("embabel.tool.error.type"));
         }
 
         @Test

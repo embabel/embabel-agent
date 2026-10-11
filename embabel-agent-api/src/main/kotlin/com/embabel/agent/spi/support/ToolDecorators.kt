@@ -104,8 +104,16 @@ class ObservabilityTool(
             .start()
         return try {
             val result = action()
-            observation.lowCardinalityKeyValue("status", "success")
-            observation.highCardinalityKeyValue("result", result.content)
+            if (result is Tool.Result.Error) {
+                val error = ToolReturnedError(delegate.definition.name, result.message, result.cause)
+                observation.lowCardinalityKeyValue("status", "error")
+                observation.highCardinalityKeyValue("error_type", (result.cause ?: error)::class.simpleName ?: "Unknown")
+                observation.highCardinalityKeyValue("error_message", result.message)
+                observation.error(error)
+            } else {
+                observation.lowCardinalityKeyValue("status", "success")
+                observation.highCardinalityKeyValue("result", result.content)
+            }
             result
         } catch (ex: Exception) {
             observation.lowCardinalityKeyValue("status", "error")
