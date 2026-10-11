@@ -119,11 +119,36 @@ class ConversationAssetsTest {
     inner class MessageTypeTests {
 
         @Test
-        fun `UserMessages do not contribute assets`() {
+        fun `UserMessages without assets do not contribute assets`() {
             val userMessage = UserMessage("Hello")
             val conversation = InMemoryConversation(messages = listOf(userMessage))
 
             assertThat(conversation.assets).isEmpty()
+        }
+
+        @Test
+        fun `UserMessages with assets contribute assets`() {
+            val userAsset = testAsset("user-1", "User Asset")
+            val userMessage = UserMessage(
+                content = "Here is my file",
+                assets = listOf(userAsset),
+            )
+            val conversation = InMemoryConversation(messages = listOf(userMessage))
+
+            assertThat(conversation.assets).hasSize(1)
+            assertThat(conversation.assets[0].id).isEqualTo("user-1")
+        }
+
+        @Test
+        fun `assets combines user message and assistant message assets`() {
+            val userAsset = testAsset("user-1", "Upload")
+            val assistantAsset = testAsset("asst-1", "Generated")
+            val userMessage = UserMessage("Input", assets = listOf(userAsset))
+            val assistantMessage = AssistantMessage("Output", assets = listOf(assistantAsset))
+
+            val conversation = InMemoryConversation(messages = listOf(userMessage, assistantMessage))
+
+            assertThat(conversation.assets.map { it.id }).containsExactly("user-1", "asst-1")
         }
 
         @Test

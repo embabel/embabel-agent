@@ -127,28 +127,48 @@ sealed class BaseMessage(
 }
 
 /**
- * Message sent by the user - supports multimodal content
+ * Message sent by the user - supports multimodal content and attached assets.
  */
-class UserMessage : BaseMessage, UserContent {
+open class UserMessage @JvmOverloads constructor(
+    parts: List<ContentPart>,
+    name: String? = null,
+    override val assets: List<Asset> = emptyList(),
+    timestamp: Instant = Instant.now(),
+) : BaseMessage(
+    role = Role.USER,
+    parts = parts,
+    name = name,
+    timestamp = timestamp,
+), UserContent, AssetView {
 
     /**
-     * Primary constructor for multimodal messages
+     * Preserves binary/source compatibility for callers passing (parts, name, timestamp).
      */
     constructor(
         parts: List<ContentPart>,
         name: String? = null,
-        timestamp: Instant = Instant.now(),
-    ) : super(role = Role.USER, parts = parts, name = name, timestamp = timestamp)
+        timestamp: Instant,
+    ) : this(parts = parts, name = name, assets = emptyList(), timestamp = timestamp)
 
     /**
-     * Convenience constructor for text-only messages (backward compatibility)
+     * Convenience constructor for text-only messages with optional assets.
      */
     @JvmOverloads
     constructor(
         content: String,
         name: String? = null,
+        assets: List<Asset> = emptyList(),
         timestamp: Instant = Instant.now(),
-    ) : this(parts = listOf(TextPart(content)), name = name, timestamp = timestamp)
+    ) : this(parts = listOf(TextPart(content)), name = name, assets = assets, timestamp = timestamp)
+
+    /**
+     * Preserves binary/source compatibility for callers passing (content, name, timestamp).
+     */
+    constructor(
+        content: String,
+        name: String? = null,
+        timestamp: Instant,
+    ) : this(content = content, name = name, assets = emptyList(), timestamp = timestamp)
 
     override fun toString(): String {
         return "UserMessage(from='${role.displayName}', content='${trim(content, 80, 10)}')"

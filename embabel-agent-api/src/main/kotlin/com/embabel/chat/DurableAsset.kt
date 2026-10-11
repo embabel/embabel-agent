@@ -17,8 +17,12 @@ package com.embabel.chat
 
 import com.embabel.agent.api.reference.LlmReference
 import com.embabel.common.ai.media.MimeTypes
+import java.io.ByteArrayInputStream
 import java.io.InputStream
+import java.nio.file.Files
+import java.nio.file.Path
 import java.time.Instant
+import java.util.UUID
 
 /**
  * An [Asset] whose content can be copied to durable storage.
@@ -36,6 +40,93 @@ interface MaterializableAsset : Asset {
     val mimeType: String?
 
     fun openStream(): InputStream
+
+    companion object {
+
+        /**
+         * Create a [MaterializableAsset] from a stream supplier.
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun of(
+            name: String,
+            streamSupplier: () -> InputStream,
+            mimeType: String? = null,
+            id: String = UUID.randomUUID().toString(),
+            timestamp: Instant = Instant.now(),
+            description: String = "Asset $name",
+        ): MaterializableAsset = StreamMaterializableAsset(
+            name = name,
+            mimeType = mimeType,
+            streamSupplier = streamSupplier,
+            id = id,
+            timestamp = timestamp,
+            description = description,
+        )
+
+        /**
+         * Create a [MaterializableAsset] from in-memory bytes.
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun fromBytes(
+            name: String,
+            data: ByteArray,
+            mimeType: String? = null,
+            id: String = UUID.randomUUID().toString(),
+            timestamp: Instant = Instant.now(),
+            description: String = "Asset $name",
+        ): MaterializableAsset = of(
+            name = name,
+            streamSupplier = { ByteArrayInputStream(data) },
+            mimeType = mimeType,
+            id = id,
+            timestamp = timestamp,
+            description = description,
+        )
+
+        /**
+         * Create a [MaterializableAsset] from a file system [Path].
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun fromPath(
+            path: Path,
+            name: String = path.fileName.toString(),
+            mimeType: String? = null,
+            id: String = UUID.randomUUID().toString(),
+            timestamp: Instant = Instant.now(),
+            description: String = "Asset $name",
+        ): MaterializableAsset = of(
+            name = name,
+            streamSupplier = { Files.newInputStream(path) },
+            mimeType = mimeType ?: Files.probeContentType(path),
+            id = id,
+            timestamp = timestamp,
+            description = description,
+        )
+    }
+}
+
+private class StreamMaterializableAsset(
+    override val name: String,
+    override val mimeType: String?,
+    private val streamSupplier: () -> InputStream,
+    override val id: String,
+    override val timestamp: Instant,
+    private val description: String,
+) : MaterializableAsset {
+
+    override fun persistent(): Boolean = false
+
+    override fun openStream(): InputStream = streamSupplier()
+
+    override fun reference(): LlmReference = LlmReference.of(
+        name = name,
+        description = description,
+        tools = emptyList(),
+        notes = "MIME type: ${mimeType ?: "unknown"}",
+    )
 }
 
 /**

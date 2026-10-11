@@ -19,6 +19,7 @@ import com.embabel.common.ai.media.MimeTypes
 import com.embabel.common.ai.media.isDocumentMimeType
 import com.embabel.common.ai.media.isImageMimeType
 import tools.jackson.databind.annotation.JsonDeserialize
+import java.util.UUID
 
 /**
  * Represents a part of a multimodal message.
@@ -117,4 +118,24 @@ data class DocumentPart(
 
         val SUPPORTED_MIME_TYPES = MimeTypes.DOCUMENT_MIME_TYPES
     }
+}
+
+/**
+ * Convert a binary [MediaPart] into a [MaterializableAsset]
+ * for storage in an [com.embabel.chat.spi.AssetStore] or tracking in a conversation.
+ */
+fun MediaPart.asMaterializableAsset(
+    name: String? = null,
+    id: String = UUID.randomUUID().toString(),
+): MaterializableAsset {
+    val resolvedName = name ?: when (this) {
+        is DocumentPart -> filename ?: "document"
+        is ImagePart -> "image"
+    }
+    return MaterializableAsset.fromBytes(
+        name = resolvedName,
+        data = data,
+        mimeType = mimeType,
+        id = id,
+    )
 }

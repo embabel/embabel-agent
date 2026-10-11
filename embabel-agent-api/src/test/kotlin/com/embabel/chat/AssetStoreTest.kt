@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayInputStream
 import java.io.InputStream
+import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Instant
 
@@ -81,6 +82,46 @@ class AssetStoreTest {
         assertThat(store.stored).containsExactly(source)
         assertThat(tracker.assets).containsExactly(store.durableAsset)
         assertThat(tracker.assets.single().persistent()).isTrue()
+    }
+
+    @Test
+    fun `MaterializableAsset fromBytes creates valid asset and stream`() {
+        val asset = MaterializableAsset.fromBytes("data.txt", "hello".toByteArray(), "text/plain")
+
+        assertThat(asset.name).isEqualTo("data.txt")
+        assertThat(asset.mimeType).isEqualTo("text/plain")
+        assertThat(asset.persistent()).isFalse()
+        assertThat(asset.openStream().bufferedReader().use { it.readText() }).isEqualTo("hello")
+        assertThat(asset.reference().name).isEqualTo("data.txt")
+    }
+
+    @Test
+    fun `MaterializableAsset fromPath creates valid asset and stream`(@TempDir dir: Path) {
+        val file = dir.resolve("sample.pdf")
+        Files.writeString(file, "pdf content")
+
+        val asset = MaterializableAsset.fromPath(file, mimeType = "application/pdf")
+
+        assertThat(asset.name).isEqualTo("sample.pdf")
+        assertThat(asset.mimeType).isEqualTo("application/pdf")
+        assertThat(asset.openStream().bufferedReader().use { it.readText() }).isEqualTo("pdf content")
+    }
+
+    @Test
+    fun `MediaPart asMaterializableAsset converts document and image parts`() {
+        val doc = DocumentPart("application/pdf", "pdf bytes".toByteArray(), "manual.pdf")
+        val docAsset = doc.asMaterializableAsset()
+
+        assertThat(docAsset.name).isEqualTo("manual.pdf")
+        assertThat(docAsset.mimeType).isEqualTo("application/pdf")
+        assertThat(docAsset.openStream().bufferedReader().use { it.readText() }).isEqualTo("pdf bytes")
+
+        val image = ImagePart("image/png", byteArrayOf(1, 2, 3))
+        val imageAsset = image.asMaterializableAsset("custom.png")
+
+        assertThat(imageAsset.name).isEqualTo("custom.png")
+        assertThat(imageAsset.mimeType).isEqualTo("image/png")
+        assertThat(imageAsset.openStream().readAllBytes()).containsExactly(1, 2, 3)
     }
 
     private class TestMaterializableAsset : MaterializableAsset {
