@@ -90,6 +90,7 @@ object EmbeddingBatchGenerator {
      * Chunks that could not be embedded are absent from the map. Their ids are logged at WARN, but
      * the caller is not told, so use [embedInBatches] and check [EmbeddingBatchResult.missingChunkIds].
      */
+    @Suppress("kotlin:S1133")
     @Deprecated(
         message = "Chunks that could not be embedded are only logged at WARN, not reported to the caller",
         replaceWith = ReplaceWith("embedInBatches(embeddingService, retrievables, batchSize, logger).embeddings"),

@@ -445,8 +445,8 @@ open class OpenAiCompatibleModelFactory(
      */
     private fun buildCustomizedClientOptions(): ClientOptions? {
         // Collect customizers in @Order / Ordered precedence; empty list → no-op path.
-        val customizers = httpClientCustomizers.orderedStream()
-            .collect(java.util.stream.Collectors.toUnmodifiableList())
+        val customizers: List<OpenAiHttpClientBuilderCustomizer> =
+            httpClientCustomizers.orderedStream().toList()
         if (customizers.isEmpty()) return null
 
         logger.info(
