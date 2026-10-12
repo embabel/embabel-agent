@@ -24,19 +24,28 @@ import com.embabel.common.ai.decision.spi.DecisionResponseAssembler
 import com.embabel.common.ai.decision.spi.PropositionAssessment
 import com.embabel.common.ai.decision.spi.QuestionSetExecution
 import com.embabel.common.ai.decision.spi.RatingAssessment
+import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase
+import org.apache.hc.client5.http.config.ConnectionConfig
+import org.apache.hc.client5.http.config.RequestConfig
+import org.apache.hc.client5.http.impl.classic.HttpClients
+import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder
+import org.apache.hc.core5.http.ClassicHttpResponse
+import org.apache.hc.core5.http.ContentType
+import org.apache.hc.core5.http.MessageConstraintException
+import org.apache.hc.core5.http.config.Http1Config
+import org.apache.hc.core5.http.io.entity.ByteArrayEntity
+import org.apache.hc.core5.io.CloseMode
+import org.apache.hc.core5.io.ModalCloseable
+import org.apache.hc.core5.util.Timeout
 import tools.jackson.core.StreamReadFeature
 import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.io.ByteArrayOutputStream
 import java.net.InetAddress
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
-import java.nio.ByteBuffer
 import java.util.EnumSet
 import java.util.concurrent.*
-import java.util.concurrent.Flow
 import java.util.function.Supplier
 import kotlin.math.abs
 
@@ -189,9 +198,25 @@ internal class SystemOneClient(
     private val tokenSupplier: Supplier<String?>,
     private val profile: SystemOneModelProfile,
 ) : AutoCloseable {
-    private val client = HttpClient.newBuilder().connectTimeout(options.timeout).followRedirects(HttpClient.Redirect.NEVER).build()
+    private val timeout = Timeout.of(options.timeout)
+    // Receiving constraints bound parsing independently of the accepted 8KiB metadata budget.
+    private val connections = PoolingHttpClientConnectionManagerBuilder.create()
+        .setConnectionFactory(ManagedHttpClientConnectionFactory.builder().http1Config(
+            Http1Config.custom().setMaxHeaderCount(64).setMaxLineLength(16384).build()).build())
+        .setDefaultConnectionConfig(ConnectionConfig.custom().setConnectTimeout(timeout).setSocketTimeout(timeout).build())
+        .build()
+    private val client = HttpClients.custom().setConnectionManager(connections)
+        .disableAutomaticRetries().disableRedirectHandling().disableContentCompression().disableCookieManagement()
+        .setDefaultRequestConfig(RequestConfig.custom().setConnectionRequestTimeout(timeout)
+            .setResponseTimeout(timeout).setHardCancellationEnabled(true).build()).build()
+    // One lazy daemon watchdog per factory; exchanges execute on their callers, without I/O workers.
+    private val watchdog = ScheduledThreadPoolExecutor(1) { task ->
+        Thread(task, "systemone-http-deadline").apply { isDaemon = true }
+    }.apply { removeOnCancelPolicy = true }
+
     fun exchange(route: String, body: ByteArray?): SystemOneHttpResponse {
-        if (Thread.currentThread().isInterrupted) throw CancellationException("SystemOne call interrupted")
+        val caller = Thread.currentThread()
+        if (caller.isInterrupted) throw CancellationException("SystemOne call interrupted")
         if (body != null && body.size > options.maxRequestBytes) throw SystemOneCallFailure(FailureReason.INVALID_RESPONSE)
         val token = try { tokenSupplier.get()?.takeIf { it.isNotBlank() } }
             catch (cancelled: CancellationException) { throw cancelled }
@@ -201,69 +226,78 @@ internal class SystemOneClient(
             throw SystemOneCallFailure(FailureReason.INVALID_RESPONSE)
         }
         val request = try {
-            val builder = HttpRequest.newBuilder(options.endpoint(route)).timeout(options.timeout).header("Accept", "application/json")
-            if (token != null) builder.header("Authorization", "Bearer $token")
-            if (body == null) builder.GET() else builder.header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofByteArray(body))
-            builder.build()
+            HttpUriRequestBase(if (body == null) "GET" else "POST", options.endpoint(route)).apply {
+                setHeader("Accept", "application/json")
+                if (token != null) setHeader("Authorization", "Bearer $token")
+                if (body != null) entity = ByteArrayEntity(body, ContentType.APPLICATION_JSON)
+            }
         } catch (_: Exception) { throw SystemOneCallFailure(FailureReason.INVALID_RESPONSE) }
-        val future = client.sendAsync(request) { info ->
-            val rejected = when {
-                info.statusCode() != 200 -> try { profile.failureReason(info.statusCode()) }
+        val start = System.nanoTime()
+        fun checkCancelled() {
+            if (caller.isInterrupted) throw CancellationException("SystemOne call interrupted")
+            if (System.nanoTime() - start >= options.timeout.toNanos()) throw SystemOneCallFailure(FailureReason.UNAVAILABLE)
+        }
+        var deadline: ScheduledFuture<*>? = null
+        var interruption: ScheduledFuture<*>? = null
+        var response: ClassicHttpResponse? = null
+        return try {
+            deadline = watchdog.schedule({ request.cancel() }, options.timeout.toNanos(), TimeUnit.NANOSECONDS)
+            interruption = watchdog.scheduleWithFixedDelay({ if (caller.isInterrupted) request.cancel() },
+                0, 5, TimeUnit.MILLISECONDS)
+            checkCancelled()
+            response = client.executeOpen(null, request, null)
+            checkCancelled()
+            if (response.code != 200) {
+                val reason = try { profile.failureReason(response.code) }
                     catch (cancelled: CancellationException) { throw cancelled }
                     catch (_: Exception) { FailureReason.INVALID_RESPONSE }
-                headerBytes(info.headers().map()) > 8192 -> FailureReason.INVALID_RESPONSE
-                info.headers().firstValueAsLong("Content-Length").orElse(0) > options.maxResponseBytes -> FailureReason.INVALID_RESPONSE
-                else -> null
+                throw SystemOneCallFailure(reason)
             }
-            LimitedBody(options.maxResponseBytes, rejected)
-        }
-        return try {
-            val response = future.get(options.timeout.toNanos(), TimeUnit.NANOSECONDS)
-            SystemOneHttpResponse(response.body(), response.headers().map())
-        } catch (_: InterruptedException) {
-            future.cancel(true)
-            Thread.currentThread().interrupt()
-            throw CancellationException("SystemOne call interrupted").apply { initCause(InterruptedException()) }
+            val headers = response.headers.groupBy({ it.name.lowercase(java.util.Locale.ROOT) }, { it.value })
+            if (headerBytes(headers) > 8192 || (response.entity?.contentLength ?: 0) > options.maxResponseBytes) {
+                throw SystemOneCallFailure(FailureReason.INVALID_RESPONSE)
+            }
+            val output = ByteArrayOutputStream(minOf(options.maxResponseBytes, 4096))
+            val input = response.entity?.content
+            if (input != null) {
+                val buffer = ByteArray(minOf(options.maxResponseBytes + 1, 4096))
+                while (true) {
+                    checkCancelled()
+                    val count = input.read(buffer, 0, minOf(buffer.size, options.maxResponseBytes - output.size() + 1))
+                    if (count < 0) break
+                    if (count > options.maxResponseBytes - output.size()) throw SystemOneCallFailure(FailureReason.INVALID_RESPONSE)
+                    output.write(buffer, 0, count)
+                }
+            }
+            checkCancelled()
+            SystemOneHttpResponse(output.toByteArray(), headers)
         } catch (cancelled: CancellationException) {
-            future.cancel(true)
             throw cancelled
         } catch (failure: Exception) {
-            future.cancel(true)
-            val causes = generateSequence<Throwable>(failure) { it.cause }.take(16).toList()
-            causes.filterIsInstance<CancellationException>().firstOrNull()?.let { throw it }
-            val reason = causes.filterIsInstance<SystemOneCallFailure>().firstOrNull()?.reason ?: FailureReason.UNAVAILABLE
+            checkCancelled()
+            val reason = when (failure) {
+                is SystemOneCallFailure -> failure.reason
+                is MessageConstraintException -> FailureReason.INVALID_RESPONSE
+                else -> FailureReason.UNAVAILABLE
+            }
             throw SystemOneCallFailure(reason)
+        } finally {
+            // Abort before closing: graceful entity/response closure may drain an unbounded rejected body.
+            request.cancel()
+            (response as? ModalCloseable)?.close(CloseMode.IMMEDIATE)
+            deadline?.cancel(false)
+            interruption?.cancel(false)
         }
     }
+
     private fun loopback(host: String): Boolean {
         val value = host.removePrefix("[").removeSuffix("]")
         return value.equals("localhost", true) || value == "::1" ||
             value.matches(Regex("127(?:\\.[0-9]{1,3}){3}")) && runCatching { InetAddress.getByName(value).isLoopbackAddress }.getOrDefault(false)
     }
-    override fun close() { client.shutdownNow() }
 
-    private class LimitedBody(private val limit: Int, rejected: FailureReason?) : HttpResponse.BodySubscriber<ByteArray> {
-        private val result = CompletableFuture<ByteArray>()
-        private val output = ByteArrayOutputStream(minOf(limit, 4096))
-        private var subscription: Flow.Subscription? = null
-        init { if (rejected != null) result.completeExceptionally(SystemOneCallFailure(rejected)) }
-        override fun getBody(): CompletionStage<ByteArray> = result
-        override fun onSubscribe(value: Flow.Subscription) {
-            subscription = value
-            if (result.isDone) value.cancel() else value.request(1)
-        }
-        override fun onNext(buffers: List<ByteBuffer>) {
-            if (result.isDone) return
-            val incoming = buffers.sumOf { it.remaining().toLong() }
-            if (incoming > limit - output.size()) {
-                subscription?.cancel()
-                result.completeExceptionally(SystemOneCallFailure(FailureReason.INVALID_RESPONSE))
-                return
-            }
-            buffers.forEach { buffer -> val bytes = ByteArray(buffer.remaining()); buffer.get(bytes); output.write(bytes) }
-            subscription?.request(1)
-        }
-        override fun onError(error: Throwable) { result.completeExceptionally(SystemOneCallFailure(FailureReason.UNAVAILABLE)) }
-        override fun onComplete() { result.complete(output.toByteArray()) }
+    override fun close() {
+        client.close(CloseMode.IMMEDIATE)
+        watchdog.shutdownNow()
     }
 }
