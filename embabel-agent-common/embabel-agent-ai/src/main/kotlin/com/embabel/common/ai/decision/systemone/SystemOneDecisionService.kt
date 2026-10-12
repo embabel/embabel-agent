@@ -192,7 +192,7 @@ internal object SystemOneCodec {
 internal class SystemOneCallFailure(val reason: FailureReason) : RuntimeException("SystemOne HTTP exchange failed", null, false, false)
 internal class SystemOneHttpResponse(val body: ByteArray, val headers: Map<String, List<String>>)
 
-/** JDK receiving allocation limits are separate; this client bounds retained decoded headers/body. */
+/** Transport receiving limits are separate; this client bounds retained decoded headers/body. */
 internal class SystemOneClient(
     private val options: SystemOneClientOptions,
     private val tokenSupplier: Supplier<String?>,
