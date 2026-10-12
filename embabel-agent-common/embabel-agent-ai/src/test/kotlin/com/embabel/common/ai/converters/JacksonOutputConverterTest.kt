@@ -767,11 +767,11 @@ World"""
         }
 
         @Test
-        fun `withEnumConstantDescriptions extension emits oneOf with type string and per-constant descriptions`() {
+        fun `@EnumAsOneOf emits oneOf with type string and per-constant descriptions`() {
             // Simulate what ChatClientLlmOperations.buildFilteringConverter does when @EnumAsOneOf is detected
             val converter = object : JacksonOutputConverter<PriorityHolder>(PriorityHolder::class.java, objectMapper) {
                 override fun schemaGeneratorConfigBuilder() =
-                    super.schemaGeneratorConfigBuilder().withEnumConstantDescriptions(objectMapper)
+                    super.schemaGeneratorConfigBuilder().with(EnumConstantDescriptionProvider(objectMapper))
             }
             val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
             val priorityNode = schema.path("properties").path("priority")
@@ -797,10 +797,10 @@ World"""
         }
 
         @Test
-        fun `withEnumConstantDescriptions with @JsonValue uses wire value as const`() {
+        fun `@EnumAsOneOf with @JsonValue uses wire value as const`() {
             val converter = object : JacksonOutputConverter<WireValuePriorityHolder>(WireValuePriorityHolder::class.java, objectMapper) {
                 override fun schemaGeneratorConfigBuilder() =
-                    super.schemaGeneratorConfigBuilder().withEnumConstantDescriptions(objectMapper)
+                    super.schemaGeneratorConfigBuilder().with(EnumConstantDescriptionProvider(objectMapper))
             }
             val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
             val priorityNode = schema.path("properties").path("priority")
@@ -818,12 +818,12 @@ World"""
         }
 
         @Test
-        fun `enum without @EnumAsOneOf is not affected by withEnumConstantDescriptions`() {
+        fun `enum without @EnumAsOneOf is not affected by EnumConstantDescriptionProvider`() {
             // BareEnum has no @EnumAsOneOf and no @JsonPropertyDescription — provider returns null,
             // victools falls back to default bare enum array regardless of the extension being installed.
             val converter = object : JacksonOutputConverter<BareEnumHolder>(BareEnumHolder::class.java, objectMapper) {
                 override fun schemaGeneratorConfigBuilder() =
-                    super.schemaGeneratorConfigBuilder().withEnumConstantDescriptions(objectMapper)
+                    super.schemaGeneratorConfigBuilder().with(EnumConstantDescriptionProvider(objectMapper))
             }
             val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
             val valueNode = schema.path("properties").path("value")
@@ -837,7 +837,7 @@ World"""
             // The provider returns null — no oneOf is emitted.
             val converter = object : JacksonOutputConverter<NoDescriptionsHolder>(NoDescriptionsHolder::class.java, objectMapper) {
                 override fun schemaGeneratorConfigBuilder() =
-                    super.schemaGeneratorConfigBuilder().withEnumConstantDescriptions(objectMapper)
+                    super.schemaGeneratorConfigBuilder().with(EnumConstantDescriptionProvider(objectMapper))
             }
             val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
             val valueNode = schema.path("properties").path("value")
@@ -853,7 +853,7 @@ World"""
             // and calls the provider, so the annotation check inside the provider catches it.
             val converter = object : JacksonOutputConverter<ListPriorityHolder>(ListPriorityHolder::class.java, objectMapper) {
                 override fun schemaGeneratorConfigBuilder() =
-                    super.schemaGeneratorConfigBuilder().withEnumConstantDescriptions(objectMapper)
+                    super.schemaGeneratorConfigBuilder().with(EnumConstantDescriptionProvider(objectMapper))
             }
             val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
             val itemsNode = schema.path("properties").path("priorities").path("items")
@@ -875,7 +875,7 @@ World"""
             // The enum is two levels deep — inside a nested data class inside a List.
             val converter = object : JacksonOutputConverter<DeepHolder>(DeepHolder::class.java, objectMapper) {
                 override fun schemaGeneratorConfigBuilder() =
-                    super.schemaGeneratorConfigBuilder().withEnumConstantDescriptions(objectMapper)
+                    super.schemaGeneratorConfigBuilder().with(EnumConstantDescriptionProvider(objectMapper))
             }
             val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
 

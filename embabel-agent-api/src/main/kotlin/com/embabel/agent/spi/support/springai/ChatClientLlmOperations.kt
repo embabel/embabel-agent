@@ -53,7 +53,7 @@ import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
 import com.embabel.common.ai.converters.JsonSchemaProvider
 import com.embabel.common.ai.converters.RequiredFieldNormalization
 import com.embabel.common.ai.converters.EnumAsOneOf
-import com.embabel.common.ai.converters.withEnumConstantDescriptions
+import com.embabel.common.ai.converters.EnumConstantDescriptionProvider
 import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
@@ -998,7 +998,7 @@ internal class ChatClientLlmOperations(
     ): FilteringJacksonOutputConverter<T> =
         object : FilteringJacksonOutputConverter<T>(clazz, objectMapper, fieldFilter, requiredFieldNormalization) {
             override fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder =
-                super.schemaGeneratorConfigBuilder().withEnumConstantDescriptions(objectMapper)
+                super.schemaGeneratorConfigBuilder().with(EnumConstantDescriptionProvider(objectMapper))
         }
 
     /**
@@ -1013,7 +1013,7 @@ internal class ChatClientLlmOperations(
     ): FilteringJacksonOutputConverter<T> =
         object : FilteringJacksonOutputConverter<T>(typeReference, objectMapper, fieldFilter, requiredFieldNormalization) {
             override fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder =
-                super.schemaGeneratorConfigBuilder().withEnumConstantDescriptions(objectMapper)
+                super.schemaGeneratorConfigBuilder().with(EnumConstantDescriptionProvider(objectMapper))
         }
 }
 

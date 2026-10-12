@@ -20,7 +20,6 @@ import com.fasterxml.jackson.annotation.JsonPropertyDescription
 import com.github.victools.jsonschema.generator.CustomDefinition
 import com.github.victools.jsonschema.generator.CustomDefinitionProviderV2
 import com.github.victools.jsonschema.generator.SchemaGenerationContext
-import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 
@@ -57,17 +56,6 @@ import tools.jackson.databind.ObjectMapper
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.RUNTIME)
 annotation class EnumAsOneOf
-
-/**
- * Installs [EnumConstantDescriptionProvider] on this [SchemaGeneratorConfigBuilder],
- * enabling per-constant descriptions for enums annotated with [@EnumAsOneOf][EnumAsOneOf].
- *
- * This is an extension function so callers can compose schema customisations without
- * subclassing [JacksonOutputConverter] or [FilteringJacksonOutputConverter].
- */
-fun SchemaGeneratorConfigBuilder.withEnumConstantDescriptions(
-    objectMapper: ObjectMapper,
-): SchemaGeneratorConfigBuilder = this.with(EnumConstantDescriptionProvider(objectMapper))
 
 /**
  * A victools [CustomDefinitionProviderV2] that emits per-constant descriptions from
@@ -108,7 +96,7 @@ fun SchemaGeneratorConfigBuilder.withEnumConstantDescriptions(
  * - any constant's serialised value is non-textual (e.g. a number from a `@JsonValue`
  *   that returns `Int`) — in that case `type: string` would be incorrect.
  */
-internal class EnumConstantDescriptionProvider(
+class EnumConstantDescriptionProvider(
     private val objectMapper: ObjectMapper,
 ) : CustomDefinitionProviderV2 {
 
