@@ -3,8 +3,11 @@
 
 Explicitly start with required bridge flags (see --help) and optional --port
 (default 8765). No daemon, download or model load at import/startup/health.
-POST /v1/decisions uses the bridge envelope; GET /health reports readiness but
-never runs the checker. No vendor HTTP or SDK compatibility is claimed.
+POST /v1/decisions uses the bridge envelope. POST /v1/systemone provides the
+SystemOne 0.2.0 string subset with one joint bridge call and bounded flat
+X-Embabel-Clef-Provenance metadata; /v1/models catalogs its experimental model.
+GET /health reports readiness without inference. No vendor HTTP, confidence,
+billing, error-shape or universal SDK compatibility is claimed.
 Request JSON <=16384 bytes, response <=65536, headers <=16384, input deadline
 5 seconds by default, native deadline <=45 seconds, 16 accepted connections,
 one native checker across runtimes sharing a scratch directory. Losers get
@@ -26,6 +29,8 @@ import threading
 
 from clef_bridge import (BridgeError, ClefRuntime, MAX_REQUEST_BYTES, MAX_RESPONSE_BYTES,
                          config_from_args, configuration_parser, encoded_json, load_json)
+
+from clef_systemone import PROVENANCE_HEADER, compile_systemone, model_catalog, systemone_response
 
 STATUS = {"invalid_request": 400, "input_too_long": 400, "busy": 409,
           "missing_artifact": 503, "unsupported_platform": 503, "cancelled": 503,
@@ -89,31 +94,37 @@ class DecisionHandler(BaseHTTPRequestHandler):
     def send_error(self, code, message=None, explain=None):
         self._reply(405 if code == 501 else 400, BridgeError("invalid_request").response())
 
-    def _reply(self, status, value):
+    def _reply(self, status, value, headers=None):
         self._input_timer.cancel()
         try:
             data = encoded_json(value, MAX_RESPONSE_BYTES)
         except BridgeError:
             status, data = 502, encoded_json(BridgeError("invalid_output").response())
+            headers = None
         self.close_connection = True
         try:
             self.send_response_only(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(data)))
             self.send_header("Connection", "close")
+            for name, header in (headers or {}).items():
+                self.send_header(name, header)
             self.end_headers()
             self.wfile.write(data)
         except OSError:
             pass
 
     def do_GET(self):
+        if self.path == "/v1/models":
+            self._reply(200, model_catalog())
+            return
         if self.path != "/health":
             self._reply(404, BridgeError("invalid_request").response())
             return
         self._reply(200, self.server.runtime.health())
 
     def do_POST(self):
-        if self.path != "/v1/decisions":
+        if self.path not in ("/v1/decisions", "/v1/systemone"):
             self._reply(404, BridgeError("invalid_request").response())
             return
         try:
@@ -137,8 +148,14 @@ class DecisionHandler(BaseHTTPRequestHandler):
                 raise BridgeError("invalid_request")
             self._input_timer.cancel()
             value = load_json(data)
-            result = self.server.runtime.infer(value)
-            self._reply(200, result)
+            if self.path == "/v1/systemone":
+                owned, bindings = compile_systemone(value)
+                result = self.server.runtime.infer(owned)
+                converted, header = systemone_response(result, bindings)
+                self._reply(200, converted, {PROVENANCE_HEADER: header})
+            else:
+                result = self.server.runtime.infer(value)
+                self._reply(200, result)
         except BridgeError as error:
             self._reply(STATUS[error.code], error.response())
         except Exception:

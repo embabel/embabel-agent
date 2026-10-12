@@ -58,7 +58,7 @@ class ServerTests(unittest.TestCase):
     def test_exact_routes_content_type_unknown_fields_and_body_bounds(self):
         for path, method in [("/v1/systemone", "POST"), ("/v1/decisions?x=1", "POST"), ("/health", "POST"), ("/v1/decisions", "GET")]:
             status, _ = self.http(path, method=method)
-            self.assertIn(status, [404,405])
+            self.assertIn(status, [400] if path == "/v1/systemone" else [404,405])
         for body in [b'{"state":"SECRET_INPUT","questions":[],"unknown":1}', b"x" * (bridge.MAX_REQUEST_BYTES + 1), b'{"state":NaN}']:
             status, response = self.http(body=body)
             self.assertEqual(status, 400)
