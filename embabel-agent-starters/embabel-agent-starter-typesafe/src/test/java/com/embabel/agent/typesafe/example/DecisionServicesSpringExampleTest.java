@@ -41,6 +41,13 @@ import com.embabel.agent.api.channel.DevNullOutputChannel;
 import com.embabel.agent.api.common.Asyncer;
 import com.embabel.agent.autoconfigure.models.typesafe.AgentTypeSafeAutoConfiguration;
 import com.embabel.agent.autoconfigure.platform.DecisionServiceRegistryAutoConfiguration;
+import com.embabel.agent.autoconfigure.platform.DecisionModelServicesAutoConfiguration;
+import com.embabel.agent.autoconfigure.platform.DecisionModelServicesRegistrar;
+import com.embabel.agent.config.models.typesafe.TypeSafeServicesRegistrar;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor;
+import org.springframework.core.env.StandardEnvironment;
+import org.springframework.core.env.MapPropertySource;
 import com.embabel.agent.autoconfigure.platform.LlmDecisionServicesAutoConfiguration;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.ProcessContext;
@@ -111,6 +118,7 @@ import org.springframework.web.client.RestClient;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
@@ -184,6 +192,66 @@ class DecisionServicesSpringExampleTest {
     private static final ModelProvenance STUB_PROVENANCE = new ModelProvenance("triage-stub", "stub");
 
     private final Fixture fixture = new Fixture();
+
+    @Test
+    void genericTypeSafeAndPromptedServicesPreserveDefaultsRolesAndProviderCalls() {
+        expectQuestionSetAnswers(fixture.server);
+        answerPrompts(fixture);
+        fixture.runner()
+                .withConfiguration(AutoConfigurations.of(DecisionModelServicesAutoConfiguration.class))
+                .withPropertyValues(
+                        "embabel.agent.platform.decisions.services.generic-jev.provider=typesafe",
+                        "embabel.agent.platform.decisions.services.generic-jev.model=jev-fast",
+                        "embabel.agent.platform.decisions.services.generic-review.provider=llm",
+                        "embabel.agent.platform.decisions.services.generic-review.model=" + REVIEW_MODEL,
+                        "embabel.models.decision.default=generic-review",
+                        "embabel.models.decision.roles.generic-triage=generic-jev",
+                        "embabel.models.classification.roles.generic-review=generic-review")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    var registry = context.getBean(DecisionServiceRegistry.class);
+                    var jev = context.getBean("generic-jev", DecisionService.class);
+                    var prompted = context.getBean("generic-review", DecisionService.class);
+                    assertThat(registry.decisions().defaultService()).isSameAs(prompted);
+                    assertThat(registry.decisions().byRole("generic-triage")).isSameAs(jev);
+                    assertThat(registry.classifications().defaultService())
+                            .isSameAs(context.getBean("typeSafeDecisionService"));
+                    assertThat(registry.classifications().byRole("generic-review")).isSameAs(prompted);
+                    assertThat(jev.getName()).isEqualTo("jev-fast");
+                    assertThat(jev.getProvider()).isEqualTo(TypeSafeModelFactory.PROVIDER);
+                    assertThat(prompted.getName()).isEqualTo(REVIEW_MODEL);
+                    assertThat(prompted.getProvider()).isEqualTo(REVIEW_PROVIDER);
+                    assertThat(jev.capabilities()).isEqualTo(context.getBean(TypeSafeModelFactory.class)
+                            .describe("jev-fast").getCapabilities());
+                    assertQuestionSetAnswers(jev.ask(FEEDBACK, TRIAGE));
+                    assertPromptedAnswers(prompted.ask(FEEDBACK, TRIAGE));
+                });
+        fixture.server.verify();
+        verifyOnePrompt(fixture);
+    }
+
+    @Test
+    void actualTypeSafeAndGenericRegistrarsRejectCollisionsInBothOrders() {
+        for (var genericFirst : List.of(true, false)) {
+            var environment = new StandardEnvironment();
+            environment.getPropertySources().addFirst(new MapPropertySource("test", Map.of(
+                    "embabel.agent.platform.decisions.services.same.provider", "typesafe",
+                    "embabel.agent.platform.decisions.services.same.model", "jev-fast",
+                    "embabel.agent.platform.models.typesafe.services.same.model", "jev-latest")));
+            var definitions = new DefaultListableBeanFactory();
+            var generic = new DecisionModelServicesRegistrar(
+                    DecisionModelServicesRegistrar.Companion.bind(environment), definitions);
+            var typeSafe = new TypeSafeServicesRegistrar(
+                    TypeSafeServicesRegistrar.Companion.bind(environment), definitions);
+            BeanDefinitionRegistryPostProcessor first = genericFirst ? generic : typeSafe;
+            BeanDefinitionRegistryPostProcessor second = genericFirst ? typeSafe : generic;
+            first.postProcessBeanDefinitionRegistry(definitions);
+            assertThatThrownBy(() -> second.postProcessBeanDefinitionRegistry(definitions))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("decisions.services.same")
+                    .hasMessageContaining("models.typesafe.services.same");
+        }
+    }
 
     @Test
     void yamlConfigurationResolvesRolesNamesAndTheCandidateDefault() {
