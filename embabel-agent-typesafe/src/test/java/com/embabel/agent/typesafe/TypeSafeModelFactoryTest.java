@@ -35,6 +35,9 @@ import com.embabel.common.ai.classification.FailureReason;
 import com.embabel.common.ai.decision.PropositionRequest;
 import com.embabel.common.ai.decision.PropositionResult;
 import com.embabel.common.ai.model.ModelType;
+import com.embabel.common.ai.model.DecisionModelProvider;
+import com.embabel.common.ai.model.DecisionModelDescriptor;
+import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.byok.ByokFactory;
 import com.embabel.common.byok.InvalidApiKeyException;
 
@@ -58,6 +61,28 @@ class TypeSafeModelFactoryTest {
                             .category("dog", "A domestic dog")
                             .category("cat", "A domestic cat")
                             .build());
+
+    @Test
+    void providerCatalogAndDescriptionDoNotResolveCredentials() {
+        DecisionModelProvider provider = new TypeSafeModelFactory(() -> {
+            throw new AssertionError("credential must not be read");
+        }, "configured-default");
+        assertThat(provider.getId()).isEqualTo("typesafe");
+        assertThat(provider.models()).extracting(DecisionModelDescriptor::getModelName)
+                .containsExactly("configured-default");
+        var descriptor = provider.describe("other-model");
+        var service = provider.create("other-model");
+        assertThat(service.getName()).isEqualTo("other-model");
+        assertThat(service.getProvider()).isEqualTo(TypeSafeModelFactory.PROVIDER);
+        assertThat(service.capabilities()).isEqualTo(descriptor.getCapabilities());
+        assertThatThrownBy(() -> provider.describe(" ")).isInstanceOf(IllegalArgumentException.class);
+        DecisionModelProvider noCatalog = new DecisionModelProvider() {
+            @Override public String getId() { return "java"; }
+            @Override public DecisionModelDescriptor describe(String modelName) { return descriptor; }
+            @Override public DecisionService create(String modelName) { return service; }
+        };
+        assertThat(noCatalog.models()).isEmpty();
+    }
 
     @Test
     void lifecycleLogsDescribeWorkWithoutPrivateValues() {

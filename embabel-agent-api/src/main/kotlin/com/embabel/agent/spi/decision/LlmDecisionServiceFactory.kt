@@ -22,6 +22,11 @@ import com.embabel.agent.spi.support.decision.LlmClassificationService
 import com.embabel.agent.spi.support.decision.LlmDecisionService
 import com.embabel.common.ai.classification.ClassificationService
 import com.embabel.common.ai.decision.DecisionService
+import com.embabel.common.ai.decision.DecisionCapabilities
+import com.embabel.common.ai.decision.QuestionKind
+import com.embabel.common.ai.model.DecisionModelProvider
+import com.embabel.common.ai.model.DecisionModelDescriptor
+import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
@@ -31,6 +36,7 @@ import com.embabel.common.ai.model.observation.ObservedClassificationService
 import com.embabel.common.ai.model.observation.ObservedDecisionService
 import io.micrometer.observation.ObservationRegistry
 import org.jetbrains.annotations.ApiStatus
+import java.util.EnumSet
 
 /**
  * Builds decision and classification services that ask a chat model.
@@ -47,7 +53,17 @@ class LlmDecisionServiceFactory @ApiStatus.Internal @JvmOverloads constructor(
     private val modelProvider: ModelProvider,
     private val retry: RetryProperties,
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
-) {
+) : DecisionModelProvider {
+
+    override val id: String get() = "llm"
+
+    override fun models(): List<DecisionModelDescriptor> = modelProvider.listModels()
+        .filterIsInstance<LlmMetadata>().map { describe(it.name) }
+
+    override fun describe(modelName: String): DecisionModelDescriptor =
+        DecisionModelDescriptor(modelName, DecisionCapabilities.of(EnumSet.allOf(QuestionKind::class.java)))
+
+    override fun create(modelName: String): DecisionService = decisionService(modelName)
 
     /**
      * Builds a decision service for the model with this name.

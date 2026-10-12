@@ -41,6 +41,8 @@ import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.model.DefaultOptionsConverter
+import com.embabel.common.ai.model.DecisionModelProvider
+import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byName
 import com.embabel.common.ai.model.ModelType
@@ -152,6 +154,35 @@ class LlmDecisionServiceFactoryTest {
     private val factory = LlmDecisionServiceFactory(llmOperations, modelProvider, QuickRetry(), registry)
 
     private fun observationNames() = recorder.stopped.map { it.name }
+
+    @Nested
+    inner class ProviderDiscovery {
+        @Test
+        fun `catalog uses only registered llm metadata without resolving models`() {
+            val nonLlm = mockk<com.embabel.common.ai.model.ModelMetadata>()
+            every { modelProvider.listModels() } returns listOf(LlmMetadata("gpt-test", "TestProvider"), nonLlm)
+            val provider: DecisionModelProvider = factory
+            assertEquals("llm", provider.id)
+            assertEquals(listOf("gpt-test"), provider.models().map { it.modelName })
+            assertEquals(factory.decisionService(llm).capabilities(), provider.describe("other-model").capabilities)
+            verify(exactly = 1) { modelProvider.listModels() }
+            verify(exactly = 0) { modelProvider.getLlm(any()) }
+            assertThrows<IllegalArgumentException> { provider.describe(" ") }
+        }
+
+        @Test
+        fun `generic create resolves once and preserves service provenance`() {
+            every { modelProvider.getLlm(byName("gpt-test")) } returns llm
+            val provider: DecisionModelProvider = factory
+            val service = provider.create("gpt-test")
+            assertEquals(provenance.provider, service.provider)
+            assertEquals("gpt-test", service.name)
+            assertEquals(provider.describe("gpt-test").capabilities, service.capabilities())
+            service.assess(proposition)
+            service.assess(proposition)
+            verify(exactly = 1) { modelProvider.getLlm(byName("gpt-test")) }
+        }
+    }
 
     @Nested
     inner class Metadata {
