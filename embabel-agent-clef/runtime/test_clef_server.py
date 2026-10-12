@@ -3,6 +3,11 @@ import concurrent.futures
 from dataclasses import replace
 import http.client
 import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
 import socket
 import threading
 import time
@@ -130,6 +135,67 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(response["error"]["code"], "invalid_output")
         self.fixture.checker.unlink()
         self.assertEqual(self.http()[0], 503)
+
+    def test_special_and_symlink_lock_fail_within_deadline_and_shutdown_promptly(self):
+        # Each probe lives in a subprocess with a hard timeout; the red FIFO case
+        # cannot leave an uncontrolled HTTP worker or require a FIFO unblock.
+        program = r'''
+import http.client, json, os, pathlib, socket, sys, threading, time
+from dataclasses import replace
+sys.path.insert(0, sys.argv[1])
+import clef_bridge as bridge
+from clef_server import ClefHTTPServer
+from test_clef_bridge import FakeArtifacts, request
+fixture = FakeArtifacts()
+fixture.runtime.close()
+fixture.runtime = bridge.ClefRuntime(replace(fixture.config, timeout_seconds=.25))
+lock = fixture.scratch / '.clef-native.lock'
+mode = sys.argv[2]
+if mode == 'fifo':
+    os.mkfifo(lock)
+elif mode == 'symlink':
+    target = fixture.root / 'external-lock'
+    target.write_text('private sentinel')
+    lock.symlink_to(target)
+else:
+    special = socket.socket(socket.AF_UNIX)
+    special.bind(str(lock))
+server = ClefHTTPServer(('127.0.0.1', 0), fixture.runtime, socket_timeout=.25)
+thread = threading.Thread(target=server.serve_forever, kwargs={'poll_interval':.01})
+thread.start()
+client = http.client.HTTPConnection(*server.server_address, timeout=.5)
+try:
+    started = time.monotonic()
+    client.request('POST', '/v1/decisions', body=json.dumps(request()), headers={'Content-Type':'application/json'})
+    response = client.getresponse()
+    payload = json.loads(response.read())
+    elapsed = time.monotonic() - started
+    assert response.status == 503, response.status
+    assert payload['error']['code'] == 'missing_artifact', payload
+    assert elapsed < fixture.config.timeout_seconds, elapsed
+    assert not (fixture.root / 'started').exists(), 'checker must not start'
+    if mode == 'symlink':
+        assert target.read_text() == 'private sentinel'
+    started = time.monotonic()
+    server.shutdown(); server.server_close(); thread.join(.5)
+    shutdown = time.monotonic() - started
+    assert not thread.is_alive() and shutdown < .5, shutdown
+    print(json.dumps({'mode':mode,'request_ms':elapsed*1000,'shutdown_ms':shutdown*1000,'checker_started':False}))
+finally:
+    client.close()
+    server.shutdown(); server.server_close(); thread.join(.5)
+    fixture.close()
+'''
+        for mode in ["fifo", "symlink", "socket"]:
+            with self.subTest(mode=mode):
+                with tempfile.TemporaryDirectory() as probe_directory:
+                    completed = subprocess.run([sys.executable, "-c", program, str(Path(__file__).resolve().parent), mode],
+                                               capture_output=True, text=True, timeout=2,
+                                               env={**os.environ, "TMPDIR": probe_directory})
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                proof = json.loads(completed.stdout)
+                self.assertFalse(proof["checker_started"])
+                print("R1 real HTTP lock probe: " + json.dumps(proof, sort_keys=True))
 
     def test_shutdown_cancels_active_checker_and_releases_scratch(self):
         self.fixture.mode("slow")
