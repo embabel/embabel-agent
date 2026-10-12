@@ -437,6 +437,26 @@ class ClefRuntime:
             process.stdout.close()
             process.stderr.close()
 
+    def _open_lock(self, deadline):
+        _deadline(deadline)
+        if self._closed.is_set():
+            raise BridgeError("cancelled")
+        descriptor = None
+        try:
+            flags = os.O_CREAT | os.O_RDWR | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC
+            descriptor = os.open(self.config.scratch_dir / ".clef-native.lock", flags, 0o600)
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                raise BridgeError("missing_artifact")
+            _deadline(deadline)
+            lock = os.fdopen(descriptor, "a")
+            descriptor = None
+            return lock
+        except OSError:
+            raise BridgeError("missing_artifact") from None
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+
     def infer(self, request):
         wire, questions = compile_request(request)
         if not _platform_supported():
@@ -448,11 +468,7 @@ class ClefRuntime:
         started = time.monotonic()
         deadline = started + self.config.timeout_seconds
         try:
-            try:
-                lock = (self.config.scratch_dir / ".clef-native.lock").open("a")
-            except OSError:
-                raise BridgeError("missing_artifact") from None
-            with lock:
+            with self._open_lock(deadline) as lock:
                 try:
                     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 except BlockingIOError:
