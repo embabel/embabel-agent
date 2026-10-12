@@ -64,6 +64,7 @@ not evidence of native CLEF output. The native host computes pmax and validates 
 ==== Compatibility evidence
 
 [cols="1,3",options="header"]
+|===
 |Level |Scope
 |Specification/source |The named TypeSafe specification and pinned implementation source establish a protocol shape.
 |Pure codec and actual SDK |Pinned OpenJev confidence/answer functions ran with deterministic distributions. The emitted fixture is decoded by the shared codec and the actual cached TypeSafe Java SDK 0.2.0 in `SystemOneWireCompatibilityTest`; no engine or tokenizer ran.
