@@ -24,8 +24,8 @@ import com.github.victools.jsonschema.generator.OptionPreset
 import com.github.victools.jsonschema.generator.SchemaGenerator
 import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import com.github.victools.jsonschema.generator.SchemaVersion
-import com.github.victools.jsonschema.module.jackson.JacksonModule
 import com.github.victools.jsonschema.module.jackson.JacksonOption
+import com.github.victools.jsonschema.module.jackson.JacksonSchemaModule
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption
 import org.jetbrains.annotations.ApiStatus
@@ -46,7 +46,7 @@ internal object VictoolsSchemaGenerator {
             SchemaVersion.DRAFT_2020_12,
             OptionPreset.PLAIN_JSON
         ).with(
-            JacksonModule(
+            JacksonSchemaModule(
                 // Parameter schemas are nested below the tool schema root, so subtype-generated
                 // root-relative $refs would no longer point to their accompanying $defs.
                 JacksonOption.SKIP_SUBTYPE_LOOKUP,
