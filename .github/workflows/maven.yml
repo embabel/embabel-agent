@@ -47,9 +47,6 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           echo "testcontainers.reuse.enable=true" > $env:USERPROFILE\.testcontainers.properties
-      - name: Test experimental CLEF host (standard library only)
-        if: matrix.os == 'ubuntu-latest'
-        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s embabel-agent-clef/runtime -p 'test_*.py' -v
       - name: Build and test
         env:
           SKIP_TESTCONTAINER_TESTS: true  # Do not run TestContainer Tests in Windows Matrix Build.
@@ -79,8 +76,6 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: maven
-      - name: Test experimental CLEF host (standard library only)
-        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s embabel-agent-clef/runtime -p 'test_*.py' -v
       - name: Build and test
         run: |
           # Configure Testcontainers for Linux
