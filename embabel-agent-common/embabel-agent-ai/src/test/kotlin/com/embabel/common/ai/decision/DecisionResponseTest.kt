@@ -19,6 +19,10 @@ import com.embabel.common.ai.classification.Category
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
+import com.embabel.common.ai.classification.ClassificationRequest
+import com.embabel.common.ai.decision.spi.QuestionSetExecution
+import com.embabel.common.ai.model.observation.ObservedDecisionService
+import tools.jackson.databind.json.JsonMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -162,6 +166,7 @@ class DecisionResponseTest {
                     listOf(PropositionQuestionSpec::class.java, PropositionResult::class.java),
                     listOf(ChoiceQuestionSpec::class.java, ClassificationResult::class.java),
                     listOf(RatingQuestionSpec::class.java, RatingResult::class.java),
+                    listOf(ChoiceQuestionSpec::class.java, ClassificationResult::class.java, ChoiceDistribution::class.java),
                 ),
                 firstParameters,
             )
@@ -675,4 +680,146 @@ class DecisionResponseTest {
             assertTrue(text.contains("requestFailure=null"), text)
         }
     }
+    @Nested
+    inner class ChoiceEvidence {
+
+        private val mapper = JsonMapper.builder().build()
+
+        private fun distribution(question: ChoiceQuestionSpec = department()): ChoiceDistribution =
+            ChoiceDistribution.of(question.options, listOf(
+                CategoryProbability(question.options[1].id, 0.25),
+                CategoryProbability(question.options[0].id, 0.7499995),
+            ))
+
+        private fun response(): DecisionResponse = DecisionResponse.builder(DecisionSpec.of(department()))
+            .answer(department(), billing, distribution()).build()
+
+        @Test
+        fun `distribution copies and orders reported evidence without changing numbers`() {
+            val probabilities = mutableListOf(CategoryProbability("technical", 0.25), CategoryProbability("billing", 0.7499995))
+            val evidence = ChoiceDistribution.of(department().options, probabilities)
+            probabilities.clear()
+            assertEquals(listOf("billing", "technical"), evidence.probabilities.map { it.categoryId })
+            assertEquals(listOf(0.7499995, 0.25), evidence.probabilities.map { it.probability })
+            assertThrows(UnsupportedOperationException::class.java) { (evidence.probabilities as MutableList<CategoryProbability>).clear() }
+        }
+
+        @Test
+        fun `factory rejects incomplete duplicate extra and invalid probabilities`() {
+            val invalid = listOf(
+                listOf(CategoryProbability("billing", 1.0)),
+                listOf(CategoryProbability("billing", 0.5), CategoryProbability("billing", 0.5)),
+                listOf(CategoryProbability("billing", 0.5), CategoryProbability("sales", 0.5)),
+                listOf(CategoryProbability("billing", 0.749998), CategoryProbability("technical", 0.25)),
+            )
+            invalid.forEach { assertThrows(IllegalArgumentException::class.java) { ChoiceDistribution.of(department().options, it) } }
+            listOf(Double.NaN, Double.POSITIVE_INFINITY, -0.1, 1.1).forEach { value ->
+                assertThrows(IllegalArgumentException::class.java) { CategoryProbability("billing", value) }
+            }
+            assertThrows(IllegalArgumentException::class.java) { CategoryProbability(" ", 1.0) }
+            assertThrows(IllegalArgumentException::class.java) { ChoiceDistribution.of(emptyList(), emptyList()) }
+            assertThrows(IllegalArgumentException::class.java) { ChoiceDistribution.of(listOf(Category("a", "A"), Category("a", "A")), listOf(CategoryProbability("a", 1.0))) }
+        }
+
+        @Test
+        fun `hostile ids are preserved and outcome confidence remains independent`() {
+            val question = Questions.named("hostile").choice("Choose").option("☃\"\\", "Snow").option("other\n", "Other").build()
+            val evidence = distribution(question)
+            val outcome = ClassificationResult.Selected(question.options[1].id, jev, 0.1)
+            val response = DecisionResponse.builder(DecisionSpec.of(question)).answer(question, outcome, evidence).build()
+            assertEquals(evidence, response.choiceDistribution(question))
+            assertSame(outcome, response.answer(question))
+        }
+
+        @Test
+        fun `evidence map is immutable ordered by spec and detached from caller map`() {
+            val other = Questions.named("channel").choice("Channel").option("email", "Email").option("phone", "Phone").build()
+            val built = DecisionResponse.builder(DecisionSpec.of(department(), other))
+                .answer(other, ClassificationResult.Selected("email", jev), distribution(other))
+                .answer(department(), billing, distribution()).build()
+            val evidence = linkedMapOf("channel" to distribution(other), "department" to distribution())
+            val copied = DecisionResponse.create(null, built.answers, evidence)
+            evidence.clear()
+            assertEquals(listOf("department", "channel"), copied.choiceDistributions.keys.toList())
+            assertThrows(UnsupportedOperationException::class.java) { (copied.choiceDistributions as MutableMap<String, ChoiceDistribution>).clear() }
+        }
+
+        @Test
+        fun `constructor rejects missing nonchoice failed and request failed evidence`() {
+            val evidence = mapOf("department" to distribution())
+            assertThrows(IllegalArgumentException::class.java) { DecisionResponse.create(null, answered().answers, mapOf("missing" to distribution())) }
+            assertThrows(IllegalArgumentException::class.java) { DecisionResponse.create(null, answered().answers, mapOf("is_urgent" to distribution())) }
+            val failed = DecisionResponse.failed(triage(), FailureReason.UNAVAILABLE)
+            assertThrows(IllegalArgumentException::class.java) { DecisionResponse.create(null, failed.answers, evidence) }
+            assertThrows(IllegalArgumentException::class.java) { DecisionResponse.create(FailureReason.UNAVAILABLE, failed.answers, evidence) }
+        }
+
+        @Test
+        fun `typed accessor and request match reject another domain or definition`() {
+            val other = Questions.named("department").choice("Choose").option("a", "A").option("b", "B").build()
+            assertThrows(IllegalArgumentException::class.java) { DecisionResponse.builder(DecisionSpec.of(department())).answer(department(), billing, distribution(other)) }
+            assertThrows(IllegalArgumentException::class.java) { response().choiceDistribution(other) }
+            assertThrows(IllegalArgumentException::class.java) { response().requireMatches(DecisionSpec.of(other)) }
+            assertThrows(IllegalArgumentException::class.java) { response().choiceDistribution(department("Changed description")) }
+        }
+
+        @Test
+        fun `legacy empty evidence equality hash and JSON remain unchanged`() {
+            val legacy = answered()
+            assertTrue(legacy.choiceDistributions.isEmpty())
+            assertNull(legacy.choiceDistribution(department()))
+            assertEquals(java.util.Objects.hash(legacy.requestFailure, legacy.answers), legacy.hashCode())
+            val json = mapper.writeValueAsString(legacy)
+            assertFalse(json.contains("choiceDistributions"), json)
+            assertEquals(legacy, mapper.readValue(json, DecisionResponse::class.java))
+            assertNotEquals(response(), DecisionResponse.builder(DecisionSpec.of(department())).answer(department(), billing).build())
+        }
+
+        @Test
+        fun `populated response round trips and preserves canonical domain order`() {
+            val original = response()
+            val json = mapper.writeValueAsString(original)
+            assertTrue(json.contains("choiceDistributions"), json)
+            val decoded = mapper.readValue(json, DecisionResponse::class.java)
+            assertEquals(original, decoded)
+            assertEquals(original.hashCode(), decoded.hashCode())
+            decoded.requireMatches(DecisionSpec.of(department()))
+            val reordered = json.replace("{\"categoryId\":\"billing\",\"probability\":0.7499995},{\"categoryId\":\"technical\",\"probability\":0.25}", "{\"categoryId\":\"technical\",\"probability\":0.25},{\"categoryId\":\"billing\",\"probability\":0.7499995}")
+            assertEquals(original, mapper.readValue(reordered, DecisionResponse::class.java))
+        }
+
+        @Test
+        fun `JSON rejects null unknown missing domain failed and malformed evidence`() {
+            val legacy = mapper.writeValueAsString(DecisionResponse.builder(DecisionSpec.of(department())).answer(department(), billing).build())
+            val distribution = mapper.writeValueAsString(distribution())
+            val additions = listOf("null", "{\"department\":null}", "{\"missing\":$distribution}", "{\"department\":{\"probabilities\":null}}", "{\"department\":{\"probabilities\":[]}}", "{\"department\":{\"probabilities\":[{\"categoryId\":\"billing\",\"probability\":1.0}]}}", "{\"department\":{\"probabilities\":[{\"categoryId\":\"billing\",\"probability\":0.5},{\"categoryId\":\"billing\",\"probability\":0.5}]}}")
+            additions.forEach { evidence ->
+                assertThrows(Exception::class.java) { mapper.readValue(legacy.dropLast(1) + ",\"choiceDistributions\":$evidence}", DecisionResponse::class.java) }
+            }
+            val rich = mapper.writeValueAsString(response())
+            assertThrows(Exception::class.java) { mapper.readValue(rich.replace("\"probability\":0.25", "\"probability\":1.25"), DecisionResponse::class.java) }
+            assertThrows(Exception::class.java) { mapper.readValue(rich.replace("\"probability\":0.25", "\"probability\":0.25,\"unknown\":true"), DecisionResponse::class.java) }
+            assertThrows(Exception::class.java) { mapper.readValue(rich.replace("\"probabilities\":", "\"unknown\":true,\"probabilities\":"), DecisionResponse::class.java) }
+            val failureJson = mapper.writeValueAsString(DecisionResponse.failed(DecisionSpec.of(department()), FailureReason.UNAVAILABLE))
+            assertThrows(Exception::class.java) { mapper.readValue(failureJson.dropLast(1) + ",\"choiceDistributions\":{\"department\":$distribution}}", DecisionResponse::class.java) }
+        }
+
+        @Test
+        fun `shared execution and observed decorators retain response evidence`() {
+            val rich = response()
+            val service = object : DecisionService, QuestionSetExecution {
+                override val name = "evidence"
+                override val provider = "test"
+                override fun classify(request: ClassificationRequest): ClassificationResult = billing
+                override fun assess(request: PropositionRequest): PropositionResult = urgentYes
+                override fun askQuestionSet(request: DecisionRequest): DecisionResponse = rich
+            }
+            assertSame(rich, service.ask("input", DecisionSpec.of(department())))
+            val observed = ObservedDecisionService(ObservedDecisionService(service))
+            assertSame(rich, observed.ask("input", DecisionSpec.of(department())))
+            assertEquals(distribution(), observed.ask("input", DecisionSpec.of(department())).choiceDistribution(department()))
+            assertSame(billing, observed.classify(ClassificationRequest.of("input", com.embabel.common.ai.classification.ClassificationSpec.of(department()))))
+        }
+    }
+
 }

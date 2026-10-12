@@ -23,6 +23,9 @@ import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
 import com.embabel.common.ai.decision.DecisionAnswer
+import com.embabel.common.ai.decision.CategoryProbability
+import com.embabel.common.ai.decision.ChoiceQuestionSpec
+import com.embabel.common.ai.decision.ChoiceDistribution
 import com.embabel.common.ai.decision.DecisionResponse
 import com.embabel.common.ai.decision.DecisionSpec
 import com.embabel.common.ai.decision.LevelProbability
@@ -514,4 +517,35 @@ class DecisionResponseAssemblerTest {
             assertEquals(DecisionResponseAssembler::class.java.name, events.single().loggerName)
         }
     }
+    @Nested
+    inner class ChoiceEvidence {
+        private fun distribution(question: ChoiceQuestionSpec): ChoiceDistribution = ChoiceDistribution.of(
+            question.options, listOf(CategoryProbability(question.options[0].id, 0.75), CategoryProbability(question.options[1].id, 0.25)),
+        )
+
+        @Test
+        fun `full evidence survives assembly while invalid domain fails only its sibling`() {
+            val twoChoices = DecisionSpec.of(department, channel)
+            val response = assembler(twoChoices)
+                .choice("department", billing, distribution(channel))
+                .choice("channel", ClassificationResult.Selected("phone", jev), distribution(channel)).build()
+            assertTrue(failed(response, "department"))
+            assertNull(response.choiceDistribution(department))
+            assertEquals(distribution(channel), response.choiceDistribution(channel))
+            assertEquals(ClassificationResult.Selected("phone", jev), response.answer(channel))
+        }
+
+        @Test
+        fun `evidence on failed outcome fails that question and unsafe or duplicate clears all evidence`() {
+            val response = assembler().proposition("is_urgent", yes)
+                .choice("department", ClassificationResult.Failure(FailureReason.UNAVAILABLE), distribution(department))
+                .rating("frustration", rated).build()
+            assertEquals(ClassificationResult.Failure(FailureReason.INVALID_RESPONSE), response.answer(department))
+            assertTrue(response.choiceDistributions.isEmpty())
+            assertEquals(yes, response.answer(urgent))
+            assertTrue(assembler().choice("department", billing, distribution(department)).unsafe().build().choiceDistributions.isEmpty())
+            assertTrue(assembler().choice("department", billing, distribution(department)).choice("department", billing).build().choiceDistributions.isEmpty())
+        }
+    }
+
 }

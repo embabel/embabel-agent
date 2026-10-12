@@ -22,6 +22,9 @@ import com.embabel.common.ai.classification.ClassificationResult;
 import com.embabel.common.ai.classification.ClassificationSpec;
 import com.embabel.common.ai.classification.ModelProvenance;
 import com.embabel.common.ai.decision.ChoiceQuestionSpec;
+import com.embabel.common.ai.decision.CategoryProbability;
+import com.embabel.common.ai.decision.ChoiceDistribution;
+import com.embabel.common.ai.decision.DecisionResponse;
 import com.embabel.common.ai.decision.DecisionCapabilities;
 import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.decision.DecisionSpec;
@@ -34,6 +37,7 @@ import com.embabel.common.ai.decision.Questions;
 import org.junit.jupiter.api.Test;
 
 import java.util.EnumSet;
+import java.util.List;
 
 class LegacyDecisionServiceJavaTest {
 
@@ -121,4 +125,20 @@ class LegacyDecisionServiceJavaTest {
         assertThrows(UnsupportedOperationException.class, () -> service.ask("A customer email.", spec));
         assertEquals(0, service.assessCalls);
     }
+    @Test
+    void oldConstructorsAndBuilderRemainUsableWithNewEvidenceGetter() {
+        var question = Questions.named("team").choice("Which team?").option("support", "Support").option("billing", "Billing").build();
+        var selected = new ClassificationResult.Selected("support", PROVENANCE);
+        var explicit = new ClassificationResult.Selected("support", PROVENANCE, 0.6);
+        var legacy = DecisionResponse.builder(DecisionSpec.of(question)).answer(question, selected).build();
+        assertTrue(legacy.getChoiceDistributions().isEmpty());
+        assertNull(legacy.choiceDistribution(question));
+        var distribution = ChoiceDistribution.of(question.getOptions(), List.of(
+                new CategoryProbability("billing", 0.4), new CategoryProbability("support", 0.6)));
+        var rich = DecisionResponse.builder(DecisionSpec.of(question)).answer(question, explicit, distribution).build();
+        assertEquals(distribution, rich.choiceDistribution(question));
+        assertSame(explicit, rich.answer(question));
+        assertEquals(2, rich.getChoiceDistributions().get("team").getProbabilities().size());
+    }
+
 }
