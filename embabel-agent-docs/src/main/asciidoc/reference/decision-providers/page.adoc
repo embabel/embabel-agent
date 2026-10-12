@@ -1,0 +1,82 @@
+[[reference.decision-providers]]
+=== Decision model providers
+
+`DecisionModelProvider` advertises and constructs typed decision services independently of the LLM `ModelProvider`.
+Its `id` selects a provider; `models()` is a known local catalog, `describe(modelName)` reports accepted question kinds,
+and `create(modelName)` constructs a `DecisionService`. A descriptor describes construction capability, not remote
+availability, probability calibration or an exhaustive remote catalog. Applications retain ownership of routing and policy.
+
+The generic registrar reads `embabel.agent.platform.decisions.services.<name>.provider` and `.model`.
+Provider ids are unique. It checks the descriptor against the created service's capabilities and registers eager named beans.
+Application decision/classification service beans override the same configured name; two configured sources cannot reuse a name.
+Existing registry selectors supply family-scoped defaults and roles. The decision family also supports classification.
+Factory creation and local descriptions do not contact a model endpoint; remote discovery is an explicit operation on
+`SystemOneModelFactory.discoverModels()` and does not change its local catalog.
+
+The assembled Spring example uses real TypeSafe, prompted LLM and CLEF factories; only its CLEF mock HTTP endpoint is called:
+
+[source,kotlin]
+----
+include::../../../../../../embabel-agent-starters/embabel-agent-starter-clef/src/test/kotlin/com/embabel/agent/clef/example/ClefDecisionServicesSpringExampleTest.kt[tag=clef-properties,indent=0]
+----
+
+==== Shared contracts and provider boundaries
+
+The provider-neutral request consists of named proposition, choice and rating questions.
+`DecisionService.ask` checks every kind before provider calls. `QuestionSetExecution` sends a complete set in one operation;
+legacy scalar execution remains available. `ObservedDecisionService` retains evidence and metadata through the shared path.
+
+`DecisionResponse.choiceDistributions` retains optional complete provider-reported choice probabilities.
+`choiceDistribution(question)` checks the question's name, kind and complete domain. Entries and question maps are immutable
+and ordered by the declared spec. `answer(question)` and `classify` retain their scalar result types, so callers keep the
+response to read richer evidence. Empty evidence is omitted from JSON; old strict readers reject the new member when populated.
+Existing TypeSafe producers are not retrofitted and prompted LLMs do not fabricate probabilities.
+
+==== SystemOne contract
+
+TypeSafe publishes an OpenAPI 3.1.0 document with API version 0.2.0 at
+https://api.typesafe.ai/openapi.json[the SystemOne API specification]. The inspected bytes had SHA-256
+`a191f8a7df6bd6fedced8120dd0fd106f88575d1d1c8360d08900a6c7c0360d5`.
+It is a vendor HTTP contract, not a universal decision-model standard.
+The shared client uses `POST /v1/systemone` and explicit catalog discovery via `GET /v1/models`.
+It accepts string state/instructions/descriptions, a subset of the specification's structured input.
+Requested model aliases can differ from the actual response model for general endpoints; CLEF fixes both to its known model.
+
+The new `SystemOneModelFactory` and CLEF factory share one HTTP transport and codec. Native request limits, identity and
+failure mapping belong to `SystemOneModelProfile`. Existing TypeSafe SDK/transport/interpretation and prompted LLM paths remain
+separate. Each client disables automatic retries and redirects and bounds the complete exchange, including its body.
+Accepted copied response metadata totals at most 8 KiB; receiving constraints separately bound HTTP header count/line length.
+No process-global retry switch, reflective access or JVM security setting is required.
+
+[cols="1,2",options="header"]
+|===
+|Provider |Meaning of confidence
+|TypeSafe |Its documented normalized maximum probability for choice and ordinal dispersion for score.
+|https://github.com/razorback16/openjev/blob/75f22b6dad8c360fdba0e0ebd3dc0a1187628f60/openjev/engine.py[Pinned razorback16/OpenJev] |Normalized entropy.
+|CLEF native experiment |Probability of its selected maximum-probability option, for choice and score.
+|Prompted LLM decisions |Verdicts and ids only; no confidence, score or distribution inferred.
+|===
+
+The shared codec preserves the supplied confidence field independently of the probability distribution; it does not
+convert formulas or reuse provider thresholds. A mocked zero-confidence/one-hot response tests that client behavior and is
+not evidence of native CLEF output. The native host computes pmax and validates its own emitted evidence.
+
+==== Compatibility evidence
+
+[cols="1,3",options="header"]
+|Level |Scope
+|Specification/source |The named TypeSafe specification and pinned implementation source establish a protocol shape.
+|Pure codec and actual SDK |Pinned OpenJev confidence/answer functions ran with deterministic distributions. The emitted fixture is decoded by the shared codec and the actual cached TypeSafe Java SDK 0.2.0 in `SystemOneWireCompatibilityTest`; no engine or tokenizer ran.
+|Local endpoint |Real HTTP tests exercise the shared transport, CLEF profile, bounded native host with fake checker, and assembled Spring selectors.
+|Live native smoke |Separately opt-in, requiring the accepted external derived bundle/checker and a supported Mac. This confirms one concrete runtime, not universal interoperability or calibrated accuracy.
+|===
+
+The pinned OpenJev source is commit `75f22b6dad8c360fdba0e0ebd3dc0a1187628f60`;
+inspected `openjev/engine.py` bytes SHA-256 `e084734f969b414be701bc438617c302e0b44867d907956ec87dcafc66b1d089`.
+`razorback16/openjev` implements SystemOne HTTP; https://github.com/TheoLeeCJ/SemIf-OpenJev[SemIf, formerly OpenJev],
+is a separate scoring CLI project. Neither is CLEF's runtime. No authoritative OpenJEF standard was established.
+
+The https://github.com/razorback16/openjev/blob/75f22b6dad8c360fdba0e0ebd3dc0a1187628f60/README.md[pinned OpenJev README]
+advertises `openjev-latest`/`openjev-0.1` (DiffusionGemma 26B-A4B), `laya-1.0`, `verdict-1.4`, `clm-v0.1` and `jevk5-0.2`
+as backend routes. These are source-advertised options, not independently live-verified compatible models; the evidence here
+remains the pure codec and SDK fixture. CLEF is not listed or verified as a backend there and uses its separate joint-head runtime.
