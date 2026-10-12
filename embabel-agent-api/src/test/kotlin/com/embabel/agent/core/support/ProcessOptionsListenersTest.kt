@@ -20,77 +20,136 @@ import com.embabel.agent.api.event.ActionExecutionResultEvent
 import com.embabel.agent.api.event.ActionExecutionStartEvent
 import com.embabel.agent.api.event.AgentProcessCompletedEvent
 import com.embabel.agent.api.event.AgentProcessCreationEvent
+import com.embabel.agent.api.event.AgentProcessEvent
 import com.embabel.agent.api.event.AgentProcessPlanFormulatedEvent
 import com.embabel.agent.api.event.AgentProcessReadyToPlanEvent
+import com.embabel.agent.api.event.AgentProcessStuckEvent
+import com.embabel.agent.api.event.AgentProcessTerminatedEvent
+import com.embabel.agent.api.event.AgentProcessWaitingEvent
 import com.embabel.agent.api.event.GoalAchievedEvent
+import com.embabel.agent.api.event.ProcessKilledEvent
+import com.embabel.agent.core.Agent
+import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.AgentProcessStatusCode
+import com.embabel.agent.core.IoBinding
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
 import com.embabel.agent.test.integration.IntegrationTestUtils
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import kotlin.reflect.KClass
 
 /**
  * [ProcessOptions.listeners] are documented to receive events from their process.
- * They must see the same process events as the platform listener.
+ * They must get the same process events as the platform listener, whatever way the process ends.
  * See https://github.com/embabel/embabel-agent/issues/2126
  */
 class ProcessOptionsListenersTest {
 
-    @Test
-    fun `process options listeners receive the same process events as the platform listener`() {
-        val platformListener = EventSavingAgenticEventListener()
-        val processListener = EventSavingAgenticEventListener()
-        val platform = IntegrationTestUtils.dummyAgentPlatform(listener = platformListener)
+    private val platformListener = EventSavingAgenticEventListener()
+    private val processListener = EventSavingAgenticEventListener()
+    private val platform = IntegrationTestUtils.dummyAgentPlatform(listener = platformListener)
 
-        val process = platform.createAgentProcess(
-            evenMoreEvilWizard(),
-            ProcessOptions(listeners = listOf(processListener)),
-            mapOf("it" to UserInput("Rod")),
-        )
-        process.run()
-        assertEquals(AgentProcessStatusCode.COMPLETED, process.status)
+    private fun createProcess(agent: Agent, bindings: Map<String, Any>): AgentProcess =
+        platform.createAgentProcess(agent, ProcessOptions(listeners = listOf(processListener)), bindings)
 
-        val platformEventTypes = platformListener.processEvents.map { it::class.simpleName }.toSet()
-        val processEventTypes = processListener.processEvents.map { it::class.simpleName }.toSet()
+    private fun EventSavingAgenticEventListener.countsFor(process: AgentProcess): Map<String?, Int> =
+        processEvents.filter { it.processId == process.id }.groupingBy { it::class.simpleName }.eachCount()
+
+    private fun assertSameEventsAsPlatform(process: AgentProcess) {
         assertEquals(
-            emptySet<String>(),
-            platformEventTypes - processEventTypes,
-            "Event types received by the platform listener but missing for the ProcessOptions listener",
+            platformListener.countsFor(process),
+            processListener.countsFor(process),
+            "ProcessOptions listener must get the same events, as often, as the platform listener",
         )
     }
 
-    @Test
-    fun `process options listeners receive lifecycle events`() {
-        val processListener = EventSavingAgenticEventListener()
-        val platform = IntegrationTestUtils.dummyAgentPlatform()
-
-        val process = platform.createAgentProcess(
-            evenMoreEvilWizard(),
-            ProcessOptions(listeners = listOf(processListener)),
-            mapOf("it" to UserInput("Rod")),
-        )
-        process.run()
-        assertEquals(AgentProcessStatusCode.COMPLETED, process.status)
-
-        val events = processListener.processEvents
-        listOf(
-            AgentProcessCreationEvent::class,
-            AgentProcessReadyToPlanEvent::class,
-            AgentProcessPlanFormulatedEvent::class,
-            ActionExecutionStartEvent::class,
-            ActionExecutionResultEvent::class,
-            GoalAchievedEvent::class,
-            AgentProcessCompletedEvent::class,
-        ).forEach { type ->
+    private fun assertReceived(vararg types: KClass<out AgentProcessEvent>) {
+        val received = processListener.processEvents.map { it::class.simpleName }.distinct()
+        types.forEach { type ->
             assertTrue(
-                events.any { type.isInstance(it) },
-                "ProcessOptions listener did not receive ${type.simpleName}. Received: ${
-                    events.map { it::class.simpleName }.distinct()
-                }",
+                processListener.processEvents.any { type.isInstance(it) },
+                "ProcessOptions listener did not receive ${type.simpleName}. Received: $received",
             )
+        }
+    }
+
+    @Nested
+    inner class Completed {
+
+        @Test
+        fun `receives the same events as the platform listener`() {
+            val process = createProcess(evenMoreEvilWizard(), mapOf(IoBinding.DEFAULT_BINDING to UserInput("Rod")))
+            process.run()
+            assertEquals(AgentProcessStatusCode.COMPLETED, process.status)
+
+            assertSameEventsAsPlatform(process)
+        }
+
+        @Test
+        fun `receives lifecycle events`() {
+            val process = createProcess(evenMoreEvilWizard(), mapOf(IoBinding.DEFAULT_BINDING to UserInput("Rod")))
+            process.run()
+            assertEquals(AgentProcessStatusCode.COMPLETED, process.status)
+
+            assertReceived(
+                AgentProcessCreationEvent::class,
+                AgentProcessReadyToPlanEvent::class,
+                AgentProcessPlanFormulatedEvent::class,
+                ActionExecutionStartEvent::class,
+                ActionExecutionResultEvent::class,
+                GoalAchievedEvent::class,
+                AgentProcessCompletedEvent::class,
+            )
+        }
+    }
+
+    @Nested
+    inner class WaitingThenTerminated {
+
+        @Test
+        fun `receives waiting and terminated events`() {
+            val process = createProcess(DslWaitingAgent, mapOf(IoBinding.DEFAULT_BINDING to UserInput("Rod")))
+            process.run()
+            assertEquals(AgentProcessStatusCode.WAITING, process.status)
+
+            process.terminateAgent("Stopped by test")
+            assertEquals(AgentProcessStatusCode.TERMINATED, process.status)
+
+            assertReceived(AgentProcessWaitingEvent::class, AgentProcessTerminatedEvent::class)
+            assertSameEventsAsPlatform(process)
+        }
+    }
+
+    @Nested
+    inner class Stuck {
+
+        @Test
+        fun `receives stuck event`() {
+            val process = createProcess(DslWaitingAgent, emptyMap())
+            process.run()
+            assertEquals(AgentProcessStatusCode.STUCK, process.status)
+
+            assertReceived(AgentProcessStuckEvent::class)
+            assertSameEventsAsPlatform(process)
+        }
+    }
+
+    @Nested
+    inner class Killed {
+
+        @Test
+        fun `receives killed event`() {
+            val process = createProcess(evenMoreEvilWizard(), mapOf(IoBinding.DEFAULT_BINDING to UserInput("Rod")))
+
+            platform.killAgentProcess(process.id)
+            assertEquals(AgentProcessStatusCode.KILLED, process.status)
+
+            assertReceived(ProcessKilledEvent::class)
+            assertSameEventsAsPlatform(process)
         }
     }
 }

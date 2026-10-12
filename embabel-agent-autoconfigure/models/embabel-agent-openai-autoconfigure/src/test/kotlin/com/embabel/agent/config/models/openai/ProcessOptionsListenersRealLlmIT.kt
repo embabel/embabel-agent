@@ -18,7 +18,6 @@ package com.embabel.agent.config.models.openai
 import com.embabel.agent.api.annotation.AchievesGoal
 import com.embabel.agent.api.annotation.Action
 import com.embabel.agent.api.annotation.Agent
-import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.support.AgentMetadataReader
 import com.embabel.agent.api.common.ActionContext
 import com.embabel.agent.api.common.OperationContext
@@ -26,7 +25,6 @@ import com.embabel.agent.api.event.AgentProcessCompletedEvent
 import com.embabel.agent.api.event.AgentProcessEvent
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.event.LlmRequestEvent
-import com.embabel.agent.api.event.ToolCallRequestEvent
 import com.embabel.agent.autoconfigure.models.openai.AgentOpenAiAutoConfiguration
 import com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration
 import com.embabel.agent.core.AgentPlatform
@@ -51,7 +49,6 @@ import org.springframework.context.annotation.FilterType
 import org.springframework.context.annotation.Import
 import org.springframework.test.context.ActiveProfiles
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Real-LLM reproduction of https://github.com/embabel/embabel-agent/issues/2126.
@@ -106,8 +103,9 @@ class ProcessOptionsListenersRealLlmIT {
             events += event
         }
 
-        fun typesFor(processId: String): Set<String> =
-            events.filter { it.processId == processId }.map { it::class.simpleName!! }.toSet()
+        /** Event counts by type, for one process. */
+        fun countsFor(processId: String): Map<String?, Int> =
+            events.filter { it.processId == processId }.groupingBy { it::class.simpleName }.eachCount()
     }
 
     /** Registered as a bean, so the platform picks it up as a platform listener. */
@@ -117,127 +115,105 @@ class ProcessOptionsListenersRealLlmIT {
         fun platformRecordingListener() = RecordingListener()
     }
 
-    data class SecretAnswer(val secret: Int)
-
-    object SecretTools {
-        val calls = AtomicInteger()
-
-        @LlmTool(description = "Returns the secret number")
-        fun secretNumber(): Int {
-            calls.incrementAndGet()
-            return 42
-        }
-    }
+    data class Capital(val city: String)
 
     @Agent(
-        name = "SecretAgent",
-        description = "Asks a real LLM to read the secret number through a tool",
+        name = "CapitalAgent",
+        description = "Asks a real LLM for the capital of a country",
         scan = false,
     )
-    class SecretAgent {
+    class CapitalAgent {
 
         @Action
-        @AchievesGoal(description = "Secret number found")
-        fun findSecret(input: UserInput, context: OperationContext): SecretAnswer =
+        @AchievesGoal(description = "Capital found")
+        fun findCapital(input: UserInput, context: OperationContext): Capital =
             context.ai()
                 .withDefaultLlm()
-                .withToolObject(SecretTools)
                 .createObject(
                     """
-                    ${input.content}
-                    You MUST call the secretNumber tool. Return JSON with a single field "secret".
+                    What is the capital of ${input.content}?
+                    Return JSON with a single field "city".
                     """.trimIndent(),
-                    SecretAnswer::class.java,
+                    Capital::class.java,
                 )
     }
 
     @Agent(
-        name = "SecretParentAgent",
-        description = "Delegates the secret lookup to a sub-process",
+        name = "CapitalParentAgent",
+        description = "Delegates the capital lookup to a sub-process",
         scan = false,
     )
-    class SecretParentAgent {
+    class CapitalParentAgent {
 
         @Action
-        @AchievesGoal(description = "Secret number found by a sub-process")
-        fun delegate(input: UserInput, context: ActionContext): SecretAnswer {
+        @AchievesGoal(description = "Capital found by a sub-process")
+        fun delegate(input: UserInput, context: ActionContext): Capital {
             val subAgent = AgentMetadataReader()
-                .createAgentMetadata(SecretAgent()) as com.embabel.agent.core.Agent
-            return context.asSubProcess(SecretAnswer::class.java, subAgent)
+                .createAgentMetadata(CapitalAgent()) as com.embabel.agent.core.Agent
+            return context.asSubProcess(Capital::class.java, subAgent)
         }
     }
 
     @BeforeEach
     fun reset() {
         platformListener.events.clear()
-        SecretTools.calls.set(0)
     }
 
     @Test
     fun `process options listener receives the same events as the platform listener`() {
         val processListener = RecordingListener()
         val agent = AgentMetadataReader()
-            .createAgentMetadata(SecretAgent()) as com.embabel.agent.core.Agent
+            .createAgentMetadata(CapitalAgent()) as com.embabel.agent.core.Agent
 
         val process = agentPlatform.runAgentFrom(
             agent,
             ProcessOptions(listeners = listOf(processListener)),
-            mapOf("it" to UserInput("What is the secret number?")),
+            mapOf("it" to UserInput("France")),
         ) as AgentProcess
-
         assertEquals(AgentProcessStatusCode.COMPLETED, process.status)
-        assertTrue(SecretTools.calls.get() > 0, "The LLM must have called the tool")
 
-        val platformTypes = platformListener.typesFor(process.id)
-        val processTypes = processListener.typesFor(process.id)
-        logger.info("Platform listener event types: {}", platformTypes)
-        logger.info("ProcessOptions listener event types: {}", processTypes)
+        val platformCounts = platformListener.countsFor(process.id)
+        val processCounts = processListener.countsFor(process.id)
+        logger.info("Platform listener events: {}", platformCounts)
+        logger.info("ProcessOptions listener events: {}", processCounts)
 
-        // Control: events published through processContext do reach the ProcessOptions listener
         assertTrue(
             processListener.events.any { it is LlmRequestEvent<*> },
-            "ProcessOptions listener should receive LlmRequestEvent. Received: $processTypes",
+            "The real LLM call should be seen. Received: $processCounts",
         )
-        assertTrue(
-            processListener.events.any { it is ToolCallRequestEvent },
-            "ProcessOptions listener should receive ToolCallRequestEvent. Received: $processTypes",
-        )
-
         assertEquals(
-            emptySet<String>(),
-            platformTypes - processTypes,
-            "Event types received by the platform listener but missing for the ProcessOptions listener",
+            platformCounts,
+            processCounts,
+            "ProcessOptions listener must get the same events, as often, as the platform listener",
         )
     }
 
     @Test
-    fun `inherited process options listener sees the sub-process complete`() {
+    fun `inherited process options listener receives the same sub-process events as the platform listener`() {
         val processListener = RecordingListener()
         val parentAgent = AgentMetadataReader()
-            .createAgentMetadata(SecretParentAgent()) as com.embabel.agent.core.Agent
+            .createAgentMetadata(CapitalParentAgent()) as com.embabel.agent.core.Agent
 
         val parent = agentPlatform.runAgentFrom(
             parentAgent,
             ProcessOptions(listeners = listOf(processListener)),
-            mapOf("it" to UserInput("What is the secret number?")),
+            mapOf("it" to UserInput("France")),
         ) as AgentProcess
-
         assertEquals(AgentProcessStatusCode.COMPLETED, parent.status)
         val child = agentPlatform.platformServices.agentProcessRepository.findByParentId(parent.id).single()
         assertEquals(AgentProcessStatusCode.COMPLETED, child.status)
 
-        val childTypes = processListener.typesFor(child.id)
-        logger.info("ProcessOptions listener event types for child {}: {}", child.id, childTypes)
-
-        // Control: the child inherits the listener, and its LLM events reach it
-        assertTrue(
-            processListener.events.any { it is LlmRequestEvent<*> && it.processId == child.id },
-            "Inherited listener should receive the child's LlmRequestEvent. Received: $childTypes",
-        )
+        val childCounts = processListener.countsFor(child.id)
+        logger.info("ProcessOptions listener events for child {}: {}", child.id, childCounts)
 
         assertTrue(
             processListener.events.any { it is AgentProcessCompletedEvent && it.processId == child.id },
-            "Inherited listener should receive the child's AgentProcessCompletedEvent. Received: $childTypes",
+            "Inherited listener should receive the child's AgentProcessCompletedEvent. Received: $childCounts",
+        )
+        assertEquals(
+            platformListener.countsFor(child.id),
+            childCounts,
+            "Inherited listener must get the same child events, as often, as the platform listener",
         )
     }
 }

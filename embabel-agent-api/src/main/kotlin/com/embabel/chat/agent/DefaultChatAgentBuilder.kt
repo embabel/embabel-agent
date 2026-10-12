@@ -38,7 +38,7 @@ import com.embabel.common.ai.model.LlmOptions
  * Forwards events of a goal sub-process to the parent's [com.embabel.agent.core.ProcessOptions.listeners] only.
  * The platform listener already receives them from the sub-process itself.
  */
-internal fun forwardToProcessOptionsListeners(parent: ProcessContext): AgenticEventListener =
+private fun forwardToProcessOptionsListeners(parent: ProcessContext): AgenticEventListener =
     AgenticEventListener.from(parent.processOptions.listeners)
 
 /**
@@ -59,7 +59,7 @@ class DefaultChatAgentBuilder(
 
     private val achievableGoalsToolGroupFactory = AchievableGoalsToolGroupFactory(autonomy)
 
-    private fun buildToolGroup(context: TransformationActionContext<*, *>): ToolGroup =
+    internal fun buildToolGroup(context: TransformationActionContext<*, *>): ToolGroup =
         achievableGoalsToolGroupFactory.achievableGoalsToolGroup(
             context = context,
             bindings = mapOf("it" to UserInput("doesn't matter")),
