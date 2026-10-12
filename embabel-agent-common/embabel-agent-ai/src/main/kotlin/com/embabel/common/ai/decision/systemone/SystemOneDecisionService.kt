@@ -44,6 +44,7 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.io.ByteArrayOutputStream
 import java.net.InetAddress
+import java.net.URI
 import java.util.EnumSet
 import java.util.concurrent.*
 import java.util.function.Supplier
@@ -56,10 +57,30 @@ internal class SystemOneDecisionService(
     private val profile: SystemOneModelProfile,
 ) : DecisionService, QuestionSetExecution, PropositionAssessment, RatingAssessment {
     override fun capabilities(): DecisionCapabilities = CAPABILITIES
-    override fun askQuestionSet(request: DecisionRequest): DecisionResponse = try {
-        profile.validateRequest(request)
-        val payload = SystemOneCodec.encode(name, request)
+    override fun askQuestionSet(request: DecisionRequest): DecisionResponse {
+        val payload = try {
+            profile.validateRequest(request)
+            SystemOneCodec.encode(name, request)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            throw UnsupportedDecisionException("SystemOne does not support this decision request")
+        }
+        return exchange(request, payload)
+    }
+    private fun exchange(request: DecisionRequest, payload: ByteArray): DecisionResponse = try {
         val response = client.exchange("systemone", payload)
+        decodeResponse(request, response)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (unsupported: UnsupportedDecisionException) {
+        throw unsupported
+    } catch (failure: SystemOneCallFailure) {
+        DecisionResponse.failed(request.spec, failure.reason)
+    } catch (_: Exception) {
+        DecisionResponse.failed(request.spec, FailureReason.INVALID_RESPONSE)
+    }
+    private fun decodeResponse(request: DecisionRequest, response: SystemOneHttpResponse): DecisionResponse = try {
         SystemOneCodec.decode(name, request, response, profile)
     } catch (cancelled: CancellationException) {
         throw cancelled
@@ -119,14 +140,16 @@ internal object SystemOneCodec {
         }
         return mapper.writeValueAsBytes(linkedMapOf("state" to request.input, "model" to model, "questions" to questions))
     }
-    fun decode(model: String, request: DecisionRequest, response: SystemOneHttpResponse, profile: SystemOneModelProfile): DecisionResponse {
-        val root = read(response.body)
+    fun decode(model: String, request: DecisionRequest, response: SystemOneHttpResponse, profile: SystemOneModelProfile): DecisionResponse =
+        decode(model, request, read(response.body), response.headers, profile)
+    fun decode(model: String, request: DecisionRequest, root: JsonNode, headers: Map<String, List<String>>,
+               profile: SystemOneModelProfile): DecisionResponse {
         require(root.isObject) { "Invalid SystemOne envelope" }
         val actual = text(root, "model")
         val answers = root.get("answers")
         val usage = root.get("usage")
         require(answers != null && answers.isObject && usage != null && usage.isObject) { "Invalid SystemOne envelope" }
-        val metadata = SystemOneResponseMetadata(model, actual, usage(usage, "input_tokens"), usage(usage, "output_tokens"), response.headers)
+        val metadata = SystemOneResponseMetadata(model, actual, usage(usage, "input_tokens"), usage(usage, "output_tokens"), headers)
         val provenance = profile.provenance(metadata)
         require(validModelName(provenance.modelName) && validModelName(provenance.provider) &&
             (provenance.version == null || validModelName(provenance.version)) &&
@@ -197,6 +220,7 @@ internal class SystemOneClient(
     private val options: SystemOneClientOptions,
     private val tokenSupplier: Supplier<String?>,
     private val profile: SystemOneModelProfile,
+    private val requireToken: Boolean = false,
 ) : AutoCloseable {
     private val timeout = Timeout.of(options.timeout)
     // Receiving constraints bound parsing independently of the accepted 8KiB metadata budget.
@@ -214,19 +238,28 @@ internal class SystemOneClient(
         Thread(task, "systemone-http-deadline").apply { isDaemon = true }
     }.apply { removeOnCancelPolicy = true }
 
-    fun exchange(route: String, body: ByteArray?): SystemOneHttpResponse {
+    fun exchange(route: String, body: ByteArray?): SystemOneHttpResponse = exchange(options.endpoint(route), body)
+
+    fun exchange(target: URI, body: ByteArray?): SystemOneHttpResponse {
         val caller = Thread.currentThread()
         if (caller.isInterrupted) throw CancellationException("SystemOne call interrupted")
-        if (body != null && body.size > options.maxRequestBytes) throw SystemOneCallFailure(FailureReason.INVALID_RESPONSE)
+        if (body != null && body.size > options.maxRequestBytes) {
+            throw UnsupportedDecisionException("SystemOne decision request exceeds the byte limit")
+        }
+        if (!target.isAbsolute || target.scheme.lowercase() !in setOf("http", "https") || target.host.isNullOrBlank() ||
+            target.rawUserInfo != null || target.rawQuery != null || target.rawFragment != null) {
+            throw SystemOneCallFailure(FailureReason.INVALID_RESPONSE)
+        }
         val token = try { tokenSupplier.get()?.takeIf { it.isNotBlank() } }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { throw SystemOneCallFailure(FailureReason.INVALID_RESPONSE) }
+        if (requireToken && token == null) throw SystemOneCallFailure(FailureReason.UNAVAILABLE)
         if (token != null && (token.length > 4096 || token.any { it.isISOControl() } ||
-                options.baseUrl.scheme.equals("http", true) && !loopback(options.baseUrl.host))) {
+                target.scheme.equals("http", true) && !loopback(target.host))) {
             throw SystemOneCallFailure(FailureReason.INVALID_RESPONSE)
         }
         val request = try {
-            HttpUriRequestBase(if (body == null) "GET" else "POST", options.endpoint(route)).apply {
+            HttpUriRequestBase(if (body == null) "GET" else "POST", target).apply {
                 setHeader("Accept", "application/json")
                 if (token != null) setHeader("Authorization", "Bearer $token")
                 if (body != null) entity = ByteArrayEntity(body, ContentType.APPLICATION_JSON)

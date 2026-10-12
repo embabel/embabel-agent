@@ -32,6 +32,7 @@ import java.util.concurrent.CancellationException
 /** Optional provider policy. General SystemOne endpoints require no native-engine headers or identity. */
 @ApiStatus.Experimental
 interface SystemOneModelProfile {
+    /** Reject unsupported input before encoding, credential resolution or HTTP; the service sanitizes the rejection. */
     fun validateRequest(request: DecisionRequest) {}
     fun provenance(metadata: SystemOneResponseMetadata): ModelProvenance
     fun failureReason(statusCode: Int): FailureReason =
