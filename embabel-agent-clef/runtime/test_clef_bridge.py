@@ -1,4 +1,5 @@
 """Apache-2.0; adapted from the isolated CLEF bridge's six contract tests."""
+from contextlib import ExitStack
 import hashlib
 import json
 import os
@@ -32,7 +33,7 @@ def prediction():
 
 
 class FakeArtifacts:
-    """Only test fixtures override model hashes; production hashes are fixed."""
+    """Run the Python checker on any host without changing the production guard."""
     def __init__(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
@@ -47,7 +48,6 @@ class FakeArtifacts:
             path.write_bytes(content)
             self.hashes[relative] = hashlib.sha256(content).hexdigest()
         self.patch = mock.patch.dict(bridge.PINNED_HASHES, self.hashes, clear=True)
-        self.patch.start()
         self.provenance = self.root / "provenance.json"
         self.provenance.write_text(json.dumps({
             "source_repo": bridge.SOURCE_REPO, "source_revision": bridge.SOURCE_REVISION,
@@ -107,6 +107,13 @@ print(json.dumps({'tokens': 170, 'ms': 1.0, 'answers': answers}))
                              scratch_dir=self.scratch, checker_sha256=hashlib.sha256(self.checker.read_bytes()).hexdigest(),
                              checker_source_revision=bridge.RUNTIME_REVISION, checker_build_id="fixture", timeout_seconds=2)
         self.runtime = ClefRuntime(self.config)
+        # Install overrides only after artifacts are ready, and unwind partial setup.
+        with ExitStack() as patches:
+            patches.enter_context(self.patch)
+            patches.enter_context(mock.patch.object(bridge.platform, "system", return_value="Darwin"))
+            patches.enter_context(mock.patch.object(bridge.platform, "machine", return_value="arm64"))
+            patches.enter_context(mock.patch.object(bridge.platform, "mac_ver", return_value=("15.0", ("", "", ""), "")))
+            self.patches = patches.pop_all()
 
     def mode(self, value):
         (self.root / "mode").write_text(value)
@@ -120,9 +127,65 @@ print(json.dumps({'tokens': 170, 'ms': 1.0, 'answers': answers}))
         raise AssertionError("fake checker did not start")
 
     def close(self):
-        self.runtime.close()
-        self.patch.stop()
-        self.temp.cleanup()
+        try:
+            self.runtime.close()
+        finally:
+            try:
+                self.patches.close()
+            finally:
+                self.temp.cleanup()
+
+
+class FakeArtifactsTests(unittest.TestCase):
+    def test_supported_fixture_restores_unsupported_host_and_hashes(self):
+        original_hashes = dict(bridge.PINNED_HASHES)
+        predicate = bridge._platform_supported
+        with mock.patch.object(bridge.platform, "system", return_value="Linux") as system, \
+                mock.patch.object(bridge.platform, "machine", return_value="x86_64") as machine, \
+                mock.patch.object(bridge.platform, "mac_ver", return_value=("", ("", "", ""), "")) as mac_ver:
+            self.assertFalse(predicate())
+            fixture = FakeArtifacts()
+            try:
+                self.assertIs(bridge._platform_supported, predicate)
+                self.assertTrue(predicate())
+                self.assertTrue(fixture.runtime.infer(request())["ok"])
+            finally:
+                fixture.close()
+            self.assertIs(bridge.platform.system, system)
+            self.assertIs(bridge.platform.machine, machine)
+            self.assertIs(bridge.platform.mac_ver, mac_ver)
+            self.assertEqual(bridge.PINNED_HASHES, original_hashes)
+            self.assertFalse(predicate())
+            with mock.patch.object(bridge.subprocess, "Popen") as launch:
+                with self.assertRaises(BridgeError) as error:
+                    fixture.runtime.infer(request())
+                self.assertEqual(error.exception.code, "unsupported_platform")
+                launch.assert_not_called()
+            self.assertFalse(fixture.root.exists())
+
+    def test_cleanup_failure_still_restores_platform_hashes_and_temporary_files(self):
+        original_hashes = dict(bridge.PINNED_HASHES)
+        with mock.patch.object(bridge.platform, "system", return_value="Linux") as system, \
+                mock.patch.object(bridge.platform, "machine", return_value="x86_64") as machine, \
+                mock.patch.object(bridge.platform, "mac_ver", return_value=("", ("", "", ""), "")) as mac_ver:
+            for failing in ["runtime", "temporary"]:
+                with self.subTest(failing=failing):
+                    fixture = FakeArtifacts()
+                    target = fixture.runtime if failing == "runtime" else fixture.temp
+                    method = "close" if failing == "runtime" else "cleanup"
+                    cleanup = getattr(target, method)
+                    def fail_after_cleanup():
+                        cleanup()
+                        raise RuntimeError("fixture cleanup failed")
+                    with mock.patch.object(target, method, side_effect=fail_after_cleanup):
+                        with self.assertRaisesRegex(RuntimeError, "fixture cleanup failed"):
+                            fixture.close()
+                    self.assertIs(bridge.platform.system, system)
+                    self.assertIs(bridge.platform.machine, machine)
+                    self.assertIs(bridge.platform.mac_ver, mac_ver)
+                    self.assertEqual(bridge.PINNED_HASHES, original_hashes)
+                    self.assertFalse(bridge._platform_supported())
+                    self.assertFalse(fixture.root.exists())
 
 
 class BridgeSerializationTests(unittest.TestCase):
