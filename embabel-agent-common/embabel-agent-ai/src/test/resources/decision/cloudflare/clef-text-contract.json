@@ -1,0 +1,25 @@
+{
+  "attribution": {
+    "kind": "SCHEMA-DERIVED MOCK, original synthetic state/content; not captured live bytes",
+    "license": "Apache-2.0; Cloudflare published schema attribution",
+    "sources": ["https://developers.cloudflare.com/workers-ai/models/clef/", "https://developers.cloudflare.com/workers-ai/models/clef-flash/", "https://developers.cloudflare.com/workers-ai/get-started/rest-api/"],
+    "docs_commit": "d9156dd747599535d9c1e290f0e155735ed11d58",
+    "live_revision": "UNKNOWN",
+    "state": "A synthetic parcel was returned unopened."
+  },
+  "success": {
+    "success": true,
+    "errors": [],
+    "messages": [],
+    "result": {
+      "model": "clef",
+      "answers": {
+        "q001": {"type": "noul", "noul": 0.2},
+        "q002": {"type": "choice", "choice": "returned", "probabilities": {"delivered": 0.25, "returned": 0.75}, "confidence": 0.0},
+        "q003": {"type": "score", "score": 0.75, "legend": {"0": "Low", "1": "High"}, "probabilities": {"0": 0.25, "1": 0.75}, "confidence": 0.0}
+      },
+      "usage": {"input_tokens": 18, "output_tokens": 0}
+    }
+  },
+  "error": {"success": false, "errors": [{"code": 10000, "message": "synthetic private error"}], "messages": [], "result": null}
+}
