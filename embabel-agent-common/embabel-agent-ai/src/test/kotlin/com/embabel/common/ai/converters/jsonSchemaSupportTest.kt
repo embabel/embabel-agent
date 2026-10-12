@@ -88,7 +88,7 @@ class JsonSchemaSupportTest {
     @Nested
     inner class KotlinNullableSchemaType {
 
-        // victools JacksonModule reflects Kotlin nullability via required[] only,
+        // victools JacksonSchemaModule reflects Kotlin nullability via required[] only,
         // not as union types — nullable fields still produce plain scalar type nodes
 
         @Test
