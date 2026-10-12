@@ -107,6 +107,21 @@ class SystemOneModelFactoryTest {
     }
 
     @Test
+    fun `output profile unsupported exception remains a sanitized invalid response`() {
+        val profile = object : SystemOneModelProfile {
+            override fun provenance(metadata: SystemOneResponseMetadata): ModelProvenance =
+                throw UnsupportedDecisionException("PRIVATE_OUTPUT")
+        }
+        SystemOneTestServer().use { server -> server.factory(profile = profile).use { factory ->
+            val question = Questions.named("noul").proposition("true?").build()
+            val response = factory.create("alias").ask("input", DecisionSpec.of(question))
+            assertEquals(FailureReason.INVALID_RESPONSE, response.requestFailure)
+            assertFalse(response.toString().contains("PRIVATE"))
+            assertEquals(1, server.calls.get())
+        } }
+    }
+
+    @Test
     fun `profile metadata is copied immutable and receives aliases usage and bounded headers`() {
         var seen: SystemOneResponseMetadata? = null
         val profile = object : SystemOneModelProfile {
