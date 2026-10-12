@@ -19,9 +19,9 @@ import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.dsl.agent
-import com.embabel.agent.api.event.AgentProcessEvent
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.Agent
+import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.last
 import com.embabel.agent.domain.io.UserInput
@@ -33,6 +33,13 @@ import com.embabel.chat.Conversation
 import com.embabel.chat.MessageRole
 import com.embabel.common.ai.model.LlmOptions
 
+
+/**
+ * Forwards events of a goal sub-process to the parent's [com.embabel.agent.core.ProcessOptions.listeners] only.
+ * The platform listener already receives them from the sub-process itself.
+ */
+internal fun forwardToProcessOptionsListeners(parent: ProcessContext): AgenticEventListener =
+    AgenticEventListener.from(parent.processOptions.listeners)
 
 /**
  * Convenient class to build a default chat agent.
@@ -56,11 +63,7 @@ class DefaultChatAgentBuilder(
         achievableGoalsToolGroupFactory.achievableGoalsToolGroup(
             context = context,
             bindings = mapOf("it" to UserInput("doesn't matter")),
-            listeners = listOf(object : AgenticEventListener {
-                override fun onProcessEvent(event: AgentProcessEvent) {
-                    context.onProcessEvent(event)
-                }
-            }),
+            listeners = listOf(forwardToProcessOptionsListeners(context.processContext)),
             excludedTypes = setOf(ConversationStatus::class.java)
         )
 

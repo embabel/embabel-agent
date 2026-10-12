@@ -102,7 +102,7 @@ open class SimpleAgentProcess(
             plan.goal.name,
             this.runningTime.seconds,
         )
-        platformServices.eventListener.onProcessEvent(
+        processContext.onProcessEvent(
             GoalAchievedEvent(
                 agentProcess = this,
                 worldState = worldState,
@@ -117,7 +117,7 @@ open class SimpleAgentProcess(
         plan: Plan,
         worldState: WorldState,
     ) {
-        platformServices.eventListener.onProcessEvent(
+        processContext.onProcessEvent(
             AgentProcessPlanFormulatedEvent(
                 agentProcess = this,
                 worldState = worldState,
@@ -215,7 +215,7 @@ open class SimpleAgentProcess(
             action.name,
             rpe.reason,
         )
-        platformServices.eventListener.onProcessEvent(
+        processContext.onProcessEvent(
             ReplanRequestedEvent(
                 agentProcess = this,
                 reason = rpe.reason,

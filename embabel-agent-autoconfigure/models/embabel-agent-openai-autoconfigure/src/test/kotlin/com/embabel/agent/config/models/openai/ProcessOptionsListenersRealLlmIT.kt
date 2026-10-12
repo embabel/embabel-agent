@@ -1,0 +1,243 @@
+/*
+ * Copyright 2024-2026 Embabel Pty Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.embabel.agent.config.models.openai
+
+import com.embabel.agent.api.annotation.AchievesGoal
+import com.embabel.agent.api.annotation.Action
+import com.embabel.agent.api.annotation.Agent
+import com.embabel.agent.api.annotation.LlmTool
+import com.embabel.agent.api.annotation.support.AgentMetadataReader
+import com.embabel.agent.api.common.ActionContext
+import com.embabel.agent.api.common.OperationContext
+import com.embabel.agent.api.event.AgentProcessCompletedEvent
+import com.embabel.agent.api.event.AgentProcessEvent
+import com.embabel.agent.api.event.AgenticEventListener
+import com.embabel.agent.api.event.LlmRequestEvent
+import com.embabel.agent.api.event.ToolCallRequestEvent
+import com.embabel.agent.autoconfigure.models.openai.AgentOpenAiAutoConfiguration
+import com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration
+import com.embabel.agent.core.AgentPlatform
+import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.AgentProcessStatusCode
+import com.embabel.agent.core.ProcessOptions
+import com.embabel.agent.domain.io.UserInput
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
+import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan
+import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.ComponentScan
+import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.FilterType
+import org.springframework.context.annotation.Import
+import org.springframework.test.context.ActiveProfiles
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicInteger
+
+/**
+ * Real-LLM reproduction of https://github.com/embabel/embabel-agent/issues/2126.
+ *
+ * Listeners passed via [ProcessOptions.listeners] are documented to receive events from
+ * their process. They must see the same process events as the platform listener,
+ * including lifecycle events, and including those of sub-processes that inherit them.
+ *
+ * Uses gpt-4.1-mini. Requires the `OPENAI_API_KEY` environment variable.
+ */
+@SpringBootTest(
+    properties = [
+        "embabel.models.cheapest=gpt-4.1-mini",
+        "embabel.models.best=gpt-4.1-mini",
+        "embabel.models.default-llm=gpt-4.1-mini",
+        "embabel.agent.platform.llm-operations.prompts.defaultTimeout=240s",
+        "spring.main.allow-bean-definition-overriding=true",
+    ]
+)
+@ActiveProfiles("thinking")
+@ConfigurationPropertiesScan(basePackages = ["com.embabel.agent", "com.embabel.example"])
+@ComponentScan(
+    basePackages = ["com.embabel.agent", "com.embabel.example"],
+    excludeFilters = [
+        ComponentScan.Filter(
+            type = FilterType.REGEX,
+            pattern = [".*GlobalExceptionHandler.*"]
+        )
+    ]
+)
+@Import(AgentOpenAiAutoConfiguration::class, ProcessOptionsListenersRealLlmIT.PlatformListenerConfig::class)
+@ImportAutoConfiguration(AgentPlatformAutoConfiguration::class)
+@EnabledIfEnvironmentVariable(
+    named = "OPENAI_API_KEY",
+    matches = ".+",
+    disabledReason = "Integration test requires OPENAI_API_KEY",
+)
+class ProcessOptionsListenersRealLlmIT {
+
+    private val logger = LoggerFactory.getLogger(ProcessOptionsListenersRealLlmIT::class.java)
+
+    @Autowired
+    private lateinit var agentPlatform: AgentPlatform
+
+    @Autowired
+    private lateinit var platformListener: RecordingListener
+
+    class RecordingListener : AgenticEventListener {
+        val events = CopyOnWriteArrayList<AgentProcessEvent>()
+
+        override fun onProcessEvent(event: AgentProcessEvent) {
+            events += event
+        }
+
+        fun typesFor(processId: String): Set<String> =
+            events.filter { it.processId == processId }.map { it::class.simpleName!! }.toSet()
+    }
+
+    /** Registered as a bean, so the platform picks it up as a platform listener. */
+    @Configuration
+    class PlatformListenerConfig {
+        @Bean
+        fun platformRecordingListener() = RecordingListener()
+    }
+
+    data class SecretAnswer(val secret: Int)
+
+    object SecretTools {
+        val calls = AtomicInteger()
+
+        @LlmTool(description = "Returns the secret number")
+        fun secretNumber(): Int {
+            calls.incrementAndGet()
+            return 42
+        }
+    }
+
+    @Agent(
+        name = "SecretAgent",
+        description = "Asks a real LLM to read the secret number through a tool",
+        scan = false,
+    )
+    class SecretAgent {
+
+        @Action
+        @AchievesGoal(description = "Secret number found")
+        fun findSecret(input: UserInput, context: OperationContext): SecretAnswer =
+            context.ai()
+                .withDefaultLlm()
+                .withToolObject(SecretTools)
+                .createObject(
+                    """
+                    ${input.content}
+                    You MUST call the secretNumber tool. Return JSON with a single field "secret".
+                    """.trimIndent(),
+                    SecretAnswer::class.java,
+                )
+    }
+
+    @Agent(
+        name = "SecretParentAgent",
+        description = "Delegates the secret lookup to a sub-process",
+        scan = false,
+    )
+    class SecretParentAgent {
+
+        @Action
+        @AchievesGoal(description = "Secret number found by a sub-process")
+        fun delegate(input: UserInput, context: ActionContext): SecretAnswer {
+            val subAgent = AgentMetadataReader()
+                .createAgentMetadata(SecretAgent()) as com.embabel.agent.core.Agent
+            return context.asSubProcess(SecretAnswer::class.java, subAgent)
+        }
+    }
+
+    @BeforeEach
+    fun reset() {
+        platformListener.events.clear()
+        SecretTools.calls.set(0)
+    }
+
+    @Test
+    fun `process options listener receives the same events as the platform listener`() {
+        val processListener = RecordingListener()
+        val agent = AgentMetadataReader()
+            .createAgentMetadata(SecretAgent()) as com.embabel.agent.core.Agent
+
+        val process = agentPlatform.runAgentFrom(
+            agent,
+            ProcessOptions(listeners = listOf(processListener)),
+            mapOf("it" to UserInput("What is the secret number?")),
+        ) as AgentProcess
+
+        assertEquals(AgentProcessStatusCode.COMPLETED, process.status)
+        assertTrue(SecretTools.calls.get() > 0, "The LLM must have called the tool")
+
+        val platformTypes = platformListener.typesFor(process.id)
+        val processTypes = processListener.typesFor(process.id)
+        logger.info("Platform listener event types: {}", platformTypes)
+        logger.info("ProcessOptions listener event types: {}", processTypes)
+
+        // Control: events published through processContext do reach the ProcessOptions listener
+        assertTrue(
+            processListener.events.any { it is LlmRequestEvent<*> },
+            "ProcessOptions listener should receive LlmRequestEvent. Received: $processTypes",
+        )
+        assertTrue(
+            processListener.events.any { it is ToolCallRequestEvent },
+            "ProcessOptions listener should receive ToolCallRequestEvent. Received: $processTypes",
+        )
+
+        assertEquals(
+            emptySet<String>(),
+            platformTypes - processTypes,
+            "Event types received by the platform listener but missing for the ProcessOptions listener",
+        )
+    }
+
+    @Test
+    fun `inherited process options listener sees the sub-process complete`() {
+        val processListener = RecordingListener()
+        val parentAgent = AgentMetadataReader()
+            .createAgentMetadata(SecretParentAgent()) as com.embabel.agent.core.Agent
+
+        val parent = agentPlatform.runAgentFrom(
+            parentAgent,
+            ProcessOptions(listeners = listOf(processListener)),
+            mapOf("it" to UserInput("What is the secret number?")),
+        ) as AgentProcess
+
+        assertEquals(AgentProcessStatusCode.COMPLETED, parent.status)
+        val child = agentPlatform.platformServices.agentProcessRepository.findByParentId(parent.id).single()
+        assertEquals(AgentProcessStatusCode.COMPLETED, child.status)
+
+        val childTypes = processListener.typesFor(child.id)
+        logger.info("ProcessOptions listener event types for child {}: {}", child.id, childTypes)
+
+        // Control: the child inherits the listener, and its LLM events reach it
+        assertTrue(
+            processListener.events.any { it is LlmRequestEvent<*> && it.processId == child.id },
+            "Inherited listener should receive the child's LlmRequestEvent. Received: $childTypes",
+        )
+
+        assertTrue(
+            processListener.events.any { it is AgentProcessCompletedEvent && it.processId == child.id },
+            "Inherited listener should receive the child's AgentProcessCompletedEvent. Received: $childTypes",
+        )
+    }
+}
