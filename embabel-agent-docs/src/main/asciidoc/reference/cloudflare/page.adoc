@@ -103,8 +103,10 @@ The HTTP client disables automatic retries and redirects and bounds response bod
 
 ==== Numeric evidence
 
-The adapter preserves provider-reported proposition probability, complete choice probabilities, rating probabilities,
-expected zero-based rating index and raw confidence through the shared strict decoder.
+The adapter preserves provider-reported proposition probability in `PropositionResult.Answered`, complete choice
+probabilities, rating probabilities, expected zero-based rating index and raw confidence through the shared strict decoder.
+An exact proposition probability of `0.5` becomes `PropositionResult.Inconclusive`. This result type has no `pTrue`
+field, so that boundary value is not retained; it is a valid response rather than malformed evidence.
 It requires finite in-range probabilities covering the exact domain, sums within `1e-6` and expected scores
 consistent with their distribution within `1e-6`. Malformed or rounded evidence outside those limits is rejected.
 No tolerance widening, normalization, confidence-formula conversion or calibration attestation is performed.
