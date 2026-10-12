@@ -26,6 +26,9 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import tools.jackson.databind.json.JsonMapper
+import java.net.InetAddress
+import java.net.ServerSocket
+import java.net.SocketException
 import java.net.InetSocketAddress
 import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
@@ -269,6 +272,30 @@ class SystemOneDecisionServiceTest {
     @Nested
     inner class Transport {
         @Test
+        fun `abrupt EOF catalog GET is never replayed and next explicit discovery recovers`() {
+            SystemOneEofServer("GET").use { server -> server.factory().use { factory ->
+                val failure = assertThrows<IllegalStateException> { factory.discoverModels() }
+                assertEquals("SystemOne model discovery failed", failure.message)
+                assertNull(failure.cause)
+                assertEquals(1, server.received.get())
+                assertEquals(listOf("remote"), factory.discoverModels().map { it.modelName })
+                assertEquals(2, server.received.get())
+            } }
+        }
+
+        @Test
+        fun `abrupt EOF inference POST is never replayed and next explicit inference recovers`() {
+            SystemOneEofServer("POST").use { server -> server.factory().use { factory ->
+                val result = factory.create("alias").ask("PRIVATE_INPUT", spec)
+                assertEquals(FailureReason.UNAVAILABLE, result.requestFailure)
+                assertFalse(result.toString().contains("PRIVATE_INPUT"))
+                assertEquals(1, server.received.get())
+                assertNull(factory.create("alias").ask("input", spec).requestFailure)
+                assertEquals(2, server.received.get())
+            } }
+        }
+
+        @Test
         fun `closed transport is unavailable and status callback cancellation escapes`() {
             SystemOneTestServer().use { server ->
                 val factory = server.factory()
@@ -355,6 +382,33 @@ class SystemOneDecisionServiceTest {
         }
 
         @Test
+        fun `rejected chunked status and excess bodies are aborted without draining remaining stream`() {
+            listOf(200, 503).forEach { status ->
+                val release = CountDownLatch(1)
+                SystemOneTestServer().use { server ->
+                    server.handler = { exchange ->
+                        exchange.sendResponseHeaders(status, 0)
+                        exchange.responseBody.write(ByteArray(if (status == 200) 33 else 1))
+                        exchange.responseBody.flush()
+                        release.await(3, TimeUnit.SECONDS)
+                        exchange.close()
+                    }
+                    try {
+                        server.factory(timeout = Duration.ofSeconds(2), maxResponse = 32).use { factory ->
+                            val start = System.nanoTime()
+                            val result = factory.create("alias").ask("input", spec)
+                            assertEquals(if (status == 200) FailureReason.INVALID_RESPONSE else FailureReason.UNAVAILABLE,
+                                result.requestFailure)
+                            assertTrue(Duration.ofNanos(System.nanoTime() - start) < Duration.ofSeconds(1))
+                            release.countDown()
+                            server.handler = { exchange -> server.respond(exchange, SystemOneTestServer.fixture()) }
+                        }
+                    } finally { release.countDown() }
+                }
+            }
+        }
+
+        @Test
         fun `deadline spans stalled streamed body and cancellation releases the call`() {
             val release = CountDownLatch(1)
             SystemOneTestServer().use { server ->
@@ -372,6 +426,28 @@ class SystemOneDecisionServiceTest {
                     server.handler = { exchange -> server.respond(exchange, SystemOneTestServer.fixture()) }
                     assertNull(factory.create("alias").ask("input", spec).requestFailure)
                 }
+            }
+        }
+
+        @Test
+        fun `repeated deadlines and closing the factory leave no transport threads`() {
+            val before = Thread.getAllStackTraces().keys
+            val release = CountDownLatch(1)
+            SystemOneTestServer().use { server ->
+                server.handler = { exchange -> release.await(3, TimeUnit.SECONDS); exchange.close() }
+                val factory = server.factory(timeout = Duration.ofMillis(40))
+                try {
+                    repeat(5) {
+                        assertEquals(FailureReason.UNAVAILABLE, factory.create("alias").ask("input", spec).requestFailure)
+                    }
+                    val timers = Thread.getAllStackTraces().keys.filter {
+                        it !in before && it.name.startsWith("systemone-http-")
+                    }
+                    assertFalse(timers.isEmpty(), "Transport thread observation must see the active watchdog")
+                    factory.close()
+                    timers.forEach { it.join(1000) }
+                    assertTrue(timers.none { it.isAlive }, "Closed transport retained a thread")
+                } finally { factory.close(); release.countDown() }
             }
         }
 
@@ -445,5 +521,60 @@ internal class SystemOneTestServer(var body: String = fixture(), var status: Int
     override fun close() { server.stop(0); executor.shutdownNow() }
     companion object {
         fun fixture(): String = SystemOneTestServer::class.java.getResource("/decision/systemone/openjev-0.2.0-codec.json")!!.readText()
+    }
+}
+
+/** Counts complete requests, including POST bodies, before simulating an EOF without any response. */
+internal class SystemOneEofServer(private val method: String) : AutoCloseable {
+    private val socket = ServerSocket(0, 10, InetAddress.getByName("127.0.0.1"))
+    val received = AtomicInteger()
+    private val errors = CopyOnWriteArrayList<Throwable>()
+    private val peer = Thread({
+        try {
+            while (!socket.isClosed) {
+                socket.accept().use { connection ->
+                    connection.soTimeout = 2000
+                    val input = connection.getInputStream().buffered()
+                    fun line(): String {
+                        val bytes = java.io.ByteArrayOutputStream()
+                        while (true) {
+                            val value = input.read()
+                            check(value >= 0) { "Incomplete test request" }
+                            if (value == 10) return bytes.toString(UTF_8).trimEnd('\r')
+                            bytes.write(value)
+                            check(bytes.size() <= 16384)
+                        }
+                    }
+                    check(line().startsWith("$method "))
+                    var length = 0
+                    while (true) {
+                        val header = line()
+                        if (header.isEmpty()) break
+                        if (header.startsWith("Content-Length:", true)) length = header.substringAfter(':').trim().toInt()
+                    }
+                    check(length in 0..16384)
+                    check(input.readNBytes(length).size == length)
+                    if (received.incrementAndGet() == 1) return@use
+                    val body = if (method == "GET")
+                        "{\"models\":[{\"name\":\"remote\",\"description\":\"valid\",\"release_date\":\"2026-09-15\"}]}"
+                    else SystemOneTestServer.fixture()
+                    val bytes = body.toByteArray(UTF_8)
+                    connection.getOutputStream().write(("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n" +
+                        "Content-Length: ${bytes.size}\r\nConnection: close\r\n\r\n").toByteArray(UTF_8))
+                    connection.getOutputStream().write(bytes)
+                }
+            }
+        } catch (e: SocketException) { if (!socket.isClosed) errors += e }
+        catch (e: Throwable) { errors += e }
+    }, "systemone-eof-test-peer").apply { isDaemon = true; start() }
+
+    fun factory() = SystemOneModelFactory("systemone", "SystemOne", SystemOneClientOptions(
+        URI("http://127.0.0.1:${socket.localPort}"), Duration.ofSeconds(1)), listOf("alias"))
+
+    override fun close() {
+        socket.close()
+        peer.join(2500)
+        assertFalse(peer.isAlive)
+        assertTrue(errors.isEmpty(), "Test peer failure: $errors")
     }
 }
