@@ -1,83 +1,122 @@
 [[reference.decision-providers]]
 === Decision model providers
 
-`DecisionModelProvider` advertises and constructs typed decision services independently of the LLM `ModelProvider`.
-Its `id` selects a provider; `models()` is a known local catalog, `describe(modelName)` reports accepted question kinds,
-and `create(modelName)` constructs a `DecisionService`. A descriptor describes construction capability, not remote
-availability, probability calibration or an exhaustive remote catalog. Applications retain ownership of routing and policy.
+A `DecisionModelProvider` advertises and constructs typed decision services independently of the chat-model
+`ModelProvider`. Its `id` selects the provider, `models()` returns its local catalog, `describe(modelName)`
+describes supported question kinds, and `create(modelName)` constructs a `DecisionService`.
+A descriptor establishes adapter capability; it does not establish remote availability, calibration,
+a native inference head, or an exhaustive remote catalog.
 
-The generic registrar reads `embabel.agent.platform.decisions.services.<name>.provider` and `.model`.
-Provider ids are unique. It checks the descriptor against the created service's capabilities and registers eager named beans.
-Application decision/classification service beans override the same configured name; two configured sources cannot reuse a name.
-Existing registry selectors supply family-scoped defaults and roles. The decision family also supports classification.
-Factory creation and local descriptions do not contact a model endpoint; remote discovery is an explicit operation on
-`SystemOneModelFactory.discoverModels()` and does not change its local catalog.
+==== Register and select services
 
-The assembled Spring example uses real TypeSafe, prompted LLM and CLEF factories; only its CLEF mock HTTP endpoint is called:
+The generic registrar reads `embabel.agent.platform.decisions.services.<registration>.provider` and
+`.model`. The registration name becomes the Spring bean name; the provider id and model name select its factory.
+Provider ids must be unique. Unknown providers/models and descriptor/service capability mismatches fail startup.
+Named services are constructed eagerly, but the SystemOne and Cloudflare factories perform no HTTP or credential
+resolution during construction or local catalog access.
+
+An application decision or classification service bean overrides the same configured registration name.
+Two configured sources, such as generic and prompted service configuration, cannot reuse a name.
+The registry takes a startup snapshot of eligible service beans.
+
+Defaults and roles select *registration names*, independently for each service family:
+
+* `embabel.models.decision.default` and `embabel.models.decision.roles.<role>`
+* `embabel.models.classification.default` and `embabel.models.classification.roles.<role>`
+
+A decision service can also serve classification. A classification-only service cannot be selected as a decision default
+or role. A configured missing or ineligible selector fails startup; an absent or ambiguous default fails at lookup.
+Adding a provider does not implicitly select a default.
+
+==== SystemOne endpoints
+
+SystemOne is a vendor HTTP contract, documented by https://api.typesafe.ai/openapi.json[TypeSafe's API specification],
+rather than a universal JEV or OpenJEF standard. `SystemOneModelFactory` uses `POST <base-url>/v1/systemone`.
+Its explicit `discoverModels()` operation uses `GET <base-url>/v1/models` and does not change the configured local catalog.
+The adapter sends text state/instructions/descriptions; it does not implement every structured or media input in
+the vendor specification. General endpoint aliases may differ from the actual response model.
+
+The following tested configuration opts into an explicitly supplied endpoint, declares a local model alias and
+binds one named service to both families' defaults and roles. `baseUrl` is supplied by the application; the test
+uses a counted loopback server. No endpoint is started by these settings.
 
 [source,kotlin]
 ----
-include::../../../../../../embabel-agent-starters/embabel-agent-starter-clef/src/test/kotlin/com/embabel/agent/clef/example/ClefDecisionServicesSpringExampleTest.kt[tag=clef-properties,indent=0]
+include::../../../../../../embabel-agent-autoconfigure/embabel-agent-platform-autoconfigure/src/test/kotlin/com/embabel/agent/autoconfigure/platform/SystemOneDecisionModelsAutoConfigurationTest.kt[tag=systemone-configuration,indent=0]
 ----
 
-==== Shared contracts and provider boundaries
+Default SystemOne bounds are 45 seconds for the complete exchange, 16 KiB of serialized UTF-8 request bytes and
+64 KiB of response bytes. The example explicitly increases the byte caps. Each cap must be between 1 byte and
+1 MiB; the timeout must be positive and at most 300 seconds. Known outbound overflow and profile-rejected input
+raise `UnsupportedDecisionException` before credential resolution or HTTP. The client disables automatic
+retries and redirects and bounds streamed bodies. A byte cap does not establish tokenizer fit or full input retention.
 
-The provider-neutral request consists of named proposition, choice and rating questions.
-`DecisionService.ask` checks every kind before provider calls. `QuestionSetExecution` sends a complete set in one operation;
-legacy scalar execution remains available. `ObservedDecisionService` retains evidence and metadata through the shared path.
+This source-tested mixed request crosses the production HTTP client from an otherwise empty Spring context:
 
-`DecisionResponse.choiceDistributions` retains optional complete provider-reported choice probabilities.
-`choiceDistribution(question)` checks the question's name, kind and complete domain. Entries and question maps are immutable
-and ordered by the declared spec. `answer(question)` and `classify` retain their scalar result types, so callers keep the
-response to read richer evidence. Empty evidence is omitted from JSON; old strict readers reject the new member when populated.
-Existing TypeSafe producers are not retrofitted and prompted LLMs do not fabricate probabilities.
+[source,kotlin]
+----
+include::../../../../../../embabel-agent-autoconfigure/embabel-agent-platform-autoconfigure/src/test/kotlin/com/embabel/agent/autoconfigure/platform/SystemOneDecisionModelsAutoConfigurationTest.kt[tag=systemone-typed-execution,indent=0]
+----
 
-==== SystemOne contract
+The fixture proves configuration, routing, request encoding and typed evidence preservation over localhost.
+Its supplied numbers do not prove that a model, native head or calibrated predictor ran.
 
-TypeSafe publishes an OpenAPI 3.1.0 document with API version 0.2.0 at
-https://api.typesafe.ai/openapi.json[the SystemOne API specification]. The inspected bytes had SHA-256
-`a191f8a7df6bd6fedced8120dd0fd106f88575d1d1c8360d08900a6c7c0360d5`.
-It is a vendor HTTP contract, not a universal decision-model standard.
-The shared client uses `POST /v1/systemone` and explicit catalog discovery via `GET /v1/models`.
-It accepts string state/instructions/descriptions, a subset of the specification's structured input.
-Requested model aliases can differ from the actual response model for general endpoints; CLEF fixes both to its known model.
+==== Configured local LLM decisions
 
-The new `SystemOneModelFactory` and CLEF factory share one HTTP transport and codec. Native request limits, identity and
-failure mapping belong to `SystemOneModelProfile`. Existing TypeSafe SDK/transport/interpretation and prompted LLM paths remain
-separate. Each client disables automatic retries and redirects and bounds the complete exchange, including its body.
-Accepted copied response metadata totals at most 8 KiB; receiving constraints separately bound HTTP header count/line length.
-No process-global retry switch, reflective access or JVM security setting is required.
+The existing `LlmDecisionServiceFactory` has provider id `llm`. Select an LLM already resolvable by the application's
+`ModelProvider`; raw local names and named-node names remain distinct. For example, the existing Ollama integration
+names a node model `<node>-<raw-model-name>` while sending the raw name to that node's server.
+Use that complete registered name as the generic service's `.model` value, with `.provider` set to `llm`.
+Apply the same registration-name defaults and roles described above.
 
-[cols="1,2",options="header"]
-|===
-|Provider |Meaning of confidence
-|TypeSafe |Its documented normalized maximum probability for choice and ordinal dispersion for score.
-|https://github.com/razorback16/openjev/blob/75f22b6dad8c360fdba0e0ebd3dc0a1187628f60/openjev/engine.py[Pinned razorback16/OpenJev] |Normalized entropy.
-|CLEF native experiment |Probability of its selected maximum-probability option, for choice and score.
-|Prompted LLM decisions |Verdicts and ids only; no confidence, score or distribution inferred.
-|===
+The test registers two fake chat models in a real configurable provider:
 
-The shared codec preserves the supplied confidence field independently of the probability distribution; it does not
-convert formulas or reuse provider thresholds. A mocked zero-confidence/one-hot response tests that client behavior and is
-not evidence of native CLEF output. The native host computes pmax and validates its own emitted evidence.
+[source,kotlin]
+----
+include::../../../../../../embabel-agent-api/src/test/kotlin/com/embabel/agent/spi/decision/LlmDecisionServiceFactoryTest.kt[tag=local-llm-model-provider,indent=0]
+----
 
-==== Compatibility evidence
+It then resolves both names through the real prompted decision path and checks the typed results:
+
+[source,kotlin]
+----
+include::../../../../../../embabel-agent-api/src/test/kotlin/com/embabel/agent/spi/decision/LlmDecisionServiceFactoryTest.kt[tag=local-llm-decisions,indent=0]
+----
+
+The factory resolves the model once when constructing the service. Prompted decisions return proposition verdicts,
+choice ids and rating level ids; they supply no proposition probability, choice distribution, confidence or numeric
+rating score. These tests use fake chat responses, with no local model installation or inference.
+A local chat server, JSON output support or a model name does not establish native CLEF joint-head execution.
+
+==== Evidence and local-runtime boundaries
+
+Keep the `DecisionResponse` to read optional `choiceDistributions`. `choiceDistribution(question)` validates the
+question's name, kind and complete domain. Scalar `answer(question)` and classification results retain their existing
+types. Empty evidence is omitted from JSON; older strict readers reject the additional member when populated.
+Observed services preserve the supplied evidence rather than manufacturing it.
+
+SystemOne decoding preserves complete choice probabilities, rating distributions, expected zero-based level index
+and independently reported confidence. Probabilities must be finite, in range and sum to one within `1e-6`;
+expected scores must agree with the distribution within `1e-6`. Rounded reference outputs can therefore be rejected.
+The client neither widens tolerance nor renormalizes numbers. A strict sum or a confidence field is not a calibration attestation.
 
 [cols="1,3",options="header"]
 |===
-|Level |Scope
-|Specification/source |The named TypeSafe specification and pinned implementation source establish a protocol shape.
-|Pure codec and actual SDK |Pinned OpenJev confidence/answer functions ran with deterministic distributions. The emitted fixture is decoded by the shared codec and the actual cached TypeSafe Java SDK 0.2.0 in `SystemOneWireCompatibilityTest`; no engine or tokenizer ran.
-|Local endpoint |Real HTTP tests exercise the shared transport, CLEF profile, bounded native host with fake checker, and assembled Spring selectors.
-|Live native smoke |Separately opt-in, requiring the accepted external derived bundle/checker and a supported Mac. This confirms one concrete runtime, not universal interoperability or calibrated accuracy.
+|Path |What is established
+|Existing TypeSafe service |Retains its separate SDK/transport and provider-specific interpretation.
+|Prompted local LLM |Typed verdicts and ids from an already configured chat model; no native probability evidence.
+|Independent SystemOne endpoint |Conditional support for the named contract, tested through codec fixtures and real loopback HTTP. Each deployment still needs its own validation.
+|External SGLang |The https://docs.sglang.io/cookbook/autoregressive/Cloudflare/clef[official CLEF cookbook] describes independently operated Python serving. Agent does not install, own or start that runtime; no deployed local endpoint is verified here.
+|Native local CLEF on the JVM |Open: no verified complete local joint-head runtime/artifact is supplied by this integration.
 |===
 
-The pinned OpenJev source is commit `75f22b6dad8c360fdba0e0ebd3dc0a1187628f60`;
-inspected `openjev/engine.py` bytes SHA-256 `e084734f969b414be701bc438617c302e0b44867d907956ec87dcafc66b1d089`.
-`razorback16/openjev` implements SystemOne HTTP; https://github.com/TheoLeeCJ/SemIf-OpenJev[SemIf, formerly OpenJev],
-is a separate scoring CLI project. Neither is CLEF's runtime. No authoritative OpenJEF standard was established.
+Confidence meanings differ across implementations. The pinned
+https://github.com/razorback16/openjev/blob/75f22b6dad8c360fdba0e0ebd3dc0a1187628f60/openjev/engine.py[OpenJev implementation]
+uses normalized entropy; reference CLEF and SGLang paths have different reporting conventions.
+The https://github.com/sgl-project/sglang/blob/bd2d73daa5afda6bcad8d479a834f2e70bbe9569/python/sglang/srt/entrypoints/systemone/serving.py[pinned SGLang implementation]
+is source evidence, not evidence of a deployed compatible model. No universal confidence threshold follows from a shared field name.
+The 0.6B Fluid/CoreML student is a different model from hosted CLEF and CLEF Flash.
+No Python or CoreML runtime is shipped or started by Agent.
 
-The https://github.com/razorback16/openjev/blob/75f22b6dad8c360fdba0e0ebd3dc0a1187628f60/README.md[pinned OpenJev README]
-advertises `openjev-latest`/`openjev-0.1` (DiffusionGemma 26B-A4B), `laya-1.0`, `verdict-1.4`, `clm-v0.1` and `jevk5-0.2`
-as backend routes. These are source-advertised options, not independently live-verified compatible models; the evidence here
-remains the pure codec and SDK fixture. CLEF is not listed or verified as a backend there and uses its separate joint-head runtime.
+See <<reference.cloudflare>> for the separate Workers AI REST adapter and its input-retention and live-validation limitations.
+Applications own decision policy and validation; these examples do not establish suitability for unattended high-stakes decisions.
