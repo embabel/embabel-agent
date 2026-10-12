@@ -1,0 +1,35 @@
+{
+  "model": "openjev-fixture",
+  "answers": {
+    "q001": {
+      "type": "noul",
+      "noul": 0.6
+    },
+    "q002": {
+      "type": "choice",
+      "choice": "one",
+      "probabilities": {
+        "one": 0.6,
+        "two": 0.4
+      },
+      "confidence": 0.029049405545331197
+    },
+    "q003": {
+      "type": "score",
+      "score": 0.75,
+      "legend": {
+        "0": "Low",
+        "1": "High"
+      },
+      "probabilities": {
+        "0": 0.25,
+        "1": 0.75
+      },
+      "confidence": 0.18872187554086717
+    }
+  },
+  "usage": {
+    "input_tokens": 100,
+    "output_tokens": 0
+  }
+}
