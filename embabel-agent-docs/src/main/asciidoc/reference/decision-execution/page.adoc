@@ -39,7 +39,7 @@ Each selector has four terminals, and each terminal returns the service itself:
 
 |`defaultService()`
 |The family default
-|`ServiceSelectionException` with `NO_DEFAULT` or `AMBIGUOUS_DEFAULT`
+|`ServiceSelectionException` with `NO_DEFAULT` or `AMBIGUOUS_DEFAULT`, or `UNKNOWN_NAME` when the default is a provider model the provider no longer serves
 
 |`named(name)`
 |The service registered under `name`
@@ -47,7 +47,7 @@ Each selector has four terminals, and each terminal returns the service itself:
 
 |`byRole(role)`
 |The service bound to `role` in this family
-|`ServiceSelectionException` with `UNKNOWN_ROLE`
+|`ServiceSelectionException` with `UNKNOWN_ROLE`, or `UNKNOWN_NAME` when the role names a provider model the provider no longer serves
 
 |`using(service)`
 |The given service. It is not registered. Inside a workflow a service that is not an `ObservedDecisionService` or `ObservedClassificationService` is wrapped in one on the registry's observation registry.
@@ -191,7 +191,7 @@ No eligible service gives `NO_DEFAULT`.
 Several eligible candidates, or several eligible services with no candidate, give `AMBIGUOUS_DEFAULT`.
 The classification family resolves its default the same way with `embabel.models.classification.default`.
 
-The TypeSafe starter contributes `DecisionServiceRegistry.DefaultCandidate("jev-latest")`.
+The TypeSafe starter contributes `DecisionServiceRegistry.DefaultCandidate("jev-latest")` when it defines the `jev-latest` bean.
 When the TypeSafe starter is on the classpath and no explicit default is set, `jev-latest` is the default of both families.
 A model served by a provider is a default only when configuration names it.
 

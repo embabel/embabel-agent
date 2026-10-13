@@ -19,11 +19,11 @@ import com.embabel.agent.typesafe.TypeSafeClientOptions
 import com.embabel.agent.typesafe.TypeSafeModelFactory
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
-import com.embabel.common.ai.model.DecisionServiceRegistry
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.beans.factory.BeanFactory
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory
 import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
@@ -39,7 +39,8 @@ import java.util.function.Supplier
  * Extends [TypeSafeModelFactory] so native provider construction is shared with the BYOK path, as the
  * Anthropic and OpenAI configurations do. It defines one decision service bean per catalog model,
  * named after the model, and offers [TypeSafeModelFactory.DEFAULT_MODEL] as the decision and
- * classification default candidate. `TYPESAFE_API_KEY` takes precedence over the configured key.
+ * classification default candidate when it defines that model. `TYPESAFE_API_KEY` takes precedence
+ * over the configured key.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(TypeSafeProperties::class)
@@ -64,15 +65,18 @@ class TypeSafeModelsConfig(
 
     /**
      * Reports the catalog models [typeSafeModelsRegistrar] defined, the way the chat model starters
-     * report theirs.
+     * report theirs. Models the application replaced are left out.
      *
+     * @param beanFactory the factory holding the catalog model definitions
      * @return the models registered
      */
     @Bean
-    fun typeSafeModelsInitializer(): ProviderInitialization {
-        val registered = catalog().map { model ->
-            logger.info("Registered TypeSafe decision model bean: {} -> {}", model.name, model.modelId)
-            RegisteredModel(beanName = model.name, modelId = model.modelId)
+    fun typeSafeModelsInitializer(beanFactory: ConfigurableListableBeanFactory): ProviderInitialization {
+        val registered = beanFactory.beanDefinitionNames.mapNotNull { name ->
+            val modelId = beanFactory.getBeanDefinition(name)
+                .getAttribute(TypeSafeModelsRegistrar.CATALOG_MODEL_ATTRIBUTE) as? String ?: return@mapNotNull null
+            logger.info("Registered TypeSafe decision model bean: {} -> {}", name, modelId)
+            RegisteredModel(beanName = name, modelId = modelId)
         }
         return ProviderInitialization(
             provider = PROVIDER,
@@ -80,14 +84,6 @@ class TypeSafeModelsConfig(
             registeredDecisionModels = registered,
         ).also { logger.info(it.summary()) }
     }
-
-    /**
-     * Offers the default TypeSafe model as the decision and classification family default. An
-     * explicit `embabel.models.decision.default` or `embabel.models.classification.default` wins.
-     */
-    @Bean
-    fun typeSafeDefaultCandidate(): DecisionServiceRegistry.DefaultCandidate =
-        DecisionServiceRegistry.DefaultCandidate(DEFAULT_MODEL)
 
     companion object {
 

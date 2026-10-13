@@ -58,7 +58,8 @@ class DecisionServiceRegistry private constructor(
     observationRegistry: ObservationRegistry,
 ) {
 
-    private val provided = ConcurrentHashMap<String, DecisionService>()
+    // computeIfAbsent stores nothing when no provider serves the name, so a later lookup asks again.
+    private val provided = ConcurrentHashMap<String, DecisionService?>()
 
     /**
      * The observation registry the registered services observe with. Operation bindings open
@@ -222,7 +223,8 @@ class DecisionServiceRegistry private constructor(
 
         internal fun build(log: Boolean): DecisionServiceRegistry {
             val services = validatedServices()
-            val providerModels = lazy { providerModels(services) }
+            val providers = java.util.List.copyOf(providers)
+            val providerModels = lazy { providerModels(providers, services) }
             val decisionEligible = services.filterValues { it is DecisionService }.keys.toList()
             val registered = services.keys.toList()
             val decisionFamily = family(
@@ -247,7 +249,7 @@ class DecisionServiceRegistry private constructor(
                 classificationFamily = classificationFamily.withDefault(candidateNames),
                 candidates = java.util.List.copyOf(candidateNames),
                 capabilities = capabilitiesOf(services),
-                providers = java.util.List.copyOf(providers),
+                providers = providers,
                 observationRegistry = observationRegistry,
             )
             if (log) registry.logSummary()
@@ -284,11 +286,14 @@ class DecisionServiceRegistry private constructor(
          * Reads each provider's model names once, keeping the first provider for each name and
          * leaving out names a registered service already holds.
          *
+         * @param providers the providers the registry is built with
          * @param services the validated registrations
          * @return provider model names, in provider order
          */
-        private fun providerModels(services: Map<String, ClassificationService>): List<String> =
-            providers.flatMap { it.modelNames() }.distinct().filter { it !in services }
+        private fun providerModels(
+            providers: List<DecisionModelProvider>,
+            services: Map<String, ClassificationService>,
+        ): List<String> = providers.flatMap { it.modelNames() }.distinct().filter { it !in services }
 
         /**
          * Validates the registrations and turns them into a name-to-service map.
@@ -486,7 +491,11 @@ class DecisionServiceRegistry private constructor(
 
         /** The services, provider models, roles and default of this family, for diagnostic messages. */
         fun context(): String {
-            val models = providerModels.value.let { if (it.isEmpty()) "" else " Provider models: $it." }
+            // Listing provider models is best effort here: a failure must not replace the selection error.
+            val models = runCatching { providerModels.value }.fold(
+                onSuccess = { if (it.isEmpty()) "" else " Provider models: $it." },
+                onFailure = { " Provider models could not be listed." },
+            )
             return "${spec.title} services: $eligible.$models ${spec.title} roles: $roles. " +
                 "${spec.title} default: ${describeDefault()}."
         }
@@ -584,8 +593,7 @@ class DecisionServiceRegistry private constructor(
      * @return the service, or null when no provider serves that name
      */
     private fun providerService(name: String): DecisionService? =
-        provided[name] ?: providers.firstNotNullOfOrNull { it.decisionServiceNamed(name) }
-            ?.let { provided.putIfAbsent(name, it) ?: it }
+        provided.computeIfAbsent(name) { providers.firstNotNullOfOrNull { it.decisionServiceNamed(name) } }
 
     /**
      * Logs one INFO summary of the built registry: its services, defaults, roles and candidates.

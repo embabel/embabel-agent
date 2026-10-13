@@ -95,10 +95,10 @@ class DecisionServiceRegistryJavaTest {
     @Test
     void defaultCandidateIsAValue() {
         assertEquals(
-                new DecisionServiceRegistry.DefaultCandidate("typeSafeDecisionService"),
-                new DecisionServiceRegistry.DefaultCandidate("typeSafeDecisionService"));
+                new DecisionServiceRegistry.DefaultCandidate("jev-latest"),
+                new DecisionServiceRegistry.DefaultCandidate("jev-latest"));
         assertEquals(
-                "typeSafeDecisionService",
-                new DecisionServiceRegistry.DefaultCandidate("typeSafeDecisionService").getName());
+                "jev-latest",
+                new DecisionServiceRegistry.DefaultCandidate("jev-latest").getName());
     }
 }

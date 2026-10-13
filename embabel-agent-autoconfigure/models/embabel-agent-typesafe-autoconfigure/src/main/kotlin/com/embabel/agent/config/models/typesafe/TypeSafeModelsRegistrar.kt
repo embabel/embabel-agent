@@ -17,6 +17,7 @@ package com.embabel.agent.config.models.typesafe
 
 import com.embabel.agent.typesafe.TypeSafeModelFactory
 import com.embabel.common.ai.decision.DecisionService
+import com.embabel.common.ai.model.DecisionServiceRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.BeanFactory
 import org.springframework.beans.factory.support.BeanDefinitionBuilder
@@ -24,11 +25,13 @@ import org.springframework.beans.factory.support.BeanDefinitionRegistry
 import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor
 
 /**
- * Defines one `DecisionService` bean per catalog model, named after the model.
+ * Defines one `DecisionService` bean per catalog model, named after the model, and the TypeSafe
+ * default candidate.
  *
  * The models are bean definitions, so applications can inject them by type or with
- * `@Qualifier("<model>")` like any other bean. A bean the application already defines under a model's
- * name keeps that name, and the catalog model is skipped with one INFO line.
+ * `@Qualifier("<model>")` like any other bean. A name the application already uses, as a bean name or
+ * an alias, keeps its bean, and the catalog model is skipped with one INFO line. The default candidate
+ * is defined only when this registrar defined [TypeSafeModelFactory.DEFAULT_MODEL].
  *
  * @param models the catalog to define beans for
  * @param beanFactory the factory the `TypeSafeModelFactory` bean is read from when a model is created
@@ -39,19 +42,35 @@ internal class TypeSafeModelsRegistrar(
 ) : BeanDefinitionRegistryPostProcessor {
 
     override fun postProcessBeanDefinitionRegistry(registry: BeanDefinitionRegistry) {
-        models.forEach { model ->
-            if (registry.containsBeanDefinition(model.name)) {
+        val defined = models.filter { model ->
+            if (registry.isBeanNameInUse(model.name)) {
                 logger.info("TypeSafe model '{}' is defined by the application; the catalog model is skipped", model.name)
-                return@forEach
+                false
+            } else {
+                val definition = BeanDefinitionBuilder.genericBeanDefinition(DecisionService::class.java) {
+                    beanFactory.getBean(TypeSafeModelFactory::class.java).build(model.modelId)
+                }.beanDefinition
+                definition.setAttribute(CATALOG_MODEL_ATTRIBUTE, model.modelId)
+                registry.registerBeanDefinition(model.name, definition)
+                true
             }
-            val definition = BeanDefinitionBuilder.genericBeanDefinition(DecisionService::class.java) {
-                beanFactory.getBean(TypeSafeModelFactory::class.java).build(model.modelId)
+        }
+        if (defined.any { it.name == TypeSafeModelFactory.DEFAULT_MODEL }) {
+            val candidate = BeanDefinitionBuilder.genericBeanDefinition(DecisionServiceRegistry.DefaultCandidate::class.java) {
+                DecisionServiceRegistry.DefaultCandidate(TypeSafeModelFactory.DEFAULT_MODEL)
             }.beanDefinition
-            registry.registerBeanDefinition(model.name, definition)
+            registry.registerBeanDefinition(DEFAULT_CANDIDATE, candidate)
         }
     }
 
     companion object {
+
+        /** Bean definition attribute holding the model id of a catalog model bean. */
+        const val CATALOG_MODEL_ATTRIBUTE = "com.embabel.typesafe.catalogModel"
+
+        /** Bean name of the TypeSafe default candidate. */
+        const val DEFAULT_CANDIDATE = "typeSafeDefaultCandidate"
+
         private val logger = LoggerFactory.getLogger(TypeSafeModelsRegistrar::class.java)
     }
 }

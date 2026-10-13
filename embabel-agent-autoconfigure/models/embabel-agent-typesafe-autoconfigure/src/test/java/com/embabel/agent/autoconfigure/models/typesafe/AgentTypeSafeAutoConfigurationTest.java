@@ -125,6 +125,25 @@ class AgentTypeSafeAutoConfigurationTest {
                             assertThat(context).hasNotFailed();
                             assertThat(context.getBean(TypeSafeModelFactory.DEFAULT_MODEL))
                                     .isSameAs(replacement);
+                            assertThat(context)
+                                    .doesNotHaveBean(DecisionServiceRegistry.DefaultCandidate.class);
+                            assertThat(context.getBean(ProviderInitialization.class)
+                                            .getRegisteredDecisionModels())
+                                    .isEmpty();
+                        });
+    }
+
+    @Test
+    void anApplicationAliasNamedAfterACatalogModelReplacesIt() {
+        configured()
+                .withUserConfiguration(AliasedDecisionService.class)
+                .run(
+                        context -> {
+                            assertThat(context).hasNotFailed();
+                            assertThat(context.getBean(TypeSafeModelFactory.DEFAULT_MODEL))
+                                    .isSameAs(context.getBean("customDecision"));
+                            assertThat(context)
+                                    .doesNotHaveBean(DecisionServiceRegistry.DefaultCandidate.class);
                         });
     }
 
@@ -301,6 +320,14 @@ class AgentTypeSafeAutoConfigurationTest {
         configured()
                 .withPropertyValues(PREFIX + property)
                 .run(context -> assertThat(context).hasFailed());
+    }
+
+    @org.springframework.context.annotation.Configuration(proxyBeanMethods = false)
+    static class AliasedDecisionService {
+        @org.springframework.context.annotation.Bean({"customDecision", TypeSafeModelFactory.DEFAULT_MODEL})
+        DecisionService customDecision() {
+            return mock(DecisionService.class);
+        }
     }
 
     static class CatalogConsumer {

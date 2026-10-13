@@ -23,7 +23,6 @@ import com.embabel.agent.spi.support.decision.LlmDecisionService
 import com.embabel.common.ai.classification.ClassificationService
 import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.model.DecisionModelProvider
-import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
@@ -62,8 +61,7 @@ class LlmDecisionServiceFactory @ApiStatus.Internal @JvmOverloads constructor(
      *
      * @return the chat model names
      */
-    override fun modelNames(): List<String> =
-        modelProvider.listModels().filterIsInstance<LlmMetadata>().map { it.name }.distinct()
+    override fun modelNames(): List<String> = modelProvider.listModelNames(LlmService::class.java).distinct()
 
     /**
      * Builds a prompted decision service for a chat model.

@@ -48,7 +48,7 @@ In Kotlin, `classificationSpec { }` builds the same spec:
 include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/kotlin/com/embabel/common/ai/classification/ClassificationSpecTest.kt[tag=dsl,indent=0]
 ----
 
-`asking` sets the instructions: what the model is asked, such as "Which kind of animal is this?".
+`asking` sets the instructions, which is what the model is asked, such as "Which kind of animal is this?".
 They are required, and a blank value throws `IllegalArgumentException`.
 At least one `category` is required, and category IDs must be nonblank and unique.
 Each category is a `Category` with a stable `id` and a description of when it applies.
@@ -118,7 +118,7 @@ They never turn it into a no-match result.
 Mapping preserves no-match, inconclusive, and failure outcomes.
 
 A selection's optional confidence is reported by the provider, must be finite and between zero and one, and remains absent when unavailable.
-It is evidence from that provider, not a guarantee of correctness or calibration across models.
+It is evidence from that provider. It guarantees neither correctness nor calibration across models.
 `ModelProvenance` identifies the actual model and provider, with optional version and request ID.
 
 ==== Assess a Proposition
@@ -154,7 +154,7 @@ Each result is an object whose `status` member names the outcome:
  "provenance":{"modelName":"example-model","provider":"example-provider"}}
 ----
 
-A missing confidence, `pTrue`, provenance `version` or `requestId` is left out rather than written as `null`.
+A missing confidence, `pTrue`, provenance `version` or `requestId` is left out of the JSON. It is never written as `null`.
 A failure writes its reason in lower case, such as `{"status":"failure","reason":"invalid_response"}`.
 A `Category` is `{"id":...,"description":...}`.
 A `ClassificationSpec` writes decision spec JSON and a `ClassificationRequest` writes decision request JSON, `{"input":...,"spec":...}`; see <<reference.decision-specs>>.
@@ -168,7 +168,7 @@ A classification-only service reports `CLASSIFICATION`.
 Applications with exhaustive `ModelType` switches must handle these additional families.
 
 Call `metadata()` to obtain a pure metadata snapshot before serializing a service description.
-Snapshots contain model metadata, not a live provider implementation, client, or credentials.
+Snapshots contain model metadata. They hold no live provider implementation, client or credentials.
 Serializing arbitrary live service objects is not the snapshot contract.
 
 Use an ordinary constructor parameter in Java or Kotlin to depend on `ClassificationService` or `DecisionService`.

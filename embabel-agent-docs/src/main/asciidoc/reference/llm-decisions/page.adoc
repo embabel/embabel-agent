@@ -24,7 +24,7 @@ Neither service is an `LlmService`.
 
 A Spring application gets an `LlmDecisionServiceFactory` bean from the agent platform.
 Applications inject that bean to build services in code.
-The four methods in this table are the factory's public API.
+The factory builds services with the four methods in this table. It also serves chat models by name as a `DecisionModelProvider`.
 
 |===
 |Method |Returns
@@ -129,7 +129,7 @@ The registry then resolves three services:
 |===
 
 Replace the chat model names with names the application's model provider knows.
-A prompted service is never a family default unless configuration names it.
+A chat model selected by name is never a family default unless configuration names it.
 To inject a prompted service as a bean, define it with the factory, for example `factory.decisionService("small-chat-model")`, and give the bean a name.
 
 These are the retry settings:
