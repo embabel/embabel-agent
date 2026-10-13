@@ -26,7 +26,8 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo
 import org.jetbrains.annotations.ApiStatus
 import kotlin.math.abs
 
-private const val DISTRIBUTION_TOLERANCE = 1e-6
+/** How far a reported distribution's probabilities may sum from 1. */
+internal const val DISTRIBUTION_TOLERANCE = 1e-6
 
 /**
  * Provider-reported identity of the model that produced an assessment. Optional version and

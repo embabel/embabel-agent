@@ -118,9 +118,8 @@ object SystemOneCodec {
     }
 
     /**
-     * Reads the model names from a model listing. Both listing shapes in use are read: the System
-     * One shape, `{"models": [{"name", ...}]}`, and the OpenAI shape that Ollama and OpenRouter
-     * serve, `{"data": [{"id", ...}]}`.
+     * Reads the model names from a model listing. It reads the System One shape,
+     * `{"models": [{"name", ...}]}`, and the OpenAI shape that Ollama serves, `{"data": [{"id", ...}]}`.
      *
      * @param body the listing body
      * @return the model names in the order listed
@@ -134,8 +133,20 @@ object SystemOneCodec {
         return models.values().map { text(it.get(field)) ?: throw SystemOneFormatException("A listed model has no name") }
     }
 
+    /**
+     * Returns the wire key for a question.
+     *
+     * @param index the question's position in the spec
+     * @return the key, from `q1`
+     */
     private fun key(index: Int) = "q${index + 1}"
 
+    /**
+     * Writes one question's type, instructions and criteria.
+     *
+     * @param node the question's JSON object
+     * @param question the question
+     */
     private fun writeQuestion(node: ObjectNode, question: Question<*>) {
         node.put("type", TYPES.getValue(question.kind)).put("instructions", question.instructions)
         when (question) {
@@ -151,6 +162,13 @@ object SystemOneCodec {
         }
     }
 
+    /**
+     * Parses a body that must be one JSON object.
+     *
+     * @param body the body
+     * @return the root object
+     * @throws SystemOneFormatException if the body is not one JSON object
+     */
     private fun readObject(body: ByteArray): JsonNode {
         val root = try {
             mapper.readTree(body)
@@ -162,6 +180,12 @@ object SystemOneCodec {
         return root
     }
 
+    /**
+     * Reads a non-blank string.
+     *
+     * @param node the node, if any
+     * @return the string, or null when the node is missing, blank or of another type
+     */
     internal fun text(node: JsonNode?): String? =
         node?.takeIf { it.isString }?.stringValue()?.takeIf { it.isNotBlank() }
 }

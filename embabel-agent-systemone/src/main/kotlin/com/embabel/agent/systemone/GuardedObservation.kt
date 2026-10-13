@@ -56,6 +56,13 @@ internal class GuardedObservation(
         }
     }
 
+    /**
+     * Creates and starts the observation. When a handler fails while starting, it is stopped again.
+     *
+     * @param name the observation name
+     * @param tags the low cardinality tags to start with
+     * @return the started observation, or null when it could not be created or started
+     */
     private fun start(name: String, tags: Array<out Pair<String, String>>): Observation? {
         val created = guard("create") {
             Observation.createNotStarted(name, registry).also { observation ->
@@ -68,6 +75,13 @@ internal class GuardedObservation(
         }
     }
 
+    /**
+     * Closes a scope that a failing handler left half open, so earlier handlers can clean up.
+     *
+     * @param current this call's observation
+     * @param previous the scope that was current before this call
+     * @return null, since there is no scope to keep
+     */
     private fun closePartial(current: Observation, previous: Observation.Scope?): Observation.Scope? {
         val partial = registry.currentObservationScope
         if (partial != null && partial !== previous && partial.currentObservation === current) {
@@ -76,6 +90,13 @@ internal class GuardedObservation(
         return null
     }
 
+    /**
+     * Runs one handler phase. A failure is logged at DEBUG and not thrown.
+     *
+     * @param phase a name for the phase, for the log line
+     * @param block the work to run
+     * @return the block's result, or null when it failed
+     */
     private inline fun <T> guard(phase: String, block: () -> T): T? =
         try {
             block()

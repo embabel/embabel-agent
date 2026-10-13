@@ -138,8 +138,8 @@ class DecisionServicesSpringExampleTest {
     static final String REVIEW_MODEL = "gpt-4.1-mini";
     static final String REVIEW_PROVIDER = "ReviewProvider";
 
-    // The TypeSafe service class is package-private, so its logger is named here.
-    static final String TYPESAFE_LOGGER = "com.embabel.agent.systemone.SystemOneDecisionService";
+    // The System One service class is internal to its module, so its logger is named here.
+    static final String SYSTEM_ONE_LOGGER = "com.embabel.agent.systemone.SystemOneDecisionService";
 
     // Caller identifiers that may appear in logs and span events and must not become tag values.
     static final List<String> ROLES_AND_QUESTIONS =
@@ -575,7 +575,7 @@ class DecisionServicesSpringExampleTest {
 
     /** The provider line names the cause. The execution line names the request failure. */
     static void assertFailureLogLines(List<ILoggingEvent> events) {
-        assertThat(messages(events, TYPESAFE_LOGGER, Level.WARN))
+        assertThat(messages(events, SYSTEM_ONE_LOGGER, Level.WARN))
                 .singleElement()
                 .satisfies(
                         line -> assertThat(line)

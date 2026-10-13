@@ -50,103 +50,109 @@ public class TypeSafeModelFactory extends SystemOneModelFactory {
     /**
      * Uses TypeSafe's address and the default model.
      *
-     * @param keySupplier supplies the key for each call
+     * @param apiKey supplies the key for each call
      */
-    public TypeSafeModelFactory(Supplier<String> keySupplier) {
-        this(keySupplier, DEFAULT_MODEL);
+    public TypeSafeModelFactory(Supplier<String> apiKey) {
+        this(apiKey, DEFAULT_MODEL);
     }
 
     /**
      * Uses TypeSafe's address with another default model.
      *
-     * @param keySupplier supplies the key for each call
+     * @param apiKey supplies the key for each call
      * @param defaultModel the model {@link #build()} and {@link #buildValidated()} return
      */
-    public TypeSafeModelFactory(Supplier<String> keySupplier, String defaultModel) {
-        this(TypeSafeClientOptions.defaults(), keySupplier, null, ObservationRegistry.NOOP, defaultModel);
+    public TypeSafeModelFactory(Supplier<String> apiKey, String defaultModel) {
+        this(TypeSafeClientOptions.defaults(), apiKey, null, ObservationRegistry.NOOP, defaultModel);
     }
 
     /**
      * Uses the given settings and the default model.
      *
      * @param options where TypeSafe lives and how long to wait for it
-     * @param keySupplier supplies the key for each call
+     * @param apiKey supplies the key for each call
      */
-    public TypeSafeModelFactory(TypeSafeClientOptions options, Supplier<String> keySupplier) {
-        this(options, keySupplier, ObservationRegistry.NOOP);
+    public TypeSafeModelFactory(TypeSafeClientOptions options, Supplier<String> apiKey) {
+        this(options, apiKey, ObservationRegistry.NOOP);
     }
 
     /**
      * Uses the given settings and the default model, recording observations.
      *
      * @param options where TypeSafe lives and how long to wait for it
-     * @param keySupplier supplies the key for each call
+     * @param apiKey supplies the key for each call
      * @param observationRegistry records decision and request observations
      */
     public TypeSafeModelFactory(
             TypeSafeClientOptions options,
-            Supplier<String> keySupplier,
+            Supplier<String> apiKey,
             ObservationRegistry observationRegistry) {
-        this(options, keySupplier, null, observationRegistry, DEFAULT_MODEL);
+        this(options, apiKey, null, observationRegistry, DEFAULT_MODEL);
     }
 
     /**
      * Uses the given settings and the application's HTTP client.
      *
      * @param options where TypeSafe lives and how long to wait for it
-     * @param keySupplier supplies the key for each call
+     * @param apiKey supplies the key for each call
      * @param restClientBuilder the application's HTTP client builder, or null for the factory's own
      */
     public TypeSafeModelFactory(
             TypeSafeClientOptions options,
-            Supplier<String> keySupplier,
+            Supplier<String> apiKey,
             RestClient.@Nullable Builder restClientBuilder) {
-        this(options, keySupplier, restClientBuilder, ObservationRegistry.NOOP);
+        this(options, apiKey, restClientBuilder, ObservationRegistry.NOOP);
     }
 
     /**
      * Uses the given settings and the application's HTTP client, recording observations.
      *
      * @param options where TypeSafe lives and how long to wait for it
-     * @param keySupplier supplies the key for each call
+     * @param apiKey supplies the key for each call
      * @param restClientBuilder the application's HTTP client builder, or null for the factory's own
      * @param observationRegistry records decision and request observations
      */
     public TypeSafeModelFactory(
             TypeSafeClientOptions options,
-            Supplier<String> keySupplier,
+            Supplier<String> apiKey,
             RestClient.@Nullable Builder restClientBuilder,
             ObservationRegistry observationRegistry) {
-        this(options, keySupplier, restClientBuilder, observationRegistry, DEFAULT_MODEL);
+        this(options, apiKey, restClientBuilder, observationRegistry, DEFAULT_MODEL);
     }
 
     /**
      * Sets every option.
      *
      * @param options where TypeSafe lives and how long to wait for it
-     * @param keySupplier supplies the key for each call
+     * @param apiKey supplies the key for each call
      * @param restClientBuilder the application's HTTP client builder, or null for the factory's own
      * @param observationRegistry records decision and request observations
      * @param defaultModel the model {@link #build()} and {@link #buildValidated()} return
      */
     public TypeSafeModelFactory(
             TypeSafeClientOptions options,
-            Supplier<String> keySupplier,
+            Supplier<String> apiKey,
             RestClient.@Nullable Builder restClientBuilder,
             ObservationRegistry observationRegistry,
             String defaultModel) {
         super(
                 Objects.requireNonNull(options, "options").endpoint(),
                 Objects.requireNonNull(defaultModel, "defaultModel"),
-                requiringKey(keySupplier),
+                requiringKey(apiKey),
                 restClientBuilder,
                 Objects.requireNonNull(observationRegistry, "observationRegistry"));
     }
 
-    private static Supplier<String> requiringKey(Supplier<String> keySupplier) {
-        Objects.requireNonNull(keySupplier, "keySupplier");
+    /**
+     * Wraps the key supplier so a missing or blank key fails the call before anything is sent.
+     *
+     * @param apiKey supplies the key for each call
+     * @return a supplier that only returns a usable key
+     */
+    private static Supplier<String> requiringKey(Supplier<String> apiKey) {
+        Objects.requireNonNull(apiKey, "apiKey");
         return () -> {
-            var key = keySupplier.get();
+            var key = apiKey.get();
             requireUsableApiKey(key);
             return key;
         };

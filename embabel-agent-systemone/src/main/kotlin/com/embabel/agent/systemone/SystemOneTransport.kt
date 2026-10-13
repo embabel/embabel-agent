@@ -72,6 +72,12 @@ internal class SystemOneTransport(
         .requestInterceptors { it.add(ClientHttpRequestInterceptor(::authorize)) }
         .build()
 
+    /**
+     * Sends one encoded question set.
+     *
+     * @param body the encoded request
+     * @return the endpoint's reply
+     */
     fun decide(body: ByteArray): Reply = call(OPERATION_DECIDE) {
         restClient.post().uri(endpoint.resolve(SystemOneCodec.DECISION_PATH))
             .contentType(MediaType.APPLICATION_JSON)
@@ -84,6 +90,7 @@ internal class SystemOneTransport(
      * Lists the endpoint's models.
      *
      * @param key supplies the key for this call, the transport's own supplier by default
+     * @return the endpoint's reply
      */
     fun listModels(key: Supplier<String?> = apiKey): Reply = call(OPERATION_MODELS) {
         restClient.get().uri(endpoint.resolve(SystemOneCodec.MODELS_PATH))
@@ -94,6 +101,8 @@ internal class SystemOneTransport(
     /**
      * Reads a key from the supplier. A blank key is null.
      *
+     * @param supplier where the key comes from
+     * @return the trimmed key, or null when it is missing or blank
      * @throws SystemOneFailure if the supplier fails or the key holds control characters
      * @throws CancellationException if the supplier was interrupted
      */
@@ -112,6 +121,13 @@ internal class SystemOneTransport(
         return key.trim()
     }
 
+    /**
+     * Runs one observed call. An interrupted caller is cancelled before anything is sent.
+     *
+     * @param operation the operation tag, such as `systemone` or `models`
+     * @param request builds the request to send
+     * @return the endpoint's reply
+     */
     private fun call(operation: String, request: () -> RestClient.RequestHeadersSpec<*>): Reply {
         rejectIfInterrupted()
         val observation = GuardedObservation(observations, OBSERVATION, "provider" to endpoint.provider, "operation" to operation)
@@ -132,6 +148,12 @@ internal class SystemOneTransport(
         }
     }
 
+    /**
+     * Sends the request and turns client exceptions into a [SystemOneFailure] or a cancellation.
+     *
+     * @param request builds the request to send
+     * @return the endpoint's reply
+     */
     private fun send(request: () -> RestClient.RequestHeadersSpec<*>): Reply =
         try {
             request().exchangeForRequiredValue({ _, response -> read(response) }, true)
@@ -143,6 +165,13 @@ internal class SystemOneTransport(
             throw translate(failure)
         }
 
+    /**
+     * Reads a successful response up to the endpoint's limit. An error status fails without
+     * reading the body.
+     *
+     * @param response the raw response
+     * @return the body, status and request id
+     */
     private fun read(response: RestClient.RequestHeadersSpec.ConvertibleClientHttpResponse): Reply {
         val status = response.statusCode.value()
         val requestId = requestId(response.headers)
@@ -159,6 +188,11 @@ internal class SystemOneTransport(
         }
     }
 
+    /**
+     * Closes an error response's body without reading it.
+     *
+     * @param response the raw response
+     */
     private fun discard(response: RestClient.RequestHeadersSpec.ConvertibleClientHttpResponse) {
         try {
             response.body.close()
@@ -167,16 +201,36 @@ internal class SystemOneTransport(
         }
     }
 
-    // Runs last, so the key resolved for this call replaces whatever the application's client set.
+    /**
+     * Sets the key resolved for this call as a bearer token. It runs as the last interceptor, so
+     * the key replaces whatever Authorization header the application's client set.
+     *
+     * @param request the outgoing request
+     * @param body the request body
+     * @param execution the rest of the chain
+     * @return the response
+     */
     private fun authorize(request: HttpRequest, body: ByteArray, execution: ClientHttpRequestExecution): ClientHttpResponse {
         request.headers.remove(HttpHeaders.AUTHORIZATION)
         (request.attributes[KEY_ATTRIBUTE] as? String)?.takeIf { it != NO_KEY }?.let(request.headers::setBearerAuth)
         return execution.execute(request, body)
     }
 
+    /**
+     * Reads the provider's request id, when the endpoint names a header and the value is well formed.
+     *
+     * @param headers the response headers
+     * @return the request id, or null
+     */
     private fun requestId(headers: HttpHeaders): String? =
         endpoint.requestIdHeader?.let(headers::getFirst)?.takeIf(REQUEST_ID::matches)
 
+    /**
+     * Maps a client exception to a cancellation or a [SystemOneFailure] with a fixed category.
+     *
+     * @param failure what the client threw
+     * @return the exception to throw in its place
+     */
     private fun translate(failure: RuntimeException): RuntimeException {
         if (failure.isInterruption()) return interrupted()
         val category = when {
@@ -193,6 +247,12 @@ internal class SystemOneTransport(
         return SystemOneFailure(reason, category)
     }
 
+    /**
+     * Builds the request factory used when the application supplies no client. It applies the
+     * endpoint's timeouts and does not follow redirects.
+     *
+     * @return the request factory
+     */
     private fun fallback() = object : SimpleClientHttpRequestFactory() {
         override fun prepareConnection(connection: HttpURLConnection, httpMethod: String) {
             super.prepareConnection(connection, httpMethod)
@@ -214,27 +274,55 @@ internal class SystemOneTransport(
         private val REQUEST_ID = Regex("[A-Za-z0-9._:-]{1,128}")
         private val logger = LoggerFactory.getLogger(SystemOneTransport::class.java)
 
+        /**
+         * Throws a [CancellationException] when the current thread is interrupted.
+         */
         private fun rejectIfInterrupted() {
             if (Thread.currentThread().isInterrupted) throw cancelled()
         }
 
+        /**
+         * Sets the interrupt flag again and returns a cancellation to throw.
+         *
+         * @return the cancellation
+         */
         private fun interrupted(): CancellationException {
             Thread.currentThread().interrupt()
             return cancelled()
         }
 
+        /**
+         * Tells whether a failure comes from an interrupt.
+         *
+         * @return true when the thread is interrupted or an interrupt is in the cause chain
+         */
         private fun Throwable.isInterruption(): Boolean =
             Thread.currentThread().isInterrupted || hasCause<InterruptedException>() || hasCause<ClosedByInterruptException>()
 
-        // The failure is not kept as a cause, because transport messages can quote the endpoint.
+        /**
+         * Creates the cancellation for an interrupted call. The original failure is not kept as
+         * its cause, because transport messages can quote the endpoint.
+         *
+         * @return the cancellation
+         */
         private fun cancelled(): CancellationException =
             CancellationException("System One call was cancelled").apply {
                 initCause(InterruptedException("System One call was interrupted"))
             }
 
+        /**
+         * Tells whether this exception or any of its causes is a [T].
+         *
+         * @return true when one is
+         */
         private inline fun <reified T : Throwable> Throwable.hasCause(): Boolean =
             generateSequence(this) { it.cause }.any { it is T }
 
+        /**
+         * Tells whether this exception or any of its causes is a timeout.
+         *
+         * @return true when one is
+         */
         private fun Throwable.hasTimeout(): Boolean = generateSequence(this) { it.cause }.any {
             it is SocketTimeoutException || it is HttpTimeoutException || it is TimeoutException
         }

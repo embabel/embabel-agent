@@ -253,7 +253,7 @@ class SystemOneCodecTest {
         }
 
         @Test
-        fun `an OpenAI style listing, as Ollama and OpenRouter serve, is read by id`() {
+        fun `an OpenAI style listing, as Ollama serves, is read by id`() {
             val json = """{"object":"list","data":[{"id":"clef-flash:latest","object":"model"},{"id":"qwen3:30b"}]}"""
             assertEquals(listOf("clef-flash:latest", "qwen3:30b"), SystemOneCodec.modelNames(json.toByteArray()))
         }
