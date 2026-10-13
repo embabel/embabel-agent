@@ -18,22 +18,29 @@ package com.embabel.agent.systemone
 import com.embabel.common.ai.classification.ClassificationRequest
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.ModelProvenance
+import com.embabel.common.ai.decision.DecisionCapabilities
 import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionResponse
 import com.embabel.common.ai.decision.DecisionService
+import com.embabel.common.ai.decision.PropositionQuestionSpec
 import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
+import com.embabel.common.ai.decision.QuestionKind
 import com.embabel.common.ai.decision.Questions
+import com.embabel.common.ai.decision.RatingQuestionSpec
+import com.embabel.common.ai.decision.RatingResult
 import com.embabel.common.ai.decision.spi.DecisionContentCapture
+import com.embabel.common.ai.decision.spi.PropositionAssessment
 import com.embabel.common.ai.decision.spi.QuestionSetExecution
+import com.embabel.common.ai.decision.spi.RatingAssessment
 import com.embabel.common.ai.decision.systemone.SystemOneCodec
 import com.embabel.common.ai.decision.systemone.SystemOneFormatException
 import org.slf4j.LoggerFactory
 import java.util.concurrent.TimeUnit
 
 /**
- * One model on a System One endpoint. Every call, including a single classification or
- * proposition, is one question set sent in one request.
+ * One model on a System One endpoint. Every call is one question set sent in one request. A whole
+ * spec goes out together, and a single classification, proposition or rating goes out as a set of one.
  *
  * A failed call returns failure outcomes and logs one WARN line with fixed fields: service,
  * provider, operation, cause, status class, attempts, elapsed time and request id. Inputs,
@@ -42,9 +49,12 @@ import java.util.concurrent.TimeUnit
 internal class SystemOneDecisionService(
     override val name: String,
     private val transport: SystemOneTransport,
-) : DecisionService, QuestionSetExecution {
+) : DecisionService, QuestionSetExecution, PropositionAssessment, RatingAssessment {
 
     override val provider: String get() = transport.endpoint.provider
+
+    // The protocol answers every question kind in one request and sets no limits.
+    override fun capabilities(): DecisionCapabilities = CAPABILITIES
 
     override fun askQuestionSet(request: DecisionRequest): DecisionResponse = run(request, Operation.ASK)
 
@@ -55,6 +65,12 @@ internal class SystemOneDecisionService(
         val question = Questions.named(PROPOSITION).proposition(request.proposition).build()
         return run(DecisionRequest.of(request.input, question), Operation.ASSESS).answer(question)
     }
+
+    override fun assess(input: String, question: PropositionQuestionSpec): PropositionResult =
+        run(DecisionRequest.of(input, question), Operation.ASSESS).answer(question)
+
+    override fun rate(input: String, question: RatingQuestionSpec): RatingResult =
+        run(DecisionRequest.of(input, question), Operation.RATE).answer(question)
 
     private fun run(request: DecisionRequest, operation: Operation): DecisionResponse {
         val started = System.nanoTime()
@@ -113,10 +129,12 @@ internal class SystemOneDecisionService(
         ASK("ask_question_set", "question set"),
         CLASSIFY("classify", "classification"),
         ASSESS("assess", "proposition assessment"),
+        RATE("rate", "rating"),
     }
 
     private companion object {
         const val PROPOSITION = "proposition"
+        val CAPABILITIES: DecisionCapabilities = DecisionCapabilities.of(QuestionKind.entries.toSet())
         val logger = LoggerFactory.getLogger(SystemOneDecisionService::class.java)
     }
 }

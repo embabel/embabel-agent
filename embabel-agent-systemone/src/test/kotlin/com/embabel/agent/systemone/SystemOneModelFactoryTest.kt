@@ -29,7 +29,11 @@ import com.embabel.common.ai.decision.DecisionRequest
 import com.embabel.common.ai.decision.DecisionResponse
 import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
+import com.embabel.common.ai.decision.QuestionKind
 import com.embabel.common.ai.decision.Questions
+import com.embabel.common.ai.decision.RatingResult
+import com.embabel.common.ai.decision.spi.PropositionAssessment
+import com.embabel.common.ai.decision.spi.RatingAssessment
 import com.embabel.common.byok.InvalidApiKeyException
 import com.sun.net.httpserver.HttpServer
 import io.micrometer.observation.Observation
@@ -181,6 +185,48 @@ class SystemOneModelFactoryTest {
                 mocked.server.verify()
             }
             assertTrue(warnings().all { it.contains("cause=credential") }, warnings().toString())
+        }
+
+        @Test
+        fun `a spec with every question kind goes out as one request`() {
+            val mocked = mocked()
+            val team = Questions.named("team").choice("Which team?").option("billing", "Payments").option("sales", "Sales").build()
+            val anger = Questions.named("anger").rating("How angry?").level("calm").level("furious").build()
+            mocked.server.expect(requestTo("$base/v1/systemone")).andRespond(
+                withSuccess(
+                    """{"answers":{"q1":{"type":"noul","noul":0.9},""" +
+                        """"q2":{"type":"choice","choice":"billing","probabilities":{"billing":0.75,"sales":0.25},"confidence":0.3},""" +
+                        """"q3":{"type":"score","score":0.5,"legend":{"0":"calm","1":"furious"},"probabilities":{"0":0.5,"1":0.5},"confidence":0.1}}}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+            val response = mocked.factory.build().ask(DecisionRequest.of("charged twice", urgent, team, anger))
+
+            mocked.server.verify()
+            assertNull(response.requestFailure)
+            assertEquals(QuestionKind.entries.toSet(), mocked.factory.build().capabilities().questionKinds)
+        }
+
+        @Test
+        fun `the per question hooks send one question each`() {
+            val mocked = mocked()
+            val anger = Questions.named("anger").rating("How angry?").level("calm").level("furious").build()
+            mocked.server.expect(requestTo("$base/v1/systemone")).andRespond(withSuccess(noulBody, MediaType.APPLICATION_JSON))
+            mocked.server.expect(requestTo("$base/v1/systemone")).andRespond(
+                withSuccess(
+                    """{"answers":{"q1":{"type":"score","score":1.0,"legend":{"0":"calm","1":"furious"},"probabilities":{"0":0.0,"1":1.0},"confidence":1.0}}}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+            val service = mocked.factory.build()
+
+            val assessed = (service as PropositionAssessment).assess("charged twice", urgent)
+            val rated = (service as RatingAssessment).rate("charged twice", anger)
+
+            mocked.server.verify()
+            assertTrue(assessed is PropositionResult.Answered)
+            assertTrue(rated is RatingResult.Answered)
         }
 
         @Test
