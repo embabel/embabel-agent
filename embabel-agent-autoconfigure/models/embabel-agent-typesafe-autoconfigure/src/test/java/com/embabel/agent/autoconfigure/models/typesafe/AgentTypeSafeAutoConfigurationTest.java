@@ -64,7 +64,7 @@ class AgentTypeSafeAutoConfigurationTest {
             new PropositionRequest("The payment failed", "The payment needs attention");
     private static final String RESPONSE =
             """
-            {"model":"jev-2026-09", "answers":{"proposition":{"type":"noul","noul":0.8}}}
+            {"model":"jev-2026-09", "answers":{"q1":{"type":"noul","noul":0.8}}}
             """;
 
     private final ApplicationContextRunner runner =
@@ -333,7 +333,7 @@ class AgentTypeSafeAutoConfigurationTest {
         assertThat(observations)
                 .contains(
                         "embabel.ai.decision",
-                        "embabel.typesafe.request",
+                        "embabel.systemone.request",
                         "http.client.requests");
         server.verify();
     }
