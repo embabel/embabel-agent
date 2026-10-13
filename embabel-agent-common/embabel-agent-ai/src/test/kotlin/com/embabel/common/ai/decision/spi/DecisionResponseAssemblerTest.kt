@@ -410,6 +410,26 @@ class DecisionResponseAssemblerTest {
         }
 
         @Test
+        fun `a choice distribution that misses an option is a bad distribution`() {
+            val partial = ClassificationResult.Selected(
+                "billing", jev, 0.9, listOf(com.embabel.common.ai.classification.CategoryProbability("billing", 1.0)),
+            )
+            val full = ClassificationResult.Selected(
+                "billing", jev, 0.9,
+                listOf(
+                    com.embabel.common.ai.classification.CategoryProbability("billing", 0.8),
+                    com.embabel.common.ai.classification.CategoryProbability("technical", 0.2),
+                ),
+            )
+            val message = singleWarn(capture {
+                assembler().proposition("is_urgent", yes).choice("department", partial).rating("frustration", rated).build()
+            })
+            assertTrue(message.contains("department=BAD_DISTRIBUTION"), message)
+            val response = assembler().proposition("is_urgent", yes).choice("department", full).rating("frustration", rated).build()
+            assertEquals(full, response.answer(department))
+        }
+
+        @Test
         fun `unreadable and bad distribution are named`() {
             val partial = RatingResult.Answered(
                 jev,

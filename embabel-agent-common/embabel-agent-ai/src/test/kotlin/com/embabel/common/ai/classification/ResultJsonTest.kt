@@ -128,6 +128,28 @@ class ResultJsonTest {
         }
 
         @Test
+        fun `selected writes its distribution between the category and the confidence`() {
+            assertRoundTrip(
+                ClassificationResult.Selected(
+                    "b", bare, 0.4, listOf(CategoryProbability("a", 0.25), CategoryProbability("b", 0.75)),
+                ),
+                "{\"status\":\"selected\",\"categoryId\":\"b\",\"distribution\":[{\"categoryId\":\"a\"," +
+                    "\"probability\":0.25},{\"categoryId\":\"b\",\"probability\":0.75}],\"confidence\":0.4," +
+                    "\"provenance\":$bareJson}",
+                type,
+            )
+        }
+
+        @Test
+        fun `rejects an unknown member in a category probability`() {
+            assertRejects(
+                """{"status":"selected","categoryId":"a","distribution":[{"categoryId":"a","probability":1.0,"x":1}],"provenance":$bareJson}""",
+                type,
+                "Unknown member 'x' in CategoryProbability",
+            )
+        }
+
+        @Test
         fun `selected without confidence leaves it out`() {
             assertRoundTrip(
                 ClassificationResult.Selected("a", bare),

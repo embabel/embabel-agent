@@ -63,23 +63,26 @@ class ClassificationSpec private constructor(
      * @param categoryId the selected category's id
      * @param provenance the model that made the selection
      * @param confidence the provider's confidence, if it reported one
+     * @param distribution the provider's probabilities over every category, if it reported them
      * @return the selection
-     * @throws IllegalArgumentException if the id is not one of the categories
+     * @throws IllegalArgumentException if the id is not one of the categories, or a distribution
+     * does not cover exactly the categories
      */
     @JvmOverloads
     fun selected(
         categoryId: String,
         provenance: ModelProvenance,
         confidence: Double? = null,
+        distribution: List<CategoryProbability> = emptyList(),
     ): ClassificationResult.Selected {
-        val result = ClassificationResult.Selected(categoryId, provenance, confidence)
+        val result = ClassificationResult.Selected(categoryId, provenance, confidence, distribution)
         validate(result)
         return result
     }
 
     /**
-     * Checks that a result fits this spec. A selection must name one of the categories. Other
-     * outcomes always fit.
+     * Checks that a result fits this spec. A selection must name one of the categories, and its
+     * distribution, when present, must cover exactly the categories. Other outcomes always fit.
      *
      * @param result the result to check
      * @return the result, unchanged
