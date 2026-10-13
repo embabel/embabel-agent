@@ -121,7 +121,8 @@ A base path is kept, so `http://proxy.example/systemone` sends decisions to `htt
 `toString()` leaves the address out.
 
 `build(model)` sends the name as is and never contacts the endpoint, so a model the endpoint doesn't serve fails on its first call.
-`modelNames()` asks the endpoint which models it serves:
+`modelNames()` asks the endpoint which models it serves.
+It reads the System One listing, `{"models": [{"name"}]}`, and the OpenAI listing that Ollama and OpenRouter serve, `{"data": [{"id"}]}`:
 
 [source,java]
 ----
@@ -139,6 +140,81 @@ include::../../../../../../embabel-agent-systemone/src/test/java/com/embabel/age
 
 In Spring, declare the factory as a bean and each model as a `DecisionService` bean built from it.
 The decision registry picks the models up by bean name, the same way it picks up the TypeSafe catalog models.
+
+[[reference.systemone.local]]
+==== Running decision models locally
+
+Cloudflare publishes the CLEF weights under Apache 2.0, and Ollama serves them at the standard `/v1/systemone` path.
+CLEF therefore runs on your own machine through the plain System One client, with no key and no account.
+Jev is a hosted TypeSafe model with no local build.
+
+|===
+|Ollama model |Size |Download |Input
+
+|`clef-flash`
+|9B
+|12 GB
+|Text and images
+
+|`clef`
+|27B
+|18 GB
+|Text and images
+|===
+
+Both need Ollama 0.35.1 or later.
+The integration sends text state only.
+
+. Install Ollama and check its version with `ollama --version`.
+. Pull a model:
++
+[source,bash]
+----
+ollama pull clef-flash
+----
+. Check that it answers a question set:
++
+[source,bash]
+----
+curl http://localhost:11434/v1/systemone -H 'Content-Type: application/json' -d '{
+  "model": "clef-flash",
+  "state": "I was charged twice for one invoice.",
+  "questions": { "q1": { "type": "noul", "instructions": "Is this a billing problem?" } }
+}'
+----
++
+The response is a System One response, such as `{"model":"clef-flash","answers":{"q1":{"type":"noul","noul":0.97}},...}`.
+
+In plain Java, point an endpoint at Ollama and build the model.
+A local endpoint needs no key, so the key supplier returns null:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-systemone/src/test/java/com/embabel/agent/systemone/SystemOneUsageExamples.java[tag=local,indent=0]
+----
+
+In Spring, declare the factory and each model as beans.
+The decision registry picks the models up by bean name, so `embabel.models.decision.default: clef-flash` makes the local model the default:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-systemone/src/test/java/com/embabel/agent/systemone/SystemOneSpringExampleTest.java[tag=local-spring,indent=0]
+----
+
+The first call loads the model into memory and can take several seconds, which is why these examples wait up to two minutes for data.
+Later calls take well under a second on a laptop.
+Ollama lists its models at `/v1/models`, so `modelNames()` works against it too.
+
+To check a local model end to end, run the smoke test.
+It asks one spec with a proposition, a choice and a rating, then a single classification and assessment, and prints the outcomes:
+
+[source,bash]
+----
+SYSTEMONE_SMOKE_URL=http://localhost:11434 SYSTEMONE_SMOKE_MODEL=clef-flash mvn test -pl embabel-agent-systemone -Dtest=SystemOneLocalSmokeTest
+----
+
+The Hugging Face weights, `Cloudflare/clef` and `Cloudflare/clef-flash`, load in Python with the model card's own code.
+Use them through any server that exposes System One, and point a `SystemOneEndpoint` at it.
 
 ==== Transport
 
@@ -228,4 +304,5 @@ When the HTTP client records `http.client.requests`, that observation sits insid
 ==== Experimental status
 
 Every type on this page carries `@ApiStatus.Experimental`.
-Promotion needs a second endpoint beside Jev running through the same client, and a consumer application using both.
+Jev has run live through this client against TypeSafe, and CLEF Flash against a local Ollama.
+Promotion needs a consumer application using both.

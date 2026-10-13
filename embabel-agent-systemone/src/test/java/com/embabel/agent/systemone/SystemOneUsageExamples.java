@@ -20,6 +20,7 @@ import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.decision.DecisionSpec;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -42,6 +43,24 @@ public class SystemOneUsageExamples {
         return service.ask("I was charged twice for one invoice.", spec);
     }
     // end::factory[]
+
+    // tag::local[]
+    /**
+     * Uses CLEF Flash served by a local Ollama, after {@code ollama pull clef-flash}. A local
+     * endpoint needs no key.
+     *
+     * @return the local CLEF Flash service
+     */
+    public DecisionService localClefFlash() {
+        var ollama =
+                new SystemOneEndpoint(
+                        "Ollama",
+                        URI.create("http://localhost:11434"),
+                        Duration.ofSeconds(10),
+                        Duration.ofMinutes(2));
+        return new SystemOneModelFactory(ollama, "clef-flash", () -> null).build();
+    }
+    // end::local[]
 
     // tag::models[]
     /**
