@@ -20,7 +20,11 @@ import com.embabel.common.ai.decision.systemone.SystemOneCodec
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpRequest
 import org.springframework.http.MediaType
+import org.springframework.http.client.ClientHttpRequestExecution
+import org.springframework.http.client.ClientHttpRequestInterceptor
+import org.springframework.http.client.ClientHttpResponse
 import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.client.RestClient
@@ -37,9 +41,10 @@ import java.util.function.Supplier
 /**
  * Sends System One calls over HTTP and hands back the raw body, or throws a [SystemOneFailure].
  *
- * - The key is resolved on every call. A blank key sends no Authorization header, even when the
- *   application's client would add one. A key that can't be resolved or holds control characters
- *   fails the call before anything is sent.
+ * - The key is resolved on every call and set by the last interceptor, so it replaces any
+ *   Authorization header the application's client adds. A blank key sends no Authorization
+ *   header. A key that can't be resolved or holds control characters fails the call before
+ *   anything is sent.
  * - Error bodies are never read, and a body over the endpoint's limit is rejected from its
  *   declared length or after one byte past the limit. Response buffering is turned off on the
  *   client, and the stream is closed before the response, so a rejected body is never drained.
@@ -64,14 +69,14 @@ internal class SystemOneTransport(
 
     private val restClient: RestClient = (builder?.clone() ?: RestClient.builder().requestFactory(fallback()))
         .bufferContent { _, _ -> false }
-        .defaultHeaders { it.remove(HttpHeaders.AUTHORIZATION) }
+        .requestInterceptors { it.add(ClientHttpRequestInterceptor(::authorize)) }
         .build()
 
     fun decide(body: ByteArray): Reply = call(OPERATION_DECIDE) {
         restClient.post().uri(endpoint.resolve(SystemOneCodec.DECISION_PATH))
             .contentType(MediaType.APPLICATION_JSON)
             .accept(MediaType.APPLICATION_JSON)
-            .headers { authorize(it, apiKey) }
+            .attribute(KEY_ATTRIBUTE, resolveKey(apiKey) ?: NO_KEY)
             .body(body)
     }
 
@@ -83,7 +88,7 @@ internal class SystemOneTransport(
     fun listModels(key: Supplier<String?> = apiKey): Reply = call(OPERATION_MODELS) {
         restClient.get().uri(endpoint.resolve(SystemOneCodec.MODELS_PATH))
             .accept(MediaType.APPLICATION_JSON)
-            .headers { authorize(it, key) }
+            .attribute(KEY_ATTRIBUTE, resolveKey(key) ?: NO_KEY)
     }
 
     /**
@@ -97,7 +102,8 @@ internal class SystemOneTransport(
             supplier.get()
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (failure: RuntimeException) {
+        } catch (failure: Exception) {
+            // A Kotlin supplier can throw a checked exception, such as InterruptedException, directly.
             if (failure.isInterruption()) throw interrupted()
             throw SystemOneFailure.unavailable(SystemOneFailure.CREDENTIAL)
         }
@@ -161,10 +167,11 @@ internal class SystemOneTransport(
         }
     }
 
-    // Removing the header first keeps an Authorization header the application's client adds away from this endpoint.
-    private fun authorize(headers: HttpHeaders, supplier: Supplier<String?>) {
-        headers.remove(HttpHeaders.AUTHORIZATION)
-        resolveKey(supplier)?.let(headers::setBearerAuth)
+    // Runs last, so the key resolved for this call replaces whatever the application's client set.
+    private fun authorize(request: HttpRequest, body: ByteArray, execution: ClientHttpRequestExecution): ClientHttpResponse {
+        request.headers.remove(HttpHeaders.AUTHORIZATION)
+        (request.attributes[KEY_ATTRIBUTE] as? String)?.takeIf { it != NO_KEY }?.let(request.headers::setBearerAuth)
+        return execution.execute(request, body)
     }
 
     private fun requestId(headers: HttpHeaders): String? =
@@ -198,6 +205,8 @@ internal class SystemOneTransport(
 
     companion object {
         const val OBSERVATION = "embabel.systemone.request"
+        private val KEY_ATTRIBUTE = SystemOneTransport::class.java.name + ".key"
+        private const val NO_KEY = ""
         private const val OPERATION_DECIDE = "systemone"
         private const val OPERATION_MODELS = "models"
         private const val SUCCESS = "success"

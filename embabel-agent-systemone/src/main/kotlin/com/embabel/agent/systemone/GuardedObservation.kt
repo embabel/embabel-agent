@@ -21,23 +21,21 @@ import org.slf4j.LoggerFactory
 
 /**
  * One call's observation. A handler that throws is logged at DEBUG and otherwise ignored, so
- * telemetry never changes a call's result, and the registry's current scope is always put back.
+ * telemetry never changes a call's result. When a handler fails part way through starting or
+ * opening a scope, the observation is stopped or the scope closed, so the handlers before it can
+ * clean up, and the registry's current scope is always put back.
  */
 internal class GuardedObservation(
     private val registry: ObservationRegistry,
     name: String,
     vararg tags: Pair<String, String>,
 ) {
-    private val observation: Observation? = guard("start") {
-        val created = Observation.createNotStarted(name, registry)
-        tags.forEach { (key, value) -> created.lowCardinalityKeyValue(key, value) }
-        created.start()
-    }
+    private val observation: Observation? = start(name, tags)
 
     /** Runs the work with this observation current. */
     fun <T> inScope(work: () -> T): T {
         val previous = registry.currentObservationScope
-        val scope = observation?.let { guard("open scope") { it.openScope() } }
+        val scope = observation?.let { current -> guard("open scope") { current.openScope() } ?: closePartial(current, previous) }
         try {
             return work()
         } finally {
@@ -56,6 +54,26 @@ internal class GuardedObservation(
                 current.stop()
             }
         }
+    }
+
+    private fun start(name: String, tags: Array<out Pair<String, String>>): Observation? {
+        val created = guard("create") {
+            Observation.createNotStarted(name, registry).also { observation ->
+                tags.forEach { (key, value) -> observation.lowCardinalityKeyValue(key, value) }
+            }
+        } ?: return null
+        return guard("start") { created.start() } ?: run {
+            guard("stop") { created.stop() }
+            null
+        }
+    }
+
+    private fun closePartial(current: Observation, previous: Observation.Scope?): Observation.Scope? {
+        val partial = registry.currentObservationScope
+        if (partial != null && partial !== previous && partial.currentObservation === current) {
+            guard("close scope") { partial.close() }
+        }
+        return null
     }
 
     private inline fun <T> guard(phase: String, block: () -> T): T? =
