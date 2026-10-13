@@ -192,7 +192,8 @@ Several eligible candidates, or several eligible services with no candidate, giv
 The classification family resolves its default the same way with `embabel.models.classification.default`.
 
 The TypeSafe starter contributes `DecisionServiceRegistry.DefaultCandidate("jev-latest")` when it defines the `jev-latest` bean.
-When the TypeSafe starter is on the classpath and no explicit default is set, `jev-latest` is the default of both families.
+When the TypeSafe starter defines `jev-latest` and no explicit default is set, `jev-latest` is the default of both families.
+An application bean named `jev-latest` replaces the model and withdraws the candidate, so set the default explicitly in that case.
 A model served by a provider is a default only when configuration names it.
 
 ===== Startup snapshot

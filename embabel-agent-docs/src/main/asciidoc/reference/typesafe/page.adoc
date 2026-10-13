@@ -86,7 +86,7 @@ Auto-configuration contributes the following beans:
   inheritance pattern as the Anthropic and OpenAI providers. Inject it by the
   `TypeSafeModelFactory` type.
 * One `DecisionService` bean per model in the starter's catalog, `models/typesafe-models.yml`,
-  named after the model. The catalog holds `jev-latest`. Each bean is also injectable as
+  named after the model. A missing, invalid or empty catalog fails startup. The catalog holds `jev-latest`. Each bean is also injectable as
   `ClassificationService`.
 * `typeSafeModelsRegistrar`, which defines the catalog model beans, and `typeSafeModelsInitializer`,
   the `ProviderInitialization` that reports them. An application bean or alias named after a catalog
