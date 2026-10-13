@@ -175,6 +175,44 @@ class SystemOneModelFactoryTest {
         }
 
         @Test
+        fun `the key wins over authorization set by the application's initializers and interceptors`() {
+            fun builder() = RestClient.builder()
+                .requestInitializer { it.headers.setBearerAuth("initializer-secret") }
+                .requestInterceptor { request, body, execution ->
+                    request.headers.setBearerAuth("interceptor-secret")
+                    execution.execute(request, body)
+                }
+            val anonymous = mocked(key = { "" }, builder = builder())
+            anonymous.server.expect(requestTo("$base/v1/systemone"))
+                .andExpect { assertNull(it.headers.getFirst(HttpHeaders.AUTHORIZATION)) }
+                .andRespond(withSuccess(noulBody, MediaType.APPLICATION_JSON))
+            val keyed = mocked(builder = builder())
+            keyed.server.expect(requestTo("$base/v1/systemone"))
+                .andExpect { assertEquals(listOf("Bearer test-key"), it.headers[HttpHeaders.AUTHORIZATION]) }
+                .andRespond(withSuccess(noulBody, MediaType.APPLICATION_JSON))
+
+            ask(anonymous.factory)
+            ask(keyed.factory)
+
+            anonymous.server.verify()
+            keyed.server.verify()
+        }
+
+        @Test
+        fun `a key supplier that throws InterruptedException itself cancels the call and validation`() {
+            val mocked = mocked(key = { throw InterruptedException() })
+
+            listOf<() -> Any>({ ask(mocked.factory) }, { mocked.factory.buildValidated() }).forEach { call ->
+                try {
+                    assertThrows<CancellationException> { call() }
+                } finally {
+                    assertTrue(Thread.interrupted())
+                }
+            }
+            mocked.server.verify()
+        }
+
+        @Test
         fun `a key supplier interrupted while it blocks cancels the call`() {
             val mocked = mocked(key = { throw IllegalStateException(InterruptedException()) })
 
@@ -420,6 +458,47 @@ class SystemOneModelFactoryTest {
             assertNull(ask(mocked.factory).requestFailure)
             assertEquals(listOf("model-1"), mocked.factory.modelNames())
             assertNull(broken.currentObservationScope)
+        }
+
+        @Test
+        fun `a handler that fails part way through still lets earlier handlers clean up`() {
+            val events = mutableListOf<String>()
+            val recording = object : ObservationHandler<Observation.Context> {
+                override fun supportsContext(context: Observation.Context) = context.name == "embabel.systemone.request"
+                override fun onStart(context: Observation.Context) {
+                    events += "start"
+                }
+                override fun onStop(context: Observation.Context) {
+                    events += "stop"
+                }
+                override fun onScopeOpened(context: Observation.Context) {
+                    events += "open"
+                }
+                override fun onScopeClosed(context: Observation.Context) {
+                    events += "close"
+                }
+            }
+            fun registry(broken: ObservationHandler<Observation.Context>) = ObservationRegistry.create().apply {
+                observationConfig().observationHandler(recording).observationHandler(broken)
+            }
+            val failsToOpen = object : ObservationHandler<Observation.Context> {
+                override fun supportsContext(context: Observation.Context) = true
+                override fun onScopeOpened(context: Observation.Context): Unit = error("handler broke")
+            }
+            val failsToStart = object : ObservationHandler<Observation.Context> {
+                override fun supportsContext(context: Observation.Context) = true
+                override fun onStart(context: Observation.Context): Unit = error("handler broke")
+            }
+            listOf(failsToOpen, failsToStart).forEach { broken ->
+                events.clear()
+                val mocked = mocked(registry = registry(broken))
+                mocked.server.expect(requestTo("$base/v1/systemone")).andRespond(withSuccess(noulBody, MediaType.APPLICATION_JSON))
+
+                assertNull(ask(mocked.factory).requestFailure)
+
+                assertEquals(events.count { it == "open" }, events.count { it == "close" }, events.toString())
+                assertEquals(events.count { it == "start" }, events.count { it == "stop" }, events.toString())
+            }
         }
 
         @Test
