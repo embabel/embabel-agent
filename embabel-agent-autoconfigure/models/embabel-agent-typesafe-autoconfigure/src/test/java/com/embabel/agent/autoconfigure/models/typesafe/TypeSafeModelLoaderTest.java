@@ -41,4 +41,12 @@ class TypeSafeModelLoaderTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining(path);
     }
+
+    @Test
+    void aDuplicateNameFailureNamesTheRepeatedNames() {
+        var loader = new TypeSafeModelLoader(new DefaultResourceLoader(), "classpath:catalogs/duplicate.yml");
+        assertThatThrownBy(loader::loadAutoConfigMetadata)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Repeated names: [jev-a]");
+    }
 }
