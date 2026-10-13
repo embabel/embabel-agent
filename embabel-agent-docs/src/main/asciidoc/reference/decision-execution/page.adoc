@@ -3,7 +3,8 @@
 
 This page covers selecting a decision service and running a decision spec on it.
 <<reference.decision-specs>> covers building specs and reading responses.
-<<reference.typesafe>> and <<reference.llm-decisions>> cover the two provider families.
+<<reference.systemone>> covers decision models served over the System One protocol, such as Jev from TypeSafe (<<reference.typesafe>>).
+<<reference.llm-decisions>> covers chat models prompted to decide.
 
 The types are in `embabel-agent-ai`.
 Selection is in the package `com.embabel.common.ai.model`.
@@ -21,10 +22,10 @@ flowchart TD
     Obs -->|ask: embabel.ai.ask| Exec[preflight and execution]
     Exec -->|question-set service| Hook[askQuestionSet: embabel.ai.decision ask_question_set]
     Exec -->|any other service| Split[assess / classify / rate]
-    Hook --> Jev[TypeSafeDecisionService]
+    Hook --> SystemOne[SystemOneDecisionService]
     Hook --> Llm[LlmDecisionService]
     Hook --> Fix[NoOpDecisionService / StubDecisionService]
-    Jev --> Asm[DecisionResponseAssembler]
+    SystemOne --> Asm[DecisionResponseAssembler]
     Llm --> Asm
 ----
 
@@ -461,20 +462,19 @@ Question names stay with the caller, so no name character can break a provider's
 
 ==== Service families
 
-TypeSafe is a separate provider integration module, `embabel-agent-typesafe`, with its public factory and package-private adapter in `com.embabel.agent.typesafe`.
-This follows the provider-module layout used by `com.embabel.agent.openai` and `com.embabel.agent.anthropic`.
-The shared contracts live in `com.embabel.common.ai.decision`; Spring configuration is under `com.embabel.agent.config.models.typesafe`.
-
+The shared contracts and the System One codec live in `embabel-agent-ai`, under `com.embabel.common.ai.decision`.
+The System One HTTP client is the `embabel-agent-systemone` module, in `com.embabel.agent.systemone`.
+TypeSafe is the `embabel-agent-typesafe` module, a System One preset in `com.embabel.agent.typesafe`, with its Spring configuration under `com.embabel.agent.config.models.typesafe`.
 
 `DecisionService` has four implementations:
 
 |===
 |Family |Service |Outcomes |Evidence |Confidence
 
-|Jev
-|`TypeSafeDecisionService`
+|System One, such as Jev
+|`SystemOneDecisionService`
 |Every outcome of each kind
-|`pTrue` for propositions. A score and a distribution for ratings.
+|`pTrue` for propositions. A distribution for choices. A score and a distribution for ratings.
 |Reported for choices and ratings
 
 |Prompted LLM
@@ -496,7 +496,7 @@ The shared contracts live in `com.embabel.common.ai.decision`; Spring configurat
 |As scripted
 |===
 
-Jev and prompted services support every kind and answer a whole spec in one question-set call.
+System One and prompted services support every kind and answer a whole spec in one question-set call.
 They also implement the proposition and rating hooks for direct calls.
 Their `classify` answers one choice question with its own instructions and categories.
 
@@ -516,31 +516,32 @@ After `perQuestion()` the builder builds a stub that answers each question throu
 The stub supports every kind unless the builder's `capabilities(...)` sets others.
 `calls()` returns the calls made, in order.
 
-===== TypeSafe evidence
+===== System One evidence
 
 |===
-|Question |Jev question |Mapping
+|Question |System One question |Mapping
 
 |Proposition
-|Noul
+|`noul`
 |The value becomes `pTrue`. Exactly `0.5` is `Inconclusive`. Above it is `Answered(true)` and below it `Answered(false)`.
 
 |Choice
-|Choice
-|The probabilities must cover exactly the options and sum to 1 within `1e-6`. A confidence of 0 is `Inconclusive`. Otherwise the answer is `Selected` with the reported confidence.
+|`choice`
+|The probabilities must cover exactly the options and sum to 1 within `1e-6`. A confidence of 0 is `Inconclusive`. Otherwise the answer is `Selected` with the reported confidence and the distribution in option order.
 
 |Rating
-|Score
+|`score`
 |The value becomes `RatingScore(value, EXPECTED_LEVEL_INDEX)`. The probabilities, keyed by level index, must cover exactly the levels and sum to 1 within `1e-6`. They become the distribution. The confidence is kept as reported.
 |===
 
-The Score value is the probability-weighted mean of the zero-based level positions.
-In typesafe-java-sdk 0.2.0, `Score` makes level 0 the first criteria entry, and `ScoreAnswer` keys its legend and probabilities by level index.
+The score is the probability-weighted mean of the zero-based level positions.
+A `score` question lists its level descriptions in level order, so level 0 is the first entry, and the answer keys its legend and probabilities by level index.
 The value 1.6 on the levels Calm, Frustrated and Very angry lies between the second and third level.
-A rated answer from Jev has no selected level.
-The confidence of a Score describes how concentrated the distribution is.
+A rated answer has no selected level.
+The confidence of a score describes how concentrated the distribution is.
 
-An unknown answer type is an unreadable answer.
+A missing or non-numeric field, or an unknown answer type, is an unreadable answer.
+An answer of another known type is the wrong kind, and a selection outside the options is out of domain.
 A value outside its range, or a distribution that fails its checks, fails only that question.
 
 ===== Prompted evidence
@@ -631,7 +632,7 @@ The framework returns evidence.
 ==== Observations
 
 `ObservedDecisionService` records one logical observation per ask and one observation per provider call.
-The TypeSafe and LLM factories return observed services.
+The System One, TypeSafe and LLM factories return observed services.
 Inside a workflow, `using(service)` wraps a service that is not already observed, so its asks are observed too.
 Outside a workflow, wrap a service you build in `ObservedDecisionService(service, observationRegistry)` to observe it.
 
@@ -813,18 +814,19 @@ Setting a package level reaches every class under it.
 |DEBUG
 |Each observed call's operation and outcome
 
-|`com.embabel.agent.typesafe`
-|WARN, TRACE
-|A failed Jev call. With content capture, the response received.
+|`com.embabel.agent.systemone`
+|WARN, DEBUG, TRACE
+|A failed System One call, and each call's operation, outcome and status class at DEBUG. With content capture, the response body received.
 
 |`com.embabel.agent.spi.support.decision`
 |WARN, TRACE
 |A failed prompted call. With content capture, the raw model reply.
 |===
 
-A provider WARN line holds the service name, provider, operation, failure reason, cause category, HTTP status class or `none`, attempts, elapsed milliseconds and the exception's simple class name.
-The cause category is one of `timeout`, `connection`, `rate_limited`, `http_4xx`, `http_5xx`, `invalid_response` and `other`.
-The Jev line starts with `TypeSafe <operation label> failed with reason <reason>`, makes one attempt, and ends with the provider request id or `none`.
+A provider WARN line holds the service name, provider, operation, failure reason, cause category, HTTP status class or `none`, attempts and elapsed milliseconds.
+The cause category is one of `timeout`, `connection`, `credential`, `rate_limited`, `http_4xx`, `http_5xx`, `invalid_response` and `other`.
+The System One line starts with `System One <operation label> failed with reason <reason>`, makes one attempt, and ends with the provider request id or `none`.
+The prompted line also names the exception's simple class.
 The prompted line starts with `Decision call failed`, counts the attempts made by its retry settings, and ends with a remedy that names the retry property prefix.
 A one-question call logs its operation: `assess`, `classify` or `rate`.
 Lines up to DEBUG hold no input, instructions, option or level text, received category ids, credentials or provider text.
@@ -859,7 +861,7 @@ Failed provider calls at WARN, from Jev and from a prompted service:
 
 [source,text]
 ----
-TypeSafe question set failed with reason UNAVAILABLE: service=jev-latest, provider=TypeSafe, operation=ask_question_set, cause=http_5xx, status=5xx, attempts=1, elapsedMs=7, exception=SafeHttpFailure, requestId=none
+System One question set failed with reason UNAVAILABLE: service=jev-latest, provider=TypeSafe, operation=ask_question_set, cause=http_5xx, status=5xx, attempts=1, elapsedMs=7, requestId=none
 Decision call failed: service=gpt-test, provider=TestProvider, operation=ask, reason=UNAVAILABLE, cause=timeout, httpStatus=none, attempts=3, elapsedMs=12, exception=SocketTimeoutException. Check the model's availability, credentials and retry settings under embabel.agent.platform.decisions.test.
 ----
 
@@ -882,7 +884,7 @@ It needs two settings together:
 
 The switch alone logs nothing, and TRACE alone logs no content.
 With both, `DecisionExecution` logs the input, each question's instructions, options or levels, and each answer with its evidence.
-The Jev service logs the response it received, and the prompted service logs the raw model reply.
+The System One service logs the response body it received, and the prompted service logs the raw model reply.
 Spring logs one WARN at startup when the property is on and turns the switch off when the context closes.
 
 WARNING: Captured lines hold the decision input and provider output, which can contain personal or confidential text.
@@ -897,7 +899,7 @@ The owner is James Dunnam (GitHub `@jimador`).
 Promotion to stable needs all of these:
 
 * Service resolution by role, name, default and instance, used by a consumer application
-* Interoperation of the Jev, prompted, no-op and stub families through one registry
+* Interoperation of the System One, prompted, no-op and stub families through one registry
 * A compatibility review of `DecisionService`, `Ai` and `PlatformServices`
 * Privacy checks on logs, tags and exception messages
 * A runnable consumer proof

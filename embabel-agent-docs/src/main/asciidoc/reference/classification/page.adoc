@@ -10,7 +10,7 @@ The application decides what to do with the result: route work, ask for more inf
 [NOTE]
 ====
 These contracts are experimental and live in `embabel-agent-ai`.
-Two providers implement them: Jev through the TypeSafe integration (<<reference.typesafe>>) and prompted chat models (<<reference.llm-decisions>>).
+Two provider families implement them: decision models served over System One, such as Jev from TypeSafe (<<reference.systemone>>, <<reference.typesafe>>), and prompted chat models (<<reference.llm-decisions>>).
 ====
 
 .Application and model responsibilities
