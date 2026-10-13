@@ -81,7 +81,8 @@ A model outside the catalog is built with `TypeSafeModelFactory.build(model)`.
 An application that supplies its own `TypeSafeModelFactory` bean keeps it.
 Auto-configuration then registers no catalog models and needs no key.
 
-Spring picks the HTTP client in this order: the qualified `aiModelRestClientBuilder`, then a unique application `RestClient.Builder`, then the factory's own client.
+Spring uses the qualified `aiModelRestClientBuilder` first.
+Without it, Spring uses a unique application `RestClient.Builder`, and otherwise the factory's own client.
 With Embabel's shared Netty builder, `embabel.agent.platform.http-client.connect-timeout` and `embabel.agent.platform.http-client.read-timeout` set the timeouts.
 The factory's own client waits 10 seconds to connect and 10 seconds for data.
 
@@ -98,7 +99,7 @@ A classification goes to Jev as a `choice` whose ids and descriptions come only 
 The reported distribution must cover exactly those categories and sum to 1.
 A selection keeps the reported confidence and the distribution.
 Neither is a calibrated probability of being right.
-A flat distribution with zero confidence is `Inconclusive`.
+A confidence of 0 is `Inconclusive`.
 
 Jev never answers `NoMatch`.
 When none-of-the-above matters, declare it as a category with a stable id and map it in application code.
@@ -156,4 +157,13 @@ The rating score is an expected level index, and the answer carries a distributi
 
 The API is experimental so real integrations can shape it.
 The code is maintained as production code.
-Promotion needs stable Java and Kotlin use, observability, key rotation, several models wired together, strict response checks, sanitized failures, starter tests and a clean repository build.
+Promotion needs all of these:
+
+* stable Java and Kotlin use
+* observability
+* key rotation
+* several models wired together
+* strict response checks
+* sanitized failures
+* starter tests
+* a clean repository build
