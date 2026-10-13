@@ -148,6 +148,24 @@ class AgentTypeSafeAutoConfigurationTest {
     }
 
     @Test
+    void anApplicationBeanNamedAfterTheDefaultCandidateIsKept() {
+        var own = new DecisionServiceRegistry.DefaultCandidate("custom");
+        configured()
+                .withBean(
+                        "typeSafeDefaultCandidate",
+                        DecisionServiceRegistry.DefaultCandidate.class,
+                        () -> own)
+                .run(
+                        context -> {
+                            assertThat(context).hasNotFailed();
+                            assertThat(context.getBean(DecisionServiceRegistry.DefaultCandidate.class))
+                                    .isSameAs(own);
+                            assertThat(context.getBean(TypeSafeModelFactory.DEFAULT_MODEL))
+                                    .isInstanceOf(DecisionService.class);
+                        });
+    }
+
+    @Test
     void configurationExtendsFactoryAndSendsTheCatalogModelId() {
         var builder = RestClient.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
@@ -190,6 +208,8 @@ class AgentTypeSafeAutoConfigurationTest {
         expectAssessment(server, "first-key", TypeSafeModelFactory.DEFAULT_MODEL);
         expectAssessment(server, "second-key", TypeSafeModelFactory.DEFAULT_MODEL);
         expectAssessment(server, "property-key", TypeSafeModelFactory.DEFAULT_MODEL);
+        expectAssessment(server, "rotated-property-key", TypeSafeModelFactory.DEFAULT_MODEL);
+        credentials.put(PREFIX + "api-key", "property-key");
 
         runner.withInitializer(
                         context ->
@@ -198,7 +218,6 @@ class AgentTypeSafeAutoConfigurationTest {
                                         .addFirst(
                                                 new MapPropertySource(
                                                         "rotating-credentials", credentials)))
-                .withPropertyValues(PREFIX + "api-key=property-key")
                 .withBean(RestClient.Builder.class, () -> builder)
                 .run(
                         context -> {
@@ -207,6 +226,8 @@ class AgentTypeSafeAutoConfigurationTest {
                             credentials.put("TYPESAFE_API_KEY", "second-key");
                             assertAnswered(service.assess(REQUEST));
                             credentials.put("TYPESAFE_API_KEY", "");
+                            assertAnswered(service.assess(REQUEST));
+                            credentials.put(PREFIX + "api-key", "rotated-property-key");
                             assertAnswered(service.assess(REQUEST));
                         });
         server.verify();

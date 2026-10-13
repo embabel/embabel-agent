@@ -53,13 +53,13 @@ class TypeSafeModelsConfig(
     registries: ObjectProvider<ObservationRegistry>,
 ) : TypeSafeModelFactory(
     options(properties),
-    Supplier { requireApiKey(properties, environment) },
+    Supplier { requireApiKey(environment) },
     selectedBuilder(platformBuilders, builders, registries),
     registries.getIfUnique { ObservationRegistry.NOOP },
 ) {
 
     init {
-        requireApiKey(properties, environment)
+        requireApiKey(environment)
         logger.info("TypeSafe models are available: {}", properties)
     }
 
@@ -104,6 +104,7 @@ class TypeSafeModelsConfig(
         private fun catalog(): List<TypeSafeModelDefinition> = TypeSafeModelLoader().loadAutoConfigMetadata().models
 
         private const val API_KEY_ENVIRONMENT_VARIABLE = "TYPESAFE_API_KEY"
+        private const val API_KEY_PROPERTY = TypeSafeProperties.PREFIX + ".api-key"
         private const val AI_MODEL_REST_CLIENT_BUILDER = "aiModelRestClientBuilder"
 
         private val logger = org.slf4j.LoggerFactory.getLogger(TypeSafeModelsConfig::class.java)
@@ -157,19 +158,17 @@ class TypeSafeModelsConfig(
         }
 
         /**
-         * Reads the API key, preferring the environment variable over the configured property. The
-         * error never includes the key.
+         * Reads the API key, preferring the environment variable over the configured property. Both
+         * are read through the environment on every call, so a rotated key takes effect. The error
+         * never includes the key.
          *
-         * @param properties the TypeSafe configuration properties
          * @param environment the Spring environment
          * @return the API key
          * @throws IllegalStateException if neither source has a key
          */
-        private fun requireApiKey(properties: TypeSafeProperties, environment: Environment): String {
-            val environmentKey = environment.getProperty(API_KEY_ENVIRONMENT_VARIABLE)
-            return environmentKey.takeUnless { it.isNullOrBlank() }
-                ?: properties.apiKey().takeUnless { it.isNullOrBlank() }
+        private fun requireApiKey(environment: Environment): String =
+            environment.getProperty(API_KEY_ENVIRONMENT_VARIABLE).takeUnless { it.isNullOrBlank() }
+                ?: environment.getProperty(API_KEY_PROPERTY).takeUnless { it.isNullOrBlank() }
                 ?: error("TypeSafe API key is required")
-        }
     }
 }
