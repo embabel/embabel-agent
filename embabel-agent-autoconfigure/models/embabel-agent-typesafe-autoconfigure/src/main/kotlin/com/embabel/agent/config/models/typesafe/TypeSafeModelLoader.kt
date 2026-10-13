@@ -90,8 +90,8 @@ class TypeSafeModelLoader @JvmOverloads constructor(
     override fun validateModels(provider: TypeSafeModelDefinitions) {
         require(provider.models.isNotEmpty()) { "the catalog defines no models" }
         provider.models.forEach(::validateCommonFields)
-        val names = provider.models.map { it.name }
-        require(names.size == names.toSet().size) { "TypeSafe model names must be unique" }
+        val repeated = provider.models.groupingBy { it.name }.eachCount().filterValues { it > 1 }.keys
+        require(repeated.isEmpty()) { "TypeSafe model names must be unique. Repeated names: $repeated" }
     }
 
     companion object {
