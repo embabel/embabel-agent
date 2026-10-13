@@ -154,6 +154,14 @@ class ClassificationTest {
         }
 
         @Test
+        fun `equal selections have equal hash codes`() {
+            val positive = ClassificationResult.Selected("dog", provenance, 0.0)
+            val negative = ClassificationResult.Selected("dog", provenance, -0.0)
+            assertEquals(positive == negative, positive.hashCode() == negative.hashCode())
+            assertEquals(ClassificationResult.Selected("dog", provenance, 0.4), ClassificationResult.Selected("dog", provenance, 0.4))
+        }
+
+        @Test
         fun `a distribution has unique ids, sums to one and includes the selection`() {
             listOf(
                 listOf(CategoryProbability("dog", 0.5), CategoryProbability("dog", 0.5)),

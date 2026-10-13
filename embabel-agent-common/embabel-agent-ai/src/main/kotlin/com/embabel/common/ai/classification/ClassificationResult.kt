@@ -184,7 +184,7 @@ sealed interface ClassificationResult {
 
         override fun equals(other: Any?): Boolean =
             this === other || other is Selected && categoryId == other.categoryId &&
-                provenance == other.provenance && confidence == other.confidence && distribution == other.distribution
+                provenance == other.provenance && java.util.Objects.equals(confidence, other.confidence) && distribution == other.distribution
 
         override fun hashCode(): Int = java.util.Objects.hash(categoryId, provenance, confidence, distribution)
 
