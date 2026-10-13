@@ -25,6 +25,7 @@ import io.micrometer.observation.ObservationRegistry
 import org.jetbrains.annotations.ApiStatus
 import org.slf4j.LoggerFactory
 import org.springframework.web.client.RestClient
+import java.util.concurrent.CancellationException
 import java.util.function.Supplier
 
 /**
@@ -122,6 +123,8 @@ open class SystemOneModelFactory @JvmOverloads constructor(
         } ?: throw InvalidApiKeyException("$provider credential is missing")
         try {
             modelNames { key }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (failure: IllegalStateException) {
             logger.warn("{} credential validation failed: {}", provider, failure.message)
             throw InvalidApiKeyException("$provider credential could not be validated", failure)

@@ -55,7 +55,7 @@ class SystemOneEndpoint @JvmOverloads constructor(
         }
         requireTimeout("connect", connectTimeout)
         requireTimeout("read", readTimeout)
-        require(maxResponseBytes in 1 until Int.MAX_VALUE) { "The response limit must be positive" }
+        require(maxResponseBytes in 1 until Int.MAX_VALUE) { "The response limit must be between 1 and ${Int.MAX_VALUE - 1} bytes" }
         require(requestIdHeader == null || requestIdHeader.isNotBlank()) { "The request id header must not be blank" }
     }
 
