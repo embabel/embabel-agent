@@ -17,6 +17,10 @@ package com.embabel.agent.api.tool;
 
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 
+/**
+ * Test fixture for verifying schema generation and parameter extraction
+ * from Java records annotated with {@link JsonPropertyDescription}.
+ */
 public record JavaAnnotatedRecord(
         String name,
         @JsonPropertyDescription("The record description") String description

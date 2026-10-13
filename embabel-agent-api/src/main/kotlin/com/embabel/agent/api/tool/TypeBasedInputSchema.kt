@@ -28,7 +28,9 @@ import kotlin.reflect.jvm.javaType
 
 /**
  * InputSchema implementation that generates JSON schema from a Class type.
- * Uses reflection to extract properties and their types.
+ * Uses reflection to extract properties and their types, honouring top-level
+ * [JsonPropertyDescription] annotations for descriptions and delegating schema
+ * generation for property types to [VictoolsSchemaGenerator].
  */
 class TypeBasedInputSchema(
     private val type: Class<*>,
@@ -43,6 +45,11 @@ class TypeBasedInputSchema(
         @JvmStatic
         fun of(type: KClass<*>): TypeBasedInputSchema = TypeBasedInputSchema(type.java)
 
+        /**
+         * Resolves the description for a Kotlin property, checking for [JsonPropertyDescription]
+         * across its getter, property declaration, backing Java field, and primary constructor parameter.
+         * Falls back to the property name if no annotation is present or the value is empty.
+         */
         private fun findPropertyDescription(prop: KProperty1<*, *>, kClass: KClass<*>): String {
             val description = prop.getter.findAnnotation<JsonPropertyDescription>()?.value
                 ?: prop.findAnnotation<JsonPropertyDescription>()?.value
@@ -53,6 +60,11 @@ class TypeBasedInputSchema(
             return if (!description.isNullOrEmpty()) description else prop.name
         }
 
+        /**
+         * Resolves the description for a Java field or record component, checking for
+         * [JsonPropertyDescription] on the record component, field, or accessor method.
+         * Falls back to the field name if no annotation is present or the value is empty.
+         */
         private fun findFieldDescription(field: java.lang.reflect.Field, type: Class<*>): String {
             if (type.isRecord) {
                 val recordComponent = type.recordComponents?.firstOrNull { it.name == field.name }

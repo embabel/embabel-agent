@@ -56,8 +56,10 @@ internal object VictoolsSchemaGenerator {
             )
         ).with(
             JakartaValidationModule(
+                // Non-nullable fields and methods (e.g. annotated with @NotNull) are marked as required in the schema
                 JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED,
                 JakartaValidationOption.NOT_NULLABLE_METHOD_IS_REQUIRED,
+                // Include regex pattern expressions from @Pattern annotations in generated schema properties
                 JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
             )
         )
