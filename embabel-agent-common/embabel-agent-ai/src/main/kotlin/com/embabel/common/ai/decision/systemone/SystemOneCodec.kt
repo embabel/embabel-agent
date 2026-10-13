@@ -118,7 +118,9 @@ object SystemOneCodec {
     }
 
     /**
-     * Reads the model names from a model listing, `{"models": [{"name", ...}]}`.
+     * Reads the model names from a model listing. Both listing shapes in use are read: the System
+     * One shape, `{"models": [{"name", ...}]}`, and the OpenAI shape that Ollama and OpenRouter
+     * serve, `{"data": [{"id", ...}]}`.
      *
      * @param body the listing body
      * @return the model names in the order listed
@@ -126,9 +128,10 @@ object SystemOneCodec {
      */
     @JvmStatic
     fun modelNames(body: ByteArray): List<String> {
-        val models = readObject(body).get("models")
+        val root = readObject(body)
+        val (models, field) = if (root.has("models")) root.get("models") to "name" else root.get("data") to "id"
         if (models == null || !models.isArray) throw SystemOneFormatException("The model listing has no models")
-        return models.values().map { text(it.get("name")) ?: throw SystemOneFormatException("A listed model has no name") }
+        return models.values().map { text(it.get(field)) ?: throw SystemOneFormatException("A listed model has no name") }
     }
 
     private fun key(index: Int) = "q${index + 1}"
