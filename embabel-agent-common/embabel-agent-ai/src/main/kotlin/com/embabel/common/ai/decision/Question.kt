@@ -451,10 +451,19 @@ internal object OutcomeRules {
         requireEntryIds(name, "level", ids)
     }
 
-    /** Returns the result unchanged if any selection names one of the options. */
+    /**
+     * Returns the result unchanged if a selection names one of the options and its distribution,
+     * when present, covers exactly the options.
+     */
     fun fitChoice(name: String, options: List<Category>, result: ClassificationResult): ClassificationResult {
-        require(result !is ClassificationResult.Selected || options.any { it.id == result.categoryId }) {
-            "Question '$name': the selected category id is not one of its options"
+        if (result is ClassificationResult.Selected) {
+            val optionIds = options.map { it.id }.toSet()
+            require(result.categoryId in optionIds) {
+                "Question '$name': the selected category id is not one of its options"
+            }
+            require(result.distribution.isEmpty() || result.distribution.map { it.categoryId }.toSet() == optionIds) {
+                "Question '$name': the distribution must cover exactly its options"
+            }
         }
         return result
     }
