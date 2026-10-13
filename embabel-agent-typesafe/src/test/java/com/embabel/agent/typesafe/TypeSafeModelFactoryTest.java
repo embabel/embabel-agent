@@ -136,9 +136,9 @@ class TypeSafeModelFactoryTest {
         @Test
         void aBlankKeyIsInvalidWithoutCallingTypeSafe() {
             var mocked = mocked(TypeSafeClientOptions.defaults(), () -> "");
+            var factory = mocked.factory();
 
-            assertThatThrownBy(() -> mocked.factory().buildValidated())
-                    .isInstanceOf(InvalidApiKeyException.class);
+            assertThatThrownBy(factory::buildValidated).isInstanceOf(InvalidApiKeyException.class);
             mocked.server().verify();
         }
 
@@ -148,8 +148,9 @@ class TypeSafeModelFactoryTest {
             mocked.server()
                     .expect(requestTo("https://api.typesafe.ai/v1/models"))
                     .andRespond(withStatus(HttpStatus.UNAUTHORIZED));
+            var factory = mocked.factory();
 
-            assertThatThrownBy(() -> mocked.factory().buildValidated())
+            assertThatThrownBy(factory::buildValidated)
                     .isInstanceOf(InvalidApiKeyException.class)
                     .hasMessageNotContaining("SECRET");
         }
@@ -180,13 +181,9 @@ class TypeSafeModelFactoryTest {
                         "https://api.typesafe.ai?key=secret",
                         "https://api.typesafe.ai#secret"
                     }) {
-                assertThatThrownBy(
-                                () ->
-                                        new TypeSafeClientOptions(
-                                                URI.create(uri),
-                                                Duration.ofSeconds(1),
-                                                Duration.ofSeconds(1),
-                                                1024))
+                var address = URI.create(uri);
+                var timeout = Duration.ofSeconds(1);
+                assertThatThrownBy(() -> new TypeSafeClientOptions(address, timeout, timeout, 1024))
                         .isInstanceOf(IllegalArgumentException.class)
                         .hasMessageNotContaining("secret");
             }
@@ -195,9 +192,10 @@ class TypeSafeModelFactoryTest {
         @Test
         void rejectsUnusableTimeoutsAndLimits() {
             var uri = URI.create("https://api.typesafe.ai");
-            assertThatThrownBy(() -> new TypeSafeClientOptions(uri, Duration.ZERO, Duration.ofSeconds(1), 1))
+            var second = Duration.ofSeconds(1);
+            assertThatThrownBy(() -> new TypeSafeClientOptions(uri, Duration.ZERO, second, 1))
                     .isInstanceOf(IllegalArgumentException.class);
-            assertThatThrownBy(() -> new TypeSafeClientOptions(uri, Duration.ofSeconds(1), Duration.ofSeconds(1), 0))
+            assertThatThrownBy(() -> new TypeSafeClientOptions(uri, second, second, 0))
                     .isInstanceOf(IllegalArgumentException.class);
         }
 
