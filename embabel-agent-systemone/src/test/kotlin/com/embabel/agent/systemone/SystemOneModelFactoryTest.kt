@@ -70,6 +70,8 @@ import java.net.ServerSocket
 import java.net.URI
 import java.time.Duration
 import java.util.concurrent.CancellationException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Supplier
 
@@ -579,6 +581,19 @@ class SystemOneModelFactoryTest {
         }
 
         @Test
+        fun `validation interrupted before the listing is cancelled without a request`() {
+            val mocked = mocked()
+
+            Thread.currentThread().interrupt()
+            try {
+                assertThrows<CancellationException> { mocked.factory.buildValidated() }
+            } finally {
+                assertTrue(Thread.interrupted())
+            }
+            mocked.server.verify()
+        }
+
+        @Test
         fun `a rejected listing makes the key invalid`() {
             val mocked = mocked()
             mocked.server.expect(requestTo("$base/v1/models")).andRespond(withStatus(HttpStatus.UNAUTHORIZED))
@@ -615,6 +630,7 @@ class SystemOneModelFactoryTest {
 
         private lateinit var server: HttpServer
         private val redirected = AtomicInteger()
+        private val release = CountDownLatch(1)
 
         @BeforeEach
         fun start() {
@@ -631,28 +647,32 @@ class SystemOneModelFactoryTest {
             }
             server.createContext("/v1/systemone") { exchange ->
                 exchange.requestBody.readAllBytes()
-                if (exchange.requestHeaders.getFirst("X-Slow") == null) {
-                    exchange.sendResponseHeaders(200, 0)
-                    exchange.responseBody.use { out -> repeat(64) { out.write(ByteArray(1024)) } }
-                } else {
-                    Thread.sleep(2000)
-                    exchange.close()
-                }
+                exchange.sendResponseHeaders(200, 0)
+                exchange.responseBody.use { out -> repeat(64) { out.write(ByteArray(1024)) } }
+            }
+            server.createContext("/slow/v1/systemone") { exchange ->
+                exchange.requestBody.readAllBytes()
+                release.await(5, TimeUnit.SECONDS)
+                exchange.close()
             }
             server.start()
         }
 
         @AfterEach
         fun stop() {
+            release.countDown()
             server.stop(0)
         }
 
-        private fun factory(readTimeout: Duration = Duration.ofSeconds(5), port: Int = server.address.port) =
-            SystemOneModelFactory(
-                SystemOneEndpoint("Example", URI.create("http://127.0.0.1:$port"), readTimeout = readTimeout, maxResponseBytes = 1024),
-                "model-1",
-                { "k" },
-            )
+        private fun factory(
+            readTimeout: Duration = Duration.ofSeconds(5),
+            port: Int = server.address.port,
+            path: String = "",
+        ) = SystemOneModelFactory(
+            SystemOneEndpoint("Example", URI.create("http://127.0.0.1:$port$path"), readTimeout = readTimeout, maxResponseBytes = 1024),
+            "model-1",
+            { "k" },
+        )
 
         @Test
         fun `the fallback transport does not follow redirects`() {
@@ -666,16 +686,8 @@ class SystemOneModelFactoryTest {
         }
 
         @Test
-        fun `a read timeout is unavailable`() {
-            val builder = RestClient.builder().defaultHeader("X-Slow", "1")
-            val slow = SystemOneModelFactory(
-                SystemOneEndpoint("Example", URI.create("http://127.0.0.1:${server.address.port}"), readTimeout = Duration.ofMillis(200)),
-                "model-1",
-                { "k" },
-                builder.requestFactory(
-                    org.springframework.http.client.SimpleClientHttpRequestFactory().apply { setReadTimeout(200) },
-                ),
-            )
+        fun `the fallback transport applies the endpoint's read timeout`() {
+            val slow = factory(readTimeout = Duration.ofMillis(200), path = "/slow")
 
             assertEquals(FailureReason.UNAVAILABLE, ask(slow).requestFailure)
             assertTrue(warnings().single().contains("cause=timeout"), warnings().single())
