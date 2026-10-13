@@ -815,8 +815,8 @@ Setting a package level reaches every class under it.
 |Each observed call's operation and outcome
 
 |`com.embabel.agent.systemone`
-|WARN, DEBUG, TRACE
-|A failed System One call, and each call's operation, outcome and status class at DEBUG. With content capture, the response body received.
+|INFO, WARN, DEBUG, TRACE
+|Factory startup and successful key validation at INFO. A failed System One call, and each call's operation, outcome and status class at DEBUG. With content capture, the response body received.
 
 |`com.embabel.agent.spi.support.decision`
 |WARN, TRACE
