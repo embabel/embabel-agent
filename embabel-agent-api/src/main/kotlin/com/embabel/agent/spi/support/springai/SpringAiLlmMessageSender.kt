@@ -51,6 +51,8 @@ internal class SpringAiLlmMessageSender(
     private val toolResponseContentAdapter: ToolResponseContentAdapter = ToolResponseContentAdapter.PASSTHROUGH,
     private val nativeStructuredOutputConfigurer: SpringAiNativeStructuredOutputConfigurer =
         SpringAiNativeStructuredOutputConfigurer.NOOP,
+    private val nativeThinkingExtractor: SpringAiNativeThinkingExtractor =
+        SpringAiNativeThinkingExtractor.NOOP,
     private val nativeSupport: NativeSupport? = null,
     private val llmMetadata: LlmMetadata? = null,
 ) : RequestAwareLlmMessageSender {
@@ -96,21 +98,43 @@ internal class SpringAiLlmMessageSender(
 
         logger.debug("Prompt: {}\nResponse: {}", prompt, response)
 
-        // Convert response to Embabel message
-        // Note: Some providers (e.g., Bedrock) may return multiple generations where
-        // the first is empty and the second contains tool calls. We need to find the
-        // generation with tool calls, or fall back to the first one if none have them.
-        // See: https://github.com/embabel/embabel-agent/issues/1350
-        val assistantMessage = findGenerationWithToolCalls(response) ?: response.result!!.output
+        // --- Select the answer generation [A] and capture reasoning [B] separately ---
+        //
+        // Anthropic splits a thinking response into two generations:
+        //   - reasoning generation: .text = thinking prose, metadata["signature"] set
+        //   - answer generation:    .text = JSON result,    metadata["anthropicThinkingContents"] set
+        // Both budget-based (Claude ≤4.6) and adaptive (Claude ≥4.7) thinking use this split.
+        // Non-thinking responses have a single generation with no "signature" key.
+        //
+        // [A] assistantMessage below selects the answer generation — its text is parsed by
+        //     JacksonOutputConverter into the typed result. The reasoning generation is skipped
+        //     here by filtering out any generation whose metadata contains "signature".
+        //
+        // [B] thinkingBlocks below captures the reasoning generation via nativeThinkingExtractor,
+        //     which reads metadata["anthropicThinkingContents"] from the answer generation.
+        //
+        // Bedrock note: some Bedrock models return multiple generations where the first is empty
+        //     and the second contains tool calls — findGenerationWithToolCalls() handles that first.
+        val assistantMessage = findGenerationWithToolCalls(response)  // [A1] tool-call generation (Bedrock)
+            ?: response.results.map { it.output }                     // [A2] answer generation (thinking split)
+                .firstOrNull { output ->
+                    output.metadata?.containsKey("signature") != true // skip reasoning generation
+                        && !output.text.isNullOrBlank()               // skip blank generations
+                }
+            ?: response.results.firstOrNull()?.output                 // [A3] safety net: first generation
+            ?: throw IllegalStateException(                           // [A4] no generations — fail loudly
+                "ChatResponse has no generations (model returned no content blocks)")
         val embabelMessage = assistantMessage.toEmbabelMessage()
 
-        // Extract usage information
         val usage = response.metadata?.usage?.toEmbabelUsage()
+
+        val thinkingBlocks = nativeThinkingExtractor.extract(response) // [B] reasoning generation
 
         return LlmMessageResponse(
             message = embabelMessage,
             textContent = assistantMessage.text ?: "",
             usage = usage,
+            thinkingBlocks = thinkingBlocks,
         )
     }
 

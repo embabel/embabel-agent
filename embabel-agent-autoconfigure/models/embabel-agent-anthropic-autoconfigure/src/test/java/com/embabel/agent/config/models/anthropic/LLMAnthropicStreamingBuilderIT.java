@@ -54,9 +54,9 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest(
         properties = {
-                "embabel.models.cheapest=claude-sonnet-4-5",
-                "embabel.models.best=claude-sonnet-4-5",
-                "embabel.models.default-llm=claude-sonnet-4-5",
+                "embabel.models.cheapest=claude-opus-4-8",
+                "embabel.models.best=claude-opus-4-8",
+                "embabel.models.default-llm=claude-opus-4-8",
                 "spring.main.allow-bean-definition-overriding=true",
 
                 // Streaming Infrastructure logging
@@ -254,6 +254,7 @@ class LLMAnthropicStreamingBuilderIT {
 
         String prompt = """
                             What are exactly two the most hottest months in Florida and their respective highest temperatures.
+
                             Use Tooling instance to convert temperature units to Celsius.
                             """.trim();
 

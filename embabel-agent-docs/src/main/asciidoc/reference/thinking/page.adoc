@@ -19,6 +19,7 @@ An even more important use case arises when the LLM cannot fulfill a request—f
 
 - `ThinkingBlock` — An abstraction that carries details about LLM reasoning, including the tag type, tag value, and reasoning text content.
 - `ThinkingTagType` — An enum defining the types of reasoning markers: `TAG` (XML-style tags like `<think>`), `PREFIX` (line prefixes like `//THINKING:`), and `NO_PREFIX` (untagged reasoning text before JSON output).
+- `ThinkingOrigin` — An enum distinguishing how a thinking block was produced: `PROMPT_EXTRACTED` (Embabel parsed reasoning text from the model's prompt response) or `NATIVE` (the provider surfaced reasoning via its API, e.g. Anthropic adaptive thinking blocks).
 - `ThinkingResponse<T>` — A response wrapper that holds both the result object and a list of `ThinkingBlock` instances.
 - `ThinkingException` — An exception that preserves thinking blocks when object instantiation fails, enabling debugging even in error scenarios.
 - `thinking()` — The core `PromptRunner` API method that enables thinking extraction.
@@ -180,24 +181,115 @@ val response2 = runner
 ----
 ====
 
+==== Native Thinking (Anthropic Adaptive Models)
+
+Claude 5.x models (`claude-sonnet-5-5`, `claude-opus-5-5`, `claude-fable-5-1`) and Claude ≥4.7
+models (`claude-opus-4-8`) use Anthropic's adaptive thinking API. When a token budget is supplied,
+the model decides internally when and how much to think; the reasoning is returned as a summarized
+block alongside the answer. Embabel marks these blocks with `ThinkingOrigin.NATIVE`.
+
+To enable native thinking, pass a token budget via `Thinking.withTokenBudget(n)`:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+PromptRunner runner = ai.withLlm(
+        LlmOptions.withModel("claude-sonnet-5-5")
+                  .withThinking(Thinking.withTokenBudget(16000)));
+
+ThinkingResponse<MonthItem> response = runner
+        .thinking()
+        .createObject(prompt, MonthItem.class);
+
+response.getThinkingBlocks().stream()
+        .filter(b -> b.getOrigin() == ThinkingOrigin.NATIVE)
+        .forEach(b -> logger.info("Native reasoning: {}", b.getContent()));
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val runner = ai.withLlm(
+    LlmOptions.withModel("claude-sonnet-5-5")
+              .withThinking(Thinking.withTokenBudget(16000)))
+
+val response = runner
+    .thinking()
+    .createObject(prompt, MonthItem::class.java)
+
+response.thinkingBlocks
+    .filter { it.origin == ThinkingOrigin.NATIVE }
+    .forEach { logger.info("Native reasoning: {}", it.content) }
+----
+====
+
+NOTE: The returned reasoning is a _summarized_ representation produced by a secondary model pass.
+The full chain of thought is encrypted in an opaque signature field and is not accessible to callers.
+
+WARNING: On adaptive models (Claude ≥4.7) with an active thinking budget, you must choose _one_ of
+native thinking _or_ prompt-extracted reasoning — not both. Including XML reasoning tags in your
+prompt while a thinking budget is active causes Anthropic's API to return a
+`reasoning_extraction` refusal (ToS enforcement). Use native thinking (no tags in prompt) _or_
+prompt-extracted tags (no budget). Both together is not supported.
+
 ==== Provider Notes
 
-Embabel exposes thinking through a provider-neutral API:
+Embabel exposes thinking through a provider-neutral API (`PromptRunner.thinking()` /
+`LlmOptions.thinking`). Provider integrations translate `Thinking` to match provider-specific
+capabilities; no provider-specific configuration is required at the application level.
 
-- `PromptRunner.thinking()`
-- `LlmOptions.thinking`
+===== Anthropic
 
-This remains the primary public API for enabling reasoning/thinking mode.
+Native adaptive thinking is fully supported for Claude ≥4.7 models (see <<Native Thinking>> above).
 
-Under the hood, provider integrations may translate `Thinking` differently to match provider-specific capabilities. For example, Google GenAI maps Embabel thinking options to the corresponding Spring AI Google GenAI chat options such as `includeThoughts` and `thinkingBudget`.
+On adaptive models the token budget passed to `Thinking.withTokenBudget(n)` is mapped to an
+effort level rather than used as a hard cap:
 
-No new application-level thinking API is required for callers. In general, existing applications should continue to use Embabel's generic thinking API rather than provider-specific configuration.
+[cols="1,1"]
+|===
+| Budget (tokens) | Effort level
 
-Some providers may also define model-level defaults in model YAML, but explicit runtime thinking requests still flow through `LlmOptions.thinking`.
+| < 1,024   | `LOW`
+| < 4,096   | `MEDIUM`
+| < 16,384  | `HIGH`
+| < 32,768  | `XHIGH`
+| ≥ 32,768  | `MAX`
+|===
 
-Provider behavior may differ slightly depending on how Spring AI surfaces reasoning data:
+NOTE: With `HIGH` effort (budget 4,096–16,383), the model may skip thinking on tool-result turns
+in a multi-step tool loop. Use a budget of at least 16,384 (`XHIGH`) when reasoning across all
+iterations of a tool loop is important.
 
-- Some providers expose reasoning on the assistant message itself
-- Others expose it through generation metadata
+Known limitations:
 
-As a result, the presence and shape of extracted thinking blocks may vary somewhat by provider and Spring AI integration version.
+- *Multi-turn (`respond()` API):* When a prior assistant turn contained thinking blocks (any
+  model with an active thinking budget), re-sending that turn via `respond()` drops the thinking
+  content and signatures. Anthropic's API requires thinking blocks — including their encrypted signatures — to be passed back
+  intact for extended thinking sessions. Avoid combining any active thinking budget with `respond()`
+  multi-turn flows until `ProviderOpaqueMessage` support is added.
+
+- *Streaming:* Native thinking SSE events (`content_block_start(type=thinking)`) are not yet
+  extracted from the streaming path. Thinking blocks are only available from blocking
+  (`createObject`) calls.
+
+===== OpenAI
+
+Reasoning tokens (`reasoningContent`) from o-series models (o1, o3, o4-mini, etc.) are not yet
+extracted. Thinking blocks will be empty even when the model reasons internally. Support is
+planned as a follow-up.
+
+===== Ollama
+
+All Ollama LLM services registered by Embabel's auto-configuration set `thinkingSupported = true`
+on `SpringAiLlmService`, so thinking requests are sent correctly. However, the `thinking` field
+in the response is not yet extracted. Thinking blocks will
+be empty despite the model reasoning internally. Support is planned as a follow-up.
+
+===== Google GenAI
+
+Thinking extraction is partially supported via Spring AI (`includeThoughts`, `thinkingBudget`).
+Behavior may vary by model and Spring AI integration version.

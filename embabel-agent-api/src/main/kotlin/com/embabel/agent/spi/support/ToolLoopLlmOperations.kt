@@ -410,11 +410,26 @@ open class ToolLoopLlmOperations(
         val injectionStrategy = createInjectionStrategy(interaction)
         val effectiveContext = resolveToolCallContext(llmRequestEvent, interaction)
 
-        val toolLoop = toolLoopFactory.create(
-            llmMessageSender = structuredOutputMessageSender(
+        // Wrap the sender so each iteration captures both native thinking blocks
+        // (from [SpringAiNativeThinkingExtractor] in response.thinkingBlocks) and
+        // prompt-based blocks (XML tags in response.textContent) in a single merged list.
+        // [DefaultToolLoop] accumulates these per-iteration into [ToolLoopResult.thinkingBlocks],
+        // preserving chronological order across iterations.
+        val thinkingSender = ThinkingCapturingLlmMessageSender(
+            delegate = structuredOutputMessageSender(
                 delegate = messageSender,
                 nativeStructuredOutputRequest = nativeStructuredOutputRequest,
             ),
+            promptExtractor = { responseText ->  // raw LLM response text for one iteration
+                extractAllThinkingBlocks(
+                    responseText,
+                    includedTags = interaction.llm.thinking?.includedTags,
+                    excludedTags = interaction.llm.thinking?.excludedTags,
+                )
+            },
+        )
+        val toolLoop = toolLoopFactory.create(
+            llmMessageSender = thinkingSender,
             objectMapper = objectMapper,
             injectionStrategy = injectionStrategy,
             maxIterations = interaction.maxToolIterations,
@@ -449,17 +464,24 @@ open class ToolLoopLlmOperations(
 
         val finalIterationResponse = result.result
 
-        // Accumulate thinking blocks from ALL assistant messages across all iterations
-        // Filter by role to catch both AssistantMessage and AssistantMessageWithToolCalls
-        val allThinkingBlocks = result.conversationHistory
-            .filter { it.role == com.embabel.chat.Role.ASSISTANT }
-            .flatMap {
-                extractAllThinkingBlocks(
-                    it.content,
-                    includedTags = interaction.llm.thinking?.includedTags,
-                    excludedTags = interaction.llm.thinking?.excludedTags,
-                )
-            }
+        // [ThinkingCapturingLlmMessageSender] accumulates native + prompt blocks per iteration
+        // into result.thinkingBlocks; tag filtering (includedTags/excludedTags) is applied at
+        // capture time via promptExtractor. Use them when present (native + prompt thinking path).
+        // Otherwise fall back to a post-loop history scan with the same tag filtering applied here
+        // (prompt-based thinking only — used when the sender is not wrapped).
+        val allThinkingBlocks = if (result.thinkingBlocks.isNotEmpty()) {
+            result.thinkingBlocks
+        } else {
+            result.conversationHistory
+                .filter { it.role == com.embabel.chat.Role.ASSISTANT }
+                .flatMap {
+                    extractAllThinkingBlocks(
+                        it.content,
+                        includedTags = interaction.llm.thinking?.includedTags,
+                        excludedTags = interaction.llm.thinking?.excludedTags,
+                    )
+                }
+        }
 
         // Merge accumulated thinking blocks with the final result
         val thinkingResponse = ThinkingResponse(
@@ -549,8 +571,20 @@ open class ToolLoopLlmOperations(
             val injectionStrategy = createInjectionStrategy(interaction)
             val effectiveContext = resolveToolCallContext(llmRequestEvent, interaction)
 
+            // Same wrapping as doTransformWithThinking: captures native + prompt thinking blocks
+            // per iteration so [ToolLoopResult.thinkingBlocks] carries them in chronological order.
+            val thinkingSender = ThinkingCapturingLlmMessageSender(
+                delegate = messageSender,
+                promptExtractor = { responseText ->  // raw LLM response text for one iteration
+                    extractAllThinkingBlocks(
+                        responseText,
+                        includedTags = interaction.llm.thinking?.includedTags,
+                        excludedTags = interaction.llm.thinking?.excludedTags,
+                    )
+                },
+            )
             val toolLoop = toolLoopFactory.create(
-                llmMessageSender = messageSender,
+                llmMessageSender = thinkingSender,
                 objectMapper = objectMapper,
                 injectionStrategy = injectionStrategy,
                 maxIterations = interaction.maxToolIterations,
@@ -596,13 +630,18 @@ open class ToolLoopLlmOperations(
 
             val finalIterationResult = result.result
 
-            // Accumulate thinking blocks from ALL assistant messages across all iterations
-            // Filter by role to catch both AssistantMessage and AssistantMessageWithToolCalls
-            val allThinkingBlocks = accumulateThinkingBlocks(
-                result.conversationHistory,
-                includedTags = interaction.llm.thinking?.includedTags,
-                excludedTags = interaction.llm.thinking?.excludedTags,
-            )
+            // [ThinkingCapturingLlmMessageSender] accumulates native + prompt blocks per iteration
+            // into result.thinkingBlocks — use them when present (native + prompt thinking path).
+            // Otherwise use accumulateThinkingBlocks (prompt-based thinking only, no wrapping).
+            val allThinkingBlocks = if (result.thinkingBlocks.isNotEmpty()) {
+                result.thinkingBlocks
+            } else {
+                accumulateThinkingBlocks(
+                    result.conversationHistory,
+                    includedTags = interaction.llm.thinking?.includedTags,
+                    excludedTags = interaction.llm.thinking?.excludedTags,
+                )
+            }
 
             // Merge accumulated thinking blocks with the final result (success or failure path)
             val thinkingResult = mergeThinkingBlocksWithResult(finalIterationResult, allThinkingBlocks)

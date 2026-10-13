@@ -19,6 +19,7 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.BlackboardUpdater
 import com.embabel.agent.core.Usage
 import com.embabel.chat.Message
+import com.embabel.common.core.thinking.ThinkingBlock
 
 /**
  * Result of executing an Embabel tool loop.
@@ -46,4 +47,11 @@ data class ToolLoopResult<O>(
     val replanRequested: Boolean = false,
     val replanReason: String? = null,
     val blackboardUpdater: BlackboardUpdater = BlackboardUpdater {},
+    /**
+     * Thinking blocks accumulated in iteration order across all tool loop calls.
+     * Populated only when the sender is wrapped with [ThinkingCapturingLlmMessageSender],
+     * which merges native + prompt-based blocks per iteration.
+     * Empty on non-thinking paths.
+     */
+    val thinkingBlocks: List<ThinkingBlock> = emptyList(),
 )

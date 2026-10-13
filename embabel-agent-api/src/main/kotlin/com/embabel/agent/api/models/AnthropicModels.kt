@@ -41,6 +41,12 @@ class AnthropicModels {
 
         const val CLAUDE_OPUS_4_8 = "claude-opus-4-8"
 
+        const val CLAUDE_FABLE_5_1 = "claude-fable-5-1"
+
+        const val CLAUDE_OPUS_5_5 = "claude-opus-5-5"
+
+        const val CLAUDE_SONNET_5_5 = "claude-sonnet-5-5"
+
         const val PROVIDER = "Anthropic"
     }
 }

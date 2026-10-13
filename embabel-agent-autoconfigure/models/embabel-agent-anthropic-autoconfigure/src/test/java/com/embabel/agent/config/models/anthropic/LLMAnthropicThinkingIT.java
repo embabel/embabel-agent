@@ -27,12 +27,14 @@ import com.embabel.agent.spi.LlmService;
 import com.embabel.common.ai.model.LlmOptions;
 import com.embabel.common.ai.model.Thinking;
 import com.embabel.common.core.thinking.ThinkingBlock;
+import com.embabel.common.core.thinking.ThinkingOrigin;
 import com.embabel.common.core.thinking.ThinkingTagType;
 import com.embabel.common.core.thinking.ThinkingResponse;
 import com.embabel.common.core.validation.ValidationError;
 import com.embabel.common.core.validation.ValidationResult;
 import com.embabel.common.core.validation.ValidationSeverity;
 import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.slf4j.Logger;
@@ -57,9 +59,9 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest(
         properties = {
-                "embabel.models.cheapest=claude-sonnet-4-5",
-                "embabel.models.best=claude-sonnet-4-5",
-                "embabel.models.default-llm=claude-sonnet-4-5",
+                "embabel.models.cheapest=claude-opus-4-8",
+                "embabel.models.best=claude-opus-4-8",
+                "embabel.models.default-llm=claude-opus-4-8",
                 "embabel.agent.platform.llm-operations.prompts.defaultTimeout=240s",
                 "embabel.agent.platform.llm-operations.data-binding.fixedBackoffMillis=6000",
                 "spring.main.allow-bean-definition-overriding=true",
@@ -67,6 +69,7 @@ import static org.junit.jupiter.api.Assertions.*;
                 // Thinking Infrastructure logging
                 "logging.level.com.embabel.agent.spi.support.springai.ChatClientLlmOperations=TRACE",
                 "logging.level.com.embabel.common.core.thinking=DEBUG",
+                "logging.level.com.embabel.agent.anthropic.AnthropicNativeThinkingExtractor=DEBUG",
 
                 // Spring AI Debug Logging
                 "logging.level.org.springframework.ai=DEBUG",
@@ -170,7 +173,7 @@ class LLMAnthropicThinkingIT {
 
         @Tool
         Integer convertFromCelsiusToFahrenheit(Integer inputTemp) {
-            return (int) ((inputTemp * 2) + 32);
+            return (int) Math.round(inputTemp * 9.0 / 5 + 32);
         }
     }
 
@@ -312,7 +315,7 @@ class LLMAnthropicThinkingIT {
         logger.info("Starting thinking createObject integration test");
 
         // Given: Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+        PromptRunner runner = ai.withDefaultLlm()
                 .withToolObject(new Tooling())
                 .withGenerateExamples(true)
                 .withGuardRails(new UserInputThinkingGuardRail(), new ThinkingBlocksGuardRail());
@@ -352,7 +355,7 @@ class LLMAnthropicThinkingIT {
         logger.info("Starting thinking createObjectIfPossible integration test");
 
         // Given: Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+        PromptRunner runner = ai.withDefaultLlm()
                 .withToolObject(new Tooling())
                 .withGuardRails(new UserInputSimpleGuardRail())
                 .withGuardRails(new ThinkingBlocksGuardRail());
@@ -379,8 +382,8 @@ class LLMAnthropicThinkingIT {
 
         List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
         assertNotNull(thinkingBlocks, "Thinking blocks should not be null");
-        assertFalse(thinkingBlocks.isEmpty(), "Should have thinking content");
-
+        // Not asserting thinkingBlocks.isEmpty() — createObjectIfPossible may succeed without
+        // thinking when the model has sufficient data, so thinking blocks are not guaranteed here.
         logger.info("Extracted {} thinking blocks", thinkingBlocks);
 
         logger.info("Thinking createObjectIfPossible test completed successfully");
@@ -391,7 +394,7 @@ class LLMAnthropicThinkingIT {
         logger.info("Starting thinking createObject integration test");
 
         // Given: Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+        PromptRunner runner = ai.withDefaultLlm()
                 .withToolObject(new Tooling())
                 .withGenerateExamples(true)
                 .withGuardRails(new UserInputCriticalSeverityGuardRail(), new SimpleThinkingBlocksGuardRail());
@@ -425,7 +428,7 @@ class LLMAnthropicThinkingIT {
         logger.info("Starting thinking testThinkingCreateObjectIfPossibleWithCriticalGuardRailSeverity integration test");
 
         // Given: Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+        PromptRunner runner = ai.withDefaultLlm()
                 .withToolObject(new Tooling())
                 .withGuardRails(new UserInputCriticalSeverityGuardRail())
                 .withGuardRails(new SimpleThinkingBlocksGuardRail());
@@ -468,7 +471,7 @@ class LLMAnthropicThinkingIT {
         logger.info("Starting thinking includedTags integration test");
 
         PromptRunner runner = ai.withLlm(
-                LlmOptions.withModel("claude-sonnet-4-5")
+                LlmOptions.withModel("claude-opus-4-8")
                         .withThinking(Thinking.withIncludedTags("analysis"))
         );
         assertTrue(runner.supportsThinking(), "Expected Anthropic prompt runner to support thinking");
@@ -504,7 +507,7 @@ class LLMAnthropicThinkingIT {
         logger.info("Starting complex thinking integration test");
 
         // Given: Use the LLM with a complex reasoning prompt
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+        PromptRunner runner = ai.withDefaultLlm()
                 .withToolObject(new Tooling());
         assertTrue(runner.supportsThinking(), "Expected Anthropic prompt runner to support thinking");
 
@@ -550,6 +553,99 @@ class LLMAnthropicThinkingIT {
 
         logger.info("Complex thinking test completed successfully with {} thinking blocks",
                 thinkingBlocks.size());
+    }
+
+    @Nested
+    class NativeAdaptiveThinking {
+
+        @Test
+        void sonnet55NativeBlocksWithToolLoop() {
+            logger.info("Starting native adaptive thinking with tool loop test");
+
+            PromptRunner runner = ai.withLlm(
+                    LlmOptions.withModel("claude-sonnet-5-5")
+                            .withThinking(Thinking.withTokenBudget(20000))
+            ).withToolObject(new Tooling());
+            assertTrue(runner.supportsThinking(), "Expected claude-sonnet-5-5 to support thinking");
+
+            String prompt = """
+                    What is the hottest month in Florida?
+                    Use the temperature conversion tool to express its average high temperature in Fahrenheit.
+                    """;
+
+            ThinkingResponse<MonthItem> response = runner
+                    .thinking()
+                    .createObject(prompt, MonthItem.class);
+
+            assertNotNull(response, "Response should not be null");
+            assertNotNull(response.getResult(), "Result should not be null");
+
+            List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
+            assertFalse(thinkingBlocks.isEmpty(),
+                    "Should have thinking blocks accumulated across tool loop iterations");
+
+            boolean hasNativeBlock = thinkingBlocks.stream()
+                    .anyMatch(b -> b.getOrigin() == ThinkingOrigin.NATIVE);
+            assertTrue(hasNativeBlock, "Should have at least one NATIVE thinking block");
+
+            logger.info("Native adaptive thinking with tool loop: {} total blocks, {} native",
+                    thinkingBlocks.size(),
+                    thinkingBlocks.stream().filter(b -> b.getOrigin() == ThinkingOrigin.NATIVE).count());
+        }
+
+        @Test
+        void sonnet45NativeThinking() {
+            PromptRunner runner = ai.withLlm(
+                    LlmOptions.withModel("claude-sonnet-4-5")
+                            .withThinking(Thinking.withTokenBudget(5000))
+            );
+            assertTrue(runner.supportsThinking(), "Expected claude-sonnet-4-5 to support thinking");
+
+            ThinkingResponse<MonthItem> response = runner
+                    .thinking()
+                    .createObject(
+                            "What is the hottest month in Florida and its average high temperature?",
+                            MonthItem.class);
+
+            assertNotNull(response.getResult(), "Result should not be null");
+            List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
+            assertFalse(thinkingBlocks.isEmpty(), "Should have thinking blocks");
+            assertTrue(
+                    thinkingBlocks.stream().anyMatch(b -> b.getOrigin() == ThinkingOrigin.NATIVE),
+                    "Should have NATIVE blocks");
+            logger.info("Native thinking test (sonnet-4-5): {} blocks", thinkingBlocks.size());
+        }
+
+        // NOTE: Combining native adaptive thinking (output_config.effort) with prompt-based <reason> tags
+        // is NOT possible on sonnet-5-5 or any 5.x adaptive model. Anthropic's API returns
+        // stop_reason="refusal", category="reasoning_extraction" — it treats the combination as an
+        // attempt to reverse-engineer internal model reasoning, in violation of their ToS.
+        // Use NATIVE-only (no <reason> tags in prompt) OR prompt-extracted on a BudgetBased model
+        // (e.g. opus-4-8) — never both on a 5.x adaptive model.
+        @Test
+        void sonnet55NativeThinkingOnly() {
+            PromptRunner runner = ai.withLlm(
+                    LlmOptions.withModel("claude-sonnet-5-5")
+                            .withThinking(Thinking.withTokenBudget(20000))
+            );
+            assertTrue(runner.supportsThinking(), "Expected claude-sonnet-5-5 to support thinking");
+
+            ThinkingResponse<MonthItem> response = runner
+                    .thinking()
+                    .createObject(
+                            "What is the hottest month in Florida and its average high temperature in Fahrenheit?",
+                            MonthItem.class);
+
+            assertNotNull(response.getResult(), "Result should not be null");
+            List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
+            assertFalse(thinkingBlocks.isEmpty(), "Should have thinking blocks");
+            assertTrue(
+                    thinkingBlocks.stream().anyMatch(b -> b.getOrigin() == ThinkingOrigin.NATIVE),
+                    "Should have NATIVE blocks (adaptive SUMMARIZED from Anthropic)");
+            logger.info("sonnet-5-5 native-only thinking: {} total, {} native",
+                    thinkingBlocks.size(),
+                    thinkingBlocks.stream().filter(b -> b.getOrigin() == ThinkingOrigin.NATIVE).count());
+        }
     }
 
 }

@@ -193,6 +193,7 @@ internal class ChatClientLlmOperations(
                 chatOptions = chatOptions,
                 toolResponseContentAdapter = springAiLlm.toolResponseContentAdapter,
                 nativeStructuredOutputConfigurer = springAiLlm.nativeStructuredOutputConfigurer,
+                nativeThinkingExtractor = springAiLlm.nativeThinkingExtractor,
                 nativeSupport = springAiLlm.nativeSupport,
                 llmMetadata = springAiLlm,
             )

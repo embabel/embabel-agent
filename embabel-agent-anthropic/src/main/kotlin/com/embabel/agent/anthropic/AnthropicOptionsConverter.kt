@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.anthropic
 
+import com.anthropic.models.messages.ThinkingConfigAdaptive
 import com.embabel.chat.MessageRole
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
@@ -34,22 +35,28 @@ object AnthropicOptionsConverter : OptionsConverter {
     const val DEFAULT_MAX_TOKENS = 8192
 
     override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
+        val caps = ClaudeCapabilities.of(model)
         val builder = AnthropicChatOptions.builder()
             .model(model)
-            .temperature(options.temperature)
-            .topP(options.topP)
             .maxTokens(options.maxTokens ?: DEFAULT_MAX_TOKENS)
+            .topK(options.topK)
             .apply {
-                // Spring AI 2.0 replaced AnthropicApi.ChatCompletionRequest.ThinkingConfig with
-                // first-class thinkingEnabled(tokenBudget) / thinkingDisabled() builder methods.
-                val thinkingBudget = options.thinking?.tokenBudget
-                if (options.thinking?.enabled == true && thinkingBudget != null) {
-                    thinkingEnabled(thinkingBudget.toLong())
-                } else {
-                    thinkingDisabled()
+                when (val decision = caps.resolveThinking(resolveThinkingBudget(options))) {
+                    is ThinkingMode.Omit        -> Unit // do not set "thinking" — Claude 5.1+ rejects thinking.type="disabled" with HTTP 400
+                    is ThinkingMode.Disabled    -> thinkingDisabled()                          // send "thinking": {"type": "disabled"} — required by Claude ≤5.0
+                    is ThinkingMode.Adaptive    -> { thinkingAdaptive(ThinkingConfigAdaptive.Display.SUMMARIZED); effort(decision.effort) }
+                    // Claude ≥4.7: adaptive thinking. SUMMARIZED must be set explicitly — the default
+                    // display on 5.x is "omitted" (empty thinking fields). SUMMARIZED is the only option
+                    // that returns visible reasoning (a summarized representation; full reasoning is encrypted in
+                    // the "signature" field). There is no "full" display option in the adaptive API.
+                    is ThinkingMode.BudgetBased -> thinkingEnabled(decision.budgetTokens)      // send "thinking": {"type": "enabled", "budget_tokens": N}
+                }
+                // temperature/topP conflict with thinking on Claude ≥4.7
+                if (caps.acceptsSampling) {
+                    temperature(options.temperature)
+                    topP(options.topP)
                 }
             }
-            .topK(options.topK)
 
         // Apply Anthropic caching if configured
         options.getAnthropicCaching()?.let { caching ->
@@ -73,6 +80,20 @@ object AnthropicOptionsConverter : OptionsConverter {
         }
 
         return builder.build()
+    }
+
+    /**
+     * Returns the token budget if thinking is explicitly enabled with a positive budget;
+     * null otherwise (thinking not requested, not enabled, or no budget specified).
+     *
+     * Null → no thinking: omit the field (Claude 5.1+) or send thinkingDisabled() (older models).
+     * Non-null → thinking requested: use adaptive thinking (Claude ≥4.7) or budget-based thinking (older models).
+     */
+    private fun resolveThinkingBudget(options: LlmOptions): Int? {
+        val thinking = options.thinking ?: return null
+        if (thinking.enabled != true) return null
+        val budget = thinking.tokenBudget ?: return null
+        return if (budget > 0) budget else null
     }
 
     /**

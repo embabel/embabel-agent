@@ -28,6 +28,7 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.BlackboardUpdater
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
+import com.embabel.common.core.thinking.ThinkingBlock
 import com.embabel.agent.spi.loop.AutoCorrectionPolicy
 import com.embabel.agent.spi.loop.EmptyResponseAction
 import com.embabel.agent.spi.loop.EmptyResponsePolicy
@@ -116,6 +117,8 @@ internal open class DefaultToolLoop(
 
             val callResult = llmMessageSender.call(state.conversationHistory, state.availableTools)
             accumulateUsage(callResult.usage, state)
+            // Mirror accumulateUsage: collect thinking blocks from each iteration in order.
+            state.accumulatedThinkingBlocks.addAll(callResult.thinkingBlocks)
 
             /* -------------------------------------------------
              * Apply afterLlmCall callbacks - START
@@ -273,6 +276,7 @@ internal open class DefaultToolLoop(
         replanRequested = state.replanRequested,
         replanReason = state.replanReason,
         blackboardUpdater = state.blackboardUpdater,
+        thinkingBlocks = state.accumulatedThinkingBlocks.toList(),
     )
 
     /**
@@ -429,6 +433,8 @@ internal open class DefaultToolLoop(
         var blackboardUpdater: BlackboardUpdater = BlackboardUpdater {},
         /** When set, the tool loop returns this content directly without sending it back to the LLM. */
         var returnDirectContent: String? = null,
+        // Non-empty only when [ThinkingCapturingLlmMessageSender] wraps the sender; empty otherwise.
+        val accumulatedThinkingBlocks: MutableList<ThinkingBlock> = mutableListOf(),
     )
 
     /**

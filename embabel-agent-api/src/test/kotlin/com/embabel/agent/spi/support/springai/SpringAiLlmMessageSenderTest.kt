@@ -18,6 +18,9 @@ package com.embabel.agent.spi.support.springai
 import com.embabel.agent.spi.loop.LlmMessageRequest
 import com.embabel.agent.spi.loop.NativeStructuredOutputRequest
 import com.embabel.agent.spi.loop.StructuredOutputRequest
+import com.embabel.common.core.thinking.ThinkingBlock
+import com.embabel.common.core.thinking.ThinkingOrigin
+import com.embabel.common.core.thinking.ThinkingTagType
 import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.autoconfig.NativeStructuredOutputCapability
@@ -716,6 +719,61 @@ class SpringAiLlmMessageSenderTest {
             assertThat(built).extracting("temperature").isNull()
             assertThat(built).extracting("topP").isEqualTo(0.9)
             assertThat(built).extracting("maxTokens").isEqualTo(100)
+        }
+    }
+
+    @Nested
+    inner class NativeThinkingExtractorTests {
+
+        private fun minimalChatResponse(): ChatResponse {
+            val generation = Generation(SpringAiAssistantMessage("answer"))
+            val mockMetadata = mockk<ChatResponseMetadata> { every { usage } returns null }
+            return mockk {
+                every { result } returns generation
+                every { results } returns listOf(generation)
+                every { metadata } returns mockMetadata
+            }
+        }
+
+        @Test
+        fun `thinking blocks from extractor appear in LlmMessageResponse`() {
+            val block = ThinkingBlock(
+                content = "I should consider the context",
+                tagType = ThinkingTagType.NO_PREFIX,
+                tagValue = "",
+                origin = ThinkingOrigin.NATIVE,
+            )
+            val chatModel = mockk<ChatModel> {
+                every { call(any<Prompt>()) } returns minimalChatResponse()
+            }
+            val sender = SpringAiLlmMessageSender(
+                chatModel = chatModel,
+                chatOptions = testChatOptions(),
+                nativeThinkingExtractor = SpringAiNativeThinkingExtractor { listOf(block) },
+            )
+
+            val response = sender.call(
+                LlmMessageRequest(messages = listOf(com.embabel.chat.UserMessage("hi")), tools = emptyList()),
+            )
+
+            assertThat(response.thinkingBlocks).containsExactly(block)
+        }
+
+        @Test
+        fun `NOOP extractor leaves thinkingBlocks empty`() {
+            val chatModel = mockk<ChatModel> {
+                every { call(any<Prompt>()) } returns minimalChatResponse()
+            }
+            val sender = SpringAiLlmMessageSender(
+                chatModel = chatModel,
+                chatOptions = testChatOptions(),
+            )
+
+            val response = sender.call(
+                LlmMessageRequest(messages = listOf(com.embabel.chat.UserMessage("hi")), tools = emptyList()),
+            )
+
+            assertThat(response.thinkingBlocks).isEmpty()
         }
     }
 
