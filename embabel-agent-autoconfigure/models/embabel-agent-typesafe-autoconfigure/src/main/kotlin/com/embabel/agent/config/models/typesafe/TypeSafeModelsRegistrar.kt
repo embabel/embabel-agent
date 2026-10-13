@@ -31,7 +31,8 @@ import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProce
  * The models are bean definitions, so applications can inject them by type or with
  * `@Qualifier("<model>")` like any other bean. A name the application already uses, as a bean name or
  * an alias, keeps its bean, and the catalog model is skipped with one INFO line. The default candidate
- * is defined only when this registrar defined [TypeSafeModelFactory.DEFAULT_MODEL].
+ * is defined only when this registrar defined [TypeSafeModelFactory.DEFAULT_MODEL], and an application
+ * bean already named [DEFAULT_CANDIDATE] is kept.
  *
  * @param models the catalog to define beans for
  * @param beanFactory the factory the `TypeSafeModelFactory` bean is read from when a model is created
@@ -56,6 +57,10 @@ internal class TypeSafeModelsRegistrar(
             }
         }
         if (defined.any { it.name == TypeSafeModelFactory.DEFAULT_MODEL }) {
+            if (registry.isBeanNameInUse(DEFAULT_CANDIDATE)) {
+                logger.info("TypeSafe default candidate '{}' is defined by the application, so it is kept", DEFAULT_CANDIDATE)
+                return
+            }
             val candidate = BeanDefinitionBuilder.genericBeanDefinition(DecisionServiceRegistry.DefaultCandidate::class.java) {
                 DecisionServiceRegistry.DefaultCandidate(TypeSafeModelFactory.DEFAULT_MODEL)
             }.beanDefinition

@@ -58,9 +58,9 @@ embabel:
           api-key: ${TYPESAFE_API_KEY}
 ----
 
-A nonblank environment value takes precedence over the property and is resolved for every
-request. Credential rotation therefore takes effect without rebuilding the service. Startup fails
-when neither source supplies a credential.
+A nonblank environment value takes precedence over the property. Both are read through the Spring
+environment for every request, so credential rotation takes effect without rebuilding the service.
+Startup fails when neither source supplies a credential.
 
 The complete property set under `embabel.agent.platform.models.typesafe` is:
 
@@ -92,8 +92,8 @@ Auto-configuration contributes the following beans:
   the `ProviderInitialization` that reports them. An application bean or alias named after a catalog
   model replaces that model.
 * `typeSafeDefaultCandidate`, which offers `jev-latest` as the default of the decision and
-  classification families. It exists only when the starter defines the `jev-latest` bean. See
-  <<reference.decision-execution>>.
+  classification families. It exists only when the starter defines the `jev-latest` bean, and an
+  application bean with that name is kept. See <<reference.decision-execution>>.
 
 Select a TypeSafe model by name in `embabel.models.decision.default` or a role, the same way a chat
 model is selected with `embabel.models.default-llm`. A TypeSafe model that is not in the catalog is
