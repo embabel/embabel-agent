@@ -72,6 +72,13 @@ internal class SystemOneDecisionService(
     override fun rate(input: String, question: RatingQuestionSpec): RatingResult =
         run(DecisionRequest.of(input, question), Operation.RATE).answer(question)
 
+    /**
+     * Sends the request's question set and decodes the reply. A failed call returns failure outcomes.
+     *
+     * @param request the input and questions
+     * @param operation which public call this is, for logs
+     * @return the answers, or failure outcomes
+     */
     private fun run(request: DecisionRequest, operation: Operation): DecisionResponse {
         val started = System.nanoTime()
         val reply = try {
@@ -89,6 +96,15 @@ internal class SystemOneDecisionService(
         }
     }
 
+    /**
+     * Logs the failure's WARN line and returns failure outcomes for every question.
+     *
+     * @param request the request that failed
+     * @param operation which public call this is
+     * @param failure what went wrong
+     * @param started when the call started, from [System.nanoTime]
+     * @return failure outcomes for the request's questions
+     */
     private fun failed(
         request: DecisionRequest,
         operation: Operation,
@@ -111,7 +127,13 @@ internal class SystemOneDecisionService(
         return DecisionResponse.failed(request.spec, failure.reason)
     }
 
-    // The body is provider output, which can echo the input, so it is only logged when capture is on.
+    /**
+     * Logs the response body at TRACE. The body is provider output that can echo the input, so it
+     * is only logged when content capture is on.
+     *
+     * @param operation which public call this is
+     * @param reply the endpoint's reply
+     */
     private fun trace(operation: Operation, reply: SystemOneTransport.Reply) {
         if (DecisionContentCapture.isEnabled() && logger.isTraceEnabled) {
             logger.trace(

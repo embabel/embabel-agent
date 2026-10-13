@@ -17,6 +17,7 @@ package com.embabel.common.ai.decision.systemone
 
 import com.embabel.common.ai.classification.CategoryProbability
 import com.embabel.common.ai.classification.ClassificationResult
+import com.embabel.common.ai.classification.DISTRIBUTION_TOLERANCE
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
 import com.embabel.common.ai.decision.ChoiceQuestionSpec
@@ -35,7 +36,6 @@ import tools.jackson.databind.JsonNode
 import kotlin.math.abs
 
 private const val HALF = 0.5
-private const val DISTRIBUTION_TOLERANCE = 1e-6
 
 /**
  * The evidence rules for one System One answer. Each answer is handed to the assembler as an
@@ -54,6 +54,15 @@ internal object SystemOneAnswers {
 
     private val KINDS: Map<String, QuestionKind> = SystemOneCodec.TYPES.entries.associate { (kind, type) -> type to kind }
 
+    /**
+     * Reads one answer and records it against its question.
+     *
+     * @param assembler collects the outcomes
+     * @param question the question this answer belongs to
+     * @param answer the answer's JSON
+     * @param provenance who answered
+     * @return the assembler
+     */
     fun read(
         assembler: DecisionResponseAssembler,
         question: Question<*>,
@@ -69,6 +78,15 @@ internal object SystemOneAnswers {
         }
     }
 
+    /**
+     * Reads a `noul` answer into a proposition outcome.
+     *
+     * @param assembler collects the outcomes
+     * @param name the question name
+     * @param answer the answer's JSON
+     * @param provenance who answered
+     * @return the assembler
+     */
     private fun noul(
         assembler: DecisionResponseAssembler,
         name: String,
@@ -83,6 +101,15 @@ internal object SystemOneAnswers {
         }
     }
 
+    /**
+     * Reads a `choice` answer into a classification outcome.
+     *
+     * @param assembler collects the outcomes
+     * @param question the choice question
+     * @param answer the answer's JSON
+     * @param provenance who answered
+     * @return the assembler
+     */
     private fun choice(
         assembler: DecisionResponseAssembler,
         question: ChoiceQuestionSpec,
@@ -105,6 +132,15 @@ internal object SystemOneAnswers {
         return assembler.choice(name, ClassificationResult.Selected(selected, provenance, confidence, distribution))
     }
 
+    /**
+     * Reads a `score` answer into a rating outcome.
+     *
+     * @param assembler collects the outcomes
+     * @param question the rating question
+     * @param answer the answer's JSON
+     * @param provenance who answered
+     * @return the assembler
+     */
     private fun score(
         assembler: DecisionResponseAssembler,
         question: RatingQuestionSpec,
@@ -127,14 +163,28 @@ internal object SystemOneAnswers {
         return assembler.rating(name, RatingResult.Answered(provenance, null, distribution, expected, confidence))
     }
 
-    // Records the answer under its own kind so the assembler reports the mismatch with the question.
+    /**
+     * Records a failure under the answer's own kind, so the assembler reports the mismatch with
+     * the question.
+     *
+     * @param assembler collects the outcomes
+     * @param name the question name
+     * @param kind the kind the answer has
+     * @return the assembler
+     */
     private fun wrongKind(assembler: DecisionResponseAssembler, name: String, kind: QuestionKind) = when (kind) {
         QuestionKind.PROPOSITION -> assembler.proposition(name, PropositionResult.Failure(FailureReason.INVALID_RESPONSE))
         QuestionKind.CHOICE -> assembler.choice(name, ClassificationResult.Failure(FailureReason.INVALID_RESPONSE))
         QuestionKind.RATING -> assembler.rating(name, RatingResult.Failure(FailureReason.INVALID_RESPONSE))
     }
 
-    /** Returns the probabilities in [ids] order, or null unless they cover exactly [ids] and sum to 1. */
+    /**
+     * Reads a distribution keyed by [ids].
+     *
+     * @param node the probabilities object
+     * @param ids the keys it must cover
+     * @return the probabilities in [ids] order, or null unless they cover exactly [ids] and sum to 1
+     */
     private fun distribution(node: JsonNode?, ids: List<String>): List<Double>? {
         if (node == null || !coversExactly(node, ids)) return null
         val probabilities = ids.map { number(node, it) ?: return null }
@@ -142,11 +192,31 @@ internal object SystemOneAnswers {
         return probabilities.takeIf { valid }
     }
 
+    /**
+     * Tells whether an object's keys are exactly [ids].
+     *
+     * @param node the object
+     * @param ids the expected keys
+     * @return true when the keys match
+     */
     private fun coversExactly(node: JsonNode?, ids: List<String>): Boolean =
         node != null && node.isObject && node.propertyNames().toSet() == ids.toSet()
 
+    /**
+     * Reads a numeric field.
+     *
+     * @param node the object
+     * @param field the field name
+     * @return the value, or null when it is missing or not a number
+     */
     private fun number(node: JsonNode, field: String): Double? =
         node.get(field)?.takeIf { it.isNumber }?.doubleValue()
 
+    /**
+     * Tells whether a value lies in 0..1.
+     *
+     * @param value the value
+     * @return true when it does
+     */
     private fun isProbability(value: Double) = value in 0.0..1.0
 }

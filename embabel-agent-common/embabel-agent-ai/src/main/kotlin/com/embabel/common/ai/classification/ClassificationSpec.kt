@@ -86,7 +86,8 @@ class ClassificationSpec private constructor(
      *
      * @param result the result to check
      * @return the result, unchanged
-     * @throws IllegalArgumentException if a selection names an unknown category
+     * @throws IllegalArgumentException if a selection names an unknown category, or its distribution
+     * does not cover exactly the categories
      */
     fun validate(result: ClassificationResult): ClassificationResult = question.validate(result)
 

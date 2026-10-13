@@ -37,7 +37,7 @@ import java.time.Duration
  *
  * ```
  * ollama pull clef-flash
- * SYSTEMONE_SMOKE_URL=http://localhost:11434 SYSTEMONE_SMOKE_MODEL=clef-flash mvn test -Dtest=SystemOneLocalSmokeTest
+ * SYSTEMONE_SMOKE_URL=http://localhost:11434 SYSTEMONE_SMOKE_MODEL=clef-flash mvn test -pl embabel-agent-systemone -Dtest=SystemOneLocalSmokeTest
  * ```
  *
  * It runs only when `SYSTEMONE_SMOKE_URL` is set. The model defaults to `clef-flash`. Printed lines

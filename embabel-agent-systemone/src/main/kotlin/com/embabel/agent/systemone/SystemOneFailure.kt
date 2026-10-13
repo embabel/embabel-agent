@@ -43,8 +43,21 @@ internal class SystemOneFailure(
         const val INVALID_RESPONSE = "invalid_response"
         const val OTHER = "other"
 
+        /**
+         * Returns the status class for logs and tags.
+         *
+         * @param status the HTTP status, or null without a response
+         * @return the class, such as `5xx`, or `none`
+         */
         fun family(status: Int?): String = status?.let { "${it / 100}xx" } ?: "none"
 
+        /**
+         * Creates the failure for an error status.
+         *
+         * @param status the HTTP status
+         * @param requestId the provider's request id, if any
+         * @return an unavailable failure with a category for the status
+         */
         fun forStatus(status: Int, requestId: String?): SystemOneFailure {
             val category = when (status) {
                 429 -> "rate_limited"
@@ -55,9 +68,22 @@ internal class SystemOneFailure(
             return SystemOneFailure(FailureReason.UNAVAILABLE, category, status, requestId)
         }
 
+        /**
+         * Creates the failure for a body that is too large or can't be read.
+         *
+         * @param status the HTTP status, if any
+         * @param requestId the provider's request id, if any
+         * @return an invalid response failure
+         */
         fun invalidResponse(status: Int?, requestId: String?) =
             SystemOneFailure(FailureReason.INVALID_RESPONSE, INVALID_RESPONSE, status, requestId)
 
+        /**
+         * Creates an unavailable failure without a response.
+         *
+         * @param category what went wrong, such as [CREDENTIAL]
+         * @return the failure
+         */
         fun unavailable(category: String) = SystemOneFailure(FailureReason.UNAVAILABLE, category)
     }
 }
