@@ -18,7 +18,7 @@ Defaults and roles pick a model by name.
 |A chat model name, such as `gpt-4.1-mini`
 
 |Application bean
-|Any `DecisionService` or `ClassificationService` bean registers under its bean name
+|A singleton `DecisionService` or `ClassificationService` bean registers under its bean name. A `@Lazy` or scoped bean is left out.
 |`triage`
 |===
 
@@ -72,15 +72,18 @@ It serves every chat model the `ModelProvider` lists and builds a prompted decis
 The registry asks providers in order and keeps the first service returned, so each name is built once.
 A registered bean wins over a provider model with the same name.
 A provider model is a family default only when configuration names it.
+A provider builds services that use the deployment's own credentials. Per-user keys go through `using(service)`.
 
-In plain Java, add providers to the builder.
+In code, add providers to the builder.
 
 [source,kotlin]
 ----
 include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/kotlin/com/embabel/common/ai/model/DecisionServiceRegistryTest.kt[tag=provider-registry,indent=0]
 ----
 
+<<reference.decision-execution>> shows the same registry built in Java.
 In Spring, every `DecisionModelProvider` bean is added to the registry in bean order.
+A service a provider created stays cached for the life of the registry.
 
 ==== Credentials
 

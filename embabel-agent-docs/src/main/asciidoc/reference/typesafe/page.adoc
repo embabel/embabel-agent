@@ -25,8 +25,8 @@ classDiagram
     TypeSafeDecisionService --> TypeSafeClient : internal SDK boundary
 ----
 
-The public factory returns framework services rather than native clients. This keeps SDK request,
-answer and exception types behind the provider adapter and gives other implementations the same
+The public factory returns framework services and keeps native clients private. SDK request,
+answer and exception types stay behind the provider adapter, and other implementations get the same
 service boundary.
 
 [source,mermaid]
@@ -89,10 +89,11 @@ Auto-configuration contributes the following beans:
   named after the model. The catalog holds `jev-latest`. Each bean is also injectable as
   `ClassificationService`.
 * `typeSafeModelsRegistrar`, which defines the catalog model beans, and `typeSafeModelsInitializer`,
-  the `ProviderInitialization` that reports them. An application bean named after a catalog model
-  replaces that model.
+  the `ProviderInitialization` that reports them. An application bean or alias named after a catalog
+  model replaces that model.
 * `typeSafeDefaultCandidate`, which offers `jev-latest` as the default of the decision and
-  classification families. See <<reference.decision-execution>>.
+  classification families. It exists only when the starter defines the `jev-latest` bean. See
+  <<reference.decision-execution>>.
 
 Select a TypeSafe model by name in `embabel.models.decision.default` or a role, the same way a chat
 model is selected with `embabel.models.default-llm`. A TypeSafe model that is not in the catalog is
@@ -202,8 +203,8 @@ wire contract must not change with application Jackson modules.
 
 Provider connection failures, timeouts and HTTP failures map to `Failure(UNAVAILABLE)`. Invalid or
 unreadable successful responses map to `Failure(INVALID_RESPONSE)`. These results contain no raw
-response body, provider message, throwable or credential. Cancellation propagates rather than being
-converted to model evidence, and the adapter never changes thread interruption state.
+response body, provider message, throwable or credential. Cancellation propagates to the caller and
+never becomes model evidence. The adapter never changes thread interruption state.
 
 ==== Logging and observability
 

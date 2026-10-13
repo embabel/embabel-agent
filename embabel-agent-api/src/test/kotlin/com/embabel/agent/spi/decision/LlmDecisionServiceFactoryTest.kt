@@ -47,7 +47,6 @@ import com.embabel.common.ai.model.ConfigurableModelProvider
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
 import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.DecisionModelProvider
-import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byName
 import com.embabel.common.ai.model.ModelType
@@ -165,13 +164,12 @@ class LlmDecisionServiceFactoryTest {
     inner class AsDecisionModelProvider {
 
         @Test
-        fun `model names are the chat models the model provider lists`() {
-            val embedding = mockk<com.embabel.common.ai.model.ModelMetadata>()
-            every { modelProvider.listModels() } returns
-                listOf(LlmMetadata("gpt-test", "TestProvider"), embedding, LlmMetadata("gpt-test", "TestProvider"))
+        fun `model names are the chat model names the model provider lists`() {
+            every { modelProvider.listModelNames(LlmService::class.java) } returns listOf("gpt-test", "gpt-test")
             val provider: DecisionModelProvider = factory
             assertEquals("llm", provider.provider)
             assertEquals(listOf("gpt-test"), provider.modelNames())
+            verify(exactly = 0) { modelProvider.listModels() }
             verify(exactly = 0) { modelProvider.getLlm(any()) }
         }
 
