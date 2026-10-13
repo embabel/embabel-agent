@@ -25,7 +25,6 @@ import io.micrometer.observation.ObservationRegistry
 import org.jetbrains.annotations.ApiStatus
 import org.slf4j.LoggerFactory
 import org.springframework.web.client.RestClient
-import java.util.concurrent.CancellationException
 import java.util.function.Supplier
 
 /**
@@ -91,9 +90,11 @@ open class SystemOneModelFactory @JvmOverloads constructor(
      * @return the model names in the order the endpoint lists them
      * @throws IllegalStateException if the endpoint can't be reached or its listing can't be read
      */
-    fun modelNames(): List<String> =
+    fun modelNames(): List<String> = modelNames(apiKey)
+
+    private fun modelNames(key: Supplier<String?>): List<String> =
         try {
-            SystemOneCodec.modelNames(transport.listModels().body)
+            SystemOneCodec.modelNames(transport.listModels(key).body)
         } catch (failure: SystemOneFailure) {
             throw IllegalStateException(
                 "${endpoint.provider} model listing failed: cause=${failure.category}, status=${failure.statusFamily}",
@@ -103,8 +104,9 @@ open class SystemOneModelFactory @JvmOverloads constructor(
         }
 
     /**
-     * Checks the key by listing the endpoint's models, then returns a service for the default
-     * model. A missing key, a rejected listing or an unreachable endpoint all count as an invalid key.
+     * Reads the key once, checks it by listing the endpoint's models with it, then returns a service
+     * for the default model. A missing key, a rejected listing or an unreachable endpoint all count
+     * as an invalid key. An interrupted key supplier throws a [CancellationException].
      *
      * @return a service for the default model
      * @throws InvalidApiKeyException if the key can't be validated
@@ -113,16 +115,13 @@ open class SystemOneModelFactory @JvmOverloads constructor(
         val provider = endpoint.provider
         logger.debug("{} credential validation started", provider)
         val key = try {
-            apiKey.get()
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (failure: RuntimeException) {
-            logger.warn("{} credential resolution failed: exception.type={}", provider, failure.javaClass.name)
+            transport.resolveKey(apiKey)
+        } catch (failure: SystemOneFailure) {
+            logger.warn("{} credential could not be resolved: cause={}", provider, failure.category)
             throw InvalidApiKeyException("$provider credential could not be validated")
-        }
-        if (key.isNullOrBlank()) throw InvalidApiKeyException("$provider credential is missing")
+        } ?: throw InvalidApiKeyException("$provider credential is missing")
         try {
-            modelNames()
+            modelNames { key }
         } catch (failure: IllegalStateException) {
             logger.warn("{} credential validation failed: {}", provider, failure.message)
             throw InvalidApiKeyException("$provider credential could not be validated", failure)
