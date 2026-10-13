@@ -26,7 +26,9 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * RestClient.Builder}.
  *
  * @param apiKey API credential used when {@code TYPESAFE_API_KEY} is absent or blank; excluded from
- *     {@link #toString()}. The environment key is resolved for each request.
+ *     {@link #toString()}. This component exists for binding and configuration metadata. The starter
+ *     reads {@code TYPESAFE_API_KEY} and this property through the Spring environment on every call,
+ *     so a rotated key takes effect without a restart.
  * @param baseUrl provider endpoint; defaults to {@code https://api.typesafe.ai}. Endpoint
  *     validation belongs to the HTTP client.
  * @param maxResponseBytes positive maximum response body size in bytes; defaults to 1 MiB

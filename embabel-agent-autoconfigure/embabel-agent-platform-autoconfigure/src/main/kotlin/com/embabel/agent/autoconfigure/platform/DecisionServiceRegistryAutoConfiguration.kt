@@ -42,9 +42,10 @@ import java.util.IdentityHashMap
  * Builds the application's [DecisionServiceRegistry] from the decision and classification service
  * beans in the context, and applies the decision content capture property.
  *
- * Every `ClassificationService` bean registers under its bean name. Provider starters register one
- * bean per catalog model, named after the model, through their `ProviderInitialization` beans, so the
- * registry is built after those run. Every `DecisionModelProvider` bean is added as a provider, in
+ * Every `ClassificationService` bean registers under its bean name. Catalog starters define one bean
+ * definition per model, named after the model, so their models register the same way. The
+ * `ProviderInitialization` beans are created first, so a service one of them registers with
+ * `registerSingleton` is included. Every `DecisionModelProvider` bean is added as a provider, in
  * bean order, for names no bean holds, such as chat models used for prompted decisions. The family
  * defaults and roles come from these properties:
  *
@@ -75,8 +76,8 @@ import java.util.IdentityHashMap
  * and the singletons registered before that point. A service registered later is not visible to
  * lookups; pass it to `using(service)`.
  *
- * Startup fails when a default or role names a missing service, or when a decision default or role
- * names a classification-only service. The error names the property. A missing or ambiguous family
+ * Startup fails when a default or role names neither a registered service nor a provider model, or
+ * when a decision default or role names a classification-only service. The error names the property. A missing or ambiguous family
  * default fails at lookup, when `defaultService()` is called.
  *
  * An application `DecisionServiceRegistry` bean replaces the one built here.
@@ -101,7 +102,9 @@ class DecisionServiceRegistryAutoConfiguration {
         observationRegistry: ObjectProvider<ObservationRegistry>,
         environment: Environment,
     ): DecisionServiceRegistry {
-        // Creating the initializers first is what registers the starters' model beans.
+        // An initializer that registers a decision or classification service with registerSingleton
+        // does so when its bean is created, so creating the initializers first puts those services
+        // in the snapshot below.
         providerInitializations.orderedStream().toList()
         val binder = Binder.get(environment)
         val decision = bindFamily(binder, DECISION_PREFIX)

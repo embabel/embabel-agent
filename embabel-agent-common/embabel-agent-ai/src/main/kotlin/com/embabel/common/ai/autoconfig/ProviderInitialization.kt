@@ -21,13 +21,15 @@ import java.time.Instant
  * Result of model provider initialization.
  *
  * Each provider auto-configuration returns a [ProviderInitialization] bean from its
- * `@Bean` factory method. Inside that factory method, individual [LlmService],
- * [EmbeddingService][com.embabel.common.ai.model.EmbeddingService] and
- * [DecisionService][com.embabel.common.ai.decision.DecisionService] instances are
+ * `@Bean` factory method. Inside that factory method, individual [LlmService] and
+ * [EmbeddingService][com.embabel.common.ai.model.EmbeddingService] instances are
  * registered via [ConfigurableBeanFactory.registerSingleton][org.springframework.beans.factory.config.ConfigurableBeanFactory.registerSingleton],
  * using the model name as the bean name. This allows dynamic registration of
  * multiple models per provider, with names driven by configuration rather than
  * compile-time `@Bean` definitions.
+ *
+ * Decision model catalog starters define one bean definition per model, named after the model.
+ * Their initializer only reports those models in [registeredDecisionModels].
  *
  * **Note on direct consumption:** Beans registered via `registerSingleton` are not
  * visible to Spring's dependency resolver at bean-definition time. This is transparent
@@ -47,6 +49,23 @@ data class ProviderInitialization(
     val initializedAt: Instant = Instant.now(),
     val registeredDecisionModels: List<RegisteredModel> = emptyList(),
 ) {
+
+    /**
+     * Creates a result with no decision models. Starters compiled against the four-argument
+     * constructor keep working.
+     *
+     * @param provider the provider name
+     * @param registeredLlms the LLM beans registered
+     * @param registeredEmbeddings the embedding beans registered
+     * @param initializedAt when the provider was initialized
+     */
+    constructor(
+        provider: String,
+        registeredLlms: List<RegisteredModel>,
+        registeredEmbeddings: List<RegisteredModel>,
+        initializedAt: Instant,
+    ) : this(provider, registeredLlms, registeredEmbeddings, initializedAt, emptyList())
+
     val totalLlms: Int get() = registeredLlms.size
     val totalEmbeddings: Int get() = registeredEmbeddings.size
     val totalDecisionModels: Int get() = registeredDecisionModels.size
