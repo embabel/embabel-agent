@@ -32,6 +32,10 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.slf4j.LoggerFactory
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.FutureTask
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class DecisionServiceRegistryTest {
 
@@ -220,25 +224,43 @@ class DecisionServiceRegistryTest {
                     .build()
             }
             assertTrue(e.message!!.contains("'gpt-y'"), e.message)
-            assertTrue(e.message!!.contains("gpt-x"), e.message)
+            assertTrue(e.message!!.contains("Provider models: OpenAI [gpt-x]."), e.message)
         }
 
         @Test
-        fun `an unknown name lists the provider models`() {
+        fun `an unknown name lists the provider models by provider`() {
             val registry = DecisionServiceRegistry.builder()
                 .register("jev", jev)
-                .provider(ChatModels(listOf("gpt-x")))
+                .provider(ChatModels(listOf("gpt-x", "gpt-z")))
+                .provider(ChatModels(listOf("gpt-x", "qwen3"), provider = "Ollama"))
                 .build()
             val e = selectionError { registry.decisions().named("gpt-y") }
             assertEquals(Reason.UNKNOWN_NAME, e.reason)
-            assertTrue(e.message!!.contains("gpt-x"), e.message)
+            assertTrue(e.message!!.contains("Provider models: OpenAI [gpt-x, gpt-z]; Ollama [qwen3]."), e.message)
+        }
+
+        @Test
+        fun `a role naming a listed model no provider returns fails at lookup`() {
+            val listedOnly = object : DecisionModelProvider {
+                override val provider = "OpenAI"
+                override fun modelNames() = listOf("gpt-x")
+                override fun decisionServiceNamed(name: String): DecisionService? = null
+            }
+            val registry = DecisionServiceRegistry.builder()
+                .register("jev", jev)
+                .provider(listedOnly)
+                .decisionRole("review", "gpt-x")
+                .build()
+            val e = selectionError { registry.decisions().byRole("review") }
+            assertEquals(Reason.UNKNOWN_NAME, e.reason)
+            assertTrue(e.message!!.startsWith("No provider returned a service for the model 'gpt-x'."), e.message)
         }
 
         @Test
         fun `concurrent first lookups build a provider model once`() {
-            val started = java.util.concurrent.CountDownLatch(1)
-            val release = java.util.concurrent.CountDownLatch(1)
-            val built = java.util.concurrent.atomic.AtomicInteger()
+            val started = CountDownLatch(1)
+            val release = CountDownLatch(1)
+            val built = AtomicInteger()
             val slow = object : DecisionModelProvider {
                 override val provider = "slow"
                 override fun modelNames() = listOf("gpt-x")
@@ -250,17 +272,33 @@ class DecisionServiceRegistryTest {
                 }
             }
             val registry = DecisionServiceRegistry.builder().provider(slow).build()
-            val pool = java.util.concurrent.Executors.newFixedThreadPool(2)
+            val first = FutureTask { registry.decisions().named("gpt-x") }
+            val second = FutureTask { registry.decisions().named("gpt-x") }
             try {
-                val first = pool.submit<DecisionService> { registry.decisions().named("gpt-x") }
-                started.await()
-                val second = pool.submit<DecisionService> { registry.decisions().named("gpt-x") }
-                Thread.sleep(50)
+                Thread(first, "first-lookup").start()
+                assertTrue(started.await(5, TimeUnit.SECONDS), "the first lookup never reached the provider")
+                val secondLookup = Thread(second, "second-lookup").apply { start() }
+                awaitStuck(secondLookup)
                 release.countDown()
-                assertSame(first.get(), second.get())
+                assertSame(first.get(5, TimeUnit.SECONDS), second.get(5, TimeUnit.SECONDS))
                 assertEquals(1, built.get())
             } finally {
-                pool.shutdownNow()
+                release.countDown()
+            }
+        }
+
+        /**
+         * Waits until a thread is blocked or waiting, which shows it is stuck behind the first
+         * lookup or inside the provider, and fails after five seconds.
+         *
+         * @param thread the thread to watch
+         */
+        private fun awaitStuck(thread: Thread) {
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            val stuck = setOf(Thread.State.BLOCKED, Thread.State.WAITING, Thread.State.TIMED_WAITING)
+            while (thread.state !in stuck) {
+                assertTrue(System.nanoTime() < deadline, "${thread.name} never blocked; state ${thread.state}")
+                Thread.onSpinWait()
             }
         }
 

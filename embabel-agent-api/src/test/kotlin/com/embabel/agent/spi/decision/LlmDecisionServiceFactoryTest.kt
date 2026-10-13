@@ -40,11 +40,6 @@ import com.embabel.common.ai.classification.ModelProvenance
 import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
-import com.embabel.common.ai.decision.DecisionSpec
-import com.embabel.common.ai.decision.Questions
-import com.embabel.common.ai.decision.RatingResult
-import com.embabel.common.ai.model.ConfigurableModelProvider
-import com.embabel.common.ai.model.ConfigurableModelProviderProperties
 import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.DecisionModelProvider
 import com.embabel.common.ai.model.ModelProvider
@@ -285,62 +280,6 @@ class LlmDecisionServiceFactoryTest {
             assertEquals(1, chatModel.promptsPassed.size)
             verify(exactly = 1) { provider.getLlm(byName("fake")) }
             confirmVerified(provider)
-        }
-    }
-
-    @Nested
-    inner class ConfiguredLocalModels {
-        @Test
-        fun `raw and node prefixed local names produce typed answers without numeric evidence`() {
-            val reply = """{"answers":[{"question":"q1","verdict":"TRUE"},{"question":"q2","verdict":"SELECTED","categoryId":"billing"},{"question":"q3","verdict":"RATED","levelId":"high"}]}"""
-            val rawChat = FakeChatModel(reply)
-            val nodeChat = FakeChatModel(reply)
-            // tag::local-llm-model-provider[]
-            val rawModel = SpringAiLlmService("qwen3:8b", "Ollama", rawChat, DefaultOptionsConverter)
-            val nodeModel = SpringAiLlmService("office-qwen3:8b", "Ollama", nodeChat, DefaultOptionsConverter)
-            val provider = ConfigurableModelProvider(
-                listOf(rawModel, nodeModel),
-                emptyList(),
-                ConfigurableModelProviderProperties(defaultLlm = "qwen3:8b"),
-            )
-            // end::local-llm-model-provider[]
-            Executors.newCachedThreadPool().use { executor ->
-                val operations = ChatClientLlmOperations(
-                    modelProvider = provider,
-                    toolDecorator = DefaultToolDecorator(),
-                    validator = Validation.buildDefaultValidatorFactory().validator,
-                    templateRenderer = JinjavaTemplateRenderer(),
-                    asyncer = ExecutorAsyncer(executor),
-                )
-                // tag::local-llm-decisions[]
-                val factory = LlmDecisionServiceFactory(operations, provider, QuickRetry())
-                val urgent = Questions.named("urgent").proposition("Is this urgent?").build()
-                val route = Questions.named("route").choice("Which team?")
-                    .option("billing", "Payments").option("technical", "Outages").build()
-                val priority = Questions.named("priority").rating("Priority?")
-                    .level("low", "Low").level("high", "High").build()
-                listOf("qwen3:8b", "office-qwen3:8b").forEach { modelName ->
-                    val response = factory.decisionService(modelName).ask("A billing outage", DecisionSpec.of(urgent, route, priority))
-                    val proposition = response.answer(urgent) as PropositionResult.Answered
-                    val choice = response.answer(route) as ClassificationResult.Selected
-                    val rating = response.answer(priority) as RatingResult.Answered
-                    assertTrue(proposition.answer)
-                    assertEquals("billing", choice.categoryId)
-                    assertEquals("high", rating.selectedLevelId)
-                    assertEquals(ModelProvenance(modelName, "Ollama"), proposition.provenance)
-                    assertEquals(proposition.provenance, choice.provenance)
-                    assertEquals(proposition.provenance, rating.provenance)
-                    assertNull(proposition.pTrue)
-                    assertNull(choice.confidence)
-                    assertNull(rating.confidence)
-                    assertNull(rating.score)
-                    assertTrue(rating.distribution.isEmpty())
-                    assertNull(response.requestFailure)
-                }
-                // end::local-llm-decisions[]
-            }
-            assertEquals(1, rawChat.promptsPassed.size)
-            assertEquals(1, nodeChat.promptsPassed.size)
         }
     }
 

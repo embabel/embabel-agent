@@ -89,25 +89,7 @@ This example keeps the TypeSafe default and routes two roles to chat models:
 
 [source,yaml]
 ----
-embabel:
-  agent:
-    platform:
-      models:
-        typesafe:
-          api-key: ${TYPESAFE_API_KEY}
-      decisions:
-        llm:
-          max-attempts: 4
-          backoff-millis: 200
-          backoff-multiplier: 2.0
-          backoff-max-interval: 10000
-  models:
-    decision:
-      roles:
-        triage: small-chat-model
-    classification:
-      roles:
-        routing: fast-chat-model
+include::../../../../../../embabel-agent-starters/embabel-agent-starter-typesafe/src/test/resources/llm-decisions-example.yml[tag=yaml,indent=0]
 ----
 
 The registry then resolves three services:

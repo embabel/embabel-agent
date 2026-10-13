@@ -50,6 +50,7 @@ import com.embabel.agent.core.internal.LlmOperations;
 import com.embabel.agent.core.support.DefaultAgentPlatform;
 import com.embabel.agent.core.support.LlmInteraction;
 import com.embabel.agent.spi.LlmService;
+import com.embabel.agent.spi.common.RetryProperties;
 import com.embabel.agent.spi.config.spring.AgentPlatformConfiguration;
 import com.embabel.agent.spi.config.spring.ContextRepositoryProperties;
 import com.embabel.agent.spi.decision.LlmDecisionServiceFactory;
@@ -252,6 +253,41 @@ class DecisionServicesSpringExampleTest {
     }
 
     @Test
+    void llmDecisionsYamlKeepsTheCatalogDefaultAndRoutesRolesToChatModels() {
+        fixture.runner("llm-decisions-example.yml")
+                .withBean("small-chat-model", LlmService.class, () -> chatModel("small-chat-model"))
+                .withBean("fast-chat-model", LlmService.class, () -> chatModel("fast-chat-model"))
+                .run(
+                        context -> {
+                            assertThat(context).hasNotFailed();
+                            var registry = context.getBean(DecisionServiceRegistry.class);
+                            var jev = context.getBean(JEV_MODEL);
+
+                            assertThat(registry.decisions().defaultService()).isSameAs(jev);
+                            assertThat(registry.classifications().defaultService()).isSameAs(jev);
+                            var triage = registry.decisions().byRole("triage");
+                            assertThat(triage.getName()).isEqualTo("small-chat-model");
+                            assertThat(triage.getProvider()).isEqualTo(REVIEW_PROVIDER);
+                            var routing = registry.classifications().byRole("routing");
+                            assertThat(routing.getName()).isEqualTo("fast-chat-model");
+                            assertThat(routing).isInstanceOf(DecisionService.class);
+                            assertThat(registry.registrationNames())
+                                    .contains(JEV_MODEL)
+                                    .doesNotContain("small-chat-model", "fast-chat-model");
+                            assertThat(context.getBeansOfType(RetryProperties.class).values())
+                                    .filteredOn(retry -> retry.getPropertyPrefix().equals("embabel.agent.platform.decisions.llm"))
+                                    .singleElement()
+                                    .satisfies(retry -> {
+                                        assertThat(retry.getMaxAttempts()).isEqualTo(4);
+                                        assertThat(retry.getBackoffMillis()).isEqualTo(200);
+                                        assertThat(retry.getBackoffMultiplier()).isEqualTo(2.0);
+                                        assertThat(retry.getBackoffMaxInterval()).isEqualTo(10000);
+                                    });
+                        });
+        verifyNoInteractions(fixture.llmOperations);
+    }
+
+    @Test
     void explicitDecisionDefaultCanNameAChatModel() {
         fixture.runner()
                 .withPropertyValues("embabel.models.decision.default=" + REVIEW_MODEL)
@@ -280,7 +316,8 @@ class DecisionServicesSpringExampleTest {
                             assertThat(context.getStartupFailure())
                                     .hasStackTraceContaining("embabel.models.decision.roles.review")
                                     .hasStackTraceContaining("gpt-missing")
-                                    .hasStackTraceContaining("Provider models: [" + REVIEW_MODEL + "]");
+                                    .hasStackTraceContaining(
+                                            "Provider models: " + LlmDecisionServiceFactory.PROVIDER + " [" + REVIEW_MODEL + "]");
                         });
     }
 
@@ -631,6 +668,16 @@ class DecisionServicesSpringExampleTest {
     }
 
     /** A stub that answers the triage spec by question name. */
+    /**
+     * A chat model under the given name, from the same provider as the review model.
+     *
+     * @param name the model name
+     * @return the chat model
+     */
+    static LlmService<?> chatModel(String name) {
+        return new SpringAiLlmService(name, REVIEW_PROVIDER, mock(ChatModel.class));
+    }
+
     static StubDecisionService triageStub() {
         return StubDecisionService.builder("triage-stub")
                 .proposition("urgent", new PropositionResult.Answered(true, STUB_PROVENANCE))
@@ -661,8 +708,18 @@ class DecisionServicesSpringExampleTest {
 
         /** The context with the example YAML. */
         ApplicationContextRunner runner() {
+            return runner("decision-services-example.yml");
+        }
+
+        /**
+         * The context with an example YAML file from the test classpath.
+         *
+         * @param yaml the classpath name of the YAML file
+         * @return the runner
+         */
+        ApplicationContextRunner runner(String yaml) {
             return baseRunner()
-                    .withInitializer(context -> loadExampleYaml(context.getEnvironment().getPropertySources()));
+                    .withInitializer(context -> loadExampleYaml(yaml, context.getEnvironment().getPropertySources()));
         }
 
         /** The context without the example YAML, so only the starter's defaults apply. */
@@ -697,11 +754,17 @@ class DecisionServicesSpringExampleTest {
                             });
         }
 
-        // Added last, so property values set on the runner take precedence over the YAML.
-        private static void loadExampleYaml(MutablePropertySources sources) {
+        /**
+         * Adds a YAML file as the last property source, so property values set on the runner take
+         * precedence over it.
+         *
+         * @param yaml the classpath name of the YAML file
+         * @param sources the property sources to add it to
+         */
+        private static void loadExampleYaml(String yaml, MutablePropertySources sources) {
             try {
                 new YamlPropertySourceLoader()
-                        .load("decision-services-example", new ClassPathResource("decision-services-example.yml"))
+                        .load(yaml, new ClassPathResource(yaml))
                         .forEach(sources::addLast);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
