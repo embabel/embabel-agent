@@ -21,8 +21,9 @@ import java.time.Instant
  * Result of model provider initialization.
  *
  * Each provider auto-configuration returns a [ProviderInitialization] bean from its
- * `@Bean` factory method. Inside that factory method, individual [LlmService] and
- * [EmbeddingService][com.embabel.common.ai.model.EmbeddingService] instances are
+ * `@Bean` factory method. Inside that factory method, individual [LlmService],
+ * [EmbeddingService][com.embabel.common.ai.model.EmbeddingService] and
+ * [DecisionService][com.embabel.common.ai.decision.DecisionService] instances are
  * registered via [ConfigurableBeanFactory.registerSingleton][org.springframework.beans.factory.config.ConfigurableBeanFactory.registerSingleton],
  * using the model name as the bean name. This allows dynamic registration of
  * multiple models per provider, with names driven by configuration rather than
@@ -43,13 +44,20 @@ data class ProviderInitialization(
     val provider: String,
     val registeredLlms: List<RegisteredModel>,
     val registeredEmbeddings: List<RegisteredModel> = emptyList(),
-    val initializedAt: Instant = Instant.now()
+    val initializedAt: Instant = Instant.now(),
+    val registeredDecisionModels: List<RegisteredModel> = emptyList(),
 ) {
     val totalLlms: Int get() = registeredLlms.size
     val totalEmbeddings: Int get() = registeredEmbeddings.size
+    val totalDecisionModels: Int get() = registeredDecisionModels.size
 
     fun summary(): String =
-        "$provider: Initialized $totalLlms LLM(s) and $totalEmbeddings embedding(s)"
+        if (registeredDecisionModels.isEmpty()) {
+            "$provider: Initialized $totalLlms LLM(s) and $totalEmbeddings embedding(s)"
+        } else {
+            "$provider: Initialized $totalLlms LLM(s), $totalEmbeddings embedding(s) and " +
+                "$totalDecisionModels decision model(s)"
+        }
 }
 
 /**

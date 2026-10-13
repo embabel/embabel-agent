@@ -17,6 +17,7 @@ package com.embabel.agent.typesafe.example;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
@@ -41,13 +42,6 @@ import com.embabel.agent.api.channel.DevNullOutputChannel;
 import com.embabel.agent.api.common.Asyncer;
 import com.embabel.agent.autoconfigure.models.typesafe.AgentTypeSafeAutoConfiguration;
 import com.embabel.agent.autoconfigure.platform.DecisionServiceRegistryAutoConfiguration;
-import com.embabel.agent.autoconfigure.platform.DecisionModelServicesAutoConfiguration;
-import com.embabel.agent.autoconfigure.platform.DecisionModelServicesRegistrar;
-import com.embabel.agent.config.models.typesafe.TypeSafeServicesRegistrar;
-import org.springframework.beans.factory.support.DefaultListableBeanFactory;
-import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor;
-import org.springframework.core.env.StandardEnvironment;
-import org.springframework.core.env.MapPropertySource;
 import com.embabel.agent.autoconfigure.platform.LlmDecisionServicesAutoConfiguration;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.ProcessContext;
@@ -58,6 +52,7 @@ import com.embabel.agent.core.support.LlmInteraction;
 import com.embabel.agent.spi.LlmService;
 import com.embabel.agent.spi.config.spring.AgentPlatformConfiguration;
 import com.embabel.agent.spi.config.spring.ContextRepositoryProperties;
+import com.embabel.agent.spi.decision.LlmDecisionServiceFactory;
 import com.embabel.agent.spi.support.ExecutorAsyncer;
 import com.embabel.agent.spi.support.RankingProperties;
 import com.embabel.agent.spi.support.springai.SpringAiLlmService;
@@ -65,6 +60,8 @@ import com.embabel.agent.test.integration.IntegrationTestUtils;
 import com.embabel.agent.test.unit.FakeOperationContext;
 import com.embabel.agent.test.unit.FakeOperationContextKt;
 import com.embabel.agent.typesafe.TypeSafeModelFactory;
+import com.embabel.common.ai.autoconfig.ProviderInitialization;
+import com.embabel.common.ai.autoconfig.RegisteredModel;
 import com.embabel.common.ai.classification.Category;
 import com.embabel.common.ai.classification.ClassificationResult;
 import com.embabel.common.ai.classification.ClassificationService;
@@ -118,14 +115,14 @@ import org.springframework.web.client.RestClient;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 /**
- * Spring assembly of Jev, prompted, stub and no-op decision services from
- * {@code decision-services-example.yml}, booted through the agent platform configuration and the
- * TypeSafe auto-configuration.
+ * Spring assembly of the decision services in {@code decision-services-example.yml}: the Jev catalog
+ * model the TypeSafe starter registers, prompted services for chat models, and stub and no-op
+ * application beans, booted through the agent platform configuration and the TypeSafe
+ * auto-configuration.
  */
 @ResourceLock("DecisionContentCapture")
 class DecisionServicesSpringExampleTest {
@@ -137,7 +134,6 @@ class DecisionServicesSpringExampleTest {
 
     // Model names from the example YAML.
     static final String JEV_MODEL = "jev-latest";
-    static final String JEV_FAST_MODEL = "jev-fast";
     static final String REVIEW_MODEL = "gpt-4.1-mini";
     static final String REVIEW_PROVIDER = "ReviewProvider";
 
@@ -194,91 +190,39 @@ class DecisionServicesSpringExampleTest {
     private final Fixture fixture = new Fixture();
 
     @Test
-    void genericTypeSafeAndPromptedServicesPreserveDefaultsRolesAndProviderCalls() {
-        expectQuestionSetAnswers(fixture.server);
-        answerPrompts(fixture);
-        fixture.runner()
-                .withConfiguration(AutoConfigurations.of(DecisionModelServicesAutoConfiguration.class))
-                .withPropertyValues(
-                        "embabel.agent.platform.decisions.services.generic-jev.provider=typesafe",
-                        "embabel.agent.platform.decisions.services.generic-jev.model=jev-fast",
-                        "embabel.agent.platform.decisions.services.generic-review.provider=llm",
-                        "embabel.agent.platform.decisions.services.generic-review.model=" + REVIEW_MODEL,
-                        "embabel.models.decision.default=generic-review",
-                        "embabel.models.decision.roles.generic-triage=generic-jev",
-                        "embabel.models.classification.roles.generic-review=generic-review")
-                .run(context -> {
-                    assertThat(context).hasNotFailed();
-                    var registry = context.getBean(DecisionServiceRegistry.class);
-                    var jev = context.getBean("generic-jev", DecisionService.class);
-                    var prompted = context.getBean("generic-review", DecisionService.class);
-                    assertThat(registry.decisions().defaultService()).isSameAs(prompted);
-                    assertThat(registry.decisions().byRole("generic-triage")).isSameAs(jev);
-                    assertThat(registry.classifications().defaultService())
-                            .isSameAs(context.getBean("typeSafeDecisionService"));
-                    assertThat(registry.classifications().byRole("generic-review")).isSameAs(prompted);
-                    assertThat(jev.getName()).isEqualTo("jev-fast");
-                    assertThat(jev.getProvider()).isEqualTo(TypeSafeModelFactory.PROVIDER);
-                    assertThat(prompted.getName()).isEqualTo(REVIEW_MODEL);
-                    assertThat(prompted.getProvider()).isEqualTo(REVIEW_PROVIDER);
-                    assertThat(jev.capabilities()).isEqualTo(context.getBean(TypeSafeModelFactory.class)
-                            .describe("jev-fast").getCapabilities());
-                    assertQuestionSetAnswers(jev.ask(FEEDBACK, TRIAGE));
-                    assertPromptedAnswers(prompted.ask(FEEDBACK, TRIAGE));
-                });
-        fixture.server.verify();
-        verifyOnePrompt(fixture);
+    void starterRegistersTheCatalogModelAsTheCandidateDefault() {
+        fixture.baseRunner()
+                .run(
+                        context -> {
+                            assertThat(context).hasNotFailed();
+                            var registry = context.getBean(DecisionServiceRegistry.class);
+                            var jev = context.getBean(JEV_MODEL, DecisionService.class);
+
+                            assertThat(context.getBean("typeSafeModelsInitializer", ProviderInitialization.class)
+                                            .getRegisteredDecisionModels())
+                                    .extracting(RegisteredModel::getBeanName, RegisteredModel::getModelId)
+                                    .containsExactly(tuple(JEV_MODEL, JEV_MODEL));
+                            assertThat(jev.getName()).isEqualTo(JEV_MODEL);
+                            assertThat(jev.getProvider()).isEqualTo(TypeSafeModelFactory.PROVIDER);
+                            assertThat(registry.registrationNames()).contains(JEV_MODEL).doesNotContain(REVIEW_MODEL);
+                            assertThat(registry.decisions().defaultService()).isSameAs(jev);
+                            assertThat(registry.classifications().defaultService()).isSameAs(jev);
+                        });
     }
 
     @Test
-    void actualTypeSafeAndGenericRegistrarsRejectCollisionsInBothOrders() {
-        for (var genericFirst : List.of(true, false)) {
-            var environment = new StandardEnvironment();
-            environment.getPropertySources().addFirst(new MapPropertySource("test", Map.of(
-                    "embabel.agent.platform.decisions.services.same.provider", "typesafe",
-                    "embabel.agent.platform.decisions.services.same.model", "jev-fast",
-                    "embabel.agent.platform.models.typesafe.services.same.model", "jev-latest")));
-            var definitions = new DefaultListableBeanFactory();
-            var generic = new DecisionModelServicesRegistrar(
-                    DecisionModelServicesRegistrar.Companion.bind(environment), definitions);
-            var typeSafe = new TypeSafeServicesRegistrar(
-                    TypeSafeServicesRegistrar.Companion.bind(environment), definitions);
-            BeanDefinitionRegistryPostProcessor first = genericFirst ? generic : typeSafe;
-            BeanDefinitionRegistryPostProcessor second = genericFirst ? typeSafe : generic;
-            first.postProcessBeanDefinitionRegistry(definitions);
-            assertThatThrownBy(() -> second.postProcessBeanDefinitionRegistry(definitions))
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("decisions.services.same")
-                    .hasMessageContaining("models.typesafe.services.same");
-        }
-    }
-
-    @Test
-    void yamlConfigurationResolvesRolesNamesAndTheCandidateDefault() {
+    void yamlConfigurationResolvesTheCatalogDefaultRolesAndChatModels() {
         fixture.run(
                 context -> {
                     var registry = context.getBean(DecisionServiceRegistry.class);
                     var decisions = registry.decisions();
+                    var jev = context.getBean(JEV_MODEL);
 
-                    assertThat(registry.registrationNames())
-                            .contains(
-                                    "typeSafeDecisionService",
-                                    "jev",
-                                    "jev-fast",
-                                    "llm-review",
-                                    "triage-stub",
-                                    "disabled");
-                    assertThat(decisions.defaultService()).isSameAs(context.getBean("typeSafeDecisionService"));
-                    assertThat(registry.classifications().defaultService())
-                            .isSameAs(context.getBean("typeSafeDecisionService"));
-                    assertThat(decisions.byRole("support-triage")).isSameAs(context.getBean("jev"));
-                    assertThat(decisions.byRole("dice-revision-review")).isSameAs(context.getBean("llm-review"));
-
-                    // The outcomes the plain Java example asserts for the services it can build.
-                    assertThat(decisions.defaultService().getName()).isEqualTo(JEV_MODEL);
-                    assertThat(decisions.byRole("support-triage").getName()).isEqualTo(JEV_MODEL);
-                    assertThat(decisions.named("jev-fast").getName()).isEqualTo(JEV_FAST_MODEL);
-                    assertThat(decisions.named("jev").getProvider()).isEqualTo(TypeSafeModelFactory.PROVIDER);
+                    assertThat(registry.registrationNames()).contains(JEV_MODEL, "triage-stub", "disabled");
+                    assertThat(decisions.defaultService()).isSameAs(jev);
+                    assertThat(registry.classifications().defaultService()).isSameAs(jev);
+                    assertThat(decisions.byRole("support-triage")).isSameAs(jev);
+                    assertThat(decisions.named(JEV_MODEL).getProvider()).isEqualTo(TypeSafeModelFactory.PROVIDER);
                     assertThat(decisions.named("disabled")).isInstanceOf(NoOpDecisionService.class);
                     DecisionService perUser = StubDecisionService.builder("per-user").build();
                     assertThat(decisions.using(perUser)).isSameAs(perUser);
@@ -288,34 +232,55 @@ class DecisionServicesSpringExampleTest {
                                     e -> assertThat(e.getReason())
                                             .isEqualTo(ServiceSelectionException.Reason.UNKNOWN_NAME));
 
-                    // A classification role resolves the prompted service, which stays a decision service.
+                    // A chat model role is built by LlmDecisionServiceFactory once and serves both families.
+                    assertThat(context.getBean(LlmDecisionServiceFactory.class).modelNames()).contains(REVIEW_MODEL);
+                    var review = decisions.byRole("dice-revision-review");
+                    assertThat(review.getName()).isEqualTo(REVIEW_MODEL);
+                    assertThat(review.getProvider()).isEqualTo(REVIEW_PROVIDER);
+                    assertThat(decisions.named(REVIEW_MODEL)).isSameAs(review);
                     ClassificationService revision = registry.classifications().byRole("dice-revision");
-                    assertThat(revision).isSameAs(context.getBean("llm-review"));
-                    assertThat(revision).isInstanceOf(DecisionService.class);
+                    assertThat(revision).isSameAs(review);
                     assertThat(revision.getType()).isEqualTo(ModelType.DECISION);
-                    assertThat(revision.getProvider()).isEqualTo(REVIEW_PROVIDER);
+                    assertThat(registry.registrationNames()).doesNotContain(REVIEW_MODEL);
 
                     assertThat(registry.getObservationRegistry())
                             .isSameAs(context.getBean(ObservationRegistry.class))
                             .isSameAs(fixture.observations);
                     assertThat(DecisionContentCapture.isEnabled()).isFalse();
                 });
+        verifyNoInteractions(fixture.llmOperations);
     }
 
     @Test
-    void explicitDecisionDefaultSwitchesOnlyTheDecisionDefault() {
+    void explicitDecisionDefaultCanNameAChatModel() {
         fixture.runner()
-                .withPropertyValues("embabel.models.decision.default=llm-review")
+                .withPropertyValues("embabel.models.decision.default=" + REVIEW_MODEL)
                 .run(
                         context -> {
                             assertThat(context).hasNotFailed();
                             var registry = context.getBean(DecisionServiceRegistry.class);
-                            assertThat(registry.decisions().defaultService())
-                                    .isSameAs(context.getBean("llm-review"));
+                            var review = registry.decisions().defaultService();
+                            assertThat(review.getName()).isEqualTo(REVIEW_MODEL);
+                            assertThat(review.getProvider()).isEqualTo(REVIEW_PROVIDER);
+                            assertThat(registry.decisions().named(REVIEW_MODEL)).isSameAs(review);
                             assertThat(registry.classifications().defaultService())
-                                    .isSameAs(context.getBean("typeSafeDecisionService"));
+                                    .isSameAs(context.getBean(JEV_MODEL));
                             assertThat(registry.decisions().byRole("support-triage"))
-                                    .isSameAs(context.getBean("jev"));
+                                    .isSameAs(context.getBean(JEV_MODEL));
+                        });
+    }
+
+    @Test
+    void roleNamingNoServiceOrChatModelFailsStartupNamingTheProperty() {
+        fixture.runner()
+                .withPropertyValues("embabel.models.decision.roles.review=gpt-missing")
+                .run(
+                        context -> {
+                            assertThat(context).hasFailed();
+                            assertThat(context.getStartupFailure())
+                                    .hasStackTraceContaining("embabel.models.decision.roles.review")
+                                    .hasStackTraceContaining("gpt-missing")
+                                    .hasStackTraceContaining("Provider models: [" + REVIEW_MODEL + "]");
                         });
     }
 
@@ -330,36 +295,44 @@ class DecisionServicesSpringExampleTest {
         assertThat(summaries).hasSize(1);
         assertThat(summaries.get(0))
                 .contains(
-                        "typeSafeDecisionService (name " + JEV_MODEL + ", provider TypeSafe",
-                        "jev (name " + JEV_MODEL + ", provider TypeSafe",
-                        "jev-fast (name " + JEV_FAST_MODEL + ", provider TypeSafe",
-                        "llm-review (name " + REVIEW_MODEL + ", provider " + REVIEW_PROVIDER,
+                        JEV_MODEL + " (name " + JEV_MODEL + ", provider TypeSafe",
                         "triage-stub (name triage-stub, provider stub",
                         "disabled (name disabled, provider none",
                         "capabilities kinds [PROPOSITION, CHOICE, RATING]",
-                        "support-triage=jev",
-                        "default candidates: [typeSafeDecisionService]");
+                        "decision default: '" + JEV_MODEL + "' (explicit)",
+                        "support-triage=" + JEV_MODEL,
+                        "dice-revision-review=" + REVIEW_MODEL,
+                        "classification default: '" + JEV_MODEL + "' (default candidate)",
+                        "ticket-routing=" + REVIEW_MODEL,
+                        "default candidates: [" + JEV_MODEL + "]");
         assertNoSentinels(events);
     }
 
     @Test
-    void stubAndNoOpServicesAnswerThroughTheRegistry() {
-        fixture.run(
-                context -> {
-                    var decisions = context.getBean(DecisionServiceRegistry.class).decisions();
+    void applicationBeansRegisterUnderTheirBeanNamesAndAnswerThroughTheRegistry() {
+        fixture.runner()
+                .withPropertyValues("embabel.models.decision.roles.tests=triage-stub")
+                .run(
+                        context -> {
+                            assertThat(context).hasNotFailed();
+                            var decisions = context.getBean(DecisionServiceRegistry.class).decisions();
+                            assertThat(decisions.named("triage-stub")).isSameAs(context.getBean("triage-stub"));
+                            assertThat(decisions.byRole("tests")).isSameAs(context.getBean("triage-stub"));
+                            assertThat(decisions.named("disabled")).isSameAs(context.getBean("disabled"));
 
-                    var stubbed = decisions.named("triage-stub").ask(FEEDBACK, TRIAGE);
-                    assertThat(stubbed.answer(URGENT)).isEqualTo(new PropositionResult.Answered(true, STUB_PROVENANCE));
-                    assertThat(stubbed.answer(DEPARTMENT))
-                            .isEqualTo(new ClassificationResult.Selected("technical", STUB_PROVENANCE));
+                            var stubbed = decisions.byRole("tests").ask(FEEDBACK, TRIAGE);
+                            assertThat(stubbed.answer(URGENT))
+                                    .isEqualTo(new PropositionResult.Answered(true, STUB_PROVENANCE));
+                            assertThat(stubbed.answer(DEPARTMENT))
+                                    .isEqualTo(new ClassificationResult.Selected("technical", STUB_PROVENANCE));
 
-                    var disabled = decisions.named("disabled").ask(FEEDBACK, TRIAGE);
-                    assertThat(disabled.getRequestFailure()).isEqualTo(FailureReason.UNAVAILABLE);
-                    assertThat(disabled.answer(URGENT))
-                            .isEqualTo(new PropositionResult.Failure(FailureReason.UNAVAILABLE));
-                    assertThat(disabled.answer(FRUSTRATION))
-                            .isEqualTo(new RatingResult.Failure(FailureReason.UNAVAILABLE));
-                });
+                            var disabled = decisions.named("disabled").ask(FEEDBACK, TRIAGE);
+                            assertThat(disabled.getRequestFailure()).isEqualTo(FailureReason.UNAVAILABLE);
+                            assertThat(disabled.answer(URGENT))
+                                    .isEqualTo(new PropositionResult.Failure(FailureReason.UNAVAILABLE));
+                            assertThat(disabled.answer(FRUSTRATION))
+                                    .isEqualTo(new RatingResult.Failure(FailureReason.UNAVAILABLE));
+                        });
         fixture.server.verify();
         verifyNoInteractions(fixture.llmOperations);
     }
@@ -384,7 +357,7 @@ class DecisionServicesSpringExampleTest {
     }
 
     @Test
-    void promptedRoleAsksTheModelOnce() {
+    void chatModelRoleAsksTheModelOnce() {
         answerPrompts(fixture);
 
         fixture.run(
@@ -399,7 +372,7 @@ class DecisionServicesSpringExampleTest {
     }
 
     @Test
-    void classificationRoleEntryServesItsRoleAndTheSpecBean() {
+    void classificationRoleNamingAChatModelServesItsRoleAndTheSpecBean() {
         fixture.runner()
                 .withUserConfiguration(TicketRoutingConfiguration.class)
                 .run(
@@ -408,10 +381,9 @@ class DecisionServicesSpringExampleTest {
                             var registry = context.getBean(DecisionServiceRegistry.class);
 
                             ClassificationService routing = registry.classifications().byRole("ticket-routing");
-                            assertThat(routing).isSameAs(context.getBean("ticket-classifier"));
                             assertThat(routing.getType()).isEqualTo(ModelType.DECISION);
                             assertThat(routing.getName()).isEqualTo(REVIEW_MODEL);
-                            assertThat(registry.decisions().named("ticket-classifier")).isSameAs(routing);
+                            assertThat(registry.decisions().named(REVIEW_MODEL)).isSameAs(routing);
 
                             assertThat(context.getBean(ClassificationSpec.class).getCategories())
                                     .extracting(Category::getId)
@@ -456,7 +428,7 @@ class DecisionServicesSpringExampleTest {
         fixture.run(
                 context -> {
                     var operation = operationContext(context);
-                    var jev = context.getBean(DecisionServiceRegistry.class).decisions().named("jev");
+                    var jev = context.getBean(DecisionServiceRegistry.class).decisions().named(JEV_MODEL);
 
                     DecisionService triage = operation.ai().decisions().byRole("support-triage");
                     assertThat(triage.getName()).isEqualTo(jev.getName());
@@ -476,7 +448,7 @@ class DecisionServicesSpringExampleTest {
 
     /** Asks each triage question on its own: assess, classify and rate on the jev service. */
     static DecisionResponse askEachQuestion(AssertableApplicationContext context) {
-        DecisionService jev = context.getBean(DecisionServiceRegistry.class).decisions().named("jev");
+        DecisionService jev = context.getBean(DecisionServiceRegistry.class).decisions().named(JEV_MODEL);
         return DecisionResponse.builder(TRIAGE)
                 .answer(URGENT, ((PropositionAssessment) jev).assess(FEEDBACK, URGENT))
                 .answer(DEPARTMENT, jev.classify(FEEDBACK, ClassificationSpec.of(DEPARTMENT)))
@@ -687,9 +659,15 @@ class DecisionServicesSpringExampleTest {
                     .observationHandler(new DefaultMeterObservationHandler(meters));
         }
 
+        /** The context with the example YAML. */
         ApplicationContextRunner runner() {
+            return baseRunner()
+                    .withInitializer(context -> loadExampleYaml(context.getEnvironment().getPropertySources()));
+        }
+
+        /** The context without the example YAML, so only the starter's defaults apply. */
+        ApplicationContextRunner baseRunner() {
             return new ApplicationContextRunner()
-                    .withInitializer(context -> loadExampleYaml(context.getEnvironment().getPropertySources()))
                     .withUserConfiguration(AgentPlatformConfiguration.class)
                     .withConfiguration(AutoConfigurations.of(
                             LlmDecisionServicesAutoConfiguration.class,

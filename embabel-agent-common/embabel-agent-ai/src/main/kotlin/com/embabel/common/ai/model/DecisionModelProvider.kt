@@ -15,27 +15,39 @@
  */
 package com.embabel.common.ai.model
 
-import com.embabel.common.ai.decision.DecisionCapabilities
 import com.embabel.common.ai.decision.DecisionService
 import org.jetbrains.annotations.ApiStatus
 
 /**
- * Advertises and constructs decision models without exposing provider-native clients.
- * [models] is a known local catalog, not exhaustive remote discovery. Descriptors describe what a
- * factory can construct; they do not verify remote availability or calibrated evidence.
+ * Supplies decision services by model name for models that are not registered as beans, such as
+ * the chat models a prompted decision service wraps.
+ *
+ * The [DecisionServiceRegistry] asks providers only for names no registered service holds. It asks
+ * them in order and keeps the first service returned, so each name is built at most once.
+ * Defaults and roles may name any model in [modelNames]. A provider model never becomes a family
+ * default unless configuration names it.
+ *
+ * Implementations must be thread-safe.
  */
 @ApiStatus.Experimental
 interface DecisionModelProvider {
-    val id: String
-    fun models(): List<DecisionModelDescriptor> = emptyList()
-    fun describe(modelName: String): DecisionModelDescriptor
-    fun create(modelName: String): DecisionService
-}
 
-/** Construction metadata for one model; service provenance retains the provider's original labels. */
-@ApiStatus.Experimental
-data class DecisionModelDescriptor(val modelName: String, val capabilities: DecisionCapabilities) {
-    init {
-        require(modelName.isNotBlank()) { "Decision model name must not be blank" }
-    }
+    /** Name of this provider, for diagnostics. */
+    val provider: String
+
+    /**
+     * Returns the model names this provider can serve now. The registry checks defaults and roles
+     * against this list when it is built.
+     *
+     * @return the model names, in a stable order
+     */
+    fun modelNames(): List<String>
+
+    /**
+     * Creates a decision service for a model.
+     *
+     * @param name the model name
+     * @return the service, or null when this provider does not serve that model
+     */
+    fun decisionServiceNamed(name: String): DecisionService?
 }

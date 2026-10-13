@@ -82,9 +82,10 @@ The service takes its name and provider from the `LlmService`.
 [[reference.llm-decisions.configuration]]
 ==== Configuration
 
-LLM decision settings live under `embabel.agent.platform.decisions.llm`.
-The retry settings at that level apply to every service the factory builds, in code or from configuration.
-This example keeps the TypeSafe default and adds two LLM services:
+A prompted decision service is selected by naming a chat model in a decision or classification default or role.
+`LlmDecisionServiceFactory` is a `DecisionModelProvider` for every chat model the `ModelProvider` lists, so the registry builds the prompted service the first time the name is selected.
+Retry settings live under `embabel.agent.platform.decisions.llm` and apply to every service the factory builds.
+This example keeps the TypeSafe default and routes two roles to chat models:
 
 [source,yaml]
 ----
@@ -94,37 +95,42 @@ embabel:
       models:
         typesafe:
           api-key: ${TYPESAFE_API_KEY}
-          model: jev-latest
       decisions:
         llm:
           max-attempts: 4
           backoff-millis: 200
           backoff-multiplier: 2.0
           backoff-max-interval: 10000
-          services:
-            triage:
-              llm: small-chat-model
-            routing:
-              llm: fast-chat-model
+  models:
+    decision:
+      roles:
+        triage: small-chat-model
+    classification:
+      roles:
+        routing: fast-chat-model
 ----
 
-The context then holds three services:
+The registry then resolves three services:
 
 |===
-|Bean name |Type |Answered by
+|Name |Source |Answered by
 
-|`typeSafeDecisionService`
-|`DecisionService`
-|Jev, from `embabel-agent-starter-typesafe`
+|`jev-latest`
+|Catalog bean from `embabel-agent-starter-typesafe`
+|Jev
 
-|`triage`
-|`DecisionService`
-|The LLM named `small-chat-model`
+|`small-chat-model`
+|`LlmDecisionServiceFactory`, on first selection
+|The chat model `small-chat-model`
 
-|`routing`
-|`DecisionService`
-|The LLM named `fast-chat-model`
+|`fast-chat-model`
+|`LlmDecisionServiceFactory`, on first selection
+|The chat model `fast-chat-model`
 |===
+
+Replace the chat model names with names the application's model provider knows.
+A prompted service is never a family default unless configuration names it.
+To inject a prompted service as a bean, define it with the factory, for example `factory.decisionService("small-chat-model")`, and give the bean a name.
 
 These are the retry settings:
 
@@ -148,20 +154,10 @@ These are the retry settings:
 |Longest wait between retries, in milliseconds
 |===
 
-Each entry under `services` registers one `DecisionService` bean, and the entry's key is the bean name.
-The platform autoconfiguration registers these beans, and the factory bean builds each service.
-An entry has one property, `llm`: the name of the LLM that answers.
-Replace the `llm` values with names the application's model provider knows.
-A decision service also classifies, so inject it as a `ClassificationService` where only classification is needed.
-
-Several beans share the `DecisionService` type.
-Inject a specific service by its bean name, for example with the constructor parameter `@Qualifier("triage") DecisionService triage`.
-
 ==== Startup checks
 
 Startup fails when any setting breaks a rule in this table.
 A retry setting out of range fails binding `embabel.agent.platform.decisions.llm`, and the cause carries the message.
-For an entry, `<entry>` is `embabel.agent.platform.decisions.llm.services.<key>`.
 
 |===
 |Rule |Message
@@ -177,17 +173,9 @@ For an entry, `<entry>` is `embabel.agent.platform.decisions.llm.services.<key>`
 
 |`backoff-max-interval` is greater than `backoff-millis`
 |`backoff-max-interval must be greater than backoff-millis`
-
-|An entry has an `llm`
-|`<entry>.llm must name an LLM`
-
-|The model provider knows the entry's `llm`
-|`<entry>.llm names unknown LLM '<name>'`
 |===
 
-A key under an entry that matches no property also fails startup, and the failure names that key.
-Keys that come from environment variables or system properties are not checked this way.
-The service beans are created eagerly, so an unknown `llm` fails startup even when the application makes beans lazy by default.
+A decision or classification default or role that names a chat model the model provider does not list fails startup, and the error names the property.
 
 ==== Input
 

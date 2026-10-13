@@ -28,9 +28,6 @@ import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import org.jetbrains.annotations.ApiStatus
 import java.util.Objects
-import tools.jackson.core.type.TypeReference
-import tools.jackson.databind.JsonNode
-import tools.jackson.databind.json.JsonMapper
 
 /**
  * The answer to one question in a decision response. There is one implementation per question
@@ -281,13 +278,13 @@ sealed interface DecisionAnswer {
  * ```
  *
  * Build a response with [builder], or record a failed request with [failed]. Two responses are
- * equal when their request failures, answers and choice distributions are equal.
+ * equal when their request failures and answers are equal.
  *
  * Reading a response from JSON runs the same checks as building one, answer by answer. It does not
  * compare the response with any spec.
  */
 @ApiStatus.Experimental
-@JsonPropertyOrder("requestFailure", "answers", "choiceDistributions")
+@JsonPropertyOrder("requestFailure", "answers")
 class DecisionResponse private constructor(
     /**
      * Why the whole request failed, or null when it did not. When it is set, every answer's outcome
@@ -297,19 +294,11 @@ class DecisionResponse private constructor(
     @get:JsonInclude(JsonInclude.Include.NON_NULL)
     val requestFailure: FailureReason?,
     answers: List<DecisionAnswer>,
-    choiceDistributions: Map<String, ChoiceDistribution>,
 ) {
-    private constructor(requestFailure: FailureReason?, answers: List<DecisionAnswer>) :
-        this(requestFailure, answers, emptyMap())
 
     /** The answers in spec order, one per question. The list cannot be modified. */
     @get:JsonProperty("answers")
     val answers: List<DecisionAnswer> = java.util.List.copyOf(answers)
-
-    /** Optional provider-reported choice evidence, in answer order. Scalar outcomes remain unchanged. */
-    @get:JsonProperty("choiceDistributions")
-    @get:JsonInclude(JsonInclude.Include.NON_EMPTY)
-    val choiceDistributions: Map<String, ChoiceDistribution>
 
     private val answersByName: Map<String, DecisionAnswer>
 
@@ -328,7 +317,6 @@ class DecisionResponse private constructor(
             }
         }
         answersByName = this.answers.associateBy { it.name }
-        this.choiceDistributions = validatedDistributions(choiceDistributions)
     }
 
     /**
@@ -376,27 +364,6 @@ class DecisionResponse private constructor(
         return outcome as R
     }
 
-    private fun validatedDistributions(evidence: Map<String, ChoiceDistribution>): Map<String, ChoiceDistribution> {
-        require(requestFailure == null || evidence.isEmpty()) { "Request failures cannot carry choice evidence" }
-        require(evidence.keys.all { it in answersByName }) { "Choice evidence must name existing answers" }
-        val ordered = LinkedHashMap<String, ChoiceDistribution>()
-        for (answer in answers) {
-            if (answer.name !in evidence) continue
-            require(answer is DecisionAnswer.Choice && answer.outcome !is ClassificationResult.Failure) {
-                "Choice evidence requires a nonfailed choice answer"
-            }
-            val distribution = requireNotNull(evidence[answer.name]) { "Choice evidence must not be null" }
-            ordered[answer.name] = distribution.orderedFor(answer.options)
-        }
-        return java.util.Collections.unmodifiableMap(ordered)
-    }
-
-    /** Read optional evidence only after checking the question's name, kind and complete definition. */
-    fun choiceDistribution(question: ChoiceQuestionSpec): ChoiceDistribution? {
-        answer(question)
-        return choiceDistributions[question.name]
-    }
-
     /**
      * Checks that this response answers the given spec. There must be one answer per question, in
      * the spec's order, and each answer must fit its question the way the typed [answer] lookup
@@ -436,22 +403,12 @@ class DecisionResponse private constructor(
             AnswerRules.mismatch(answer, question)?.let { "Answer '${question.name}': $it." }
         }
         require(mismatches.isEmpty()) { "The response does not match the spec. ${mismatches.joinToString(" ")}" }
-        for ((name, distribution) in choiceDistributions) {
-            val question = spec.question(name)
-            require(question is ChoiceQuestionSpec) { "Choice evidence must name a choice question" }
-            distribution.orderedFor(question.options)
-        }
     }
 
     override fun equals(other: Any?): Boolean =
-        this === other || other is DecisionResponse && requestFailure == other.requestFailure &&
-            answers == other.answers && choiceDistributions == other.choiceDistributions
+        this === other || other is DecisionResponse && requestFailure == other.requestFailure && answers == other.answers
 
-    override fun hashCode(): Int = if (choiceDistributions.isEmpty()) {
-        Objects.hash(requestFailure, answers)
-    } else {
-        Objects.hash(requestFailure, answers, choiceDistributions)
-    }
+    override fun hashCode(): Int = Objects.hash(requestFailure, answers)
 
     override fun toString(): String = "DecisionResponse(requestFailure=$requestFailure, answers=$answers)"
 
@@ -473,7 +430,6 @@ class DecisionResponse private constructor(
     class Builder private constructor(private val spec: DecisionSpec) {
 
         private val answers = HashMap<String, DecisionAnswer>()
-        private val choiceDistributions = HashMap<String, ChoiceDistribution>()
 
         /**
          * Adds the answer to one proposition question of the spec. A rejected answer leaves the
@@ -500,28 +456,8 @@ class DecisionResponse private constructor(
          * question is not equal to this one, the question already has an answer, or the selection
          * is not one of the question's options
          */
-        fun answer(question: ChoiceQuestionSpec, outcome: ClassificationResult): Builder =
-            answerChoice(question, outcome, null)
-
-        /** Add complete provider-reported probabilities without changing the scalar outcome. */
-        fun answer(
-            question: ChoiceQuestionSpec,
-            outcome: ClassificationResult,
-            distribution: ChoiceDistribution,
-        ): Builder = answerChoice(question, outcome, distribution)
-
-        private fun answerChoice(
-            question: ChoiceQuestionSpec,
-            outcome: ClassificationResult,
-            distribution: ChoiceDistribution?,
-        ): Builder {
-            require(distribution == null || outcome !is ClassificationResult.Failure) {
-                "Failed choices cannot carry evidence"
-            }
-            val ordered = distribution?.orderedFor(question.options)
-            add(question) { DecisionAnswer.Choice.create(question.name, question.options, outcome) }
-            if (ordered != null) choiceDistributions[question.name] = ordered
-            return this
+        fun answer(question: ChoiceQuestionSpec, outcome: ClassificationResult): Builder = add(question) {
+            DecisionAnswer.Choice.create(question.name, question.options, outcome)
         }
 
         /**
@@ -549,7 +485,7 @@ class DecisionResponse private constructor(
             require(missing.isEmpty()) {
                 "Every question in the spec needs an answer. Missing: ${missing.joinToString { "'$it'" }}"
             }
-            return DecisionResponse(null, spec.questions.map { answers.getValue(it.name) }, choiceDistributions)
+            return DecisionResponse(null, spec.questions.map { answers.getValue(it.name) })
         }
 
         /**
@@ -582,8 +518,6 @@ class DecisionResponse private constructor(
      */
     companion object {
 
-        private val evidenceMapper = JsonMapper.builder().build()
-
         /**
          * Starts a builder for a response to the given spec.
          *
@@ -608,14 +542,7 @@ class DecisionResponse private constructor(
         // Rebuilds a response without its spec. The constructor checks every invariant. Hidden from Java.
         @JvmSynthetic
         internal fun create(requestFailure: FailureReason?, answers: List<DecisionAnswer>): DecisionResponse =
-            create(requestFailure, answers, emptyMap())
-
-        @JvmSynthetic
-        internal fun create(
-            requestFailure: FailureReason?,
-            answers: List<DecisionAnswer>,
-            choiceDistributions: Map<String, ChoiceDistribution>,
-        ): DecisionResponse = DecisionResponse(requestFailure, answers, choiceDistributions)
+            DecisionResponse(requestFailure, answers)
 
         /**
          * Reads a response from JSON through the same constructor. An explicit null request failure
@@ -632,20 +559,7 @@ class DecisionResponse private constructor(
             @JsonProperty("answers", required = true)
             @JsonFormat(without = [JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY])
             answers: List<DecisionAnswer>,
-            @JsonProperty("choiceDistributions") choiceDistributions: JsonNode?,
-        ): DecisionResponse {
-            // JsonNode distinguishes absent creator properties from explicit JSON null on plain mappers.
-            val evidence = if (choiceDistributions == null) {
-                emptyMap()
-            } else {
-                require(choiceDistributions.isObject) { "Choice distributions must be a non-null object" }
-                evidenceMapper.convertValue(
-                    choiceDistributions,
-                    object : TypeReference<Map<String, ChoiceDistribution>>() {},
-                )
-            }
-            return DecisionResponse(requestFailure, answers, evidence)
-        }
+        ): DecisionResponse = DecisionResponse(requestFailure, answers)
     }
 }
 

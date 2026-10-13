@@ -125,6 +125,31 @@ class ProviderInitializationTest {
     }
 
     @Nested
+    inner class DecisionModels {
+
+        @Test
+        fun `defaults decision models to empty and keeps the LLM summary`() {
+            val result = createProviderInitialization(provider = "OpenAI", llms = listOf(RegisteredModel("gpt4", "gpt-4")))
+
+            assertThat(result.registeredDecisionModels).isEmpty()
+            assertThat(result.summary()).isEqualTo("OpenAI: Initialized 1 LLM(s) and 0 embedding(s)")
+        }
+
+        @Test
+        fun `counts decision models and adds them to the summary`() {
+            val result = ProviderInitialization(
+                provider = "TypeSafe",
+                registeredLlms = emptyList(),
+                registeredDecisionModels = listOf(RegisteredModel("jev-latest", "jev-latest")),
+            )
+
+            assertThat(result.totalDecisionModels).isEqualTo(1)
+            assertThat(result.summary())
+                .isEqualTo("TypeSafe: Initialized 0 LLM(s), 0 embedding(s) and 1 decision model(s)")
+        }
+    }
+
+    @Nested
     inner class InitializedAt {
 
         @Test

@@ -15,8 +15,10 @@
  */
 package com.embabel.agent.autoconfigure.platform
 
+import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.classification.ClassificationService
 import com.embabel.common.ai.decision.spi.DecisionContentCapture
+import com.embabel.common.ai.model.DecisionModelProvider
 import com.embabel.common.ai.model.DecisionServiceRegistry
 import io.micrometer.observation.ObservationRegistry
 import org.jetbrains.annotations.ApiStatus
@@ -40,20 +42,22 @@ import java.util.IdentityHashMap
  * Builds the application's [DecisionServiceRegistry] from the decision and classification service
  * beans in the context, and applies the decision content capture property.
  *
- * Every `ClassificationService` bean registers under its bean name. That includes the services the
- * prompted and Jev registrars define from configuration. The family defaults and roles come from
- * these properties:
+ * Every `ClassificationService` bean registers under its bean name. Provider starters register one
+ * bean per catalog model, named after the model, through their `ProviderInitialization` beans, so the
+ * registry is built after those run. Every `DecisionModelProvider` bean is added as a provider, in
+ * bean order, for names no bean holds, such as chat models used for prompted decisions. The family
+ * defaults and roles come from these properties:
  *
  * ```yaml
  * embabel:
  *   models:
  *     decision:
- *       default: jev
+ *       default: jev-latest
  *       roles:
- *         support-triage: jev
+ *         support-triage: jev-latest
  *     classification:
  *       roles:
- *         dice-revision: llm-review
+ *         dice-revision: gpt-4.1-mini
  * ```
  *
  * Every `DecisionServiceRegistry.DefaultCandidate` bean is passed to the registry as a default
@@ -92,9 +96,13 @@ class DecisionServiceRegistryAutoConfiguration {
     fun decisionServiceRegistry(
         beanFactory: ListableBeanFactory,
         candidates: ObjectProvider<DecisionServiceRegistry.DefaultCandidate>,
+        providers: ObjectProvider<DecisionModelProvider>,
+        providerInitializations: ObjectProvider<ProviderInitialization>,
         observationRegistry: ObjectProvider<ObservationRegistry>,
         environment: Environment,
     ): DecisionServiceRegistry {
+        // Creating the initializers first is what registers the starters' model beans.
+        providerInitializations.orderedStream().toList()
         val binder = Binder.get(environment)
         val decision = bindFamily(binder, DECISION_PREFIX)
         val classification = bindFamily(binder, CLASSIFICATION_PREFIX)
@@ -109,6 +117,7 @@ class DecisionServiceRegistryAutoConfiguration {
         classification.default?.let { builder.classificationDefault(resolve(it)) }
         classification.roles.forEach { (role, name) -> builder.classificationRole(role, resolve(name)) }
         candidates.orderedStream().forEach { builder.defaultCandidate(resolve(it.name)) }
+        providers.orderedStream().forEach { builder.provider(it) }
         return try {
             builder.build()
         } catch (e: IllegalArgumentException) {
