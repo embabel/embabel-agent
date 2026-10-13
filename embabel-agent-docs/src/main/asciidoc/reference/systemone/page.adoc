@@ -143,13 +143,15 @@ The decision registry picks the models up by bean name, the same way it picks up
 ==== Transport
 
 * The key supplier runs on every call, so a rotated key takes effect on the next call.
-A blank key sends no Authorization header, for endpoints that need none.
+A blank key sends no Authorization header, for endpoints that need none, and drops one the application's client would add.
 A supplier that throws, or a key holding control characters, fails the call with `UNAVAILABLE` before anything is sent.
 * A `RestClient.Builder` passed to the factory is cloned, so its transport, proxy, TLS, interceptors and timeouts apply.
 Without one, the factory builds a client with the endpoint's timeouts that does not follow redirects.
 * There are no retries. Each call is one attempt.
 * Error bodies are never read.
 A body over `maxResponseBytes` is rejected from its declared length, or after one byte past the limit when it has none.
+Response buffering is turned off for these calls.
+A request factory that buffers on its own still reads the whole body before the limit applies.
 * Calls are synchronous. Callers can run them on virtual threads.
 
 A failed call fails every question in the request with one reason:
@@ -179,7 +181,7 @@ A failed call fails every question in the request with one reason:
 |===
 
 A caller whose thread is already interrupted gets a `CancellationException` caused by an `InterruptedException`, and nothing is sent.
-A call that fails because of an interrupt is cancelled the same way.
+A call that fails because of an interrupt, including a key supplier interrupted while it waits, is cancelled the same way.
 The interrupt flag stays set in both cases.
 
 ==== Logging and observations
@@ -219,6 +221,7 @@ Each call is observed as `embabel.systemone.request`, with these low cardinality
 |`2xx`, `4xx`, `5xx` and so on, or `none` without a response
 |===
 
+A handler that throws never changes the call's result or leaves its scope open.
 The observation sits inside the framework's `embabel.ai.decision` or `embabel.ai.classification` observation.
 When the HTTP client records `http.client.requests`, that observation sits inside it.
 

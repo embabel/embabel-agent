@@ -101,8 +101,8 @@ class SystemOneModelFactoryTest {
         key: Supplier<String?> = Supplier { "test-key" },
         registry: ObservationRegistry = ObservationRegistry.NOOP,
         endpoint: SystemOneEndpoint = this.endpoint,
+        builder: RestClient.Builder = RestClient.builder(),
     ): Mocked {
-        val builder = RestClient.builder()
         val server = MockRestServiceServer.bindTo(builder).build()
         return Mocked(SystemOneModelFactory(endpoint, "model-1", key, builder, registry), server)
     }
@@ -156,6 +156,35 @@ class SystemOneModelFactoryTest {
 
             ask(mocked.factory)
 
+            mocked.server.verify()
+        }
+
+        @Test
+        fun `a blank key also drops an authorization header the application client would add`() {
+            val builder = RestClient.builder()
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer application-secret")
+                .defaultRequest { it.header(HttpHeaders.AUTHORIZATION, "Bearer request-secret") }
+            val mocked = mocked(key = { "" }, builder = builder)
+            mocked.server.expect(requestTo("$base/v1/systemone"))
+                .andExpect { assertNull(it.headers.getFirst(HttpHeaders.AUTHORIZATION)) }
+                .andRespond(withSuccess(noulBody, MediaType.APPLICATION_JSON))
+
+            ask(mocked.factory)
+
+            mocked.server.verify()
+        }
+
+        @Test
+        fun `a key supplier interrupted while it blocks cancels the call`() {
+            val mocked = mocked(key = { throw IllegalStateException(InterruptedException()) })
+
+            val e = try {
+                assertThrows<CancellationException> { ask(mocked.factory) }
+            } finally {
+                assertTrue(Thread.interrupted())
+            }
+
+            assertTrue(e.cause is InterruptedException)
             mocked.server.verify()
         }
 
@@ -328,6 +357,23 @@ class SystemOneModelFactoryTest {
         }
 
         @Test
+        fun `an application client that buffers responses still stops at the limit and skips error bodies`() {
+            val small = SystemOneEndpoint("Example", URI.create(base), maxResponseBytes = 64)
+            val streamed = mocked(endpoint = small, builder = RestClient.builder().bufferContent { _, _ -> true })
+            val streamedBody = CountingStream(1000)
+            streamed.server.expect(requestTo("$base/v1/systemone")).andRespond { MockClientHttpResponse(streamedBody, HttpStatus.OK) }
+            val failed = mocked(builder = RestClient.builder().bufferContent { _, _ -> true })
+            val errorBody = CountingStream(1000)
+            failed.server.expect(requestTo("$base/v1/systemone"))
+                .andRespond { MockClientHttpResponse(errorBody, HttpStatus.SERVICE_UNAVAILABLE) }
+
+            assertEquals(FailureReason.INVALID_RESPONSE, ask(streamed.factory).requestFailure)
+            assertEquals(FailureReason.UNAVAILABLE, ask(failed.factory).requestFailure)
+            assertEquals(65, streamedBody.read)
+            assertEquals(0, errorBody.read)
+        }
+
+        @Test
         fun `failure lines hold no input, key, body or endpoint`() {
             val mocked = mocked(key = { "SECRET-KEY" })
             mocked.server.expect(requestTo("$base/v1/systemone"))
@@ -356,6 +402,25 @@ class SystemOneModelFactoryTest {
 
         private fun tags() = stopped.filter { it.name == "embabel.systemone.request" }
             .map { context -> context.lowCardinalityKeyValues.associate { it.key to it.value } }
+
+        @Test
+        fun `a failing observation handler changes neither the result nor the current scope`() {
+            val broken = ObservationRegistry.create().apply {
+                observationConfig().observationHandler(object : ObservationHandler<Observation.Context> {
+                    override fun supportsContext(context: Observation.Context) = context.name == "embabel.systemone.request"
+                    override fun onScopeOpened(context: Observation.Context): Unit = error("handler broke")
+                    override fun onStop(context: Observation.Context): Unit = error("handler broke")
+                })
+            }
+            val mocked = mocked(registry = broken)
+            mocked.server.expect(requestTo("$base/v1/systemone")).andRespond(withSuccess(noulBody, MediaType.APPLICATION_JSON))
+            mocked.server.expect(requestTo("$base/v1/models"))
+                .andRespond(withSuccess("""{"models":[{"name":"model-1"}]}""", MediaType.APPLICATION_JSON))
+
+            assertNull(ask(mocked.factory).requestFailure)
+            assertEquals(listOf("model-1"), mocked.factory.modelNames())
+            assertNull(broken.currentObservationScope)
+        }
 
         @Test
         fun `each call is observed with fixed low cardinality tags`() {
@@ -407,6 +472,31 @@ class SystemOneModelFactoryTest {
 
             assertThrows<InvalidApiKeyException> { mocked.factory.buildValidated() }
             mocked.server.verify()
+        }
+
+        @Test
+        fun `validation reads the key once and lists models with that key`() {
+            val keys = ArrayDeque(listOf("checked-key", ""))
+            val mocked = mocked(key = { keys.removeFirst() })
+            mocked.server.expect(requestTo("$base/v1/models"))
+                .andExpect { assertEquals("Bearer checked-key", it.headers.getFirst(HttpHeaders.AUTHORIZATION)) }
+                .andRespond(withSuccess("""{"models":[{"name":"model-1"}]}""", MediaType.APPLICATION_JSON))
+
+            mocked.factory.buildValidated()
+
+            mocked.server.verify()
+            assertEquals(1, keys.size)
+        }
+
+        @Test
+        fun `validation interrupted in the key supplier is cancelled`() {
+            val mocked = mocked(key = { throw IllegalStateException(InterruptedException()) })
+
+            try {
+                assertThrows<CancellationException> { mocked.factory.buildValidated() }
+            } finally {
+                assertTrue(Thread.interrupted())
+            }
         }
 
         @Test
