@@ -1,50 +1,31 @@
 [[reference.typesafe]]
 === TypeSafe decision services (experimental)
 
-TypeSafe is the provider; Jev is its default decision model. The integration adapts the
-`org.springaicommunity:typesafe-java-sdk` primitives to Embabel's provider-neutral
-`DecisionService` and `ClassificationService` contracts.
+TypeSafe is the provider, and Jev is its decision model.
+Jev speaks System One, so the TypeSafe integration is the System One client (<<reference.systemone>>) set up with TypeSafe's address, its provider name, its request id header and the `jev-latest` model.
 
-Use this integration when an application needs closed-category classification or proposition
-assessment without making the decision model a chat model. The result is evidence. Routing,
-authorization, thresholds and proposition revision remain application policy.
+Use Jev when an application needs closed-category classification, proposition assessment or ratings from a decision model with no chat model involved.
+The result is evidence.
+Routing, authorization, thresholds and proposition revision stay with the application.
 
-==== Architecture
-
-`DecisionService` extends `ClassificationService`, so every TypeSafe decision service supports
-both operations and reports `ModelType.DECISION`. A TypeSafe service does not implement
-`LlmService` or Spring AI's `ChatModel`.
-
-[source,mermaid]
-----
-classDiagram
-    ModelMetadata <|-- ClassificationService
-    ClassificationService <|-- DecisionService
-    DecisionService <|.. TypeSafeDecisionService
-    TypeSafeModelFactory --> DecisionService : builds by model name
-    TypeSafeDecisionService --> TypeSafeClient : internal SDK boundary
-----
-
-The public factory returns framework services and keeps native clients private. SDK request,
-answer and exception types stay behind the provider adapter, and other implementations get the same
-service boundary.
+`DecisionService` extends `ClassificationService`, so every Jev service does both and reports `ModelType.DECISION`.
+A Jev service is not an `LlmService` or a Spring AI `ChatModel`.
 
 [source,mermaid]
 ----
 flowchart LR
     App[Embabel workflow] --> Service[DecisionService]
     Service --> Observe[ObservedDecisionService]
-    Observe --> Adapter[TypeSafeDecisionService]
-    Adapter --> Client[TypeSafe SDK client]
-    Client --> Guard[Guarded TypeSafe API]
-    Guard --> HTTP[Spring RestClient]
+    Observe --> SystemOne[SystemOneDecisionService]
+    SystemOne --> Codec[SystemOneCodec]
+    SystemOne --> HTTP[Spring RestClient]
     HTTP --> Provider[TypeSafe]
 ----
 
 ==== Dependencies and Spring configuration
 
-Add `com.embabel.agent:embabel-agent-starter-typesafe` to a Spring Boot application. The starter
-brings in `embabel-agent-typesafe-autoconfigure` and `embabel-agent-typesafe`.
+Add `com.embabel.agent:embabel-agent-starter-typesafe` to a Spring Boot application.
+The starter brings in `embabel-agent-typesafe-autoconfigure`, `embabel-agent-typesafe` and `embabel-agent-systemone`.
 
 Supply `TYPESAFE_API_KEY` or configure:
 
@@ -58,9 +39,9 @@ embabel:
           api-key: ${TYPESAFE_API_KEY}
 ----
 
-A nonblank environment value takes precedence over the property. Both are read through the Spring
-environment for every request, so credential rotation takes effect without rebuilding the service.
-Startup fails when neither source supplies a credential.
+A nonblank environment value takes precedence over the property.
+Both are read through the Spring environment on every call, so a rotated key takes effect without rebuilding the service.
+Startup fails when neither source supplies a key.
 
 The complete property set under `embabel.agent.platform.models.typesafe` is:
 
@@ -69,38 +50,40 @@ The complete property set under `embabel.agent.platform.models.typesafe` is:
 
 |`api-key`
 |none
-|Fallback credential when `TYPESAFE_API_KEY` is absent or blank
+|The key to use when `TYPESAFE_API_KEY` is absent or blank
 
 |`base-url`
 |`https://api.typesafe.ai`
-|Provider or gateway endpoint
+|The TypeSafe address, or a gateway in front of it
 
 |`max-response-bytes`
 |`1048576`
-|Maximum response size decoded by the guarded provider boundary
+|The largest response body that is read
 |===
 
-Auto-configuration contributes the following beans:
+Auto-configuration contributes these beans:
 
-* `TypeSafeModelsConfig` is itself a `TypeSafeModelFactory`, following the same configuration
-  inheritance pattern as the Anthropic and OpenAI providers. Inject it by the
-  `TypeSafeModelFactory` type.
-* One `DecisionService` bean per model in the starter's catalog, `models/typesafe-models.yml`,
-  named after the model. A missing, invalid or empty catalog fails startup. The catalog holds `jev-latest`. Each bean is also injectable as
-  `ClassificationService`.
-* `typeSafeModelsRegistrar`, which defines the catalog model beans, and `typeSafeModelsInitializer`,
-  the `ProviderInitialization` that reports them. An application bean or alias named after a catalog
-  model replaces that model.
-* `typeSafeDefaultCandidate`, which offers `jev-latest` as the default of the decision and
-  classification families. It exists only when the starter defines the `jev-latest` bean, and an
-  application bean with that name is kept. See <<reference.decision-execution>>.
+* `TypeSafeModelsConfig`, which is itself a `TypeSafeModelFactory`, the same way the Anthropic and OpenAI configurations extend their factories.
+Inject it by the `TypeSafeModelFactory` type.
+* One `DecisionService` bean per model in the starter's catalog, `models/typesafe-models.yml`, named after the model.
+The catalog holds `jev-latest`.
+A missing, invalid or empty catalog fails startup.
+Each bean is also injectable as `ClassificationService`.
+* `typeSafeModelsRegistrar`, which defines the catalog model beans, and `typeSafeModelsInitializer`, the `ProviderInitialization` that reports them.
+An application bean or alias named after a catalog model replaces that model.
+* `typeSafeDefaultCandidate`, which offers `jev-latest` as the default of the decision and classification families.
+It exists only when the starter defines the `jev-latest` bean, and an application bean with that name is kept.
+See <<reference.decision-execution>>.
 
-Select a TypeSafe model by name in `embabel.models.decision.default` or a role, the same way a chat
-model is selected with `embabel.models.default-llm`. A TypeSafe model that is not in the catalog is
-built with `TypeSafeModelFactory.build(model)`.
+Select a TypeSafe model by name in `embabel.models.decision.default` or a role, the same way a chat model is selected with `embabel.models.default-llm`.
+A model outside the catalog is built with `TypeSafeModelFactory.build(model)`.
 
-An application that supplies its own `TypeSafeModelFactory` bean keeps it. Auto-configuration then
-registers no catalog models and needs no API key.
+An application that supplies its own `TypeSafeModelFactory` bean keeps it.
+Auto-configuration then registers no catalog models and needs no key.
+
+Spring picks the HTTP client in this order: the qualified `aiModelRestClientBuilder`, then a unique application `RestClient.Builder`, then the factory's own client.
+With Embabel's shared Netty builder, `embabel.agent.platform.http-client.connect-timeout` and `embabel.agent.platform.http-client.read-timeout` set the timeouts.
+The factory's own client waits 10 seconds to connect and 10 seconds for data.
 
 ==== Classification and proposition assessment
 
@@ -111,146 +94,66 @@ The starter supports ordinary constructor injection:
 include::../../../../../../embabel-agent-starters/embabel-agent-starter-typesafe/src/test/java/com/embabel/agent/typesafe/example/TypeSafeConsumerTest.java[tag=typesafe-consumer,indent=0]
 ----
 
-Classification sends a Jev `choice` whose labels and descriptions come only from the request's
-closed category set. The adapter validates that the response distribution has exactly the same
-support and sums to one within numerical tolerance before returning a selection. It preserves the
-provider's reported confidence without treating it as a calibrated probability of correctness.
-A flat distribution with zero confidence becomes `Inconclusive`; an unknown category, malformed
-distribution or unexpected answer type becomes `Failure(INVALID_RESPONSE)`.
+A classification goes to Jev as a `choice` whose ids and descriptions come only from the request's categories.
+The reported distribution must cover exactly those categories and sum to 1.
+A selection keeps the reported confidence and the distribution.
+Neither is a calibrated probability of being right.
+A flat distribution with zero confidence is `Inconclusive`.
 
-The adapter never invents `NoMatch`. If none-of-the-above is meaningful, declare it as an explicit
-category with a stable ID and map it in application code. This keeps a successful provider judgment
-distinct from insufficient evidence and operational failure.
+Jev never answers `NoMatch`.
+When none-of-the-above matters, declare it as a category with a stable id and map it in application code.
 
-Proposition assessment sends a Jev `noul`. Jev defines `0.5` as undecided, so that exact value maps
-to `PropositionResult.Inconclusive`. Values above `0.5` produce `Answered(true, ...)`; values below
-it produce `Answered(false, ...)`. The original probability is retained as `pTrue`. The adapter does
-not add an application acceptance threshold.
+A proposition goes to Jev as a `noul`.
+Jev treats `0.5` as undecided, so exactly `0.5` is `Inconclusive`.
+Above it the answer is `Answered(true, ...)`, below it `Answered(false, ...)`, and the value is kept as `pTrue`.
+The integration adds no acceptance threshold.
 
-Successful results carry the model reported by TypeSafe, the `TypeSafe` provider name and the
-provider request identifier when present. If a successful response omits its resolved model name,
-provenance falls back to the configured model alias.
+Provenance names the model Jev reports, the `TypeSafe` provider and the `x-typesafe-request-id` response header when it is present.
+<<reference.decision-execution>> gives the full evidence rules, and <<reference.systemone>> covers failures, logging and observations.
 
 ==== Plain Java and multiple models
 
-`TypeSafeModelFactory` works without a Spring context. Supply credentials through a
-`Supplier<String>` so the latest key is used for every request:
+`TypeSafeModelFactory` works without Spring.
+Pass the key as a `Supplier<String>` so each call reads the current key:
 
 [source,java]
 ----
 include::../../../../../../embabel-agent-typesafe/src/test/java/com/embabel/agent/typesafe/TypeSafeUsageExamples.java[tag=service,indent=0]
 ----
 
-One factory can build any number of independently identified decision services:
+One factory builds any number of models:
 
 [source,java]
 ----
 include::../../../../../../embabel-agent-typesafe/src/test/java/com/embabel/agent/typesafe/TypeSafeUsageExamples.java[tag=model,indent=0]
 ----
 
-`build()` selects `jev-latest`; `build(model)` selects another TypeSafe model identifier or alias.
-Services share the factory's guarded transport and observation registry. Create another factory for
-a different endpoint or credential source. Factory construction and `build` do not call the provider
-or validate credentials.
+`build()` returns `jev-latest`, and `build(model)` returns another Jev model or alias.
+The services share the factory's HTTP client and observation registry.
+Building never reads the key or contacts TypeSafe.
+Use another factory for another address or key source.
 
-The factory also implements `ByokFactory<DecisionService>`. `buildValidated()` checks the current
-credential with TypeSafe's model-listing endpoint and returns the configured default decision
-service. Provider validation failures become `InvalidApiKeyException` with the sanitized transport
-exception retained as the cause. Raw response content stays inside the guarded boundary:
+TypeSafe always needs a key.
+A missing key fails each call with `UNAVAILABLE` and cause `credential`, before anything is sent.
+
+`buildValidated()` checks the current key against TypeSafe's model listing and returns the default model.
+A rejected key throws `InvalidApiKeyException`:
 
 [source,java]
 ----
 include::../../../../../../embabel-agent-typesafe/src/test/java/com/embabel/agent/typesafe/TypeSafeUsageExamples.java[tag=byok,indent=0]
 ----
 
-In Spring, inject a catalog model by its name with `@Qualifier("jev-latest")`, or declare
-additional `DecisionService` beans from the configured `TypeSafeModelFactory`.
+In Spring, inject a catalog model with `@Qualifier("jev-latest")`, or declare more `DecisionService` beans from the configured `TypeSafeModelFactory`.
 
 ==== Decision specs
 
-A TypeSafe service runs a whole decision spec in one Jev `systemOne` call. It supports proposition,
-choice and rating questions. Questions go
-to Jev under the keys `q1` to `qN` in spec order. A question `assess` and `rate` each make one call
-for one question. A choice question asked on its own goes through `classify`, one call under the key
-`classification` with the question's instructions and categories.
-
-A proposition becomes a Jev `noul`, a choice a `choice` and a rating a `score`. The score value is
-an expected level index, and the answer carries a distribution over the levels and no selected level.
-<<reference.decision-execution>> gives the full evidence mapping, the answer rules and the
-diagnostics.
-
-A provider failure fails the whole request with `UNAVAILABLE`, and a response that cannot be read
-fails it with `INVALID_RESPONSE`. Each failed call logs one WARN under `com.embabel.agent.typesafe`
-with the cause category and HTTP status class. SDK retries stay off, so each question set is one call.
-
-==== Transport and failure boundaries
-
-`TypeSafeModelFactory` accepts an optional `RestClient.Builder` and `ObservationRegistry`. Spring
-prefers the qualified `aiModelRestClientBuilder`, then a unique application builder, and otherwise
-uses a guarded fallback transport. Supplied builders are cloned, preserving proxy, TLS,
-interceptors and HTTP instrumentation without mutating shared application state.
-
-The application owns timeouts and redirect policy for a supplied builder. With Embabel's shared
-Netty builder, configure `embabel.agent.platform.http-client.connect-timeout` and
-`embabel.agent.platform.http-client.read-timeout`. The fallback uses finite ten-second connect and
-read timeouts and does not follow redirects. Calls are synchronous; callers can run them on Java 21
-virtual threads when concurrency requires it. The API exposes no coroutine or `suspend` contract.
-
-The guarded boundary disables SDK retries, bounds decoded responses, rejects duplicate JSON fields,
-trailing content, scalar coercion and invalid numeric evidence, and sanitizes transport and decoding
-failures before they can reach framework logs. It uses a private strict mapper because the TypeSafe
-wire contract must not change with application Jackson modules.
-
-Provider connection failures, timeouts and HTTP failures map to `Failure(UNAVAILABLE)`. Invalid or
-unreadable successful responses map to `Failure(INVALID_RESPONSE)`. These results contain no raw
-response body, provider message, throwable or credential. Cancellation propagates to the caller and
-never becomes model evidence. The adapter never changes thread interruption state.
-
-==== Logging and observability
-
-Factory initialization and successful credential validation are logged at INFO. Initialization
-reports whether transport comes from the application or the fallback, and whether observations
-are active. DEBUG records service creation using the default or an explicit model selection,
-and credential-validation start and cancellation. Model names, endpoints and credentials are omitted.
-
-Enable `com.embabel.agent.typesafe` at DEBUG for factory and provider diagnostics, and
-`com.embabel.common.ai.model.observation` at DEBUG for classification and proposition outcomes.
-Provider completion logs include the operation, outcome and HTTP status family. Failed credential
-validation and failed decisions are logged at WARN. Provider validation failures retain and log
-the sanitized transport exception; credential-supplier failures log only the exception type because
-supplier messages and causes may contain secrets.
-
-Each call has three observable layers when the application supplies Micrometer handlers:
-
-|===
-|Observation |Owner |Bounded tags
-
-|`embabel.ai.classification` or `embabel.ai.decision`
-|Framework service contract
-|Operation and result outcome
-
-|`embabel.typesafe.request`
-|Provider boundary
-|Provider operation, success/failure and HTTP status family
-
-|`http.client.requests`
-|Spring HTTP client
-|Application-owned HTTP instrumentation
-|===
-
-The framework observation remains the parent of provider and HTTP observations. Debug completion
-logs and warning logs use fixed operation and failure categories. Inputs, category descriptions,
-propositions, responses, credentials and raw exceptions are never logged or attached as tags.
-The framework observation decorators isolate observation-handler and completion-logging failures
-from the provider result and restore the caller’s observation scope. Registering an `ObservationRegistry` alone does not export metrics or traces; the application
-must install the relevant handlers and exporters.
+A Jev service answers a whole decision spec in one call, with proposition, choice and rating questions together.
+A single `classify`, `assess` or `rate` call is a question set of one.
+The rating score is an expected level index, and the answer carries a distribution over the levels with no selected level.
 
 ==== Experimental status
 
-The API is experimental so real integrations can shape it, but the implementation is maintained as
-production code. Promotion requires stable Java and Kotlin consumption, provider and framework
-observability, credential rotation, multiple-model wiring, strict response validation, sanitized
-failure behavior, assembled starter tests and a clean repository build.
-
-The upstream SDK source is
-https://github.com/spring-ai-community/spring-ai-typesafe/tree/v0.2.0[Spring AI Community TypeSafe 0.2.0].
+The API is experimental so real integrations can shape it.
+The code is maintained as production code.
+Promotion needs stable Java and Kotlin use, observability, key rotation, several models wired together, strict response checks, sanitized failures, starter tests and a clean repository build.
