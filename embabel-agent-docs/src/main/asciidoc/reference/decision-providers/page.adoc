@@ -74,7 +74,7 @@ A registered bean wins over a provider model with the same name.
 A provider model is a family default only when configuration names it.
 A provider builds services that use the deployment's own credentials. Per-user keys go through `using(service)`.
 
-In code, add providers to the builder.
+In Kotlin, add providers to the builder. `ChatModels` here is a test provider that serves `gpt-x`.
 
 [source,kotlin]
 ----

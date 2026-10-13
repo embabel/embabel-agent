@@ -52,13 +52,34 @@ data class TypeSafeModelDefinition(
 /**
  * Loads the TypeSafe model catalog, `classpath:models/typesafe-models.yml` by default.
  *
+ * The catalog is the only source of TypeSafe model beans, so a missing, unreadable, invalid or empty
+ * catalog fails startup with the resource path in the message. The chat model loaders log and fall
+ * back to an empty catalog.
+ *
  * @param resourceLoader loader for the catalog resource
  * @param configPath location of the catalog
  */
-class TypeSafeModelLoader(
-    resourceLoader: ResourceLoader = DefaultResourceLoader(),
-    configPath: String = DEFAULT_CONFIG_PATH,
+class TypeSafeModelLoader @JvmOverloads constructor(
+    private val resourceLoader: ResourceLoader = DefaultResourceLoader(),
+    private val configPath: String = DEFAULT_CONFIG_PATH,
 ) : AbstractYamlModelLoader<TypeSafeModelDefinitions>(resourceLoader, configPath) {
+
+    /**
+     * Reads and validates the catalog.
+     *
+     * @return the catalog
+     * @throws IllegalStateException when the catalog is missing, unreadable, invalid or empty
+     */
+    override fun loadAutoConfigMetadata(): TypeSafeModelDefinitions {
+        val resource = resourceLoader.getResource(configPath)
+        check(resource.exists()) { "TypeSafe model catalog $configPath not found" }
+        return try {
+            resource.inputStream.use { yamlMapper.readValue(it, TypeSafeModelDefinitions::class.java) }
+                .also { validateModels(it) }
+        } catch (e: Exception) {
+            throw IllegalStateException("TypeSafe model catalog $configPath is invalid: ${e.message}", e)
+        }
+    }
 
     override fun getProviderClass() = TypeSafeModelDefinitions::class
 
@@ -67,6 +88,7 @@ class TypeSafeModelLoader(
     override fun getProviderName() = "TypeSafe"
 
     override fun validateModels(provider: TypeSafeModelDefinitions) {
+        require(provider.models.isNotEmpty()) { "the catalog defines no models" }
         provider.models.forEach(::validateCommonFields)
         val names = provider.models.map { it.name }
         require(names.size == names.toSet().size) { "TypeSafe model names must be unique" }
