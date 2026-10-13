@@ -163,6 +163,86 @@ class DecisionServiceRegistryTest {
     }
 
     @Nested
+    inner class ProviderModels {
+
+        private inner class ChatModels(
+            private val served: List<String>,
+            override val provider: String = "OpenAI",
+        ) : DecisionModelProvider {
+            val created = mutableListOf<String>()
+
+            override fun modelNames(): List<String> = served
+
+            override fun decisionServiceNamed(name: String): DecisionService? =
+                if (name in served) FakeDecision(name, provider).also { created += name } else null
+        }
+
+        @Test
+        fun `a name no service is registered under resolves through a provider once`() {
+            val provider = ChatModels(listOf("gpt-x"))
+            val registry = DecisionServiceRegistry.builder().register("jev", jev).provider(provider).build()
+            val first = registry.decisions().named("gpt-x")
+            assertEquals("gpt-x", first.name)
+            assertEquals("OpenAI", first.provider)
+            assertSame(first, registry.classifications().named("gpt-x"))
+            assertEquals(listOf("gpt-x"), provider.created)
+        }
+
+        @Test
+        fun `a registered service wins over a provider model with the same name`() {
+            val provider = ChatModels(listOf("jev"))
+            val registry = DecisionServiceRegistry.builder().register("jev", jev).provider(provider).build()
+            assertSame(jev, registry.decisions().named("jev"))
+            assertTrue(provider.created.isEmpty())
+        }
+
+        @Test
+        fun `defaults and roles can name a provider model`() {
+            // tag::provider-registry[]
+            val registry = DecisionServiceRegistry.builder()
+                .register("jev", jev)
+                .provider(ChatModels(listOf("gpt-x")))
+                .decisionDefault("gpt-x")
+                .classificationRole("routing", "gpt-x")
+                .build()
+            // end::provider-registry[]
+            assertEquals("gpt-x", registry.decisions().defaultService().name)
+            assertSame(registry.decisions().defaultService(), registry.classifications().byRole("routing"))
+        }
+
+        @Test
+        fun `a default naming a model no provider serves fails the build`() {
+            val e = buildError {
+                DecisionServiceRegistry.builder()
+                    .register("jev", jev)
+                    .provider(ChatModels(listOf("gpt-x")))
+                    .decisionDefault("gpt-y")
+                    .build()
+            }
+            assertTrue(e.message!!.contains("'gpt-y'"), e.message)
+            assertTrue(e.message!!.contains("gpt-x"), e.message)
+        }
+
+        @Test
+        fun `an unknown name lists the provider models`() {
+            val registry = DecisionServiceRegistry.builder()
+                .register("jev", jev)
+                .provider(ChatModels(listOf("gpt-x")))
+                .build()
+            val e = selectionError { registry.decisions().named("gpt-y") }
+            assertEquals(Reason.UNKNOWN_NAME, e.reason)
+            assertTrue(e.message!!.contains("gpt-x"), e.message)
+        }
+
+        @Test
+        fun `provider models never become the default implicitly`() {
+            val registry = DecisionServiceRegistry.builder().provider(ChatModels(listOf("gpt-x"))).build()
+            assertEquals(Reason.NO_DEFAULT, selectionError { registry.decisions().defaultService() }.reason)
+            assertEquals(emptyList<String>(), registry.registrationNames())
+        }
+    }
+
+    @Nested
     inner class DefaultRule {
 
         @Test

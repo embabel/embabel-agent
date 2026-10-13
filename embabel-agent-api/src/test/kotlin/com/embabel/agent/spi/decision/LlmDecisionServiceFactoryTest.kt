@@ -162,31 +162,35 @@ class LlmDecisionServiceFactoryTest {
     private fun observationNames() = recorder.stopped.map { it.name }
 
     @Nested
-    inner class ProviderDiscovery {
+    inner class AsDecisionModelProvider {
+
         @Test
-        fun `catalog uses only registered llm metadata without resolving models`() {
-            val nonLlm = mockk<com.embabel.common.ai.model.ModelMetadata>()
-            every { modelProvider.listModels() } returns listOf(LlmMetadata("gpt-test", "TestProvider"), nonLlm)
+        fun `model names are the chat models the model provider lists`() {
+            val embedding = mockk<com.embabel.common.ai.model.ModelMetadata>()
+            every { modelProvider.listModels() } returns
+                listOf(LlmMetadata("gpt-test", "TestProvider"), embedding, LlmMetadata("gpt-test", "TestProvider"))
             val provider: DecisionModelProvider = factory
-            assertEquals("llm", provider.id)
-            assertEquals(listOf("gpt-test"), provider.models().map { it.modelName })
-            assertEquals(factory.decisionService(llm).capabilities(), provider.describe("other-model").capabilities)
-            verify(exactly = 1) { modelProvider.listModels() }
+            assertEquals("llm", provider.provider)
+            assertEquals(listOf("gpt-test"), provider.modelNames())
             verify(exactly = 0) { modelProvider.getLlm(any()) }
-            assertThrows<IllegalArgumentException> { provider.describe(" ") }
         }
 
         @Test
-        fun `generic create resolves once and preserves service provenance`() {
+        fun `a named chat model becomes a prompted decision service`() {
             every { modelProvider.getLlm(byName("gpt-test")) } returns llm
-            val provider: DecisionModelProvider = factory
-            val service = provider.create("gpt-test")
+            val service = factory.decisionServiceNamed("gpt-test")!!
             assertEquals(provenance.provider, service.provider)
             assertEquals("gpt-test", service.name)
-            assertEquals(provider.describe("gpt-test").capabilities, service.capabilities())
             service.assess(proposition)
             service.assess(proposition)
             verify(exactly = 1) { modelProvider.getLlm(byName("gpt-test")) }
+        }
+
+        @Test
+        fun `an unknown or blank name is not served`() {
+            every { modelProvider.getLlm(byName("missing")) } throws NoSuitableModelException(byName("missing"), emptyList())
+            assertNull(factory.decisionServiceNamed("missing"))
+            assertNull(factory.decisionServiceNamed(" "))
         }
     }
 
@@ -318,7 +322,7 @@ class LlmDecisionServiceFactoryTest {
                 val priority = Questions.named("priority").rating("Priority?")
                     .level("low", "Low").level("high", "High").build()
                 listOf("qwen3:8b", "office-qwen3:8b").forEach { modelName ->
-                    val response = factory.create(modelName).ask("A billing outage", DecisionSpec.of(urgent, route, priority))
+                    val response = factory.decisionService(modelName).ask("A billing outage", DecisionSpec.of(urgent, route, priority))
                     val proposition = response.answer(urgent) as PropositionResult.Answered
                     val choice = response.answer(route) as ClassificationResult.Selected
                     val rating = response.answer(priority) as RatingResult.Answered
@@ -330,8 +334,6 @@ class LlmDecisionServiceFactoryTest {
                     assertEquals(proposition.provenance, rating.provenance)
                     assertNull(proposition.pTrue)
                     assertNull(choice.confidence)
-                    assertNull(response.choiceDistribution(route))
-                    assertTrue(response.choiceDistributions.isEmpty())
                     assertNull(rating.confidence)
                     assertNull(rating.score)
                     assertTrue(rating.distribution.isEmpty())

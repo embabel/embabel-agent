@@ -6,26 +6,18 @@ embabel:
       models:
         typesafe:
           api-key: ${TYPESAFE_API_KEY}
-          services:
-            jev:
-              model: jev-latest
-            jev-fast:
-              model: jev-fast
       decisions:
-        llm:
-          services:
-            llm-review:
-              llm: gpt-4.1-mini
-            ticket-classifier:
-              llm: gpt-4.1-mini
         capture-content: false
   models:
     decision:
+      # A catalog model the TypeSafe starter registers as a bean named after the model.
+      default: jev-latest
       roles:
-        support-triage: jev
-        dice-revision-review: llm-review
+        support-triage: jev-latest
+        # A chat model name builds a prompted decision service on first use.
+        dice-revision-review: gpt-4.1-mini
     classification:
       roles:
-        dice-revision: llm-review
-        ticket-routing: ticket-classifier
+        dice-revision: gpt-4.1-mini
+        ticket-routing: gpt-4.1-mini
 # end::yaml[]

@@ -1,122 +1,91 @@
 [[reference.decision-providers]]
 === Decision model providers
 
-A `DecisionModelProvider` advertises and constructs typed decision services independently of the chat-model
-`ModelProvider`. Its `id` selects the provider, `models()` returns its local catalog, `describe(modelName)`
-describes supported question kinds, and `create(modelName)` constructs a `DecisionService`.
-A descriptor establishes adapter capability; it does not establish remote availability, calibration,
-a native inference head, or an exhaustive remote catalog.
+A `DecisionService` can be answered by a decision model like Jev, by a chat model prompted to decide, or by your own code.
+Decision models are configured the same way chat models are.
+Put a provider starter on the classpath and it registers one `DecisionService` bean per model in its catalog, named after the model.
+Defaults and roles pick a model by name.
 
-==== Register and select services
-
-The generic registrar reads `embabel.agent.platform.decisions.services.<registration>.provider` and
-`.model`. The registration name becomes the Spring bean name; the provider id and model name select its factory.
-Provider ids must be unique. Unknown providers/models and descriptor/service capability mismatches fail startup.
-Named services are constructed eagerly, but the SystemOne and Cloudflare factories perform no HTTP or credential
-resolution during construction or local catalog access.
-
-An application decision or classification service bean overrides the same configured registration name.
-Two configured sources, such as generic and prompted service configuration, cannot reuse a name.
-The registry takes a startup snapshot of eligible service beans.
-
-Defaults and roles select *registration names*, independently for each service family:
-
-* `embabel.models.decision.default` and `embabel.models.decision.roles.<role>`
-* `embabel.models.classification.default` and `embabel.models.classification.roles.<role>`
-
-A decision service can also serve classification. A classification-only service cannot be selected as a decision default
-or role. A configured missing or ineligible selector fails startup; an absent or ambiguous default fails at lookup.
-Adding a provider does not implicitly select a default.
-
-==== SystemOne endpoints
-
-SystemOne is a vendor HTTP contract, documented by https://api.typesafe.ai/openapi.json[TypeSafe's API specification],
-rather than a universal JEV or OpenJEF standard. `SystemOneModelFactory` uses `POST <base-url>/v1/systemone`.
-Its explicit `discoverModels()` operation uses `GET <base-url>/v1/models` and does not change the configured local catalog.
-The adapter sends text state/instructions/descriptions; it does not implement every structured or media input in
-the vendor specification. General endpoint aliases may differ from the actual response model.
-
-The following tested configuration opts into an explicitly supplied endpoint, declares a local model alias and
-binds one named service to both families' defaults and roles. `baseUrl` is supplied by the application; the test
-uses a counted loopback server. No endpoint is started by these settings.
-
-[source,kotlin]
-----
-include::../../../../../../embabel-agent-autoconfigure/embabel-agent-platform-autoconfigure/src/test/kotlin/com/embabel/agent/autoconfigure/platform/SystemOneDecisionModelsAutoConfigurationTest.kt[tag=systemone-configuration,indent=0]
-----
-
-Default SystemOne bounds are 45 seconds for the complete exchange, 16 KiB of serialized UTF-8 request bytes and
-64 KiB of response bytes. The example explicitly increases the byte caps. Each cap must be between 1 byte and
-1 MiB; the timeout must be positive and at most 300 seconds. Known outbound overflow and profile-rejected input
-raise `UnsupportedDecisionException` before credential resolution or HTTP. The client disables automatic
-retries and redirects and bounds streamed bodies. A byte cap does not establish tokenizer fit or full input retention.
-
-This source-tested mixed request crosses the production HTTP client from an otherwise empty Spring context:
-
-[source,kotlin]
-----
-include::../../../../../../embabel-agent-autoconfigure/embabel-agent-platform-autoconfigure/src/test/kotlin/com/embabel/agent/autoconfigure/platform/SystemOneDecisionModelsAutoConfigurationTest.kt[tag=systemone-typed-execution,indent=0]
-----
-
-The fixture proves configuration, routing, request encoding and typed evidence preservation over localhost.
-Its supplied numbers do not prove that a model, native head or calibrated predictor ran.
-
-==== Configured local LLM decisions
-
-The existing `LlmDecisionServiceFactory` has provider id `llm`. Select an LLM already resolvable by the application's
-`ModelProvider`; raw local names and named-node names remain distinct. For example, the existing Ollama integration
-names a node model `<node>-<raw-model-name>` while sending the raw name to that node's server.
-Use that complete registered name as the generic service's `.model` value, with `.provider` set to `llm`.
-Apply the same registration-name defaults and roles described above.
-
-The test registers two fake chat models in a real configurable provider:
-
-[source,kotlin]
-----
-include::../../../../../../embabel-agent-api/src/test/kotlin/com/embabel/agent/spi/decision/LlmDecisionServiceFactoryTest.kt[tag=local-llm-model-provider,indent=0]
-----
-
-It then resolves both names through the real prompted decision path and checks the typed results:
-
-[source,kotlin]
-----
-include::../../../../../../embabel-agent-api/src/test/kotlin/com/embabel/agent/spi/decision/LlmDecisionServiceFactoryTest.kt[tag=local-llm-decisions,indent=0]
-----
-
-The factory resolves the model once when constructing the service. Prompted decisions return proposition verdicts,
-choice ids and rating level ids; they supply no proposition probability, choice distribution, confidence or numeric
-rating score. These tests use fake chat responses, with no local model installation or inference.
-A local chat server, JSON output support or a model name does not establish native CLEF joint-head execution.
-
-==== Evidence and local-runtime boundaries
-
-Keep the `DecisionResponse` to read optional `choiceDistributions`. `choiceDistribution(question)` validates the
-question's name, kind and complete domain. Scalar `answer(question)` and classification results retain their existing
-types. Empty evidence is omitted from JSON; older strict readers reject the additional member when populated.
-Observed services preserve the supplied evidence rather than manufacturing it.
-
-SystemOne decoding preserves complete choice probabilities, rating distributions, expected zero-based level index
-and independently reported confidence. Probabilities must be finite, in range and sum to one within `1e-6`;
-expected scores must agree with the distribution within `1e-6`. Rounded reference outputs can therefore be rejected.
-The client neither widens tolerance nor renormalizes numbers. A strict sum or a confidence field is not a calibration attestation.
-
-[cols="1,3",options="header"]
 |===
-|Path |What is established
-|Existing TypeSafe service |Retains its separate SDK/transport and provider-specific interpretation.
-|Prompted local LLM |Typed verdicts and ids from an already configured chat model; no native probability evidence.
-|Independent SystemOne endpoint |Conditional support for the named contract, tested through codec fixtures and real loopback HTTP. Each deployment still needs its own validation.
-|External SGLang |The https://docs.sglang.io/cookbook/autoregressive/Cloudflare/clef[official CLEF cookbook] describes independently operated Python serving. Agent does not install, own or start that runtime; no deployed local endpoint is verified here.
-|Native local CLEF on the JVM |Open: no verified complete local joint-head runtime/artifact is supplied by this integration.
+|Source |How a model becomes available |Example name
+
+|Catalog starter
+|The starter loads `models/<provider>-models.yml` and defines a bean per entry. Inject one by type or with `@Qualifier("<model>")`.
+|`jev-latest`
+
+|`DecisionModelProvider` bean
+|The registry asks the provider the first time a default, role or `named` lookup uses a name no bean holds
+|A chat model name, such as `gpt-4.1-mini`
+
+|Application bean
+|Any `DecisionService` or `ClassificationService` bean registers under its bean name
+|`triage`
 |===
 
-Confidence meanings differ across implementations. The pinned
-https://github.com/razorback16/openjev/blob/75f22b6dad8c360fdba0e0ebd3dc0a1187628f60/openjev/engine.py[OpenJev implementation]
-uses normalized entropy; reference CLEF and SGLang paths have different reporting conventions.
-The https://github.com/sgl-project/sglang/blob/bd2d73daa5afda6bcad8d479a834f2e70bbe9569/python/sglang/srt/entrypoints/systemone/serving.py[pinned SGLang implementation]
-is source evidence, not evidence of a deployed compatible model. No universal confidence threshold follows from a shared field name.
-The 0.6B Fluid/CoreML student is a different model from hosted CLEF and CLEF Flash.
-No Python or CoreML runtime is shipped or started by Agent.
+==== Selection
 
-See <<reference.cloudflare>> for the separate Workers AI REST adapter and its input-retention and live-validation limitations.
-Applications own decision policy and validation; these examples do not establish suitability for unattended high-stakes decisions.
+Defaults and roles take a model name or a bean name.
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        typesafe:
+          api-key: ${TYPESAFE_API_KEY}
+  models:
+    decision:
+      default: jev-latest
+      roles:
+        review: gpt-4.1-mini
+    classification:
+      roles:
+        routing: jev-latest
+----
+
+A decision service also classifies, so a classification default or role can name one.
+A classification-only service cannot be a decision default or role.
+Startup fails when a default or role names neither a registered bean nor a model a provider serves, and the error names the property.
+A missing or ambiguous default fails at lookup, when `defaultService()` is called.
+<<reference.decision-execution>> describes the default rule and the registry snapshot.
+
+==== Provider models
+
+`DecisionModelProvider` supplies services by name for models that are not beans.
+`LlmDecisionServiceFactory` is the provider for chat models.
+It serves every chat model the `ModelProvider` lists and builds a prompted decision service for the one you name.
+
+|===
+|Member |Contract
+
+|`provider`
+|Provider name, for diagnostics
+
+|`modelNames()`
+|Names the provider can serve now. The registry checks a default or role against this list only when no bean holds the name.
+
+|`decisionServiceNamed(name)`
+|The service for a name, or null when the provider does not serve it
+|===
+
+The registry asks providers in order and keeps the first service returned, so each name is built once.
+A registered bean wins over a provider model with the same name.
+A provider model is a family default only when configuration names it.
+
+In plain Java, add providers to the builder.
+
+[source,kotlin]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/kotlin/com/embabel/common/ai/model/DecisionServiceRegistryTest.kt[tag=provider-registry,indent=0]
+----
+
+In Spring, every `DecisionModelProvider` bean is added to the registry in bean order.
+
+==== Credentials
+
+A catalog starter reads its key the same way the chat model starters do, from the environment variable first and then the `api-key` property.
+TypeSafe uses `TYPESAFE_API_KEY` and `embabel.agent.platform.models.typesafe.api-key`, and startup fails without either.
+For a key supplied at run time, `TypeSafeModelFactory` implements `ByokFactory<DecisionService>`.
+`buildValidated()` checks the key with the provider and returns a service, which you pass to `using(service)`.
+See <<reference.typesafe>>.

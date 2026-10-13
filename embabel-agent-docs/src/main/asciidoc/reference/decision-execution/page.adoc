@@ -129,9 +129,9 @@ In a Spring application the spec can be a bean:
 include::../../../../../../embabel-agent-starters/embabel-agent-starter-typesafe/src/test/java/com/embabel/agent/typesafe/example/DecisionServicesSpringExampleTest.java[tag=spec-bean,indent=0]
 ----
 
-To use a prompted service for classification, declare it under `embabel.agent.platform.decisions.llm.services.<name>` and bind it to a role under `embabel.models.classification.roles.<role>`.
-The `ticket-classifier` entry in the configuration example below does both.
-A decision service also classifies, so a classification role can name it.
+A classification role can name a chat model directly, for example `embabel.models.classification.roles.routing: gpt-4.1-mini`.
+The registry builds a prompted service for that model on first use.
+A decision service also classifies, so a classification role can name one.
 
 A `ClassificationSpec` is a decision spec with one choice question, so a decision service answers it too.
 
@@ -155,6 +155,9 @@ A `ClassificationSpec` is a decision spec with one choice question, so a decisio
 |`defaultCandidate(name)`
 |Offers a registered service as a family default candidate
 
+|`provider(provider)`
+|Adds a `DecisionModelProvider` for names no registered service holds
+
 |`observationRegistry(registry)`
 |Sets the observation registry the registered services observe with
 
@@ -163,6 +166,7 @@ A `ClassificationSpec` is a decision spec with one choice question, so a decisio
 |===
 
 `build()` throws `IllegalArgumentException` for a blank or repeated name, for one service instance registered under two names, and for a default, role or candidate that names a missing or ineligible service.
+A default or role may name a model a provider serves.
 The message names the binding and the property that sets it.
 `DecisionServiceRegistry.empty()` returns a registry with no services.
 
@@ -187,49 +191,46 @@ No eligible service gives `NO_DEFAULT`.
 Several eligible candidates, or several eligible services with no candidate, give `AMBIGUOUS_DEFAULT`.
 The classification family resolves its default the same way with `embabel.models.classification.default`.
 
-The TypeSafe auto-configuration contributes `DecisionServiceRegistry.DefaultCandidate("typeSafeDecisionService")`.
-When TypeSafe is configured and no explicit default is set, Jev is the default of both families.
-Prompted LLM services contribute no candidate.
-An application that has only prompted services and several of them sets the default explicitly.
+The TypeSafe starter contributes `DecisionServiceRegistry.DefaultCandidate("jev-latest")`.
+When the TypeSafe starter is on the classpath and no explicit default is set, `jev-latest` is the default of both families.
+A model served by a provider is a default only when configuration names it.
 
 ===== Startup snapshot
 
 A registry is an immutable snapshot taken when `build()` runs.
 In Spring that happens when the `decisionServiceRegistry` bean is created.
-The registry holds the `ClassificationService` beans defined by then: bean definitions, including those the prompted and TypeSafe configuration adds, and singletons registered before the registry bean is created.
-A service registered later is not visible, and `named` reports `UNKNOWN_NAME` for it.
+The registry holds the `ClassificationService` beans defined by then, including the catalog models each starter defines.
+The registry bean also depends on every `ProviderInitialization` bean, so a starter that registers models while it initializes has done so first.
+A bean registered later is not visible, and `named` reports `UNKNOWN_NAME` for it.
+Provider models are looked up when first selected and are not part of the snapshot.
 Pass a service built at run time, such as a per-user service, to `using(service)`.
 
 ==== Configuration
 
-These properties configure services and selection together:
+Decision models are configured the way chat models are.
+A provider starter registers one service bean per catalog model, named after the model.
+TypeSafe registers `jev-latest`.
+A chat model is used for prompted decisions by naming it in a default or role.
+These properties select services:
 
 |===
 |Property |Default |Purpose
 
 |`embabel.models.decision.default`
 |none
-|Registration name of the decision family default
+|Model or registration name of the decision family default
 
 |`embabel.models.decision.roles.<role>`
 |none
-|Registration name bound to a decision role
+|Model or registration name bound to a decision role
 
 |`embabel.models.classification.default`
 |none
-|Registration name of the classification family default
+|Model or registration name of the classification family default
 
 |`embabel.models.classification.roles.<role>`
 |none
-|Registration name bound to a classification role
-
-|`embabel.agent.platform.models.typesafe.services.<name>.model`
-|none
-|Registers a Jev decision service under `<name>` for the given TypeSafe model
-
-|`embabel.agent.platform.decisions.llm.services.<name>.llm`
-|none
-|Registers a prompted decision service under `<name>`, answered by the named LLM. See <<reference.llm-decisions.configuration>>.
+|Model or registration name bound to a classification role
 
 |`embabel.agent.platform.decisions.capture-content`
 |`false`
@@ -237,18 +238,16 @@ These properties configure services and selection together:
 |===
 
 The registration name of a Spring service is its bean name.
-The service's own `name` is its model name.
-Named Jev services share the credential, base URL and response limit set under `embabel.agent.platform.models.typesafe`.
-The default `typeSafeDecisionService` bean stays registered next to them.
+A catalog model's bean name is its model name.
+A chat model is selected by the name `ModelProvider` lists for it.
 
 [source,yaml]
 ----
 include::../../../../../../embabel-agent-starters/embabel-agent-starter-typesafe/src/test/resources/decision-services-example.yml[tag=yaml,indent=0]
 ----
 
-Startup fails when a default or role names a missing service, or when a decision default or role names a classification-only service.
+Startup fails when a default or role names neither a registered service nor a provider model, or when a decision default or role names a classification-only service.
 The error names the property.
-Startup also fails when a Jev entry has a blank model or an unknown key, naming the property.
 A default that is missing or ambiguous fails at lookup, when `defaultService()` is called.
 
 An application bean replaces configuration in these cases:
@@ -259,16 +258,17 @@ An application bean replaces configuration in these cases:
 |A `DecisionServiceRegistry` bean
 |Replaces the auto-configured registry
 
-|A bean named like a Jev or prompted entry
-|Replaces that entry only. One INFO line names the skipped entry.
+|A `TypeSafeModelFactory` bean
+|Replaces the TypeSafe configuration. No catalog models register and no credential is required.
 
-|A bean named `typeSafeDecisionService`
-|Replaces the default Jev service. The TypeSafe auto-configuration contributes no default candidate. Named Jev services still register, and they need the TypeSafe credential.
+|A `LlmDecisionServiceFactory` bean
+|Replaces the prompted decision factory and the chat model provider
 |===
 
 ==== Plain Java
 
-Plain Java builds Jev services with `TypeSafeModelFactory`, no-op and stub services with their constructors and builders, and the registry with `DecisionServiceRegistry.builder()`:
+Plain Java builds Jev services with `TypeSafeModelFactory`, no-op and stub services with their constructors and builders, and the registry with `DecisionServiceRegistry.builder()`.
+A `DecisionModelProvider` added with `provider(...)` serves chat models by name.
 
 [source,java]
 ----
@@ -834,7 +834,7 @@ The registry summary at INFO:
 
 [source,text]
 ----
-Decision service registry built with 3 services: [typeSafeDecisionService (name jev-1, provider TypeSafe, type DECISION, capabilities kinds [PROPOSITION, CHOICE, RATING]), gpt (name gpt-x, provider OpenAI, type DECISION, capabilities kinds [PROPOSITION, CHOICE]), clf (name clf-1, provider acme, type CLASSIFICATION)]; decision default: 'typeSafeDecisionService' (explicit); decision roles: {support-triage=gpt}; classification default: none set; candidates considered: []; classification roles: {}; default candidates: []
+Decision service registry built with 3 services: [jev-latest (name jev-latest, provider TypeSafe, type DECISION, capabilities kinds [PROPOSITION, CHOICE, RATING]), gpt (name gpt-x, provider OpenAI, type DECISION, capabilities kinds [PROPOSITION, CHOICE]), clf (name clf-1, provider acme, type CLASSIFICATION)]; decision default: 'jev-latest' (explicit); decision roles: {support-triage=gpt}; classification default: none set; candidates considered: []; classification roles: {}; default candidates: []
 ----
 
 Routing and completion at DEBUG:

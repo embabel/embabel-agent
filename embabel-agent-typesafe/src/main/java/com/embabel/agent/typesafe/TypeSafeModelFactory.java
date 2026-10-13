@@ -18,10 +18,6 @@ package com.embabel.agent.typesafe;
 import static com.embabel.common.byok.BlankApiKeyKt.requireUsableApiKey;
 
 import com.embabel.common.ai.decision.DecisionService;
-import com.embabel.common.ai.decision.DecisionCapabilities;
-import com.embabel.common.ai.decision.QuestionKind;
-import com.embabel.common.ai.model.DecisionModelDescriptor;
-import com.embabel.common.ai.model.DecisionModelProvider;
 import com.embabel.common.ai.model.observation.ObservedDecisionService;
 import com.embabel.common.byok.ByokFactory;
 import com.embabel.common.byok.InvalidApiKeyException;
@@ -36,8 +32,6 @@ import org.springaicommunity.typesafe.exception.TypeSafeException;
 import org.springframework.web.client.RestClient;
 
 import java.util.Objects;
-import java.util.EnumSet;
-import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.function.Supplier;
 
@@ -54,7 +48,7 @@ import java.util.function.Supplier;
  * provider.
  */
 @ApiStatus.Experimental
-public class TypeSafeModelFactory implements ByokFactory<DecisionService>, DecisionModelProvider {
+public class TypeSafeModelFactory implements ByokFactory<DecisionService> {
     /** Provider name reported by every service and result produced by this factory. */
     public static final String PROVIDER = "TypeSafe";
 
@@ -176,28 +170,6 @@ public class TypeSafeModelFactory implements ByokFactory<DecisionService>, Decis
                 "TypeSafe model factory initialized: transport={}, observations={}",
                 restClientBuilder == null ? "fallback" : "application",
                 observationRegistry.isNoop() ? "noop" : "enabled");
-    }
-
-    @Override
-    public final String getId() {
-        return "typesafe";
-    }
-
-    /** Catalogs only the configured default, without resolving credentials or contacting TypeSafe. */
-    @Override
-    public final List<DecisionModelDescriptor> models() {
-        return List.of(describe(defaultModel));
-    }
-
-    @Override
-    public final DecisionModelDescriptor describe(String modelName) {
-        return new DecisionModelDescriptor(
-                modelName, DecisionCapabilities.of(EnumSet.allOf(QuestionKind.class)));
-    }
-
-    @Override
-    public final DecisionService create(String modelName) {
-        return build(modelName);
     }
 
     /**

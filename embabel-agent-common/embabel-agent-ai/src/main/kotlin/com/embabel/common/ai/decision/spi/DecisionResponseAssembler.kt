@@ -17,7 +17,6 @@ package com.embabel.common.ai.decision.spi
 
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.FailureReason
-import com.embabel.common.ai.decision.ChoiceDistribution
 import com.embabel.common.ai.decision.ChoiceQuestionSpec
 import com.embabel.common.ai.decision.DecisionResponse
 import com.embabel.common.ai.decision.DecisionSpec
@@ -93,7 +92,7 @@ class DecisionResponseAssembler private constructor(
     }
 
     private sealed interface Received {
-        data class Outcome(val kind: QuestionKind, val value: Any, val distribution: ChoiceDistribution? = null) : Received
+        data class Outcome(val kind: QuestionKind, val value: Any) : Received
         data class Unreadable(val anomaly: Anomaly) : Received
     }
 
@@ -126,10 +125,6 @@ class DecisionResponseAssembler private constructor(
      */
     fun choice(name: String, outcome: ClassificationResult): DecisionResponseAssembler =
         record(name, Received.Outcome(QuestionKind.CHOICE, outcome))
-
-    /** Records optional complete choice evidence, validated against the spec during build. */
-    fun choice(name: String, outcome: ClassificationResult, distribution: ChoiceDistribution): DecisionResponseAssembler =
-        record(name, Received.Outcome(QuestionKind.CHOICE, outcome, distribution))
 
     /**
      * Records a rating answer.
@@ -267,12 +262,7 @@ class DecisionResponseAssembler private constructor(
             is ChoiceQuestionSpec -> {
                 val result = outcome.value as ClassificationResult
                 if (!fits { question.validate(result) }) return Anomaly.OUT_OF_DOMAIN
-                val distribution = outcome.distribution
-                if (distribution != null) {
-                    if (!fits { builder.answer(question, result, distribution) }) return Anomaly.BAD_DISTRIBUTION
-                } else {
-                    builder.answer(question, result)
-                }
+                builder.answer(question, result)
             }
             is RatingQuestionSpec -> {
                 val result = outcome.value as RatingResult

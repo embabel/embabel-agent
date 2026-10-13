@@ -25,6 +25,7 @@ import org.jetbrains.annotations.ApiStatus
 import org.slf4j.LoggerFactory
 import java.util.Collections
 import java.util.IdentityHashMap
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Registered decision and classification services with their family defaults and role bindings.
@@ -40,6 +41,10 @@ import java.util.IdentityHashMap
  * A family default is resolved in this order: the explicit default, then the single
  * [DefaultCandidate] eligible for the family, then the single service eligible for the family.
  * Otherwise [ServiceSelector.defaultService] throws [ServiceSelectionException].
+ * A name no registered service holds is resolved through the [DecisionModelProvider]s, in the order
+ * they were added. Each provider model is created once, on first lookup, and serves both families.
+ * Defaults and roles may name a provider model. Provider models are never chosen as a default by the
+ * candidate or single-service rules.
  */
 @ApiStatus.Experimental
 class DecisionServiceRegistry private constructor(
@@ -49,8 +54,11 @@ class DecisionServiceRegistry private constructor(
     private val classificationFamily: Family<ClassificationService>,
     private val candidates: List<String>,
     private val capabilities: Map<String, DecisionCapabilities>,
+    private val providers: List<DecisionModelProvider>,
     observationRegistry: ObservationRegistry,
 ) {
+
+    private val provided = ConcurrentHashMap<String, DecisionService>()
 
     /**
      * The observation registry the registered services observe with. Operation bindings open
@@ -124,6 +132,7 @@ class DecisionServiceRegistry private constructor(
         private val decisionRoles = mutableListOf<Pair<String, String>>()
         private val classificationRoles = mutableListOf<Pair<String, String>>()
         private val candidates = mutableListOf<String>()
+        private val providers = mutableListOf<DecisionModelProvider>()
         private var observationRegistry: ObservationRegistry = ObservationRegistry.NOOP
 
         /**
@@ -182,6 +191,15 @@ class DecisionServiceRegistry private constructor(
         fun defaultCandidate(name: String): Builder = apply { candidates += name }
 
         /**
+         * Adds a provider for model names no registered service holds. Providers are asked in the
+         * order they are added.
+         *
+         * @param provider the provider to add
+         * @return this builder
+         */
+        fun provider(provider: DecisionModelProvider): Builder = apply { providers += provider }
+
+        /**
          * Sets the observation registry. It must be the registry the registered services observe
          * with. With any other registry, operation bindings open scopes on the wrong registry and
          * provider calls lose their parent observation.
@@ -204,14 +222,15 @@ class DecisionServiceRegistry private constructor(
 
         internal fun build(log: Boolean): DecisionServiceRegistry {
             val services = validatedServices()
+            val providerModels = lazy { providerModels(services) }
             val decisionEligible = services.filterValues { it is DecisionService }.keys.toList()
             val registered = services.keys.toList()
             val decisionFamily = family(
-                DECISION_FAMILY, DecisionService::class.java, services, decisionEligible,
+                DECISION_FAMILY, DecisionService::class.java, services, providerModels, decisionEligible,
                 decisionDefaults, decisionRoles,
             )
             val classificationFamily = family(
-                CLASSIFICATION_FAMILY, ClassificationService::class.java, services, registered,
+                CLASSIFICATION_FAMILY, ClassificationService::class.java, services, providerModels, registered,
                 classificationDefaults, classificationRoles,
             )
             val candidateNames = candidates.distinct()
@@ -228,6 +247,7 @@ class DecisionServiceRegistry private constructor(
                 classificationFamily = classificationFamily.withDefault(candidateNames),
                 candidates = java.util.List.copyOf(candidateNames),
                 capabilities = capabilitiesOf(services),
+                providers = java.util.List.copyOf(providers),
                 observationRegistry = observationRegistry,
             )
             if (log) registry.logSummary()
@@ -261,6 +281,16 @@ class DecisionServiceRegistry private constructor(
         }
 
         /**
+         * Reads each provider's model names once, keeping the first provider for each name and
+         * leaving out names a registered service already holds.
+         *
+         * @param services the validated registrations
+         * @return provider model names, in provider order
+         */
+        private fun providerModels(services: Map<String, ClassificationService>): List<String> =
+            providers.flatMap { it.modelNames() }.distinct().filter { it !in services }
+
+        /**
          * Validates the registrations and turns them into a name-to-service map.
          *
          * @return the registered services, keyed by registration name
@@ -292,6 +322,7 @@ class DecisionServiceRegistry private constructor(
          * @param spec fixed text and property names for the family
          * @param type the service type the family requires
          * @param services the validated registrations
+         * @param providerModels model names the providers serve, read only when needed
          * @param eligible registration names eligible for this family
          * @param defaults the family's default candidates from the builder
          * @param roleBindings the family's role-to-name bindings from the builder
@@ -301,11 +332,11 @@ class DecisionServiceRegistry private constructor(
             spec: FamilySpec,
             type: Class<S>,
             services: Map<String, ClassificationService>,
+            providerModels: Lazy<List<String>>,
             eligible: List<String>,
             defaults: List<String>,
             roleBindings: List<Pair<String, String>>,
         ): Family<S> {
-            val registered = services.keys.toList()
             val explicit = defaults.distinct().let { distinct ->
                 require(distinct.size <= 1) {
                     "${spec.label} default (${spec.defaultProperty}) is set to more than one service: $distinct"
@@ -314,7 +345,7 @@ class DecisionServiceRegistry private constructor(
             }
             explicit?.let { name ->
                 require(name.isNotBlank()) { "${spec.label} default (${spec.defaultProperty}) must not be blank" }
-                requireEligible("${spec.label} default", spec.defaultProperty, name, spec, type, services, registered)
+                requireEligible("${spec.label} default", spec.defaultProperty, name, spec, type, services, providerModels)
             }
             val roles = LinkedHashMap<String, String>()
             roleBindings.forEach { (role, name) ->
@@ -325,13 +356,14 @@ class DecisionServiceRegistry private constructor(
                 roles[role]?.let { bound ->
                     require(bound == name) { "$binding ($property) is bound to both '$bound' and '$name'" }
                 }
-                requireEligible(binding, property, name, spec, type, services, registered)
+                requireEligible(binding, property, name, spec, type, services, providerModels)
                 roles[role] = name
             }
             return Family(
                 spec = spec,
                 type = type,
                 eligible = java.util.List.copyOf(eligible),
+                providerModels = providerModels,
                 roles = Collections.unmodifiableMap(roles),
                 explicitDefault = explicit,
                 defaultState = DefaultState.Unresolved(Reason.NO_DEFAULT),
@@ -339,15 +371,17 @@ class DecisionServiceRegistry private constructor(
         }
 
         /**
-         * Fails unless the named service is registered and matches the family's required type.
+         * Fails unless the named service is registered and matches the family's required type, or a
+         * provider serves a model under that name. A provider model is a decision service, so it fits
+         * either family.
          *
          * @param binding what is being bound, for the error message
          * @param property the configuration property, for the error message
-         * @param name the registration name to check
+         * @param name the registration name or model name to check
          * @param spec fixed text and property names for the family
          * @param type the service type the family requires
          * @param services the validated registrations
-         * @param registered every registration name, for the error message
+         * @param providerModels model names the providers serve, read only when needed
          */
         private fun requireEligible(
             binding: String,
@@ -356,10 +390,12 @@ class DecisionServiceRegistry private constructor(
             spec: FamilySpec,
             type: Class<*>,
             services: Map<String, ClassificationService>,
-            registered: List<String>,
+            providerModels: Lazy<List<String>>,
         ) {
+            if (name !in services && name in providerModels.value) return
             val service = requireNotNull(services[name]) {
-                "$binding names unknown service '$name' (property $property). Registered services: $registered."
+                "$binding names unknown service '$name' (property $property). Registered services: " +
+                    "${services.keys.toList()}. Provider models: ${providerModels.value}."
             }
             require(type.isInstance(service)) {
                 "$binding names service '$name' (property $property), which is a ${service.type} service without " +
@@ -398,6 +434,7 @@ class DecisionServiceRegistry private constructor(
         val spec: FamilySpec,
         val type: Class<S>,
         val eligible: List<String>,
+        val providerModels: Lazy<List<String>>,
         val roles: Map<String, String>,
         val explicitDefault: String?,
         val defaultState: DefaultState,
@@ -433,7 +470,7 @@ class DecisionServiceRegistry private constructor(
                         "${eligible.size} ${spec.label} services are eligible: $eligible.",
                 )
             }
-            return Family(spec, type, eligible, roles, explicitDefault, state, candidates)
+            return Family(spec, type, eligible, providerModels, roles, explicitDefault, state, candidates)
         }
 
         /**
@@ -447,9 +484,12 @@ class DecisionServiceRegistry private constructor(
             is DefaultState.Unresolved -> "none set; candidates considered: $candidates"
         }
 
-        /** The services, roles and default of this family, for diagnostic messages. */
-        fun context(): String =
-            "${spec.title} services: $eligible. ${spec.title} roles: $roles. ${spec.title} default: ${describeDefault()}."
+        /** The services, provider models, roles and default of this family, for diagnostic messages. */
+        fun context(): String {
+            val models = providerModels.value.let { if (it.isEmpty()) "" else " Provider models: $it." }
+            return "${spec.title} services: $eligible.$models ${spec.title} roles: $roles. " +
+                "${spec.title} default: ${describeDefault()}."
+        }
     }
 
     private inner class FamilySelector<S : ClassificationService>(
@@ -481,7 +521,7 @@ class DecisionServiceRegistry private constructor(
          * doesn't belong to this family
          */
         override fun named(name: String): S {
-            val service = services[name] ?: throw ServiceSelectionException(
+            val service = services[name] ?: providerService(name) ?: throw ServiceSelectionException(
                 Reason.UNKNOWN_NAME,
                 "No ${spec.label} service is registered under the name '$name'. ${family.context()} Register a " +
                     "service under that name in configuration or with DecisionServiceRegistry.Builder.register(" +
@@ -529,8 +569,23 @@ class DecisionServiceRegistry private constructor(
          * @param name the registration name to look up
          * @return the service, cast to the family's type
          */
-        private fun lookup(name: String): S = family.type.cast(services.getValue(name))
+        private fun lookup(name: String): S = family.type.cast(
+            services[name] ?: providerService(name) ?: throw ServiceSelectionException(
+                Reason.UNKNOWN_NAME,
+                "No provider serves the model '$name' any more. ${family.context()}",
+            ),
+        )
     }
+
+    /**
+     * Returns the service a provider creates for a name, creating it on the first lookup.
+     *
+     * @param name the model name
+     * @return the service, or null when no provider serves that name
+     */
+    private fun providerService(name: String): DecisionService? =
+        provided[name] ?: providers.firstNotNullOfOrNull { it.decisionServiceNamed(name) }
+            ?.let { provided.putIfAbsent(name, it) ?: it }
 
     /**
      * Logs one INFO summary of the built registry: its services, defaults, roles and candidates.

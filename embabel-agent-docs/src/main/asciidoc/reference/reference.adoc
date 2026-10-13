@@ -69,8 +69,6 @@ include::typesafe/page.adoc[]
 
 include::decision-providers/page.adoc[]
 
-include::cloudflare/page.adoc[]
-
 include::tooling/page.adoc[]
 
 include::agent_skills/page.adoc[]
