@@ -288,12 +288,18 @@ class DecisionServiceRegistry private constructor(
          *
          * @param providers the providers the registry is built with
          * @param services the validated registrations
-         * @return provider model names, in provider order
+         * @return provider model names grouped by provider, in provider order
          */
         private fun providerModels(
             providers: List<DecisionModelProvider>,
             services: Map<String, ClassificationService>,
-        ): List<String> = providers.flatMap { it.modelNames() }.distinct().filter { it !in services }
+        ): ProviderModels {
+            val seen = HashSet<String>(services.keys)
+            return ProviderModels(
+                providers.map { provider -> provider.provider to provider.modelNames().filter(seen::add) }
+                    .filter { (_, names) -> names.isNotEmpty() },
+            )
+        }
 
         /**
          * Validates the registrations and turns them into a name-to-service map.
@@ -337,7 +343,7 @@ class DecisionServiceRegistry private constructor(
             spec: FamilySpec,
             type: Class<S>,
             services: Map<String, ClassificationService>,
-            providerModels: Lazy<List<String>>,
+            providerModels: Lazy<ProviderModels>,
             eligible: List<String>,
             defaults: List<String>,
             roleBindings: List<Pair<String, String>>,
@@ -395,9 +401,9 @@ class DecisionServiceRegistry private constructor(
             spec: FamilySpec,
             type: Class<*>,
             services: Map<String, ClassificationService>,
-            providerModels: Lazy<List<String>>,
+            providerModels: Lazy<ProviderModels>,
         ) {
-            if (name !in services && name in providerModels.value) return
+            if (name !in services && name in providerModels.value.names) return
             val service = requireNotNull(services[name]) {
                 "$binding names unknown service '$name' (property $property). Registered services: " +
                     "${services.keys.toList()}. Provider models: ${providerModels.value}."
@@ -409,6 +415,23 @@ class DecisionServiceRegistry private constructor(
                     "or ${spec.otherBuilderPrefix}Default."
             }
         }
+    }
+
+    /**
+     * The model names each provider serves, for eligibility checks and diagnostic messages.
+     *
+     * @property groups each provider's name paired with the model names it serves
+     */
+    private class ProviderModels(private val groups: List<Pair<String, List<String>>>) {
+        val names: List<String> = groups.flatMap { it.second }
+
+        /**
+         * Lists the models by provider, for example `llm [a, b]; TypeSafe [c]`, or `none`.
+         *
+         * @return the provider names, each followed by its models
+         */
+        override fun toString(): String =
+            if (groups.isEmpty()) "none" else groups.joinToString("; ") { (provider, names) -> "$provider $names" }
     }
 
     /** Fixed text and property names for one family. */
@@ -439,7 +462,7 @@ class DecisionServiceRegistry private constructor(
         val spec: FamilySpec,
         val type: Class<S>,
         val eligible: List<String>,
-        val providerModels: Lazy<List<String>>,
+        val providerModels: Lazy<ProviderModels>,
         val roles: Map<String, String>,
         val explicitDefault: String?,
         val defaultState: DefaultState,
@@ -493,7 +516,7 @@ class DecisionServiceRegistry private constructor(
         fun context(): String {
             // Listing provider models is best effort here: a failure must not replace the selection error.
             val models = runCatching { providerModels.value }.fold(
-                onSuccess = { if (it.isEmpty()) "" else " Provider models: $it." },
+                onSuccess = { if (it.names.isEmpty()) "" else " Provider models: $it." },
                 onFailure = { " Provider models could not be listed." },
             )
             return "${spec.title} services: $eligible.$models ${spec.title} roles: $roles. " +
@@ -581,7 +604,7 @@ class DecisionServiceRegistry private constructor(
         private fun lookup(name: String): S = family.type.cast(
             services[name] ?: providerService(name) ?: throw ServiceSelectionException(
                 Reason.UNKNOWN_NAME,
-                "No provider serves the model '$name' any more. ${family.context()}",
+                "No provider returned a service for the model '$name'. ${family.context()}",
             ),
         )
     }

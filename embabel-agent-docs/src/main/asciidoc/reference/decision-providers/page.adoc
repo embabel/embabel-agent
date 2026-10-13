@@ -25,23 +25,11 @@ Defaults and roles pick a model by name.
 ==== Selection
 
 Defaults and roles take a model name or a bean name.
+This example makes the catalog model `jev-latest` the decision default and binds the review and routing roles to the chat model `gpt-4.1-mini`.
 
 [source,yaml]
 ----
-embabel:
-  agent:
-    platform:
-      models:
-        typesafe:
-          api-key: ${TYPESAFE_API_KEY}
-  models:
-    decision:
-      default: jev-latest
-      roles:
-        review: gpt-4.1-mini
-    classification:
-      roles:
-        routing: jev-latest
+include::../../../../../../embabel-agent-starters/embabel-agent-starter-typesafe/src/test/resources/decision-services-example.yml[tag=yaml,indent=0]
 ----
 
 A decision service also classifies, so a classification default or role can name one.
@@ -60,7 +48,7 @@ It serves every chat model the `ModelProvider` lists and builds a prompted decis
 |Member |Contract
 
 |`provider`
-|Provider name, for diagnostics
+|Provider name. Registry error messages list each provider's models under it.
 
 |`modelNames()`
 |Names the provider can serve now. The registry checks a default or role against this list only when no bean holds the name.
