@@ -24,6 +24,9 @@ import com.embabel.agent.domain.io.UserContent
 import com.embabel.agent.domain.library.HasContent
 import com.embabel.common.core.types.Timestamped
 import com.embabel.common.util.trim
+import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.Instant
 
 /**
@@ -72,6 +75,7 @@ interface Message : Timestamped {
  * @param name of the sender, if available
  * @param timestamp when the message was created
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 sealed class BaseMessage(
     override val role: Role,
     val parts: List<ContentPart>,
@@ -128,12 +132,20 @@ sealed class BaseMessage(
 
 /**
  * Message sent by the user - supports multimodal content and attached assets.
+ *
+ * Assets attached to a message that may be checkpointed (e.g. via blackboard persistence)
+ * or persisted across sessions must be serializable. Use [DurableAsset] (typically by
+ * materializing into an [com.embabel.chat.spi.AssetStore] first), or serializable assets
+ * such as [MaterializableAsset.fromBytes] or [MaterializableAsset.fromPath].
+ * Transient stream-based assets created via [MaterializableAsset.of] must be materialized
+ * before attaching to a message subject to checkpointing.
  */
-open class UserMessage @JvmOverloads constructor(
-    parts: List<ContentPart>,
-    name: String? = null,
-    override val assets: List<Asset> = emptyList(),
-    timestamp: Instant = Instant.now(),
+@JsonIgnoreProperties(ignoreUnknown = true)
+class UserMessage @JsonCreator constructor(
+    @JsonProperty("parts") parts: List<ContentPart>,
+    @JsonProperty("name") name: String? = null,
+    @JsonProperty("assets") override val assets: List<Asset> = emptyList(),
+    @JsonProperty("timestamp") timestamp: Instant = Instant.now(),
 ) : BaseMessage(
     role = Role.USER,
     parts = parts,
@@ -142,12 +154,13 @@ open class UserMessage @JvmOverloads constructor(
 ), UserContent, AssetView {
 
     /**
-     * Preserves binary/source compatibility for callers passing (parts, name, timestamp).
+     * Preserves binary compatibility for 1.5.3 callers.
      */
+    @Deprecated("Binary compatibility", level = DeprecationLevel.HIDDEN)
     constructor(
         parts: List<ContentPart>,
         name: String? = null,
-        timestamp: Instant,
+        timestamp: Instant = Instant.now(),
     ) : this(parts = parts, name = name, assets = emptyList(), timestamp = timestamp)
 
     /**
@@ -162,12 +175,13 @@ open class UserMessage @JvmOverloads constructor(
     ) : this(parts = listOf(TextPart(content)), name = name, assets = assets, timestamp = timestamp)
 
     /**
-     * Preserves binary/source compatibility for callers passing (content, name, timestamp).
+     * Preserves binary compatibility for 1.5.3 callers.
      */
+    @Deprecated("Binary compatibility", level = DeprecationLevel.HIDDEN)
     constructor(
         content: String,
         name: String? = null,
-        timestamp: Instant,
+        timestamp: Instant = Instant.now(),
     ) : this(content = content, name = name, assets = emptyList(), timestamp = timestamp)
 
     override fun toString(): String {

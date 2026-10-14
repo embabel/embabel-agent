@@ -255,6 +255,54 @@ class ConversationAssetsTest {
         }
     }
 
+    @Nested
+    inner class UserMessageBinaryCompatibilityTest {
+
+        @Test
+        fun `1_5_3 synthetic constructor for parts defaults timestamp`() {
+            // A 1.5.3-compiled caller invoking UserMessage(parts) calls the synthetic constructor:
+            // UserMessage(List, String, Instant, int, DefaultConstructorMarker) with timestamp = null and mask = 6
+            val syntheticConstructor = UserMessage::class.java.getDeclaredConstructor(
+                List::class.java,
+                String::class.java,
+                Instant::class.java,
+                Int::class.javaPrimitiveType,
+                Class.forName("kotlin.jvm.internal.DefaultConstructorMarker"),
+            )
+            syntheticConstructor.isAccessible = true
+            val parts = listOf(TextPart("hello"))
+            val before = Instant.now()
+            val message = syntheticConstructor.newInstance(parts, null, null, 6, null) as UserMessage
+            val after = Instant.now()
+
+            assertThat(message.parts).isEqualTo(parts)
+            assertThat(message.content).isEqualTo("hello")
+            assertThat(message.timestamp).isBetween(before, after)
+            assertThat(message.assets).isEmpty()
+        }
+
+        @Test
+        fun `1_5_3 synthetic constructor for text content defaults timestamp`() {
+            // A 1.5.3-compiled caller invoking UserMessage("hi") calls the synthetic constructor:
+            // UserMessage(String, String, Instant, int, DefaultConstructorMarker) with timestamp = null and mask = 6
+            val syntheticConstructor = UserMessage::class.java.getDeclaredConstructor(
+                String::class.java,
+                String::class.java,
+                Instant::class.java,
+                Int::class.javaPrimitiveType,
+                Class.forName("kotlin.jvm.internal.DefaultConstructorMarker"),
+            )
+            syntheticConstructor.isAccessible = true
+            val before = Instant.now()
+            val message = syntheticConstructor.newInstance("hi", null, null, 6, null) as UserMessage
+            val after = Instant.now()
+
+            assertThat(message.content).isEqualTo("hi")
+            assertThat(message.timestamp).isBetween(before, after)
+            assertThat(message.assets).isEmpty()
+        }
+    }
+
     private fun testAsset(id: String, name: String, timestamp: Instant = Instant.now()): Asset {
         return TestAsset(id, name, timestamp)
     }

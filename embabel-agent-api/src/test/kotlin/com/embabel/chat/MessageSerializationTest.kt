@@ -15,12 +15,15 @@
  */
 package com.embabel.chat
 
-import tools.jackson.databind.ObjectMapper
-import tools.jackson.module.kotlin.jacksonObjectMapper
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
+import java.nio.file.Files
+import java.time.Instant
+import kotlin.io.path.createTempFile
 
 class MessageSerializationTest {
 
@@ -238,6 +241,101 @@ class MessageSerializationTest {
             assertThat(json).contains("\"filename\":\"report.pdf\"")
             assertThat(json).doesNotContain("@type")
             assertThat(deserialized.parts).containsExactlyElementsOf(envelope.parts)
+        }
+    }
+
+    @Nested
+    inner class UserMessageSerialization {
+
+        @Test
+        fun `UserMessage with DurableAsset round-trips`() {
+            val durableAsset = DurableAsset(
+                id = "asset-1",
+                name = "report.pdf",
+                mimeType = "application/pdf",
+                sizeBytes = 1024,
+                contentHash = "abcdef1234567890",
+                storageUri = "storage://bucket/report.pdf",
+                timestamp = Instant.parse("2026-10-14T00:00:00Z"),
+            )
+            val original = UserMessage(
+                parts = listOf(TextPart("Here is the document")),
+                name = "Alice",
+                assets = listOf(durableAsset),
+                timestamp = Instant.parse("2026-10-14T00:00:00Z"),
+            )
+
+            val json = objectMapper.writeValueAsString(original)
+            val restored = objectMapper.readValue(json, UserMessage::class.java)
+
+            assertThat(restored.content).isEqualTo(original.content)
+            assertThat(restored.name).isEqualTo(original.name)
+            assertThat(restored.timestamp).isEqualTo(original.timestamp)
+            assertThat(restored.assets).hasSize(1)
+            val restoredAsset = restored.assets.single() as DurableAsset
+            assertThat(restoredAsset).isEqualTo(durableAsset)
+        }
+
+        @Test
+        fun `UserMessage with fromBytes MaterializableAsset round-trips`() {
+            val bytesAsset = MaterializableAsset.fromBytes(
+                name = "data.csv",
+                data = "col1,col2\n1,2".toByteArray(),
+                mimeType = "text/csv",
+                id = "asset-bytes-1",
+                timestamp = Instant.parse("2026-10-14T00:00:00Z"),
+                description = "CSV data",
+            )
+            val original = UserMessage(
+                parts = listOf(TextPart("Here is the CSV")),
+                assets = listOf(bytesAsset),
+                timestamp = Instant.parse("2026-10-14T00:00:00Z"),
+            )
+
+            val json = objectMapper.writeValueAsString(original)
+            val restored = objectMapper.readValue(json, UserMessage::class.java)
+
+            assertThat(restored.content).isEqualTo(original.content)
+            assertThat(restored.assets).hasSize(1)
+            val restoredAsset = restored.assets.single() as ByteArrayMaterializableAsset
+            assertThat(restoredAsset.name).isEqualTo("data.csv")
+            assertThat(restoredAsset.mimeType).isEqualTo("text/csv")
+            assertThat(restoredAsset.id).isEqualTo("asset-bytes-1")
+            assertThat(restoredAsset.data).isEqualTo("col1,col2\n1,2".toByteArray())
+            assertThat(restoredAsset.openStream().readBytes()).isEqualTo(bytesAsset.openStream().readBytes())
+        }
+
+        @Test
+        fun `UserMessage with fromPath MaterializableAsset round-trips`() {
+            val tempFile = createTempFile("test-asset", ".txt")
+            tempFile.toFile().deleteOnExit()
+            Files.writeString(tempFile, "sample text content")
+
+            val pathAsset = MaterializableAsset.fromPath(
+                path = tempFile,
+                name = "sample.txt",
+                mimeType = "text/plain",
+                id = "asset-path-1",
+                timestamp = Instant.parse("2026-10-14T00:00:00Z"),
+                description = "Sample text file",
+            )
+            val original = UserMessage(
+                parts = listOf(TextPart("Attached file")),
+                assets = listOf(pathAsset),
+                timestamp = Instant.parse("2026-10-14T00:00:00Z"),
+            )
+
+            val json = objectMapper.writeValueAsString(original)
+            val restored = objectMapper.readValue(json, UserMessage::class.java)
+
+            assertThat(restored.content).isEqualTo(original.content)
+            assertThat(restored.assets).hasSize(1)
+            val restoredAsset = restored.assets.single() as PathMaterializableAsset
+            assertThat(restoredAsset.path).isEqualTo(tempFile)
+            assertThat(restoredAsset.name).isEqualTo("sample.txt")
+            assertThat(restoredAsset.mimeType).isEqualTo("text/plain")
+            assertThat(restoredAsset.id).isEqualTo("asset-path-1")
+            assertThat(restoredAsset.openStream().readBytes()).isEqualTo("sample text content".toByteArray())
         }
     }
 }
