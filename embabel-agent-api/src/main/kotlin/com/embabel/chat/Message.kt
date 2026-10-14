@@ -75,7 +75,6 @@ interface Message : Timestamped {
  * @param name of the sender, if available
  * @param timestamp when the message was created
  */
-@JsonIgnoreProperties(ignoreUnknown = true)
 sealed class BaseMessage(
     override val role: Role,
     val parts: List<ContentPart>,
@@ -140,7 +139,20 @@ sealed class BaseMessage(
  * Transient stream-based assets created via [MaterializableAsset.of] must be materialized
  * before attaching to a message subject to checkpointing.
  */
-@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonIgnoreProperties(
+    value = [
+        "role",
+        "content",
+        "textContent",
+        "imageParts",
+        "documentParts",
+        "mediaParts",
+        "multimodal",
+        "isMultimodal",
+        "sender",
+    ],
+    allowGetters = true,
+)
 class UserMessage @JsonCreator constructor(
     @JsonProperty("parts") parts: List<ContentPart>,
     @JsonProperty("name") name: String? = null,

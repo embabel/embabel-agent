@@ -337,5 +337,34 @@ class MessageSerializationTest {
             assertThat(restoredAsset.id).isEqualTo("asset-path-1")
             assertThat(restoredAsset.openStream().readBytes()).isEqualTo("sample text content".toByteArray())
         }
+
+        @Test
+        fun `UserMessage deserializes derived getter properties on strict reader without failure`() {
+            val strictReader = objectMapper.reader(tools.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .forType(UserMessage::class.java)
+
+            val original = UserMessage(listOf(TextPart("Hello")))
+            val json = objectMapper.writeValueAsString(original)
+
+            val restored: UserMessage = strictReader.readValue(json)
+            assertThat(restored.content).isEqualTo("Hello")
+        }
+
+        @Test
+        fun `UserMessage fails to deserialize when unknown property is present on strict reader`() {
+            val strictReader = objectMapper.reader(tools.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .forType(UserMessage::class.java)
+
+            val json = """
+                {
+                    "parts": [{"text": "Hello"}],
+                    "unknownField": "unexpected"
+                }
+            """.trimIndent()
+
+            assertThatThrownBy {
+                strictReader.readValue<UserMessage>(json)
+            }.isInstanceOf(tools.jackson.databind.exc.UnrecognizedPropertyException::class.java)
+        }
     }
 }
