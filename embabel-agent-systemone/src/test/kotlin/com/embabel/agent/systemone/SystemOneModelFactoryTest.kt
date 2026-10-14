@@ -31,8 +31,12 @@ import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.QuestionKind
 import com.embabel.common.ai.decision.Questions
+import com.embabel.common.ai.decision.systemone.SystemOneCodec
 import com.embabel.common.ai.decision.RatingResult
+import com.embabel.common.ai.decision.UnsupportedDecisionException
+import com.embabel.common.ai.decision.spi.DecisionContentCapture
 import com.embabel.common.ai.decision.spi.PropositionAssessment
+import com.embabel.common.ai.decision.systemone.SystemOneFormatException
 import com.embabel.common.ai.decision.spi.RatingAssessment
 import com.embabel.common.byok.InvalidApiKeyException
 import com.sun.net.httpserver.HttpServer
@@ -47,6 +51,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertDoesNotThrow
 import org.junit.jupiter.api.assertThrows
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
@@ -605,6 +610,136 @@ class SystemOneModelFactoryTest {
                 tags(),
             )
             assertTrue(stopped.flatMap { it.highCardinalityKeyValues }.isEmpty())
+        }
+    }
+
+    @Nested
+    inner class Bindings {
+
+        // Wraps the protocol the way a hosting API might: the model in the path, a body of its own and an envelope.
+        private val hosted = object : SystemOneBinding {
+            override fun decisionUri(endpoint: SystemOneEndpoint, model: String): URI = endpoint.resolve("/run/$model")
+            override fun decisionRequest(model: String, request: DecisionRequest): ByteArray =
+                """{"model":"${model.substringAfterLast('/')}","input":${SystemOneCodec.encode(model, request).decodeToString()}}""".encodeToByteArray()
+            override fun check(model: String, request: DecisionRequest) {
+                if (model == "acme/small" && request.spec.questions.size > 1) throw UnsupportedDecisionException("One question at a time")
+            }
+            override fun decisionResponse(body: ByteArray): ByteArray {
+                val text = body.decodeToString()
+                if (!text.startsWith("[")) throw SystemOneFormatException("No envelope")
+                return text.removePrefix("[").removeSuffix("]").encodeToByteArray()
+            }
+            override fun modelsUri(endpoint: SystemOneEndpoint): URI = endpoint.resolve("/catalog")
+            override fun modelNames(body: ByteArray) = body.decodeToString().split(',')
+        }
+
+        private fun hosted(key: Supplier<String?> = Supplier { "test-key" }): Mocked {
+            val builder = RestClient.builder()
+            val server = MockRestServiceServer.bindTo(builder).build()
+            val endpoint = SystemOneEndpoint("Hosted", URI.create(base), binding = hosted)
+            return Mocked(SystemOneModelFactory(endpoint, "acme/small", key, builder), server)
+        }
+
+        @Test
+        fun `the binding picks the address, the body and the envelope`() {
+            val mocked = hosted()
+            var body: String? = null
+            mocked.server.expect(requestTo("$base/run/acme/small"))
+                .andExpect { body = (it as MockClientHttpRequest).bodyAsString }
+                .andRespond(withSuccess("[$noulBody]", MediaType.APPLICATION_JSON))
+
+            val answer = ask(mocked.factory).answer(urgent)
+
+            assertEquals("small", mapper.readTree(body).get("model").stringValue())
+            assertEquals("noul", mapper.readTree(body).get("input").get("questions").get("q1").get("type").stringValue())
+            assertEquals(PropositionResult.Answered(true, ModelProvenance("model-1b", "Hosted"), 0.9), answer)
+        }
+
+        @Test
+        fun `a body the binding can't unwrap is an invalid response`() {
+            val mocked = hosted()
+            mocked.server.expect(requestTo("$base/run/acme/small")).andRespond(withSuccess(noulBody, MediaType.APPLICATION_JSON))
+
+            assertEquals(FailureReason.INVALID_RESPONSE, ask(mocked.factory).requestFailure)
+        }
+
+        @Test
+        fun `captured content holds only the unwrapped response`() {
+            val mocked = hosted()
+            mocked.server.expect(requestTo("$base/run/acme/small"))
+                .andRespond(withSuccess("""{"error":"SENTINEL"}""", MediaType.APPLICATION_JSON))
+            val level = logger.level
+            logger.level = Level.TRACE
+            DecisionContentCapture.enable()
+            try {
+                assertEquals(FailureReason.INVALID_RESPONSE, ask(mocked.factory).requestFailure)
+            } finally {
+                DecisionContentCapture.disable()
+                logger.level = level
+            }
+
+            assertTrue(appender.list.none { it.formattedMessage.contains("SENTINEL") })
+        }
+
+        @Test
+        fun `a request the binding refuses throws before the key is read`() {
+            val calls = AtomicInteger()
+            val mocked = hosted(key = { "k".also { calls.incrementAndGet() } })
+            val team = Questions.named("team").choice("Which team?").option("billing", "Payments").option("sales", "Sales").build()
+
+            assertThrows<UnsupportedDecisionException> {
+                mocked.factory.build().ask(DecisionRequest.of("charged twice", urgent, team))
+            }
+
+            assertEquals(0, calls.get())
+            mocked.server.verify()
+        }
+
+        @Test
+        fun `the binding checks each request against the model it goes to`() {
+            val mocked = hosted()
+            val team = Questions.named("team").choice("Which team?").option("billing", "Payments").option("sales", "Sales").build()
+            mocked.server.expect(requestTo("$base/run/acme/large")).andRespond(withSuccess("[$noulBody]", MediaType.APPLICATION_JSON))
+
+            mocked.factory.build("acme/large").ask(DecisionRequest.of("charged twice", urgent, team))
+
+            mocked.server.verify()
+        }
+
+        @Test
+        fun `a model the binding can never serve fails the build and sends nothing`() {
+            val calls = AtomicInteger()
+            val strict = object : SystemOneBinding {
+                override fun validateModel(model: String) {
+                    require(model.startsWith("acme/")) { "An Acme model id looks like acme/<model>" }
+                }
+            }
+            val builder = RestClient.builder()
+            val server = MockRestServiceServer.bindTo(builder).build()
+            val endpoint = SystemOneEndpoint("Hosted", URI.create(base), binding = strict)
+            val factory = SystemOneModelFactory(endpoint, "acme/small", { "k".also { calls.incrementAndGet() } }, builder)
+
+            val e = assertThrows<IllegalArgumentException> { factory.build("other/model") }
+
+            assertEquals("An Acme model id looks like acme/<model>", e.message)
+            assertEquals("acme/small", factory.build().name)
+            assertEquals(0, calls.get())
+            server.verify()
+        }
+
+        @Test
+        fun `the standard binding accepts any model name`() {
+            assertDoesNotThrow { SystemOneBinding.STANDARD.validateModel("anything/at all") }
+        }
+
+        @Test
+        fun `model listing and key validation use the binding's listing`() {
+            val mocked = hosted()
+            mocked.server.expect(ExpectedCount.twice(), requestTo("$base/catalog"))
+                .andRespond(withSuccess("acme/small,acme/large", MediaType.TEXT_PLAIN))
+
+            assertEquals(listOf("acme/small", "acme/large"), mocked.factory.modelNames())
+            assertEquals("acme/small", mocked.factory.buildValidated().name)
         }
     }
 

@@ -17,7 +17,6 @@ package com.embabel.agent.systemone
 
 import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.model.observation.ObservedDecisionService
-import com.embabel.common.ai.decision.systemone.SystemOneCodec
 import com.embabel.common.ai.decision.systemone.SystemOneFormatException
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
@@ -74,14 +73,16 @@ open class SystemOneModelFactory @JvmOverloads constructor(
     fun build(): DecisionService = build(defaultModel)
 
     /**
-     * Returns a service for the named model. The name is sent as is, so the endpoint decides
-     * whether it exists.
+     * Returns a service for the named model. The endpoint's binding checks the name first, and the
+     * endpoint decides whether a model it accepts exists.
      *
      * @param model the model name
      * @return a service for that model
+     * @throws IllegalArgumentException if the name is blank or the endpoint can never serve it
      */
     fun build(model: String): DecisionService {
         require(model.isNotBlank()) { "The model name must not be blank" }
+        endpoint.binding.validateModel(model)
         return ObservedDecisionService(SystemOneDecisionService(model, transport), observationRegistry)
     }
 
@@ -95,7 +96,7 @@ open class SystemOneModelFactory @JvmOverloads constructor(
 
     private fun modelNames(key: Supplier<String?>): List<String> =
         try {
-            SystemOneCodec.modelNames(transport.listModels(key).body)
+            endpoint.binding.modelNames(transport.listModels(key).body)
         } catch (failure: SystemOneFailure) {
             throw IllegalStateException(
                 "${endpoint.provider} model listing failed: cause=${failure.category}, status=${failure.statusFamily}",
