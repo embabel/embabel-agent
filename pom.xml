@@ -29,6 +29,7 @@
         <module>embabel-agent-api</module>
         <module>embabel-agent-systemone</module>
         <module>embabel-agent-typesafe</module>
+        <module>embabel-agent-cloudflare</module>
         <module>embabel-agent-cache</module>
         <module>embabel-agent-jdbc</module>
         <module>embabel-agent-a2a</module>
