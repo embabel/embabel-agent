@@ -88,6 +88,13 @@ class SystemOneCodecTest {
         }
 
         @Test
+        fun `a body without a model holds only the state and questions`() {
+            val json = mapper.readTree(SystemOneCodec.encode(DecisionRequest.of("charged twice", spec)))
+            assertEquals(listOf("state", "questions"), json.propertyNames().toList())
+            assertEquals(listOf("q1", "q2", "q3"), json.get("questions").propertyNames().toList())
+        }
+
+        @Test
         fun `caller question names never reach the wire`() {
             val json = String(SystemOneCodec.encode("jev-latest", DecisionRequest.of("x", spec)))
             listOf("urgent", "team", "anger").forEach { assertFalse(json.contains("\"$it\""), json) }

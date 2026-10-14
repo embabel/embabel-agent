@@ -35,6 +35,7 @@ import java.time.Duration
  * @property readTimeout how long to wait for data once connected
  * @property maxResponseBytes the largest response body that will be read
  * @property requestIdHeader the response header that carries the provider's request id, if it sends one
+ * @property binding how the endpoint lays out the protocol over HTTP
  */
 @ApiStatus.Experimental
 class SystemOneEndpoint @JvmOverloads constructor(
@@ -44,6 +45,7 @@ class SystemOneEndpoint @JvmOverloads constructor(
     val readTimeout: Duration = DEFAULT_TIMEOUT,
     val maxResponseBytes: Int = DEFAULT_MAX_RESPONSE_BYTES,
     val requestIdHeader: String? = null,
+    val binding: SystemOneBinding = SystemOneBinding.STANDARD,
 ) {
 
     init {
@@ -71,9 +73,19 @@ class SystemOneEndpoint @JvmOverloads constructor(
      */
     fun resolve(path: String): URI = URI.create(baseUri.toString().trimEnd('/') + path)
 
+    /**
+     * Returns a copy of this endpoint that lays out the protocol with another binding. Every other
+     * value is kept, so a Java caller can set a binding without passing every timeout and limit.
+     *
+     * @param binding how the endpoint lays out the protocol over HTTP
+     * @return the new endpoint
+     */
+    fun withBinding(binding: SystemOneBinding): SystemOneEndpoint =
+        SystemOneEndpoint(provider, baseUri, connectTimeout, readTimeout, maxResponseBytes, requestIdHeader, binding)
+
     override fun toString(): String =
         "SystemOneEndpoint(provider=$provider, baseUri=[CONFIGURED], connectTimeout=$connectTimeout, " +
-            "readTimeout=$readTimeout, maxResponseBytes=$maxResponseBytes, requestIdHeader=$requestIdHeader)"
+            "readTimeout=$readTimeout, maxResponseBytes=$maxResponseBytes, requestIdHeader=$requestIdHeader, binding=$binding)"
 
     companion object {
 

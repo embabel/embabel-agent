@@ -85,15 +85,18 @@ internal class SystemOneDecisionService(
      * @return the answers, or failure outcomes
      */
     private fun run(request: DecisionRequest, operation: Operation): DecisionResponse {
+        val binding = transport.endpoint.binding
+        binding.check(name, request)
         val started = System.nanoTime()
         val reply = try {
-            transport.decide(SystemOneCodec.encode(name, request))
+            transport.decide(name, binding.decisionRequest(name, request))
         } catch (failure: SystemOneFailure) {
             return failed(request, operation, failure, started)
         }
-        trace(operation, reply)
         return try {
-            SystemOneCodec.decode(reply.body, request.spec, name) { model ->
+            val response = binding.decisionResponse(reply.body)
+            trace(operation, response)
+            SystemOneCodec.decode(response, request.spec, name) { model ->
                 ModelProvenance(model?.takeIf(MODEL::matches) ?: name, provider, null, reply.requestId)
             }
         } catch (_: SystemOneFormatException) {
@@ -136,19 +139,20 @@ internal class SystemOneDecisionService(
     }
 
     /**
-     * Logs the response body at TRACE. The body is provider output that can echo the input, so it
-     * is only logged when content capture is on.
+     * Logs the unwrapped System One response at TRACE. The response is provider output that can
+     * echo the input, so it is only logged when content capture is on. A binding's envelope is never
+     * logged, since its error text can echo the input too.
      *
      * @param operation which public call this is
-     * @param reply the endpoint's reply
+     * @param response the System One response the binding unwrapped
      */
-    private fun trace(operation: Operation, reply: SystemOneTransport.Reply) {
+    private fun trace(operation: Operation, response: ByteArray) {
         if (DecisionContentCapture.isEnabled() && logger.isTraceEnabled) {
             logger.trace(
                 "System One response content: service={}, operation={}, response={}",
                 name,
                 operation.id,
-                String(reply.body, Charsets.UTF_8),
+                String(response, Charsets.UTF_8),
             )
         }
     }
