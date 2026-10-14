@@ -4,7 +4,7 @@
 System One is a JSON protocol for decision models.
 One request asks a model several typed questions about one piece of state.
 Proposition answers carry a truth probability. Choice and rating answers carry a distribution and confidence.
-Jev from TypeSafe speaks it (<<reference.typesafe>>), and any other endpoint that speaks it works with the same client.
+Jev from TypeSafe (<<reference.typesafe>>) and the decision models on Cloudflare Workers AI (<<reference.cloudflare>>) speak it, and any other endpoint that speaks it works with the same client.
 
 The integration has two parts:
 
@@ -145,7 +145,7 @@ include::../../../../../../embabel-agent-systemone/src/test/java/com/embabel/age
 ----
 
 In Spring, declare the factory as a bean and each model as a `DecisionService` bean built from it.
-The decision registry picks the models up by bean name, the same way it picks up the TypeSafe catalog models.
+The decision registry picks the models up by bean name, the same way it picks up the TypeSafe and Cloudflare catalog models.
 
 [[reference.systemone.local]]
 ==== Running decision models locally
@@ -217,6 +217,36 @@ It asks one spec with a proposition, a choice and a rating, then a single classi
 ----
 SYSTEMONE_SMOKE_URL=http://localhost:11434 SYSTEMONE_SMOKE_MODEL=clef-flash mvn test -pl embabel-agent-systemone -Dtest=SystemOneLocalSmokeTest
 ----
+
+==== Bindings
+
+An endpoint that hosts System One behind its own API describes the differences with a `SystemOneBinding`, passed as the endpoint's `binding` or through `withBinding(binding)`.
+`SystemOneBinding.STANDARD` is the protocol's own layout, and each method defaults to it:
+
+|===
+|Method |Standard behaviour
+
+|`validateModel(model)`
+|Accepts every name. A binding throws `IllegalArgumentException` for a model the endpoint can never serve, so `build(model)` throws it before a service exists.
+
+|`decisionUri(endpoint, model)`
+|`/v1/systemone` under the base address
+
+|`decisionRequest(model, request)`
+|The System One request, with the model name as given
+
+|`check(model, request)`
+|Accepts every request. A binding throws `UnsupportedDecisionException` for a request the model can't take, before the key is read or anything is sent.
+
+|`decisionResponse(body)`
+|The body itself. A binding that wraps responses returns the System One response inside, or throws `SystemOneFormatException`.
+
+|`modelsUri(endpoint)`
+|`/v1/models` under the base address
+
+|`modelNames(body)`
+|The names in a `{"models": [{"name"}]}` or `{"data": [{"id"}]}` listing
+|===
 
 ==== Transport
 

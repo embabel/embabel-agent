@@ -1,0 +1,169 @@
+[[reference.cloudflare]]
+=== Cloudflare Workers AI decision services (experimental)
+
+Cloudflare Workers AI runs System One decision models behind its REST API.
+It hosts the CLEF models itself and runs TypeSafe's Jev as a third-party model.
+The Cloudflare integration is the System One client (<<reference.systemone>>) with a binding for that API.
+
+|===
+|Catalog name |Model id |Hosted by
+
+|`clef`
+|`@cf/cloudflare/clef`
+|Cloudflare
+
+|`clef-flash`
+|`@cf/cloudflare/clef-flash`
+|Cloudflare
+
+|`clef-omni`
+|`@cf/cloudflare/clef-omni`
+|Cloudflare
+
+|`cloudflare-jev`
+|`typesafe/jev`
+|TypeSafe, as a third-party model
+|===
+
+`clef` is a 27B model, `clef-flash` a faster 9B model, and `clef-omni` a mixture-of-experts model that also reads audio.
+Cloudflare bills third-party models such as Jev through AI Gateway, from gateway credits or a provider key stored in the gateway.
+Without either, Cloudflare refuses Jev calls and the request fails.
+The CLEF models work on the same token.
+
+The CLEF weights are open, and Ollama serves them through the plain System One client.
+That is the quickest way to try CLEF with no Cloudflare account.
+<<reference.systemone.local>> walks through it.
+
+Cloudflare's CLEF schema truncates long text state to fit the model's context window, which is 65,536 tokens for `clef`.
+A request that fits the response limit can still lose text to truncation, so check retention and quality on your own inputs before relying on the results.
+
+==== Dependencies and Spring configuration
+
+Add `com.embabel.agent:embabel-agent-starter-cloudflare` to a Spring Boot application.
+The starter brings in `embabel-agent-cloudflare-autoconfigure`, `embabel-agent-cloudflare` and `embabel-agent-systemone`.
+
+Supply `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, or configure:
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        cloudflare:
+          api-key: ${CLOUDFLARE_API_TOKEN}
+          account-id: ${CLOUDFLARE_ACCOUNT_ID}
+----
+
+The `api-key` property holds a Cloudflare API token, and `CLOUDFLARE_API_TOKEN` sets the same value.
+
+The token needs Workers AI access on the account.
+A nonblank environment value takes precedence over its property.
+Both token sources are read through the Spring environment on every call, so a rotated token takes effect without rebuilding the service.
+The account id is read once, at startup.
+Startup fails without a token or an account id, and when the account id is not 32 hexadecimal characters.
+
+|===
+|Property under `embabel.agent.platform.models.cloudflare` |Default |Purpose
+
+|`api-key`
+|none
+|The API key to use when `CLOUDFLARE_API_TOKEN` is absent or blank
+
+|`account-id`
+|none
+|The account to use when `CLOUDFLARE_ACCOUNT_ID` is absent or blank
+
+|`max-response-bytes`
+|`1048576`
+|The largest response body that is read
+|===
+
+Auto-configuration contributes these beans:
+
+* `CloudflareModelsConfig`, which is itself a `CloudflareModelFactory`.
+Inject it by the `CloudflareModelFactory` type.
+* One `DecisionService` bean per model in `models/cloudflare-models.yml`, named `clef`, `clef-flash`, `clef-omni` and `cloudflare-jev`.
+Each is also injectable as `ClassificationService`.
+An application bean or alias with one of those names replaces that model.
+* `cloudflareModelsRegistrar`, which defines the model beans, and `cloudflareModelsInitializer`, the `ProviderInitialization` that reports them.
+* `cloudflareDefaultCandidate`, which offers `clef` as the default of the decision and classification families when the starter defines `clef`.
+
+A default candidate applies only when it is the only one.
+With the TypeSafe starter on the classpath too, neither `jev-latest` nor `clef` becomes a family default, and `defaultService()` fails until you set one.
+Set `embabel.models.decision.default` and `embabel.models.classification.default` to the models you want.
+See <<reference.decision-execution>>.
+
+An application that supplies its own `CloudflareModelFactory` bean keeps it.
+Auto-configuration then registers no models and needs no token.
+
+The starter uses the qualified `aiModelRestClientBuilder`.
+Without it, it uses a unique application `RestClient.Builder`, and otherwise the factory's own client.
+
+==== Using the models
+
+Inject a model by its catalog name:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-starters/embabel-agent-starter-cloudflare/src/test/java/com/embabel/agent/cloudflare/example/CloudflareConsumerTest.java[tag=cloudflare-qualifier,indent=0]
+----
+
+The service answers a whole spec in one call:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-starters/embabel-agent-starter-cloudflare/src/test/java/com/embabel/agent/cloudflare/example/CloudflareConsumerTest.java[tag=cloudflare-consumer,indent=0]
+----
+
+`CloudflareModelFactory` works without Spring:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-cloudflare/src/test/java/com/embabel/agent/cloudflare/CloudflareUsageExamples.java[tag=service,indent=0]
+----
+
+`build()` returns `clef`, and `build(model)` returns another Workers AI model by its full id:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-cloudflare/src/test/java/com/embabel/agent/cloudflare/CloudflareUsageExamples.java[tag=flash,indent=0]
+----
+
+`buildValidated()` checks the current token by searching the account's models for `clef`, and returns `clef`.
+`modelNames()` returns the same search, which lists the Cloudflare-hosted CLEF models.
+A missing or refused token throws `InvalidApiKeyException`:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-cloudflare/src/test/java/com/embabel/agent/cloudflare/CloudflareUsageExamples.java[tag=byok,indent=0]
+----
+
+==== How the binding maps the API
+
+* Every call sends the token as a bearer token to `https://api.cloudflare.com/client/v4/accounts/<account id>`.
+* A Cloudflare-hosted model runs at `/ai/run/<model id>`, and the body's `model` is its short name, such as `clef`.
+`build(model)` throws `IllegalArgumentException` for a hosted model id that doesn't look like `@cf/<author>/<model>`, so a name can't change the path.
+* A third-party model runs at `/ai/run`.
+The body is `{"model": "typesafe/jev", "input": {...}}`, with the System One request as `input`.
+`build(model)` throws `IllegalArgumentException` for a third-party model id that doesn't look like `<author>/<model>`.
+A catalog model with such an id fails startup.
+* A successful response has `success` set to true, no errors, and the System One response in `result`.
+Anything else fails the request with `INVALID_RESPONSE`.
+Cloudflare's error text is never kept, since it can echo the input.
+* Provenance names the model Cloudflare reports, the `Cloudflare` provider and the `cf-ray` response header.
+* The CLEF schema takes 1 to 64 questions, 2 to 255 options per choice and 2 to 10 levels per rating.
+A request to a CLEF model outside those limits throws `UnsupportedDecisionException` before the token is read or anything is sent.
+* A missing token fails each call with `UNAVAILABLE` and cause `credential`, before anything is sent.
+
+Failures, logging and observations are the System One client's.
+See <<reference.systemone>>.
+
+==== Experimental status
+
+The Workers AI mapping is tested against Cloudflare's published schemas with a mock server.
+`CloudflareClefSmokeTest` in `embabel-agent-cloudflare` runs when `CLOUDFLARE_SMOKE_TEST=true`, `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are set.
+The smoke test covers the CLEF models.
+It covers Jev only with `CLOUDFLARE_SMOKE_JEV=true`.
+It asks each model a triage spec with a proposition, a choice and a rating in one call, lists the account's CLEF models and validates the token.
+Promotion needs stable Java and Kotlin use and a consumer application.

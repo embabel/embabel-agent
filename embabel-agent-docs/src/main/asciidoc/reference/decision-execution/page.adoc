@@ -3,7 +3,7 @@
 
 This page covers selecting a decision service and running a decision spec on it.
 <<reference.decision-specs>> covers building specs and reading responses.
-<<reference.systemone>> covers decision models served over the System One protocol, such as Jev from TypeSafe (<<reference.typesafe>>).
+<<reference.systemone>> covers decision models served over the System One protocol, such as Jev from TypeSafe (<<reference.typesafe>>) and CLEF on Cloudflare (<<reference.cloudflare>>).
 <<reference.llm-decisions>> covers chat models prompted to decide.
 
 The types are in `embabel-agent-ai`.
@@ -466,13 +466,14 @@ Question names stay with the caller, so no name character can break a provider's
 The shared contracts and the System One codec live in `embabel-agent-ai`, under `com.embabel.common.ai.decision`.
 The System One HTTP client is the `embabel-agent-systemone` module, in `com.embabel.agent.systemone`.
 TypeSafe is the `embabel-agent-typesafe` module, a System One preset in `com.embabel.agent.typesafe`, with its Spring configuration under `com.embabel.agent.config.models.typesafe`.
+Cloudflare is the `embabel-agent-cloudflare` module in `com.embabel.agent.cloudflare`, with its Spring configuration under `com.embabel.agent.config.models.cloudflare`.
 
 `DecisionService` has four implementations:
 
 |===
 |Family |Service |Outcomes |Evidence |Confidence
 
-|System One, such as Jev
+|System One, such as Jev and CLEF
 |`SystemOneDecisionService`
 |Every outcome of each kind
 |`pTrue` for propositions. A distribution for choices. A score and a distribution for ratings.
