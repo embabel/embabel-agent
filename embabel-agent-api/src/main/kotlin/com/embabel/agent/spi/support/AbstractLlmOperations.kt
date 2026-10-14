@@ -128,8 +128,10 @@ abstract class AbstractLlmOperations(
         } catch (e: ExecutionException) {
             future.cancel(true)
             when (val cause = e.cause) {
-                // ThinkingException extends Exception, not RuntimeException — must be
-                // first or it falls through to the wrapping branch below and loses its type.
+                // ThinkingException extends Exception, not RuntimeException.
+                // Without this branch it would match `is Exception` below, which wraps the cause
+                // in a new RuntimeException — callers catching ThinkingException would miss it.
+                // This branch must come first so ThinkingException is rethrown unwrapped.
                 is ThinkingException -> throw cause
                 is RuntimeException -> throw cause
                 is Exception -> throw RuntimeException(
