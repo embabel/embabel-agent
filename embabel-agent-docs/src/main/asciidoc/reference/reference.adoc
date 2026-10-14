@@ -69,6 +69,8 @@ include::systemone/page.adoc[]
 
 include::typesafe/page.adoc[]
 
+include::cloudflare/page.adoc[]
+
 include::decision-providers/page.adoc[]
 
 include::tooling/page.adoc[]

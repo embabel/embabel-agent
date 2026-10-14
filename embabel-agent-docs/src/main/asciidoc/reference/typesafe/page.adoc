@@ -3,6 +3,7 @@
 
 TypeSafe is the provider, and Jev is its decision model.
 Jev speaks System One, so the TypeSafe integration is the System One client (<<reference.systemone>>) set up with TypeSafe's address, its provider name, its request id header and the `jev-latest` model.
+Cloudflare Workers AI also runs Jev as `typesafe/jev`, billed through Cloudflare (<<reference.cloudflare>>).
 
 Use Jev when an application needs closed-category classification, proposition assessment or ratings from a decision model with no chat model involved.
 The result is evidence.
