@@ -52,8 +52,11 @@ sealed class ThinkingMode {
 /**
  * Derives API capability flags from a Claude model ID string.
  *
- * Version is encoded as major * 10 + minor, parsed from the last two numeric
- * segments of the model ID (e.g. "claude-sonnet-4-5" → 45, "claude-fable-5-1" → 51).
+ * Version is encoded as major * 10 + minor, parsed from the last two 1–2-digit numeric
+ * segments of the model ID. Date-snapshot suffixes are ignored:
+ *   "claude-sonnet-4-5"          → 45
+ *   "claude-sonnet-4-5-20250929" → 45  (date suffix stripped)
+ *   "claude-fable-5-1"           → 51
  * An unrecognised model ID yields version 0 — treated as an old model that accepts
  * the disabled flag and temperature/topP sampling parameters.
  */
@@ -93,7 +96,9 @@ data class ClaudeCapabilities(val version: Int) {
 
     companion object {
 
-        private val VERSION_REGEX = Regex("""(\d+)-(\d+)$""")
+        // \d{1,2} caps each component at 2 digits so a date suffix like -20250929 is never mistaken for a version.
+        // (?:-\d+)? absorbs the optional date suffix (e.g. claude-sonnet-4-5-20250929 → major=4, minor=5).
+        private val VERSION_REGEX = Regex("""(\d{1,2})-(\d{1,2})(?:-\d+)?$""")
 
         fun of(model: String): ClaudeCapabilities {
             val match = VERSION_REGEX.find(model)

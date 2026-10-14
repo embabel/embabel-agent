@@ -396,10 +396,13 @@ open class ToolLoopLlmOperations(
                 try {
                     converter!!.convert(text)!!
                 } catch (e: Exception) {
-                    // Preserve thinking blocks in exceptions
+                    // Preserve thinking blocks in exceptions.
+                    // cause = e restores the cause chain so hasNonRetryableDatabindException
+                    // can reach InvalidDefinitionException and stop retries immediately.
                     throw ThinkingException(
                         message = "Conversion failed: ${e.message}",
-                        thinkingBlocks = thinkingBlocks
+                        thinkingBlocks = thinkingBlocks,
+                        cause = e,
                     )
                 }
             }

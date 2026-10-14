@@ -58,6 +58,11 @@ class ClaudeCapabilitiesTest {
         }
 
         @Test
+        fun `claude-sonnet-4-5-20250929 date-snapshot parses to version 45`() {
+            assertEquals(45, ClaudeCapabilities.of("claude-sonnet-4-5-20250929").version)
+        }
+
+        @Test
         fun `unknown model parses to version 0`() {
             assertEquals(0, ClaudeCapabilities.of("unknown-model").version)
         }

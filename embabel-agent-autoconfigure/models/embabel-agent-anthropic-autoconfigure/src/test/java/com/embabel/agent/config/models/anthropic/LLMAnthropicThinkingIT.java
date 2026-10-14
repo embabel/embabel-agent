@@ -27,6 +27,7 @@ import com.embabel.agent.spi.LlmService;
 import com.embabel.common.ai.model.LlmOptions;
 import com.embabel.common.ai.model.Thinking;
 import com.embabel.common.core.thinking.ThinkingBlock;
+import com.embabel.common.core.thinking.ThinkingException;
 import com.embabel.common.core.thinking.ThinkingOrigin;
 import com.embabel.common.core.thinking.ThinkingTagType;
 import com.embabel.common.core.thinking.ThinkingResponse;
@@ -164,6 +165,20 @@ class LLMAnthropicThinkingIT {
         public String toString() {
             return "MonthItem{name='" + name + "', temperature=" + temperature + "}";
         }
+    }
+
+    /**
+     * Uninstantiable target class that forces Jackson to throw InvalidDefinitionException,
+     * which the outputParser wraps into ThinkingException — used to test the exception path.
+     * Concrete fields expose schema properties so the model reasons about the prompt
+     * rather than short-circuiting to {} when the schema appears empty.
+     */
+    private abstract static class UninstantiableResult {
+        private String solution;
+        private String explanation;
+
+        public String getSolution() { return solution; }
+        public String getExplanation() { return explanation; }
     }
 
     /**
@@ -614,6 +629,64 @@ class LLMAnthropicThinkingIT {
                     thinkingBlocks.stream().anyMatch(b -> b.getOrigin() == ThinkingOrigin.NATIVE),
                     "Should have NATIVE blocks");
             logger.info("Native thinking test (sonnet-4-5): {} blocks", thinkingBlocks.size());
+        }
+
+        @Test
+        void sonnet55ThinkingExceptionHasNativeBlocks() {
+            PromptRunner runner = ai.withLlm(
+                    LlmOptions.withModel("claude-sonnet-5-5")
+                            .withThinking(Thinking.withTokenBudget(20000))
+            );
+            assertTrue(runner.supportsThinking(), "Expected claude-sonnet-5-5 to support thinking");
+
+            ThinkingException thrown = assertThrows(ThinkingException.class, () ->
+                    runner.thinking().createObject(
+                            "A train leaves city A at 9:00 AM travelling at 80 km/h toward city B, 320 km away. " +
+                            "Another train leaves city B at 10:30 AM travelling at 100 km/h toward city A. " +
+                            "At what time do they meet, and how far from city A? Show your full reasoning.",
+                            UninstantiableResult.class)
+            );
+
+            assertFalse(thrown.getThinkingBlocks().isEmpty(),
+                    "ThinkingException should carry thinking blocks even on parse failure");
+            assertTrue(
+                    thrown.getThinkingBlocks().stream().anyMatch(b -> b.getOrigin() == ThinkingOrigin.NATIVE),
+                    "Should have at least one NATIVE block from sonnet-5-5 adaptive thinking");
+            logger.info("sonnet55ThinkingExceptionHasNativeBlocks: {} blocks, {} native",
+                    thrown.getThinkingBlocks().size(),
+                    thrown.getThinkingBlocks().stream().filter(b -> b.getOrigin() == ThinkingOrigin.NATIVE).count());
+            thrown.getThinkingBlocks().stream()
+                    .filter(b -> b.getOrigin() == ThinkingOrigin.NATIVE)
+                    .forEach(b -> logger.info("  NATIVE block content (first 200): {}",
+                            b.getContent().substring(0, Math.min(200, b.getContent().length()))));
+        }
+
+        @Test
+        void sonnet55ThinkingExceptionWithToolsAccumulatesNativeBlocks() {
+            PromptRunner runner = ai.withLlm(
+                    LlmOptions.withModel("claude-sonnet-5-5")
+                            .withThinking(Thinking.withTokenBudget(20000))
+            ).withToolObject(new Tooling());
+            assertTrue(runner.supportsThinking(), "Expected claude-sonnet-5-5 to support thinking");
+
+            ThinkingException thrown = assertThrows(ThinkingException.class, () ->
+                    runner.thinking().createObject(
+                            "What is the hottest month in Florida? Use the temperature conversion tool to express its average high in Fahrenheit.",
+                            UninstantiableResult.class)
+            );
+
+            assertFalse(thrown.getThinkingBlocks().isEmpty(),
+                    "ThinkingException should carry blocks accumulated across tool loop iterations");
+            assertTrue(
+                    thrown.getThinkingBlocks().stream().anyMatch(b -> b.getOrigin() == ThinkingOrigin.NATIVE),
+                    "Should have NATIVE blocks accumulated across tool loop iterations");
+            logger.info("sonnet55ThinkingExceptionWithToolsAccumulatesNativeBlocks: {} total, {} native",
+                    thrown.getThinkingBlocks().size(),
+                    thrown.getThinkingBlocks().stream().filter(b -> b.getOrigin() == ThinkingOrigin.NATIVE).count());
+            thrown.getThinkingBlocks().stream()
+                    .filter(b -> b.getOrigin() == ThinkingOrigin.NATIVE)
+                    .forEach(b -> logger.info("  NATIVE block content (first 200): {}",
+                            b.getContent().substring(0, Math.min(200, b.getContent().length()))));
         }
 
         // NOTE: Combining native adaptive thinking (output_config.effort) with prompt-based <reason> tags

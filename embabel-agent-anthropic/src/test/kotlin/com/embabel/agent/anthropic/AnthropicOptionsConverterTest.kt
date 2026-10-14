@@ -231,6 +231,59 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
     }
 
     @Nested
+    inner class SamplingParameterTests {
+
+        @Test
+        fun `claude-opus-4-8 without thinking — temperature passed through`() {
+            // ThinkingMode Disabled on ≥4.7: temperature must not be suppressed
+            val opts = optionsConverter.convertOptions(
+                LlmOptions().withTemperature(0.7),
+                AnthropicModels.CLAUDE_OPUS_4_8,
+            ) as AnthropicChatOptions
+            assertEquals(0.7, opts.temperature)
+        }
+
+        @Test
+        fun `claude-opus-4-8 without thinking — topP passed through`() {
+            val opts = optionsConverter.convertOptions(
+                LlmOptions().withTopP(0.9),
+                AnthropicModels.CLAUDE_OPUS_4_8,
+            ) as AnthropicChatOptions
+            assertEquals(0.9, opts.topP)
+        }
+
+        @Test
+        fun `claude-sonnet-5-5 without thinking — temperature passed through`() {
+            // ThinkingMode Omit on 5.x: temperature must not be suppressed
+            val opts = optionsConverter.convertOptions(
+                LlmOptions().withTemperature(0.5),
+                AnthropicModels.CLAUDE_SONNET_5_5,
+            ) as AnthropicChatOptions
+            assertEquals(0.5, opts.temperature)
+        }
+
+        @Test
+        fun `claude-sonnet-5-5 with thinking — temperature suppressed`() {
+            // ThinkingMode Adaptive: temperature conflicts with active thinking
+            val opts = optionsConverter.convertOptions(
+                LlmOptions().withThinking(Thinking.withTokenBudget(8000)).withTemperature(0.7),
+                AnthropicModels.CLAUDE_SONNET_5_5,
+            ) as AnthropicChatOptions
+            assertNull(opts.temperature)
+        }
+
+        @Test
+        fun `claude-opus-4-8 with thinking — temperature suppressed`() {
+            // ThinkingMode Adaptive (opus-4-8 ≥4.7 with budget): temperature must be suppressed
+            val opts = optionsConverter.convertOptions(
+                LlmOptions().withThinking(Thinking.withTokenBudget(8000)).withTemperature(0.7),
+                AnthropicModels.CLAUDE_OPUS_4_8,
+            ) as AnthropicChatOptions
+            assertNull(opts.temperature)
+        }
+    }
+
+    @Nested
     inner class Claude5ThinkingTests {
 
         @Test

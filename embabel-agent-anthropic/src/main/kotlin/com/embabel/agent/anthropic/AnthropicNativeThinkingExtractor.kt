@@ -102,10 +102,10 @@ object AnthropicNativeThinkingExtractor : SpringAiNativeThinkingExtractor {
         logger.debug("extract called: {} generations", response.results.size)
         return response.results.flatMap { generation ->
             val output = generation.output
-            logger.debug("generation output type={} metadata keys={}", output.javaClass.simpleName, output.metadata?.keys)
+            logger.debug("generation output type={} metadata keys={}", output.javaClass.simpleName, output.metadata.keys)
             @Suppress("UNCHECKED_CAST")
             val items: List<*>? = extractNativeThinkingContents(output)                          // primary: reflection on getThinkingContents()
-                ?: output.metadata?.get(THINKING_CONTENTS_KEY) as? List<*>             // fallback: metadata key
+                ?: output.metadata[THINKING_CONTENTS_KEY] as? List<*>                  // fallback: metadata key
             if (items.isNullOrEmpty()) return@flatMap emptyList<ThinkingBlock>()
             items.mapNotNull { extractBlock(it) }
         }
@@ -124,6 +124,12 @@ object AnthropicNativeThinkingExtractor : SpringAiNativeThinkingExtractor {
             .apply { isAccessible = true }
         (method.invoke(output) as? List<*>)?.takeIf { it.isNotEmpty() }
     } catch (_: NoSuchMethodException) {
+        null // expected: output is not an AnthropicAssistantMessage
+    } catch (e: ReflectiveOperationException) {
+        logger.warn("extractNativeThinkingContents: reflection failed for {}: {}", output.javaClass.simpleName, e.message)
+        null
+    } catch (e: Exception) {
+        logger.warn("extractNativeThinkingContents: unexpected failure for {}: {}", output.javaClass.simpleName, e.message)
         null
     }
 

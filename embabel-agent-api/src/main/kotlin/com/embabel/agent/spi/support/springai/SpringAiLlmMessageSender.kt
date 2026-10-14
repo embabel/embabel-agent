@@ -118,7 +118,7 @@ internal class SpringAiLlmMessageSender(
         val assistantMessage = findGenerationWithToolCalls(response)  // [A1] tool-call generation (Bedrock)
             ?: response.results.map { it.output }                     // [A2] answer generation (thinking split)
                 .firstOrNull { output ->
-                    output.metadata?.containsKey("signature") != true // skip reasoning generation
+                    !output.metadata.containsKey("signature") // skip reasoning generation
                         && !output.text.isNullOrBlank()               // skip blank generations
                 }
             ?: response.results.firstOrNull()?.output                 // [A3] safety net: first generation

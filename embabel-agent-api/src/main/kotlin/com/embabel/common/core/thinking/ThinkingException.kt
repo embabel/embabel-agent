@@ -21,5 +21,9 @@ package com.embabel.common.core.thinking
  */
 class ThinkingException(
     message: String,
-    val thinkingBlocks: List<ThinkingBlock>
-) : Exception(message)
+    val thinkingBlocks: List<ThinkingBlock>,
+    // Original exception preserved as cause so that hasNonRetryableDatabindException
+    // can walk the chain and detect InvalidDefinitionException as non-retryable.
+    // Defaults to null for callers that have no wrapping exception (e.g. policy failures).
+    cause: Throwable? = null,
+) : Exception(message, cause)

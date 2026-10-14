@@ -36,12 +36,13 @@ object AnthropicOptionsConverter : OptionsConverter {
 
     override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
         val caps = ClaudeCapabilities.of(model)
+        val decision = caps.resolveThinking(resolveThinkingBudget(options))
         val builder = AnthropicChatOptions.builder()
             .model(model)
             .maxTokens(options.maxTokens ?: DEFAULT_MAX_TOKENS)
             .topK(options.topK)
             .apply {
-                when (val decision = caps.resolveThinking(resolveThinkingBudget(options))) {
+                when (decision) {
                     is ThinkingMode.Omit        -> Unit // do not set "thinking" — Claude 5.1+ rejects thinking.type="disabled" with HTTP 400
                     is ThinkingMode.Disabled    -> thinkingDisabled()                          // send "thinking": {"type": "disabled"} — required by Claude ≤5.0
                     is ThinkingMode.Adaptive    -> { thinkingAdaptive(ThinkingConfigAdaptive.Display.SUMMARIZED); effort(decision.effort) }
@@ -51,8 +52,9 @@ object AnthropicOptionsConverter : OptionsConverter {
                     // the "signature" field). There is no "full" display option in the adaptive API.
                     is ThinkingMode.BudgetBased -> thinkingEnabled(decision.budgetTokens)      // send "thinking": {"type": "enabled", "budget_tokens": N}
                 }
-                // temperature/topP conflict with thinking on Claude ≥4.7
-                if (caps.acceptsSampling) {
+                // temperature/topP conflict with active thinking (Adaptive, BudgetBased) on ≥4.7 models;
+                // safe to send when thinking is Disabled, Omit, or the model predates adaptive thinking.
+                if (caps.acceptsSampling || decision in setOf(ThinkingMode.Disabled, ThinkingMode.Omit)) {
                     temperature(options.temperature)
                     topP(options.topP)
                 }
