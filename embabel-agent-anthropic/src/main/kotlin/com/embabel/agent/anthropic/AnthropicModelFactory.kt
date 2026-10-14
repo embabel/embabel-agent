@@ -151,6 +151,7 @@ open class AnthropicModelFactory(
             knowledgeCutoffDate = knowledgeCutoffDate,
             pricingModel = pricingModel,
             thinkingSupported = true,
+            nativeThinkingExtractor = AnthropicNativeThinkingExtractor,
         )
     }
 

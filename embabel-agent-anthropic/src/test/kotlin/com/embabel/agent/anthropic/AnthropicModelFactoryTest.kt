@@ -95,6 +95,17 @@ class AnthropicModelFactoryTest {
     }
 
     @Test
+    fun `build wires AnthropicNativeThinkingExtractor so BYOK native thinking blocks are not lost`() {
+        val factory = AnthropicModelFactory(
+            apiKey = "test-key",
+            observationRegistry = ObservationRegistry.NOOP,
+            restClientBuilder = restClientBuilder,
+        )
+        val service = factory.build(model = AnthropicModels.CLAUDE_HAIKU_4_5) as SpringAiLlmService
+        assertEquals(AnthropicNativeThinkingExtractor, service.nativeThinkingExtractor)
+    }
+
+    @Test
     fun `build with custom baseUrl constructs without error`() {
         val factory = AnthropicModelFactory(
             apiKey = "test-key",
