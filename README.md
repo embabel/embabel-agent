@@ -917,6 +917,32 @@ spring:
 Spring AI appends the default `/mcp` endpoint, so this configuration connects to
 `https://search.parallel.ai/mcp`.
 
+An action only gets the MCP tools in the tool groups it requests, so map a remote server's tools to a tool group.
+For example, [Cohesivity](https://cohesivity.ai/docs?ref=gh-embabel-agent)'s MCP server provides tools that provision
+backend services such as Postgres, Redis and object storage, without requiring an account or API key:
+
+```yaml
+spring:
+  ai:
+    mcp:
+      client:
+        streamable-http:
+          connections:
+            cohesivity:
+              url: https://cohesivity.ai
+embabel:
+  agent:
+    platform:
+      tools:
+        includes:
+          backend:
+            description: Provision and manage backend services
+            provider: Cohesivity
+            tools: [create_tenant, claim_tenant, tenant_status, provision_resource, get_cohesivity_documentation, give_feedback]
+```
+
+An action can then give these tools to the LLM with `ai.withDefaultLlm().withToolGroup("backend")`.
+
 ### Docker Desktop MCP Integration
 
 Docker has embraced MCP with their Docker MCP Catalog and Toolkit, which provides:
