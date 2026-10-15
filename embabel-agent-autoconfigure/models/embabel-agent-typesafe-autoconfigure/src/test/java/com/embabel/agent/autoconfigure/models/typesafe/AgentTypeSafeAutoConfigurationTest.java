@@ -24,6 +24,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.embabel.agent.config.models.typesafe.TypeSafeProperties;
+import com.embabel.agent.autoconfigure.platform.DecisionServiceRegistryAutoConfiguration;
 import com.embabel.agent.typesafe.TypeSafeModelFactory;
 import com.embabel.common.ai.autoconfig.ProviderInitialization;
 import com.embabel.common.ai.autoconfig.RegisteredModel;
@@ -31,6 +32,7 @@ import com.embabel.common.ai.classification.ClassificationService;
 import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.decision.PropositionRequest;
 import com.embabel.common.ai.decision.PropositionResult;
+import com.embabel.common.ai.decision.support.StubDecisionService;
 import com.embabel.common.ai.model.DecisionServiceRegistry;
 
 import io.micrometer.observation.Observation;
@@ -136,7 +138,13 @@ class AgentTypeSafeAutoConfigurationTest {
     @Test
     void anApplicationAliasNamedAfterACatalogModelReplacesIt() {
         configured()
+                .withConfiguration(AutoConfigurations.of(DecisionServiceRegistryAutoConfiguration.class))
                 .withUserConfiguration(AliasedDecisionService.class)
+                .withPropertyValues(
+                        "embabel.models.decision.default=jev-latest",
+                        "embabel.models.decision.roles.review=jev-latest",
+                        "embabel.models.classification.default=jev-latest",
+                        "embabel.models.classification.roles.routing=jev-latest")
                 .run(
                         context -> {
                             assertThat(context).hasNotFailed();
@@ -144,6 +152,13 @@ class AgentTypeSafeAutoConfigurationTest {
                                     .isSameAs(context.getBean("customDecision"));
                             assertThat(context)
                                     .doesNotHaveBean(DecisionServiceRegistry.DefaultCandidate.class);
+                            var replacement = context.getBean("customDecision");
+                            var registry = context.getBean(DecisionServiceRegistry.class);
+                            assertThat(registry.registrationNames()).containsExactly("customDecision");
+                            assertThat(registry.decisions().defaultService()).isSameAs(replacement);
+                            assertThat(registry.decisions().byRole("review")).isSameAs(replacement);
+                            assertThat(registry.classifications().defaultService()).isSameAs(replacement);
+                            assertThat(registry.classifications().byRole("routing")).isSameAs(replacement);
                         });
     }
 
@@ -347,7 +362,7 @@ class AgentTypeSafeAutoConfigurationTest {
     static class AliasedDecisionService {
         @org.springframework.context.annotation.Bean({"customDecision", TypeSafeModelFactory.DEFAULT_MODEL})
         DecisionService customDecision() {
-            return mock(DecisionService.class);
+            return StubDecisionService.builder("application-model").build();
         }
     }
 

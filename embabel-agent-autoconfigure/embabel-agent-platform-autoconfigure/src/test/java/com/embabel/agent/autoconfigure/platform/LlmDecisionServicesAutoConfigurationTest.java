@@ -66,7 +66,7 @@ class LlmDecisionServicesAutoConfigurationTest {
     }
 
     @Test
-    void aRoleNamingAModelNoProviderServesFailsStartup() {
+    void unknownRoleModelFailsStartup() {
         runner.withPropertyValues("embabel.models.decision.roles.review=missing")
                 .run(context -> assertThat(context).getFailure()
                         .rootCause()
