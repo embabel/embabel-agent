@@ -46,34 +46,71 @@ class TypeBasedInputSchema(
         fun of(type: KClass<*>): TypeBasedInputSchema = TypeBasedInputSchema(type.java)
 
         /**
-         * Resolves the description for a Kotlin property, checking for [JsonPropertyDescription]
-         * across its getter, property declaration, backing Java field, and primary constructor parameter.
-         * Falls back to the property name if no annotation is present or the value is empty.
+         * Resolves the description for a Kotlin property, checking for [JsonPropertyDescription].
+         *
+         * If a non-empty description is found, it overrides the default property name.
+         * Otherwise, it falls back to the property name itself.
+         *
+         * Example:
+         * ```kotlin
+         * data class SearchInput(
+         *     // Default target is constructor parameter
+         *     @JsonPropertyDescription("Search keyword")
+         *     val query: String,
+         *     // Explicit getter target
+         *     @get:JsonPropertyDescription("Max items to return")
+         *     val limit: Int,
+         * )
+         * ```
          */
         private fun findPropertyDescription(prop: KProperty1<*, *>, kClass: KClass<*>): String {
-            val description = prop.getter.findAnnotation<JsonPropertyDescription>()?.value
-                ?: prop.findAnnotation<JsonPropertyDescription>()?.value
-                ?: prop.javaField?.getAnnotation(JsonPropertyDescription::class.java)?.value
-                ?: prop.javaGetter?.getAnnotation(JsonPropertyDescription::class.java)?.value
-                ?: kClass.primaryConstructor?.parameters?.firstOrNull { it.name == prop.name }
-                    ?.findAnnotation<JsonPropertyDescription>()?.value
+            val description =
+                // 1. Check explicit getter use-site target, e.g. @get:JsonPropertyDescription("...")
+                prop.getter.findAnnotation<JsonPropertyDescription>()?.value
+                    // 2. Check property declaration target, e.g. @property:JsonPropertyDescription("...")
+                    ?: prop.findAnnotation<JsonPropertyDescription>()?.value
+                    // 3. Check backing field target, e.g. @field:JsonPropertyDescription("...")
+                    ?: prop.javaField?.getAnnotation(JsonPropertyDescription::class.java)?.value
+                    // 4. Check Java getter method if present in bytecode
+                    ?: prop.javaGetter?.getAnnotation(JsonPropertyDescription::class.java)?.value
+                    // 5. In Kotlin data classes without a use-site prefix (e.g. data class Foo(@JsonPropertyDescription(...) val bar: String)),
+                    // Kotlin applies the annotation to the primary constructor parameter by default.
+                    ?: kClass.primaryConstructor?.parameters?.firstOrNull { it.name == prop.name }
+                        ?.findAnnotation<JsonPropertyDescription>()?.value
+
+            // Annotation description overrides property name; fallback to property name if absent or blank
             return if (!description.isNullOrEmpty()) description else prop.name
         }
 
         /**
-         * Resolves the description for a Java field or record component, checking for
-         * [JsonPropertyDescription] on the record component, field, or accessor method.
-         * Falls back to the field name if no annotation is present or the value is empty.
+         * Resolves the description for a Java field or record component, checking for [JsonPropertyDescription].
+         *
+         * If a non-empty description is found, it overrides the default field name.
+         * Otherwise, it falls back to the field name itself.
+         *
+         * Example:
+         * ```java
+         * public record UserRecord(
+         *     @JsonPropertyDescription("User ID") String id
+         * ) {}
+         * ```
          */
         private fun findFieldDescription(field: java.lang.reflect.Field, type: Class<*>): String {
+            // 1. For Java records, check annotations on the record component or its accessor method
             if (type.isRecord) {
                 val recordComponent = type.recordComponents?.firstOrNull { it.name == field.name }
                 val componentDesc = recordComponent?.getAnnotation(JsonPropertyDescription::class.java)?.value
                 if (!componentDesc.isNullOrEmpty()) return componentDesc
+
+                val accessorDesc = recordComponent?.accessor?.getAnnotation(JsonPropertyDescription::class.java)?.value
+                if (!accessorDesc.isNullOrEmpty()) return accessorDesc
             }
+
+            // 2. Check field annotation directly (e.g. @JsonPropertyDescription private String name;)
             val fieldDesc = field.getAnnotation(JsonPropertyDescription::class.java)?.value
             if (!fieldDesc.isNullOrEmpty()) return fieldDesc
 
+            // 3. Check standard getter methods (e.g. getName() or isEnabled())
             try {
                 val getter = type.methods.firstOrNull {
                     (it.name == field.name ||
@@ -85,6 +122,7 @@ class TypeBasedInputSchema(
                 if (!getterDesc.isNullOrEmpty()) return getterDesc
             } catch (_: Exception) {}
 
+            // Annotation description overrides field name; fallback to field name if absent or blank
             return field.name
         }
 
