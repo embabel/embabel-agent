@@ -25,11 +25,13 @@ class AnthropicModels {
 
         const val CLAUDE_37_SONNET = "claude-3-7-sonnet-latest"
 
+        @Deprecated(
+            "Retired by Anthropic on 2026-02-19 and no longer in the model catalog",
+            ReplaceWith("CLAUDE_HAIKU_4_5"),
+        )
         const val CLAUDE_35_HAIKU = "claude-3-5-haiku-latest"
 
         const val CLAUDE_40_OPUS = "claude-opus-4-20250514"
-
-        const val CLAUDE_41_OPUS = "claude-opus-4-1"
 
         const val CLAUDE_SONNET_4_5 = "claude-sonnet-4-5"
 
@@ -40,6 +42,12 @@ class AnthropicModels {
         const val CLAUDE_SONNET_4_6 = "claude-sonnet-4-6"
 
         const val CLAUDE_OPUS_4_8 = "claude-opus-4-8"
+
+        const val CLAUDE_FABLE_5_1 = "claude-fable-5-1"
+
+        const val CLAUDE_OPUS_5_5 = "claude-opus-5-5"
+
+        const val CLAUDE_SONNET_5_5 = "claude-sonnet-5-5"
 
         const val PROVIDER = "Anthropic"
     }

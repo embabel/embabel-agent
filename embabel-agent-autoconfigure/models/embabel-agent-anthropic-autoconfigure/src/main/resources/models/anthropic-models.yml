@@ -1,8 +1,11 @@
 # ============================================
 # anthropic-models.yml
 # ============================================
-# Updated with latest Anthropic models as of June 5, 2026
+# Updated with latest Anthropic models as of October 5, 2026
 # Using official Anthropic API aliases
+# IDs, prices and lifecycle verified 2026-10-05 against
+# platform.claude.com/docs/en/about-claude/models/overview, /pricing and
+# /model-deprecations.
 
 native_support_defaults:
   structured_output:
@@ -27,10 +30,47 @@ native_support_defaults:
 
 models:
   # ========================================
+  # CLAUDE 5 GENERATION
+  # 1M context, 128K max output. Thinking is adaptive and cannot be turned
+  # off on Opus 5.5 and Fable 5.1; Sonnet 5.5 also rejects "disabled".
+  # ========================================
+
+  # Claude Fable 5.1 - Demanding reasoning and long-horizon agentic work
+  # Forced tool use (tool_choice any/tool) returns an error on this model.
+  - name: "claude_fable_51"
+    model_id: "claude-fable-5-1"
+    display_name: "Claude Fable 5.1"
+    knowledge_cutoff_date: "2026-06-01"
+    max_tokens: 8192
+    pricing_model:
+      usd_per1m_input_tokens: 10.0
+      usd_per1m_output_tokens: 50.0
+
+  # Claude Opus 5.5 - Long-running agentic coding and knowledge work
+  - name: "claude_opus_55"
+    model_id: "claude-opus-5-5"
+    display_name: "Claude Opus 5.5"
+    knowledge_cutoff_date: "2026-06-01"
+    max_tokens: 8192
+    pricing_model:
+      usd_per1m_input_tokens: 4.0
+      usd_per1m_output_tokens: 20.0
+
+  # Claude Sonnet 5.5 - Best combination of speed and intelligence
+  - name: "claude_sonnet_55"
+    model_id: "claude-sonnet-5-5"
+    display_name: "Claude Sonnet 5.5"
+    knowledge_cutoff_date: "2026-06-01"
+    max_tokens: 8192
+    pricing_model:
+      usd_per1m_input_tokens: 2.0
+      usd_per1m_output_tokens: 10.0
+
+  # ========================================
   # CLAUDE 4.8 FAMILY
   # ========================================
 
-  # Claude Opus 4.8 - Flagship model, 1M context, most capable reasoning & coding
+  # Claude Opus 4.8 - Previous flagship, 1M context
   - name: "claude_opus_48"
     model_id: "claude-opus-4-8"
     display_name: "Claude Opus 4.8"
@@ -69,6 +109,7 @@ models:
   # ========================================
 
   # Claude Sonnet 4.5 - Strong coding & agent capabilities
+  # Deprecated: retires 2026-11-30 (replacement claude-sonnet-5-5).
   - name: "claude_sonnet_45"
     model_id: "claude-sonnet-4-5"
     display_name: "Claude Sonnet 4.5"
@@ -86,47 +127,3 @@ models:
     pricing_model:
       usd_per1m_input_tokens: 1.0
       usd_per1m_output_tokens: 5.0
-  # ========================================
-  # CLAUDE 4 FAMILY (Current Generation)
-  # ========================================
-
-  # Claude Opus 4.1 - Most powerful for complex reasoning tasks
-  - name: "claude_opus_41"
-    model_id: "claude-opus-4-1"
-    display_name: "Claude Opus 4.1"
-    knowledge_cutoff_date: "2025-01-01"
-    max_tokens: 8192
-    pricing_model:
-      usd_per1m_input_tokens: 15.0
-      usd_per1m_output_tokens: 75.0
-  # Claude Sonnet 4 - General purpose, large context window
-  - name: "claude_sonnet_4"
-    model_id: "claude-sonnet-4-0"
-    display_name: "Claude Sonnet 4"
-    knowledge_cutoff_date: "2025-01-01"
-    max_tokens: 8192
-    pricing_model:
-      usd_per1m_input_tokens: 3.0
-      usd_per1m_output_tokens: 15.0
-  # ========================================
-  # LEGACY MODELS (For Backward Compatibility)
-  # ========================================
-
-  # Claude Opus 4.0 - Legacy flagship model
-  - name: "claude_opus_40"
-    model_id: "claude-opus-4-0"
-    display_name: "Claude Opus 4.0"
-    knowledge_cutoff_date: "2025-03-31"
-    max_tokens: 8192
-    pricing_model:
-      usd_per1m_input_tokens: 15.0
-      usd_per1m_output_tokens: 75.0
-  # Claude 3.5 Haiku - Legacy fast model (replaced by Haiku 4.5)
-  - name: "claude_haiku_35"
-    model_id: "claude-3-5-haiku-latest"
-    display_name: "Claude 3.5 Haiku"
-    knowledge_cutoff_date: "2024-10-22"
-    max_tokens: 8192
-    pricing_model:
-      usd_per1m_input_tokens: 0.80
-      usd_per1m_output_tokens: 4.0

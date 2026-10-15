@@ -99,9 +99,9 @@ internal class SpringAiLlmMessageSender(
         // Convert response to Embabel message
         // Note: Some providers (e.g., Bedrock) may return multiple generations where
         // the first is empty and the second contains tool calls. We need to find the
-        // generation with tool calls, or fall back to the first one if none have them.
+        // generation with tool calls, or fall back to the answer if none have them.
         // See: https://github.com/embabel/embabel-agent/issues/1350
-        val assistantMessage = findGenerationWithToolCalls(response) ?: response.result!!.output
+        val assistantMessage = findGenerationWithToolCalls(response) ?: response.answerGeneration()!!.output
         val embabelMessage = assistantMessage.toEmbabelMessage()
 
         // Extract usage information
@@ -146,8 +146,9 @@ internal class SpringAiLlmMessageSender(
             .mapNotNull { it.metadata }
             .fold(emptyMap()) { acc, metadata -> acc + metadata }
 
-        // Collect all non-empty text from all generations
+        // Collect all non-empty text from all generations, leaving out thinking
         val allText = allOutputs
+            .filterNot { it.isThinkingBlock() }
             .mapNotNull { it.text?.takeIf { text -> text.isNotBlank() } }
             .joinToString("\n")
 

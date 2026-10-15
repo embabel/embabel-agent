@@ -84,8 +84,8 @@ class FactCheckerAgentConfiguration {
     fun factChecker(factCheckerProperties: FactCheckerProperties): Agent {
         return factCheckerAgent(
             llms = listOf(
-                LlmOptions(AnthropicModels.CLAUDE_35_HAIKU).withTemperature(.3),
-                LlmOptions(AnthropicModels.CLAUDE_35_HAIKU).withTemperature(.0),
+                LlmOptions(AnthropicModels.CLAUDE_HAIKU_4_5).withTemperature(.3),
+                LlmOptions(AnthropicModels.CLAUDE_HAIKU_4_5).withTemperature(.0),
             ),
             properties = factCheckerProperties,
         )

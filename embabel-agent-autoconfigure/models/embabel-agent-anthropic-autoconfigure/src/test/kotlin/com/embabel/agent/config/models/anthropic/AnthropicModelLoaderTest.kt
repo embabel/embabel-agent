@@ -215,6 +215,29 @@ class AnthropicModelLoaderTest {
     }
 
     @Test
+    fun `the Claude 5 generation is registered under its API ids with list prices`() {
+        val models = AnthropicModelLoader().loadAutoConfigMetadata().models.associateBy { it.modelId }
+
+        mapOf(
+            AnthropicModels.CLAUDE_FABLE_5_1 to (10.0 to 50.0),
+            AnthropicModels.CLAUDE_OPUS_5_5 to (4.0 to 20.0),
+            AnthropicModels.CLAUDE_SONNET_5_5 to (2.0 to 10.0),
+        ).forEach { (modelId, prices) ->
+            val model = models[modelId] ?: error("Missing $modelId")
+            assertEquals(prices.first, model.pricingModel?.usdPer1mInputTokens, "input price of $modelId")
+            assertEquals(prices.second, model.pricingModel?.usdPer1mOutputTokens, "output price of $modelId")
+        }
+    }
+
+    @Test
+    fun `models Anthropic has retired are not in the catalog`() {
+        val modelIds = AnthropicModelLoader().loadAutoConfigMetadata().models.map { it.modelId }
+
+        listOf("claude-opus-4-1", "claude-sonnet-4-0", "claude-opus-4-0", "claude-3-5-haiku-latest")
+            .forEach { assertFalse(it in modelIds, "$it is retired and must not be listed") }
+    }
+
+    @Test
     fun `should return empty definitions when file does not exist`() {
         // Arrange
         val loader = AnthropicModelLoader(
