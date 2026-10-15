@@ -4,10 +4,10 @@
     <parent>
         <groupId>com.embabel.agent</groupId>
         <artifactId>embabel-agent-parent</artifactId>
-        <version>1.5.3-SNAPSHOT</version>
+        <version>1.5.4-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-agent-api</artifactId>
-    <version>1.5.3-SNAPSHOT</version>
+    <version>1.5.4-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>Embabel Agent API</name>
     <description>Fluent DSL and Kotlin DSL for Agentic Flows</description>
@@ -40,6 +40,20 @@
         <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-ai</artifactId>
+        </dependency>
+
+        <!-- Provider HTTP clients (ProviderHttpClients). Optional: a provider module that uses them
+             declares these itself, so nothing new reaches other consumers of this module. -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webflux</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>io.projectreactor.netty</groupId>
+            <artifactId>reactor-netty-http</artifactId>
+            <optional>true</optional>
         </dependency>
 
         <dependency>

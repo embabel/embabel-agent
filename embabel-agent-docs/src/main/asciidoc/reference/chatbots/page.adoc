@@ -316,7 +316,7 @@ NOTE: Applications remain responsible for selecting the storage root or providin
 
 ===== Message-Level Assets
 
-`AssistantMessage` implements `AssetView` and can include assets directly:
+Both `AssistantMessage` and `UserMessage` implement `AssetView` and can include assets directly:
 
 [tabs]
 ====
@@ -324,31 +324,49 @@ Java::
 +
 [source,java]
 ----
-AssistantMessage message = new AssistantMessage(
+// Outbound assets on an assistant message
+AssistantMessage assistantMessage = new AssistantMessage(
     "Here's the report you requested",
     null,  // name
     null,  // awaitable
     List.of(reportAsset, summaryAsset)  // assets
 );
-conversation.addMessage(message);
+conversation.addMessage(assistantMessage);
+
+// Inbound assets on a user message (e.g., user uploads)
+UserMessage userMessage = new UserMessage(
+    "Please analyze this dataset",
+    null,  // name
+    List.of(uploadedAsset)  // assets
+);
+conversation.addMessage(userMessage);
 ----
 
 Kotlin::
 +
 [source,kotlin]
 ----
-val message = AssistantMessage(
+// Outbound assets on an assistant message
+val assistantMessage = AssistantMessage(
     content = "Here's the report you requested",
     assets = listOf(reportAsset, summaryAsset)
 )
-conversation.addMessage(message)
+conversation.addMessage(assistantMessage)
+
+// Inbound assets on a user message (e.g., user uploads)
+val userMessage = UserMessage(
+    content = "Please analyze this dataset",
+    assets = listOf(uploadedAsset)
+)
+conversation.addMessage(userMessage)
 ----
 ====
 
 Use message-level assets when:
 
-- Assets are directly tied to a specific response
+- Assets are directly tied to a specific turn or response
 - You want assets to appear alongside the message in the UI
+- Inbound files (e.g. user uploads) should be associated with the prompt and made available to conversation tools
 - The asset represents output from that specific interaction
 
 ===== Combined Asset View

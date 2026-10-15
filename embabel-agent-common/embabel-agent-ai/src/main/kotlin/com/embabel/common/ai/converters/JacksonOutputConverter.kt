@@ -23,8 +23,8 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.json.JsonMapper
 import com.github.victools.jsonschema.generator.*
-import com.github.victools.jsonschema.module.jackson.JacksonModule
 import com.github.victools.jsonschema.module.jackson.JacksonOption
+import com.github.victools.jsonschema.module.jackson.JacksonSchemaModule
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.ai.converter.StructuredOutputConverter
@@ -122,7 +122,7 @@ open class JacksonOutputConverter<T : Any> protected constructor(
     /**
      * Template method that allows for customization of the JSON Schema generator.
      * By defaults, this method generates a configuration that uses [Draft 2020-12](https://json-schema.org/draft/2020-12#draft-2020-12)
-     * of the specification, with the [JacksonModule] enabled.
+     * of the specification, with the [JacksonSchemaModule] enabled.
      */
     protected open fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder {
         return SchemaGeneratorConfigBuilder(
@@ -130,7 +130,7 @@ open class JacksonOutputConverter<T : Any> protected constructor(
             OptionPreset.PLAIN_JSON
         )
             .with(
-                JacksonModule(
+                JacksonSchemaModule(
                     JacksonOption.RESPECT_JSONPROPERTY_REQUIRED,
                     JacksonOption.RESPECT_JSONPROPERTY_ORDER
                 )

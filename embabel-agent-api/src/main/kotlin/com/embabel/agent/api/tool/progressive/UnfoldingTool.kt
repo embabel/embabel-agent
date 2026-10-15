@@ -427,7 +427,7 @@ interface UnfoldingTool : ProgressiveTool {
             instance: Any,
             objectMapper: ObjectMapper = jacksonObjectMapper(),
         ): UnfoldingTool =
-            if (KotlinDetector.isKotlinReflectPresent())
+            if (KotlinDetector.isKotlinReflectPresent() && KotlinDetector.isKotlinType(instance.javaClass))
                 fromInstanceKotlin(instance, objectMapper)
             else
                 fromInstanceJava(instance, objectMapper)

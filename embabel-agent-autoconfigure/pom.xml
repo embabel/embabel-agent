@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.agent</groupId>
         <artifactId>embabel-agent-parent</artifactId>
-        <version>1.5.3-SNAPSHOT</version>
+        <version>1.5.4-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-agent-autoconfigure</artifactId>
     <packaging>pom</packaging>
@@ -20,6 +20,7 @@
     </scm>
     
     <modules>
+        <module>models/embabel-agent-typesafe-autoconfigure</module>
         <module>embabel-agent-platform-autoconfigure</module>
         <module>embabel-agent-jdbc-autoconfigure</module>
         <module>embabel-agent-a2a-autoconfigure</module>

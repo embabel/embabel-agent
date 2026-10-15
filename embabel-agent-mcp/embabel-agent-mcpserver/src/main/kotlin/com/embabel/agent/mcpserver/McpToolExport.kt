@@ -118,7 +118,7 @@ interface McpToolExport : McpExportToolCallbackPublisher {
             namingStrategy: StringTransformer = StringTransformer.IDENTITY,
         ): McpToolExport {
             val toolObject = ToolObject(
-                objects = llmReference.tools(),
+                objects = llmReference.unprefixedTools(),
                 namingStrategy = llmReference.namingStrategy,
             )
             return fromToolObjects(listOf(toolObject), namingStrategy)
@@ -140,7 +140,7 @@ interface McpToolExport : McpExportToolCallbackPublisher {
         ): McpToolExport {
             val toolObjects = llmReferences.map { ref ->
                 ToolObject(
-                    objects = ref.tools(),
+                    objects = ref.unprefixedTools(),
                     namingStrategy = ref.namingStrategy,
                 )
             }

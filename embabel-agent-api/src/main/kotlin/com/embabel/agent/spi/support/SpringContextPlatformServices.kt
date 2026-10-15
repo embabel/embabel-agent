@@ -34,6 +34,7 @@ import com.embabel.agent.spi.OperationScheduler
 import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import com.embabel.agent.spi.expression.spel.SpelLogicalExpressionParser
 import com.embabel.chat.ConversationFactoryProvider
+import com.embabel.common.ai.model.DecisionServiceRegistry
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
 import tools.jackson.databind.ObjectMapper
@@ -87,6 +88,19 @@ data class SpringContextPlatformServices(
             ?.getIfUnique { NoOpAgentInstrumentation }
             ?: NoOpAgentInstrumentation
     }
+
+    /**
+     * The context's [DecisionServiceRegistry] bean, else the empty registry. Resolved on first use,
+     * like [instrumentation], so construction does not touch the context.
+     */
+    private val decisionServiceRegistry: DecisionServiceRegistry by lazy {
+        applicationContext
+            ?.getBeanProvider<DecisionServiceRegistry>()
+            ?.getIfAvailable { DecisionServiceRegistry.empty() }
+            ?: DecisionServiceRegistry.empty()
+    }
+
+    override fun decisionServices(): DecisionServiceRegistry = decisionServiceRegistry
 
     override fun withEventListener(agenticEventListener: AgenticEventListener): PlatformServices {
         return copy(

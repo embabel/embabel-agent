@@ -18,6 +18,7 @@ package com.embabel.agent.api.tool.progressive;
 import com.embabel.agent.api.annotation.LlmTool;
 import com.embabel.agent.api.annotation.UnfoldingTools;
 import com.embabel.agent.api.tool.Tool;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -57,6 +58,51 @@ class UnfoldingToolJavaTest {
         @LlmTool(description = "Do something")
         public String doSomething() {
             return "done";
+        }
+    }
+
+    @UnfoldingTools(
+        name = "greeting_tools",
+        description = "Greeting operations"
+    )
+    public static class GreetingWithOptionalTitleUnfoldingTool {
+        @LlmTool(description = "Greet a person, optionally with a title")
+        public String greet(
+                @LlmTool.Param(description = "Person's name") String name,
+                @LlmTool.Param(description = "Optional title, e.g. Dr.", required = false) String title
+        ) {
+            if (title == null || title.isBlank()) {
+                return "Hello, " + name + "!";
+            }
+            return "Hello, " + title + " " + name + "!";
+        }
+    }
+
+    @UnfoldingTools(
+        name = "parent_tools",
+        description = "Parent tool group"
+    )
+    public static class ParentWithNestedUnfoldingTool {
+        @LlmTool(description = "Parent action")
+        public String parentAction() {
+            return "parent";
+        }
+
+        @UnfoldingTools(
+            name = "nested_greeting_tools",
+            description = "Nested greeting operations"
+        )
+        public static class NestedGreetingTools {
+            @LlmTool(description = "Greet a person, optionally with a title")
+            public String greet(
+                    @LlmTool.Param(description = "Person's name") String name,
+                    @LlmTool.Param(description = "Optional title, e.g. Dr.", required = false) String title
+            ) {
+                if (title == null || title.isBlank()) {
+                    return "Hello, " + name + "!";
+                }
+                return "Hello, " + title + " " + name + "!";
+            }
         }
     }
 
@@ -210,6 +256,78 @@ class UnfoldingToolJavaTest {
 
             assertEquals("annotated_tools", tool.getDefinition().getName());
             assertEquals(1, tool.getInnerTools().size());
+        }
+
+        @Test
+        void javaToolWithOptionalParamCanBeCalledWithoutThatParam() {
+            var instance = new GreetingWithOptionalTitleUnfoldingTool();
+            var unfoldingTool = UnfoldingTool.fromInstance(instance);
+            var tool = unfoldingTool.getInnerTools().getFirst();
+
+            var result = tool.call("{\"name\":\"Alice\"}");
+
+            assertInstanceOf(Tool.Result.Text.class, result);
+            assertEquals("Hello, Alice!", ((Tool.Result.Text) result).getContent());
+        }
+
+        @Test
+        void javaToolWithOptionalParamCanBeCalledWithThatParam() {
+            var instance = new GreetingWithOptionalTitleUnfoldingTool();
+            var unfoldingTool = UnfoldingTool.fromInstance(instance);
+            var tool = unfoldingTool.getInnerTools().getFirst();
+
+            var result = tool.call("{\"name\":\"Smith\",\"title\":\"Dr.\"}");
+
+            assertInstanceOf(Tool.Result.Text.class, result);
+            assertEquals("Hello, Dr. Smith!", ((Tool.Result.Text) result).getContent());
+        }
+
+        @Test
+        void optionalParamIsNotInRequiredArrayOfSchema() throws Exception {
+            var instance = new GreetingWithOptionalTitleUnfoldingTool();
+            var unfoldingTool = UnfoldingTool.fromInstance(instance);
+            var tool = unfoldingTool.getInnerTools().getFirst();
+
+            var schema = tool.getDefinition().getInputSchema().toJsonSchema();
+            var schemaMap = new ObjectMapper().readValue(schema, Map.class);
+
+            var required = (List<?>) schemaMap.get("required");
+            assertNotNull(required, "Schema should have a 'required' array");
+            assertTrue(required.contains("name"), "'name' should be required");
+            assertFalse(required.contains("title"), "'title' must NOT be in required: " + required);
+        }
+
+        @Test
+        void toolFromInstanceWithJavaUnfoldingToolsDiscoversAndExecutesOptionalParam() {
+            var instance = new GreetingWithOptionalTitleUnfoldingTool();
+            var tools = Tool.fromInstance(instance);
+
+            assertEquals(1, tools.size());
+            assertInstanceOf(UnfoldingTool.class, tools.getFirst());
+            var unfoldingTool = (UnfoldingTool) tools.getFirst();
+            var tool = unfoldingTool.getInnerTools().getFirst();
+
+            var result = tool.call("{\"name\":\"Alice\"}");
+            assertInstanceOf(Tool.Result.Text.class, result);
+            assertEquals("Hello, Alice!", ((Tool.Result.Text) result).getContent());
+        }
+
+        @Test
+        void nestedJavaUnfoldingToolWithOptionalParamCanBeCalledWithoutThatParam() {
+            var instance = new ParentWithNestedUnfoldingTool();
+            var unfoldingTool = UnfoldingTool.fromInstance(instance);
+
+            var nestedTool = unfoldingTool.getInnerTools().stream()
+                    .filter(t -> t instanceof UnfoldingTool && t.getDefinition().getName().equals("nested_greeting_tools"))
+                    .map(t -> (UnfoldingTool) t)
+                    .findFirst()
+                    .orElseThrow();
+
+            var greetTool = nestedTool.getInnerTools().getFirst();
+            var result = greetTool.call("{\"name\":\"Alice\"}");
+
+            assertInstanceOf(Tool.Result.Text.class, result);
+            assertEquals("Hello, Alice!", ((Tool.Result.Text) result).getContent());
         }
     }
 

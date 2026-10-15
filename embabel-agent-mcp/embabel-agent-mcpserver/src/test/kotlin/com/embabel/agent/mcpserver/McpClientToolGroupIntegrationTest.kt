@@ -31,7 +31,7 @@ import com.embabel.agent.tools.mcp.McpToolGroup
 import com.embabel.common.test.ai.config.FakeAiConfiguration
 import io.modelcontextprotocol.client.McpClient
 import io.modelcontextprotocol.client.McpSyncClient
-import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport
+import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Disabled
@@ -89,7 +89,7 @@ private fun consumedWizard() = agent("McpConsumedWizard", description = "Turn a 
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
         "spring.ai.mcp.server.enabled=true",
-        "spring.ai.mcp.server.protocol=SSE",
+        "spring.ai.mcp.server.protocol=STREAMABLE",
         "spring.ai.mcp.client.enabled=false",
     ],
 )
@@ -112,7 +112,7 @@ class McpClientToolGroupIntegrationTest(
         autonomy.agentPlatform.deploy(consumedWizard())
         applicationContext.publishEvent(AgentScanningBeanPostProcessorEvent(this))
         client = McpClient
-            .sync(HttpClientSseClientTransport.builder("http://localhost:$port").build())
+            .sync(HttpClientStreamableHttpTransport.builder("http://localhost:$port/mcp").build())
             .requestTimeout(Duration.ofSeconds(30))
             .build()
         client.initialize()

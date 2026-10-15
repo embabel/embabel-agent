@@ -19,5 +19,11 @@ package com.embabel.common.byok
  * Thrown when an API key is invalid or not recognised by any supported provider.
  * Surfaces through [detectProvider] and the factory [ByokFactory.buildValidated] methods
  * without leaking any provider-specific (e.g. Spring AI) exception types to callers.
+ *
+ * A [cause] may carry the provider's own exception. It is there for diagnosis — a log line that
+ * shows WHY a probe failed — and callers still catch this type alone.
  */
-class InvalidApiKeyException(message: String) : RuntimeException(message)
+class InvalidApiKeyException @JvmOverloads constructor(
+    message: String,
+    cause: Throwable? = null,
+) : RuntimeException(message, cause)

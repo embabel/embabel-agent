@@ -29,7 +29,7 @@ import com.embabel.agent.tools.agent.FORM_SUBMISSION_TOOL_NAME
 import com.embabel.common.test.ai.config.FakeAiConfiguration
 import io.modelcontextprotocol.client.McpClient
 import io.modelcontextprotocol.client.McpSyncClient
-import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport
+import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport
 import io.modelcontextprotocol.spec.McpError
 import io.modelcontextprotocol.spec.McpSchema
 import org.junit.jupiter.api.AfterAll
@@ -104,7 +104,7 @@ private fun mcpLocallyExportedWizard() = wizard(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
         "spring.ai.mcp.server.enabled=true",
-        "spring.ai.mcp.server.protocol=SSE",
+        "spring.ai.mcp.server.protocol=STREAMABLE",
         "spring.ai.mcp.server.name=embabel-mcp-protocol-it",
         "spring.ai.mcp.server.version=9.9.9",
         "spring.ai.mcp.client.enabled=false",
@@ -128,8 +128,8 @@ class McpServerProtocolIntegrationTest(
 
     /**
      * One deployment, one exposure and one MCP session for the whole class. Nothing here
-     * mutates server state per test, and a session per test method left SSE connections
-     * being torn down mid-response, which shows up as broken pipe noise in the build log.
+     * mutates server state per test, and a session per test method adds unnecessary
+     * connection overhead without exercising anything new.
      */
     @BeforeAll
     fun deployAgentsAndOpenOneMcpSession() {
@@ -142,7 +142,7 @@ class McpServerProtocolIntegrationTest(
         // returns only once every tool is registered. No polling needed.
         applicationContext.publishEvent(AgentScanningBeanPostProcessorEvent(this))
         client = McpClient
-            .sync(HttpClientSseClientTransport.builder("http://localhost:$port").build())
+            .sync(HttpClientStreamableHttpTransport.builder("http://localhost:$port/mcp").build())
             .requestTimeout(Duration.ofSeconds(30))
             .build()
         handshake = client.initialize()

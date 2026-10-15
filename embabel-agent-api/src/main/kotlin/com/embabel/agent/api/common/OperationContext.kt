@@ -31,9 +31,13 @@ import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.ToolGroupConsumer
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.support.decision.OperationBoundServices
+import com.embabel.common.ai.classification.ClassificationService
+import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelSelectionCriteria
+import com.embabel.common.ai.model.ServiceSelector
 import com.embabel.common.ai.prompt.CurrentDate
 import com.embabel.common.ai.prompt.PromptContributor
 import java.util.concurrent.CompletableFuture
@@ -243,4 +247,10 @@ internal class OperationContextAi(
     override fun withLlmService(llmService: LlmService<*>): PromptRunner {
         return context.promptRunner().withLlmService(llmService)
     }
+
+    override fun decisions(): ServiceSelector<DecisionService> =
+        OperationBoundServices.decisions(context.processContext.platformServices.decisionServices())
+
+    override fun classifications(): ServiceSelector<ClassificationService> =
+        OperationBoundServices.classifications(context.processContext.platformServices.decisionServices())
 }

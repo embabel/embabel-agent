@@ -61,19 +61,29 @@ spring:
 
 ====== Transport Protocol
 
-Embabel Agent uses **SSE (Server-Sent Events) transport**, exposing your MCP server at `http://localhost:8080/sse`.
-This is compatible with Claude Desktop, MCP Inspector, Cursor, and most desktop MCP clients.
+Embabel Agent uses **Streamable HTTP transport** by default (Spring AI 2.0+), exposing your MCP server at
+`http://localhost:8080/mcp`.
+This is compatible with Claude Desktop, MCP Inspector, Cursor, OpenWebUI, and all MCP clients that support
+the Streamable HTTP protocol.
 
-**Clients requiring Streamable HTTP**::
-Some clients (e.g., OpenWebUI) require Streamable HTTP transport instead of SSE.
-Use the `mcpo` proxy to bridge your SSE server:
-
-[source,bash]
+[source,yaml]
 ----
-uvx mcpo --port 8000 --server-type sse -- http://localhost:8080/sse
+spring:
+  ai:
+    mcp:
+      server:
+        protocol: STREAMABLE   # default; STATELESS is also supported
 ----
 
-Then connect your client to `http://localhost:8000`.
+**SSE transport (deprecated)**::
+SSE transport (`protocol: SSE`, endpoint `http://localhost:8080/sse`) is still accepted but
+`WebMvcSseServerTransportProvider` is `@Deprecated(forRemoval=true)` in Spring AI 2.0 and will be
+removed in a future release.
++
+SSE clients continue to work during normal operation. On server shutdown, connections are closed
+abruptly rather than gracefully (Tomcat waits up to 30 seconds before force-closing them) — this
+is a known upstream issue (Spring AI #4002, MCP Java SDK #635).
+Migrate to `protocol: STREAMABLE` to avoid this and to stay compatible with future Spring AI releases.
 
 ====== Automatic Publishing
 

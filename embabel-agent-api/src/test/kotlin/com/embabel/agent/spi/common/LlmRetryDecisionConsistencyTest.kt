@@ -176,4 +176,12 @@ class LlmRetryDecisionConsistencyTest {
                 .isFalse()
         }
     }
+    @Test
+    fun `rate limit status inspection stops on a cyclic cause chain`() {
+        val first = RuntimeException("no status")
+        val second = RuntimeException("no status", first)
+        first.initCause(second)
+        assertThat(LlmRetryDecision.isRateLimit(first)).isFalse()
+    }
+
 }

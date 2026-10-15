@@ -30,8 +30,10 @@ import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.spi.OperationScheduler
 import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import com.embabel.chat.ConversationFactoryProvider
+import com.embabel.common.ai.model.DecisionServiceRegistry
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
+import org.jetbrains.annotations.ApiStatus
 import tools.jackson.databind.ObjectMapper
 
 /**
@@ -86,6 +88,15 @@ interface PlatformServices {
     fun autonomy(): Autonomy
 
     fun modelProvider(): ModelProvider
+
+    /**
+     * Returns the registry of decision and classification services that workflow operations select
+     * from. The default body returns an empty registry.
+     *
+     * @return the decision service registry
+     */
+    @ApiStatus.Experimental
+    fun decisionServices(): DecisionServiceRegistry = DecisionServiceRegistry.empty()
 
     /**
      * Get the conversation factory provider for resolving conversation factories by type.

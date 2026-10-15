@@ -18,6 +18,7 @@ package com.embabel.agent.api.common
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.LlmTool.Param
 import com.embabel.agent.api.annotation.support.Wumpus
+import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.agent.api.common.nested.support.PromptRunnerCreating
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.api.reference.LlmReference
@@ -357,22 +358,19 @@ class OperationContextPromptRunnerTest {
             every { mockReference.toolPrefix() } returns "testapi"
             every { mockReference.notes() } returns "Test API documentation"
             every { mockReference.contribution() } returns "Reference: TestAPI\nDescription: Test API\nTool prefix: testapi\nNotes: Test API documentation"
-            every { mockReference.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference)
-            every { mockReference.tools() } returns emptyList()
+            every { mockReference.namingStrategy } returns StringTransformer { "testapi_$it" }
+            every { mockReference.unprefixedTools() } returns emptyList()
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
                 .withReference(mockReference)
 
             assertEquals(1, ocpr.toolObjects.size, "Must have one tool object for reference")
-            assertEquals(mockReference, ocpr.toolObjects[0].objects[0], "Reference not set correctly as tool object")
             assertEquals(1, ocpr.promptContributors.size, "Must have one prompt contributor for reference")
             assertEquals(
                 mockReference,
                 ocpr.promptContributors[0],
                 "Reference not set correctly as prompt contributor"
             )
-
-            // Test that a naming strategy is set (actual behavior may vary)
             assertNotNull(ocpr.toolObjects[0].namingStrategy, "Naming strategy should not be null")
         }
 
@@ -384,15 +382,13 @@ class OperationContextPromptRunnerTest {
             every { mockReference.toolPrefix() } returns "test-api_v2_"
             every { mockReference.notes() } returns "Test API v2 documentation"
             every { mockReference.contribution() } returns "Reference: Test-API@v2!\nDescription: Test API v2\nTool prefix: test-api_v2_\nNotes: Test API v2 documentation"
-            every { mockReference.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference)
-            every { mockReference.tools() } returns emptyList()
+            every { mockReference.namingStrategy } returns StringTransformer { "test_api_v2__$it" }
+            every { mockReference.unprefixedTools() } returns emptyList()
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
                 .withReference(mockReference)
 
             assertEquals(1, ocpr.toolObjects.size, "Must have one tool object for reference")
-
-            // Test that a naming strategy is set for special characters
             assertNotNull(
                 ocpr.toolObjects[0].namingStrategy,
                 "Naming strategy should not be null even with special characters"
@@ -408,8 +404,8 @@ class OperationContextPromptRunnerTest {
             every { mockReference1.toolPrefix() } returns "api1"
             every { mockReference1.notes() } returns "API 1 documentation"
             every { mockReference1.contribution() } returns "Reference: API1\nDescription: API 1\nTool prefix: api1\nNotes: API 1 documentation"
-            every { mockReference1.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference1)
-            every { mockReference1.tools() } returns emptyList()
+            every { mockReference1.namingStrategy } returns StringTransformer { "api1_$it" }
+            every { mockReference1.unprefixedTools() } returns emptyList()
 
             val mockReference2 = mockk<LlmReference>()
             every { mockReference2.name } returns "API2"
@@ -417,31 +413,16 @@ class OperationContextPromptRunnerTest {
             every { mockReference2.toolPrefix() } returns "api2"
             every { mockReference2.notes() } returns "API 2 documentation"
             every { mockReference2.contribution() } returns "Reference: API2\nDescription: API 2\nTool prefix: api2\nNotes: API 2 documentation"
-            every { mockReference2.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference2)
-            every { mockReference2.tools() } returns emptyList()
+            every { mockReference2.namingStrategy } returns StringTransformer { "api2_$it" }
+            every { mockReference2.unprefixedTools() } returns emptyList()
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
                 .withReferences(listOf(mockReference1, mockReference2))
 
             assertEquals(2, ocpr.toolObjects.size, "Must have two tool objects for references")
             assertEquals(2, ocpr.promptContributors.size, "Must have two prompt contributors for references")
-
-            assertTrue(
-                ocpr.toolObjects.any { it.objects[0] == mockReference1 },
-                "Reference 1 not found in tool objects"
-            )
-            assertTrue(
-                ocpr.toolObjects.any { it.objects[0] == mockReference2 },
-                "Reference 2 not found in tool objects"
-            )
-            assertTrue(
-                ocpr.promptContributors.contains(mockReference1),
-                "Reference 1 not found in prompt contributors"
-            )
-            assertTrue(
-                ocpr.promptContributors.contains(mockReference2),
-                "Reference 2 not found in prompt contributors"
-            )
+            assertTrue(ocpr.promptContributors.contains(mockReference1), "Reference 1 not found in prompt contributors")
+            assertTrue(ocpr.promptContributors.contains(mockReference2), "Reference 2 not found in prompt contributors")
         }
 
         @Test
@@ -452,8 +433,8 @@ class OperationContextPromptRunnerTest {
             every { mockReference1.toolPrefix() } returns "api1"
             every { mockReference1.notes() } returns "API 1 documentation"
             every { mockReference1.contribution() } returns "Reference: API1\nDescription: API 1\nTool prefix: api1\nNotes: API 1 documentation"
-            every { mockReference1.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference1)
-            every { mockReference1.tools() } returns emptyList()
+            every { mockReference1.namingStrategy } returns StringTransformer { "api1_$it" }
+            every { mockReference1.unprefixedTools() } returns emptyList()
 
             val mockReference2 = mockk<LlmReference>()
             every { mockReference2.name } returns "API2"
@@ -461,8 +442,8 @@ class OperationContextPromptRunnerTest {
             every { mockReference2.toolPrefix() } returns "api2"
             every { mockReference2.notes() } returns "API 2 documentation"
             every { mockReference2.contribution() } returns "Reference: API2\nDescription: API 2\nTool prefix: api2\nNotes: API 2 documentation"
-            every { mockReference2.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference2)
-            every { mockReference2.tools() } returns emptyList()
+            every { mockReference2.namingStrategy } returns StringTransformer { "api2_$it" }
+            every { mockReference2.unprefixedTools() } returns emptyList()
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
                 .withReferences(mockReference1, mockReference2)
@@ -479,8 +460,8 @@ class OperationContextPromptRunnerTest {
             every { mockReference.toolPrefix() } returns "testapi"
             every { mockReference.notes() } returns "Test API documentation"
             every { mockReference.contribution() } returns "Reference: TestAPI\nDescription: Test API\nTool prefix: testapi\nNotes: Test API documentation"
-            every { mockReference.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference)
-            every { mockReference.tools() } returns emptyList()
+            every { mockReference.namingStrategy } returns StringTransformer { "testapi_$it" }
+            every { mockReference.unprefixedTools() } returns emptyList()
 
             val systemPrompt = "You are a helpful assistant."
 
@@ -505,7 +486,7 @@ class OperationContextPromptRunnerTest {
         }
 
         @Test
-        fun `test withReference picks up tools from LlmReference tools method`() {
+        fun `test withReference picks up tools from LlmReference unprefixedTools`() {
             val referenceTool = Tool.of(
                 name = "reference_tool",
                 description = "A tool from the reference",
@@ -519,25 +500,15 @@ class OperationContextPromptRunnerTest {
             every { mockReference.toolPrefix() } returns "toolsapi"
             every { mockReference.notes() } returns "API documentation"
             every { mockReference.contribution() } returns "Reference: ToolsAPI"
-            every { mockReference.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference)
-            every { mockReference.tools() } returns listOf(referenceTool)
+            every { mockReference.namingStrategy } returns StringTransformer { "toolsapi_$it" }
+            every { mockReference.unprefixedTools() } returns listOf(referenceTool)
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
                 .withReference(mockReference) as OperationContextPromptRunner
 
-            // Verify tools from the reference are added to otherToolCallbacks
-            val field = OperationContextPromptRunner::class.java.getDeclaredField("otherTools")
-            field.isAccessible = true
-            @Suppress("UNCHECKED_CAST")
-            val tools = field.get(ocpr) as List<Tool>
-
-            assertEquals(1, tools.size, "Must have one tool callback from reference")
-            assertEquals(
-                "reference_tool",
-                tools[0].definition.name,
-                "Tool from reference not added correctly"
-            )
-            assertEquals("A tool from the reference", tools[0].definition.description)
+            val tools = safelyGetTools(ocpr.toolObjects)
+            assertEquals(1, tools.size, "Must have one tool from reference")
+            assertEquals("toolsapi_reference_tool", tools[0].definition.name, "Tool must be prefixed")
         }
 
         @Test
@@ -551,21 +522,17 @@ class OperationContextPromptRunnerTest {
             every { mockReference.toolPrefix() } returns "multitoolapi"
             every { mockReference.notes() } returns "API documentation"
             every { mockReference.contribution() } returns "Reference: MultiToolAPI"
-            every { mockReference.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference)
-            every { mockReference.tools() } returns listOf(tool1, tool2)
+            every { mockReference.namingStrategy } returns StringTransformer { "multitoolapi_$it" }
+            every { mockReference.unprefixedTools() } returns listOf(tool1, tool2)
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
                 .withReference(mockReference) as OperationContextPromptRunner
 
-            val field = OperationContextPromptRunner::class.java.getDeclaredField("otherTools")
-            field.isAccessible = true
-            @Suppress("UNCHECKED_CAST")
-            val tools = field.get(ocpr) as List<Tool>
-
-            assertEquals(2, tools.size, "Must have two tool callbacks from reference")
+            val tools = safelyGetTools(ocpr.toolObjects)
+            assertEquals(2, tools.size, "Must have two tools from reference, each registered once")
             val names = tools.map { it.definition.name }
-            assertTrue(names.contains("ref_tool1"), "First tool not found")
-            assertTrue(names.contains("ref_tool2"), "Second tool not found")
+            assertTrue(names.contains("multitoolapi_ref_tool1"), "First tool not found with prefix")
+            assertTrue(names.contains("multitoolapi_ref_tool2"), "Second tool not found with prefix")
         }
 
         @Test
@@ -579,8 +546,8 @@ class OperationContextPromptRunnerTest {
             every { mockReference1.toolPrefix() } returns "api1"
             every { mockReference1.notes() } returns "API 1 docs"
             every { mockReference1.contribution() } returns "Reference: API1"
-            every { mockReference1.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference1)
-            every { mockReference1.tools() } returns listOf(tool1)
+            every { mockReference1.namingStrategy } returns StringTransformer.IDENTITY
+            every { mockReference1.unprefixedTools() } returns listOf(tool1)
 
             val mockReference2 = mockk<LlmReference>()
             every { mockReference2.name } returns "API2"
@@ -588,19 +555,16 @@ class OperationContextPromptRunnerTest {
             every { mockReference2.toolPrefix() } returns "api2"
             every { mockReference2.notes() } returns "API 2 docs"
             every { mockReference2.contribution() } returns "Reference: API2"
-            every { mockReference2.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference2)
-            every { mockReference2.tools() } returns listOf(tool2)
+            every { mockReference2.namingStrategy } returns StringTransformer.IDENTITY
+            every { mockReference2.unprefixedTools() } returns listOf(tool2)
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
                 .withReferences(mockReference1, mockReference2) as OperationContextPromptRunner
 
-            val field = OperationContextPromptRunner::class.java.getDeclaredField("otherTools")
-            field.isAccessible = true
-            @Suppress("UNCHECKED_CAST")
-            val tools = field.get(ocpr) as List<Tool>
+            val allTools = safelyGetTools(ocpr.toolObjects)
 
-            assertEquals(2, tools.size, "Must have tool callbacks from both references")
-            val names = tools.map { it.definition.name }
+            assertEquals(2, allTools.size, "Must have tools from both references, each once")
+            val names = allTools.map { it.definition.name }
             assertTrue(names.contains("api1_tool"), "Tool from API1 not found")
             assertTrue(names.contains("api2_tool"), "Tool from API2 not found")
         }
@@ -768,7 +732,7 @@ class OperationContextPromptRunnerTest {
             assertEquals(0, otherTools.size, "Tool should be in toolObjects, not otherTools")
 
             // Verify the naming strategy is applied when tools are extracted
-            val extractedTools = com.embabel.agent.core.support.safelyGetTools(ocpr.toolObjects)
+            val extractedTools = safelyGetTools(ocpr.toolObjects)
             assertEquals(1, extractedTools.size, "Must have one extracted tool")
             assertEquals("custom_multiply", extractedTools[0].definition.name, "Naming strategy should be applied")
         }
@@ -796,7 +760,7 @@ class OperationContextPromptRunnerTest {
             assertEquals(annotatedTools, ocpr.toolObjects[0].objects[0], "Instance should be wrapped")
 
             // Verify tools are extracted correctly
-            val extractedTools = com.embabel.agent.core.support.safelyGetTools(ocpr.toolObjects)
+            val extractedTools = safelyGetTools(ocpr.toolObjects)
             assertEquals(2, extractedTools.size, "Must have two extracted tools")
 
             val toolNames = extractedTools.map { it.definition.name }
@@ -833,7 +797,7 @@ class OperationContextPromptRunnerTest {
             assertEquals(directTool, ocpr.toolObjects[0].objects[0], "Tool should be wrapped in ToolObject")
 
             // Verify tool is extracted correctly via safelyGetTools
-            val extractedTools = com.embabel.agent.core.support.safelyGetTools(ocpr.toolObjects)
+            val extractedTools = safelyGetTools(ocpr.toolObjects)
             assertEquals(1, extractedTools.size, "Must have one extracted tool")
             assertEquals("direct_tool", extractedTools[0].definition.name, "Tool name should match")
             assertEquals(
@@ -867,7 +831,7 @@ class OperationContextPromptRunnerTest {
                 .withTool(tool) as OperationContextPromptRunner
 
             // Extract tools from both
-            val toolsFromToolObject = com.embabel.agent.core.support.safelyGetTools(ocprViaToolObject.toolObjects)
+            val toolsFromToolObject = safelyGetTools(ocprViaToolObject.toolObjects)
 
             val otherToolsField = OperationContextPromptRunner::class.java.getDeclaredField("otherTools")
             otherToolsField.isAccessible = true

@@ -33,6 +33,14 @@ include::spring/page.adoc[]
 
 include::llms/page.adoc[]
 
+include::classification/page.adoc[]
+
+include::llm-decisions/page.adoc[]
+
+include::decision-specs/page.adoc[]
+
+include::decision-execution/page.adoc[]
+
 include::bedrock/page.adoc[]
 
 include::minimax/page.adoc[]
@@ -56,6 +64,8 @@ include::termination/page.adoc[]
 include::customizing/page.adoc[]
 
 include::integrations/page.adoc[]
+
+include::typesafe/page.adoc[]
 
 include::tooling/page.adoc[]
 

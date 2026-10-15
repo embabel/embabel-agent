@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.agent</groupId>
         <artifactId>embabel-agent-parent</artifactId>
-        <version>1.5.3-SNAPSHOT</version>
+        <version>1.5.4-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-agent-docs</artifactId>
     <packaging>jar</packaging>
@@ -200,6 +200,8 @@
                                     <sourceDirectories>
                                         <dir>${project.parent.basedir}/embabel-agent-api/src/main/kotlin</dir>
                                         <dir>${project.parent.basedir}/embabel-agent-api/src/main/java</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-common/embabel-agent-ai/src/main/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-typesafe/src/main/java</dir>
                                         <dir>${project.parent.basedir}/embabel-agent-a2a/src/main/kotlin</dir>
                                         <dir>${project.parent.basedir}/embabel-agent-code/src/main/kotlin</dir>
                                         <dir>${project.parent.basedir}/embabel-agent-autoconfigure/embabel-agent-platform-autoconfigure/src/main/java</dir>

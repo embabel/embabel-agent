@@ -119,11 +119,36 @@ class ConversationAssetsTest {
     inner class MessageTypeTests {
 
         @Test
-        fun `UserMessages do not contribute assets`() {
+        fun `UserMessages without assets do not contribute assets`() {
             val userMessage = UserMessage("Hello")
             val conversation = InMemoryConversation(messages = listOf(userMessage))
 
             assertThat(conversation.assets).isEmpty()
+        }
+
+        @Test
+        fun `UserMessages with assets contribute assets`() {
+            val userAsset = testAsset("user-1", "User Asset")
+            val userMessage = UserMessage(
+                content = "Here is my file",
+                assets = listOf(userAsset),
+            )
+            val conversation = InMemoryConversation(messages = listOf(userMessage))
+
+            assertThat(conversation.assets).hasSize(1)
+            assertThat(conversation.assets[0].id).isEqualTo("user-1")
+        }
+
+        @Test
+        fun `assets combines user message and assistant message assets`() {
+            val userAsset = testAsset("user-1", "Upload")
+            val assistantAsset = testAsset("asst-1", "Generated")
+            val userMessage = UserMessage("Input", assets = listOf(userAsset))
+            val assistantMessage = AssistantMessage("Output", assets = listOf(assistantAsset))
+
+            val conversation = InMemoryConversation(messages = listOf(userMessage, assistantMessage))
+
+            assertThat(conversation.assets.map { it.id }).containsExactly("user-1", "asst-1")
         }
 
         @Test
@@ -227,6 +252,54 @@ class ConversationAssetsTest {
             // Test references()
             val refs = conversation.references()
             assertThat(refs).hasSize(2)
+        }
+    }
+
+    @Nested
+    inner class UserMessageBinaryCompatibilityTest {
+
+        @Test
+        fun `1_5_3 synthetic constructor for parts defaults timestamp`() {
+            // A 1.5.3-compiled caller invoking UserMessage(parts) calls the synthetic constructor:
+            // UserMessage(List, String, Instant, int, DefaultConstructorMarker) with timestamp = null and mask = 6
+            val syntheticConstructor = UserMessage::class.java.getDeclaredConstructor(
+                List::class.java,
+                String::class.java,
+                Instant::class.java,
+                Int::class.javaPrimitiveType,
+                Class.forName("kotlin.jvm.internal.DefaultConstructorMarker"),
+            )
+            syntheticConstructor.isAccessible = true
+            val parts = listOf(TextPart("hello"))
+            val before = Instant.now()
+            val message = syntheticConstructor.newInstance(parts, null, null, 6, null) as UserMessage
+            val after = Instant.now()
+
+            assertThat(message.parts).isEqualTo(parts)
+            assertThat(message.content).isEqualTo("hello")
+            assertThat(message.timestamp).isBetween(before, after)
+            assertThat(message.assets).isEmpty()
+        }
+
+        @Test
+        fun `1_5_3 synthetic constructor for text content defaults timestamp`() {
+            // A 1.5.3-compiled caller invoking UserMessage("hi") calls the synthetic constructor:
+            // UserMessage(String, String, Instant, int, DefaultConstructorMarker) with timestamp = null and mask = 6
+            val syntheticConstructor = UserMessage::class.java.getDeclaredConstructor(
+                String::class.java,
+                String::class.java,
+                Instant::class.java,
+                Int::class.javaPrimitiveType,
+                Class.forName("kotlin.jvm.internal.DefaultConstructorMarker"),
+            )
+            syntheticConstructor.isAccessible = true
+            val before = Instant.now()
+            val message = syntheticConstructor.newInstance("hi", null, null, 6, null) as UserMessage
+            val after = Instant.now()
+
+            assertThat(message.content).isEqualTo("hi")
+            assertThat(message.timestamp).isBetween(before, after)
+            assertThat(message.assets).isEmpty()
         }
     }
 

@@ -19,6 +19,9 @@ import com.embabel.common.ai.media.MimeTypes
 import com.embabel.common.ai.media.isDocumentMimeType
 import com.embabel.common.ai.media.isImageMimeType
 import tools.jackson.databind.annotation.JsonDeserialize
+import java.security.MessageDigest
+import java.util.HexFormat
+import java.util.UUID
 
 /**
  * Represents a part of a multimodal message.
@@ -117,4 +120,28 @@ data class DocumentPart(
 
         val SUPPORTED_MIME_TYPES = MimeTypes.DOCUMENT_MIME_TYPES
     }
+}
+
+/**
+ * Convert a binary [MediaPart] into a [MaterializableAsset]
+ * for storage in an [com.embabel.chat.spi.AssetStore] or tracking in a conversation.
+ *
+ * @param name Optional asset name. Defaults to the document filename, or "document"/"image".
+ * @param id Optional stable identifier. Defaults to the SHA-256 hex digest of [data], ensuring
+ *           that converting the same media part repeatedly produces a repeatable asset ID.
+ */
+fun MediaPart.asMaterializableAsset(
+    name: String? = null,
+    id: String = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(data)),
+): MaterializableAsset {
+    val resolvedName = name ?: when (this) {
+        is DocumentPart -> filename ?: "document"
+        is ImagePart -> "image"
+    }
+    return MaterializableAsset.fromBytes(
+        name = resolvedName,
+        data = data,
+        mimeType = mimeType,
+        id = id,
+    )
 }
