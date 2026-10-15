@@ -1,5 +1,6 @@
 package com.embabel.agent.spi.expression.spel
 
+import com.embabel.agent.api.annotation.AchievesGoal
 import com.embabel.agent.api.annotation.Action
 import com.embabel.agent.api.annotation.Agent
 import com.embabel.agent.api.annotation.support.PersonWithReverseTool
@@ -17,7 +18,8 @@ data class Zoo(
 
 @Agent(
     description = "thing",
-    planner = PlannerType.UTILITY
+    planner = PlannerType.UTILITY,
+    version = "4.0.0"
 )
 class Spel2ActionsNoGoal {
 
@@ -33,6 +35,27 @@ class Spel2ActionsNoGoal {
         return Zoo(elephant)
     }
 
+}
+
+@Agent(
+    description = "thing",
+    planner = PlannerType.SUPERVISOR,
+    version = "4.0.0"
+)
+class Spel2ActionsSuperVisor {
+
+    @Action
+    fun makeElephant(): Elephant {
+        return Elephant("Zaboya", 30)
+    }
+
+    @Action(
+        pre = ["spel:elephant.age > 20"]
+    )
+    @AchievesGoal(description = "All stages complete")
+    fun makeZoo(elephant: Elephant): Zoo {
+        return Zoo(elephant)
+    }
 }
 
 @Agent(

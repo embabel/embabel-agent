@@ -47,6 +47,7 @@ internal class SupervisorAgentFactory {
      * @param allActions All actions defined on the agent
      * @param goals All goals defined on the agent
      * @param conditions All conditions defined on the agent
+     * @param agentVersion version of the given agent
      */
     fun createSupervisorAgent(
         agenticInfo: AgenticInfo,
@@ -55,6 +56,7 @@ internal class SupervisorAgentFactory {
         allActions: List<Action>,
         goals: Set<Goal>,
         conditions: Set<Condition>,
+        agentVersion : String
     ): CoreAgent {
         // Get non-goal actions to be exposed as tools
         val toolActions = allActions.filter { it.name != goalAction.name }
@@ -84,7 +86,7 @@ internal class SupervisorAgentFactory {
                 instance.javaClass.`package`.name
             } ?: instance.javaClass.`package`.name,
             description = agenticInfo.agentAnnotation?.description ?: "",
-            version = Semver(agenticInfo.agentAnnotation?.version ?: "0.1.0"),
+            version = Semver(agentVersion),
             conditions = conditions,
             actions = listOf(supervisorAction),
             goals = updatedGoals,

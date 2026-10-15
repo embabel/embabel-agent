@@ -120,9 +120,11 @@ class AgentMetadataReader(
     private val skipAgentDeploymentOnError: Boolean = false,
 ) {
 
-    private val supervisorAgentFactory = SupervisorAgentFactory()
+    private val agentVersionResolver = AgentVersionResolver()
 
     private val logger = LoggerFactory.getLogger(AgentMetadataReader::class.java)
+
+    private val supervisorAgentFactory = SupervisorAgentFactory()
 
     fun createAgentScopes(vararg instances: Any): List<AgentScope> =
         instances.mapNotNull { createAgentMetadata(it) }
@@ -268,6 +270,7 @@ class AgentMetadataReader(
                     allActions = allActions,
                     goals = goals,
                     conditions = conditions,
+                    agentVersionResolver.resolveVersion(agenticInfo.agentAnnotation.version)
                 )
             } else {
                 val distinctGoalTypes = goalActions.map { it.returnType }.toSet()
@@ -293,7 +296,7 @@ class AgentMetadataReader(
                         instance.javaClass.`package`.name
                     },
                     description = agenticInfo.agentAnnotation.description,
-                    version = Semver(agenticInfo.agentAnnotation.version),
+                    version = Semver(agentVersionResolver.resolveVersion(agenticInfo.agentAnnotation.version)),
                     conditions = conditions,
                     actions = allActions,
                     goals = goals,

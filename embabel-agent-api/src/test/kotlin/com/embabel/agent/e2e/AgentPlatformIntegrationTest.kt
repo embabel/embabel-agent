@@ -33,11 +33,14 @@ import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.domain.library.HasContent
 import com.embabel.agent.spi.expression.spel.Elephant
 import com.embabel.agent.spi.expression.spel.Spel2ActionsNoGoal
+import com.embabel.agent.spi.expression.spel.Spel2ActionsSuperVisor
+import com.embabel.agent.spi.expression.spel.Spel2ActionsYoungElephant
 import com.embabel.agent.spi.expression.spel.Zoo
 import com.embabel.agent.test.integration.DummyObjectCreatingLlmOperations
 import com.embabel.agent.test.integration.FakeRanker
 import com.embabel.common.core.types.Described
 import com.embabel.common.core.types.Named
+import com.embabel.common.core.types.Semver
 import com.embabel.example.simple.horoscope.TestHoroscopeService
 import com.embabel.example.simple.horoscope.java.TestStarNewsFinder
 import com.embabel.example.simple.horoscope.kotlin.Writeup
@@ -50,7 +53,11 @@ import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.context.annotation.Primary
+import org.springframework.core.io.ClassPathResource
+import org.springframework.core.io.support.PropertiesLoaderUtils
 import org.springframework.test.context.ActiveProfiles
+import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 
 @TestConfiguration
@@ -281,5 +288,50 @@ class AgentPlatformIntegrationTest(
             )
         }
 
+    }
+
+    @Nested
+    inner class AgentVersionCheck {
+
+        @Test
+        fun `verify version of a SuperVisor planner type agent with an explicit version`() {
+            val agent = AgentMetadataReader().createAgentMetadata(Spel2ActionsSuperVisor()) as Agent
+
+            assertEquals(
+                "4.0.0", agent.version.value,
+                "Should be version 4.0.0, but found = ${agent.version.value}",
+            )
+        }
+
+        @Test
+        fun `verify version of a non SuperVisor planner type agent with an explicit version`() {
+            val agent = AgentMetadataReader().createAgentMetadata(Spel2ActionsNoGoal()) as Agent
+
+             assertEquals(
+                "4.0.0", agent.version.value,
+                "Should be version 4.0.0, but found = ${agent.version.value}",
+            )
+        }
+
+        @Test
+        fun `verify version of an agent which does not have an explicit version`() {
+            val agent = AgentMetadataReader().createAgentMetadata(Spel2ActionsYoungElephant()) as Agent
+
+            val resource = ClassPathResource("META-INF/build-info.properties")
+            val expectedVersion = if (resource.exists()) {
+                PropertiesLoaderUtils.loadProperties(resource).getProperty("build.version")
+            } else {
+                Semver.DEFAULT_VERSION
+            }
+
+            assertNotEquals(
+                Semver.DEFAULT_VERSION, agent.version.value,
+                "It should not have been version - ${Semver.DEFAULT_VERSION}",
+            )
+            assertEquals(
+                expectedVersion, agent.version.value,
+                "It should have been version - ${expectedVersion}, but found ${agent.version.value}",
+            )
+        }
     }
 }
