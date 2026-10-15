@@ -25,15 +25,12 @@ import org.springframework.context.annotation.Import;
 
 /**
  * Registers the TypeSafe decision models when the integration is on the classpath. Runs after the
- * shared HTTP transport and before the community starter so both can reuse application transport
- * configuration without changing each other's beans.
+ * shared HTTP transport so the models can use the application's transport configuration.
  *
  * <p>An application that supplies its own {@link TypeSafeModelFactory} keeps it, and this
  * configuration then registers nothing and needs no credential.
  */
-@AutoConfiguration(
-        beforeName = "org.springaicommunity.typesafe.autoconfigure.TypeSafeAutoConfiguration",
-        afterName = "com.embabel.agent.autoconfigure.netty.NettyClientAutoConfiguration")
+@AutoConfiguration(afterName = "com.embabel.agent.autoconfigure.netty.NettyClientAutoConfiguration")
 @ConditionalOnClass(TypeSafeModelFactory.class)
 @ConditionalOnMissingBean(TypeSafeModelFactory.class)
 @Import(TypeSafeModelsConfig.class)

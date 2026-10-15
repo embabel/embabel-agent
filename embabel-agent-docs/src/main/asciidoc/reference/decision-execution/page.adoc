@@ -240,6 +240,8 @@ These properties select services:
 
 The registration name of a Spring service is its bean name.
 A catalog model's bean name is its model name.
+Defaults, roles and default candidates can also name a Spring alias of a service bean.
+An alias resolves to the service's registration name without registering the service again.
 A chat model is selected by the name `ModelProvider` lists for it.
 
 [source,yaml]

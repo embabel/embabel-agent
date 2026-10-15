@@ -67,7 +67,7 @@ import java.util.IdentityHashMap
  * One service instance exposed under several bean names, for example through a `@Primary` bean
  * that returns another bean, registers once. It takes the name of its `@Primary` bean, or else its
  * first bean name. A default, role or default candidate that names one of the other bean names
- * resolves to that registration. The other names are logged at DEBUG.
+ * or a Spring alias resolves to that registration. The other bean names are logged at DEBUG.
  *
  * A service bean marked `@Lazy`, or one that is not a singleton, such as a prototype, is not created
  * here and is not registered. One INFO line names it. Pass it to `using(service)` to call it.
@@ -257,12 +257,12 @@ class DecisionServiceRegistryAutoConfiguration {
         }
 
         /**
-         * Maps every bean name to the name its instance registers under. An instance with several
-         * bean names takes its @Primary name, or else its first name.
+         * Maps every bean name and Spring alias to the name its instance registers under. An
+         * instance with several bean names takes its @Primary name, or else its first name.
          *
          * @param beanFactory bean factory to check for @Primary bean definitions
          * @param services each bean name mapped to its service instance
-         * @return every bean name mapped to its chosen registration name
+         * @return every bean name and alias mapped to its chosen registration name
          */
         private fun registrationNames(
             beanFactory: ListableBeanFactory,
@@ -277,7 +277,10 @@ class DecisionServiceRegistryAutoConfiguration {
                     configurable != null && configurable.containsBeanDefinition(name) &&
                         configurable.getMergedBeanDefinition(name).isPrimary
                 } ?: names.first()
-                names.forEach { registrationNames[it] = chosen }
+                names.forEach { name ->
+                    registrationNames[name] = chosen
+                    beanFactory.getAliases(name).forEach { alias -> registrationNames[alias] = chosen }
+                }
                 if (names.size > 1) {
                     logger.debug(
                         "Decision service '{}' is also exposed as bean {}. It registers once, as '{}'.",

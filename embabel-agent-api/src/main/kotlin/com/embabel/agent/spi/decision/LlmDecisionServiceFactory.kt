@@ -54,14 +54,16 @@ class LlmDecisionServiceFactory @ApiStatus.Internal @JvmOverloads constructor(
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
 ) : DecisionModelProvider {
 
-    override val provider: String get() = PROVIDER
+    override val provider: String
+        get() = PROVIDER
 
     /**
      * Returns the names of the chat models the model provider lists.
      *
      * @return the chat model names
      */
-    override fun modelNames(): List<String> = modelProvider.listModelNames(LlmService::class.java).distinct()
+    override fun modelNames(): List<String> =
+        modelProvider.listModelNames(LlmService::class.java).distinct()
 
     /**
      * Builds a prompted decision service for a chat model.
@@ -69,12 +71,14 @@ class LlmDecisionServiceFactory @ApiStatus.Internal @JvmOverloads constructor(
      * @param name the chat model name
      * @return the decision service, or null when no chat model has that name
      */
-    override fun decisionServiceNamed(name: String): DecisionService? =
-        if (name.isBlank()) null else try {
+    override fun decisionServiceNamed(name: String): DecisionService? {
+        if (name.isBlank()) return null
+        return try {
             decisionService(name)
         } catch (_: NoSuitableModelException) {
             null
         }
+    }
 
     /**
      * Builds a decision service for the model with this name.
