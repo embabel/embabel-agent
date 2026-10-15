@@ -194,7 +194,12 @@ class OpenAiCatalogIT(
                 )
         }
 
-        assertTrue(tool.invoked, "$model never called the tool, so the answer cannot be grounded")
+        // The answer tells the two causes apart: blank means the response was cut short, text means
+        // the model chose to answer without the tool.
+        assertTrue(
+            tool.invoked,
+            "$model never called the tool, so the answer cannot be grounded, got: '$answer'",
+        )
         assertTrue(
             answer.contains("QP-4471"),
             "The tool result never made it back into the answer from $model, got: $answer",
