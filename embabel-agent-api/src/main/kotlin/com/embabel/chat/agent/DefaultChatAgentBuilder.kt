@@ -19,7 +19,6 @@ import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.dsl.agent
-import com.embabel.agent.api.event.AgentProcessEvent
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.ToolGroup
@@ -56,11 +55,10 @@ class DefaultChatAgentBuilder(
         achievableGoalsToolGroupFactory.achievableGoalsToolGroup(
             context = context,
             bindings = mapOf("it" to UserInput("doesn't matter")),
-            listeners = listOf(object : AgenticEventListener {
-                override fun onProcessEvent(event: AgentProcessEvent) {
-                    context.onProcessEvent(event)
-                }
-            }),
+            // Forward to the chat process's ProcessOptions listeners and its tool stats;
+            // the platform listener already receives sub-process events directly.
+            listeners = context.processContext.processOptions.listeners +
+                listOfNotNull(context.agentProcess.toolsStats as? AgenticEventListener),
             excludedTypes = setOf(ConversationStatus::class.java)
         )
 
