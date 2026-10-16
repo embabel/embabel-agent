@@ -18,6 +18,8 @@ package com.embabel.common.byok
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.PricingModel
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -90,6 +92,37 @@ class EmbeddingValidationTest {
         // as a bad key and must be visible in the message.
         assertTrue(e.message!!.contains("text-embedding-3-smal"), e.message)
         assertTrue(e.message!!.contains("acme"), e.message)
+    }
+
+    @Test
+    fun `the status code is the one the caller's function finds in the provider error`() {
+        val providerError = RuntimeException("402 no credit")
+        val build = RecordingBuilder { throw providerError }
+
+        val e = assertThrows<InvalidApiKeyException> {
+            validatedEmbeddingService(
+                model = "text-embedding-3-small",
+                provider = "acme",
+                // Stands in for a factory's function. It reports 402 for the provider error
+                // above, and no status code for any other exception.
+                statusCodeOf = { failure -> if (failure === providerError) 402 else null },
+                build = build,
+            )
+        }
+
+        assertEquals(402, e.statusCode)
+        assertSame(providerError, e.cause)
+    }
+
+    @Test
+    fun `there is no status code when the caller supplies no function to find one`() {
+        val build = RecordingBuilder { throw RuntimeException("402 no credit") }
+
+        val e = assertThrows<InvalidApiKeyException> {
+            validatedEmbeddingService("text-embedding-3-small", "acme", build)
+        }
+
+        assertNull(e.statusCode)
     }
 
     @Test
