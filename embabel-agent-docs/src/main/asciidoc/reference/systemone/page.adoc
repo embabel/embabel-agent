@@ -3,7 +3,7 @@
 
 System One is a JSON protocol for decision models.
 One request asks a model several typed questions about one piece of state.
-Each answer carries a probability, a distribution or a confidence.
+Proposition answers carry a truth probability. Choice and rating answers carry a distribution and confidence.
 Jev from TypeSafe speaks it (<<reference.typesafe>>), and any other endpoint that speaks it works with the same client.
 
 The integration has two parts:
@@ -18,7 +18,8 @@ It is the `embabel-agent-systemone` module, in `com.embabel.agent.systemone`.
 An endpoint answers question sets at `POST /v1/systemone` and lists its models at `GET /v1/models`, both under its base address.
 
 A request names the state, the model and the questions.
-Questions are keyed `q1` to `qN` in spec order, so the names in a `DecisionSpec` never leave the process.
+Questions are keyed `q1` to `qN` in spec order, replacing the application's question names in the JSON sent to the model endpoint.
+The state, question instructions and criteria are still sent.
 
 [source,json]
 ----

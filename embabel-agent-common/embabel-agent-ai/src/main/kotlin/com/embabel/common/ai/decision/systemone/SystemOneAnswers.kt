@@ -70,6 +70,7 @@ internal object SystemOneAnswers {
         provenance: ModelProvenance,
     ): DecisionResponseAssembler {
         val kind = KINDS[SystemOneCodec.text(answer.get("type"))] ?: return assembler.unreadable(question.name)
+        // Check the response's wire type against the requested question before reading its evidence.
         if (kind != question.kind) return wrongKind(assembler, question.name, kind)
         return when (question) {
             is PropositionQuestionSpec -> noul(assembler, question.name, answer, provenance)
@@ -93,11 +94,11 @@ internal object SystemOneAnswers {
         answer: JsonNode,
         provenance: ModelProvenance,
     ): DecisionResponseAssembler {
-        val p = number(answer, "noul") ?: return assembler.unreadable(name)
+        val probability = number(answer, "noul") ?: return assembler.unreadable(name)
         return when {
-            !isProbability(p) -> assembler.unreadable(name, Anomaly.OUT_OF_RANGE)
-            p == HALF -> assembler.proposition(name, PropositionResult.Inconclusive(provenance))
-            else -> assembler.proposition(name, PropositionResult.Answered(p > HALF, provenance, p))
+            !isProbability(probability) -> assembler.unreadable(name, Anomaly.OUT_OF_RANGE)
+            probability == HALF -> assembler.proposition(name, PropositionResult.Inconclusive(provenance))
+            else -> assembler.proposition(name, PropositionResult.Answered(probability > HALF, provenance, probability))
         }
     }
 
@@ -121,6 +122,7 @@ internal object SystemOneAnswers {
         val probabilities = distribution(answer.get("probabilities"), ids)
             ?: return assembler.unreadable(name, Anomaly.BAD_DISTRIBUTION)
         val confidence = number(answer, "confidence") ?: return assembler.unreadable(name)
+        // Invalid confidence rejects the answer; zero is valid evidence for an inconclusive result.
         if (!isProbability(confidence)) return assembler.unreadable(name, Anomaly.OUT_OF_RANGE)
         if (confidence == 0.0) return assembler.choice(name, ClassificationResult.Inconclusive(provenance))
         val selected = SystemOneCodec.text(answer.get("choice")) ?: return assembler.unreadable(name)
@@ -128,7 +130,7 @@ internal object SystemOneAnswers {
             // The assembler reports a selection outside the options as out of domain.
             return assembler.choice(name, ClassificationResult.Selected(selected, provenance, confidence))
         }
-        val distribution = ids.zip(probabilities) { id, p -> CategoryProbability(id, p) }
+        val distribution = ids.zip(probabilities) { id, probability -> CategoryProbability(id, probability) }
         return assembler.choice(name, ClassificationResult.Selected(selected, provenance, confidence, distribution))
     }
 
@@ -148,9 +150,11 @@ internal object SystemOneAnswers {
         provenance: ModelProvenance,
     ): DecisionResponseAssembler {
         val name = question.name
+        // The protocol keys ratings by zero-based level index, not the application's level ids.
         val indexes = question.levels.indices.map(Int::toString)
         val probabilities = distribution(answer.get("probabilities"), indexes)
-        if (!coversExactly(answer.get("legend"), indexes) || probabilities == null) {
+            ?: return assembler.unreadable(name, Anomaly.BAD_DISTRIBUTION)
+        if (!coversExactly(answer.get("legend"), indexes)) {
             return assembler.unreadable(name, Anomaly.BAD_DISTRIBUTION)
         }
         val score = number(answer, "score") ?: return assembler.unreadable(name)
@@ -158,7 +162,8 @@ internal object SystemOneAnswers {
         if (score !in 0.0..question.levels.lastIndex.toDouble() || !isProbability(confidence)) {
             return assembler.unreadable(name, Anomaly.OUT_OF_RANGE)
         }
-        val distribution = question.levels.zip(probabilities) { level, p -> LevelProbability(level.id, p) }
+        // Restore application level ids; the numeric score remains an expected ordinal index.
+        val distribution = question.levels.zip(probabilities) { level, probability -> LevelProbability(level.id, probability) }
         val expected = RatingScore(score, RatingStatistic.EXPECTED_LEVEL_INDEX)
         return assembler.rating(name, RatingResult.Answered(provenance, null, distribution, expected, confidence))
     }
@@ -179,7 +184,9 @@ internal object SystemOneAnswers {
     }
 
     /**
-     * Reads a distribution keyed by [ids].
+     * Reads one probability per expected key, in [ids] order. Missing or extra keys, non-numeric
+     * values and values outside 0..1 reject the distribution. Its sum may differ from 1 by at most
+     * [DISTRIBUTION_TOLERANCE] in either direction.
      *
      * @param node the probabilities object
      * @param ids the keys it must cover
@@ -187,13 +194,14 @@ internal object SystemOneAnswers {
      */
     private fun distribution(node: JsonNode?, ids: List<String>): List<Double>? {
         if (node == null || !coversExactly(node, ids)) return null
-        val probabilities = ids.map { number(node, it) ?: return null }
+        val probabilities = ids.map { id -> number(node, id) ?: return null }
         val valid = probabilities.all(::isProbability) && abs(probabilities.sum() - 1.0) <= DISTRIBUTION_TOLERANCE
         return probabilities.takeIf { valid }
     }
 
     /**
-     * Tells whether an object's keys are exactly [ids].
+     * Tells whether an object's JSON property names cover exactly [ids], with no missing or extra
+     * keys and regardless of order. These keys are option ids for choices and ordinal indexes for ratings.
      *
      * @param node the object
      * @param ids the expected keys
@@ -213,7 +221,8 @@ internal object SystemOneAnswers {
         node.get(field)?.takeIf { it.isNumber }?.doubleValue()
 
     /**
-     * Tells whether a value lies in 0..1.
+     * Checks an unvalidated wire number against the inclusive probability range. NaN and infinities
+     * also fail this comparison.
      *
      * @param value the value
      * @return true when it does

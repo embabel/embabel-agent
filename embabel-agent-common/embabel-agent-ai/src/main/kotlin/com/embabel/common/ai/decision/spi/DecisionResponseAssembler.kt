@@ -297,6 +297,7 @@ class DecisionResponseAssembler private constructor(
     private fun choiceAnomaly(question: ChoiceQuestionSpec, result: ClassificationResult): Anomaly {
         val selected = result as ClassificationResult.Selected
         val optionIds = question.options.map { it.id }.toSet()
+        // Validation checks the selected id first. If it is valid, only distribution coverage can have failed.
         return if (selected.categoryId in optionIds) Anomaly.BAD_DISTRIBUTION else Anomaly.OUT_OF_DOMAIN
     }
 

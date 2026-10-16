@@ -39,7 +39,8 @@ import java.util.function.Function
  * several typed questions about one piece of state in a single request.
  *
  * A request is `{"state", "model", "questions"}`. Questions are keyed `q1` to `qN` in spec order,
- * so the caller's question names never leave the process. A proposition goes out as a `noul`
+ * replacing application question names in the JSON sent to the model endpoint. The input and
+ * question instructions are still sent. A proposition goes out as a `noul`
  * question, a choice as a `choice` question with its options as criteria, and a rating as a
  * `score` question with its level descriptions as an ordered criteria list.
  *

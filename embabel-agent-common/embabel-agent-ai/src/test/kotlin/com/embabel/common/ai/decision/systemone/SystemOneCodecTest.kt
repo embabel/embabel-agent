@@ -211,6 +211,9 @@ class SystemOneCodecTest {
         @Test
         fun `a wrong legend, bad distribution or out of range score fails only that question`() {
             listOf(
+                """{"type":"score","score":1.5,"legend":{"0":"a","1":"b","2":"c"},"confidence":0.2}""",
+                """{"type":"score","score":1.5,"legend":{"0":"a","1":"b","2":"c"},"probabilities":null,"confidence":0.2}""",
+                """{"type":"score","score":1.5,"legend":{"0":"a","1":"b","2":"c"},"probabilities":[],"confidence":0.2}""",
                 """{"type":"score","score":1.5,"legend":{"0":"a","1":"b"},"probabilities":{"0":0.1,"1":0.3,"2":0.6},"confidence":0.2}""",
                 """{"type":"score","score":1.5,"legend":{"0":"a","1":"b","2":"c"},"probabilities":{"0":0.1,"1":0.3,"2":0.7},"confidence":0.2}""",
                 """{"type":"score","score":2.5,"legend":{"0":"a","1":"b","2":"c"},"probabilities":{"0":0.1,"1":0.3,"2":0.6},"confidence":0.2}""",

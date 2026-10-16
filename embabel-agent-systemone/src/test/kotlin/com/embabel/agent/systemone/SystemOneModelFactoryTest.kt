@@ -62,16 +62,22 @@ import org.springframework.test.web.client.match.MockRestRequestMatchers.request
 import org.springframework.test.web.client.response.MockRestResponseCreators.withStatus
 import org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess
 import org.springframework.web.client.RestClient
+import org.springframework.web.client.ResourceAccessException
+import org.springframework.web.client.RestClientException
 import tools.jackson.databind.json.JsonMapper
 import java.io.ByteArrayInputStream
 import java.io.InputStream
+import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.URI
+import java.net.SocketTimeoutException
+import java.net.http.HttpTimeoutException
 import java.time.Duration
 import java.util.concurrent.CancellationException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Supplier
 
@@ -329,6 +335,40 @@ class SystemOneModelFactoryTest {
 
     @Nested
     inner class Responses {
+
+        @Test
+        fun `wrapped timeout families take precedence over connection failures`() {
+            listOf(
+                SocketTimeoutException("SENTINEL"),
+                HttpTimeoutException("SENTINEL"),
+                TimeoutException("SENTINEL"),
+            ).forEach { cause ->
+                val mocked = mocked()
+                mocked.server.expect(requestTo("$base/v1/systemone")).andRespond {
+                    throw ResourceAccessException("SENTINEL", IOException(cause))
+                }
+                assertEquals(FailureReason.UNAVAILABLE, ask(mocked.factory).requestFailure)
+                assertTrue(warnings().last().contains("cause=timeout"), warnings().last())
+                assertFalse(warnings().last().contains("SENTINEL"), warnings().last())
+                mocked.server.verify()
+            }
+        }
+
+        @Test
+        fun `other client exceptions use connection invalid response or other categories`() {
+            listOf(
+                Triple(ResourceAccessException("SENTINEL"), FailureReason.UNAVAILABLE, "connection"),
+                Triple(RestClientException("SENTINEL"), FailureReason.INVALID_RESPONSE, "invalid_response"),
+                Triple(IllegalStateException("SENTINEL"), FailureReason.INVALID_RESPONSE, "other"),
+            ).forEach { (exception, reason, category) ->
+                val mocked = mocked()
+                mocked.server.expect(requestTo("$base/v1/systemone")).andRespond { throw exception }
+                assertEquals(reason, ask(mocked.factory).requestFailure)
+                assertTrue(warnings().last().contains("cause=$category"), warnings().last())
+                assertFalse(warnings().last().contains("SENTINEL"), warnings().last())
+                mocked.server.verify()
+            }
+        }
 
         @Test
         fun `provenance names the answering model, the provider and a well formed request id`() {
