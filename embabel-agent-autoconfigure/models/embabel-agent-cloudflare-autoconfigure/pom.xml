@@ -18,6 +18,11 @@
         </dependency>
         <dependency>
             <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-typesafe-autoconfigure</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-cloudflare</artifactId>
         </dependency>
         <dependency>

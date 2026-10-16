@@ -41,6 +41,7 @@ import java.net.URI
  * account, and the body names it by its short name, such as `clef`. These are the CLEF models, whose
  * input schema takes 1 to 64 questions, 2 to 255 options per choice and 2 to 10 levels per rating,
  * so a request outside those limits is refused before anything is sent.
+ * Hosted ids must name System One-compatible models; id validation checks only their format.
  *
  * A model from another maker, such as `typesafe/jev`, runs at `/ai/run` under the account. The body
  * names the model and carries the System One request as its `input`, without a model of its own.

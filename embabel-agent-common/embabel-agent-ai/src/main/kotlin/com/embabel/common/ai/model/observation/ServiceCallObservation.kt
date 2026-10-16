@@ -164,7 +164,7 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
         } catch (failure: Throwable) {
             outcome = when {
                 validating && failure is IllegalArgumentException -> Outcome.INVALID_RESPONSE
-                else -> thrownOutcome(operation, failure)
+                else -> thrownOutcome(failure)
             }
             observation?.let {
                 recordOutcome(it, operation, outcome)
@@ -182,14 +182,13 @@ internal class ServiceCallObservation(private val registry: ObservationRegistry)
     }
 
     /**
-     * Maps a thrown failure to its outcome label, treating an unsupported request specially for ask.
+     * Maps a thrown failure to its outcome label, including provider limits on any operation.
      *
-     * @param operation the operation the failure happened in
      * @param failure the thrown failure
      * @return the outcome label for it
      */
-    private fun thrownOutcome(operation: Operation, failure: Throwable): Outcome = when (failure) {
-        is UnsupportedDecisionException -> if (operation == Operation.ASK) Outcome.UNSUPPORTED else Outcome.EXCEPTION
+    private fun thrownOutcome(failure: Throwable): Outcome = when (failure) {
+        is UnsupportedDecisionException -> Outcome.UNSUPPORTED
         is InterruptedException -> Outcome.INTERRUPTED
         // Providers report an interruption as a cancellation caused by it.
         is CancellationException -> if (failure.cause is InterruptedException) Outcome.INTERRUPTED else Outcome.CANCELLED

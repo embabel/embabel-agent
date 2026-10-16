@@ -34,6 +34,7 @@ import java.util.function.Supplier
  * Building a service never resolves the key or contacts the endpoint. The key is read on each
  * call, so a rotated key takes effect on the next call. A blank key sends no Authorization
  * header, which suits endpoints that need none.
+ * The endpoint's binding validates the default model at construction, before credentials are read.
  *
  * When [restClientBuilder] is given, a clone of it is used, so its transport, interceptors and
  * timeouts apply. Otherwise the factory builds a client with the endpoint's timeouts that does
@@ -61,6 +62,7 @@ open class SystemOneModelFactory @JvmOverloads constructor(
 
     init {
         require(defaultModel.isNotBlank()) { "The default model must not be blank" }
+        endpoint.binding.validateModel(defaultModel)
         logger.info(
             "System One model factory initialized: provider={}, transport={}, observations={}",
             endpoint.provider,

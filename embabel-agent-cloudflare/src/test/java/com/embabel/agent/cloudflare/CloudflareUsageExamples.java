@@ -25,17 +25,26 @@ import java.util.function.Supplier;
 public class CloudflareUsageExamples {
 
     // tag::service[]
+    private final DecisionService clef;
+
     /**
-     * Builds a CLEF service for an account and asks it a spec.
+     * Creates a reusable CLEF service for an account.
      *
      * @param accountId the Cloudflare account that runs the model
      * @param apiToken supplies a token with Workers AI access for each call
+     */
+    public CloudflareUsageExamples(String accountId, Supplier<String> apiToken) {
+        var factory = new CloudflareModelFactory(accountId, apiToken::get);
+        this.clef = factory.build();
+    }
+
+    /**
+     * Asks a spec using the shared service.
+     *
      * @param spec the questions to ask
      * @return one answer per question
      */
-    public DecisionResponse ask(String accountId, Supplier<String> apiToken, DecisionSpec spec) {
-        var factory = new CloudflareModelFactory(accountId, apiToken::get);
-        DecisionService clef = factory.build();
+    public DecisionResponse ask(DecisionSpec spec) {
         return clef.ask("I was charged twice for one invoice.", spec);
     }
     // end::service[]

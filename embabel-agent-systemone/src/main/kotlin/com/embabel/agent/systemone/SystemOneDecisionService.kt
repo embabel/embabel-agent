@@ -29,6 +29,7 @@ import com.embabel.common.ai.decision.QuestionKind
 import com.embabel.common.ai.decision.Questions
 import com.embabel.common.ai.decision.RatingQuestionSpec
 import com.embabel.common.ai.decision.RatingResult
+import com.embabel.common.ai.decision.UnsupportedDecisionException
 import com.embabel.common.ai.decision.spi.DecisionContentCapture
 import com.embabel.common.ai.decision.spi.PropositionAssessment
 import com.embabel.common.ai.decision.spi.QuestionSetExecution
@@ -41,6 +42,7 @@ import java.util.concurrent.TimeUnit
 /**
  * One model on a System One endpoint. Every call is one question set sent in one request. A whole
  * spec goes out together, and a single classification, proposition or rating goes out as a set of one.
+ * Provider-limit rejections throw [UnsupportedDecisionException] before credentials or HTTP are touched.
  *
  * A failed call returns failure outcomes and logs one WARN line with fixed fields: service,
  * provider, operation, cause, status class, attempts, elapsed time and request id. Inputs,
@@ -53,7 +55,7 @@ internal class SystemOneDecisionService(
 
     override val provider: String get() = transport.endpoint.provider
 
-    // The protocol answers every question kind in one request and sets no limits.
+    // Every question kind is supported; the binding checks provider-specific request limits.
     override fun capabilities(): DecisionCapabilities = CAPABILITIES
 
     override fun askQuestionSet(request: DecisionRequest): DecisionResponse = run(request, Operation.ASK)
@@ -78,6 +80,7 @@ internal class SystemOneDecisionService(
      * @param request the input and questions
      * @param operation which public call this is, for logs
      * @return the answers, or failure outcomes
+     * @throws UnsupportedDecisionException if the binding rejects provider-specific request limits
      */
     private fun run(request: DecisionRequest, operation: Operation): DecisionResponse {
         val binding = transport.endpoint.binding

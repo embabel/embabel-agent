@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.autoconfigure.models.cloudflare
 
+import com.embabel.agent.autoconfigure.models.typesafe.AgentTypeSafeAutoConfiguration
 import com.embabel.agent.autoconfigure.platform.DecisionServiceRegistryAutoConfiguration
 import com.embabel.agent.cloudflare.CloudflareModelFactory
 import com.embabel.agent.config.models.cloudflare.CloudflareModelDefinition
@@ -29,6 +30,7 @@ import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.Questions
 import com.embabel.common.ai.decision.support.StubDecisionService
 import com.embabel.common.ai.model.DecisionServiceRegistry
+import com.embabel.common.ai.model.ServiceSelectionException
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -36,6 +38,7 @@ import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.BeanFactory
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor
@@ -155,6 +158,39 @@ class AgentCloudflareAutoConfigurationTest {
                 assertTrue(context.getBeansOfType(DecisionService::class.java).isEmpty())
             }
         }
+
+        @Test
+        fun `both providers require an explicit default for each family`() {
+            val both = configured()
+                .withConfiguration(
+                    AutoConfigurations.of(
+                        AgentTypeSafeAutoConfiguration::class.java,
+                        DecisionServiceRegistryAutoConfiguration::class.java,
+                    ),
+                )
+                .withPropertyValues("TYPESAFE_API_KEY=", "embabel.agent.platform.models.typesafe.api-key=ts-token")
+            both.run { context ->
+                assertTrue(context.startupFailure == null, context.startupFailure?.toString())
+                val registry = context.getBean(DecisionServiceRegistry::class.java)
+                val candidates = context.getBeansOfType(DecisionServiceRegistry.DefaultCandidate::class.java).values
+                assertEquals(setOf("clef", "jev-latest"), candidates.map { it.name }.toSet())
+                assertEquals(
+                    ServiceSelectionException.Reason.AMBIGUOUS_DEFAULT,
+                    assertThrows<ServiceSelectionException> { registry.decisions().defaultService() }.reason,
+                )
+                assertEquals(
+                    ServiceSelectionException.Reason.AMBIGUOUS_DEFAULT,
+                    assertThrows<ServiceSelectionException> { registry.classifications().defaultService() }.reason,
+                )
+            }
+            both.withPropertyValues("embabel.models.decision.default=clef", "embabel.models.classification.default=jev-latest")
+                .run { context ->
+                    assertTrue(context.startupFailure == null, context.startupFailure?.toString())
+                    val registry = context.getBean(DecisionServiceRegistry::class.java)
+                    assertSame(context.getBean("clef"), registry.decisions().defaultService())
+                    assertSame(context.getBean("jev-latest"), registry.classifications().defaultService())
+                }
+        }
     }
 
     @Nested
@@ -212,6 +248,16 @@ class AgentCloudflareAutoConfigurationTest {
                 "The Cloudflare account id must be 32 hexadecimal characters",
                 "not-an-account",
             )
+        }
+
+        @Test
+        fun `optional environment placeholders report missing credentials clearly`() {
+            val placeholders = runner.withPropertyValues(
+                "$prefix.api-key=\${CLOUDFLARE_API_TOKEN:}",
+                "$prefix.account-id=\${CLOUDFLARE_ACCOUNT_ID:}",
+            )
+            assertStartupFails(placeholders, "Cloudflare account id is required")
+            assertStartupFails(placeholders.withPropertyValues("$prefix.account-id=$account"), "Cloudflare API key is required")
         }
 
         /**
