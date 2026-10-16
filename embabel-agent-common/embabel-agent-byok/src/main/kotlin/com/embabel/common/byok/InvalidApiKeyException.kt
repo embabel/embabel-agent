@@ -26,8 +26,12 @@ package com.embabel.common.byok
  *
  * [statusCode] is the HTTP status code of the provider's response. The OpenAI-compatible and
  * Anthropic factories set it, for chat validation and for embedding validation. From those
- * factories it is null when the provider sent no response, for example when the connection was
- * refused, and when the key was rejected before any request was made, as a blank key is.
+ * factories it is null when no HTTP status code could be found for the failure. These are the
+ * cases:
+ * - The connection failed, for example because it was refused.
+ * - The key was blank, so no request was made.
+ * - The provider responded, and the response then failed a local check. For example, an
+ *   embedding model returned an empty vector.
  *
  * It is always null from [detectProvider], and from a factory that does not set it. The
  * TypeSafe factory is one that does not set it.

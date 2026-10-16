@@ -90,9 +90,8 @@ fun validatedEmbeddingService(
 /**
  * Validates an embedding key as the function above does, and reports no status code.
  *
- * Use this when the provider's exception does not hold an HTTP status code. The
- * [InvalidApiKeyException] it throws has a null status code, whether or not the provider sent a
- * response.
+ * Use this when the provider's exception does not hold an HTTP status code. The status code of
+ * the thrown [InvalidApiKeyException] is null, whether or not the provider sent a response.
  */
 fun validatedEmbeddingService(
     model: String,

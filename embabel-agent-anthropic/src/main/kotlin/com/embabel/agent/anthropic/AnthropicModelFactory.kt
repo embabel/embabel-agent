@@ -195,7 +195,9 @@ open class AnthropicModelFactory(
             probe.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())
         } catch (e: Exception) {
             // The message is the text of the provider's exception. The exception itself is passed
-            // as the cause, and the HTTP status code of the response as the status code.
+            // as the cause, and the HTTP status code of the response as the status code. Nothing
+            // is logged here. When a caller logs the thrown exception, the log shows the full stack
+            // trace of the provider's exception, after "Caused by:".
             throw InvalidApiKeyException(e.message ?: "Invalid API key", e, providerStatus(e))
         }
         return build(model)

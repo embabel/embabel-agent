@@ -227,8 +227,8 @@ class AnthropicModelFactoryBuildValidatedTest {
      * Makes the local server answer every request with the given HTTP [status] and JSON [body],
      * and starts it. Each request adds one to [requestCount].
      *
-     * For example, `answerWith(401, """{"error":{"message":"Invalid API key"}}""")` makes the
-     * server stand in for a provider that does not know the key.
+     * For example, after `answerWith(401, """{"error":{"message":"Invalid API key"}}""")` the
+     * server responds as a provider responds to a key it does not know.
      */
     private fun answerWith(status: Int, body: String) {
         server.createContext("/v1/messages") { exchange ->
@@ -244,16 +244,25 @@ class AnthropicModelFactoryBuildValidatedTest {
 
     /**
      * The provider knows the key and refuses the request because the key is not permitted to use
-     * the model. The exception reports status code 403, and its cause is the SDK's exception.
+     * the model. The SDK does not retry, so the provider receives one request. The exception
+     * reports status code 403. Its message includes the provider's message, so a person reading
+     * it sees why the key was refused. Its cause is the SDK's exception, and that exception holds
+     * the same status code.
      */
     @Test
-    fun `a 403 response reports status code 403 and keeps the SDK exception as the cause`() {
+    fun `a 403 response reports status code 403, the provider's message and the SDK exception`() {
         answerWith(403, """{"type":"error","error":{"type":"permission_error","message":"This key may not use that model."}}""")
 
         val e = assertThrows<InvalidApiKeyException> { factory().buildValidated() }
 
         assertEquals(403, e.statusCode)
-        assertInstanceOf(AnthropicServiceException::class.java, e.cause, "the SDK's exception is the cause")
+        assertEquals(1, requestCount.get(), "the SDK does not retry a 403")
+        assertTrue(
+            e.message.orEmpty().contains("This key may not use that model."),
+            "the message includes the provider's message: ${e.message}",
+        )
+        val cause = assertInstanceOf(AnthropicServiceException::class.java, e.cause, "the SDK's exception is the cause")
+        assertEquals(403, cause.statusCode())
     }
 
     @Test

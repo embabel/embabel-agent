@@ -561,10 +561,11 @@ try {
 catch.
 
 When `buildValidated()` on an OpenAI-compatible or Anthropic factory throws it, the exception
-also holds what the provider said. This is the same for a chat model and an embedding model:
+carries provider-specific details. This is the same for a chat model and an embedding model:
 
-* `statusCode` is the HTTP status code of the provider's response. It is null when the provider
-sent no response, for example when the connection was refused or the key was blank.
+* `statusCode` is the HTTP status code of the provider's response. It is null when no HTTP status
+code could be found for the failure: the connection failed, the key was blank so no request was
+made, or the provider responded and the response then failed a local check.
 * `cause` is the provider's own exception. Use it for logging.
 
 Providers do not use the same status code for the same reason. For example, a key the provider

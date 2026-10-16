@@ -21,12 +21,12 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
 /**
- * Validates a key against the real Anthropic API.
+ * Validates a key against the Anthropic API.
  */
 class AnthropicModelFactoryByokIT {
 
     /**
-     * Sends a key that Anthropic did not issue to the real Anthropic API. The test needs network
+     * Sends a key that Anthropic did not issue to the Anthropic API. The test needs network
      * access and no API key. Anthropic responds that it does not know the key, and
      * [InvalidApiKeyException.statusCode] is the HTTP status code of that response.
      */
