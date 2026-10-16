@@ -16,10 +16,15 @@
 package com.embabel.agent.a2a.server.support
 
 import com.embabel.agent.domain.library.HasContent
-import tools.jackson.databind.ObjectMapper
-import tools.jackson.module.kotlin.jacksonObjectMapper
-import io.a2a.spec.DataPart
-import io.a2a.spec.TextPart
+import com.embabel.agent.api.common.autonomy.AgentProcessExecution
+import io.mockk.every
+import io.mockk.mockk
+import org.a2aproject.sdk.grpc.utils.ProtoUtils
+import org.a2aproject.sdk.spec.DataPart
+import org.a2aproject.sdk.spec.Task
+import org.a2aproject.sdk.spec.TaskState
+import org.a2aproject.sdk.spec.TaskStatus
+import org.a2aproject.sdk.spec.TextPart
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.time.Instant
@@ -49,12 +54,17 @@ class HasContentArtifactTest {
         val value: Int
     )
 
-    private val objectMapper: ObjectMapper = jacksonObjectMapper()
-          // Registers JSR310 module for Instant support
+    private val requestHandler = AutonomyA2ARequestHandler(
+        autonomy = mockk(),
+        agenticEventListener = mockk(),
+        streamingHandler = mockk(),
+    )
+
+    private fun executionWithOutput(output: Any): AgentProcessExecution =
+        mockk { every { this@mockk.output } returns output }
 
     @Test
     fun `should extract content as TextPart when object implements HasContent`() {
-        // Given
         val testContent = "This is the content that should be in TextPart"
         val writeup = TestWriteup(
             title = "Test Title",
@@ -63,32 +73,13 @@ class HasContentArtifactTest {
             timestamp = Instant.parse("2025-11-20T12:00:00Z")
         )
 
-        // When - simulate the createResultArtifact logic
-        val parts = buildList {
-            if (writeup is HasContent) {
-                add(TextPart(writeup.content))
+        val parts = requestHandler.createResultArtifact(executionWithOutput(writeup)).parts()
 
-                @Suppress("UNCHECKED_CAST")
-                val outputMap = objectMapper.convertValue(writeup, Map::class.java) as MutableMap<String, Any?>
-                outputMap.remove("content")
-
-                add(DataPart(mapOf("output" to outputMap)))
-            }
-        }
-
-        // Then
         assertEquals(2, parts.size, "Should have exactly 2 parts")
-
-        // Verify TextPart
-        assertTrue(parts[0] is TextPart, "First part should be TextPart")
         val textPart = parts[0] as TextPart
-        assertEquals(testContent, textPart.text, "TextPart should contain the content")
+        assertEquals(testContent, textPart.text(), "TextPart should contain the content")
 
-        // Verify DataPart
-        assertTrue(parts[1] is DataPart, "Second part should be DataPart")
-        val dataPart = parts[1] as DataPart
-        val outputData = dataPart.data["output"] as Map<*, *>
-
+        val outputData = ((parts[1] as DataPart).data() as Map<*, *>)["output"] as Map<*, *>
         assertFalse(outputData.containsKey("content"), "DataPart should not contain 'content' field")
         assertEquals("Test Title", outputData["title"], "DataPart should contain title")
         assertEquals("Test Author", outputData["author"], "DataPart should contain author")
@@ -96,38 +87,40 @@ class HasContentArtifactTest {
     }
 
     @Test
-    fun `should use single DataPart when object does not implement HasContent`() {
-        // Given
+    fun `should use single DataPart holding output fields when object does not implement HasContent`() {
         val result = TestResult(
             message = "Success",
             value = 42
         )
 
-        // When - simulate the createResultArtifact logic
-        val parts = buildList {
-            if (result is HasContent) {
-                add(TextPart(result.content))
+        val parts = requestHandler.createResultArtifact(executionWithOutput(result)).parts()
 
-                @Suppress("UNCHECKED_CAST")
-                val outputMap = objectMapper.convertValue(result, Map::class.java) as MutableMap<String, Any?>
-                outputMap.remove("content")
-
-                add(DataPart(mapOf("output" to outputMap)))
-            } else {
-                add(DataPart(mapOf("output" to result)))
-            }
-        }
-
-        // Then
         assertEquals(1, parts.size, "Should have exactly 1 part")
+        val outputData = ((parts[0] as DataPart).data() as Map<*, *>)["output"] as Map<*, *>
+        assertEquals("Success", outputData["message"])
+        assertEquals(42, outputData["value"])
+    }
 
-        // Verify DataPart
-        assertTrue(parts[0] is DataPart, "Part should be DataPart")
-        val dataPart = parts[0] as DataPart
-        val outputData = dataPart.data["output"] as TestResult
+    @Test
+    fun `should keep output fields when artifact is written in A2A wire format`() {
+        val result = TestResult(
+            message = "Success",
+            value = 42
+        )
 
-        assertEquals("Success", outputData.message)
-        assertEquals(42, outputData.value)
+        val artifact = requestHandler.createResultArtifact(executionWithOutput(result))
+        val wireArtifact = ProtoUtils.ToProto.task(
+            Task.builder()
+                .id("task-1")
+                .contextId("ctx-1")
+                .status(TaskStatus(TaskState.TASK_STATE_COMPLETED))
+                .artifacts(listOf(artifact))
+                .build()
+        ).getArtifacts(0)
+
+        val output = wireArtifact.getParts(0).data.structValue.getFieldsOrThrow("output").structValue
+        assertEquals("Success", output.getFieldsOrThrow("message").stringValue)
+        assertEquals(42.0, output.getFieldsOrThrow("value").numberValue)
     }
 
     @Test

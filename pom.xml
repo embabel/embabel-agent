@@ -23,6 +23,8 @@
         <openai-java.version>4.49.0</openai-java.version>
         <spotbugs-maven-plugin.version>4.9.8.2</spotbugs-maven-plugin.version>
         <sb-contrib.version>7.7.4</sb-contrib.version>
+        <!-- A2A Java SDK, implementing A2A protocol 1.0 -->
+        <a2a-java-sdk.version>1.4.0.Final</a2a-java-sdk.version>
     </properties>
 
     <modules>
