@@ -72,7 +72,7 @@ class DefaultChatAgentBuilderTest {
      * must not get them twice. See https://github.com/embabel/embabel-agent/issues/2126
      */
     @Test
-    fun `goal tool events reach the chat listeners once`() {
+    fun `goal tool events reach the chat listeners and the platform listener once`() {
         val platformListener = EventSavingAgenticEventListener()
         val chatListener = EventSavingAgenticEventListener()
         val agentPlatform = dummyAgentPlatform(listener = platformListener, llmOperations = GoalToolCallingLlm())
