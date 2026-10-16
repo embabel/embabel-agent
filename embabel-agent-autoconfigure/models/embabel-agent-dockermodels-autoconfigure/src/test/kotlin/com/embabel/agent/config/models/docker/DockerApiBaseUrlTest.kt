@@ -40,7 +40,7 @@ class DockerApiBaseUrlTest {
     fun `the default gains the version segment`() {
         assertEquals(
             "http://localhost:12434/engines/v1",
-            dockerApiBaseUrl("http://localhost:12434/engines"),
+            dockerApiBaseUrl("http://localhost:12434/engines", "v1"),
             "the SDK appends `/embeddings`, so `/engines` alone 404s on a real runner",
         )
     }
@@ -52,7 +52,7 @@ class DockerApiBaseUrlTest {
         // reasonably copy. Doubling it would 404 just as surely, one segment further down.
         assertEquals(
             "http://model-runner.docker.internal/engines/v1",
-            dockerApiBaseUrl("http://model-runner.docker.internal/engines/v1"),
+            dockerApiBaseUrl("http://model-runner.docker.internal/engines/v1", "v1"),
         )
     }
 
@@ -60,11 +60,23 @@ class DockerApiBaseUrlTest {
     fun `a future explicit version is not doubled`() {
         assertEquals(
             "http://localhost:12434/engines/v3",
-            dockerApiBaseUrl("http://localhost:12434/engines/v3"),
+            dockerApiBaseUrl("http://localhost:12434/engines/v3", "v1"),
         )
         assertEquals(
             "http://localhost:12434/engines/v3",
-            dockerApiBaseUrl("http://localhost:12434/engines/v3/"),
+            dockerApiBaseUrl("http://localhost:12434/engines/v3/", "v1"),
+        )
+    }
+
+    @Test
+    fun `a configured version is appended instead of v1`() {
+        assertEquals(
+            "http://localhost:12434/engines/v5",
+            dockerApiBaseUrl("http://localhost:12434/engines", "v5"),
+        )
+        assertEquals(
+            "http://localhost:12434/engines/v5/models",
+            dockerModelsUrl("http://localhost:12434/engines/", "v5"),
         )
     }
 
@@ -73,11 +85,11 @@ class DockerApiBaseUrlTest {
     fun `trailing slashes are trimmed`() {
         assertEquals(
             "http://localhost:12434/engines/v1",
-            dockerApiBaseUrl("http://localhost:12434/engines/"),
+            dockerApiBaseUrl("http://localhost:12434/engines/", "v1"),
         )
         assertEquals(
             "http://localhost:12434/engines/v1",
-            dockerApiBaseUrl("http://localhost:12434/engines/v1/"),
+            dockerApiBaseUrl("http://localhost:12434/engines/v1/", "v1"),
         )
     }
 
@@ -85,15 +97,15 @@ class DockerApiBaseUrlTest {
     fun `model listing keeps a single version segment`() {
         assertEquals(
             "http://localhost:12434/engines/v1/models",
-            dockerModelsUrl("http://localhost:12434/engines"),
+            dockerModelsUrl("http://localhost:12434/engines", "v1"),
         )
         assertEquals(
             "http://localhost:12434/engines/v1/models",
-            dockerModelsUrl("http://localhost:12434/engines/v1"),
+            dockerModelsUrl("http://localhost:12434/engines/v1", "v1"),
         )
         assertEquals(
             "http://localhost:12434/engines/v1/models",
-            dockerModelsUrl("http://localhost:12434/engines/v1/"),
+            dockerModelsUrl("http://localhost:12434/engines/v1/", "v1"),
         )
     }
 
@@ -101,11 +113,11 @@ class DockerApiBaseUrlTest {
     fun `model listing keeps a future version segment`() {
         assertEquals(
             "http://localhost:12434/engines/v3/models",
-            dockerModelsUrl("http://localhost:12434/engines/v3"),
+            dockerModelsUrl("http://localhost:12434/engines/v3", "v1"),
         )
         assertEquals(
             "http://localhost:12434/engines/v3/models",
-            dockerModelsUrl("http://localhost:12434/engines/v3/"),
+            dockerModelsUrl("http://localhost:12434/engines/v3/", "v1"),
         )
     }
 }
