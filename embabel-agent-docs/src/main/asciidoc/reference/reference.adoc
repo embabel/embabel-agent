@@ -65,6 +65,8 @@ include::customizing/page.adoc[]
 
 include::integrations/page.adoc[]
 
+include::systemone/page.adoc[]
+
 include::typesafe/page.adoc[]
 
 include::decision-providers/page.adoc[]

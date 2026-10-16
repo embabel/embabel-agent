@@ -77,6 +77,6 @@ A service a provider created stays cached for the life of the registry.
 
 A catalog starter reads its key the same way the chat model starters do, from the environment variable first and then the `api-key` property.
 TypeSafe uses `TYPESAFE_API_KEY` and `embabel.agent.platform.models.typesafe.api-key`, and startup fails without either.
-For a key supplied at run time, `TypeSafeModelFactory` implements `ByokFactory<DecisionService>`.
+For a key supplied at run time, `TypeSafeModelFactory` and every other `SystemOneModelFactory` implement `ByokFactory<DecisionService>`.
 `buildValidated()` checks the key with the provider and returns a service, which you pass to `using(service)`.
-See <<reference.typesafe>>.
+See <<reference.typesafe>> and <<reference.systemone>>.

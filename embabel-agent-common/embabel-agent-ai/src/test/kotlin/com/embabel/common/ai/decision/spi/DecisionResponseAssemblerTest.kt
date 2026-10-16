@@ -19,6 +19,7 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import com.embabel.common.ai.classification.CategoryProbability
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
@@ -407,6 +408,26 @@ class DecisionResponseAssemblerTest {
                     "department=OUT_OF_DOMAIN, frustration=OUT_OF_RANGE, channel=MISSING; unexpected answers: 1",
                 message,
             )
+        }
+
+        @Test
+        fun `a choice distribution that misses an option is a bad distribution`() {
+            val partial = ClassificationResult.Selected(
+                "billing", jev, 0.9, listOf(CategoryProbability("billing", 1.0)),
+            )
+            val full = ClassificationResult.Selected(
+                "billing", jev, 0.9,
+                listOf(
+                    CategoryProbability("billing", 0.8),
+                    CategoryProbability("technical", 0.2),
+                ),
+            )
+            val message = singleWarn(capture {
+                assembler().proposition("is_urgent", yes).choice("department", partial).rating("frustration", rated).build()
+            })
+            assertTrue(message.contains("department=BAD_DISTRIBUTION"), message)
+            val response = assembler().proposition("is_urgent", yes).choice("department", full).rating("frustration", rated).build()
+            assertEquals(full, response.answer(department))
         }
 
         @Test

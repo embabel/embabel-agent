@@ -261,7 +261,7 @@ class DecisionResponseAssembler private constructor(
             is PropositionQuestionSpec -> builder.answer(question, outcome.value as PropositionResult)
             is ChoiceQuestionSpec -> {
                 val result = outcome.value as ClassificationResult
-                if (!fits { question.validate(result) }) return Anomaly.OUT_OF_DOMAIN
+                if (!fits { question.validate(result) }) return choiceAnomaly(question, result)
                 builder.answer(question, result)
             }
             is RatingQuestionSpec -> {
@@ -286,6 +286,20 @@ class DecisionResponseAssembler private constructor(
         } catch (rejected: IllegalArgumentException) {
             false
         }
+
+    /**
+     * Names the rule a rejected choice broke, in the order the validator checks them.
+     *
+     * @param question the choice question
+     * @param result the rejected choice result
+     * @return the anomaly that names the broken rule
+     */
+    private fun choiceAnomaly(question: ChoiceQuestionSpec, result: ClassificationResult): Anomaly {
+        val selected = result as ClassificationResult.Selected
+        val optionIds = question.options.map { it.id }.toSet()
+        // Validation checks the selected id first. If it is valid, only distribution coverage can have failed.
+        return if (selected.categoryId in optionIds) Anomaly.BAD_DISTRIBUTION else Anomaly.OUT_OF_DOMAIN
+    }
 
     /**
      * Names the rule a rejected rating broke, in the order the validator checks them.

@@ -138,8 +138,8 @@ class DecisionServicesSpringExampleTest {
     static final String REVIEW_MODEL = "gpt-4.1-mini";
     static final String REVIEW_PROVIDER = "ReviewProvider";
 
-    // The TypeSafe service class is package-private, so its logger is named here.
-    static final String TYPESAFE_LOGGER = "com.embabel.agent.typesafe.TypeSafeDecisionService";
+    // The System One service class is internal to its module, so its logger is named here.
+    static final String SYSTEM_ONE_LOGGER = "com.embabel.agent.systemone.SystemOneDecisionService";
 
     // Caller identifiers that may appear in logs and span events and must not become tag values.
     static final List<String> ROLES_AND_QUESTIONS =
@@ -505,19 +505,19 @@ class DecisionServicesSpringExampleTest {
     /** Scripts three one-question TypeSafe calls: assess, classify and rate. */
     static void expectPerQuestionAnswers(MockRestServiceServer server) {
         server.expect(requestTo(SYSTEM_ONE_URI))
-                .andExpect(jsonPath("$.questions.proposition.type").value("noul"))
+                .andExpect(jsonPath("$.questions.q1.type").value("noul"))
                 .andRespond(
                         withSuccess(
                                 """
-                                {"answers":{"proposition":{"type":"noul","noul":0.2}}}
+                                {"answers":{"q1":{"type":"noul","noul":0.2}}}
                                 """,
                                 MediaType.APPLICATION_JSON));
         server.expect(requestTo(SYSTEM_ONE_URI))
-                .andExpect(jsonPath("$.questions.classification.type").value("choice"))
+                .andExpect(jsonPath("$.questions.q1.type").value("choice"))
                 .andRespond(
                         withSuccess(
                                 """
-                                {"answers":{"classification":{"type":"choice","choice":"billing","probabilities":{"billing":0.9,"technical":0.1},"confidence":0.8}}}
+                                {"answers":{"q1":{"type":"choice","choice":"billing","probabilities":{"billing":0.9,"technical":0.1},"confidence":0.8}}}
                                 """,
                                 MediaType.APPLICATION_JSON));
         server.expect(requestTo(SYSTEM_ONE_URI))
@@ -575,11 +575,11 @@ class DecisionServicesSpringExampleTest {
 
     /** The provider line names the cause. The execution line names the request failure. */
     static void assertFailureLogLines(List<ILoggingEvent> events) {
-        assertThat(messages(events, TYPESAFE_LOGGER, Level.WARN))
+        assertThat(messages(events, SYSTEM_ONE_LOGGER, Level.WARN))
                 .singleElement()
                 .satisfies(
                         line -> assertThat(line)
-                                .startsWith("TypeSafe question set failed with reason UNAVAILABLE")
+                                .startsWith("System One question set failed with reason UNAVAILABLE")
                                 .contains(
                                         "service=" + JEV_MODEL,
                                         "provider=TypeSafe",
