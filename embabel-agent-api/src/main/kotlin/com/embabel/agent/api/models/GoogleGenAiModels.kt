@@ -25,14 +25,36 @@ class GoogleGenAiModels {
 
     companion object {
 
-        // Gemini 3.5 Family (Latest Generation - Stable)
+        // Gemini 4 Family (Latest Generation - Stable)
+        const val GEMINI_4_ARGON = "gemini-4-argon"
+
+        // Gemini 3.8 / 3.6 Family (Stable)
+        const val GEMINI_3_8_FLASH = "gemini-3.8-flash"
+        const val GEMINI_3_6_FLASH = "gemini-3.6-flash"
+
+        // Gemini 3.5 Family (Stable)
+        @Deprecated(
+            message = "gemini-3.5-flash is replaced by gemini-3.6-flash according to Google. Use GEMINI_3_6_FLASH.",
+            replaceWith = ReplaceWith("GEMINI_3_6_FLASH")
+        )
         const val GEMINI_3_5_FLASH = "gemini-3.5-flash"
+        const val GEMINI_3_5_FLASH_LITE = "gemini-3.5-flash-lite"
 
         // Gemini 3.1 Family (Preview - Latest Generation)
         const val GEMINI_3_1_PRO_PREVIEW = "gemini-3.1-pro-preview"
+
+        @Deprecated(
+            message = "gemini-3-flash-preview is replaced by gemini-3.6-flash according to Google. Use GEMINI_3_6_FLASH.",
+            replaceWith = ReplaceWith("GEMINI_3_6_FLASH")
+        )
         const val GEMINI_3_FLASH_PREVIEW = "gemini-3-flash-preview"
         const val GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS = "gemini-3.1-pro-preview-customtools"
         const val GEMINI_3_1_FLASH_LITE = "gemini-3.1-flash-lite"
+
+        @Deprecated(
+            message = "gemini-3.1-flash-lite-preview was shut down by Google on 2026-05-25. Use GEMINI_3_1_FLASH_LITE.",
+            replaceWith = ReplaceWith("GEMINI_3_1_FLASH_LITE")
+        )
         const val GEMINI_3_1_FLASH_LITE_PREVIEW = "gemini-3.1-flash-lite-preview"
 
         // Gemini 2.5 Family (Stable - Current Generation)
@@ -54,10 +76,21 @@ class GoogleGenAiModels {
         const val GEMINI_2_0_FLASH_LITE = "gemini-2.0-flash-lite"
 
         // Embedding Models
+        const val GEMINI_EMBEDDING_2 = "gemini-embedding-2"
         const val GEMINI_EMBEDDING_001 = "gemini-embedding-001"
+
+        @Deprecated(
+            message = "text-embedding-005 is not available on the Gemini API and returns 404. Use GEMINI_EMBEDDING_2.",
+            replaceWith = ReplaceWith("GEMINI_EMBEDDING_2")
+        )
         const val TEXT_EMBEDDING_005 = "text-embedding-005"
+
+        @Deprecated(
+            message = "text-embedding-004 was shut down by Google on 2026-01-14 and now returns 404. Use GEMINI_EMBEDDING_2.",
+            replaceWith = ReplaceWith("GEMINI_EMBEDDING_2")
+        )
         const val TEXT_EMBEDDING_004 = "text-embedding-004"
-        const val DEFAULT_TEXT_EMBEDDING_MODEL = TEXT_EMBEDDING_004
+        const val DEFAULT_TEXT_EMBEDDING_MODEL = GEMINI_EMBEDDING_001
 
         const val PROVIDER = "GoogleGenAI"
     }
