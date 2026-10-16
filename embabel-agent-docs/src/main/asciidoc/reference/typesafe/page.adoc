@@ -25,8 +25,8 @@ classDiagram
     TypeSafeDecisionService --> TypeSafeClient : internal SDK boundary
 ----
 
-The public factory returns framework services rather than native clients. This keeps SDK request,
-answer and exception types behind the provider adapter and gives other implementations the same
+The public factory returns framework services and keeps native clients private. SDK request,
+answer and exception types stay behind the provider adapter, and other implementations get the same
 service boundary.
 
 [source,mermaid]
@@ -56,12 +56,11 @@ embabel:
       models:
         typesafe:
           api-key: ${TYPESAFE_API_KEY}
-          model: jev-latest
 ----
 
-A nonblank environment value takes precedence over the property and is resolved for every
-request. Credential rotation therefore takes effect without rebuilding the service. Startup fails
-when neither source supplies a credential.
+A nonblank environment value takes precedence over the property. Both are read through the Spring
+environment for every request, so credential rotation takes effect without rebuilding the service.
+Startup fails when neither source supplies a credential.
 
 The complete property set under `embabel.agent.platform.models.typesafe` is:
 
@@ -76,10 +75,6 @@ The complete property set under `embabel.agent.platform.models.typesafe` is:
 |`https://api.typesafe.ai`
 |Provider or gateway endpoint
 
-|`model`
-|`jev-latest`
-|Model identifier or alias used by the default service
-
 |`max-response-bytes`
 |`1048576`
 |Maximum response size decoded by the guarded provider boundary
@@ -90,48 +85,22 @@ Auto-configuration contributes the following beans:
 * `TypeSafeModelsConfig` is itself a `TypeSafeModelFactory`, following the same configuration
   inheritance pattern as the Anthropic and OpenAI providers. Inject it by the
   `TypeSafeModelFactory` type.
-* `typeSafeDecisionService` is built for the configured model. Because it implements
-  `DecisionService`, it is also injectable as `ClassificationService`.
-* `typeSafeDefaultCandidate` offers `typeSafeDecisionService` as the default of the decision and
-  classification families. See <<reference.decision-execution>>.
-* One `DecisionService` bean for each entry under `services`, described below.
+* One `DecisionService` bean per model in the starter's catalog, `models/typesafe-models.yml`,
+  named after the model. A missing, invalid or empty catalog fails startup. The catalog holds `jev-latest`. Each bean is also injectable as
+  `ClassificationService`.
+* `typeSafeModelsRegistrar`, which defines the catalog model beans, and `typeSafeModelsInitializer`,
+  the `ProviderInitialization` that reports them. An application bean or alias named after a catalog
+  model replaces that model.
+* `typeSafeDefaultCandidate`, which offers `jev-latest` as the default of the decision and
+  classification families. It exists only when the starter defines the `jev-latest` bean, and an
+  application bean with that name is kept. See <<reference.decision-execution>>.
 
-An application bean named `typeSafeDecisionService` replaces the default service, and the
-auto-configuration then contributes no default candidate. Entries under `services` still register
-their named services, and they need the credential. With the application bean and no entries under
-`services`, the factory configuration does not run and no credential is required. Other decision
-providers and additional named TypeSafe services can coexist in the same context.
+Select a TypeSafe model by name in `embabel.models.decision.default` or a role, the same way a chat
+model is selected with `embabel.models.default-llm`. A TypeSafe model that is not in the catalog is
+built with `TypeSafeModelFactory.build(model)`.
 
-===== Named services
-
-Each entry under `embabel.agent.platform.models.typesafe.services` registers a `DecisionService`
-bean for its model. The entry's key is the bean name and the registration name.
-
-[source,yaml]
-----
-embabel:
-  agent:
-    platform:
-      models:
-        typesafe:
-          services:
-            jev:
-              model: jev-latest
-            jev-fast:
-              model: jev-fast
-----
-
-`model` is the only key of an entry. Named services share the credential, base URL and response
-limit of the top-level properties, and the `typeSafeDecisionService` bean stays registered. A bean
-the application defines under an entry's key replaces that entry, and one INFO line names it.
-Startup fails when an entry has a blank model or an unknown key, and the error names the property.
-Unknown keys are detected in configuration files and other property sources. Environment variables
-and system properties are not checked for them.
-
-An application that supplies its own `TypeSafeModelFactory` bean also keeps it: auto-configuration
-then creates no factory, no default service, and needs no API key. Named services come from the
-auto-configured factory, so a configured `services` entry is not registered when the application
-builds its own factory instead.
+An application that supplies its own `TypeSafeModelFactory` bean keeps it. Auto-configuration then
+registers no catalog models and needs no API key.
 
 ==== Classification and proposition assessment
 
@@ -194,8 +163,8 @@ exception retained as the cause. Raw response content stays inside the guarded b
 include::../../../../../../embabel-agent-typesafe/src/test/java/com/embabel/agent/typesafe/TypeSafeUsageExamples.java[tag=byok,indent=0]
 ----
 
-In Spring, configure named services under `services`, or declare additional `DecisionService` beans
-from the configured `TypeSafeModelFactory`, and inject them with `@Qualifier`.
+In Spring, inject a catalog model by its name with `@Qualifier("jev-latest")`, or declare
+additional `DecisionService` beans from the configured `TypeSafeModelFactory`.
 
 ==== Decision specs
 
@@ -234,8 +203,8 @@ wire contract must not change with application Jackson modules.
 
 Provider connection failures, timeouts and HTTP failures map to `Failure(UNAVAILABLE)`. Invalid or
 unreadable successful responses map to `Failure(INVALID_RESPONSE)`. These results contain no raw
-response body, provider message, throwable or credential. Cancellation propagates rather than being
-converted to model evidence, and the adapter never changes thread interruption state.
+response body, provider message, throwable or credential. Cancellation propagates to the caller and
+never becomes model evidence. The adapter never changes thread interruption state.
 
 ==== Logging and observability
 

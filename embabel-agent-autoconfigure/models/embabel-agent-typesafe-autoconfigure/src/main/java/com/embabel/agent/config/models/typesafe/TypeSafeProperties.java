@@ -15,30 +15,28 @@
  */
 package com.embabel.agent.config.models.typesafe;
 
-import com.embabel.agent.typesafe.TypeSafeModelFactory;
-
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
- * Configuration for TypeSafe decision services, bound beneath {@value #PREFIX}.
+ * Connection settings for TypeSafe decision models, bound beneath {@value #PREFIX}. The models
+ * themselves come from the starter's catalog, {@code models/typesafe-models.yml}.
  *
  * <p>HTTP transport settings belong to the shared or application-provided {@code
  * RestClient.Builder}.
  *
  * @param apiKey API credential used when {@code TYPESAFE_API_KEY} is absent or blank; excluded from
- *     {@link #toString()}. The environment key is resolved for each request.
+ *     {@link #toString()}. This component exists for binding and configuration metadata. The starter
+ *     reads {@code TYPESAFE_API_KEY} and this property through the Spring environment on every call,
+ *     so a rotated key takes effect without a restart.
  * @param baseUrl provider endpoint; defaults to {@code https://api.typesafe.ai}. Endpoint
  *     validation belongs to the HTTP client.
- * @param model default model for requests without an explicit model; defaults to {@code jev-latest}
- *     and must be nonblank
  * @param maxResponseBytes positive maximum response body size in bytes; defaults to 1 MiB
  */
 @ConfigurationProperties(TypeSafeProperties.PREFIX)
 public record TypeSafeProperties(
         String apiKey,
         @DefaultValue("https://api.typesafe.ai") String baseUrl,
-        @DefaultValue(TypeSafeModelFactory.DEFAULT_MODEL) String model,
         @DefaultValue("1048576") int maxResponseBytes) {
 
     /** Spring property namespace for TypeSafe decision services. */
@@ -51,7 +49,7 @@ public record TypeSafeProperties(
      */
     @Override
     public String toString() {
-        return "TypeSafeProperties[apiKey=[REDACTED], baseUrl=[CONFIGURED], model=[CONFIGURED], maxResponseBytes=%d]"
+        return "TypeSafeProperties[apiKey=[REDACTED], baseUrl=[CONFIGURED], maxResponseBytes=%d]"
                 .formatted(maxResponseBytes);
     }
 }
