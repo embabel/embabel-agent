@@ -107,10 +107,12 @@ open class SystemOneModelFactory @JvmOverloads constructor(
     /**
      * Reads the key once, checks it by listing the endpoint's models with it, then returns a service
      * for the default model. A missing key, a rejected listing or an unreachable endpoint all count
-     * as an invalid key. An interrupted key supplier throws a [CancellationException].
+     * as an invalid key. An already interrupted caller is cancelled before the key is read,
+     * including when no key is configured. An interrupted key supplier also throws a [CancellationException].
      *
      * @return a service for the default model
      * @throws InvalidApiKeyException if the key can't be validated
+     * @throws CancellationException if the caller or key supplier is interrupted
      */
     override fun buildValidated(): DecisionService {
         val provider = endpoint.provider

@@ -45,8 +45,9 @@ private const val HALF = 0.5
  *   outside 0..1 is out of range.
  * - A `choice` must report a probability for every option and no others, summing to 1. Zero
  *   confidence is inconclusive. A selection keeps the distribution in option order.
- * - A `score` must report a legend and probabilities keyed by every level index. The score is the
- *   expected level index and must lie between 0 and the last index.
+ * - A `score` must report a legend and probabilities keyed by every level index. The requested
+ *   level order determines the mapping; legend values are informational and are not validated.
+ *   The score is the expected level index and must lie between 0 and the last index.
  * - A missing or non-numeric field is unreadable. An answer of another known type is the wrong
  *   kind, and an unknown type is unreadable.
  */
@@ -154,6 +155,7 @@ internal object SystemOneAnswers {
         val indexes = question.levels.indices.map(Int::toString)
         val probabilities = distribution(answer.get("probabilities"), indexes)
             ?: return assembler.unreadable(name, Anomaly.BAD_DISTRIBUTION)
+        // Only legend indexes are authoritative; returned labels never remap the requested level order.
         if (!coversExactly(answer.get("legend"), indexes)) {
             return assembler.unreadable(name, Anomaly.BAD_DISTRIBUTION)
         }

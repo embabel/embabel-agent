@@ -537,6 +537,7 @@ The stub supports every kind unless the builder's `capabilities(...)` sets other
 
 The score is the probability-weighted mean of the zero-based level positions.
 A `score` question lists its level descriptions in level order, so level 0 is the first entry, and the answer keys its legend and probabilities by level index.
+The requested level order is authoritative. The codec checks the legend's indexes but does not validate its label values or use them to reorder levels.
 The value 1.6 on the levels Calm, Frustrated and Very angry lies between the second and third level.
 A rated answer has no selected level.
 The confidence of a score describes how concentrated the distribution is.
