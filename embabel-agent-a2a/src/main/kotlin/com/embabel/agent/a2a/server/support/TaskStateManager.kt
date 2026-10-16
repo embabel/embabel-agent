@@ -15,47 +15,70 @@
  */
 package com.embabel.agent.a2a.server.support
 
+import com.embabel.agent.a2a.config.A2AConfigurationProperties
 import io.a2a.spec.StreamingEventKind
 import io.a2a.spec.Task
 import io.a2a.spec.TaskState
+import io.a2a.spec.TaskStatus
+import io.a2a.spec.TaskStatusUpdateEvent
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
+import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
+import javax.annotation.concurrent.Immutable
+import javax.annotation.concurrent.ThreadSafe
 
 /**
  * Manages task state and history for streaming and resubscription support.
  * Tracks active tasks, completed tasks, and their event history.
+ * Completed tasks are evicted once they have been finished for longer than [taskRetention].
  */
 @Service
-class TaskStateManager {
+@ThreadSafe
+class TaskStateManager @JvmOverloads constructor(
+    val taskRetention: Duration = A2AConfigurationProperties.DEFAULT_TASK_RETENTION,
+    private val clock: Clock = Clock.systemUTC(),
+) {
+
+    @Autowired
+    constructor(properties: A2AConfigurationProperties) : this(properties.server.taskRetention)
+
     private val logger = LoggerFactory.getLogger(TaskStateManager::class.java)
 
-    private val activeTasks = ConcurrentHashMap<String, TaskInfo>()
-    private val completedTasks = ConcurrentHashMap<String, TaskInfo>()
+    private val tasks = ConcurrentHashMap<String, TaskInfo>()
 
     /**
-     * Stores information about a task
+     * Stores information about a task. State changes replace the whole value atomically,
+     * while the event list is shared by all values of a task.
      */
+    @Immutable
     data class TaskInfo(
         val taskId: String,
         val contextId: String,
-        val streamId: String,
-        val events: MutableList<StreamingEventKind> = mutableListOf(),
+        val streamId: String? = null,
+        val events: CopyOnWriteArrayList<StreamingEventKind> = CopyOnWriteArrayList(),
         val createdAt: Instant = Instant.now(),
-        var completedAt: Instant? = null,
-        var currentState: TaskState = TaskState.WORKING
+        val completedAt: Instant? = null,
+        val currentState: TaskState = TaskState.WORKING
     )
 
     /**
-     * Registers a new task with its stream ID
+     * Registers a new task, with the stream ID when it is streamed
      */
-    fun registerTask(taskId: String, contextId: String, streamId: String) {
+    @JvmOverloads
+    fun registerTask(taskId: String, contextId: String, streamId: String? = null) {
         logger.info("Registering task: taskId={}, contextId={}, streamId={}", taskId, contextId, streamId)
-        activeTasks[taskId] = TaskInfo(
+        val now = clock.instant()
+        cleanupOldTasks(now.minus(taskRetention))
+        tasks[taskId] = TaskInfo(
             taskId = taskId,
             contextId = contextId,
-            streamId = streamId
+            streamId = streamId,
+            createdAt = now,
         )
     }
 
@@ -63,29 +86,20 @@ class TaskStateManager {
      * Records an event for a task
      */
     fun recordEvent(taskId: String, event: StreamingEventKind) {
-        val taskInfo = activeTasks[taskId] ?: completedTasks[taskId]
-        if (taskInfo != null) {
+        val taskInfo = tasks.computeIfPresent(taskId) { _, taskInfo ->
             taskInfo.events.add(event)
-
-            // Update state if event is a Task or TaskStatusUpdateEvent with status
-            val taskState = when (event) {
-                is Task -> event.status.state
-                is io.a2a.spec.TaskStatusUpdateEvent -> event.status.state
-                else -> null
-            }
-
-            if (taskState != null) {
-                taskInfo.currentState = taskState
-
-                // Move to completed if task is in terminal state
-                if (isTerminalState(taskState)) {
-                    taskInfo.completedAt = Instant.now()
-                    activeTasks.remove(taskId)
-                    completedTasks[taskId] = taskInfo
+            val taskState = statusOf(event)?.state
+            when {
+                taskState == null -> taskInfo
+                taskState.isFinal -> {
                     logger.info("Task {} completed with state {}", taskId, taskState)
+                    taskInfo.copy(currentState = taskState, completedAt = clock.instant())
                 }
+
+                else -> taskInfo.copy(currentState = taskState)
             }
-        } else {
+        }
+        if (taskInfo == null) {
             logger.warn("Attempted to record event for unknown task: {}", taskId)
         }
     }
@@ -94,7 +108,25 @@ class TaskStateManager {
      * Gets the task info for a given task ID
      */
     fun getTaskInfo(taskId: String): TaskInfo? {
-        return activeTasks[taskId] ?: completedTasks[taskId]
+        return tasks[taskId]
+    }
+
+    /**
+     * Gets the task as of its latest recorded event
+     */
+    fun getTask(taskId: String): Task? {
+        val taskInfo = getTaskInfo(taskId) ?: return null
+        val latestTask = taskInfo.events.filterIsInstance<Task>().lastOrNull()
+        val latestStatus = taskInfo.events.mapNotNull { statusOf(it) }.lastOrNull()
+            ?: TaskStatus(taskInfo.currentState)
+        return Task(
+            taskId,
+            taskInfo.contextId,
+            latestStatus,
+            latestTask?.artifacts ?: emptyList(),
+            latestTask?.history ?: emptyList(),
+            latestTask?.metadata,
+        )
     }
 
     /**
@@ -115,29 +147,23 @@ class TaskStateManager {
      * Checks if a task is active
      */
     fun isTaskActive(taskId: String): Boolean {
-        return activeTasks.containsKey(taskId)
+        return getTaskInfo(taskId)?.currentState?.isFinal == false
     }
 
     /**
      * Checks if a task exists (active or completed)
      */
     fun taskExists(taskId: String): Boolean {
-        return activeTasks.containsKey(taskId) || completedTasks.containsKey(taskId)
+        return tasks.containsKey(taskId)
     }
 
     /**
      * Updates the stream ID for a task (used during resubscription)
      */
     fun updateStreamId(taskId: String, newStreamId: String) {
-        val taskInfo = activeTasks[taskId] ?: completedTasks[taskId]
-        if (taskInfo != null) {
+        tasks.computeIfPresent(taskId) { _, taskInfo ->
             logger.info("Updating stream ID for task {} from {} to {}", taskId, taskInfo.streamId, newStreamId)
-            val updatedInfo = taskInfo.copy(streamId = newStreamId)
-            if (activeTasks.containsKey(taskId)) {
-                activeTasks[taskId] = updatedInfo
-            } else {
-                completedTasks[taskId] = updatedInfo
-            }
+            taskInfo.copy(streamId = newStreamId)
         }
     }
 
@@ -145,13 +171,17 @@ class TaskStateManager {
      * Removes old completed tasks (basic cleanup)
      */
     fun cleanupOldTasks(olderThan: Instant) {
-        val removed = completedTasks.entries.removeIf { entry ->
-            entry.value.completedAt?.isBefore(olderThan) ?: false
+        val removed = tasks.values.removeIf { taskInfo ->
+            taskInfo.completedAt?.isBefore(olderThan) ?: false
         }
         if (removed) {
             logger.info("Cleaned up old completed tasks")
         }
     }
 
-    private fun isTerminalState(state: TaskState): Boolean = state.isFinal
+    private fun statusOf(event: StreamingEventKind): TaskStatus? = when (event) {
+        is Task -> event.status
+        is TaskStatusUpdateEvent -> event.status
+        else -> null
+    }
 }
