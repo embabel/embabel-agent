@@ -15,26 +15,30 @@
  */
 package com.embabel.chat.agent
 
-import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
 import com.embabel.agent.api.event.AgentProcessCompletedEvent
 import com.embabel.agent.api.event.AgentProcessEvent
+import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.ProcessOptions
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
+import com.embabel.agent.test.integration.DummyObjectCreatingLlmOperations
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyAgentPlatform
 import com.embabel.agent.test.integration.RandomRanker
 import com.embabel.agent.test.integration.forAutonomyTesting
+import com.embabel.agent.tools.agent.GoalTool
+import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.chat.support.InMemoryConversation
 import com.embabel.common.ai.model.LlmOptions
-import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.util.IdentityHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
 class DefaultChatAgentBuilderTest {
 
@@ -71,23 +75,15 @@ class DefaultChatAgentBuilderTest {
     fun `goal tool events reach the chat listeners once`() {
         val platformListener = EventSavingAgenticEventListener()
         val chatListener = EventSavingAgenticEventListener()
-        val agentPlatform = dummyAgentPlatform(listener = platformListener)
+        val agentPlatform = dummyAgentPlatform(listener = platformListener, llmOperations = GoalToolCallingLlm())
         agentPlatform.deploy(evenMoreEvilWizard())
         val autonomy = Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting())
 
-        val chatProcess = agentPlatform.createAgentProcess(
-            evenMoreEvilWizard(),
-            ProcessOptions(listeners = listOf(chatListener)),
-            emptyMap(),
+        val chatProcess = agentPlatform.runAgentFrom(
+            agent = DefaultChatAgentBuilder(autonomy, llm = LlmOptions()).build(),
+            processOptions = ProcessOptions(listeners = listOf(chatListener)),
+            bindings = mapOf("conversation" to InMemoryConversation(listOf(UserMessage("Turn Rod into a frog")))),
         )
-        val context = mockk<TransformationActionContext<*, *>>()
-        every { context.processContext } returns chatProcess.processContext
-        every { context.agentPlatform() } returns agentPlatform
-        // Like real contexts, which delegate AgenticEventListener to their processContext
-        every { context.onProcessEvent(any()) } answers { chatProcess.processContext.onProcessEvent(firstArg()) }
-
-        val toolGroup = DefaultChatAgentBuilder(autonomy, llm = LlmOptions()).buildToolGroup(context)
-        toolGroup.tools.single().call("""{"content": "Rod"}""")
 
         val goalProcessEvents = platformListener.processEvents.filter { it.processId != chatProcess.id }
         assertTrue(
@@ -107,5 +103,25 @@ class DefaultChatAgentBuilderTest {
             duplicated,
             "Events delivered more than once to the platform listener",
         )
+    }
+
+    /**
+     * Fake LLM that calls the goal tool once, as a real model would.
+     */
+    private class GoalToolCallingLlm : DummyObjectCreatingLlmOperations(listOf("lorem")) {
+
+        private val called = AtomicBoolean(false)
+
+        override fun <O> doTransform(
+            messages: List<Message>,
+            interaction: LlmInteraction,
+            outputClass: Class<O>,
+            llmRequestEvent: LlmRequestEvent<O>?,
+        ): O {
+            interaction.tools.firstOrNull { it is GoalTool<*> }
+                ?.takeIf { called.compareAndSet(false, true) }
+                ?.call("""{"content": "Rod"}""")
+            return super.doTransform(messages, interaction, outputClass, llmRequestEvent)
+        }
     }
 }

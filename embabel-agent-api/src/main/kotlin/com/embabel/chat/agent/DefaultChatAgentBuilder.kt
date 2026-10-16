@@ -59,7 +59,7 @@ class DefaultChatAgentBuilder(
 
     private val achievableGoalsToolGroupFactory = AchievableGoalsToolGroupFactory(autonomy)
 
-    internal fun buildToolGroup(context: TransformationActionContext<*, *>): ToolGroup =
+    private fun buildToolGroup(context: TransformationActionContext<*, *>): ToolGroup =
         achievableGoalsToolGroupFactory.achievableGoalsToolGroup(
             context = context,
             bindings = mapOf("it" to UserInput("doesn't matter")),
