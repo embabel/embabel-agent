@@ -34,6 +34,7 @@ import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
 import java.net.http.HttpTimeoutException
 import java.nio.channels.ClosedByInterruptException
+import java.util.IdentityHashMap
 import java.util.concurrent.CancellationException
 import java.util.concurrent.TimeoutException
 import java.util.function.Supplier
@@ -105,9 +106,10 @@ internal class SystemOneTransport(
      * @param supplier where the key comes from
      * @return the trimmed key, or null when it is missing or blank
      * @throws SystemOneFailure if the supplier fails or the key holds control characters
-     * @throws CancellationException if the supplier was interrupted
+     * @throws CancellationException if the caller is already interrupted or the supplier was interrupted
      */
     fun resolveKey(supplier: Supplier<String?>): String? {
+        rejectIfInterrupted()
         val key = try {
             supplier.get()
         } catch (cancelled: CancellationException) {
@@ -321,7 +323,18 @@ internal class SystemOneTransport(
          * @return true when one is
          */
         private inline fun <reified T : Throwable> Throwable.hasCause(): Boolean =
-            generateSequence(this) { it.cause }.any { it is T }
+            hasMatchingCause { it is T }
+
+        /** Walks by identity so a malformed cyclic cause chain cannot stall error handling. */
+        private inline fun Throwable.hasMatchingCause(matches: (Throwable) -> Boolean): Boolean {
+            val seen = IdentityHashMap<Throwable, Boolean>()
+            var current: Throwable? = this
+            while (current != null && seen.put(current, true) == null) {
+                if (matches(current)) return true
+                current = current.cause
+            }
+            return false
+        }
 
         /**
          * Recognizes socket, JDK HTTP and concurrency timeouts anywhere in the cause chain.
@@ -329,7 +342,7 @@ internal class SystemOneTransport(
          *
          * @return true when one is
          */
-        private fun Throwable.hasTimeout(): Boolean = generateSequence(this) { it.cause }.any {
+        private fun Throwable.hasTimeout(): Boolean = hasMatchingCause {
             it is SocketTimeoutException || it is HttpTimeoutException || it is TimeoutException
         }
     }

@@ -128,6 +128,23 @@ class SystemOneModelFactoryTest {
         override fun read(b: ByteArray, off: Int, len: Int): Int = delegate.read(b, off, len).also { if (it > 0) read += it }
     }
 
+    private class BoundedCyclicFailure : RuntimeException("SENTINEL") {
+        lateinit var next: Throwable
+        private var reads = 0
+        override val cause: Throwable
+            get() {
+                // Fail the old traversal promptly instead of leaving the test stuck in its cycle.
+                if (++reads > 16) throw AssertionError("Cause cycle was traversed repeatedly")
+                return next
+            }
+    }
+
+    private fun cyclicFailure(nested: Throwable = IllegalStateException("SENTINEL")): RuntimeException =
+        BoundedCyclicFailure().also {
+            it.next = nested
+            nested.initCause(it)
+        }
+
     @Nested
     inner class Requests {
 
@@ -235,6 +252,17 @@ class SystemOneModelFactoryTest {
         }
 
         @Test
+        fun `a cyclic credential failure is unavailable without traversing forever`() {
+            val failure = cyclicFailure()
+            val mocked = mocked(key = { throw failure })
+
+            assertEquals(FailureReason.UNAVAILABLE, ask(mocked.factory).requestFailure)
+            assertTrue(warnings().single().contains("cause=credential"), warnings().single())
+            assertFalse(warnings().single().contains("SENTINEL"), warnings().single())
+            mocked.server.verify()
+        }
+
+        @Test
         fun `the key is resolved on every request and never when building`() {
             val calls = AtomicInteger()
             val mocked = mocked(key = { "key-${calls.incrementAndGet()}" })
@@ -335,6 +363,23 @@ class SystemOneModelFactoryTest {
 
     @Nested
     inner class Responses {
+
+        @Test
+        fun `cyclic client failures terminate and retain timeout classification`() {
+            listOf(
+                Triple(IllegalStateException("SENTINEL"), FailureReason.INVALID_RESPONSE, "other"),
+                Triple(SocketTimeoutException("SENTINEL"), FailureReason.UNAVAILABLE, "timeout"),
+            ).forEach { (nested, reason, category) ->
+                val failure = cyclicFailure(nested)
+                val mocked = mocked()
+                mocked.server.expect(requestTo("$base/v1/systemone")).andRespond { throw failure }
+
+                assertEquals(reason, ask(mocked.factory).requestFailure)
+                assertTrue(warnings().last().contains("cause=$category"), warnings().last())
+                assertFalse(warnings().last().contains("SENTINEL"), warnings().last())
+                mocked.server.verify()
+            }
+        }
 
         @Test
         fun `wrapped timeout families take precedence over connection failures`() {
@@ -586,6 +631,23 @@ class SystemOneModelFactoryTest {
 
     @Nested
     inner class Byok {
+
+        @Test
+        fun `interrupted validation cancels before resolving even a missing credential`() {
+            for (key in listOf(null, "", "test-key")) {
+                val calls = AtomicInteger()
+                val mocked = mocked(key = { key.also { calls.incrementAndGet() } })
+                Thread.currentThread().interrupt()
+                try {
+                    val failure = assertThrows<CancellationException> { mocked.factory.buildValidated() }
+                    assertTrue(failure.cause is InterruptedException)
+                } finally {
+                    assertTrue(Thread.interrupted())
+                }
+                assertEquals(0, calls.get())
+                mocked.server.verify()
+            }
+        }
 
         @Test
         fun `a blank key is invalid without calling the endpoint`() {

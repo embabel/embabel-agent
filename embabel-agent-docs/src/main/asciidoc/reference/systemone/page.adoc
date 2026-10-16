@@ -44,6 +44,9 @@ The state, question instructions and criteria are still sent.
 
 A proposition goes out as a `noul`, a choice as a `choice` with its options as criteria, and a rating as a `score` with its level descriptions in level order.
 A level with a blank description sends its id.
+Rating responses map probabilities back to this requested level order using zero-based indexes.
+The codec checks the legend's indexes, but its label values are informational and are not validated.
+Changed or reversed legend labels do not reorder the requested levels.
 
 The response answers each key:
 
@@ -256,6 +259,7 @@ A failed call fails every question in the request with one reason:
 |===
 
 A caller whose thread is already interrupted gets a `CancellationException` caused by an `InterruptedException`, and nothing is sent.
+This includes `buildValidated()`, which cancels before invoking the credential supplier even when no key is configured.
 A call that fails because of an interrupt, including a key supplier interrupted while it waits, is cancelled the same way.
 The interrupt flag stays set in both cases.
 

@@ -194,6 +194,21 @@ class SystemOneCodecTest {
     inner class Ratings {
 
         @Test
+        fun `legend labels do not remap the requested level order`() {
+            val reversed = score.replace(
+                "\"0\":\"Calm\",\"1\":\"annoyed\",\"2\":\"Furious\"",
+                "\"0\":\"Furious\",\"1\":\"reworded\",\"2\":\"Calm\"",
+            )
+            val result = decode(body(noul, choice, reversed)).answer(anger) as RatingResult.Answered
+
+            assertEquals(
+                listOf(LevelProbability("calm", 0.1), LevelProbability("annoyed", 0.3), LevelProbability("furious", 0.6)),
+                result.distribution,
+            )
+            assertEquals(RatingScore(1.5, RatingStatistic.EXPECTED_LEVEL_INDEX), result.score)
+        }
+
+        @Test
         fun `a score becomes the level distribution and expected level index`() {
             val response = decode(body(noul, choice, score))
             assertEquals(
