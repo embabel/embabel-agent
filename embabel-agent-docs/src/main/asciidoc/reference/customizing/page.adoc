@@ -132,6 +132,31 @@ class CustomOpenAiCompatibleModels(
 ----
 ====
 
+===== Serving a model over the Responses API
+
+`openAiCompatibleLlm` speaks Chat Completions.
+Some models need the OpenAI Responses API instead: the GPT-5.6 and GPT-6 tiers refuse function tools over Chat Completions unless reasoning is off, and the `*-pro` models are served only over Responses.
+For those, build the service with `openAiResponsesLlm` from the same factory:
+
+[source,kotlin]
+----
+@Bean
+fun luna(): LlmService<*> =
+    openAiResponsesLlm(
+        model = "gpt-6-luna",
+        pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+        provider = "OpenAI",
+        knowledgeCutoffDate = null,
+        // Optional: the shipped OpenAI catalog's native structured-output settings
+        nativeSupport = OpenAiModelLoader().loadAutoConfigMetadata().nativeSupportDefaults,
+    )
+----
+
+- *Requests*: no sampling parameters are sent, and `LlmOptions.maxTokens` becomes `max_output_tokens`, which also covers reasoning tokens.
+- *Reasoning*: set the effort per call with `LlmOptions.withOpenAiReasoningEffort("low")`. It is sent as the Responses `reasoning.effort` whatever the `provider` name is.
+- *Structured output*: native only when `nativeSupport` declares it, as with the catalog settings above. Schemas that fail the native-output compatibility check fall back to prompt-based output, as for catalog models. Without `nativeSupport`, structured output is prompt-based.
+- *Limits*: this transport does not stream, and it rejects media content in messages. The endpoint must implement `/v1/responses`.
+
 ==== Adding embedding models
 
 Embedding models can also be added as beans of the Embabel type `EmbeddingService`.
