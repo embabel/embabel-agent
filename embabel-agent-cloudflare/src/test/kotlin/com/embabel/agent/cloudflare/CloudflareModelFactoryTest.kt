@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.cloudflare
 
+import com.embabel.common.ai.classification.ClassificationSpec
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
 import com.embabel.common.ai.decision.DecisionRequest
@@ -23,7 +24,11 @@ import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.Questions
 import com.embabel.common.ai.decision.RatingResult
 import com.embabel.common.ai.decision.UnsupportedDecisionException
+import com.embabel.common.ai.decision.spi.RatingAssessment
 import com.embabel.common.byok.InvalidApiKeyException
+import io.micrometer.observation.Observation
+import io.micrometer.observation.ObservationHandler
+import io.micrometer.observation.ObservationRegistry
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -60,10 +65,13 @@ class CloudflareModelFactoryTest {
 
     private class Mocked(val factory: CloudflareModelFactory, val server: MockRestServiceServer)
 
-    private fun mocked(token: Supplier<String?> = Supplier { "cf-token" }): Mocked {
+    private fun mocked(
+        token: Supplier<String?> = Supplier { "cf-token" },
+        registry: ObservationRegistry = ObservationRegistry.NOOP,
+    ): Mocked {
         val builder = RestClient.builder()
         val server = MockRestServiceServer.bindTo(builder).build()
-        return Mocked(CloudflareModelFactory(account, token, builder), server)
+        return Mocked(CloudflareModelFactory(account, token, builder, registry), server)
     }
 
     private fun ask(factory: CloudflareModelFactory, spec: DecisionSpec = DecisionSpec.of(urgent), model: String? = null) =
@@ -255,6 +263,36 @@ class CloudflareModelFactoryTest {
         }
 
         @Test
+        fun `classification rating and ask observe CLEF limits as unsupported without reading the token`() {
+            val stopped = mutableListOf<Observation.Context>()
+            val registry = ObservationRegistry.create().apply {
+                observationConfig().observationHandler(object : ObservationHandler<Observation.Context> {
+                    override fun supportsContext(context: Observation.Context) = true
+                    override fun onStop(context: Observation.Context) {
+                        stopped += context
+                    }
+                })
+            }
+            val calls = AtomicInteger()
+            val mocked = mocked(token = { "cf-token".also { calls.incrementAndGet() } }, registry = registry)
+            val service = mocked.factory.build()
+            val classification = ClassificationSpec.builder().asking("Pick")
+            (1..256).forEach { classification.category("c$it", "Category $it") }
+            val rating = Questions.named("scale").rating("Rate")
+            (1..11).forEach { rating.level("l$it") }
+            val scale = rating.build()
+
+            assertThrows<UnsupportedDecisionException> { service.classify("input", classification.build()) }
+            assertThrows<UnsupportedDecisionException> { (service as RatingAssessment).rate("input", scale) }
+            assertThrows<UnsupportedDecisionException> { service.ask("input", DecisionSpec.of(scale)) }
+
+            assertEquals(listOf("classify", "rate", "ask_question_set", "ask"), stopped.map { it.getLowCardinalityKeyValue("operation")?.value })
+            assertTrue(stopped.all { it.getLowCardinalityKeyValue("outcome")?.value == "unsupported" })
+            assertEquals(0, calls.get())
+            mocked.server.verify()
+        }
+
+        @Test
         fun `the clef limits don't apply to jev`() {
             val mocked = mocked()
             var body: String? = null
@@ -329,6 +367,17 @@ class CloudflareModelFactoryTest {
 
     @Nested
     inner class Construction {
+
+        @Test
+        fun `an invalid default model fails construction before reading the token`() {
+            val calls = AtomicInteger()
+
+            assertThrows<IllegalArgumentException> {
+                CloudflareModelFactory(account, { "cf-token".also { calls.incrementAndGet() } }, defaultModel = "TypeSafe/Jev")
+            }
+
+            assertEquals(0, calls.get())
+        }
 
         @Test
         fun `the account id must be 32 hexadecimal characters and stays out of the message`() {

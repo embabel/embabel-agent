@@ -666,6 +666,7 @@ A question-set ask records one ask and one `ask_question_set` observation.
 A per-question ask of three questions records one ask and three provider observations.
 A choice question among them records `embabel.ai.classification` with `operation=classify`.
 A request rejected by the preflight records one ask with `outcome=unsupported` and no provider observation.
+A provider-specific limit rejected inside an operation also records `outcome=unsupported` on that operation, before any HTTP request is sent.
 
 |===
 |Tag |Values
@@ -677,7 +678,7 @@ A request rejected by the preflight records one ask with `outcome=unsupported` a
 |`complete`, `partial`, `request_failure`, `unsupported`, `exception`, `interrupted`, `cancelled`
 
 |`outcome` on provider calls
-|The result kind, such as `answered`, `selected`, `no_match`, `inconclusive` or `failure`. `invalid_response` when a `classify` answer falls outside the question's options. `exception`, `interrupted` or `cancelled` when the call throws.
+|The result kind, such as `answered`, `selected`, `no_match`, `inconclusive` or `failure`. `invalid_response` when a `classify` answer falls outside the question's options. `unsupported` when provider-specific limits reject the request. `exception`, `interrupted` or `cancelled` for other thrown outcomes.
 
 |`question_count`
 |`1`, `2-4`, `5-16`, `17+`

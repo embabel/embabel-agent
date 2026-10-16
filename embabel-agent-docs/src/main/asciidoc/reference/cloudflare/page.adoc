@@ -26,6 +26,7 @@ The Cloudflare integration is the System One client (<<reference.systemone>>) wi
 |===
 
 `clef` is a 27B model, `clef-flash` a faster 9B model, and `clef-omni` a mixture-of-experts model that also reads audio.
+This integration sends text input only.
 Cloudflare bills third-party models such as Jev through AI Gateway, from gateway credits or a provider key stored in the gateway.
 Without either, Cloudflare refuses Jev calls and the request fails.
 The CLEF models work on the same token.
@@ -35,7 +36,7 @@ That is the quickest way to try CLEF with no Cloudflare account.
 <<reference.systemone.local>> walks through it.
 
 Cloudflare's CLEF schema truncates long text state to fit the model's context window, which is 65,536 tokens for `clef`.
-A request that fits the response limit can still lose text to truncation, so check retention and quality on your own inputs before relying on the results.
+A request within the schema limits can still lose text to truncation, so check retention and quality on your own inputs before relying on the results.
 
 ==== Dependencies and Spring configuration
 
@@ -51,8 +52,8 @@ embabel:
     platform:
       models:
         cloudflare:
-          api-key: ${CLOUDFLARE_API_TOKEN}
-          account-id: ${CLOUDFLARE_ACCOUNT_ID}
+          api-key: ${CLOUDFLARE_API_TOKEN:}
+          account-id: ${CLOUDFLARE_ACCOUNT_ID:}
 ----
 
 The `api-key` property holds a Cloudflare API token, and `CLOUDFLARE_API_TOKEN` sets the same value.
@@ -117,7 +118,8 @@ The service answers a whole spec in one call:
 include::../../../../../../embabel-agent-starters/embabel-agent-starter-cloudflare/src/test/java/com/embabel/agent/cloudflare/example/CloudflareConsumerTest.java[tag=cloudflare-consumer,indent=0]
 ----
 
-`CloudflareModelFactory` works without Spring:
+`CloudflareModelFactory` works without Spring.
+Build the factory and service once and reuse them:
 
 [source,java]
 ----
@@ -146,10 +148,12 @@ include::../../../../../../embabel-agent-cloudflare/src/test/java/com/embabel/ag
 * Every call sends the token as a bearer token to `https://api.cloudflare.com/client/v4/accounts/<account id>`.
 * A Cloudflare-hosted model runs at `/ai/run/<model id>`, and the body's `model` is its short name, such as `clef`.
 `build(model)` throws `IllegalArgumentException` for a hosted model id that doesn't look like `@cf/<author>/<model>`, so a name can't change the path.
+Model id validation checks the format, not the model's capabilities: choose a System One-compatible model.
+The hosted route uses the CLEF request format and limits.
 * A third-party model runs at `/ai/run`.
 The body is `{"model": "typesafe/jev", "input": {...}}`, with the System One request as `input`.
 `build(model)` throws `IllegalArgumentException` for a third-party model id that doesn't look like `<author>/<model>`.
-A catalog model with such an id fails startup.
+A catalog model with such an id fails when its service bean is created, normally at startup.
 * A successful response has `success` set to true, no errors, and the System One response in `result`.
 Anything else fails the request with `INVALID_RESPONSE`.
 Cloudflare's error text is never kept, since it can echo the input.
