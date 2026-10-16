@@ -36,6 +36,7 @@ import com.embabel.common.ai.model.LlmOptions
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.util.IdentityHashMap
 import java.util.concurrent.atomic.AtomicBoolean
@@ -71,38 +72,42 @@ class DefaultChatAgentBuilderTest {
      * The chat's ProcessOptions listeners must see them, and the platform listener
      * must not get them twice. See https://github.com/embabel/embabel-agent/issues/2126
      */
-    @Test
-    fun `goal tool events reach the chat listeners and the platform listener once`() {
-        val platformListener = EventSavingAgenticEventListener()
-        val chatListener = EventSavingAgenticEventListener()
-        val agentPlatform = dummyAgentPlatform(listener = platformListener, llmOperations = GoalToolCallingLlm())
-        agentPlatform.deploy(evenMoreEvilWizard())
-        val autonomy = Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting())
+    @Nested
+    inner class GoalToolEvents {
 
-        val chatProcess = agentPlatform.runAgentFrom(
-            agent = DefaultChatAgentBuilder(autonomy, llm = LlmOptions()).build(),
-            processOptions = ProcessOptions(listeners = listOf(chatListener)),
-            bindings = mapOf("conversation" to InMemoryConversation(listOf(UserMessage("Turn Rod into a frog")))),
-        )
+        @Test
+        fun `reach the chat listeners and the platform listener once`() {
+            val platformListener = EventSavingAgenticEventListener()
+            val chatListener = EventSavingAgenticEventListener()
+            val agentPlatform = dummyAgentPlatform(listener = platformListener, llmOperations = GoalToolCallingLlm())
+            agentPlatform.deploy(evenMoreEvilWizard())
+            val autonomy = Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting())
 
-        val goalProcessEvents = platformListener.processEvents.filter { it.processId != chatProcess.id }
-        assertTrue(
-            goalProcessEvents.any { it is AgentProcessCompletedEvent },
-            "The goal sub-process should have completed",
-        )
-        assertTrue(
-            chatListener.processEvents.any { it is AgentProcessCompletedEvent && it.processId != chatProcess.id },
-            "The chat's ProcessOptions listener should see the goal sub-process complete",
-        )
+            val chatProcess = agentPlatform.runAgentFrom(
+                agent = DefaultChatAgentBuilder(autonomy, llm = LlmOptions()).build(),
+                processOptions = ProcessOptions(listeners = listOf(chatListener)),
+                bindings = mapOf("conversation" to InMemoryConversation(listOf(UserMessage("Turn Rod into a frog")))),
+            )
 
-        val deliveries = IdentityHashMap<AgentProcessEvent, Int>()
-        goalProcessEvents.forEach { deliveries.merge(it, 1, Int::plus) }
-        val duplicated = deliveries.filterValues { it > 1 }.map { (event, count) -> "${event::class.simpleName} x$count" }
-        assertEquals(
-            emptyList<String>(),
-            duplicated,
-            "Events delivered more than once to the platform listener",
-        )
+            val goalProcessEvents = platformListener.processEvents.filter { it.processId != chatProcess.id }
+            assertTrue(
+                goalProcessEvents.any { it is AgentProcessCompletedEvent },
+                "The goal sub-process should have completed",
+            )
+            assertTrue(
+                chatListener.processEvents.any { it is AgentProcessCompletedEvent && it.processId != chatProcess.id },
+                "The chat's ProcessOptions listener should see the goal sub-process complete",
+            )
+
+            val deliveries = IdentityHashMap<AgentProcessEvent, Int>()
+            goalProcessEvents.forEach { deliveries.merge(it, 1, Int::plus) }
+            val duplicated = deliveries.filterValues { it > 1 }.map { (event, count) -> "${event::class.simpleName} x$count" }
+            assertEquals(
+                emptyList<String>(),
+                duplicated,
+                "Events delivered more than once to the platform listener",
+            )
+        }
     }
 
     /**
@@ -118,9 +123,14 @@ class DefaultChatAgentBuilderTest {
             outputClass: Class<O>,
             llmRequestEvent: LlmRequestEvent<O>?,
         ): O {
-            interaction.tools.firstOrNull { it is GoalTool<*> }
-                ?.takeIf { called.compareAndSet(false, true) }
-                ?.call("""{"content": "Rod"}""")
+            // Only the chat's LLM call offers goal tools. A real model would decide to call one;
+            // here we call it directly. The goal sub-process also calls this LLM, so `called`
+            // makes sure the goal tool runs only once.
+            val goalTool = interaction.tools.firstOrNull { it is GoalTool<*> }
+            if (goalTool != null && called.compareAndSet(false, true)) {
+                goalTool.call("""{"content": "Rod"}""")
+            }
+            // Then answer like the dummy LLM: a random instance of the expected type
             return super.doTransform(messages, interaction, outputClass, llmRequestEvent)
         }
     }
