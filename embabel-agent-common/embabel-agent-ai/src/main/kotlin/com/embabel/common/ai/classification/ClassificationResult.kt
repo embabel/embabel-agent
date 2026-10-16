@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import org.jetbrains.annotations.ApiStatus
+import java.util.Objects
 import kotlin.math.abs
 
 /** How far a reported distribution's probabilities may sum from 1. */
@@ -175,6 +176,7 @@ sealed interface ClassificationResult {
                 val ids = this.distribution.map { it.categoryId }
                 require(ids.size == ids.toSet().size) { "Distribution category ids must be unique" }
                 val sum = this.distribution.sumOf { it.probability }
+                // Allow rounding error on either side of 1.
                 require(abs(sum - 1.0) <= DISTRIBUTION_TOLERANCE) {
                     "Distribution probabilities must sum to 1 within 1e-6, but summed to $sum"
                 }
@@ -182,11 +184,17 @@ sealed interface ClassificationResult {
             }
         }
 
-        override fun equals(other: Any?): Boolean =
-            this === other || other is Selected && categoryId == other.categoryId &&
-                provenance == other.provenance && java.util.Objects.equals(confidence, other.confidence) && distribution == other.distribution
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is Selected) return false
+            // Boxed confidence equality keeps signed zero consistent with hashCode.
+            return categoryId == other.categoryId &&
+                provenance == other.provenance &&
+                Objects.equals(confidence, other.confidence) &&
+                distribution == other.distribution
+        }
 
-        override fun hashCode(): Int = java.util.Objects.hash(categoryId, provenance, confidence, distribution)
+        override fun hashCode(): Int = Objects.hash(categoryId, provenance, confidence, distribution)
 
         override fun toString(): String =
             "Selected(categoryId=$categoryId, provenance=$provenance, confidence=$confidence, distribution=$distribution)"

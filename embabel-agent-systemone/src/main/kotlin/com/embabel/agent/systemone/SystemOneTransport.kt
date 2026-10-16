@@ -69,6 +69,7 @@ internal class SystemOneTransport(
 
     private val restClient: RestClient = (builder?.clone() ?: RestClient.builder().requestFactory(fallback()))
         .bufferContent { _, _ -> false }
+        // Run authorization last so application interceptors cannot replace the per-call key.
         .requestInterceptors { it.add(ClientHttpRequestInterceptor(::authorize)) }
         .build()
 
@@ -110,6 +111,7 @@ internal class SystemOneTransport(
         val key = try {
             supplier.get()
         } catch (cancelled: CancellationException) {
+            // Preserve the supplier's explicit cancellation, including its identity and cause.
             throw cancelled
         } catch (failure: Exception) {
             // A Kotlin supplier can throw a checked exception, such as InterruptedException, directly.
@@ -173,15 +175,17 @@ internal class SystemOneTransport(
      * @return the body, status and request id
      */
     private fun read(response: RestClient.RequestHeadersSpec.ConvertibleClientHttpResponse): Reply {
-        val status = response.statusCode.value()
+        val statusCode = response.statusCode
+        val status = statusCode.value()
         val requestId = requestId(response.headers)
-        if (status !in 200..299) {
+        if (!statusCode.is2xxSuccessful) {
             discard(response)
             throw SystemOneFailure.forStatus(status, requestId)
         }
         val limit = endpoint.maxResponseBytes
         response.body.use { stream ->
             if (response.headers.contentLength > limit) throw SystemOneFailure.invalidResponse(status, requestId)
+            // One lookahead byte distinguishes an exactly full body from an oversized stream.
             val body = stream.readNBytes(limit + 1)
             if (body.size > limit) throw SystemOneFailure.invalidResponse(status, requestId)
             return Reply(body, status, requestId)
@@ -233,13 +237,14 @@ internal class SystemOneTransport(
      */
     private fun translate(failure: RuntimeException): RuntimeException {
         if (failure.isInterruption()) return interrupted()
+        // Check timeout causes before their client wrappers; the final branch covers other runtime failures.
         val category = when {
             failure.hasTimeout() -> SystemOneFailure.TIMEOUT
             failure is ResourceAccessException -> SystemOneFailure.CONNECTION
             failure is RestClientException -> SystemOneFailure.INVALID_RESPONSE
             else -> SystemOneFailure.OTHER
         }
-        val reason = if (category == SystemOneFailure.TIMEOUT || category == SystemOneFailure.CONNECTION) {
+        val reason = if (category in setOf(SystemOneFailure.TIMEOUT, SystemOneFailure.CONNECTION)) {
             FailureReason.UNAVAILABLE
         } else {
             FailureReason.INVALID_RESPONSE
@@ -319,7 +324,8 @@ internal class SystemOneTransport(
             generateSequence(this) { it.cause }.any { it is T }
 
         /**
-         * Tells whether this exception or any of its causes is a timeout.
+         * Recognizes socket, JDK HTTP and concurrency timeouts anywhere in the cause chain.
+         * Other client failures still receive the connection, invalid-response or other category.
          *
          * @return true when one is
          */

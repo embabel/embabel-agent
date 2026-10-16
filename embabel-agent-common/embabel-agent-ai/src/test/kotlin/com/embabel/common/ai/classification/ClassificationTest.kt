@@ -166,6 +166,7 @@ class ClassificationTest {
             listOf(
                 listOf(CategoryProbability("dog", 0.5), CategoryProbability("dog", 0.5)),
                 listOf(CategoryProbability("dog", 0.5), CategoryProbability("cat", 0.4)),
+                listOf(CategoryProbability("dog", 0.5), CategoryProbability("cat", 0.6)),
                 listOf(CategoryProbability("cat", 1.0)),
             ).forEach { distribution ->
                 assertThrows(IllegalArgumentException::class.java) {

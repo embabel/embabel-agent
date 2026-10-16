@@ -19,6 +19,7 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import com.embabel.common.ai.classification.CategoryProbability
 import com.embabel.common.ai.classification.ClassificationResult
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
@@ -412,13 +413,13 @@ class DecisionResponseAssemblerTest {
         @Test
         fun `a choice distribution that misses an option is a bad distribution`() {
             val partial = ClassificationResult.Selected(
-                "billing", jev, 0.9, listOf(com.embabel.common.ai.classification.CategoryProbability("billing", 1.0)),
+                "billing", jev, 0.9, listOf(CategoryProbability("billing", 1.0)),
             )
             val full = ClassificationResult.Selected(
                 "billing", jev, 0.9,
                 listOf(
-                    com.embabel.common.ai.classification.CategoryProbability("billing", 0.8),
-                    com.embabel.common.ai.classification.CategoryProbability("technical", 0.2),
+                    CategoryProbability("billing", 0.8),
+                    CategoryProbability("technical", 0.2),
                 ),
             )
             val message = singleWarn(capture {
