@@ -107,6 +107,14 @@ class DefaultChatAgentBuilderTest {
                 duplicated,
                 "Events delivered more than once to the platform listener",
             )
+
+            fun EventSavingAgenticEventListener.goalProcessCounts() =
+                processEvents.filter { it.processId != chatProcess.id }.groupingBy { it::class.simpleName }.eachCount()
+            assertEquals(
+                platformListener.goalProcessCounts(),
+                chatListener.goalProcessCounts(),
+                "The chat's ProcessOptions listener must get the goal sub-process events as often as the platform listener",
+            )
         }
     }
 

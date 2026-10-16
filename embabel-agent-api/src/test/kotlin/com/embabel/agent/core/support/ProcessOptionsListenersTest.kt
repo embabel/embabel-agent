@@ -20,6 +20,7 @@ import com.embabel.agent.api.event.ActionExecutionResultEvent
 import com.embabel.agent.api.event.ActionExecutionStartEvent
 import com.embabel.agent.api.event.AgentProcessCompletedEvent
 import com.embabel.agent.api.event.AgentProcessCreationEvent
+import com.embabel.agent.api.event.AgentProcessFailedEvent
 import com.embabel.agent.api.event.AgentProcessEvent
 import com.embabel.agent.api.event.AgentProcessPlanFormulatedEvent
 import com.embabel.agent.api.event.AgentProcessReadyToPlanEvent
@@ -28,10 +29,14 @@ import com.embabel.agent.api.event.AgentProcessTerminatedEvent
 import com.embabel.agent.api.event.AgentProcessWaitingEvent
 import com.embabel.agent.api.event.GoalAchievedEvent
 import com.embabel.agent.api.event.ProcessKilledEvent
+import com.embabel.agent.core.Action
+import com.embabel.agent.core.ActionStatus
+import com.embabel.agent.core.ActionStatusCode
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.IoBinding
+import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
@@ -40,6 +45,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import java.time.Duration
 import kotlin.reflect.KClass
 
 /**
@@ -67,11 +73,12 @@ class ProcessOptionsListenersTest {
         )
     }
 
-    private fun assertReceived(vararg types: KClass<out AgentProcessEvent>) {
-        val received = processListener.processEvents.map { it::class.simpleName }.distinct()
+    private fun assertReceived(process: AgentProcess, vararg types: KClass<out AgentProcessEvent>) {
+        val events = processListener.processEvents.filter { it.processId == process.id }
+        val received = events.map { it::class.simpleName }.distinct()
         types.forEach { type ->
             assertTrue(
-                processListener.processEvents.any { type.isInstance(it) },
+                events.any { type.isInstance(it) },
                 "ProcessOptions listener did not receive ${type.simpleName}. Received: $received",
             )
         }
@@ -96,6 +103,7 @@ class ProcessOptionsListenersTest {
             assertEquals(AgentProcessStatusCode.COMPLETED, process.status)
 
             assertReceived(
+                process,
                 AgentProcessCreationEvent::class,
                 AgentProcessReadyToPlanEvent::class,
                 AgentProcessPlanFormulatedEvent::class,
@@ -119,7 +127,7 @@ class ProcessOptionsListenersTest {
             process.terminateAgent("Stopped by test")
             assertEquals(AgentProcessStatusCode.TERMINATED, process.status)
 
-            assertReceived(AgentProcessWaitingEvent::class, AgentProcessTerminatedEvent::class)
+            assertReceived(process, AgentProcessWaitingEvent::class, AgentProcessTerminatedEvent::class)
             assertSameEventsAsPlatform(process)
         }
     }
@@ -133,7 +141,7 @@ class ProcessOptionsListenersTest {
             process.run()
             assertEquals(AgentProcessStatusCode.STUCK, process.status)
 
-            assertReceived(AgentProcessStuckEvent::class)
+            assertReceived(process, AgentProcessStuckEvent::class)
             assertSameEventsAsPlatform(process)
         }
     }
@@ -148,8 +156,78 @@ class ProcessOptionsListenersTest {
             platform.killAgentProcess(process.id)
             assertEquals(AgentProcessStatusCode.KILLED, process.status)
 
-            assertReceived(ProcessKilledEvent::class)
+            assertReceived(process, ProcessKilledEvent::class)
             assertSameEventsAsPlatform(process)
         }
+    }
+
+    @Nested
+    inner class Failed {
+
+        @Test
+        fun `receives failed event`() {
+            val wizard = evenMoreEvilWizard()
+            val failingWizard = wizard.copy(actions = wizard.actions.map { FailingAction(it) })
+            val process = createProcess(failingWizard, mapOf(IoBinding.DEFAULT_BINDING to UserInput("Rod")))
+            process.run()
+            assertEquals(AgentProcessStatusCode.FAILED, process.status)
+
+            assertReceived(process, AgentProcessFailedEvent::class)
+            assertSameEventsAsPlatform(process)
+        }
+    }
+
+    /**
+     * Child processes inherit the parent's [ProcessOptions], so its listeners too.
+     */
+    @Nested
+    inner class ChildProcess {
+
+        @Test
+        fun `receives the child's events`() {
+            val parent = createProcess(DslWaitingAgent, mapOf(IoBinding.DEFAULT_BINDING to UserInput("Rod")))
+            val child = platform.createChildProcess(evenMoreEvilWizard(), parent)
+            child.run()
+            assertEquals(AgentProcessStatusCode.COMPLETED, child.status)
+
+            assertReceived(child, AgentProcessCreationEvent::class, AgentProcessCompletedEvent::class)
+            assertSameEventsAsPlatform(child)
+        }
+
+        @Test
+        fun `receives the child's killed event when the parent is killed`() {
+            val parent = createProcess(DslWaitingAgent, mapOf(IoBinding.DEFAULT_BINDING to UserInput("Rod")))
+            val child = platform.createChildProcess(evenMoreEvilWizard(), parent)
+
+            platform.killAgentProcess(parent.id)
+            assertEquals(AgentProcessStatusCode.KILLED, child.status)
+
+            assertReceived(child, ProcessKilledEvent::class)
+            assertSameEventsAsPlatform(child)
+        }
+
+        @Test
+        fun `does not receive a killed event for a child that already finished`() {
+            val parent = createProcess(DslWaitingAgent, mapOf(IoBinding.DEFAULT_BINDING to UserInput("Rod")))
+            val child = platform.createChildProcess(evenMoreEvilWizard(), parent)
+            child.run()
+            assertEquals(AgentProcessStatusCode.COMPLETED, child.status)
+
+            platform.killAgentProcess(parent.id)
+
+            assertTrue(
+                processListener.processEvents.none { it is ProcessKilledEvent && it.processId == child.id },
+                "A child that already completed must not report being killed",
+            )
+            assertSameEventsAsPlatform(child)
+        }
+    }
+
+    /**
+     * Action that always reports failure, to drive a process to [AgentProcessStatusCode.FAILED].
+     */
+    private class FailingAction(delegate: Action) : Action by delegate {
+        override fun execute(processContext: ProcessContext): ActionStatus =
+            ActionStatus(Duration.ZERO, ActionStatusCode.FAILED)
     }
 }

@@ -282,7 +282,13 @@ abstract class AbstractAgentProcess(
         val children = platformServices.agentProcessRepository.findByParentId(id)
         children.forEach { child ->
             logger.debug("Killing child process {} of {}", child.id, id)
-            child.kill()
+            // The caller publishes only the root's event: publish each live child's here.
+            // A child that already finished has already reported its end.
+            val wasFinished = child.finished
+            val killEvent = child.kill()
+            if (killEvent != null && !wasFinished) {
+                child.processContext.onProcessEvent(killEvent)
+            }
         }
 
         setStatus(AgentProcessStatusCode.KILLED)
