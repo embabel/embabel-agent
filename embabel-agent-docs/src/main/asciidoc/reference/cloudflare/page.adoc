@@ -86,6 +86,7 @@ Inject it by the `CloudflareModelFactory` type.
 * One `DecisionService` bean per model in `models/cloudflare-models.yml`, named `clef`, `clef-flash`, `clef-omni` and `cloudflare-jev`.
 Each is also injectable as `ClassificationService`.
 An application bean or alias with one of those names replaces that model.
+The alias also works in default and role properties for both service families.
 * `cloudflareModelsRegistrar`, which defines the model beans, and `cloudflareModelsInitializer`, the `ProviderInitialization` that reports them.
 * `cloudflareDefaultCandidate`, which offers `clef` as the default of the decision and classification families when the starter defines `clef`.
 
@@ -131,6 +132,7 @@ include::../../../../../../embabel-agent-cloudflare/src/test/java/com/embabel/ag
 ----
 
 `buildValidated()` checks the current token by searching the account's models for `clef`, and returns `clef`.
+An already interrupted caller is cancelled before the token supplier is read, including when the token is missing or blank.
 `modelNames()` returns the same search, which lists the Cloudflare-hosted CLEF models.
 A missing or refused token throws `InvalidApiKeyException`:
 

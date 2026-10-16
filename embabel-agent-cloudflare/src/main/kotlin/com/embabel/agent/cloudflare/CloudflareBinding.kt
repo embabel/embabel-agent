@@ -70,7 +70,9 @@ internal object CloudflareBinding : SystemOneBinding {
     }
 
     override fun decisionRequest(model: String, request: DecisionRequest): ByteArray {
-        if (model.startsWith(HOSTED)) return SystemOneCodec.encode(model.substringAfterLast('/'), request)
+        if (model.startsWith(HOSTED)) {
+            return SystemOneCodec.encode(model.substringAfterLast('/'), request)
+        }
         // The encoded request goes in as written, since reading it back could hit the parser's size limits.
         val body = mapper.createObjectNode().put("model", model)
         body.putRawValue("input", RawValue(SystemOneCodec.encode(request).decodeToString()))
@@ -86,11 +88,11 @@ internal object CloudflareBinding : SystemOneBinding {
                     "Split the spec into smaller requests.",
             )
         }
-        val outside = questions.filterNot(::fits)
-        if (outside.isNotEmpty()) {
+        val unsupportedQuestions = questions.filterNot(::fits)
+        if (unsupportedQuestions.isNotEmpty()) {
             throw UnsupportedDecisionException(
                 "Cloudflare CLEF takes 2 to 255 options per choice and 2 to 10 levels per rating. Outside those limits: " +
-                    outside.joinToString { "'${it.name}'" } + ".",
+                    unsupportedQuestions.joinToString { "'${it.name}'" } + ".",
             )
         }
     }
@@ -153,9 +155,15 @@ internal object CloudflareBinding : SystemOneBinding {
         } catch (_: JacksonException) {
             throw SystemOneFormatException("The Cloudflare response is not valid JSON")
         }
-        val succeeded = root != null && root.isObject && root.get("success")?.isBoolean == true && root.get("success").booleanValue()
-        val errors = root?.get("errors")
-        if (!succeeded || errors == null || !errors.isArray || errors.size() > 0) {
+        if (root == null || !root.isObject) {
+            throw SystemOneFormatException("The Cloudflare response reports a failure")
+        }
+        val success = root.get("success")
+        if (success == null || !success.isBoolean || !success.booleanValue()) {
+            throw SystemOneFormatException("The Cloudflare response reports a failure")
+        }
+        val errors = root.get("errors")
+        if (errors == null || !errors.isArray || errors.size() > 0) {
             throw SystemOneFormatException("The Cloudflare response reports a failure")
         }
         return root.get("result") ?: throw SystemOneFormatException("The Cloudflare response has no result")
