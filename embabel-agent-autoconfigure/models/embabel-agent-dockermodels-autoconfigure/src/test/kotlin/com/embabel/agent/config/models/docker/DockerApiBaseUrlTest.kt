@@ -57,6 +57,18 @@ class DockerApiBaseUrlTest {
     }
 
     @Test
+    fun `a future explicit version is not doubled`() {
+        assertEquals(
+            "http://localhost:12434/engines/v3",
+            dockerApiBaseUrl("http://localhost:12434/engines/v3"),
+        )
+        assertEquals(
+            "http://localhost:12434/engines/v3",
+            dockerApiBaseUrl("http://localhost:12434/engines/v3/"),
+        )
+    }
+
+    @Test
     @DisplayName("a trailing slash does not become an empty path segment")
     fun `trailing slashes are trimmed`() {
         assertEquals(
@@ -82,6 +94,18 @@ class DockerApiBaseUrlTest {
         assertEquals(
             "http://localhost:12434/engines/v1/models",
             dockerModelsUrl("http://localhost:12434/engines/v1/"),
+        )
+    }
+
+    @Test
+    fun `model listing keeps a future version segment`() {
+        assertEquals(
+            "http://localhost:12434/engines/v3/models",
+            dockerModelsUrl("http://localhost:12434/engines/v3"),
+        )
+        assertEquals(
+            "http://localhost:12434/engines/v3/models",
+            dockerModelsUrl("http://localhost:12434/engines/v3/"),
         )
     }
 }

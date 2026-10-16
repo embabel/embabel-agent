@@ -15,23 +15,26 @@
  */
 package com.embabel.agent.config.models.docker
 
+private const val DEFAULT_API_VERSION = "v1"
+
 /**
  * Converts `embabel.agent.models.docker.base-url` into the base URL the openai-java SDK expects.
  *
- * The SDK appends paths such as `/embeddings` directly, so its base must end in `/v1`.
+ * The SDK appends paths such as `/embeddings` directly, so its base must end at the API version.
+ * An explicit `/v<digits>` segment is preserved; otherwise [DEFAULT_API_VERSION] is appended.
  * Model listing uses that same base and appends `/models`.
  *
  * - `http://localhost:12434/engines`     -> `http://localhost:12434/engines/v1`
  * - `http://localhost:12434/engines/`    -> `http://localhost:12434/engines/v1`
- * - `http://localhost:12434/engines/v1`  -> `http://localhost:12434/engines/v1` (unchanged)
+ * - `http://localhost:12434/engines/v3`  -> `http://localhost:12434/engines/v3` (unchanged)
  *
  * Internal rather than private: [DockerLocalModelsConfig] calls it from another file.
  */
 internal fun dockerApiBaseUrl(baseUrl: String): String {
     val trimmed = baseUrl.trimEnd('/')
-    return if (trimmed.endsWith("/v1")) trimmed else "$trimmed/v1"
+    return if (Regex("/v[0-9]+$").containsMatchIn(trimmed)) trimmed else "$trimmed/$DEFAULT_API_VERSION"
 }
 
-/** Listing URL. `/v1` is added once, even when [baseUrl] already ends in it. */
+/** Listing URL. Appends `/models` to the API base returned by [dockerApiBaseUrl]. */
 internal fun dockerModelsUrl(baseUrl: String): String =
     "${dockerApiBaseUrl(baseUrl)}/models"
