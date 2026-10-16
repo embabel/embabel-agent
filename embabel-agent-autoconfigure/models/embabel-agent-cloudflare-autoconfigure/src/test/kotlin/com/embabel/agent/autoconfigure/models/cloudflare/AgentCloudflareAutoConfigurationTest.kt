@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.autoconfigure.models.cloudflare
 
+import com.embabel.agent.autoconfigure.platform.DecisionServiceRegistryAutoConfiguration
 import com.embabel.agent.cloudflare.CloudflareModelFactory
 import com.embabel.agent.config.models.cloudflare.CloudflareModelDefinition
 import com.embabel.agent.config.models.cloudflare.CloudflareModelsRegistrar
@@ -26,6 +27,7 @@ import com.embabel.common.ai.decision.DecisionSpec
 import com.embabel.common.ai.decision.PropositionRequest
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.Questions
+import com.embabel.common.ai.decision.support.StubDecisionService
 import com.embabel.common.ai.model.DecisionServiceRegistry
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -106,6 +108,33 @@ class AgentCloudflareAutoConfigurationTest {
                 assertSame(application, context.getBean("clef"))
                 assertTrue(context.getBeansOfType(DecisionServiceRegistry.DefaultCandidate::class.java).isEmpty())
             }
+        }
+
+        @Test
+        fun `an application alias replaces clef and resolves defaults and roles`() {
+            configured()
+                .withConfiguration(AutoConfigurations.of(DecisionServiceRegistryAutoConfiguration::class.java))
+                .withUserConfiguration(AliasedDecisionService::class.java)
+                .withPropertyValues(
+                    "embabel.models.decision.default=clef",
+                    "embabel.models.decision.roles.review=clef",
+                    "embabel.models.classification.default=clef",
+                    "embabel.models.classification.roles.routing=clef",
+                )
+                .run { context ->
+                    assertTrue(context.startupFailure == null, context.startupFailure?.toString())
+                    val replacement = context.getBean("customDecision", DecisionService::class.java)
+                    assertSame(replacement, context.getBean("clef"))
+                    assertTrue(context.getBeansOfType(DecisionServiceRegistry.DefaultCandidate::class.java).isEmpty())
+                    val registry = context.getBean(DecisionServiceRegistry::class.java)
+                    assertEquals(setOf("customDecision", "clef-flash", "clef-omni", "cloudflare-jev"), registry.registrationNames().toSet())
+                    assertSame(replacement, registry.decisions().defaultService())
+                    assertSame(replacement, registry.decisions().byRole("review"))
+                    assertSame(replacement, registry.classifications().defaultService())
+                    assertSame(replacement, registry.classifications().byRole("routing"))
+                    val initialization = context.getBean(ProviderInitialization::class.java)
+                    assertFalse(initialization.registeredDecisionModels.any { it.beanName == "clef" })
+                }
         }
 
         @Test
@@ -242,6 +271,13 @@ class AgentCloudflareAutoConfigurationTest {
                 }
             server.verify()
         }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    class AliasedDecisionService {
+
+        @Bean("customDecision", "clef")
+        fun customDecision(): DecisionService = StubDecisionService.builder("application-model").build()
     }
 
     @Configuration(proxyBeanMethods = false)

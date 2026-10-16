@@ -42,6 +42,7 @@ import org.springframework.test.web.client.response.MockRestResponseCreators.wit
 import org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess
 import org.springframework.web.client.RestClient
 import tools.jackson.databind.json.JsonMapper
+import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Supplier
 
@@ -202,6 +203,15 @@ class CloudflareModelFactoryTest {
                 envelope(result = "null"),
                 envelope(result = "[]"),
                 answers,
+                "null",
+                "[]",
+                """{"success":"true","errors":[],"result":$answers}""",
+                """{"success":true,"result":$answers}""",
+                envelope(errors = "null"),
+                envelope(errors = "{}"),
+                """{"success":true,"errors":[]}""",
+                envelope() + " {}",
+                """{"success":false,"success":true,"errors":[],"result":$answers}""",
             ).forEach { body ->
                 val mocked = mocked()
                 mocked.server.expect(requestTo("$base/ai/run/@cf/cloudflare/clef")).andRespond(withSuccess(body, MediaType.APPLICATION_JSON))
@@ -296,6 +306,24 @@ class CloudflareModelFactoryTest {
             mocked.server.expect(requestTo("$base/ai/models/search?search=clef")).andRespond(withStatus(HttpStatus.FORBIDDEN))
 
             assertThrows<InvalidApiKeyException> { mocked.factory.buildValidated() }
+        }
+
+        @Test
+        fun `interrupted validation never reads even a missing or blank token`() {
+            listOf(null, "", "cf-token").forEach { token ->
+                val calls = AtomicInteger()
+                val mocked = mocked(token = { token.also { calls.incrementAndGet() } })
+                try {
+                    Thread.currentThread().interrupt()
+                    val cancelled = assertThrows<CancellationException> { mocked.factory.buildValidated() }
+                    assertTrue(cancelled.cause is InterruptedException)
+                    assertTrue(Thread.currentThread().isInterrupted)
+                    assertEquals(0, calls.get())
+                    mocked.server.verify()
+                } finally {
+                    Thread.interrupted()
+                }
+            }
         }
     }
 
