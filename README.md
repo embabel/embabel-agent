@@ -918,8 +918,9 @@ Spring AI appends the default `/mcp` endpoint, so this configuration connects to
 `https://search.parallel.ai/mcp`.
 
 An action only gets the MCP tools in the tool groups it requests, so map a remote server's tools to a tool group.
-For example, [Cohesivity](https://cohesivity.ai/docs?ref=gh-embabel-agent)'s MCP server provides tools that provision
-backend services such as Postgres, Redis and object storage, without requiring an account or API key:
+Below is an example of defining a tool group, using [Cohesivity](https://cohesivity.ai/docs?ref=gh-embabel-agent)'s MCP
+server, which provides tools that provision backend services such as Postgres, Redis and object storage without
+requiring an account or API key:
 
 ```yaml
 spring:
