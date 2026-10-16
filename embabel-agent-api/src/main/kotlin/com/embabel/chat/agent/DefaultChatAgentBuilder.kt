@@ -19,6 +19,7 @@ import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.dsl.agent
+import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.last
@@ -54,9 +55,10 @@ class DefaultChatAgentBuilder(
         achievableGoalsToolGroupFactory.achievableGoalsToolGroup(
             context = context,
             bindings = mapOf("it" to UserInput("doesn't matter")),
-            // Forward only the chat process's ProcessOptions listeners;
+            // Forward to the chat process's ProcessOptions listeners and its tool stats;
             // the platform listener already receives sub-process events directly.
-            listeners = context.processContext.processOptions.listeners,
+            listeners = context.processContext.processOptions.listeners +
+                listOfNotNull(context.agentProcess.toolsStats as? AgenticEventListener),
             excludedTypes = setOf(ConversationStatus::class.java)
         )
 

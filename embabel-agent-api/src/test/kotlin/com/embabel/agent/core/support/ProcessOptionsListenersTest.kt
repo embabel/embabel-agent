@@ -215,6 +215,8 @@ class ProcessOptionsListenersTest {
 
             platform.killAgentProcess(parent.id)
 
+            // kill() still marks a finished child KILLED; this predates #2126 and is unchanged here
+            assertEquals(AgentProcessStatusCode.KILLED, child.status)
             assertTrue(
                 processListener.processEvents.none { it is ProcessKilledEvent && it.processId == child.id },
                 "A child that already completed must not report being killed",
