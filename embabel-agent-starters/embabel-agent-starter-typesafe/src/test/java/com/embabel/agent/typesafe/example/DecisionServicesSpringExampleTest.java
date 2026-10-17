@@ -125,6 +125,10 @@ import java.util.function.Consumer;
  * application beans, booted through the agent platform configuration and the TypeSafe
  * auto-configuration.
  */
+/*
+ * These tests inspect the process-wide decision content-capture switch. This class and the
+ * observation tests also change the shared com.embabel logger level and appenders in capture().
+ */
 @ResourceLock("DecisionContentCapture")
 class DecisionServicesSpringExampleTest {
     static final String SYSTEM_ONE_URI = "https://api.typesafe.ai/v1/systemone";

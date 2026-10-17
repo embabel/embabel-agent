@@ -25,6 +25,7 @@ Defaults and roles pick a model by name.
 ==== Selection
 
 Defaults and roles take a model name or a bean name.
+Spring aliases are supported in defaults, roles and default candidates; direct `named(name)` lookup uses the registry name.
 This example makes the catalog model `jev-latest` the decision default and binds the review and routing roles to the chat model `gpt-4.1-mini`.
 
 [source,yaml]
@@ -75,8 +76,8 @@ A service a provider created stays cached for the life of the registry.
 
 ==== Credentials
 
-A catalog starter reads its key the same way the chat model starters do, from the environment variable first and then the `api-key` property.
-TypeSafe uses `TYPESAFE_API_KEY` and `embabel.agent.platform.models.typesafe.api-key`, and startup fails without either.
-For a key supplied at run time, `TypeSafeModelFactory` implements `ByokFactory<DecisionService>`.
-`buildValidated()` checks the key with the provider and returns a service, which you pass to `using(service)`.
+A catalog starter reads its key from the environment variable first and then the `api-key` property.
+TypeSafe uses `TYPESAFE_API_KEY` and `embabel.agent.platform.models.typesafe.api-key`; `TypeSafeModelsConfig` requires one at startup even when application beans replace every catalog model service.
+A custom `TypeSafeModelFactory` is a separate path: providing one makes the TypeSafe starter configuration back off, so the starter key check does not run.
+For a per-user key, `TypeSafeModelFactory` implements `ByokFactory<DecisionService>`. `buildValidated()` checks the key with the provider and returns a service, which you pass to `using(service)`.
 See <<reference.typesafe>>.

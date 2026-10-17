@@ -42,7 +42,7 @@ Each selector has four terminals, and each terminal returns the service itself:
 |`ServiceSelectionException` with `NO_DEFAULT` or `AMBIGUOUS_DEFAULT`, or `UNKNOWN_NAME` when the default is a provider model and no provider returns a service for that model
 
 |`named(name)`
-|The service registered under `name`
+|The service registered under the registry name `name`, or a provider service for a model of that name
 |`ServiceSelectionException` with `UNKNOWN_NAME`, or `WRONG_CAPABILITY` when the decision family is asked for a classification-only service
 
 |`byRole(role)`
@@ -198,12 +198,10 @@ A model served by a provider is a default only when configuration names it.
 
 ===== Startup snapshot
 
-A registry is an immutable snapshot taken when `build()` runs.
-In Spring that happens when the `decisionServiceRegistry` bean is created.
-The registry holds the `ClassificationService` beans defined by then, including the catalog models each starter defines.
-The registry bean also depends on every `ProviderInitialization` bean, so a starter that registers models while it initializes has done so first.
-A bean registered later is not visible, and `named` reports `UNKNOWN_NAME` for it.
-Provider models are looked up when first selected and are not part of the snapshot.
+A registry snapshots the service registrations available when `build()` runs.
+In Spring, the `decisionServiceRegistry` bean depends on every `ProviderInitialization` bean. Model beans registered during provider initialization are therefore present before the registry snapshots its services.
+A service registered later is outside the snapshot and cannot be found there by `named(name)`.
+Provider models are not in this snapshot: the registry looks them up on first selection and caches each service.
 Pass a service built at run time, such as a per-user service, to `using(service)`.
 
 ==== Configuration
@@ -242,6 +240,7 @@ The registration name of a Spring service is its bean name.
 A catalog model's bean name is its model name.
 Defaults, roles and default candidates can also name a Spring alias of a service bean.
 An alias resolves to the service's registration name without registering the service again.
+`named(name)` looks up the registry name directly and does not resolve a Spring alias.
 A chat model is selected by the name `ModelProvider` lists for it.
 
 [source,yaml]
