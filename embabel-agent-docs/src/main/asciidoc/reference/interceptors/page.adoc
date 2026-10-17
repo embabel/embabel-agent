@@ -60,6 +60,54 @@ interface ToolLoopTransformer : ToolLoopCallback {
 
     /** Transform history after iteration completes. Return modified list. */
     fun transformAfterIteration(context: AfterIterationContext): List<Message> = context.history
+
+    /**
+     * Decide what happens to a tool call before it runs: proceed, optionally with rewritten
+     * arguments, or short-circuit with a result the LLM sees instead. Default: proceed unchanged.
+     */
+    fun transformBeforeToolCall(context: BeforeToolExecutionContext): ToolCallDisposition =
+        ToolCallDisposition.Proceed(context.toolCall)
+}
+
+sealed interface ToolCallDisposition {
+    /** Run the tool with this call. Same as the input unless the arguments were rewritten. */
+    data class Proceed(val toolCall: ToolCall) : ToolCallDisposition
+    /** Do not run the tool; result goes to the LLM as the tool result. */
+    data class ShortCircuit(val result: Tool.Result) : ToolCallDisposition
+}
+----
+
+===== Gating Tool Calls
+
+`transformBeforeToolCall` is the one transformer hook that acts on a single tool call rather than on history.
+It runs after the tool is resolved and before it executes, in the blocking and parallel tool loops.
+Use it for policies that apply to tools you did not write: confirmation before destructive tools, argument validation, rate limiting, or a decision model that scores a call and routes it.
+
+The rules:
+
+* Transformers run in registration order. Each sees the call the previous one returned, and the first `ShortCircuit` ends the chain.
+* A rewritten call is what the tool executes and what `AfterToolResultContext.toolCall` reports.
+* A short-circuited result still passes through `transformAfterToolResult` and the after-tool-result inspectors, so truncation and logging see it. Tool call inspectors receive `afterToolCall` with zero duration and no `beforeToolCall`, since nothing ran.
+* Throwing a `ToolControlFlowSignal`, for example `AwaitableResponseException`, propagates as it would from the tool itself. Any other exception propagates too: transformers are not isolated the way inspectors are.
+* The streaming loop supports inspectors only, by design, and does not call this method.
+
+A gate that refuses a tool with a short-circuit result, from the framework's tests:
+
+[source,kotlin]
+----
+val gate = object : ToolLoopTransformer {
+    override fun transformBeforeToolCall(context: BeforeToolExecutionContext) =
+        ToolCallDisposition.ShortCircuit(Tool.Result.text("needs confirmation"))
+}
+----
+
+And one that rewrites the arguments before the tool sees them:
+
+[source,kotlin]
+----
+val rewriter = object : ToolLoopTransformer {
+    override fun transformBeforeToolCall(context: BeforeToolExecutionContext) =
+        ToolCallDisposition.Proceed(context.toolCall.copy(arguments = """{"q":"rewritten"}"""))
 }
 ----
 

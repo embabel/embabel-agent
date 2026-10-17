@@ -35,6 +35,16 @@ internal data class ExecutedToolCall(
 )
 
 /** Execute a tool and publish its before and after inspection callbacks. */
+/**
+ * The string the LLM sees for a tool result, whether the tool ran or a transformer
+ * short-circuited the call.
+ */
+internal fun Tool.Result.contentForLlm(): String = when (this) {
+    is Tool.Result.Text -> content
+    is Tool.Result.WithArtifact -> content
+    is Tool.Result.Error -> "Error: $message"
+}
+
 internal fun executeTool(
     tool: Tool,
     toolCall: ToolCall,
@@ -44,11 +54,7 @@ internal fun executeTool(
     toolCallInspectors.notifyBeforeToolCall(BeforeToolCallContext(toolCall))
     val started = System.currentTimeMillis()
     val result = tool.call(toolCall.arguments, toolCallContext)
-    val content = when (result) {
-        is Tool.Result.Text -> result.content
-        is Tool.Result.WithArtifact -> result.content
-        is Tool.Result.Error -> "Error: ${result.message}"
-    }
+    val content = result.contentForLlm()
     toolCallInspectors.notifyAfterToolCall(
         AfterToolCallContext(
             toolCall = toolCall,
