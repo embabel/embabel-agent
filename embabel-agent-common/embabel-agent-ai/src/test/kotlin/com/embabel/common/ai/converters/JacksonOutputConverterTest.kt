@@ -712,6 +712,188 @@ World"""
             assertEquals("User's preference", result?.propositions?.get(0)?.text)
         }
     }
+
+    // --- fixtures for @EnumAsOneOf tests ---
+
+    @EnumAsOneOf
+    enum class Priority {
+        @com.fasterxml.jackson.annotation.JsonPropertyDescription("Needs same-day response") URGENT,
+        @com.fasterxml.jackson.annotation.JsonPropertyDescription("Standard turnaround")    NORMAL,
+        OTHER,  // deliberately un-annotated
+    }
+
+    // Enum with @JsonValue — wire value comes from method, not .name()
+    @EnumAsOneOf
+    enum class WireValuePriority(private val wire: String) {
+        @com.fasterxml.jackson.annotation.JsonPropertyDescription("Needs same-day response")
+        URGENT("urgent-wire"),
+        @com.fasterxml.jackson.annotation.JsonPropertyDescription("Standard turnaround")
+        NORMAL("normal-wire"),
+        OTHER("other-wire");
+
+        @com.fasterxml.jackson.annotation.JsonValue
+        fun toWire(): String = wire
+    }
+
+    // Plain enum — no @EnumAsOneOf, no @JsonPropertyDescription
+    enum class BareEnum { A, B, C }
+
+    // @EnumAsOneOf present but no @JsonPropertyDescription on any constant
+    @EnumAsOneOf
+    enum class NoDescriptions { A, B, C }
+
+    data class PriorityHolder(val priority: Priority)
+    data class WireValuePriorityHolder(val priority: WireValuePriority)
+    data class BareEnumHolder(val value: BareEnum)
+    data class NoDescriptionsHolder(val value: NoDescriptions)
+    // Enum nested inside a collection — the shape from issue #2028
+    data class ListPriorityHolder(val priorities: List<Priority>)
+    // Enum nested inside a record inside a List — Nathan's exact real-world shape:
+    //   record ColumnMappingMatcherLlmResult(List<LlmProposedMapping> mappings)
+    //   record KnownLlmProposedMapping(AvailableScheduleField scheduleField)
+    data class Mapping(val priority: Priority)
+    data class DeepHolder(val mappings: List<Mapping>)
+
+    @Nested
+    inner class EnumAsOneOfTests {
+
+        @Test
+        fun `bare enum without @EnumAsOneOf stays as enum array`() {
+            val converter = JacksonOutputConverter(BareEnumHolder::class.java, objectMapper)
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+            val valueNode = schema.path("properties").path("value")
+            assertThat(valueNode.has("enum")).isTrue()
+            assertThat(valueNode.has("oneOf")).isFalse()
+        }
+
+        @Test
+        fun `withEnumConstantDescriptions extension emits oneOf with type string and per-constant descriptions`() {
+            // Simulate what ChatClientLlmOperations.buildFilteringConverter does when @EnumAsOneOf is detected
+            val converter = object : JacksonOutputConverter<PriorityHolder>(PriorityHolder::class.java, objectMapper) {
+                override fun schemaGeneratorConfigBuilder() =
+                    super.schemaGeneratorConfigBuilder().withEnumConstantDescriptions(objectMapper)
+            }
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+            val priorityNode = schema.path("properties").path("priority")
+
+            assertThat(priorityNode.has("oneOf")).isTrue()
+            assertThat(priorityNode.has("enum")).isFalse()
+            // type:string is required so provider schema bridges (e.g. Gemini) can interpret the node
+            assertThat(priorityNode.path("type").asText()).isEqualTo("string")
+
+            val oneOf = priorityNode.path("oneOf")
+            assertThat(oneOf.isArray).isTrue()
+            assertThat(oneOf.size()).isEqualTo(3)
+
+            val urgent = oneOf.first { it.path("const").asText() == "URGENT" }
+            assertThat(urgent.path("description").asText()).isEqualTo("Needs same-day response")
+
+            val normal = oneOf.first { it.path("const").asText() == "NORMAL" }
+            assertThat(normal.path("description").asText()).isEqualTo("Standard turnaround")
+
+            // un-annotated constant has const but no description key
+            val other = oneOf.first { it.path("const").asText() == "OTHER" }
+            assertThat(other.has("description")).isFalse()
+        }
+
+        @Test
+        fun `withEnumConstantDescriptions with @JsonValue uses wire value as const`() {
+            val converter = object : JacksonOutputConverter<WireValuePriorityHolder>(WireValuePriorityHolder::class.java, objectMapper) {
+                override fun schemaGeneratorConfigBuilder() =
+                    super.schemaGeneratorConfigBuilder().withEnumConstantDescriptions(objectMapper)
+            }
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+            val priorityNode = schema.path("properties").path("priority")
+
+            assertThat(priorityNode.has("oneOf")).isTrue()
+            assertThat(priorityNode.path("type").asText()).isEqualTo("string")
+
+            val oneOf = priorityNode.path("oneOf")
+            // @JsonValue takes precedence — const values are wire strings from toWire(), not .name()
+            val urgent = oneOf.first { it.path("const").asText() == "urgent-wire" }
+            assertThat(urgent.path("description").asText()).isEqualTo("Needs same-day response")
+
+            val other = oneOf.first { it.path("const").asText() == "other-wire" }
+            assertThat(other.has("description")).isFalse()
+        }
+
+        @Test
+        fun `enum without @EnumAsOneOf is not affected by withEnumConstantDescriptions`() {
+            // BareEnum has no @EnumAsOneOf and no @JsonPropertyDescription — provider returns null,
+            // victools falls back to default bare enum array regardless of the extension being installed.
+            val converter = object : JacksonOutputConverter<BareEnumHolder>(BareEnumHolder::class.java, objectMapper) {
+                override fun schemaGeneratorConfigBuilder() =
+                    super.schemaGeneratorConfigBuilder().withEnumConstantDescriptions(objectMapper)
+            }
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+            val valueNode = schema.path("properties").path("value")
+            assertThat(valueNode.has("enum")).isTrue()
+            assertThat(valueNode.has("oneOf")).isFalse()
+        }
+
+        @Test
+        fun `enum with @EnumAsOneOf but no @JsonPropertyDescription on any constant is not affected`() {
+            // @EnumAsOneOf is present but none of the constants carry @JsonPropertyDescription.
+            // The provider returns null — no oneOf is emitted.
+            val converter = object : JacksonOutputConverter<NoDescriptionsHolder>(NoDescriptionsHolder::class.java, objectMapper) {
+                override fun schemaGeneratorConfigBuilder() =
+                    super.schemaGeneratorConfigBuilder().withEnumConstantDescriptions(objectMapper)
+            }
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+            val valueNode = schema.path("properties").path("value")
+            assertThat(valueNode.has("enum")).isTrue()
+            assertThat(valueNode.has("oneOf")).isFalse()
+        }
+
+        @Test
+        fun `@EnumAsOneOf enum nested inside a List emits oneOf for the array items`() {
+            // Reproduces the real-world shape from issue #2028:
+            // record Holder(List<Priority> priorities) — the enum is not a direct field,
+            // it is the element type of a collection. Victools resolves the element type
+            // and calls the provider, so the annotation check inside the provider catches it.
+            val converter = object : JacksonOutputConverter<ListPriorityHolder>(ListPriorityHolder::class.java, objectMapper) {
+                override fun schemaGeneratorConfigBuilder() =
+                    super.schemaGeneratorConfigBuilder().withEnumConstantDescriptions(objectMapper)
+            }
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+            val itemsNode = schema.path("properties").path("priorities").path("items")
+
+            assertThat(itemsNode.has("oneOf")).isTrue()
+            assertThat(itemsNode.has("enum")).isFalse()
+            assertThat(itemsNode.path("type").asText()).isEqualTo("string")
+
+            val oneOf = itemsNode.path("oneOf")
+            val urgent = oneOf.first { it.path("const").asText() == "URGENT" }
+            assertThat(urgent.path("description").asText()).isEqualTo("Needs same-day response")
+        }
+
+        @Test
+        fun `@EnumAsOneOf enum inside a record inside a List emits oneOf — Nathan's exact shape`() {
+            // Reproduces the deepest shape from issue #2028:
+            // record DeepHolder(List<Mapping> mappings)
+            // record Mapping(Priority priority)
+            // The enum is two levels deep — inside a nested data class inside a List.
+            val converter = object : JacksonOutputConverter<DeepHolder>(DeepHolder::class.java, objectMapper) {
+                override fun schemaGeneratorConfigBuilder() =
+                    super.schemaGeneratorConfigBuilder().withEnumConstantDescriptions(objectMapper)
+            }
+            val schema = jacksonObjectMapper().readTree(converter.getJsonSchema())
+
+            // Navigate: properties -> mappings -> items -> properties -> priority
+            val priorityNode = schema
+                .path("properties").path("mappings")
+                .path("items")
+                .path("properties").path("priority")
+
+            assertThat(priorityNode.has("oneOf")).isTrue()
+            assertThat(priorityNode.has("enum")).isFalse()
+            assertThat(priorityNode.path("type").asText()).isEqualTo("string")
+
+            val oneOf = priorityNode.path("oneOf")
+            val urgent = oneOf.first { it.path("const").asText() == "URGENT" }
+            assertThat(urgent.path("description").asText()).isEqualTo("Needs same-day response")
+        }
+    }
 }
 
 private fun tools.jackson.databind.JsonNode.requiredFieldNamesOrRefResolved(
