@@ -276,10 +276,14 @@ class AskTelemetryTest {
             assertThrows<UnsupportedDecisionException> {
                 telemetry.observation.questionSet { throw UnsupportedDecisionException("no") }
             }
+            val failure = IllegalStateException("provider failure")
+            assertSame(failure, assertThrows<IllegalStateException> {
+                telemetry.observation.questionSet { throw failure }
+            })
             assertThrows<InterruptedException> { telemetry.observation.questionSet { interrupted() } }
             telemetry.observation.rate { RatingResult.Inconclusive(provenance) }
 
-            assertEquals(listOf("complete", "partial", "request_failure", "exception", "interrupted"),
+            assertEquals(listOf("complete", "partial", "request_failure", "unsupported", "exception", "interrupted"),
                 outcomes(telemetry, "ask_question_set"))
             val decisionTimers = telemetry.timers("embabel.ai.decision")
             assertEquals(setOf("assess", "ask_question_set", "rate"),
