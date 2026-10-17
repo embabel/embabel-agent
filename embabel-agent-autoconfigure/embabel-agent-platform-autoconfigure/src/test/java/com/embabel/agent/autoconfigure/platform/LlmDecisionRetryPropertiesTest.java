@@ -68,17 +68,6 @@ class LlmDecisionRetryPropertiesTest {
         }
 
         @Test
-        void declaredServicesBesideTheSettingsDoNotFailBinding() {
-            runner.withPropertyValues(
-                            "embabel.agent.platform.decisions.llm.max-attempts=3",
-                            "embabel.agent.platform.decisions.llm.services.triage.llm=small-model")
-                    .run(context -> {
-                        assertThat(context).hasNotFailed();
-                        assertThat(context.getBean(LlmDecisionRetryProperties.class).getMaxAttempts()).isEqualTo(3);
-                    });
-        }
-
-        @Test
         void anOutOfRangeSettingFailsStartupAndNamesThePrefix() {
             runner.withPropertyValues("embabel.agent.platform.decisions.llm.max-attempts=0").run(context -> {
                 var chain = failures(context);

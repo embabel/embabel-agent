@@ -16,6 +16,7 @@
 package com.embabel.agent.autoconfigure.models.typesafe;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
@@ -24,11 +25,17 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.embabel.agent.config.models.typesafe.TypeSafeProperties;
+import com.embabel.agent.autoconfigure.platform.DecisionServiceRegistryAutoConfiguration;
 import com.embabel.agent.typesafe.TypeSafeModelFactory;
+import com.embabel.common.ai.autoconfig.ProviderInitialization;
+import com.embabel.common.ai.autoconfig.RegisteredModel;
 import com.embabel.common.ai.classification.ClassificationService;
 import com.embabel.common.ai.decision.DecisionService;
 import com.embabel.common.ai.decision.PropositionRequest;
 import com.embabel.common.ai.decision.PropositionResult;
+import com.embabel.common.ai.decision.support.StubDecisionService;
+import com.embabel.common.ai.model.DecisionServiceRegistry;
+import com.embabel.common.ai.model.ServiceSelectionException;
 
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;
@@ -38,7 +45,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -73,11 +83,20 @@ class AgentTypeSafeAutoConfigurationTest {
     }
 
     @Test
-    void defaultsRegisterOneDecisionServiceThatAlsoClassifies() {
+    void eachCatalogModelRegistersADecisionServiceNamedAfterTheModel() {
         configured()
                 .run(
                         context -> {
                             assertThat(context).hasSingleBean(TypeSafeModelFactory.class);
+                            assertThat(context.getBean(TypeSafeModelFactory.DEFAULT_MODEL))
+                                    .isSameAs(context.getBean(DecisionService.class));
+                            assertThat(context.getBean(ProviderInitialization.class)
+                                            .getRegisteredDecisionModels())
+                                    .extracting(RegisteredModel::getBeanName)
+                                    .containsExactly(TypeSafeModelFactory.DEFAULT_MODEL);
+                            assertThat(context.getBean(DecisionServiceRegistry.DefaultCandidate.class)
+                                            .getName())
+                                    .isEqualTo(TypeSafeModelFactory.DEFAULT_MODEL);
                             assertThat(context).hasSingleBean(DecisionService.class);
                             assertThat(context).hasSingleBean(ClassificationService.class);
                             assertThat(context.getBean(DecisionService.class))
@@ -90,13 +109,108 @@ class AgentTypeSafeAutoConfigurationTest {
     }
 
     @Test
-    void configurationExtendsFactoryAndBuildsTheConfiguredModel() {
+    void catalogModelsAreInjectableByTypeAndQualifier() {
+        configured()
+                .withUserConfiguration(CatalogConsumer.class)
+                .run(
+                        context -> {
+                            assertThat(context).hasNotFailed();
+                            var consumer = context.getBean(CatalogConsumer.class);
+                            assertThat(consumer.byType).isSameAs(consumer.byName);
+                            assertThat(consumer.byName)
+                                    .isSameAs(context.getBean(TypeSafeModelFactory.DEFAULT_MODEL));
+                        });
+    }
+
+    @Test
+    void anApplicationBeanNamedAfterACatalogModelReplacesIt() {
+        var replacement = mock(DecisionService.class);
+        configured()
+                .withBean(TypeSafeModelFactory.DEFAULT_MODEL, DecisionService.class, () -> replacement)
+                .run(
+                        context -> {
+                            assertThat(context).hasNotFailed();
+                            assertThat(context.getBean(TypeSafeModelFactory.DEFAULT_MODEL))
+                                    .isSameAs(replacement);
+                            assertThat(context)
+                                    .doesNotHaveBean(DecisionServiceRegistry.DefaultCandidate.class);
+                            assertThat(context.getBean(ProviderInitialization.class)
+                                            .getRegisteredDecisionModels())
+                                    .isEmpty();
+                        });
+    }
+
+    @Test
+    void replacingCatalogModelStillRequiresCredential() {
+        var replacement = mock(DecisionService.class);
+        runner.withBean(TypeSafeModelFactory.DEFAULT_MODEL, DecisionService.class, () -> replacement)
+                .run(
+                        context -> {
+                            assertThat(context).hasFailed();
+                            assertThat(context.getStartupFailure())
+                                    .hasRootCauseMessage("TypeSafe API key is required");
+                        });
+    }
+
+    @Test
+    void anApplicationAliasNamedAfterACatalogModelReplacesIt() {
+        configured()
+                .withConfiguration(AutoConfigurations.of(DecisionServiceRegistryAutoConfiguration.class))
+                .withUserConfiguration(AliasedDecisionService.class)
+                .withPropertyValues(
+                        "embabel.models.decision.default=jev-latest",
+                        "embabel.models.decision.roles.review=jev-latest",
+                        "embabel.models.classification.default=jev-latest",
+                        "embabel.models.classification.roles.routing=jev-latest")
+                .run(
+                        context -> {
+                            assertThat(context).hasNotFailed();
+                            assertThat(context.getBean(TypeSafeModelFactory.DEFAULT_MODEL))
+                                    .isSameAs(context.getBean("customDecision"));
+                            assertThat(context)
+                                    .doesNotHaveBean(DecisionServiceRegistry.DefaultCandidate.class);
+                            var replacement = context.getBean("customDecision");
+                            var registry = context.getBean(DecisionServiceRegistry.class);
+                            assertThat(registry.registrationNames()).containsExactly("customDecision");
+                            assertThat(registry.decisions().named("customDecision")).isSameAs(replacement);
+                            assertThatThrownBy(() -> registry.decisions().named(TypeSafeModelFactory.DEFAULT_MODEL))
+                                    .isInstanceOfSatisfying(
+                                            ServiceSelectionException.class,
+                                            failure ->
+                                                    assertThat(failure.getReason())
+                                                            .isEqualTo(ServiceSelectionException.Reason.UNKNOWN_NAME));
+                            assertThat(registry.decisions().defaultService()).isSameAs(replacement);
+                            assertThat(registry.decisions().byRole("review")).isSameAs(replacement);
+                            assertThat(registry.classifications().defaultService()).isSameAs(replacement);
+                            assertThat(registry.classifications().byRole("routing")).isSameAs(replacement);
+                        });
+    }
+
+    @Test
+    void anApplicationBeanNamedAfterTheDefaultCandidateIsKept() {
+        var own = new DecisionServiceRegistry.DefaultCandidate("custom");
+        configured()
+                .withBean(
+                        "typeSafeDefaultCandidate",
+                        DecisionServiceRegistry.DefaultCandidate.class,
+                        () -> own)
+                .run(
+                        context -> {
+                            assertThat(context).hasNotFailed();
+                            assertThat(context.getBean(DecisionServiceRegistry.DefaultCandidate.class))
+                                    .isSameAs(own);
+                            assertThat(context.getBean(TypeSafeModelFactory.DEFAULT_MODEL))
+                                    .isInstanceOf(DecisionService.class);
+                        });
+    }
+
+    @Test
+    void configurationExtendsFactoryAndSendsTheCatalogModelId() {
         var builder = RestClient.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
-        expectAssessment(server, "test-key", "custom-model");
+        expectAssessment(server, "test-key", TypeSafeModelFactory.DEFAULT_MODEL);
 
         configured()
-                .withPropertyValues(PREFIX + "model=custom-model")
                 .withBean(RestClient.Builder.class, () -> builder)
                 .run(
                         context -> {
@@ -111,23 +225,6 @@ class AgentTypeSafeAutoConfigurationTest {
     }
 
     @Test
-    void namedApplicationServiceBacksOffWithoutBlockingOtherDecisionModels() {
-        var replacement = mock(DecisionService.class);
-        var another = mock(DecisionService.class);
-        runner
-                .withBean("typeSafeDecisionService", DecisionService.class, () -> replacement)
-                .withBean("anotherDecisionService", DecisionService.class, () -> another)
-                .run(
-                        context -> {
-                            assertThat(context).hasNotFailed();
-                            assertThat(context.getBean("typeSafeDecisionService"))
-                                    .isSameAs(replacement);
-                            assertThat(context.getBeansOfType(DecisionService.class)).hasSize(2);
-                            assertThat(context).doesNotHaveBean(TypeSafeModelFactory.class);
-                        });
-    }
-
-    @Test
     void applicationFactoryBacksOffWithoutRequiringACredential() {
         var replacement = new TypeSafeModelFactory(() -> "user-supplied-key");
         runner.withBean(TypeSafeModelFactory.class, () -> replacement)
@@ -137,23 +234,7 @@ class AgentTypeSafeAutoConfigurationTest {
                             assertThat(context).hasSingleBean(TypeSafeModelFactory.class);
                             assertThat(context.getBean(TypeSafeModelFactory.class))
                                     .isSameAs(replacement);
-                            assertThat(context).doesNotHaveBean("typeSafeDecisionService");
-                        });
-    }
-
-    @Test
-    void applicationFactoryBacksOffEvenWithNamedServicesConfigured() {
-        var replacement = new TypeSafeModelFactory(() -> "user-supplied-key");
-        runner.withBean(TypeSafeModelFactory.class, () -> replacement)
-                .withPropertyValues(PREFIX + "services.triage.model=jev-latest")
-                .run(
-                        context -> {
-                            assertThat(context).hasNotFailed();
-                            assertThat(context).hasSingleBean(TypeSafeModelFactory.class);
-                            assertThat(context.getBean(TypeSafeModelFactory.class))
-                                    .isSameAs(replacement);
-                            assertThat(context).doesNotHaveBean("typeSafeDecisionService");
-                            assertThat(context).doesNotHaveBean("triage");
+                            assertThat(context).doesNotHaveBean(TypeSafeModelFactory.DEFAULT_MODEL);
                         });
     }
 
@@ -166,6 +247,8 @@ class AgentTypeSafeAutoConfigurationTest {
         expectAssessment(server, "first-key", TypeSafeModelFactory.DEFAULT_MODEL);
         expectAssessment(server, "second-key", TypeSafeModelFactory.DEFAULT_MODEL);
         expectAssessment(server, "property-key", TypeSafeModelFactory.DEFAULT_MODEL);
+        expectAssessment(server, "rotated-property-key", TypeSafeModelFactory.DEFAULT_MODEL);
+        credentials.put(PREFIX + "api-key", "property-key");
 
         runner.withInitializer(
                         context ->
@@ -174,7 +257,6 @@ class AgentTypeSafeAutoConfigurationTest {
                                         .addFirst(
                                                 new MapPropertySource(
                                                         "rotating-credentials", credentials)))
-                .withPropertyValues(PREFIX + "api-key=property-key")
                 .withBean(RestClient.Builder.class, () -> builder)
                 .run(
                         context -> {
@@ -183,6 +265,8 @@ class AgentTypeSafeAutoConfigurationTest {
                             credentials.put("TYPESAFE_API_KEY", "second-key");
                             assertAnswered(service.assess(REQUEST));
                             credentials.put("TYPESAFE_API_KEY", "");
+                            assertAnswered(service.assess(REQUEST));
+                            credentials.put(PREFIX + "api-key", "rotated-property-key");
                             assertAnswered(service.assess(REQUEST));
                         });
         server.verify();
@@ -260,7 +344,6 @@ class AgentTypeSafeAutoConfigurationTest {
                 new TypeSafeProperties(
                         "test-key",
                         "https://user:proxy-secret@example.test/gateway?token=query-secret",
-                        "model\nforged-log-record",
                         1024);
 
         assertThat(properties.toString())
@@ -268,8 +351,7 @@ class AgentTypeSafeAutoConfigurationTest {
                         "test-key",
                         "proxy-secret",
                         "query-secret",
-                        "gateway",
-                        "forged-log-record");
+                        "gateway");
     }
 
     @Test
@@ -293,11 +375,31 @@ class AgentTypeSafeAutoConfigurationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"model=", "max-response-bytes=0", "base-url=%%%"})
+    @ValueSource(strings = {"max-response-bytes=0", "base-url=%%%"})
     void invalidOptionsAreRejected(String property) {
         configured()
                 .withPropertyValues(PREFIX + property)
                 .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class AliasedDecisionService {
+        @Bean({"customDecision", TypeSafeModelFactory.DEFAULT_MODEL})
+        DecisionService customDecision() {
+            return StubDecisionService.builder("application-model").build();
+        }
+    }
+
+    static class CatalogConsumer {
+        final DecisionService byType;
+        final ClassificationService byName;
+
+        CatalogConsumer(
+                DecisionService byType,
+                @Qualifier(TypeSafeModelFactory.DEFAULT_MODEL) ClassificationService byName) {
+            this.byType = byType;
+            this.byName = byName;
+        }
     }
 
     private ApplicationContextRunner configured() {
