@@ -980,15 +980,15 @@ internal class ChatClientLlmOperations(
     // ====================================
 
     /**
-     * Constructs a [FilteringJacksonOutputConverter] for a [Class]-typed output with
-     * [EnumConstantDescriptionProvider] installed unconditionally on the schema builder.
+     * Builds a [FilteringJacksonOutputConverter] for a [Class]-typed output.
      *
-     * The provider is a no-op for any enum not annotated with [@EnumAsOneOf][EnumAsOneOf],
-     * so installing it unconditionally has no effect on existing output types. Victools resolves
-     * every type in the object graph — including enums nested inside collections or nested
-     * records — and the provider's [@EnumAsOneOf][EnumAsOneOf] check inside
-     * [EnumConstantDescriptionProvider.provideCustomSchemaDefinition] gates whether `oneOf`
-     * is emitted for any given enum.
+     * [EnumConstantDescriptionProvider] is wired into the schema generator so that
+     * any enum annotated with [@EnumAsOneOf][EnumAsOneOf] produces a `oneOf` schema
+     * with per-constant descriptions. Unannotated enums are unaffected.
+     *
+     * A separate overload exists for [ParameterizedTypeReference]-typed outputs. The two
+     * cannot be merged into one generic function because they call different
+     * [FilteringJacksonOutputConverter] constructors via `super`.
      */
     private fun <T : Any> buildFilteringConverter(
         clazz: Class<T>,
@@ -1002,8 +1002,15 @@ internal class ChatClientLlmOperations(
         }
 
     /**
-     * Constructs a [FilteringJacksonOutputConverter] for a [ParameterizedTypeReference]-typed
-     * output with [EnumConstantDescriptionProvider] installed unconditionally on the schema builder.
+     * Builds a [FilteringJacksonOutputConverter] for a [ParameterizedTypeReference]-typed output.
+     *
+     * [EnumConstantDescriptionProvider] is wired into the schema generator so that
+     * any enum annotated with [@EnumAsOneOf][EnumAsOneOf] produces a `oneOf` schema
+     * with per-constant descriptions. Unannotated enums are unaffected.
+     *
+     * A separate overload exists for [Class]-typed outputs. The two cannot be merged into
+     * one generic function because they call different [FilteringJacksonOutputConverter]
+     * constructors via `super`.
      */
     private fun <T : Any> buildFilteringConverter(
         typeReference: ParameterizedTypeReference<T>,

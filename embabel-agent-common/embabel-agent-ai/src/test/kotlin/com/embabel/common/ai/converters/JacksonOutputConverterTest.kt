@@ -785,14 +785,14 @@ World"""
             assertThat(oneOf.isArray).isTrue()
             assertThat(oneOf.size()).isEqualTo(3)
 
-            val urgent = oneOf.first { it.path("const").asText() == "URGENT" }
+            val urgent = oneOf.first { it.path("const").asText() == Priority.URGENT.name }
             assertThat(urgent.path("description").asText()).isEqualTo("Needs same-day response")
 
-            val normal = oneOf.first { it.path("const").asText() == "NORMAL" }
+            val normal = oneOf.first { it.path("const").asText() == Priority.NORMAL.name }
             assertThat(normal.path("description").asText()).isEqualTo("Standard turnaround")
 
             // un-annotated constant has const but no description key
-            val other = oneOf.first { it.path("const").asText() == "OTHER" }
+            val other = oneOf.first { it.path("const").asText() == Priority.OTHER.name }
             assertThat(other.has("description")).isFalse()
         }
 
