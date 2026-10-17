@@ -65,6 +65,18 @@ class DecisionProjectionJavaTest {
     }
 
     @Test
+    void callerProjectedValueKeepsTheOriginalResponse() {
+        var response = answered();
+        var value = new SupportRoute(true, "billing");
+        var projection = DecisionProjection.ofValue(value, response);
+        assertSame(value, projection.getValue());
+        assertSame(response, projection.getResponse());
+        assertEquals(Map.of(), DecisionProjection.answeredValues(List.of()));
+        assertEquals(Map.of("is_urgent", true),
+            DecisionProjection.answeredValues(List.of(response.answer("is_urgent"))));
+    }
+
+    @Test
     void projectsToARecordByComponentName() {
         var response = answered();
         var projection = DecisionProjection.of(response, SupportRoute.class);
