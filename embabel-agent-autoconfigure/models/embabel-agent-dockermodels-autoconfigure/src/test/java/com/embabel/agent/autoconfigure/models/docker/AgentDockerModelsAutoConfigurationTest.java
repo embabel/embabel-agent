@@ -70,6 +70,30 @@ class AgentDockerModelsAutoConfigurationTest {
    }
 
    /**
+    * Verifies that a custom {@code embabel.agent.models.docker.api-version} property is applied.
+    */
+   @Test
+   void dockerConnectionPropertiesCustomApiVersionApplied() {
+
+      contextRunner.withPropertyValues("embabel.agent.models.docker.api-version=v5").run(context -> {
+         final DockerConnectionProperties props = context.getBean(DockerConnectionProperties.class);
+         assertThat(props.getApiVersion()).isEqualTo("v5");
+      });
+   }
+
+   /**
+    * Verifies the default API version is {@code v1}.
+    */
+   @Test
+   void dockerConnectionPropertiesDefaultApiVersion() {
+
+      contextRunner.run(context -> {
+         final DockerConnectionProperties props = context.getBean(DockerConnectionProperties.class);
+         assertThat(props.getApiVersion()).isEqualTo("v1");
+      });
+   }
+
+   /**
     * Verifies that a {@link DockerLocalModelsConfig} bean is registered in the context.
     */
    @Test
