@@ -16,6 +16,7 @@
 package com.embabel.agent.autoconfigure.models.typesafe;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
@@ -34,6 +35,7 @@ import com.embabel.common.ai.decision.PropositionRequest;
 import com.embabel.common.ai.decision.PropositionResult;
 import com.embabel.common.ai.decision.support.StubDecisionService;
 import com.embabel.common.ai.model.DecisionServiceRegistry;
+import com.embabel.common.ai.model.ServiceSelectionException;
 
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;
@@ -43,7 +45,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -136,6 +141,18 @@ class AgentTypeSafeAutoConfigurationTest {
     }
 
     @Test
+    void replacingCatalogModelStillRequiresCredential() {
+        var replacement = mock(DecisionService.class);
+        runner.withBean(TypeSafeModelFactory.DEFAULT_MODEL, DecisionService.class, () -> replacement)
+                .run(
+                        context -> {
+                            assertThat(context).hasFailed();
+                            assertThat(context.getStartupFailure())
+                                    .hasRootCauseMessage("TypeSafe API key is required");
+                        });
+    }
+
+    @Test
     void anApplicationAliasNamedAfterACatalogModelReplacesIt() {
         configured()
                 .withConfiguration(AutoConfigurations.of(DecisionServiceRegistryAutoConfiguration.class))
@@ -155,6 +172,13 @@ class AgentTypeSafeAutoConfigurationTest {
                             var replacement = context.getBean("customDecision");
                             var registry = context.getBean(DecisionServiceRegistry.class);
                             assertThat(registry.registrationNames()).containsExactly("customDecision");
+                            assertThat(registry.decisions().named("customDecision")).isSameAs(replacement);
+                            assertThatThrownBy(() -> registry.decisions().named(TypeSafeModelFactory.DEFAULT_MODEL))
+                                    .isInstanceOfSatisfying(
+                                            ServiceSelectionException.class,
+                                            failure ->
+                                                    assertThat(failure.getReason())
+                                                            .isEqualTo(ServiceSelectionException.Reason.UNKNOWN_NAME));
                             assertThat(registry.decisions().defaultService()).isSameAs(replacement);
                             assertThat(registry.decisions().byRole("review")).isSameAs(replacement);
                             assertThat(registry.classifications().defaultService()).isSameAs(replacement);
@@ -358,9 +382,9 @@ class AgentTypeSafeAutoConfigurationTest {
                 .run(context -> assertThat(context).hasFailed());
     }
 
-    @org.springframework.context.annotation.Configuration(proxyBeanMethods = false)
+    @Configuration(proxyBeanMethods = false)
     static class AliasedDecisionService {
-        @org.springframework.context.annotation.Bean({"customDecision", TypeSafeModelFactory.DEFAULT_MODEL})
+        @Bean({"customDecision", TypeSafeModelFactory.DEFAULT_MODEL})
         DecisionService customDecision() {
             return StubDecisionService.builder("application-model").build();
         }
@@ -372,8 +396,7 @@ class AgentTypeSafeAutoConfigurationTest {
 
         CatalogConsumer(
                 DecisionService byType,
-                @org.springframework.beans.factory.annotation.Qualifier(TypeSafeModelFactory.DEFAULT_MODEL)
-                        ClassificationService byName) {
+                @Qualifier(TypeSafeModelFactory.DEFAULT_MODEL) ClassificationService byName) {
             this.byType = byType;
             this.byName = byName;
         }

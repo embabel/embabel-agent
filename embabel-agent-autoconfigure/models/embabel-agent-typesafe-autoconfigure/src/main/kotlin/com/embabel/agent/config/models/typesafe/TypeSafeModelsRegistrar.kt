@@ -61,9 +61,10 @@ internal class TypeSafeModelsRegistrar(
                 logger.info("TypeSafe default candidate '{}' is defined by the application, so it is kept", DEFAULT_CANDIDATE)
                 return
             }
-            val candidate = BeanDefinitionBuilder.genericBeanDefinition(DecisionServiceRegistry.DefaultCandidate::class.java) {
-                DecisionServiceRegistry.DefaultCandidate(TypeSafeModelFactory.DEFAULT_MODEL)
-            }.beanDefinition
+            val candidate =
+                BeanDefinitionBuilder.genericBeanDefinition(DecisionServiceRegistry.DefaultCandidate::class.java) {
+                    DecisionServiceRegistry.DefaultCandidate(TypeSafeModelFactory.DEFAULT_MODEL)
+                }.beanDefinition
             registry.registerBeanDefinition(DEFAULT_CANDIDATE, candidate)
         }
     }
