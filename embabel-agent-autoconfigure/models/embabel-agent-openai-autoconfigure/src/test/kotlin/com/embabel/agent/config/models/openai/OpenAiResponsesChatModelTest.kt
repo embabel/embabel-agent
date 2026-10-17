@@ -15,15 +15,23 @@
  */
 package com.embabel.agent.config.models.openai
 
+import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.openai.CapabilityAwareOpenAiOptionsConverter
 import com.embabel.agent.openai.OpenAiReasoningEffortOptionsConverter
 import com.embabel.agent.openai.withOpenAiReasoningEffort
 import com.embabel.agent.spi.loop.StructuredOutputRequest
+import com.embabel.agent.spi.support.ExecutorAsyncer
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.support.streaming.InternalStreamingApi
 import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.embabel.common.ai.model.LlmOptions
 import com.openai.client.OpenAIClient
+import com.openai.client.OpenAIClientImpl
+import com.openai.core.ClientOptions
+import com.openai.core.http.Headers
+import com.openai.core.http.HttpClient
+import com.openai.core.http.HttpRequest
+import com.openai.core.http.HttpResponse
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseCreateParams
 import com.openai.models.responses.ResponseError
@@ -58,6 +66,7 @@ import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.content.Media
 import org.springframework.ai.openai.OpenAiChatModel
@@ -68,6 +77,10 @@ import org.springframework.core.io.ByteArrayResource
 import org.springframework.util.MimeTypeUtils
 import reactor.core.publisher.Flux
 import java.util.Optional
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.CyclicBarrier
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -94,17 +107,158 @@ class OpenAiResponsesChatModelTest {
     }
 
     /** Stubs the SDK call and returns the params the adapter built. */
-    private fun capture(prompt: Prompt, response: Response = textResponse("ok")): ResponseCreateParams {
+    private fun capture(
+        prompt: Prompt,
+        response: Response = textResponse("ok"),
+        chatModel: OpenAiResponsesChatModel = model,
+    ): ResponseCreateParams {
         val params = slot<ResponseCreateParams>()
         every { client.responses() } returns responseService
         every { responseService.create(capture(params)) } returns response
-        model.call(prompt)
+        chatModel.call(prompt)
         return params.captured
     }
 
     private fun respondWith(response: Response) {
         every { client.responses() } returns responseService
         every { responseService.create(any<ResponseCreateParams>()) } returns response
+    }
+
+    @Nested
+    inner class CustomHeaders {
+
+        @Test
+        fun `request headers are forwarded to the SDK request`() {
+            val options = OpenAiChatOptions.builder()
+                .customHeaders(mapOf("X-Route" to "request-route", "X-Trace-Id" to "trace-1"))
+                .build()
+            val headers = capture(Prompt(listOf(UserMessage("Hi")), options))._headers()
+            assertEquals(listOf("request-route"), headers.values("X-Route"))
+            assertEquals(listOf("trace-1"), headers.values("X-Trace-Id"))
+        }
+
+        @Test
+        fun `default headers apply when request headers are absent or empty`() {
+            val defaults = OpenAiChatOptions.builder().model("gpt-5-pro")
+                .customHeaders(mapOf("X-Route" to "default-route")).build()
+            val chatModel = OpenAiResponsesChatModel(client, defaults)
+            val prompts = listOf(
+                Prompt("Hi"),
+                Prompt(listOf(UserMessage("Hi")), ChatOptions.builder().build()),
+                Prompt(listOf(UserMessage("Hi")), OpenAiChatOptions.builder().customHeaders(emptyMap()).build()),
+            )
+            for (prompt in prompts) {
+                val headers = capture(prompt, chatModel = chatModel)._headers()
+                assertEquals(listOf("default-route"), headers.values("X-Route"))
+            }
+        }
+
+        @Test
+        fun `request headers override defaults case insensitively without mutating options`() {
+            val defaultHeaders = mapOf("X-Route" to "default-route", "X-Application" to "app")
+            val requestHeaders = mapOf("x-route" to "request-route", "X-Trace-Id" to "trace-1")
+            val defaults = OpenAiChatOptions.builder().model("gpt-5-pro").customHeaders(defaultHeaders).build()
+            val options = OpenAiChatOptions.builder().customHeaders(requestHeaders).build()
+            val chatModel = OpenAiResponsesChatModel(client, defaults)
+            val headers = capture(Prompt(listOf(UserMessage("Hi")), options), chatModel = chatModel)._headers()
+            assertEquals(listOf("request-route"), headers.values("X-Route"))
+            assertEquals(listOf("app"), headers.values("X-Application"))
+            assertEquals(listOf("trace-1"), headers.values("X-Trace-Id"))
+            assertEquals(defaultHeaders, defaults.customHeaders)
+            assertEquals(requestHeaders, options.customHeaders)
+        }
+
+        @Test
+        fun `headers do not leak into later calls on the same model`() {
+            val firstOptions = OpenAiChatOptions.builder().customHeaders(mapOf("X-Route" to "first")).build()
+            val secondOptions = OpenAiChatOptions.builder().customHeaders(mapOf("X-Route" to "second")).build()
+            val first = capture(Prompt(listOf(UserMessage("Hi")), firstOptions))._headers()
+            val second = capture(Prompt(listOf(UserMessage("Hi")), secondOptions))._headers()
+            val absent = capture(Prompt("Hi"))._headers()
+            val empty = capture(
+                Prompt(
+                    listOf(UserMessage("Hi")),
+                    OpenAiChatOptions.builder().customHeaders(emptyMap()).build(),
+                )
+            )._headers()
+            assertEquals(listOf("first"), first.values("X-Route"))
+            assertEquals(listOf("second"), second.values("X-Route"))
+            assertTrue(absent.isEmpty())
+            assertTrue(empty.isEmpty())
+        }
+
+        @Test
+        fun `custom headers reach the HTTP transport without replacing client headers`() {
+            val requests = mutableListOf<HttpRequest>()
+            val transport = mockk<HttpClient>(relaxUnitFun = true)
+            every { transport.execute(any(), any()) } answers {
+                requests.add(firstArg())
+                mockk<HttpResponse>(relaxUnitFun = true) {
+                    every { statusCode() } returns 200
+                    every { headers() } returns Headers.builder().put("Content-Type", "application/json").build()
+                    every { body() } answers {
+                        """{"id":"resp_1","object":"response","model":"gpt-5-pro","status":"completed","output":[]}"""
+                            .byteInputStream()
+                    }
+                }
+            }
+            // Exercise the SDK's real request construction without opening a socket in CI.
+            val sdkClient = OpenAIClientImpl(
+                ClientOptions.builder()
+                    .httpClient(transport)
+                    .apiKey("test-key")
+                    .putHeader("X-Client", "client-default")
+                    .maxRetries(0)
+                    .build()
+            )
+            try {
+                val defaults = OpenAiChatOptions.builder().model("gpt-5-pro")
+                    .customHeaders(mapOf("X-Route" to "default-route")).build()
+                val chatModel = OpenAiResponsesChatModel(sdkClient, defaults)
+                val options = OpenAiChatOptions.builder()
+                    .customHeaders(mapOf("x-route" to "request-route", "X-Trace-Id" to "trace-1")).build()
+                chatModel.call(Prompt(listOf(UserMessage("Hi")), options))
+                chatModel.call(Prompt("Hi"))
+            } finally {
+                sdkClient.close()
+            }
+            assertEquals(2, requests.size)
+            assertEquals(listOf("request-route"), requests[0].headers.values("X-Route"))
+            assertEquals(listOf("trace-1"), requests[0].headers.values("X-Trace-Id"))
+            assertEquals(listOf("default-route"), requests[1].headers.values("X-Route"))
+            assertTrue(requests[1].headers.values("X-Trace-Id").isEmpty())
+            requests.forEach {
+                assertEquals(listOf("client-default"), it.headers.values("X-Client"))
+                assertEquals(listOf("Bearer test-key"), it.headers.values("Authorization"))
+            }
+        }
+
+        @Test
+        fun `concurrent calls retain their own headers`() {
+            val barrier = CyclicBarrier(2)
+            val captured = ConcurrentLinkedQueue<Headers>()
+            every { client.responses() } returns responseService
+            every { responseService.create(any<ResponseCreateParams>()) } answers {
+                val params = firstArg<ResponseCreateParams>()
+                barrier.await(5, TimeUnit.SECONDS)
+                captured.add(params._headers())
+                textResponse("ok")
+            }
+            val executor = Executors.newFixedThreadPool(2)
+            val asyncer: Asyncer = ExecutorAsyncer(executor)
+            try {
+                val calls = listOf("first", "second").map { value ->
+                    asyncer.async {
+                        val options = OpenAiChatOptions.builder().customHeaders(mapOf("X-Route" to value)).build()
+                        model.call(Prompt(listOf(UserMessage("Hi")), options))
+                    }
+                }
+                calls.forEach { it.get(10, TimeUnit.SECONDS) }
+                assertEquals(setOf(listOf("first"), listOf("second")), captured.map { it.values("X-Route") }.toSet())
+            } finally {
+                executor.shutdownNow()
+            }
+        }
     }
 
     @Nested
