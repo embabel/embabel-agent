@@ -15,17 +15,23 @@
  */
 package com.embabel.agent.config.models.openai
 
+import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.openai.CapabilityAwareOpenAiOptionsConverter
 import com.embabel.agent.openai.OpenAiReasoningEffortOptionsConverter
 import com.embabel.agent.openai.withOpenAiReasoningEffort
 import com.embabel.agent.spi.loop.StructuredOutputRequest
+import com.embabel.agent.spi.support.ExecutorAsyncer
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.support.streaming.InternalStreamingApi
 import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.embabel.common.ai.model.LlmOptions
 import com.openai.client.OpenAIClient
-import com.openai.client.okhttp.OpenAIOkHttpClient
+import com.openai.client.OpenAIClientImpl
+import com.openai.core.ClientOptions
 import com.openai.core.http.Headers
+import com.openai.core.http.HttpClient
+import com.openai.core.http.HttpRequest
+import com.openai.core.http.HttpResponse
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseCreateParams
 import com.openai.models.responses.ResponseError
@@ -39,7 +45,6 @@ import com.openai.models.responses.ResponseReasoningItem
 import com.openai.models.responses.ResponseStatus
 import com.openai.models.responses.ResponseUsage
 import com.openai.services.blocking.ResponseService
-import com.sun.net.httpserver.HttpServer
 import io.micrometer.observation.Observation
 import io.micrometer.observation.ObservationHandler
 import io.micrometer.observation.ObservationRegistry
@@ -71,8 +76,6 @@ import org.springframework.ai.tool.definition.ToolDefinition
 import org.springframework.core.io.ByteArrayResource
 import org.springframework.util.MimeTypeUtils
 import reactor.core.publisher.Flux
-import java.net.InetSocketAddress
-import java.time.Duration
 import java.util.Optional
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CyclicBarrier
@@ -185,50 +188,48 @@ class OpenAiResponsesChatModelTest {
         }
 
         @Test
-        fun `custom headers reach the HTTP endpoint without replacing client headers`() {
-            val received = ConcurrentLinkedQueue<com.sun.net.httpserver.Headers>()
-            val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
-            server.createContext("/v1/responses") { exchange ->
-                exchange.requestBody.use { it.readBytes() }
-                received.add(exchange.requestHeaders)
-                val body = """{"id":"resp_1","object":"response","model":"gpt-5-pro","status":"completed","output":[]}"""
-                    .toByteArray()
-                exchange.responseHeaders.set("Content-Type", "application/json")
-                exchange.sendResponseHeaders(200, body.size.toLong())
-                exchange.responseBody.use { it.write(body) }
+        fun `custom headers reach the HTTP transport without replacing client headers`() {
+            val requests = mutableListOf<HttpRequest>()
+            val transport = mockk<HttpClient>(relaxUnitFun = true)
+            every { transport.execute(any(), any()) } answers {
+                requests.add(firstArg())
+                mockk<HttpResponse>(relaxUnitFun = true) {
+                    every { statusCode() } returns 200
+                    every { headers() } returns Headers.builder().put("Content-Type", "application/json").build()
+                    every { body() } answers {
+                        """{"id":"resp_1","object":"response","model":"gpt-5-pro","status":"completed","output":[]}"""
+                            .byteInputStream()
+                    }
+                }
             }
-            server.start()
-            try {
-                val httpClient = OpenAIOkHttpClient.builder()
+            // Exercise the SDK's real request construction without opening a socket in CI.
+            val sdkClient = OpenAIClientImpl(
+                ClientOptions.builder()
+                    .httpClient(transport)
                     .apiKey("test-key")
-                    .baseUrl("http://127.0.0.1:${server.address.port}/v1")
                     .putHeader("X-Client", "client-default")
-                    .timeout(Duration.ofSeconds(5))
                     .maxRetries(0)
                     .build()
-                try {
-                    val defaults = OpenAiChatOptions.builder().model("gpt-5-pro")
-                        .customHeaders(mapOf("X-Route" to "default-route")).build()
-                    val chatModel = OpenAiResponsesChatModel(httpClient, defaults)
-                    val options = OpenAiChatOptions.builder()
-                        .customHeaders(mapOf("x-route" to "request-route", "X-Trace-Id" to "trace-1")).build()
-                    chatModel.call(Prompt(listOf(UserMessage("Hi")), options))
-                    chatModel.call(Prompt("Hi"))
-                } finally {
-                    httpClient.close()
-                }
-                val requests = received.toList()
-                assertEquals(2, requests.size)
-                assertEquals(listOf("request-route"), requests[0]["X-Route"])
-                assertEquals("trace-1", requests[0].getFirst("X-Trace-Id"))
-                assertEquals(listOf("default-route"), requests[1]["X-Route"])
-                assertNull(requests[1].getFirst("X-Trace-Id"))
-                requests.forEach {
-                    assertEquals("client-default", it.getFirst("X-Client"))
-                    assertEquals("Bearer test-key", it.getFirst("Authorization"))
-                }
+            )
+            try {
+                val defaults = OpenAiChatOptions.builder().model("gpt-5-pro")
+                    .customHeaders(mapOf("X-Route" to "default-route")).build()
+                val chatModel = OpenAiResponsesChatModel(sdkClient, defaults)
+                val options = OpenAiChatOptions.builder()
+                    .customHeaders(mapOf("x-route" to "request-route", "X-Trace-Id" to "trace-1")).build()
+                chatModel.call(Prompt(listOf(UserMessage("Hi")), options))
+                chatModel.call(Prompt("Hi"))
             } finally {
-                server.stop(0)
+                sdkClient.close()
+            }
+            assertEquals(2, requests.size)
+            assertEquals(listOf("request-route"), requests[0].headers.values("X-Route"))
+            assertEquals(listOf("trace-1"), requests[0].headers.values("X-Trace-Id"))
+            assertEquals(listOf("default-route"), requests[1].headers.values("X-Route"))
+            assertTrue(requests[1].headers.values("X-Trace-Id").isEmpty())
+            requests.forEach {
+                assertEquals(listOf("client-default"), it.headers.values("X-Client"))
+                assertEquals(listOf("Bearer test-key"), it.headers.values("Authorization"))
             }
         }
 
@@ -244,9 +245,10 @@ class OpenAiResponsesChatModelTest {
                 textResponse("ok")
             }
             val executor = Executors.newFixedThreadPool(2)
+            val asyncer: Asyncer = ExecutorAsyncer(executor)
             try {
                 val calls = listOf("first", "second").map { value ->
-                    executor.submit<ChatResponse> {
+                    asyncer.async {
                         val options = OpenAiChatOptions.builder().customHeaders(mapOf("X-Route" to value)).build()
                         model.call(Prompt(listOf(UserMessage("Hi")), options))
                     }

@@ -124,9 +124,12 @@ class OpenAiResponsesChatModel(
                     .filterNot { it.messageType == MessageType.SYSTEM }
                     .flatMap(::toInputItems)
             )
+        // defaultOptions supplies model-wide fallback headers; add them to this request's builder.
         defaultOptions.customHeaders.orEmpty().forEach { (name, value) ->
             builder.putAdditionalHeader(name, value)
         }
+        // options belongs to this prompt. Replace rather than append so overrides stay single-valued;
+        // the SDK matches header names case-insensitively and preserves unrelated defaults.
         (options as? OpenAiChatOptions)?.customHeaders.orEmpty().forEach { (name, value) ->
             builder.replaceAdditionalHeaders(name, value)
         }
