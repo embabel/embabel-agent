@@ -984,33 +984,38 @@ From `OnnxEmbeddingProperties` - configuration for local ONNX embedding models.
 
 ====== Docker Local Models
 
-From `DockerProperties` - configuration for Docker local models (OpenAI-compatible).
+From `DockerConnectionProperties` and `DockerRetryProperties` - configuration for Docker local models (OpenAI-compatible).
 
 [cols="3,2,1,4",options="header"]
 |===
 |Property |Type |Default |Description
 
-|`embabel.docker.models.base-url`
+|`embabel.agent.models.docker.base-url`
 |String
 |`http://localhost:12434/engines`
 |Base URL for Docker model endpoint
 
-|`embabel.docker.models.max-attempts`
+|`embabel.agent.models.docker.api-version`
+|String
+|`v1`
+|API version segment added to `base-url` when it doesn't already end in one (`/v<digits>`)
+
+|`embabel.agent.platform.models.docker.max-attempts`
 |Int
 |`10`
 |Maximum retry attempts
 
-|`embabel.docker.models.backoff-millis`
+|`embabel.agent.platform.models.docker.backoff-millis`
 |Long
-|`2000`
+|`5000`
 |Initial backoff time in milliseconds
 
-|`embabel.docker.models.backoff-multiplier`
+|`embabel.agent.platform.models.docker.backoff-multiplier`
 |Double
 |`5.0`
 |Backoff multiplier
 
-|`embabel.docker.models.backoff-max-interval`
+|`embabel.agent.platform.models.docker.backoff-max-interval`
 |Long
 |`180000`
 |Maximum backoff interval in milliseconds
