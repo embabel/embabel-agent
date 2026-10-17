@@ -283,8 +283,8 @@ class DecisionServiceRegistry private constructor(
         }
 
         /**
-         * Reads each provider's model names once, keeping the first provider for each name and
-         * leaving out names a registered service already holds.
+         * Groups model names by provider, excluding names held by registered services and keeping
+         * names from the first provider that supplies them.
          *
          * @param providers the providers the registry is built with
          * @param services the validated registrations
@@ -294,9 +294,9 @@ class DecisionServiceRegistry private constructor(
             providers: List<DecisionModelProvider>,
             services: Map<String, ClassificationService>,
         ): ProviderModels {
-            val seen = HashSet<String>(services.keys)
+            val claimedModelNames = HashSet<String>(services.keys)
             return ProviderModels(
-                providers.map { provider -> provider.provider to provider.modelNames().filter(seen::add) }
+                providers.map { provider -> provider.provider to provider.modelNames().filter(claimedModelNames::add) }
                     .filter { (_, names) -> names.isNotEmpty() },
             )
         }
@@ -348,13 +348,13 @@ class DecisionServiceRegistry private constructor(
             defaults: List<String>,
             roleBindings: List<Pair<String, String>>,
         ): Family<S> {
-            val explicit = defaults.distinct().let { distinct ->
+            val explicitDefault = defaults.distinct().let { distinct ->
                 require(distinct.size <= 1) {
                     "${spec.label} default (${spec.defaultProperty}) is set to more than one service: $distinct"
                 }
                 distinct.firstOrNull()
             }
-            explicit?.let { name ->
+            explicitDefault?.let { name ->
                 require(name.isNotBlank()) { "${spec.label} default (${spec.defaultProperty}) must not be blank" }
                 requireEligible("${spec.label} default", spec.defaultProperty, name, spec, type, services, providerModels)
             }
@@ -376,7 +376,7 @@ class DecisionServiceRegistry private constructor(
                 eligible = java.util.List.copyOf(eligible),
                 providerModels = providerModels,
                 roles = Collections.unmodifiableMap(roles),
-                explicitDefault = explicit,
+                explicitDefault = explicitDefault,
                 defaultState = DefaultState.Unresolved(Reason.NO_DEFAULT),
             )
         }
