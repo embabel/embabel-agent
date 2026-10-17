@@ -133,9 +133,11 @@ include::../../../../../../embabel-agent-cloudflare/src/test/java/com/embabel/ag
 include::../../../../../../embabel-agent-cloudflare/src/test/java/com/embabel/agent/cloudflare/CloudflareUsageExamples.java[tag=flash,indent=0]
 ----
 
-`buildValidated()` checks the current token by searching the account's models for `clef`, and returns `clef`.
+`buildValidated()` checks catalog access by searching the account's models for `clef`, then returns `clef`.
+This catalog check does not exercise inference or establish inference readiness, and it does not establish Jev availability, AI Gateway credits or provider credentials.
 An already interrupted caller is cancelled before the token supplier is read, including when the token is missing or blank.
-`modelNames()` returns the same search, which lists the Cloudflare-hosted CLEF models.
+`modelNames()` returns names from the same `clef`-filtered search.
+It excludes TypeSafe's `typesafe/jev` and is not a complete list of models the factory can build.
 A missing or refused token throws `InvalidApiKeyException`:
 
 [source,java]
