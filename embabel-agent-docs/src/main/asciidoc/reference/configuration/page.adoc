@@ -95,6 +95,59 @@ embabel:
 
 It's good practice to decouple your code from specific models in this way.
 
+===== Decision and classification defaults and roles
+
+These registry properties select registered services or provider models; Spring defaults, roles and default candidates can also name service aliases. See <<reference.decision-providers>>.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.models.decision.default`
+|String
+|not set
+|Default service or provider model for decisions
+
+|`embabel.models.decision.roles.<role>`
+|String
+|not set
+|Service or provider model assigned to a decision role
+
+|`embabel.models.classification.default`
+|String
+|not set
+|Default service or provider model for classification
+
+|`embabel.models.classification.roles.<role>`
+|String
+|not set
+|Service or provider model assigned to a classification role
+|===
+
+===== TypeSafe provider connection
+
+TypeSafe connection properties use the `embabel.agent.platform.models.typesafe` prefix. `TYPESAFE_API_KEY` takes precedence over `api-key`, and a key is required when the TypeSafe starter configuration starts. See <<reference.decision-providers>>.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.models.typesafe.api-key`
+|String
+|not set
+|Credential used when `TYPESAFE_API_KEY` is absent or blank
+
+|`embabel.agent.platform.models.typesafe.base-url`
+|String
+|`https://api.typesafe.ai`
+|TypeSafe API base URL
+
+|`embabel.agent.platform.models.typesafe.max-response-bytes`
+|int
+|`1048576`
+|Maximum response body size in bytes
+|===
+
 ===== Platform Configuration
 
 From `AgentPlatformProperties` - unified configuration for all agent platform properties.
