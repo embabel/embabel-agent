@@ -19,11 +19,12 @@ import org.jetbrains.annotations.ApiStatus
 
 /**
  * Thrown when a decision service cannot answer a request because a question kind is missing from
- * its capabilities.
+ * its capabilities or the request exceeds provider-specific limits.
  *
  * The check runs before any provider call, so no model work has happened when this is thrown. The
- * message names the service, the questions concerned with their kinds, the missing kind, the
- * service's capabilities and a remedy. It holds question names and kinds only.
+ * capability preflight message names the service, the questions concerned with their kinds, the
+ * missing kind, the service's capabilities and a remedy. A provider-limit message describes the
+ * rejected limits and may name the affected questions and counts.
  * The input, instructions, options and levels stay out of it.
  *
  * @param message the description of the unsupported request

@@ -17,7 +17,6 @@ package com.embabel.agent.systemone
 
 import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.model.observation.ObservedDecisionService
-import com.embabel.common.ai.decision.systemone.SystemOneCodec
 import com.embabel.common.ai.decision.systemone.SystemOneFormatException
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
@@ -35,6 +34,7 @@ import java.util.function.Supplier
  * Building a service never resolves the key or contacts the endpoint. The key is read on each
  * call, so a rotated key takes effect on the next call. A blank key sends no Authorization
  * header, which suits endpoints that need none.
+ * The endpoint's binding validates the default model at construction, before credentials are read.
  *
  * When [restClientBuilder] is given, a clone of it is used, so its transport, interceptors and
  * timeouts apply. Otherwise the factory builds a client with the endpoint's timeouts that does
@@ -62,6 +62,7 @@ open class SystemOneModelFactory @JvmOverloads constructor(
 
     init {
         require(defaultModel.isNotBlank()) { "The default model must not be blank" }
+        endpoint.binding.validateModel(defaultModel)
         logger.info(
             "System One model factory initialized: provider={}, transport={}, observations={}",
             endpoint.provider,
@@ -74,14 +75,16 @@ open class SystemOneModelFactory @JvmOverloads constructor(
     fun build(): DecisionService = build(defaultModel)
 
     /**
-     * Returns a service for the named model. The name is sent as is, so the endpoint decides
-     * whether it exists.
+     * Returns a service for the named model. The endpoint's binding checks the name first, and the
+     * endpoint decides whether a model it accepts exists.
      *
      * @param model the model name
      * @return a service for that model
+     * @throws IllegalArgumentException if the name is blank or the endpoint can never serve it
      */
     fun build(model: String): DecisionService {
         require(model.isNotBlank()) { "The model name must not be blank" }
+        endpoint.binding.validateModel(model)
         return ObservedDecisionService(SystemOneDecisionService(model, transport), observationRegistry)
     }
 
@@ -95,7 +98,7 @@ open class SystemOneModelFactory @JvmOverloads constructor(
 
     private fun modelNames(key: Supplier<String?>): List<String> =
         try {
-            SystemOneCodec.modelNames(transport.listModels(key).body)
+            endpoint.binding.modelNames(transport.listModels(key).body)
         } catch (failure: SystemOneFailure) {
             throw IllegalStateException(
                 "${endpoint.provider} model listing failed: cause=${failure.category}, status=${failure.statusFamily}",

@@ -16,7 +16,6 @@
 package com.embabel.agent.systemone
 
 import com.embabel.common.ai.classification.FailureReason
-import com.embabel.common.ai.decision.systemone.SystemOneCodec
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
@@ -75,13 +74,14 @@ internal class SystemOneTransport(
         .build()
 
     /**
-     * Sends one encoded question set.
+     * Sends one encoded question set to the address the endpoint's binding gives for the model.
      *
+     * @param model the model the question set is for
      * @param body the encoded request
      * @return the endpoint's reply
      */
-    fun decide(body: ByteArray): Reply = call(OPERATION_DECIDE) {
-        restClient.post().uri(endpoint.resolve(SystemOneCodec.DECISION_PATH))
+    fun decide(model: String, body: ByteArray): Reply = call(OPERATION_DECIDE) {
+        restClient.post().uri(endpoint.binding.decisionUri(endpoint, model))
             .contentType(MediaType.APPLICATION_JSON)
             .accept(MediaType.APPLICATION_JSON)
             .attribute(KEY_ATTRIBUTE, resolveKey(apiKey) ?: NO_KEY)
@@ -95,7 +95,7 @@ internal class SystemOneTransport(
      * @return the endpoint's reply
      */
     fun listModels(key: Supplier<String?> = apiKey): Reply = call(OPERATION_MODELS) {
-        restClient.get().uri(endpoint.resolve(SystemOneCodec.MODELS_PATH))
+        restClient.get().uri(endpoint.binding.modelsUri(endpoint))
             .accept(MediaType.APPLICATION_JSON)
             .attribute(KEY_ATTRIBUTE, resolveKey(key) ?: NO_KEY)
     }

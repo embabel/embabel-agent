@@ -11,7 +11,7 @@ Defaults and roles pick a model by name.
 
 |Catalog starter
 |The starter loads `models/<provider>-models.yml` and defines a bean per entry. Inject one by type or with `@Qualifier("<model>")`.
-|`jev-latest`
+|`jev-latest`, `clef`
 
 |`DecisionModelProvider` bean
 |The registry asks the provider the first time a default, role or `named` lookup uses a name no bean holds
@@ -77,6 +77,7 @@ A service a provider created stays cached for the life of the registry.
 
 A catalog starter reads its key the same way the chat model starters do, from the environment variable first and then the `api-key` property.
 TypeSafe uses `TYPESAFE_API_KEY` and `embabel.agent.platform.models.typesafe.api-key`, and startup fails without either.
-For a key supplied at run time, `TypeSafeModelFactory` and every other `SystemOneModelFactory` implement `ByokFactory<DecisionService>`.
+Cloudflare uses `CLOUDFLARE_API_TOKEN` and `embabel.agent.platform.models.cloudflare.api-key`, plus an account id, and startup fails without them.
+For a key supplied at run time, `TypeSafeModelFactory`, `CloudflareModelFactory` and every other `SystemOneModelFactory` implement `ByokFactory<DecisionService>`.
 `buildValidated()` checks the key with the provider and returns a service, which you pass to `using(service)`.
-See <<reference.typesafe>> and <<reference.systemone>>.
+See <<reference.typesafe>>, <<reference.cloudflare>> and <<reference.systemone>>.
