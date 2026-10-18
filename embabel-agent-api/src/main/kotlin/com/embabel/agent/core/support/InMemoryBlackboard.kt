@@ -41,6 +41,8 @@ class InMemoryBlackboard(
             synchronized(_entries) {
                 _entries.addAll(this@InMemoryBlackboard._entries)
             }
+            // The entries above include hidden objects, so copy which ones are hidden too.
+            // Otherwise a child process would see state objects hidden by an earlier transition.
             hiddens.addAll(this@InMemoryBlackboard.hiddens)
             protectedKeys.addAll(this@InMemoryBlackboard.protectedKeys)
         }

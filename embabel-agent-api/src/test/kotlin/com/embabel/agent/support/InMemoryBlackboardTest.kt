@@ -41,8 +41,11 @@ class InMemoryBlackboardTest : AbstractBlackboardTest() {
 
         val child = blackboard.spawn()
 
+        // The object hidden on the parent stays hidden on the child: not found by name, not in objects
         assertNull(child["hidden"])
         assertEquals(listOf(visible), child.objects)
+
+        // Hiding an object on the child doesn't hide it on the parent
         child.hide(visible)
         assertEquals(emptyList<Any>(), child.objects)
         assertEquals(listOf(visible), blackboard.objects)
