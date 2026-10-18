@@ -64,12 +64,7 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- OpenTelemetry API (optional: contextId baggage propagation) -->
-        <dependency>
-            <groupId>io.opentelemetry</groupId>
-            <artifactId>opentelemetry-api</artifactId>
-            <optional>true</optional>
-        </dependency>
+        <!-- OTel Context (optional: A2A_CONTEXT_ID_KEY JVM-local session propagation) -->
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-context</artifactId>

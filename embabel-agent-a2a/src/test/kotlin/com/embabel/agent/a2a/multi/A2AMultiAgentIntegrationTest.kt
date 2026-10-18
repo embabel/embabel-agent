@@ -16,6 +16,7 @@
 package com.embabel.agent.a2a.multi
 
 import com.embabel.agent.AgentTestApplication
+import com.embabel.agent.a2a.A2A_CONTEXT_ID_KEY
 import com.embabel.agent.a2a.client.EmbabelA2AClient
 import com.embabel.agent.a2a.client.api.A2AClient
 import com.embabel.agent.a2a.server.config.FakeAiConfiguration
@@ -25,13 +26,12 @@ import com.embabel.agent.api.invocation.AgentInvocation
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.domain.io.UserInput
-import io.a2a.spec.Message
-import io.a2a.spec.TextPart
-import io.opentelemetry.api.baggage.Baggage
-import io.opentelemetry.api.baggage.BaggageEntryMetadata
-import io.opentelemetry.context.Context
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import io.a2a.spec.Message
+import io.a2a.spec.TextPart
+import io.opentelemetry.context.Context
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -53,7 +53,8 @@ import java.util.UUID
  * endpoints via [MultiAgentTestConfiguration]:
  * - `/agent-one` — routes to [AgentOne], goal filter matches "AgentOne"
  * - `/agent-two` — routes to [AgentTwo], goal filter matches "AgentTwo"
- * - `/agent-four` — routes to [AgentFour], used only by [BaggageChainPropagation]
+ * - `/agent-four` — routes to [AgentFour], isolated behind `a2a-multi-test` profile so it
+ *                    does not appear in the orchestrator's agent pool
  *
  * ## Why the default ranker is replaced
  * [FakeRankerConfiguration] (active on `a2a-test`) returns a single fixed agent, which
@@ -68,13 +69,14 @@ import java.util.UUID
  * [io.a2a.spec.Task]. The test asserts that both downstream tasks echo back the same
  * contextId that the orchestrator set.
  *
- * ## [BaggageChainPropagation] nested class
- * Tests the OTel baggage path: when [EmbabelA2AClient] sends a message with no explicit
- * contextId it reads one from OTel baggage (as set by an upstream
- * [com.embabel.agent.a2a.server.support.AutonomyA2ARequestHandler]) and injects it into
- * the outbound message body. [AgentFour] is isolated behind the `a2a-multi-test` profile
- * so it does not appear in the orchestrator's agent pool and cannot interfere with agent
- * selection in the main test.
+ * ## [ContextKeyChainPropagation] nested class
+ * Tests the OTel [io.opentelemetry.context.ContextKey] path: when [EmbabelA2AClient] sends a
+ * message with no explicit contextId, it reads the session identifier from [A2A_CONTEXT_ID_KEY]
+ * and injects it into the outbound message body. The receiving [AgentFour] server returns a
+ * [io.a2a.spec.Task] whose `contextId` field reflects what it received — confirming the session
+ * identifier was propagated correctly across the hop. The test sets [A2A_CONTEXT_ID_KEY] manually
+ * to simulate what [com.embabel.agent.a2a.server.support.AutonomyA2ARequestHandler] does when
+ * processing an inbound A2A request. [AgentFour] is isolated behind the `a2a-multi-test` profile.
  */
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -141,18 +143,15 @@ class A2AMultiAgentIntegrationTest(
     }
 
     /**
-     * Verifies that [EmbabelA2AClient] reads a contextId from OTel baggage when the outbound
-     * message carries none, and injects it into the message body so the downstream server
-     * echoes it back in [io.a2a.spec.Task.contextId].
+     * Verifies transparent contextId chain propagation via [A2A_CONTEXT_ID_KEY].
      *
-     * OTel baggage is set here manually to simulate what
-     * [com.embabel.agent.a2a.server.support.AutonomyA2ARequestHandler] does when an upstream
-     * A2A request arrives carrying a contextId: it stores the contextId in baggage on the
-     * server thread so any downstream A2A call made within the same request inherits it
-     * automatically.
+     * [A2A_CONTEXT_ID_KEY] is set manually here to simulate what
+     * [com.embabel.agent.a2a.server.support.AutonomyA2ARequestHandler] does when it receives
+     * an inbound A2A request: it stores the inbound contextId in the key so any outbound A2A
+     * call made by the agent during that request automatically inherits the same session ID.
      */
     @Nested
-    inner class BaggageChainPropagation {
+    inner class ContextKeyChainPropagation {
 
         @Autowired
         private lateinit var agentFour: AgentFour
@@ -169,37 +168,70 @@ class A2AMultiAgentIntegrationTest(
         }
 
         @Test
-        fun `EmbabelA2AClient injects OTel baggage contextId into outbound message when message has none`() {
-            val contextId = "baggage-${UUID.randomUUID()}"
+        fun `EmbabelA2AClient injects OTel context key contextId into outbound message when message has none`() {
+            val contextId = "ctx-key-${UUID.randomUUID()}"
 
-            // Simulate the OTel baggage that AutonomyA2ARequestHandler puts on the thread
-            // when it receives an upstream A2A request carrying a contextId.
-            val scope = Baggage.empty().toBuilder()
-                .put(EmbabelA2AClient.BAGGAGE_KEY, contextId, BaggageEntryMetadata.empty())
-                .build()
-                .storeInContext(Context.current())
-                .makeCurrent()
+            // Simulate what AutonomyA2ARequestHandler does on the server thread when it
+            // receives an inbound A2A request: store the session contextId in the JVM-local
+            // OTel context key so EmbabelA2AClient can read it without agent code having to
+            // thread it explicitly.
+            val scope = Context.current().with(A2A_CONTEXT_ID_KEY, contextId).makeCurrent()
 
             scope.use {
-                // Message has NO explicit contextId — the client must read it from baggage.
+                // Message carries NO contextId — EmbabelA2AClient must read it from the key.
                 val message = Message.Builder()
                     .role(Message.Role.USER)
                     .messageId(UUID.randomUUID().toString())
-                    .parts(listOf(TextPart("baggage chain test")))
+                    .parts(listOf(TextPart("context key chain test")))
                     .build()
 
-                // EmbabelA2AClient.resolveContextId(null) finds the baggage value and
-                // rebuilds the outbound message with it before sending to the server.
                 val task = a2aClient.sendMessage("http://localhost:$port/agent-four", message)
 
-                // The server echoes contextId back in the task; if the client had not
-                // injected it the server would have generated a random one instead.
+                // The server echoes the contextId back in the task. If EmbabelA2AClient had
+                // not injected it, the server would have generated a new random one instead.
                 assertEquals(
                     contextId,
                     task.contextId,
-                    "Server should receive the baggage contextId injected by EmbabelA2AClient into the outbound message",
+                    "Server must receive the contextId that EmbabelA2AClient read from the OTel context key",
                 )
             }
+        }
+
+        @Test
+        fun `EmbabelA2AClient does not override message contextId when context key is absent`() {
+            val messageContextId = "msg-ctx-${UUID.randomUUID()}"
+
+            // No A2A_CONTEXT_ID_KEY set — bare context, simulating a direct client call
+            // not originating from within an A2A server request.
+            val message = Message.Builder()
+                .role(Message.Role.USER)
+                .messageId(UUID.randomUUID().toString())
+                .contextId(messageContextId)
+                .parts(listOf(TextPart("no context key test")))
+                .build()
+
+            val task = a2aClient.sendMessage("http://localhost:$port/agent-four", message)
+
+            assertEquals(
+                messageContextId,
+                task.contextId,
+                "Message's own contextId must be used when no OTel context key is set",
+            )
+        }
+
+        @Test
+        fun `server generates its own contextId when neither context key nor message contextId is set`() {
+            // No key set, no message contextId — server generates a random one.
+            val message = Message.Builder()
+                .role(Message.Role.USER)
+                .messageId(UUID.randomUUID().toString())
+                .parts(listOf(TextPart("no context id test")))
+                .build()
+
+            val task = a2aClient.sendMessage("http://localhost:$port/agent-four", message)
+
+            assertNotNull(task.contextId, "Server must always assign a contextId")
+            assertNotEquals("", task.contextId)
         }
     }
 }

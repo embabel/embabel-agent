@@ -15,10 +15,11 @@
  */
 package com.embabel.agent.a2a
 
-internal const val A2A_CONTEXT_ID_BAGGAGE_KEY = "a2a.context_id"
+internal const val A2A_CONTEXT_ID_SPAN_KEY = "a2a.context_id"
 internal const val A2A_TASK_ID_KEY = "a2a.task_id"
 internal const val A2A_METHOD_KEY = "a2a.method"
 internal const val A2A_METHOD_SEND_VALUE = "message/send"
 internal const val A2A_METHOD_STREAM_VALUE = "message/stream"
 internal const val A2A_MESSAGE_SEND = "a2a.message.send"
 internal const val A2A_MESSAGE_STREAM = "a2a.message.stream"
+internal const val A2A_CLIENT_SEND = "a2a.client.send"

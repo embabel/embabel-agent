@@ -17,7 +17,8 @@ package com.embabel.agent.a2a.server.support
 
 import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger as LogbackLogger
-import com.embabel.agent.a2a.A2A_CONTEXT_ID_BAGGAGE_KEY
+import com.embabel.agent.a2a.A2A_CONTEXT_ID_SPAN_KEY
+import com.embabel.agent.a2a.A2A_CONTEXT_ID_KEY
 import com.embabel.agent.a2a.A2A_MESSAGE_SEND
 import com.embabel.agent.a2a.A2A_METHOD_KEY
 import com.embabel.agent.a2a.A2A_METHOD_SEND_VALUE
@@ -32,7 +33,10 @@ import io.micrometer.observation.tck.TestObservationRegistryAssert
 import io.mockk.every
 import io.mockk.justRun
 import io.mockk.mockk
+import io.opentelemetry.context.Context
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
@@ -92,7 +96,7 @@ class AutonomyA2ARequestHandlerObservationTest {
             .that()
             .hasLowCardinalityKeyValue(A2A_METHOD_KEY, A2A_METHOD_SEND_VALUE)
             .hasHighCardinalityKeyValue(A2A_TASK_ID_KEY, taskId)
-            .hasHighCardinalityKeyValue(A2A_CONTEXT_ID_BAGGAGE_KEY, contextId)
+            .hasHighCardinalityKeyValue(A2A_CONTEXT_ID_SPAN_KEY, contextId)
     }
 
     @Test
@@ -126,7 +130,7 @@ class AutonomyA2ARequestHandlerObservationTest {
     fun `handleJsonRpcStream delegates to streamingHandler and returns SseEmitter`() {
         every { streamingHandler.createStream(any(), any(), any()) } returns SseEmitter()
 
-        var builder = Message.Builder()
+        val builder = Message.Builder()
             .messageId(UUID.randomUUID().toString())
             .role(Message.Role.USER)
             .parts(listOf(TextPart("stream intent")))
@@ -136,6 +140,63 @@ class AutonomyA2ARequestHandlerObservationTest {
         val emitter = handler.handleJsonRpcStream(request)
 
         assertInstanceOf(SseEmitter::class.java, emitter)
+    }
+
+    @Test
+    fun `handleMessageStream restores contextId in OTel context on virtual thread`() {
+        val contextId = "ctx-stream-test"
+        var capturedContextId: String? = null
+        val latch = java.util.concurrent.CountDownLatch(1)
+
+        every { streamingHandler.createStream(any(), any(), any()) } returns SseEmitter()
+        every { autonomy.chooseAndRunAgent(any(), any()) } answers {
+            // Capture the key value as seen from inside the virtual thread
+            capturedContextId = Context.current().get(A2A_CONTEXT_ID_KEY)
+            latch.countDown()
+            mockk(relaxed = true)
+        }
+
+        val builder = Message.Builder()
+            .messageId(UUID.randomUUID().toString())
+            .role(Message.Role.USER)
+            .contextId(contextId)
+            .parts(listOf(TextPart("stream intent")))
+        val params = MessageSendParams.Builder().message(builder.build()).build()
+        val request = SendStreamingMessageRequest(UUID.randomUUID().toString(), params)
+
+        handler.handleMessageStream(request)
+        latch.await(5, java.util.concurrent.TimeUnit.SECONDS)
+
+        assertEquals(contextId, capturedContextId,
+            "A2A_CONTEXT_ID_KEY must be visible on the virtual thread during streaming execution")
+    }
+
+    @Test
+    fun `handleJsonRpc stores contextId in OTel context key so downstream A2A calls can inherit it`() {
+        val contextId = "ctx-chain-test"
+        var capturedContextId: String? = null
+
+        // Capture the value of A2A_CONTEXT_ID_KEY as seen by code running inside the handler
+        // (simulates what EmbabelA2AClient.resolveContextId will do in Step 4).
+        every { autonomy.chooseAndRunAgent(any(), any()) } answers {
+            capturedContextId = Context.current().get(A2A_CONTEXT_ID_KEY)
+            mockk(relaxed = true)
+        }
+
+        handler.handleJsonRpc(buildSendMessageRequest(taskId = null, contextId = contextId))
+
+        assertEquals(contextId, capturedContextId,
+            "contextId must be visible in OTel context during agent execution")
+    }
+
+    @Test
+    fun `handleJsonRpc restores context after completion — key is absent outside handler`() {
+        every { autonomy.chooseAndRunAgent(any(), any()) } returns mockk(relaxed = true)
+
+        handler.handleJsonRpc(buildSendMessageRequest(taskId = null, contextId = "ctx-restore-test"))
+
+        assertNull(Context.current().get(A2A_CONTEXT_ID_KEY),
+            "A2A_CONTEXT_ID_KEY must be absent after the handler returns — scope must be closed")
     }
 
     private fun buildSendMessageRequest(taskId: String?, contextId: String?): SendMessageRequest {

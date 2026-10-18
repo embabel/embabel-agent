@@ -15,11 +15,17 @@
  */
 package com.embabel.agent.a2a.client
 
-import com.embabel.agent.a2a.A2A_CONTEXT_ID_BAGGAGE_KEY
+import com.embabel.agent.a2a.A2A_CLIENT_SEND
+import com.embabel.agent.a2a.A2A_CONTEXT_ID_KEY
+import com.embabel.agent.a2a.A2A_CONTEXT_ID_SPAN_KEY
+import com.embabel.agent.a2a.A2A_TASK_ID_KEY
 import com.embabel.agent.a2a.client.api.A2AClient
+import io.micrometer.observation.Observation
+import io.micrometer.observation.ObservationRegistry
 import com.embabel.common.util.EmbabelObjectMapperHolder
 import io.a2a.client.Client
 import io.a2a.client.ClientEvent
+import io.a2a.client.MessageEvent
 import io.a2a.client.TaskEvent
 import io.a2a.client.TaskUpdateEvent
 import io.a2a.client.config.ClientConfig
@@ -29,21 +35,17 @@ import io.a2a.spec.AgentCard
 import io.a2a.spec.Message
 import io.a2a.spec.Task
 import io.a2a.spec.TaskStatusUpdateEvent
-import io.opentelemetry.api.baggage.Baggage
-import io.opentelemetry.api.baggage.BaggageEntryMetadata
 import io.opentelemetry.context.Context
 import org.slf4j.LoggerFactory
 import org.springframework.web.client.RestClient
-import java.util.function.BiConsumer
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+import java.util.function.BiConsumer
 
 class EmbabelA2AClient @JvmOverloads constructor(
     private val httpClientFactory: A2AHttpClientFactory,
     private val objectMapperHolder: EmbabelObjectMapperHolder,
-    private val timeoutSeconds: Long = 30,
+    private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
 ) : A2AClient {
 
     private val logger = LoggerFactory.getLogger(EmbabelA2AClient::class.java)
@@ -52,91 +54,97 @@ class EmbabelA2AClient @JvmOverloads constructor(
     override fun sendMessage(baseUrl: String, message: Message): Task {
         val contextId = resolveContextId(message.contextId)
         logger.debug("Sending A2A message to {} contextId={}", baseUrl, contextId)
-        val client = clientCache.computeIfAbsent(baseUrl) { buildClient(it) }
-        val latch = CountDownLatch(1)
-        val result = AtomicReference<Task>()
-        val error = AtomicReference<Throwable>()
 
-        // When contextId was resolved from OTel baggage, inject it into the message body so the
-        // receiving server sees it without requiring OTel-instrumented HTTP transport.
-        val outboundMessage = if (contextId != null && contextId != message.contextId) {
-            Message.Builder(message).contextId(contextId).build()
-        } else {
-            message
-        }
-
-        val baggageScope = openBaggageScope(contextId)
+        // contextId and taskId are per-request UUIDs (unbounded) — high-cardinality keys are
+        // exported to traces/spans only, never to metrics, avoiding cardinality explosion.
+        val observation = Observation.createNotStarted(A2A_CLIENT_SEND, observationRegistry)
+            .highCardinalityKeyValue(A2A_CONTEXT_ID_SPAN_KEY, contextId ?: "")
+            .highCardinalityKeyValue(A2A_TASK_ID_KEY, message.taskId ?: "")
+            .start()
         try {
-            client.sendMessage(
-                outboundMessage,
-                listOf(BiConsumer { event: ClientEvent, _: AgentCard ->
-                    when (event) {
-                        is TaskEvent -> {
-                            // non-streaming path: server returned a Task directly
-                            result.set(event.task)
-                            latch.countDown()
-                        }
-                        is TaskUpdateEvent -> {
-                            // streaming path: server sends TaskStatusUpdateEvent via SSE;
-                            // release latch only on the final event
-                            val update = event.updateEvent
-                            if (update is TaskStatusUpdateEvent && update.isFinal) {
-                                val task = event.task ?: Task.Builder()
-                                    .id(update.taskId)
-                                    .contextId(update.contextId)
-                                    .status(update.status)
-                                    .build()
-                                result.set(task)
-                                latch.countDown()
-                            }
-                        }
-                        else -> {}
-                    }
-                }),
-                { t -> error.set(t); latch.countDown() },
-                null,
-            )
+            val client = clientCache.computeIfAbsent(baseUrl) { buildClient(it) }
+            // client.sendMessage with setStreaming(false) is synchronous: the SDK fires consumers
+            // and returns before this call unwinds, so no latch is needed.
+            val result = AtomicReference<Task>()
+            val error = AtomicReference<Throwable>()
 
-            check(latch.await(timeoutSeconds, TimeUnit.SECONDS)) {
-                "A2A sendMessage to $baseUrl timed out after ${timeoutSeconds}s"
+            // Propagate the session contextId across the hop: if resolveContextId returned a value
+            // from the OTel context key (inherited from an upstream A2A request), inject it into
+            // the outbound message body so the next agent in the chain receives the same session ID.
+            val outboundMessage = if (contextId != null && contextId != message.contextId) {
+                Message.Builder(message).contextId(contextId).build()
+            } else {
+                message
             }
+
+            client.sendMessage(
+                    outboundMessage,
+                    listOf(BiConsumer { event: ClientEvent, _: AgentCard ->
+                        when (event) {
+                            is TaskEvent -> {
+                                // non-streaming path: server returned a Task directly
+                                result.set(event.task)
+                            }
+                            is TaskUpdateEvent -> {
+                                // streaming path: the SDK sends incremental status events via SSE.
+                                // only the final event carries the completed task — ignore intermediates.
+                                val update = event.updateEvent
+                                if (update is TaskStatusUpdateEvent && update.isFinal) {
+                                    // event.task is set by the SDK when it can assemble the full Task from
+                                    // the stream; fall back to building from the status event fields when it cannot.
+                                    result.set(event.task ?: Task.Builder()
+                                        .id(update.taskId)
+                                        .contextId(update.contextId)
+                                        .status(update.status)
+                                        .build())
+                                }
+                            }
+                            is MessageEvent -> {
+                                // A2A allows message/send to return a Message instead of a Task.
+                                // Embabel's sendMessage contract returns Task; provide a clear error
+                                // rather than silently timing out waiting for a Task that will never arrive.
+                                error.set(A2AException(
+                                    "A2A remote agent at $baseUrl returned a Message reply instead of a Task — " +
+                                    "multi-turn Message responses are not yet supported"
+                                ))
+                            }
+                            else -> {}
+                        }
+                    }),
+                    { t -> error.set(t) },
+                    null,
+                )
+            error.get()?.let { throw A2AException("A2A sendMessage failed to $baseUrl", it) }
+            return result.get().also {
+                logger.debug("Received A2A response from {} taskId={} contextId={}", baseUrl, it.id, it.contextId)
+            }
+        } catch (e: Exception) {
+            observation.error(e)
+            throw e
         } finally {
-            baggageScope?.close()
-        }
-        error.get()?.let { throw RuntimeException("A2A sendMessage failed to $baseUrl", it) }
-        return result.get().also {
-            logger.debug("Received A2A response from {} taskId={} contextId={}", baseUrl, it.id, it.contextId)
+            observation.stop()
         }
     }
 
     /**
-     * Resolves the effective contextId for an outbound A2A call.
-     * Prefers an inherited contextId from OTel baggage (set by an upstream A2A server handler)
-     * over the message's own contextId. This preserves the original session ID across a chain:
-     * Orchestrator → AgentOne → AgentFour all share the Orchestrator's contextId.
+     * Returns the contextId to use on the outbound A2A message.
+     *
+     * When this client runs inside an agent that was itself called over A2A,
+     * [AutonomyA2ARequestHandler] stores the inbound contextId in [A2A_CONTEXT_ID_KEY]
+     * before executing the agent. Reading that key here means the outbound message
+     * automatically carries the same session identifier as the inbound one — the chain
+     * is preserved without agent business code having to pass contextId explicitly.
+     *
+     * Falls back to the message's own contextId when no key is set (e.g. the call
+     * originates outside an A2A server request).
+     *
+     * [A2A_CONTEXT_ID_KEY] is a JVM-local OTel [io.opentelemetry.context.ContextKey]: it is
+     * never serialised into HTTP headers, so it cannot reach LLM providers or other
+     * external services. Contrast with OTel baggage, which is injected as a `baggage:`
+     * HTTP header on every instrumented outbound call.
      */
     internal fun resolveContextId(messageContextId: String?): String? =
-        if (OTEL_AVAILABLE) Baggage.current().getEntryValue(BAGGAGE_KEY) ?: messageContextId
-        else messageContextId
-
-    private fun openBaggageScope(contextId: String?): AutoCloseable? {
-        if (!OTEL_AVAILABLE || contextId == null) return null
-        return Baggage.current().toBuilder()
-            .put(BAGGAGE_KEY, contextId, BaggageEntryMetadata.empty())
-            .build()
-            .storeInContext(Context.current())
-            .makeCurrent()
-    }
-
-    companion object {
-        internal const val BAGGAGE_KEY = A2A_CONTEXT_ID_BAGGAGE_KEY
-        internal val OTEL_AVAILABLE = try {
-            Class.forName("io.opentelemetry.api.baggage.Baggage")
-            true
-        } catch (_: ClassNotFoundException) {
-            false
-        }
-    }
+        Context.current().get(A2A_CONTEXT_ID_KEY) ?: messageContextId
 
     override fun agentCard(baseUrl: String): AgentCard =
         clientCache.getOrPut(baseUrl) { buildClient(baseUrl) }.getAgentCard(null)
