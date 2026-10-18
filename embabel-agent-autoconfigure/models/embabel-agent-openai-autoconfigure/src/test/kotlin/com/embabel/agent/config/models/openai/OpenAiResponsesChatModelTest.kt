@@ -138,33 +138,24 @@ class OpenAiResponsesChatModelTest {
         }
 
         @Test
-        fun `default headers apply when request headers are absent or empty`() {
-            val defaults = OpenAiChatOptions.builder().model("gpt-5-pro")
-                .customHeaders(mapOf("X-Route" to "default-route")).build()
-            val chatModel = OpenAiResponsesChatModel(client, defaults)
+        fun `requests without custom headers add no request headers`() {
             val prompts = listOf(
                 Prompt("Hi"),
                 Prompt(listOf(UserMessage("Hi")), ChatOptions.builder().build()),
                 Prompt(listOf(UserMessage("Hi")), OpenAiChatOptions.builder().customHeaders(emptyMap()).build()),
             )
             for (prompt in prompts) {
-                val headers = capture(prompt, chatModel = chatModel)._headers()
-                assertEquals(listOf("default-route"), headers.values("X-Route"))
+                assertTrue(capture(prompt)._headers().isEmpty())
             }
         }
 
         @Test
-        fun `request headers override defaults case insensitively without mutating options`() {
-            val defaultHeaders = mapOf("X-Route" to "default-route", "X-Application" to "app")
+        fun `forwarding request headers does not mutate options`() {
             val requestHeaders = mapOf("x-route" to "request-route", "X-Trace-Id" to "trace-1")
-            val defaults = OpenAiChatOptions.builder().model("gpt-5-pro").customHeaders(defaultHeaders).build()
             val options = OpenAiChatOptions.builder().customHeaders(requestHeaders).build()
-            val chatModel = OpenAiResponsesChatModel(client, defaults)
-            val headers = capture(Prompt(listOf(UserMessage("Hi")), options), chatModel = chatModel)._headers()
+            val headers = capture(Prompt(listOf(UserMessage("Hi")), options))._headers()
             assertEquals(listOf("request-route"), headers.values("X-Route"))
-            assertEquals(listOf("app"), headers.values("X-Application"))
             assertEquals(listOf("trace-1"), headers.values("X-Trace-Id"))
-            assertEquals(defaultHeaders, defaults.customHeaders)
             assertEquals(requestHeaders, options.customHeaders)
         }
 
@@ -188,7 +179,7 @@ class OpenAiResponsesChatModelTest {
         }
 
         @Test
-        fun `custom headers reach the HTTP transport without replacing client headers`() {
+        fun `request headers override client headers only for that request`() {
             val requests = mutableListOf<HttpRequest>()
             val transport = mockk<HttpClient>(relaxUnitFun = true)
             every { transport.execute(any(), any()) } answers {
@@ -208,25 +199,34 @@ class OpenAiResponsesChatModelTest {
                     .httpClient(transport)
                     .apiKey("test-key")
                     .putHeader("X-Client", "client-default")
+                    .putHeader("X-Route", "client-route")
                     .maxRetries(0)
                     .build()
             )
             try {
-                val defaults = OpenAiChatOptions.builder().model("gpt-5-pro")
-                    .customHeaders(mapOf("X-Route" to "default-route")).build()
+                val defaults = OpenAiChatOptions.builder().model("gpt-5-pro").build()
                 val chatModel = OpenAiResponsesChatModel(sdkClient, defaults)
                 val options = OpenAiChatOptions.builder()
                     .customHeaders(mapOf("x-route" to "request-route", "X-Trace-Id" to "trace-1")).build()
                 chatModel.call(Prompt(listOf(UserMessage("Hi")), options))
                 chatModel.call(Prompt("Hi"))
+                chatModel.call(Prompt(listOf(UserMessage("Hi")), ChatOptions.builder().build()))
+                chatModel.call(
+                    Prompt(
+                        listOf(UserMessage("Hi")),
+                        OpenAiChatOptions.builder().customHeaders(emptyMap()).build(),
+                    )
+                )
             } finally {
                 sdkClient.close()
             }
-            assertEquals(2, requests.size)
+            assertEquals(4, requests.size)
             assertEquals(listOf("request-route"), requests[0].headers.values("X-Route"))
             assertEquals(listOf("trace-1"), requests[0].headers.values("X-Trace-Id"))
-            assertEquals(listOf("default-route"), requests[1].headers.values("X-Route"))
-            assertTrue(requests[1].headers.values("X-Trace-Id").isEmpty())
+            requests.drop(1).forEach {
+                assertEquals(listOf("client-route"), it.headers.values("X-Route"))
+                assertTrue(it.headers.values("X-Trace-Id").isEmpty())
+            }
             requests.forEach {
                 assertEquals(listOf("client-default"), it.headers.values("X-Client"))
                 assertEquals(listOf("Bearer test-key"), it.headers.values("Authorization"))

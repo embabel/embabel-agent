@@ -71,8 +71,8 @@ import com.openai.models.responses.Response as OpenAiResponse
  * stateful half of the Responses API — background mode, server-side conversation state, remote
  * MCP — is deliberately unused, and requests are non-streaming.
  *
- * Custom headers from the default options are merged with each request's headers; request
- * headers override defaults with the same name, ignoring case.
+ * Headers in the prompt's [OpenAiChatOptions] override client headers with the same name,
+ * ignoring case. Other client headers are unchanged.
  *
  * @see <a href="https://github.com/embabel/embabel-agent/issues/1758">Issue 1758</a>
  * @see <a href="https://github.com/spring-projects/spring-ai/issues/2962">spring-ai#2962</a>
@@ -124,12 +124,8 @@ class OpenAiResponsesChatModel(
                     .filterNot { it.messageType == MessageType.SYSTEM }
                     .flatMap(::toInputItems)
             )
-        // defaultOptions supplies model-wide fallback headers; add them to this request's builder.
-        defaultOptions.customHeaders.orEmpty().forEach { (name, value) ->
-            builder.putAdditionalHeader(name, value)
-        }
-        // options belongs to this prompt. Replace rather than append so overrides stay single-valued;
-        // the SDK matches header names case-insensitively and preserves unrelated defaults.
+        // Client headers are configured by OpenAiCompatibleModelFactory. Add this prompt's headers
+        // to the request; the SDK replaces matching client headers and keeps all other headers.
         (options as? OpenAiChatOptions)?.customHeaders.orEmpty().forEach { (name, value) ->
             builder.replaceAdditionalHeaders(name, value)
         }
