@@ -41,6 +41,7 @@ class InMemoryBlackboard(
             synchronized(_entries) {
                 _entries.addAll(this@InMemoryBlackboard._entries)
             }
+            hiddens.addAll(this@InMemoryBlackboard.hiddens)
             protectedKeys.addAll(this@InMemoryBlackboard.protectedKeys)
         }
     }

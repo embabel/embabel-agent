@@ -17,6 +17,9 @@ package com.embabel.agent.support
 
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.support.InMemoryBlackboard
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Test
 
 /**
  * Tests for InMemoryBlackboard implementation.
@@ -25,6 +28,25 @@ class InMemoryBlackboardTest : AbstractBlackboardTest() {
 
     override fun createBlackboard(): Blackboard {
         return InMemoryBlackboard()
+    }
+
+    @Test
+    fun `spawn preserves hidden objects independently`() {
+        val blackboard = createBlackboard()
+        val hidden = Dog("hidden")
+        val visible = Dog("visible")
+        blackboard["hidden"] = hidden
+        blackboard["visible"] = visible
+        blackboard.hide(hidden)
+
+        val child = blackboard.spawn()
+
+        assertNull(child["hidden"])
+        assertEquals(listOf(visible), child.objects)
+        child.hide(visible)
+        assertEquals(emptyList<Any>(), child.objects)
+        assertEquals(listOf(visible), blackboard.objects)
+        assertEquals(visible, blackboard["visible"])
     }
 }
 
