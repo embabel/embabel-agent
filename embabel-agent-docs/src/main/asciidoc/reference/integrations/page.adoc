@@ -847,6 +847,23 @@ embabel:
           timeout-seconds: 30           # Timeout waiting for a response from a remote A2A agent
 ----
 
+===== Session tracking (contextId propagation)
+
+Every A2A message carries a `contextId` field that identifies the conversation session.
+Embabel propagates this identifier automatically across multi-agent chains — no agent business code is required.
+
+When an agent handles an inbound A2A request and calls another agent via `EmbabelA2AClient`,
+the inbound `contextId` is injected into the outbound message body transparently.
+This means all agents in the chain share the same session identifier, which is recorded as a span tag
+(`a2a.context_id`) on every `a2a.message.send`, `a2a.message.stream`, and `a2a.client.send` observation.
+
+The propagation mechanism uses a JVM-local OTel `ContextKey` — the `contextId` is never placed in HTTP
+headers and cannot reach LLM providers or other external services.
+
+NOTE: `contextId` propagation is separate from distributed tracing. W3C `traceparent` (injected
+automatically by Spring Boot's instrumented `RestClient`) connects spans across agents in your tracing
+backend. `contextId` is an application-level session identifier carried in the A2A message body.
+
 [[reference.integrations__observability]]
 ==== Observability
 

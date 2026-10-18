@@ -21,11 +21,13 @@ import com.embabel.agent.a2a.config.A2AConfigurationProperties;
 import com.embabel.agent.api.common.Asyncer;
 import com.embabel.agent.spi.support.ExecutorAsyncer;
 import com.embabel.common.util.EmbabelObjectMapperHolder;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -66,5 +68,23 @@ class A2AClientAutoConfigurationTest {
         contextRunner
                 .withBean(A2AHttpClientFactory.class, () -> mock(A2AHttpClientFactory.class))
                 .run(context -> assertThat(context).hasSingleBean(A2AHttpClientFactory.class));
+    }
+
+    @Nested
+    class A2ARestClientBean {
+
+        @Test
+        void registersA2ARestClient() {
+            contextRunner.run(context ->
+                assertThat(context).hasBean("a2aRestClient")
+            );
+        }
+
+        @Test
+        void doesNotReplaceUserDefinedA2ARestClient() {
+            contextRunner
+                    .withBean("a2aRestClient", RestClient.class, RestClient::create)
+                    .run(context -> assertThat(context).hasBean("a2aRestClient"));
+        }
     }
 }

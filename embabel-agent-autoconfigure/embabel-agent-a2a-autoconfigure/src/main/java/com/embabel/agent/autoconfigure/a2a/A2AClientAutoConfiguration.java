@@ -41,28 +41,37 @@ import java.time.Duration;
 public class A2AClientAutoConfiguration {
 
     /**
-     * A2A HTTP client factory backed by Spring RestClient.
+     * Configured RestClient shared by the A2A HTTP transport and agent-card discovery.
      * Uses Spring Boot's auto-configured RestClient.Builder when available — Boot's builder
      * carries OTel instrumentation that propagates W3C traceparent headers automatically,
      * connecting the caller's trace to the remote agent's. Falls back to a plain builder
      * when Boot's builder is absent (e.g. in tests or non-Boot contexts).
-     * Read timeout is applied in both cases so a slow or hung remote agent does not
-     * block the caller indefinitely.
+     * Read timeout is applied so a slow or hung remote agent does not block the caller indefinitely.
+     */
+    @Bean
+    @ConditionalOnClass(RestClient.class)
+    @ConditionalOnMissingBean(name = "a2aRestClient")
+    public RestClient a2aRestClient(
+            A2AConfigurationProperties properties,
+            ObjectProvider<RestClient.Builder> restClientBuilderProvider) {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setReadTimeout(Duration.ofSeconds(properties.getClient().getTimeoutSeconds()));
+        return restClientBuilderProvider
+                .getIfAvailable(RestClient::builder)
+                .requestFactory(requestFactory)
+                .build();
+    }
+
+    /**
+     * A2A HTTP client factory backed by Spring RestClient.
      */
     @Bean
     @ConditionalOnClass(RestClient.class)
     @ConditionalOnMissingBean(A2AHttpClientFactory.class)
     public A2AHttpClientFactory springRestClientA2AHttpClientFactory(
             Asyncer asyncer,
-            A2AConfigurationProperties properties,
-            ObjectProvider<RestClient.Builder> restClientBuilderProvider) {
-        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setReadTimeout(Duration.ofSeconds(properties.getClient().getTimeoutSeconds()));
-        RestClient restClient = restClientBuilderProvider
-                .getIfAvailable(RestClient::builder)
-                .requestFactory(requestFactory)
-                .build();
-        return () -> new SpringRestClientA2AHttpClient(restClient, asyncer);
+            RestClient a2aRestClient) {
+        return () -> new SpringRestClientA2AHttpClient(a2aRestClient, asyncer);
     }
 
     /**
@@ -80,11 +89,15 @@ public class A2AClientAutoConfiguration {
     public A2AClient embabelA2AClient(
             A2AHttpClientFactory httpClientFactory,
             EmbabelObjectMapperHolder objectMapperHolder,
-            ObjectProvider<ObservationRegistry> observationRegistryProvider) {
+            ObjectProvider<ObservationRegistry> observationRegistryProvider,
+            ObjectProvider<RestClient> a2aRestClientProvider) {
         // ObservationRegistry is the Micrometer hub that routes observations to metrics backends
         // (Prometheus, etc.) and tracing backends (Zipkin, OTLP, etc.) via registered handlers.
         // Falls back to NOOP when no backend is configured — observations compile away to nothing.
         ObservationRegistry registry = observationRegistryProvider.getIfAvailable(() -> ObservationRegistry.NOOP);
-        return new EmbabelA2AClient(httpClientFactory, objectMapperHolder, registry);
+        // cardRestClient: same configured RestClient used for A2A transport — applies the same
+        // timeout, OTel traceparent propagation, and TLS/proxy settings to agent-card discovery.
+        RestClient cardRestClient = a2aRestClientProvider.getIfAvailable(RestClient::create);
+        return new EmbabelA2AClient(httpClientFactory, objectMapperHolder, registry, cardRestClient);
     }
 }

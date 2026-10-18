@@ -209,6 +209,9 @@ class AutonomyA2ARequestHandler(
             // is visible for the duration of the agent execution. Scope.close() in finally
             // pops it back, leaving the thread's context clean for reuse.
             val contextScope = capturedContext.makeCurrent()
+            // openScope() makes a2a.message.stream the current observation on this thread so
+            // agent execution spans register as its children in the trace hierarchy.
+            val observationScope = observation.openScope()
             try {
                 // Send initial status event
                 streamingHandler.sendStreamEvent(
@@ -275,6 +278,7 @@ class AutonomyA2ARequestHandler(
                     logger.error("Error sending error event", sendError)
                 }
             } finally {
+                observationScope.close()
                 contextScope.close()
                 observation.stop()
                 streamingHandler.closeStream(streamId)

@@ -137,9 +137,7 @@ class SpringRestClientA2AHttpClient(
                 // exchange() bypasses RestClient's default error handlers, so check status
                 // explicitly — a 4xx/5xx would otherwise be silently read as an empty stream.
                 exchangeSpec.exchange { _, response ->
-                    if (response.statusCode.isError) {
-                        throw IllegalStateException("A2A stream to $url failed: HTTP ${response.statusCode.value()}")
-                    }
+                    check(!response.statusCode.isError) { "A2A stream to $url failed: HTTP ${response.statusCode.value()}" }
                     // Parse SSE: forward only "data:" lines, stripping the prefix.
                     response.body.bufferedReader().forEachLine { line ->
                         if (line.startsWith("data:")) {

@@ -64,11 +64,12 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- OTel Context (optional: A2A_CONTEXT_ID_KEY JVM-local session propagation) -->
+        <!-- OTel Context: required for A2A_CONTEXT_ID_KEY JVM-local session propagation.
+             opentelemetry-context is a small abstraction-only jar (~50KB, no SDK, no agent).
+             Declaring it non-optional is honest — Context.current() is called unconditionally. -->
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-context</artifactId>
-            <optional>true</optional>
         </dependency>
 
         <!-- Test Dependencies -->

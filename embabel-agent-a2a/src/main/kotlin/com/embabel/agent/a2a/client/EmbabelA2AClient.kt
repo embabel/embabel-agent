@@ -46,6 +46,7 @@ class EmbabelA2AClient @JvmOverloads constructor(
     private val httpClientFactory: A2AHttpClientFactory,
     private val objectMapperHolder: EmbabelObjectMapperHolder,
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
+    private val cardRestClient: RestClient = RestClient.create(),
 ) : A2AClient {
 
     private val logger = LoggerFactory.getLogger(EmbabelA2AClient::class.java)
@@ -59,8 +60,11 @@ class EmbabelA2AClient @JvmOverloads constructor(
         // exported to traces/spans only, never to metrics, avoiding cardinality explosion.
         val observation = Observation.createNotStarted(A2A_CLIENT_SEND, observationRegistry)
             .highCardinalityKeyValue(A2A_CONTEXT_ID_SPAN_KEY, contextId ?: "")
-            .highCardinalityKeyValue(A2A_TASK_ID_KEY, message.taskId ?: "")
+            .highCardinalityKeyValue(A2A_TASK_ID_KEY, message.taskId ?: "") // NOSONAR: taskId is nullable; empty string is the correct fallback for the span tag
             .start()
+        // openScope() makes this observation the current one on the thread, so the outgoing
+        // HTTP call registers as a child span of a2a.client.send in the trace hierarchy.
+        val observationScope = observation.openScope()
         try {
             val client = clientCache.computeIfAbsent(baseUrl) { buildClient(it) }
             // client.sendMessage with setStreaming(false) is synchronous: the SDK fires consumers
@@ -122,6 +126,7 @@ class EmbabelA2AClient @JvmOverloads constructor(
             observation.error(e)
             throw e
         } finally {
+            observationScope.close()
             observation.stop()
         }
     }
@@ -164,7 +169,7 @@ class EmbabelA2AClient @JvmOverloads constructor(
     private fun fetchCard(baseUrl: String): AgentCard {
         val url = "$baseUrl/.well-known/agent.json"
         logger.debug("Fetching agent card from {}", url)
-        val json = RestClient.create().get().uri(url).retrieve().body(String::class.java)
+        val json = cardRestClient.get().uri(url).retrieve().body(String::class.java)
             ?: error("Empty response fetching agent card from $url")
         val card = objectMapperHolder.get().readValue(json, AgentCard::class.java)
         logger.debug(
