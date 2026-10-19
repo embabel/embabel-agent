@@ -1,0 +1,83 @@
+[[reference.decision-providers]]
+=== Decision model providers
+
+A `DecisionService` can be answered by a decision model like Jev, by a chat model prompted to decide, or by your own code.
+Decision models are configured the same way chat models are.
+Put a provider starter on the classpath and it registers one `DecisionService` bean per model in its catalog, named after the model.
+Defaults and roles pick a model by name.
+
+|===
+|Source |How a model becomes available |Example name
+
+|Catalog starter
+|The starter loads `models/<provider>-models.yml` and defines a bean per entry. Inject one by type or with `@Qualifier("<model>")`.
+|`jev-latest`
+
+|`DecisionModelProvider` bean
+|The registry asks the provider the first time a default, role or `named` lookup uses a name no bean holds
+|A chat model name, such as `gpt-4.1-mini`
+
+|Application bean
+|A singleton `DecisionService` or `ClassificationService` bean registers under its bean name. A `@Lazy` or scoped bean is left out.
+|`triage`
+|===
+
+==== Selection
+
+Defaults and roles take a model name or a bean name.
+Spring aliases are supported in defaults, roles and default candidates; direct `named(name)` lookup uses the registry name.
+This example makes the catalog model `jev-latest` the decision default and binds the review and routing roles to the chat model `gpt-4.1-mini`.
+
+[source,yaml]
+----
+include::../../../../../../embabel-agent-starters/embabel-agent-starter-typesafe/src/test/resources/decision-services-example.yml[tag=yaml,indent=0]
+----
+
+A decision service also classifies, so a classification default or role can name one.
+A classification-only service cannot be a decision default or role.
+Startup fails when a default or role names neither a registered bean nor a model a provider serves, and the error names the property.
+A missing or ambiguous default fails at lookup, when `defaultService()` is called.
+<<reference.decision-execution>> describes the default rule and the registry snapshot.
+
+==== Provider models
+
+`DecisionModelProvider` supplies services by name for models that are not beans.
+`LlmDecisionServiceFactory` is the provider for chat models.
+It serves every chat model the `ModelProvider` lists and builds a prompted decision service for the one you name.
+
+|===
+|Member |Contract
+
+|`provider`
+|Provider name. Registry error messages list each provider's models under it.
+
+|`modelNames()`
+|Names the provider can serve now. The registry checks a default or role against this list only when no bean holds the name.
+
+|`decisionServiceNamed(name)`
+|The service for a name, or null when the provider does not serve it
+|===
+
+The registry asks providers in order and keeps the first service returned, so each name is built once.
+A registered bean wins over a provider model with the same name.
+A provider model is a family default only when configuration names it.
+A provider builds services that use the deployment's own credentials. Per-user keys go through `using(service)`.
+
+In Kotlin, add providers to the builder. `ChatModels` here is a test provider that serves `gpt-x`.
+
+[source,kotlin]
+----
+include::../../../../../../embabel-agent-common/embabel-agent-ai/src/test/kotlin/com/embabel/common/ai/model/DecisionServiceRegistryTest.kt[tag=provider-registry,indent=0]
+----
+
+<<reference.decision-execution>> shows the same registry built in Java.
+In Spring, every `DecisionModelProvider` bean is added to the registry in bean order.
+A service a provider created stays cached for the life of the registry.
+
+==== Credentials
+
+A catalog starter reads its key from the environment variable first and then the `api-key` property.
+TypeSafe uses `TYPESAFE_API_KEY` and `embabel.agent.platform.models.typesafe.api-key`; `TypeSafeModelsConfig` requires one at startup even when application beans replace every catalog model service.
+A custom `TypeSafeModelFactory` is a separate path: providing one makes the TypeSafe starter configuration back off, so the starter key check does not run.
+For a per-user key, `TypeSafeModelFactory` implements `ByokFactory<DecisionService>`. `buildValidated()` checks the key with the provider and returns a service, which you pass to `using(service)`.
+See <<reference.typesafe>>.
