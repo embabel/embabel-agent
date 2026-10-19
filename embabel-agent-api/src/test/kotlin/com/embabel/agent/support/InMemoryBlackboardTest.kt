@@ -17,6 +17,7 @@ package com.embabel.agent.support
 
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.support.InMemoryBlackboard
+import com.embabel.agent.core.support.InternalAgentStateApi
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
@@ -31,16 +32,19 @@ class InMemoryBlackboardTest : AbstractBlackboardTest() {
     }
 
     @Test
+    @OptIn(InternalAgentStateApi::class)
     fun `spawn preserves hidden objects independently`() {
-        val blackboard = createBlackboard()
+        val blackboard = createBlackboard() as InMemoryBlackboard
         val hidden = Dog("hidden")
         val visible = Dog("visible")
         blackboard["hidden"] = hidden
         blackboard["visible"] = visible
         blackboard.hide(hidden)
 
-        val child = blackboard.spawn()
+        val child = blackboard.spawn() as InMemoryBlackboard
 
+        // The child has the same hidden objects as the parent
+        assertEquals(blackboard.internalState().hiddenEntries, child.internalState().hiddenEntries)
         // The hidden object can't be found by name on the child
         assertNull(child["hidden"])
         // The child's objects only include the visible one
