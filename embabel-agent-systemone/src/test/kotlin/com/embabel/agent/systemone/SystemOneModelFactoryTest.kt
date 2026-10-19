@@ -39,7 +39,6 @@ import com.embabel.common.ai.decision.spi.RatingAssessment
 import com.embabel.common.ai.decision.systemone.SystemOneCodec
 import com.embabel.common.ai.decision.systemone.SystemOneFormatException
 import com.embabel.common.byok.InvalidApiKeyException
-import com.embabel.common.ai.decision.systemone.SystemOneCodec
 import com.sun.net.httpserver.HttpServer
 import io.mockk.every
 import io.mockk.mockkStatic
