@@ -17,6 +17,7 @@ package com.embabel.agent.config.models.typesafe
 
 import com.embabel.agent.typesafe.TypeSafeClientOptions
 import com.embabel.agent.typesafe.TypeSafeModelFactory
+import com.embabel.common.ai.autoconfig.DecisionModelsRegistrar
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import io.micrometer.observation.ObservationRegistry
@@ -31,6 +32,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
 import org.springframework.web.client.RestClient
 import java.net.URI
+import java.util.function.Function
 import java.util.function.Supplier
 
 /**
@@ -73,8 +75,10 @@ class TypeSafeModelsConfig(
     @Bean
     fun typeSafeModelsInitializer(beanFactory: ConfigurableListableBeanFactory): ProviderInitialization {
         val registered = beanFactory.beanDefinitionNames.mapNotNull { name ->
-            val modelId = beanFactory.getBeanDefinition(name)
-                .getAttribute(TypeSafeModelsRegistrar.CATALOG_MODEL_ATTRIBUTE) as? String ?: return@mapNotNull null
+            val definition = beanFactory.getBeanDefinition(name)
+            if (definition.getAttribute(DecisionModelsRegistrar.CATALOG_PROVIDER_ATTRIBUTE) != PROVIDER) return@mapNotNull null
+            val modelId = definition.getAttribute(DecisionModelsRegistrar.CATALOG_MODEL_ATTRIBUTE) as? String
+                ?: return@mapNotNull null
             logger.info("Registered TypeSafe decision model bean: {} -> {}", name, modelId)
             RegisteredModel(beanName = name, modelId = modelId)
         }
@@ -94,7 +98,24 @@ class TypeSafeModelsConfig(
         @JvmStatic
         @Bean
         fun typeSafeModelsRegistrar(beanFactory: BeanFactory): BeanDefinitionRegistryPostProcessor =
-            TypeSafeModelsRegistrar(catalog(), beanFactory)
+            registrar(catalog(), beanFactory)
+
+        /**
+         * Builds the registrar for a catalog. Each model's service is built by the `TypeSafeModelFactory`
+         * bean when the model bean is created.
+         *
+         * @param models the catalog to define beans for
+         * @param beanFactory the factory the `TypeSafeModelFactory` bean is read from
+         * @return the registrar
+         */
+        private fun registrar(models: List<TypeSafeModelDefinition>, beanFactory: BeanFactory): DecisionModelsRegistrar =
+            DecisionModelsRegistrar(
+                provider = PROVIDER,
+                models = models,
+                defaultModel = TypeSafeModelFactory.DEFAULT_MODEL,
+                defaultCandidate = DEFAULT_CANDIDATE,
+                serviceFactory = Function { modelId -> beanFactory.getBean(TypeSafeModelFactory::class.java).build(modelId) },
+            )
 
         /**
          * Loads the starter's model catalog.
@@ -106,6 +127,7 @@ class TypeSafeModelsConfig(
         private const val API_KEY_ENVIRONMENT_VARIABLE = "TYPESAFE_API_KEY"
         private const val API_KEY_PROPERTY = TypeSafeProperties.PREFIX + ".api-key"
         private const val AI_MODEL_REST_CLIENT_BUILDER = "aiModelRestClientBuilder"
+        private const val DEFAULT_CANDIDATE = "typeSafeDefaultCandidate"
 
         private val logger = org.slf4j.LoggerFactory.getLogger(TypeSafeModelsConfig::class.java)
 
