@@ -78,8 +78,28 @@ object SystemOneCodec {
      * @return the JSON body as UTF-8 bytes
      */
     @JvmStatic
-    fun encode(model: String, request: DecisionRequest): ByteArray {
-        val body = mapper.createObjectNode().put("state", request.input).put("model", model)
+    fun encode(model: String, request: DecisionRequest): ByteArray = body(model, request)
+
+    /**
+     * Writes the request body for one decision request with no model in it, for a host that names
+     * the model outside the System One request.
+     *
+     * @param request the input and the questions to ask about it
+     * @return the JSON body as UTF-8 bytes
+     */
+    @JvmStatic
+    fun encode(request: DecisionRequest): ByteArray = body(null, request)
+
+    /**
+     * Writes the System One request body, with a model name when one is given.
+     *
+     * @param model the model name to put in the body, or null to leave it out
+     * @param request the input and the questions to ask about it
+     * @return the JSON body as UTF-8 bytes
+     */
+    private fun body(model: String?, request: DecisionRequest): ByteArray {
+        val body = mapper.createObjectNode().put("state", request.input)
+        model?.let { body.put("model", it) }
         val questions = body.putObject("questions")
         request.spec.questions.forEachIndexed { index, question -> writeQuestion(questions.putObject(key(index)), question) }
         return mapper.writeValueAsBytes(body)
