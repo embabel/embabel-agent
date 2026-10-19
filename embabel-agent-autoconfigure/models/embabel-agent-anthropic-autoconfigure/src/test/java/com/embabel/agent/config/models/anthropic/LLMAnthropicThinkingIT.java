@@ -200,6 +200,7 @@ class LLMAnthropicThinkingIT {
         private Integer temperatureFahrenheit;
         private Integer humidityPercent;
 
+        // Required by Jackson for deserialization
         public MonthWeather() {}
 
         public String getName() { return name; }
