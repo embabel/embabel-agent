@@ -147,4 +147,40 @@ class DecisionModelsRegistrarTest {
                 .isEqualTo(DecisionServiceRegistry.DefaultCandidate("application"))
         }
     }
+
+    @Nested
+    inner class StartupReport {
+
+        @Test
+        fun `reports only the catalog models this provider defined`() {
+            val factory = DefaultListableBeanFactory()
+            factory.registerBeanDefinition(
+                "acme-replaced",
+                BeanDefinitionBuilder.genericBeanDefinition(DecisionService::class.java) { applicationService() }.beanDefinition,
+            )
+            registrar(Model("acme-default", "acme/default-1"), Model("acme-replaced", "acme/replaced-1"))
+                .postProcessBeanDefinitionRegistry(factory)
+            DecisionModelsRegistrar(
+                provider = "Other",
+                models = listOf(Model("other-model", "other/1")),
+                defaultModel = "other-model",
+                defaultCandidate = "otherDefaultCandidate",
+                serviceFactory = Function { modelId -> StubDecisionService.builder(modelId).build() },
+            ).postProcessBeanDefinitionRegistry(factory)
+
+            val initialization = DecisionModelsRegistrar.initialization("Acme", factory)
+
+            assertThat(initialization.provider).isEqualTo("Acme")
+            assertThat(initialization.registeredLlms).isEmpty()
+            assertThat(initialization.registeredDecisionModels)
+                .containsExactly(RegisteredModel(beanName = "acme-default", modelId = "acme/default-1"))
+        }
+
+        @Test
+        fun `reports no models when the provider defined none`() {
+            val initialization = DecisionModelsRegistrar.initialization("Acme", DefaultListableBeanFactory())
+
+            assertThat(initialization.registeredDecisionModels).isEmpty()
+        }
+    }
 }
