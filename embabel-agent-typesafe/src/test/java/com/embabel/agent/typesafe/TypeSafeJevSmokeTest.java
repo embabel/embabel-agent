@@ -38,7 +38,6 @@ import com.embabel.common.ai.decision.Questions;
 import com.embabel.common.ai.decision.RatingQuestionSpec;
 import com.embabel.common.ai.decision.RatingResult;
 import com.embabel.common.ai.decision.RatingStatistic;
-import com.embabel.agent.typesafe.internal.GuardedTypeSafeApi;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -178,9 +177,9 @@ class TypeSafeJevSmokeTest {
                 "Jev smoke " + question + ": " + outcome.getClass().getSimpleName() + " " + confidence);
     }
 
-    // The guarded transport logs one DEBUG line per provider operation, which counts the calls.
+    // The System One transport logs one DEBUG line per provider operation, which counts the calls.
     private static Calls countSystemOneCalls(Supplier<DecisionResponse> block) {
-        var logger = (Logger) LoggerFactory.getLogger(GuardedTypeSafeApi.class);
+        var logger = (Logger) LoggerFactory.getLogger("com.embabel.agent.systemone.SystemOneTransport");
         var oldLevel = logger.getLevel();
         var appender = new ListAppender<ILoggingEvent>();
         appender.start();

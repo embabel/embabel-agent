@@ -24,6 +24,17 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import org.jetbrains.annotations.ApiStatus
+import java.util.Objects
+import kotlin.math.abs
+
+/** How far a reported distribution's probabilities may sum from 1. */
+internal const val DISTRIBUTION_TOLERANCE = 1e-6
+
+/** Tells whether probabilities sum to 1, allowing [DISTRIBUTION_TOLERANCE] of rounding either way. */
+internal fun sumsToOne(probabilities: Collection<Double>): Boolean = abs(probabilities.sum() - 1.0) <= DISTRIBUTION_TOLERANCE
+
+/** Tells whether a value is a probability: finite and between 0 and 1 inclusive. */
+internal fun isProbability(value: Double): Boolean = value.isFinite() && value in 0.0..1.0
 
 /**
  * Provider-reported identity of the model that produced an assessment. Optional version and
@@ -92,6 +103,33 @@ enum class FailureReason {
 }
 
 /**
+ * The probability a provider reported for one category of a choice. The id is nonblank and the
+ * probability is finite and between 0 and 1 inclusive.
+ */
+@ApiStatus.Experimental
+@JsonPropertyOrder("categoryId", "probability")
+data class CategoryProbability @JsonCreator constructor(
+    @JsonProperty("categoryId", required = true) val categoryId: String,
+    @JsonProperty("probability", required = true) val probability: Double,
+) {
+    init {
+        require(categoryId.isNotBlank()) { "Category id must not be blank" }
+        require(isProbability(probability)) {
+            "Probability must be finite and between 0 and 1"
+        }
+    }
+
+    /**
+     * Rejects a JSON member this type doesn't define.
+     *
+     * @param name the unknown member's name
+     * @param value the unknown member's value
+     */
+    @JsonAnySetter
+    private fun unknownMember(name: String, value: Any?): Nothing = rejectUnknownMember("CategoryProbability", name, value)
+}
+
+/**
  * A provider assessment. No match, insufficient evidence, and operational failure are distinct.
  *
  * In JSON a classification result is an object whose `status` member names its class: `selected`,
@@ -107,24 +145,64 @@ enum class FailureReason {
 )
 sealed interface ClassificationResult {
     /**
-     * A canonical category ID with optional provider-reported confidence; no score is inferred.
-     * Confidence is finite and in [0,1], without a calibration guarantee. Direct construction cannot
-     * check membership; providers should use [ClassificationSpec.selected], and consumers can
-     * validate against the spec or use [CategoryMapping.map].
+     * A canonical category ID with the evidence the provider reported for it: an optional confidence
+     * and an optional distribution over the categories. Nothing is inferred. Confidence is finite and
+     * in [0,1], without a calibration guarantee. A distribution has unique category ids, sums to 1
+     * within 1e-6 and includes the selected id. Direct construction cannot check membership in a
+     * spec; providers should use [ClassificationSpec.selected], and consumers can validate against
+     * the spec, which also requires a distribution to cover exactly the spec's categories.
+     *
+     * @property categoryId the selected category id
+     * @property provenance the model that selected it
+     * @property confidence the provider's confidence, in 0..1, when reported
      */
-    @JsonPropertyOrder("categoryId", "confidence", "provenance")
+    @JsonPropertyOrder("categoryId", "distribution", "confidence", "provenance")
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    data class Selected @JvmOverloads constructor(
+    class Selected @JvmOverloads constructor(
         @get:JsonProperty("categoryId") val categoryId: String,
         @get:JsonProperty("provenance") val provenance: ModelProvenance,
         @get:JsonProperty("confidence") val confidence: Double? = null,
+        distribution: List<CategoryProbability> = emptyList(),
     ) : ClassificationResult {
+
+        /**
+         * The per-category probabilities the provider reported, in the order given. The list is an
+         * unmodifiable copy. JSON leaves out an empty distribution.
+         */
+        @get:JsonProperty("distribution")
+        @get:JsonInclude(JsonInclude.Include.NON_EMPTY)
+        val distribution: List<CategoryProbability> = java.util.List.copyOf(distribution)
+
         init {
             require(categoryId.isNotBlank()) { "Selected category ID must not be blank" }
-            require(confidence == null || confidence.isFinite() && confidence in 0.0..1.0) {
+            require(confidence == null || isProbability(confidence)) {
                 "Confidence must be finite and between 0 and 1"
             }
+            if (this.distribution.isNotEmpty()) {
+                val ids = this.distribution.map { it.categoryId }
+                require(ids.size == ids.toSet().size) { "Distribution category ids must be unique" }
+                val probabilities = this.distribution.map { it.probability }
+                require(sumsToOne(probabilities)) {
+                    "Distribution probabilities must sum to 1 within 1e-6, but summed to ${probabilities.sum()}"
+                }
+                require(categoryId in ids) { "The distribution must include the selected category id" }
+            }
         }
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is Selected) return false
+            // Boxed confidence equality keeps signed zero consistent with hashCode.
+            return categoryId == other.categoryId &&
+                provenance == other.provenance &&
+                Objects.equals(confidence, other.confidence) &&
+                distribution == other.distribution
+        }
+
+        override fun hashCode(): Int = Objects.hash(categoryId, provenance, confidence, distribution)
+
+        override fun toString(): String =
+            "Selected(categoryId=$categoryId, provenance=$provenance, confidence=$confidence, distribution=$distribution)"
 
         /**
          * Rejects a JSON member this type doesn't define.
@@ -137,9 +215,11 @@ sealed interface ClassificationResult {
 
         private companion object {
             /**
-             * Builds a selection from deserialized JSON fields.
+             * Builds a selection from deserialized JSON fields. An explicit null distribution reads
+             * the same as an absent one.
              *
              * @param categoryId the selected category ID
+             * @param distribution the per-category probabilities, or null when absent
              * @param confidence the provider's confidence, or null when absent
              * @param provenance the model that selected it
              * @return the selection
@@ -148,9 +228,10 @@ sealed interface ClassificationResult {
             @JsonCreator
             private fun fromJson(
                 @JsonProperty("categoryId", required = true) categoryId: String,
+                @JsonProperty("distribution") distribution: List<CategoryProbability>?,
                 @JsonProperty("confidence") confidence: Double?,
                 @JsonProperty("provenance", required = true) provenance: ModelProvenance,
-            ): Selected = Selected(categoryId, provenance, confidence)
+            ): Selected = Selected(categoryId, provenance, confidence, distribution ?: emptyList())
         }
     }
 

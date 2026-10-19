@@ -1,0 +1,349 @@
+[[reference.systemone]]
+=== System One decision models (experimental)
+
+System One is a JSON protocol for decision models.
+One request asks a model several typed questions about one piece of state.
+Proposition answers carry a truth probability. Choice and rating answers carry a distribution and confidence.
+Jev from TypeSafe speaks it (<<reference.typesafe>>), and any other endpoint that speaks it works with the same client.
+
+The integration has two parts:
+
+* `SystemOneCodec` writes requests and reads responses.
+It lives in `embabel-agent-ai`, in `com.embabel.common.ai.decision.systemone`, and has no HTTP code.
+* `SystemOneModelFactory` sends the codec's requests to an endpoint and builds a `DecisionService` per model.
+It is the `embabel-agent-systemone` module, in `com.embabel.agent.systemone`.
+
+==== The wire format
+
+An endpoint answers question sets at `POST /v1/systemone` and lists its models at `GET /v1/models`, both under its base address.
+
+A request names the state, the model and the questions.
+Questions are keyed `q1` to `qN` in spec order, replacing the application's question names in the JSON sent to the model endpoint.
+The state, question instructions and criteria are still sent.
+
+[source,json]
+----
+{
+  "state": "I was charged twice for one invoice.",
+  "model": "jev-latest",
+  "questions": {
+    "q1": { "type": "noul", "instructions": "Does the customer need a response today?" },
+    "q2": {
+      "type": "choice",
+      "instructions": "Which team should handle this?",
+      "criteria": { "billing": "Payments and refunds", "technical": "Bugs and outages" }
+    },
+    "q3": {
+      "type": "score",
+      "instructions": "How frustrated is the customer?",
+      "criteria": ["Calm", "Frustrated", "Very angry"]
+    }
+  }
+}
+----
+
+A proposition goes out as a `noul`, a choice as a `choice` with its options as criteria, and a rating as a `score` with its level descriptions in level order.
+A level with a blank description sends its id.
+Rating responses map probabilities back to this requested level order using zero-based indexes.
+The codec checks the legend's indexes, but its label values are informational and are not validated.
+Changed or reversed legend labels do not reorder the requested levels.
+
+The response answers each key:
+
+[source,json]
+----
+{
+  "model": "jev-2026-09",
+  "answers": {
+    "q1": { "type": "noul", "noul": 0.93 },
+    "q2": {
+      "type": "choice",
+      "choice": "billing",
+      "probabilities": { "billing": 0.97, "technical": 0.03 },
+      "confidence": 0.8
+    },
+    "q3": {
+      "type": "score",
+      "score": 1.6,
+      "legend": { "0": "Calm", "1": "Frustrated", "2": "Very angry" },
+      "probabilities": { "0": 0.1, "1": 0.2, "2": 0.7 },
+      "confidence": 0.4
+    }
+  },
+  "usage": { "input_tokens": 41, "output_tokens": 0 }
+}
+----
+
+The codec reads the envelope strictly.
+The whole request fails with `INVALID_RESPONSE` when the body is not one JSON object, repeats a member, has trailing content, or has no `answers` object with at least one answer.
+Each answer is then read on its own, so one bad answer fails only its question.
+Members the codec doesn't know are ignored, so a newer model can add fields.
+<<reference.decision-execution>> lists the evidence rules for each answer type.
+
+The response's `model` goes into each answer's provenance.
+When it is missing, blank, longer than 128 characters, or holds anything but letters, digits and `. _ : / @ + -`, provenance names the requested model.
+
+==== Using an endpoint
+
+Describe the endpoint, then build a service for a model:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-systemone/src/test/java/com/embabel/agent/systemone/SystemOneUsageExamples.java[tag=factory,indent=0]
+----
+
+`SystemOneEndpoint` holds the settings:
+
+|===
+|Setting |Default |Purpose
+
+|`provider`
+|required
+|The provider name in provenance, logs and observations
+
+|`baseUri`
+|required
+|The endpoint address. It must be absolute http or https, and must not carry user info, a query or a fragment. Host names with an underscore, such as a docker compose service called `typesafe_gateway`, are accepted.
+
+|`connectTimeout`
+|10 seconds
+|How long the factory's own client waits for a connection
+
+|`readTimeout`
+|10 seconds
+|How long the factory's own client waits for data
+
+|`maxResponseBytes`
+|1 MiB
+|The largest response body that is read
+
+|`requestIdHeader`
+|none
+|The response header that carries the provider's request id
+|===
+
+A base path is kept, so `http://proxy.example/systemone` sends decisions to `http://proxy.example/systemone/v1/systemone`.
+`toString()` leaves the address out.
+
+`build(model)` sends the name as is and never contacts the endpoint, so a model the endpoint doesn't serve fails on its first call.
+`modelNames()` asks the endpoint which models it serves.
+It reads the System One listing, `{"models": [{"name"}]}`.
+It also reads the OpenAI listing shape, `{"data": [{"id"}]}`, which Ollama serves.
+A failed listing throws `IllegalStateException`.
+An interrupted caller gets a `CancellationException`, which is a subclass of `IllegalStateException`, so catch it first.
+
+[source,java]
+----
+include::../../../../../../embabel-agent-systemone/src/test/java/com/embabel/agent/systemone/SystemOneUsageExamples.java[tag=models,indent=0]
+----
+
+The factory implements `ByokFactory<DecisionService>`.
+`buildValidated()` reads the key once, lists the endpoint's models with it, and returns the default model.
+A blank key, a rejected listing or an unreachable endpoint throws `InvalidApiKeyException`.
+A blank key, including one the key supplier rejects itself with `InvalidApiKeyException`, gives the message `<provider> credential is missing`.
+The other cases say the credential `could not be validated`.
+
+[source,java]
+----
+include::../../../../../../embabel-agent-systemone/src/test/java/com/embabel/agent/systemone/SystemOneUsageExamples.java[tag=byok,indent=0]
+----
+
+In Spring, declare the factory as a bean and each model as a `DecisionService` bean built from it.
+The decision registry picks the models up by bean name, the same way it picks up the TypeSafe catalog models.
+
+[[reference.systemone.local]]
+==== Running decision models locally
+
+The CLEF weights are open under Apache 2.0, and Ollama serves them at the standard `/v1/systemone` path.
+CLEF therefore runs on your own machine through the plain System One client, with no key and no account.
+Jev is a hosted TypeSafe model with no local build.
+
+|===
+|Ollama model |Size |Download |Input
+
+|`clef-flash`
+|9B
+|12 GB
+|Text and images
+
+|`clef`
+|27B
+|18 GB
+|Text and images
+|===
+
+Both need Ollama 0.35.1 or later.
+The integration sends text state only.
+
+. Install Ollama and check its version with `ollama --version`.
+. Pull a model:
++
+[source,bash]
+----
+ollama pull clef-flash
+----
+. Check that it answers a question set:
++
+[source,bash]
+----
+curl http://localhost:11434/v1/systemone -H 'Content-Type: application/json' -d '{
+  "model": "clef-flash",
+  "state": "I was charged twice for one invoice.",
+  "questions": { "q1": { "type": "noul", "instructions": "Is this a billing problem?" } }
+}'
+----
++
+The response is a System One response, such as `{"model":"clef-flash","answers":{"q1":{"type":"noul","noul":0.97}},...}`.
+
+In plain Java, point an endpoint at Ollama and build the model.
+A local endpoint needs no key, so the key supplier returns null:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-systemone/src/test/java/com/embabel/agent/systemone/SystemOneUsageExamples.java[tag=local,indent=0]
+----
+
+In Spring, declare the factory and each model as beans.
+The decision registry picks the models up by bean name, so `embabel.models.decision.default: clef-flash` makes the local model the default:
+
+[source,java]
+----
+include::../../../../../../embabel-agent-systemone/src/test/java/com/embabel/agent/systemone/SystemOneSpringExampleTest.java[tag=local-spring,indent=0]
+----
+
+The first call loads the model into memory and can take several seconds, which is why these examples wait up to two minutes for data.
+Ollama lists its models at `/v1/models`, so `modelNames()` works against it too.
+
+To check a local model end to end, run the smoke test.
+It asks one spec with a proposition, a choice and a rating, then a single classification and assessment, and prints the outcomes:
+
+[source,bash]
+----
+SYSTEMONE_SMOKE_URL=http://localhost:11434 SYSTEMONE_SMOKE_MODEL=clef-flash mvn test -pl embabel-agent-systemone -Dtest=SystemOneLocalSmokeTest
+----
+
+==== Transport
+
+* The key supplier runs on every call, so a rotated key takes effect on the next call.
+Surrounding whitespace, such as a trailing newline from a key file, is trimmed.
+A blank key sends no Authorization header, for endpoints that need none, and drops one the application's client would add.
+A supplier that throws, or a key holding control characters, fails the call with `UNAVAILABLE` before anything is sent.
+No `embabel.systemone.request` observation is recorded for it, since no request was made.
+* A `RestClient.Builder` passed to the factory is cloned, so its transport, interceptors and timeouts apply.
+Without one, the factory builds a client with the endpoint's timeouts that does not follow redirects.
+* There are no retries. Each call is one attempt.
+* Error bodies are never read.
+A body over `maxResponseBytes` is rejected from its declared length, or after one byte past the limit when it has none.
+Response buffering is turned off for these calls.
+A request factory that buffers on its own still reads the whole body before the limit applies.
+* Calls are synchronous. Callers can run them on virtual threads.
+
+A failed call fails every question in the request with one reason:
+
+|===
+|Failure |Reason |Cause in the log line
+
+|A status outside 2xx
+|`UNAVAILABLE`
+|`rate_limited` for 429, `http_4xx`, `http_5xx`, or `other` for 1xx and 3xx
+
+|A timeout
+|`UNAVAILABLE`
+|`timeout`
+
+|A refused or broken connection
+|`UNAVAILABLE`
+|`connection`
+
+|A key that can't be used
+|`UNAVAILABLE`
+|`credential`
+
+|A body over the limit, an envelope the codec can't read, or answers the result types reject
+|`INVALID_RESPONSE`
+|`invalid_response`
+|===
+
+A caller whose thread is already interrupted gets a `CancellationException` caused by an `InterruptedException`, and nothing is sent.
+This includes `buildValidated()`, which cancels before invoking the credential supplier even when no key is configured.
+A call that fails because of an interrupt, including a key supplier interrupted while it waits, is cancelled the same way.
+The interrupt flag stays set in both cases.
+
+==== Logging and observations
+
+The loggers are under `com.embabel.agent.systemone`.
+
+* INFO, once per factory: the provider, whether the HTTP client is the application's or the factory's, and whether observations are on.
+* DEBUG, once per call: the operation, the outcome and the status class.
+* WARN, once per failed call, with the fields in the table below.
+* TRACE, with content capture on: the response body. See <<reference.decision-execution.capture>>.
+
+A failed call logs a line like this:
+
+[source,text]
+----
+System One question set failed with reason UNAVAILABLE: service=jev-latest, provider=TypeSafe, operation=ask_question_set, cause=http_5xx, status=5xx, attempts=1, elapsedMs=7, requestId=none
+----
+
+The line opens with the kind of call and the failure reason, then carries these fields:
+
+|===
+|Field |Value
+
+|`service`
+|The model name
+
+|`provider`
+|The endpoint's provider name
+
+|`operation`
+|`ask_question_set`, `classify`, `assess` or `rate`
+
+|`cause`
+|The cause from the failure table above
+
+|`status`
+|The status class, or `none` without a response
+
+|`attempts`
+|Always 1
+
+|`elapsedMs`
+|The time the call took, in milliseconds
+
+|`requestId`
+|The provider's request id, or `none`
+|===
+
+Inputs, instructions, bodies, keys and endpoint addresses never appear in these lines.
+The request id appears only when the response carries a well formed one in the configured header.
+
+Each call is observed as `embabel.systemone.request`, with these low cardinality tags:
+
+|===
+|Tag |Values
+
+|`provider`
+|The endpoint's provider name
+
+|`operation`
+|`systemone` or `models`
+
+|`outcome`
+|`success` or `failure`
+
+|`status.family`
+|`2xx`, `4xx`, `5xx` and so on, or `none` without a response
+|===
+
+A failed call also reports its error to the observation, so tracing handlers can mark the span.
+The error carries only the failure's cause category, never the endpoint, key or body.
+A handler that throws never changes the call's result or leaves its scope open.
+For decision and classification calls, the observation sits inside the framework's `embabel.ai.decision` or `embabel.ai.classification` observation.
+Model listing and key validation have no framework observation around them.
+When the HTTP client records `http.client.requests`, that observation sits inside it.
+
+==== Experimental status
+
+Every type on this page carries `@ApiStatus.Experimental`.
+Promotion needs a consumer application that uses this client with Jev on TypeSafe and with CLEF on a local Ollama.

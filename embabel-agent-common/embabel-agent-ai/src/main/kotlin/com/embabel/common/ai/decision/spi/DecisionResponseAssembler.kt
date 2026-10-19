@@ -20,6 +20,7 @@ import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.decision.ChoiceQuestionSpec
 import com.embabel.common.ai.decision.DecisionResponse
 import com.embabel.common.ai.decision.DecisionSpec
+import com.embabel.common.ai.decision.OutcomeRules
 import com.embabel.common.ai.decision.PropositionQuestionSpec
 import com.embabel.common.ai.decision.PropositionResult
 import com.embabel.common.ai.decision.Question
@@ -145,10 +146,11 @@ class DecisionResponseAssembler private constructor(
     fun unreadable(name: String): DecisionResponseAssembler = unreadable(name, Anomaly.UNREADABLE)
 
     /**
-     * Records an answer the provider could not use, with the reason.
+     * Records an answer the provider could not use, with the reason. A provider that reads the
+     * answer's kind off the wire before building an outcome reports a mismatch as [Anomaly.WRONG_KIND].
      *
      * @param name the question name the provider's answer maps to
-     * @param anomaly [Anomaly.UNREADABLE], [Anomaly.OUT_OF_RANGE] or [Anomaly.BAD_DISTRIBUTION]
+     * @param anomaly [Anomaly.UNREADABLE], [Anomaly.WRONG_KIND], [Anomaly.OUT_OF_RANGE] or [Anomaly.BAD_DISTRIBUTION]
      * @return this assembler
      * @throws IllegalArgumentException if the anomaly is another kind, which the assembler detects itself
      */
@@ -261,12 +263,13 @@ class DecisionResponseAssembler private constructor(
             is PropositionQuestionSpec -> builder.answer(question, outcome.value as PropositionResult)
             is ChoiceQuestionSpec -> {
                 val result = outcome.value as ClassificationResult
-                if (!fits { question.validate(result) }) return Anomaly.OUT_OF_DOMAIN
+                // The same rules the question's validate applies, reported as the rule that broke.
+                OutcomeRules.choiceViolation(question.options, result)?.let { return anomaly(it) }
                 builder.answer(question, result)
             }
             is RatingQuestionSpec -> {
                 val result = outcome.value as RatingResult
-                if (!fits { question.validate(result) }) return ratingAnomaly(question, result)
+                OutcomeRules.ratingViolation(question.levels, result)?.let { return anomaly(it) }
                 builder.answer(question, result)
             }
         }
@@ -274,35 +277,15 @@ class DecisionResponseAssembler private constructor(
     }
 
     /**
-     * The validator's message is dropped. The anomaly kind alone reaches the log.
+     * Names a broken outcome rule as an anomaly.
      *
-     * @param validate checks the outcome and throws when it's invalid
-     * @return true when the outcome passed validation
+     * @param violation the rule the outcome broke
+     * @return the matching anomaly
      */
-    private inline fun fits(validate: () -> Unit): Boolean =
-        try {
-            validate()
-            true
-        } catch (rejected: IllegalArgumentException) {
-            false
-        }
-
-    /**
-     * Names the rule a rejected rating broke, in the order the validator checks them.
-     *
-     * @param question the rating question
-     * @param result the rejected rating result
-     * @return the anomaly that names the broken rule
-     */
-    private fun ratingAnomaly(question: RatingQuestionSpec, result: RatingResult): Anomaly {
-        val answered = result as RatingResult.Answered
-        val levelIds = question.levels.map { it.id }.toSet()
-        return when {
-            answered.selectedLevelId != null && answered.selectedLevelId !in levelIds -> Anomaly.OUT_OF_DOMAIN
-            answered.distribution.isNotEmpty() && answered.distribution.map { it.levelId }.toSet() != levelIds ->
-                Anomaly.BAD_DISTRIBUTION
-            else -> Anomaly.OUT_OF_RANGE
-        }
+    private fun anomaly(violation: OutcomeRules.Violation): Anomaly = when (violation) {
+        OutcomeRules.Violation.OUT_OF_DOMAIN -> Anomaly.OUT_OF_DOMAIN
+        OutcomeRules.Violation.BAD_DISTRIBUTION -> Anomaly.BAD_DISTRIBUTION
+        OutcomeRules.Violation.OUT_OF_RANGE -> Anomaly.OUT_OF_RANGE
     }
 
     /**
@@ -341,7 +324,7 @@ class DecisionResponseAssembler private constructor(
 
         private val logger = LoggerFactory.getLogger(DecisionResponseAssembler::class.java)
 
-        private val REPORTABLE = setOf(Anomaly.UNREADABLE, Anomaly.OUT_OF_RANGE, Anomaly.BAD_DISTRIBUTION)
+        private val REPORTABLE = setOf(Anomaly.UNREADABLE, Anomaly.WRONG_KIND, Anomaly.OUT_OF_RANGE, Anomaly.BAD_DISTRIBUTION)
 
         /**
          * Starts an assembler for one response to the given spec.

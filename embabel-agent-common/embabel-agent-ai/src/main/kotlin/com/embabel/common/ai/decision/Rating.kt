@@ -17,6 +17,8 @@ package com.embabel.common.ai.decision
 
 import com.embabel.common.ai.classification.FailureReason
 import com.embabel.common.ai.classification.ModelProvenance
+import com.embabel.common.ai.classification.isProbability
+import com.embabel.common.ai.classification.sumsToOne
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonInclude
@@ -25,7 +27,6 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import org.jetbrains.annotations.ApiStatus
-import kotlin.math.abs
 
 /**
  * One level on an ordinal rating scale, such as one point on a five-point mood scale.
@@ -116,7 +117,7 @@ data class LevelProbability @JsonCreator constructor(
 ) {
     init {
         require(levelId.isNotBlank()) { "Level id must not be blank" }
-        require(probability.isFinite() && probability in 0.0..1.0) {
+        require(isProbability(probability)) {
             "Probability must be finite and between 0 and 1"
         }
     }
@@ -193,12 +194,12 @@ sealed interface RatingResult {
                 "Distribution level ids must be unique"
             }
             if (this.distribution.isNotEmpty()) {
-                val sum = this.distribution.sumOf { it.probability }
-                require(abs(sum - 1.0) <= 1e-6) {
-                    "Distribution probabilities must sum to 1 within 1e-6, but summed to $sum"
+                val probabilities = this.distribution.map { it.probability }
+                require(sumsToOne(probabilities)) {
+                    "Distribution probabilities must sum to 1 within 1e-6, but summed to ${probabilities.sum()}"
                 }
             }
-            require(confidence == null || confidence.isFinite() && confidence in 0.0..1.0) {
+            require(confidence == null || isProbability(confidence)) {
                 "Confidence must be finite and between 0 and 1"
             }
         }
