@@ -90,8 +90,8 @@ class CloudflareModelLoader @JvmOverloads constructor(
     override fun validateModels(provider: CloudflareModelDefinitions) {
         require(provider.models.isNotEmpty()) { "the catalog defines no models" }
         provider.models.forEach(::validateCommonFields)
-        val repeated = provider.models.groupingBy { it.name }.eachCount().filterValues { it > 1 }.keys
-        require(repeated.isEmpty()) { "Cloudflare model names must be unique. Repeated names: $repeated" }
+        val dupModelNames = provider.models.groupingBy { it.name }.eachCount().filterValues { it > 1 }.keys
+        require(dupModelNames.isEmpty()) { "Cloudflare model names must be unique. Repeated names: $dupModelNames" }
     }
 
     companion object {

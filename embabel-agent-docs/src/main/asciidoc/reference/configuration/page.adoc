@@ -148,6 +148,30 @@ TypeSafe connection properties use the `embabel.agent.platform.models.typesafe` 
 |Maximum response body size in bytes
 |===
 
+===== Cloudflare provider connection
+
+Cloudflare connection properties use the `embabel.agent.platform.models.cloudflare` prefix. `CLOUDFLARE_API_TOKEN` takes precedence over `api-key` and `CLOUDFLARE_ACCOUNT_ID` takes precedence over `account-id`. Both are required when the Cloudflare starter configuration starts. See <<reference.cloudflare>>.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.models.cloudflare.api-key`
+|String
+|not set
+|Credential used when `CLOUDFLARE_API_TOKEN` is absent or blank
+
+|`embabel.agent.platform.models.cloudflare.account-id`
+|String
+|not set
+|Account id used when `CLOUDFLARE_ACCOUNT_ID` is absent or blank
+
+|`embabel.agent.platform.models.cloudflare.max-response-bytes`
+|int
+|`1048576`
+|Maximum response body size in bytes
+|===
+
 ===== Platform Configuration
 
 From `AgentPlatformProperties` - unified configuration for all agent platform properties.
