@@ -193,6 +193,60 @@ class LLMAnthropicThinkingIT {
     }
 
     /**
+     * Result class for tests that require both temperature and humidity.
+     */
+    static class MonthWeather {
+        private String name;
+        private Integer temperatureFahrenheit;
+        private Integer humidityPercent;
+
+        public MonthWeather() {}
+
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+        public Integer getTemperatureFahrenheit() { return temperatureFahrenheit; }
+        public void setTemperatureFahrenheit(Integer v) { this.temperatureFahrenheit = v; }
+        public Integer getHumidityPercent() { return humidityPercent; }
+        public void setHumidityPercent(Integer v) { this.humidityPercent = v; }
+
+        @Override
+        public String toString() {
+            return "MonthWeather{name='" + name + "', tempF=" + temperatureFahrenheit + ", humidity=" + humidityPercent + "}";
+        }
+    }
+
+    /**
+     * Two tools: temperature conversion and humidity lookup.
+     * Used to exercise the multi-tool-call path with thinking active (issue #2121).
+     */
+    static class MultiTooling {
+
+        @Tool
+        Integer convertFromCelsiusToFahrenheit(Integer inputTemp) {
+            return (int) Math.round(inputTemp * 9.0 / 5 + 32);
+        }
+
+        @Tool
+        Integer getRelativeHumidityPercent(String month) {
+            return switch (month.toLowerCase()) {
+                case "january"   -> 71;
+                case "february"  -> 68;
+                case "march"     -> 66;
+                case "april"     -> 63;
+                case "may"       -> 67;
+                case "june"      -> 74;
+                case "july"      -> 76;
+                case "august"    -> 76;
+                case "september" -> 76;
+                case "october"   -> 72;
+                case "november"  -> 72;
+                case "december"  -> 72;
+                default          -> 70;
+            };
+        }
+    }
+
+    /**
      * GuardRail For User Messages
      */
     record UserInputThinkingGuardRail() implements UserInputGuardRail {
@@ -718,6 +772,51 @@ class LLMAnthropicThinkingIT {
             logger.info("sonnet-5-5 native-only thinking: {} total, {} native",
                     thinkingBlocks.size(),
                     thinkingBlocks.stream().filter(b -> b.getOrigin() == ThinkingOrigin.NATIVE).count());
+        }
+
+        @Test
+        void sonnet55TwoToolsTriggersBlockOrdering() {
+            // Regression target for issue #2121.
+            // Anthropic requires thinking blocks to appear before text blocks in an assistant
+            // message content array. Spring AI AnthropicChatModel violates this: when Claude
+            // produces thinking + text before a tool call, it rebuilds the history as
+            // [text, thinking, tool_use] instead of the required [thinking, text, tool_use].
+            // Anthropic's prefix_mismatch_behavior controls the consequence: older accounts
+            // silently ignored wrong ordering ("ignore"), but since 2026-08-31 the default
+            // is "error" — any out-of-order block causes an immediate HTTP 400.
+            // Two tools force multiple tool-call iterations, reliably triggering the reordering.
+            PromptRunner runner = ai.withLlm(
+                    LlmOptions.withModel("claude-sonnet-5-5")
+                            .withThinking(Thinking.withTokenBudget(20000))
+            ).withToolObject(new MultiTooling());
+            assertTrue(runner.supportsThinking(), "Expected claude-sonnet-5-5 to support thinking");
+
+            String prompt = """
+                    What is the hottest month in Florida?
+                    Use the temperature conversion tool to convert its average high to Fahrenheit,
+                    and use the humidity tool to get its average relative humidity percentage.
+                    """;
+
+            ThinkingResponse<MonthWeather> response = runner
+                    .thinking()
+                    .createObject(prompt, MonthWeather.class);
+
+            assertNotNull(response, "Response should not be null");
+            MonthWeather result = response.getResult();
+            assertNotNull(result, "Result should not be null");
+            assertNotNull(result.getName(), "Month name should not be null");
+
+            List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
+            assertFalse(thinkingBlocks.isEmpty(),
+                    "Should have thinking blocks accumulated across two-tool loop iterations");
+            assertTrue(
+                    thinkingBlocks.stream().anyMatch(b -> b.getOrigin() == ThinkingOrigin.NATIVE),
+                    "Should have at least one NATIVE thinking block");
+
+            logger.info("Two-tools block ordering test: {} total blocks, {} native, result={}",
+                    thinkingBlocks.size(),
+                    thinkingBlocks.stream().filter(b -> b.getOrigin() == ThinkingOrigin.NATIVE).count(),
+                    result);
         }
     }
 
