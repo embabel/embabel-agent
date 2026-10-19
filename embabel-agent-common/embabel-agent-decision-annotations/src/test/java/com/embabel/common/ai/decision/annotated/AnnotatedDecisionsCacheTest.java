@@ -17,6 +17,7 @@ package com.embabel.common.ai.decision.annotated;
 
 import com.embabel.common.ai.decision.Question;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
@@ -49,6 +50,25 @@ class AnnotatedDecisionsCacheTest {
     }
 
     @Test
+    void readersForOneMapperShareOneInstanceAndItsCache() {
+        ObjectMapper mapper = JsonMapper.builder().build();
+        AnnotatedDecisions decisions = AnnotatedDecisions.using(mapper);
+
+        assertSame(decisions, AnnotatedDecisions.using(mapper));
+        assertSame(decisions.of(UnloadableTriage.class), AnnotatedDecisions.using(mapper).of(UnloadableTriage.class));
+        assertNotSame(decisions, AnnotatedDecisions.using(JsonMapper.builder().build()));
+        assertSame(AnnotatedDecisions.defaults(), AnnotatedDecisions.using(AnnotatedDecisions.defaults().mapper()));
+    }
+
+    @Test
+    void sharingReadersDoesNotHoldTheMapper() throws Exception {
+        ReferenceQueue<ObjectMapper> queue = new ReferenceQueue<>();
+        WeakReference<ObjectMapper> mapper = useThrowawayMapper(queue);
+
+        assertCollected(mapper, queue);
+    }
+
+    @Test
     void defaultsDoesNotHoldTheClassLoaderOfATypeItRead() throws Exception {
         AnnotatedDecisions decisions = AnnotatedDecisions.defaults();
 
@@ -78,6 +98,7 @@ class AnnotatedDecisionsCacheTest {
     void theClassificationCacheDoesNotHoldTheClassLoaderOfAnEnumItRead() throws Exception {
         ReferenceQueue<ClassLoader> queue = new ReferenceQueue<>();
         WeakReference<ClassLoader> loader = classifyInThrowawayLoader(queue);
+        AnnotatedDecisions.defaults().mapper().clearCaches();
 
         assertCollected(loader, queue);
     }
@@ -97,18 +118,26 @@ class AnnotatedDecisionsCacheTest {
         ClassLoader loader = new SingleClassLoader(UnloadableDepartment.class);
         Class copy = loader.loadClass(UnloadableDepartment.class.getName());
         assertNotSame(UnloadableDepartment.class, copy);
-        assertSame(AnnotatedDecisions.classification(copy), AnnotatedDecisions.classification(copy));
+        assertSame(AnnotatedDecisions.defaults().classification(copy), AnnotatedDecisions.defaults().classification(copy));
         return new WeakReference<>(loader, queue);
     }
 
+    // Reads nothing, so the check covers the shared table of instances only. A type read under the
+    // mapper keeps its result, and so the mapper, in the type's ClassValue entry until the JDK clears it.
+    private static WeakReference<ObjectMapper> useThrowawayMapper(ReferenceQueue<ObjectMapper> queue) {
+        ObjectMapper mapper = JsonMapper.builder().build();
+        AnnotatedDecisions.using(mapper);
+        return new WeakReference<>(mapper, queue);
+    }
+
     // Requests a collection and waits up to 20 ms for the reference to be enqueued, up to 50 times.
-    private static void assertCollected(WeakReference<ClassLoader> loader, ReferenceQueue<ClassLoader> queue)
+    private static <T> void assertCollected(WeakReference<T> reference, ReferenceQueue<T> queue)
         throws InterruptedException {
-        for (int attempt = 0; attempt < 50 && loader.get() != null; attempt++) {
+        for (int attempt = 0; attempt < 50 && reference.get() != null; attempt++) {
             System.gc();
             queue.remove(20);
         }
-        assertNull(loader.get(), "The class loader of a type read by the cache is still reachable");
+        assertNull(reference.get(), "An object the cache read with is still reachable");
     }
 
     /** Defines its own copy of one class and delegates every other class to the test's loader. */

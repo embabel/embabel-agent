@@ -22,10 +22,15 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.junit.jupiter.api.Test;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JavaType;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.cfg.EnumFeature;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.type.TypeBindings;
+import tools.jackson.databind.type.TypeFactory;
+import tools.jackson.databind.type.TypeModifier;
 
+import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Map;
 
@@ -342,6 +347,21 @@ class AnnotatedSpecErrorsTest {
         }
     }
 
+    static final class MixedInNotAProperty {
+        @PropositionQuestion(asking = URGENT)
+        public boolean urgent;
+
+        public boolean looksUrgent() {
+            return false;
+        }
+    }
+
+    // Puts a question annotation on a method that is not a Jackson property.
+    abstract static class NotAPropertyMixIn {
+        @PropositionQuestion(asking = URGENT)
+        public abstract boolean looksUrgent();
+    }
+
     private static AnnotatedDecisionException failure(Class<?> type) {
         return failure(AnnotatedDecisions.defaults(), type);
     }
@@ -626,5 +646,46 @@ class AnnotatedSpecErrorsTest {
 
         assertEquals(first.problems(), second.problems());
         assertNotSame(first, second);
+    }
+
+    @Test
+    void mixInQuestionOnAMethodThatIsNotAPropertyIsRejected() {
+        AnnotatedDecisions decisions = AnnotatedDecisions.using(
+            JsonMapper.builder().addMixIn(MixedInNotAProperty.class, NotAPropertyMixIn.class).build());
+
+        assertEquals(List.of("MixedInNotAProperty.looksUrgent(): carries @PropositionQuestion but is not a Jackson property. "
+                + "Move the annotation to a record component, field, getter or creator parameter."),
+            failure(decisions, MixedInNotAProperty.class).problems());
+    }
+
+    @Test
+    void jacksonFailureWhileResolvingTheTypeIsReported() {
+        IllegalArgumentException unresolvable = new IllegalArgumentException("unresolvable");
+        AnnotatedDecisions decisions = AnnotatedDecisions.using(JsonMapper.builder().addTypeModifier(new TypeModifier() {
+            @Override
+            public JavaType modifyType(JavaType type, Type jdkType, TypeBindings bindings, TypeFactory typeFactory) {
+                if (type.hasRawClass(FieldOnly.class)) {
+                    throw unresolvable;
+                }
+                return type;
+            }
+        }).build());
+
+        AnnotatedDecisionException failure = failure(decisions, FieldOnly.class);
+
+        assertTrue(failure.problems().getFirst().startsWith("FieldOnly: Jackson cannot read the properties of the type (unresolvable)."),
+            failure.problems().getFirst());
+        assertSame(unresolvable, failure.getCause());
+    }
+
+    @Test
+    void parameterLabelsUseTheNameOnlyWhenItWasCompiledIn() throws Exception {
+        // JDK classes are compiled without -parameters, so reflection names their parameters arg0, arg1 and so on.
+        assertEquals("parameter #0 of concat()",
+            DecisionTypeParser.parameterLabel(String.class.getMethod("concat", String.class), 0));
+        assertEquals("constructor parameter #0",
+            DecisionTypeParser.parameterLabel(String.class.getConstructor(char[].class), 0));
+        assertEquals("urgent (parameter of setUrgent())",
+            DecisionTypeParser.parameterLabel(SetterParameter.class.getMethod("setUrgent", boolean.class), 0));
     }
 }

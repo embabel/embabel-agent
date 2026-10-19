@@ -15,6 +15,7 @@
  */
 package com.embabel.common.ai.decision.annotated;
 
+import com.embabel.common.ai.classification.Category;
 import com.embabel.common.ai.classification.CategoryMapping;
 import com.embabel.common.ai.classification.ClassificationRequest;
 import com.embabel.common.ai.classification.ClassificationResult;
@@ -26,6 +27,7 @@ import com.embabel.common.ai.classification.ModelProvenance;
 import com.embabel.common.ai.decision.DecisionResponse;
 import com.embabel.common.ai.decision.DecisionSpec;
 import com.embabel.common.ai.decision.support.StubDecisionService;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
@@ -59,7 +61,7 @@ class AnnotatedClassificationTest {
         TECHNICAL,
     }
 
-    // Ids come from the constant names, so toString does not change them.
+    // Jackson 3 writes enums with toString by default, so the category id follows it as a choice option id does.
     @Classification(asking = TEAM)
     enum Renamed {
         @Described("Payments, invoicing, refunds")
@@ -69,6 +71,23 @@ class AnnotatedClassificationTest {
         public String toString() {
             return "billing";
         }
+    }
+
+    // The mapper writes BILLING as "billing", and @DecisionId wins over the mapper for TECHNICAL.
+    @Classification(asking = TEAM)
+    enum Serialized {
+        @Described("Payments, invoicing, refunds")
+        @JsonProperty("billing")
+        BILLING,
+        @Described("Bugs, outages, integrations")
+        @DecisionId("technical-v1")
+        @JsonProperty("tech")
+        TECHNICAL,
+        @Described("Logins, passwords, profiles")
+        ACCOUNT,
+    }
+
+    record SerializedRouting(@ChoiceQuestion(asking = TEAM) Serialized team) {
     }
 
     enum Unannotated {
@@ -138,7 +157,7 @@ class AnnotatedClassificationTest {
 
         @Test
         void classifiesAndMapsTheSelectionToTheConstant() {
-            var departments = AnnotatedDecisions.classification(Department.class);
+            var departments = AnnotatedDecisions.defaults().classification(Department.class);
             var classifier = new ScriptedClassifier(departments.spec().selected("TECHNICAL", PROVENANCE, 0.8));
 
             var result = classifier.classify("The export API returns 500.", departments.spec());
@@ -157,7 +176,7 @@ class AnnotatedClassificationTest {
                 .category("TECHNICAL", "Bugs, outages, integrations")
                 .build();
 
-            var spec = AnnotatedDecisions.classification(Department.class).spec();
+            var spec = AnnotatedDecisions.defaults().classification(Department.class).spec();
 
             assertEquals(expected, spec);
             assertEquals(ClassificationSpec.QUESTION_NAME, spec.getQuestion().getName());
@@ -165,7 +184,7 @@ class AnnotatedClassificationTest {
 
         @Test
         void mapsEverySelectionToItsConstant() {
-            CategoryMapping<Department> departments = AnnotatedDecisions.classification(Department.class);
+            CategoryMapping<Department> departments = AnnotatedDecisions.defaults().classification(Department.class);
             for (Department department : Department.values()) {
                 var selected = new ClassificationResult.Selected(department.name(), PROVENANCE);
                 assertEquals(new MappedClassificationResult.Selected<>(department, selected), departments.map(selected));
@@ -174,7 +193,7 @@ class AnnotatedClassificationTest {
 
         @Test
         void passesNonSelectionsThroughUnchanged() {
-            var departments = AnnotatedDecisions.classification(Department.class);
+            var departments = AnnotatedDecisions.defaults().classification(Department.class);
             for (ClassificationResult result : List.of(
                 new ClassificationResult.NoMatch(PROVENANCE),
                 new ClassificationResult.Inconclusive(PROVENANCE),
@@ -185,16 +204,26 @@ class AnnotatedClassificationTest {
 
         @Test
         void rejectsASelectionOutsideTheCategories() {
-            var departments = AnnotatedDecisions.classification(Department.class);
+            var departments = AnnotatedDecisions.defaults().classification(Department.class);
             var outsideCategory = new ClassificationResult.Selected("ACCOUNT", PROVENANCE);
 
             assertThrows(IllegalArgumentException.class, () -> departments.map(outsideCategory));
         }
 
         @Test
-        void categoryIdsAreConstantNamesRatherThanToString() {
-            assertEquals("BILLING",
-                AnnotatedDecisions.classification(Renamed.class).getCategories().getFirst().getId());
+        void categoryIdsFollowTheMapperLikeChoiceOptionIds() {
+            assertEquals("billing",
+                AnnotatedDecisions.defaults().classification(Renamed.class).getCategories().getFirst().getId());
+        }
+
+        @Test
+        void categoryIdsMatchTheChoiceOptionIdsOfTheSameEnum() {
+            var decisions = AnnotatedDecisions.defaults();
+
+            var categories = decisions.classification(Serialized.class).getCategories();
+
+            assertEquals(List.of("billing", "technical-v1", "ACCOUNT"), categories.stream().map(Category::getId).toList());
+            assertEquals(decisions.of(SerializedRouting.class).classificationSpec().getCategories(), categories);
         }
     }
 
@@ -211,7 +240,7 @@ class AnnotatedClassificationTest {
         @SuppressWarnings({"unchecked", "rawtypes"})
         void rejectsAClassThatIsNotAnEnum() {
             Class raw = Routing.class;
-            var failure = assertThrows(AnnotatedDecisionException.class, () -> AnnotatedDecisions.classification(raw));
+            var failure = assertThrows(AnnotatedDecisionException.class, () -> AnnotatedDecisions.defaults().classification(raw));
 
             assertEquals(List.of("Routing: is not an enum. Declare the categories as an enum annotated with @Classification."),
                 failure.problems());
@@ -240,7 +269,7 @@ class AnnotatedClassificationTest {
         }
 
         private static <E extends Enum<E>> AnnotatedDecisionException failure(Class<E> type) {
-            var failure = assertThrows(AnnotatedDecisionException.class, () -> AnnotatedDecisions.classification(type));
+            var failure = assertThrows(AnnotatedDecisionException.class, () -> AnnotatedDecisions.defaults().classification(type));
             assertSame(type, failure.type());
             return failure;
         }
@@ -255,16 +284,16 @@ class AnnotatedClassificationTest {
 
         @Test
         void repeatedCallsReturnTheSameMapping() {
-            assertSame(AnnotatedDecisions.classification(Department.class),
-                AnnotatedDecisions.classification(Department.class));
+            assertSame(AnnotatedDecisions.defaults().classification(Department.class),
+                AnnotatedDecisions.defaults().classification(Department.class));
         }
 
         @Test
         void aFailedReadIsNotCached() {
             var first = assertThrows(AnnotatedDecisionException.class,
-                () -> AnnotatedDecisions.classification(Unannotated.class));
+                () -> AnnotatedDecisions.defaults().classification(Unannotated.class));
             var second = assertThrows(AnnotatedDecisionException.class,
-                () -> AnnotatedDecisions.classification(Unannotated.class));
+                () -> AnnotatedDecisions.defaults().classification(Unannotated.class));
 
             assertNotSame(first, second);
         }

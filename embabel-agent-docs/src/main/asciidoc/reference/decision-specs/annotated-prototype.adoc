@@ -80,7 +80,7 @@ include::../../../../../../embabel-agent-common/embabel-agent-decision-annotatio
 A question annotation's optional `name` fixes a stable provider-facing name; an empty value uses the Jackson property name.
 An enum constant's `@DecisionId` fixes its provider-facing id for choices, ratings and standalone classification.
 Without an override, the question name is the Jackson property name of the annotated member.
-Without `@DecisionId`, the option or level id is the JSON string the mapper writes for the enum constant, and the parser checks that the mapper reads that string back as the same constant.
+Without `@DecisionId`, the option, level or category id is the JSON string the mapper writes for the enum constant, and the parser checks that the mapper reads that string back as the same constant.
 The question order is Jackson's property order for the type.
 
 `@JsonProperty`, `@JsonNaming`, `@JsonPropertyOrder`, a mapper `PropertyNamingStrategy` and a mapper `EnumNamingStrategy` control the names and order that explicit identifiers do not override.
@@ -118,7 +118,9 @@ include::../../../../../../embabel-agent-common/embabel-agent-decision-annotatio
 
 An `AnnotatedDecisions` instance caches one `AnnotatedDecision` per type.
 Jackson 3 mappers are immutable, so a cached spec always matches the mapper it was read with.
-A different mapper needs its own `AnnotatedDecisions` instance.
+Calls to `using(mapper)` with the same mapper return the same instance while it is still in use, so they share its cache.
+The table behind this holds mappers and instances weakly, so it keeps neither alive.
+Each new mapper starts with an empty cache, so build a mapper once and reuse it rather than building one per request.
 `AnnotatedDecision.questionNames()` maps each Java member name to its question name.
 
 ==== Projection
@@ -141,7 +143,8 @@ The result holds the converted value and the response, so the provenance of each
 
 A type can hold properties that carry no question annotation, such as identity fields.
 `project(response, otherProperties)` takes their values from a map keyed by Jackson property name.
-Every such property needs a key, and a key that names a question or no property is rejected.
+Every such property needs a key, and a key that names a question property or no property is rejected.
+A question with a custom `name` is still keyed by its property name, so its custom name counts as no property.
 The message lists every key problem at once.
 Both projection overloads return `DecisionProjection<T>`, retaining the original response.
 Every non-question property needs an explicit key, including Kotlin constructor properties with defaults.
@@ -186,8 +189,8 @@ Every constant needs `@Described`, as a choice option does.
 include::../../../../../../embabel-agent-common/embabel-agent-decision-annotations/src/test/java/com/embabel/common/ai/decision/annotated/example/TicketClassificationAnnotatedExampleTest.java[tag=annotated-classification-enum,indent=0]
 ----
 
-`AnnotatedDecisions.classification(type)` returns a `CategoryMapping<E>` built from the enum constants and their category ids.
-It is static and caches one mapping per enum. A failed read is not cached.
+`AnnotatedDecisions.defaults().classification(type)`, or `classification(type)` on an instance from `using(mapper)`, returns a `CategoryMapping<E>` built from the enum constants and their category ids.
+Each instance caches one mapping per enum. A failed read is not cached.
 `spec()` is the `ClassificationSpec` to pass to `ClassificationService.classify(input, spec)`.
 `map(result)` turns a selection into its constant and returns no match, inconclusive and failure unchanged.
 A selection outside the categories throws `IllegalArgumentException`.
@@ -197,9 +200,8 @@ A selection outside the categories throws `IllegalArgumentException`.
 include::../../../../../../embabel-agent-common/embabel-agent-decision-annotations/src/test/java/com/embabel/common/ai/decision/annotated/example/TicketClassificationAnnotatedExampleTest.java[tag=annotated-classification-route,indent=0]
 ----
 
-The category id is its explicit `@DecisionId`, or the constant's name.
-No mapper is involved, so `toString()`, `@JsonProperty` and enum naming strategies do not change it.
-An explicit `@DecisionId` gives the same id on both paths. Without it, a choice option id follows the mapper and a category id follows the constant name.
+A category gets the same id as a choice option over the same enum under the same mapper: its explicit `@DecisionId`, or the JSON string the mapper writes for the constant.
+So `toString()`, `@JsonProperty` and enum naming strategies change a category id exactly as they change an option id, and the constant must read back under the mapper.
 The question is named `classification`, from `ClassificationSpec.QUESTION_NAME`.
 
 A record or bean whose only question is a `@ChoiceQuestion` reads as a `ClassificationSpec`, whatever other properties it has.
@@ -284,7 +286,7 @@ A failed read is not cached.
 |`<Type>.<member>: carries @PropositionQuestion but Jackson ignores the property (...).`
 |Remove the annotation or stop ignoring the property
 
-|Question on a member outside any property
+|Question on a member outside any property, declared there or added by a Jackson mix-in
 |`<Type>.<member>: carries @PropositionQuestion but is not a Jackson property.`
 |Move the annotation to a record component, field, getter or creator parameter
 
@@ -323,6 +325,10 @@ A failed read is not cached.
 |Classification constant without `@Described`
 |`<Enum>.<CONSTANT>: category has no @Described.`
 |Add `@Described`
+
+|Classification constants with the same id
+|`<Enum>.<CONSTANT>: repeats category id "...".`
+|Give each constant a unique `@DecisionId` or serialized form
 
 |Response to another spec
 |`The response does not match the spec. Missing: 'urgent'. <Type> reads a different spec.`
@@ -439,7 +445,7 @@ The Kotlin data class rule reads the `kotlin.Metadata` annotation by name, so th
 * The merged-name check is strict. A property whose field, getter and setter have different Java names is rejected even where Jackson accepts it, for example `@JsonProperty("urgent") boolean urgentFlag` with `isUrgent()`. Creator parameters are left out of the check.
 * The parser depends on the Jackson introspection calls listed under Complexity. A Jackson upgrade needs the module tests to pass before release.
 * `defaults()` holds one shared mapper. Jackson's type and deserializer caches in that mapper keep references to the types it reads and projects, so an application that reloads classes passes a mapper it owns to `using(mapper)`. The decision cache itself keeps no class reachable.
-* Without explicit `@DecisionId` values, category ids are constant names and choice option ids follow the mapper. Pin ids for enums used on both paths or stored as a portable contract.
+* Without explicit `@DecisionId` values, category and choice option ids follow the mapper, so a naming change in the mapper changes them. Pin ids for enums stored as a portable contract.
 * Kotlin support depends on use-site targets and on two rules that skip Kotlin's repeated annotations: one for `copy()` parameters and one for the backing field.
 
 ===== Removal

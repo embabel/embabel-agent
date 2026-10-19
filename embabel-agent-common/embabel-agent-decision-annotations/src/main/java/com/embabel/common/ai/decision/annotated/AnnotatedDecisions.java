@@ -22,33 +22,42 @@ import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.WeakHashMap;
 
 /**
- * Reads decision specs from annotated types under one Jackson mapper, and caches each result.
+ * Reads decision specs and classifications from annotated types under one Jackson mapper, and
+ * caches each result.
  * <p>
- * Explicit annotation names and ids fix provider identifiers; the mapper supplies the remaining names and question order. Jackson 3 mappers
- * are immutable, so a cached spec always matches the mapper it was read with. To read with other
- * naming settings, create another instance over a mapper with those settings.
+ * Explicit annotation names and ids fix provider identifiers. The mapper supplies the remaining
+ * names, the question order and the ids of enum constants, the same way for a choice option and a
+ * classification category. Jackson 3 mappers are immutable, so a cached spec always matches the
+ * mapper it was read with. To read with other naming settings, use another mapper.
  *
  * <pre>{@code
  * AnnotatedDecision<Triage> triage = AnnotatedDecisions.using(mapper).of(Triage.class);
  * DecisionSpec spec = triage.spec();
  * }</pre>
  * <p>
- * {@link #classification(Class)} reads an enum annotated with {@link Classification}. It needs no
- * mapper, so it is static.
- * <p>
- * Instances are safe to share between threads. The cache stores each result with its type and
- * keeps no class or class loader reachable. The mapper's own Jackson caches hold types separately.
+ * Instances are safe to share between threads. Calls to {@link #using} with the same mapper get
+ * the same instance while it is still in use, so they share its cache. The cache stores each result
+ * with its type and keeps no class or class loader reachable, and the shared table of instances
+ * keeps no mapper reachable. Build mappers once and reuse them: each new mapper starts with an
+ * empty cache. The mapper's own Jackson caches hold types separately.
  */
 @ApiStatus.Experimental
 public final class AnnotatedDecisions {
+
+    // The instance for each mapper, both held weakly. A cached decision refers to its mapper, so a
+    // strongly held instance would keep its mapper key alive for good.
+    private static final Map<ObjectMapper, WeakReference<AnnotatedDecisions>> INSTANCES = new WeakHashMap<>();
 
     private final ObjectMapper mapper;
 
@@ -57,14 +66,8 @@ public final class AnnotatedDecisions {
     // class, so an entry is collected together with the class and its loader.
     private final ClassValue<AnnotatedDecision<?>> decisions;
 
-    // Holds successful reads only, like the decision cache. Category ids are explicit @DecisionId values or constant names, which
-    // no mapper setting changes, so one cache serves every instance.
-    private static final ClassValue<CategoryMapping<?>> CLASSIFICATIONS = new ClassValue<>() {
-        @Override
-        protected CategoryMapping<?> computeValue(Class<?> type) {
-            return readClassification(type);
-        }
-    };
+    // Holds successful reads only, like the decision cache.
+    private final ClassValue<CategoryMapping<?>> classifications;
 
     private AnnotatedDecisions(ObjectMapper mapper) {
         this.mapper = mapper;
@@ -74,16 +77,32 @@ public final class AnnotatedDecisions {
                 return DecisionTypeParser.parse(type, mapper);
             }
         };
+        this.classifications = new ClassValue<>() {
+            @Override
+            protected CategoryMapping<?> computeValue(Class<?> type) {
+                return readClassification(type, mapper);
+            }
+        };
     }
 
     /**
-     * Returns a new instance that reads types under the given mapper.
+     * Returns the instance that reads types under the given mapper. Repeated calls with the same
+     * mapper return the same instance while it is still in use.
      *
      * @param mapper the mapper whose naming and ordering settings apply
-     * @return a new instance with an empty cache
+     * @return the instance for the mapper
      */
     public static AnnotatedDecisions using(ObjectMapper mapper) {
-        return new AnnotatedDecisions(Objects.requireNonNull(mapper, "mapper"));
+        Objects.requireNonNull(mapper, "mapper");
+        synchronized (INSTANCES) {
+            WeakReference<AnnotatedDecisions> shared = INSTANCES.get(mapper);
+            AnnotatedDecisions instance = shared == null ? null : shared.get();
+            if (instance == null) {
+                instance = new AnnotatedDecisions(mapper);
+                INSTANCES.put(mapper, new WeakReference<>(instance));
+            }
+            return instance;
+        }
     }
 
     /**
@@ -116,12 +135,12 @@ public final class AnnotatedDecisions {
      * Returns the classification read from an enum annotated with {@link Classification}. Repeated
      * calls with the same enum return the same instance.
      * <p>
-     * Each constant is a category, in declaration order. The category id is its @DecisionId, or the constant's name
-     * and the description is its {@link Described} text. Unlike a choice option id, the category id
-     * does not follow the mapper.
+     * Each constant is a category, in declaration order. A category gets the same id as a choice
+     * option over the same enum: its {@link DecisionId}, or else the mapper's serialized form of the
+     * constant. Its description is its {@link Described} text.
      *
      * <pre>{@code
-     * CategoryMapping<Department> ticketClass = AnnotatedDecisions.classification(Department.class);
+     * CategoryMapping<Department> ticketClass = AnnotatedDecisions.defaults().classification(Department.class);
      * MappedClassificationResult<Department> team = ticketClass.map(service.classify(input, ticketClass.spec()));
      * }</pre>
      *
@@ -129,13 +148,14 @@ public final class AnnotatedDecisions {
      * @param <E> the enum type
      * @return the mapping between the categories and the constants
      * @throws AnnotatedDecisionException if the type is not an enum, has no {@link Classification}
-     *     or a blank asking value, has no constants, or has a constant without {@link Described}.
-     *     The exception lists every problem found.
+     *     or a blank asking value, has no constants, has a constant without {@link Described}, or has
+     *     a constant whose id is blank, repeated or does not read back under the mapper. The
+     *     exception lists every problem found.
      */
     @SuppressWarnings("unchecked")
-    public static <E extends Enum<E>> CategoryMapping<E> classification(Class<E> type) {
+    public <E extends Enum<E>> CategoryMapping<E> classification(Class<E> type) {
         Objects.requireNonNull(type, "type");
-        return (CategoryMapping<E>) CLASSIFICATIONS.get(type);
+        return (CategoryMapping<E>) classifications.get(type);
     }
 
     /**
@@ -144,11 +164,12 @@ public final class AnnotatedDecisions {
      * on both paths.
      *
      * @param type the type to read
+     * @param mapper the mapper that writes the constants' ids
      * @return the mapping built from the enum constants and their category ids
      * @throws AnnotatedDecisionException listing every problem found
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private static CategoryMapping<?> readClassification(Class<?> type) {
+    private static CategoryMapping<?> readClassification(Class<?> type, ObjectMapper mapper) {
         String name = type.getSimpleName();
         if (!type.isEnum()) {
             throw new AnnotatedDecisionException(type,
@@ -156,6 +177,7 @@ public final class AnnotatedDecisions {
                 null);
         }
         List<String> problems = new ArrayList<>();
+        List<Throwable> causes = new ArrayList<>();
         Classification classification = type.getAnnotation(Classification.class);
         if (classification == null) {
             problems.add(name + ": has no @Classification. Annotate the enum with @Classification(asking = \"...\").");
@@ -168,49 +190,33 @@ public final class AnnotatedDecisions {
             problems.add(name + ": has no constants, so the classification has no categories. "
                 + "Add one constant per category to " + name + ".");
         }
+        Map<Category, Enum<?>> categories = new LinkedHashMap<>();
         Set<String> ids = new HashSet<>();
         for (Object constant : constants) {
             Enum<?> entry = (Enum<?>) constant;
             String constantName = name + "." + entry.name();
-            Described described = EnumEntries.describedOf(entry);
+            Described described = EnumEntries.annotationOf(entry, Described.class);
             if (described == null) {
                 problems.add(constantName + ": category has no @Described. "
                     + "Add @Described with the category's description to " + constantName + ".");
             } else if (described.value().isBlank()) {
                 problems.add(constantName + ": category has a blank @Described value. Describe what this category means.");
             }
-            DecisionId explicit = EnumEntries.idOf(entry);
-            String id = explicit == null ? entry.name() : explicit.value();
-            if (id.isBlank()) {
-                problems.add(constantName + ": has a blank @DecisionId. Set a stable nonblank id.");
-            } else if (!ids.add(id)) {
-                problems.add(constantName + ": repeats category id \"" + id + "\". Give each constant a unique @DecisionId.");
+            String id = EnumEntries.idOf(name, "category", entry, mapper, (problem, cause) -> {
+                problems.add(problem);
+                if (cause != null) causes.add(cause);
+            });
+            if (id != null && !ids.add(id)) {
+                problems.add(constantName + ": repeats category id \"" + id + "\". "
+                    + "Give each constant a unique @DecisionId or serialized form.");
+            } else if (id != null && described != null && !described.value().isBlank()) {
+                categories.put(new Category(id, described.value()), entry);
             }
         }
         if (!problems.isEmpty()) {
-            throw new AnnotatedDecisionException(type, problems, null);
+            throw new AnnotatedDecisionException(type, problems, causes.isEmpty() ? null : causes.getFirst());
         }
-        return buildCategoryMapping((Class) type, classification.asking());
-    }
-
-    /**
-     * Builds the category mapping for an enum type that {@link #readClassification} has already checked.
-     * Taking the enum's type parameter here, rather than a raw {@code Class}, means the constant handed
-     * to {@link EnumEntries#describedOf} is already an {@code Enum}, so no cast is needed.
-     *
-     * @param enumType the enum type to build categories from
-     * @param asking the instructions the model receives
-     * @param <E> the enum type
-     * @return the mapping built from the enum constants and their category ids
-     */
-    private static <E extends Enum<E>> CategoryMapping<E> buildCategoryMapping(Class<E> enumType, String asking) {
-        var categories = new LinkedHashMap<Category, E>();
-        for (E constant : enumType.getEnumConstants()) {
-            DecisionId explicit = EnumEntries.idOf(constant);
-            String id = explicit == null ? constant.name() : explicit.value();
-            categories.put(new Category(id, EnumEntries.describedOf(constant).value()), constant);
-        }
-        return new CategoryMapping<>(asking, categories);
+        return new CategoryMapping(classification.asking(), categories);
     }
 
     /**

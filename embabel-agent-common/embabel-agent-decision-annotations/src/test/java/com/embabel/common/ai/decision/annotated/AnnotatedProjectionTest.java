@@ -84,6 +84,11 @@ class AnnotatedProjectionTest {
     }
     // end::annotated-ignored-record[]
 
+    record RenamedTriage(
+        String sourceId,
+        @ChoiceQuestion(name = "dept", asking = "Which team should handle this?") Department department) {
+    }
+
     record Picked<E extends Enum<E>>(@ChoiceQuestion(asking = "Which team should handle this?") E pick) {
     }
 
@@ -261,6 +266,22 @@ class AnnotatedProjectionTest {
     }
 
     @Test
+    void customQuestionNamesAreNotOtherPropertyKeys() {
+        AnnotatedDecision<RenamedTriage> renamed = AnnotatedDecisions.defaults().of(RenamedTriage.class);
+        DecisionResponse response = StubDecisionService.builder("triage-stub")
+            .choice("dept", new ClassificationResult.Selected("TECHNICAL", PROVENANCE))
+            .build()
+            .ask(INPUT, renamed.spec());
+        Map<String, Object> others = Map.of("sourceId", "ticket-42", "dept", Department.BILLING);
+
+        DecisionProjectionException e = assertThrows(DecisionProjectionException.class,
+            () -> renamed.project(response, others));
+
+        assertEquals("RenamedTriage has no property [dept] to set from otherProperties. "
+            + "Use only the keys [sourceId].", e.getMessage());
+    }
+
+    @Test
     void everyOtherPropertyProblemIsReportedAtOnce() {
         AnnotatedDecision<SourcedTriage> sourced = AnnotatedDecisions.defaults().of(SourcedTriage.class);
         DecisionResponse response = answeredStub().build().ask(INPUT, sourced.spec());
@@ -330,7 +351,7 @@ class AnnotatedProjectionTest {
         DecisionProjectionException e = assertThrows(DecisionProjectionException.class,
             () -> sourced.project(response, others));
 
-        assertEquals("Cannot map the answered values and otherProperties to " + SourcedTriage.class.getName(),
+        assertEquals("Cannot map the answered values to " + SourcedTriage.class.getName(),
             e.getMessage());
         assertTrue(e.getCause() instanceof tools.jackson.core.JacksonException, String.valueOf(e.getCause()));
     }

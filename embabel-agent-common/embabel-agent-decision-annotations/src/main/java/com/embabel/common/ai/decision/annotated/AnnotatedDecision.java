@@ -23,7 +23,6 @@ import com.embabel.common.ai.decision.DecisionProjectionException;
 import com.embabel.common.ai.decision.DecisionResponse;
 import com.embabel.common.ai.decision.DecisionSpec;
 import org.jetbrains.annotations.ApiStatus;
-import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
@@ -168,39 +167,47 @@ public final class AnnotatedDecision<T> {
         if (!problems.isEmpty()) {
             throw new DecisionProjectionException(String.join("\n", problems), List.of(), null);
         }
-        try {
-            Map<String, Object> values = projectedValues(response);
+        return DecisionProjection.of(response, type, mapper, answered -> {
+            Map<String, Object> values = projectedValues(answered);
             values.putAll(otherProperties);
-            return DecisionProjection.ofValue(mapper.convertValue(values, type), response);
-        } catch (JacksonException e) {
-            throw new DecisionProjectionException(
-                "Cannot map the answered values and otherProperties to " + type.getName(), List.of(), e);
-        }
+            return values;
+        });
     }
 
-    /** Keeps rich outcomes intact while strictly reducing scalar fields through the core API. */
+    /** Keeps rich rating outcomes whole and reduces every other answer strictly through the core API. */
     private Map<String, Object> projectedValues(DecisionResponse response) {
-        List<DecisionAnswer> scalarAnswers = response.getAnswers().stream()
-            .filter(answer -> !bindings.get(answer.getName()).richRating()).toList();
         Map<String, Object> values = new LinkedHashMap<>();
-        DecisionProjection.answeredValues(scalarAnswers).forEach((name, value) -> {
-            Binding binding = bindings.get(name);
-            Object propertyValue = binding.enumValues().isEmpty() ? value : binding.enumValues().get(value);
-            if (propertyValue == null) {
-                throw new DecisionProjectionException("No enum constant for answer '" + name + "'", List.of(name), null);
-            }
-            values.put(binding.propertyName(), propertyValue);
-        });
+        List<DecisionAnswer> scalarAnswers = new ArrayList<>();
         for (DecisionAnswer answer : response.getAnswers()) {
             Binding binding = bindings.get(answer.getName());
             if (binding.richRating()) {
                 // A Map's Object-valued serialization drops polymorphic type ids. Write this value
                 // as RatingResult so Jackson includes the outcome's status for the target field.
-                values.put(binding.propertyName(), mapper.readTree(mapper.writerFor(RatingResult.class)
-                    .writeValueAsString(((DecisionAnswer.Rating) answer).getOutcome())));
+                values.put(binding.propertyName(),
+                    mapper.writerFor(RatingResult.class).valueToTree(((DecisionAnswer.Rating) answer).getOutcome()));
+            } else {
+                scalarAnswers.add(answer);
             }
         }
+        DecisionProjection.answeredValues(scalarAnswers).forEach((name, value) -> {
+            Binding binding = bindings.get(name);
+            values.put(binding.propertyName(), binding.enumValues().isEmpty() ? value : constantFor(name, value, binding));
+        });
         return values;
+    }
+
+    /**
+     * Looks up the enum constant for an answered id. The response already matched the spec, so a
+     * miss means the binding and the spec disagree.
+     */
+    private static Enum<?> constantFor(String question, Object value, Binding binding) {
+        Enum<?> constant = binding.enumValues().get(value);
+        if (constant == null) {
+            String enumType = binding.enumValues().values().iterator().next().getDeclaringClass().getName();
+            throw new DecisionProjectionException("No constant of " + enumType + " for answer '" + question
+                + "' with id \"" + value + "\"", List.of(question), null);
+        }
+        return constant;
     }
 
     /**
@@ -233,12 +240,9 @@ public final class AnnotatedDecision<T> {
     private List<String> otherPropertyProblems(Map<String, ?> otherProperties) {
         String name = type.getSimpleName();
         List<String> missing = otherNames.stream().filter(key -> !otherProperties.containsKey(key)).toList();
-        // Question keys in spec order and unknown keys sorted, so the message does not depend on map order.
-        List<String> questionKeys = new ArrayList<>(questionNames.values().stream()
-            .filter(questionName -> !otherNames.contains(questionName)).toList());
-        bindings.values().forEach(binding -> {
-            if (!questionKeys.contains(binding.propertyName())) questionKeys.add(binding.propertyName());
-        });
+        // Keys are property names, so a question counts by its property rather than by a custom question name.
+        // Question keys come in spec order and unknown keys sorted, so the message does not depend on map order.
+        List<String> questionKeys = bindings.values().stream().map(Binding::propertyName).toList();
         List<String> questions = questionKeys.stream().filter(otherProperties::containsKey).toList();
         List<String> unknown = otherProperties.keySet().stream()
             .filter(key -> !questionKeys.contains(key) && !otherNames.contains(key))

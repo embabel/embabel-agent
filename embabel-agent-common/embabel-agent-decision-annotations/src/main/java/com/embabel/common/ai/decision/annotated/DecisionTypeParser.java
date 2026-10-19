@@ -94,17 +94,24 @@ final class DecisionTypeParser {
 
     /** The three question annotations, in the order problems name them. */
     private enum Kind {
-        PROPOSITION(PropositionQuestion.class, question -> ((PropositionQuestion) question).asking()),
-        CHOICE(ChoiceQuestion.class, question -> ((ChoiceQuestion) question).asking()),
-        RATING(RatingQuestion.class, question -> ((RatingQuestion) question).asking());
+        PROPOSITION(PropositionQuestion.class,
+            question -> ((PropositionQuestion) question).asking(), question -> ((PropositionQuestion) question).name()),
+        CHOICE(ChoiceQuestion.class,
+            question -> ((ChoiceQuestion) question).asking(), question -> ((ChoiceQuestion) question).name()),
+        RATING(RatingQuestion.class,
+            question -> ((RatingQuestion) question).asking(), question -> ((RatingQuestion) question).name());
 
         final Class<? extends Annotation> annotation;
 
         final Function<Annotation, String> asking;
 
-        Kind(Class<? extends Annotation> annotation, Function<Annotation, String> asking) {
+        final Function<Annotation, String> name;
+
+        Kind(Class<? extends Annotation> annotation, Function<Annotation, String> asking,
+             Function<Annotation, String> name) {
             this.annotation = annotation;
             this.asking = asking;
+            this.name = name;
         }
 
         /**
@@ -184,10 +191,11 @@ final class DecisionTypeParser {
      * @return the spec, the question names and the settable names read from the type
      */
     private Parsed read() {
-        JavaType javaType = mapper.constructType(type);
+        JavaType javaType;
         BeanDescription description;
         List<BeanPropertyDefinition> properties;
         try {
+            javaType = mapper.constructType(type);
             // The same two calls DeserializationContext.introspectBeanDescriptionForCreation makes,
             // reached through the mapper's public configuration.
             ClassIntrospector classIntrospector = config.classIntrospectorInstance();
@@ -266,7 +274,7 @@ final class DecisionTypeParser {
         Map<Kind, Set<String>> declared = questionAnnotations(members);
         if (!declared.isEmpty() && holdsOneQuestion(member, property, declared, naming, ignorals)) {
             Kind kind = declared.keySet().iterator().next();
-            addQuestion(member, kind, property, declared.get(kind).iterator().next());
+            addQuestion(member, kind, property, members, declared.get(kind).iterator().next());
         }
     }
 
@@ -321,9 +329,11 @@ final class DecisionTypeParser {
      * @param member the member label used in problem messages
      * @param kind the question annotation found on the property
      * @param property the property carrying the question
+     * @param members the property's members
      * @param asking the instructions the model receives
      */
-    private void addQuestion(String member, Kind kind, BeanPropertyDefinition property, String asking) {
+    private void addQuestion(
+        String member, Kind kind, BeanPropertyDefinition property, List<AnnotatedMember> members, String asking) {
         int before = problems.size();
         if (asking.isBlank()) {
             problem(member + ": " + kind.label() + " has a blank asking value. "
@@ -331,15 +341,10 @@ final class DecisionTypeParser {
         }
         Set<String> names = new LinkedHashSet<>();
         Set<Class<?>> scales = new LinkedHashSet<>();
-        for (AnnotatedMember annotated : membersOf(property)) {
+        for (AnnotatedMember annotated : members) {
             Annotation annotation = annotated.getAnnotation(kind.annotation);
             if (annotation != null) {
-                names.add(switch (annotation) {
-                    case PropositionQuestion proposition -> proposition.name();
-                    case ChoiceQuestion choice -> choice.name();
-                    case RatingQuestion rating -> rating.name();
-                    default -> throw new IllegalStateException("Unknown question annotation");
-                });
+                names.add(kind.name.apply(annotation));
                 if (annotation instanceof RatingQuestion rating) scales.add(rating.levels());
             }
         }
@@ -556,7 +561,7 @@ final class DecisionTypeParser {
             scanMethods(current, classInfo, orphans);
             for (Constructor<?> constructor : current.getDeclaredConstructors()) {
                 if (!constructor.isSynthetic()) {
-                    scanParameters(current, constructor, "constructor parameter", classInfo, orphans, null);
+                    scanParameters(current, constructor, classInfo, orphans, null);
                 }
             }
         }
@@ -614,7 +619,7 @@ final class DecisionTypeParser {
                 orphans.report(current, method.getName() + "()", method, find(classInfo.memberMethods(), method));
             }
             Executable copied = KotlinAnnotationPlacement.copySource(current, method);
-            scanParameters(current, method, "parameter of " + method.getName() + "()", classInfo, orphans, copied);
+            scanParameters(current, method, classInfo, orphans, copied);
         }
     }
 
@@ -653,38 +658,85 @@ final class DecisionTypeParser {
      *
      * @param declaringClass the class declaring the executable
      * @param executable the constructor or method whose parameters to scan
-     * @param role the parameter's role, used in problem messages
      * @param classInfo the type's introspected class info
      * @param orphans the reporter to check each parameter with
      * @param copied the data class's primary constructor when the executable is its {@code copy()},
      *     otherwise null
      */
     private void scanParameters(
-        Class<?> declaringClass, Executable executable, String role, AnnotatedClass classInfo,
+        Class<?> declaringClass, Executable executable, AnnotatedClass classInfo,
         Orphans orphans, @Nullable Executable copied) {
         Parameter[] parameters = executable.getParameters();
         for (int index = 0; index < parameters.length; index++) {
             if (!coverage.covers(executable, index) && !KotlinAnnotationPlacement.repeatsCopySource(parameters[index], copied, index)) {
-                orphans.report(declaringClass, parameters[index].getName() + " (" + role + ")", parameters[index],
+                orphans.report(declaringClass, parameterLabel(executable, index), parameters[index],
                     parameterOf(classInfo, executable, index));
             }
         }
     }
 
     /**
-     * Reads which question annotations a reflective element carries.
+     * Labels a constructor or method parameter for a problem message. Reflection only knows a
+     * parameter's real name when the class was compiled with {@code -parameters}. Without it the
+     * name would be a made-up {@code arg0}, so the label uses the parameter's position instead.
+     *
+     * @param executable the constructor or method declaring the parameter
+     * @param index the parameter's index
+     * @return a label such as {@code "urgent (parameter of setUrgent())"} or {@code "parameter #0 of setUrgent()"}
+     */
+    static String parameterLabel(Executable executable, int index) {
+        Parameter parameter = executable.getParameters()[index];
+        boolean constructor = executable instanceof Constructor<?>;
+        if (parameter.isNamePresent()) {
+            return parameter.getName() + (constructor ? " (constructor parameter)" : " (parameter of " + executable.getName() + "())");
+        }
+        return constructor ? "constructor parameter #" + index : "parameter #" + index + " of " + executable.getName() + "()";
+    }
+
+    /**
+     * Reads which question annotations an element carries, either declared on it or added by a
+     * Jackson mix-in, so the orphan scan sees the same annotations property detection does.
+     * Jackson also copies a method's annotations from the methods it overrides. Those are left
+     * out here, because the scan reports them where they are declared.
      *
      * @param element the field, method or parameter to check
+     * @param jacksonMember the matching Jackson member, or null when Jackson does not read it
      * @return the kinds found, in {@link Kind} order
      */
-    private static Set<Kind> kindsOn(AnnotatedElement element) {
+    private static Set<Kind> kindsOn(AnnotatedElement element, @Nullable AnnotatedMember jacksonMember) {
         Set<Kind> kinds = new LinkedHashSet<>();
         for (Kind kind : Kind.values()) {
-            if (element.isAnnotationPresent(kind.annotation)) {
+            if (element.isAnnotationPresent(kind.annotation)
+                || jacksonMember != null && jacksonMember.hasAnnotation(kind.annotation)
+                && !(element instanceof Method method && overriddenCarries(method, kind.annotation))) {
                 kinds.add(kind);
             }
         }
         return kinds;
+    }
+
+    /**
+     * Checks whether a method that this one overrides, in a superclass or an interface, declares
+     * the annotation.
+     *
+     * @param method the overriding method
+     * @param annotation the annotation to look for
+     * @return true when an overridden method declares it
+     */
+    private static boolean overriddenCarries(Method method, Class<? extends Annotation> annotation) {
+        for (Class<?> supertype : supertypes(method.getDeclaringClass())) {
+            if (supertype == method.getDeclaringClass()) {
+                continue;
+            }
+            try {
+                if (supertype.getDeclaredMethod(method.getName(), method.getParameterTypes()).isAnnotationPresent(annotation)) {
+                    return true;
+                }
+            } catch (NoSuchMethodException e) {
+                // This supertype does not declare the method.
+            }
+        }
+        return false;
     }
 
     /** Reports question annotations on members that belong to no Jackson property. */
@@ -710,7 +762,7 @@ final class DecisionTypeParser {
          */
         void report(Class<?> declaringClass, String memberLabel, AnnotatedElement element,
                     @Nullable AnnotatedMember jacksonMember) {
-            Set<Kind> kinds = kindsOn(element);
+            Set<Kind> kinds = kindsOn(element, jacksonMember);
             if (kinds.isEmpty()) {
                 return;
             }
@@ -777,11 +829,13 @@ final class DecisionTypeParser {
      * Reads a creator parameter's Java name from the executable that declares it.
      *
      * @param parameter the parameter to name
-     * @return the parameter's Java name, or its index when the executable cannot be read
+     * @return the parameter's Java name, or its index when the executable cannot be read or was
+     *     compiled without parameter names
      */
     private static String implicitParameterName(AnnotatedParameter parameter) {
         if (parameter.getOwner().getAnnotated() instanceof Executable executable
-            && parameter.getIndex() < executable.getParameterCount()) {
+            && parameter.getIndex() < executable.getParameterCount()
+            && executable.getParameters()[parameter.getIndex()].isNamePresent()) {
             return executable.getParameters()[parameter.getIndex()].getName();
         }
         return "#" + parameter.getIndex();
@@ -916,7 +970,7 @@ final class DecisionTypeParser {
      * @param e the throwable to read
      * @return the message text
      */
-    private static String messageOf(Throwable e) {
+    static String messageOf(Throwable e) {
         return e instanceof JacksonException jackson ? jackson.getOriginalMessage() : e.getMessage();
     }
 

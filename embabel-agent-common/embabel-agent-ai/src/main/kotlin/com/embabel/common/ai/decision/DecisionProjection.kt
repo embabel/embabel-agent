@@ -49,14 +49,6 @@ class DecisionProjection<T : Any> private constructor(val value: T, val response
 
     companion object {
 
-        /**
-         * Keeps a caller-projected value together with its original response. The caller is
-         * responsible for validating the response and converting the value before calling this.
-         */
-        @JvmStatic
-        fun <T : Any> ofValue(value: T, response: DecisionResponse): DecisionProjection<T> =
-            DecisionProjection(value, response)
-
         private val defaultMapper: ObjectMapper by lazy {
             JsonMapper.builder().enable(DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES).build()
         }
@@ -83,6 +75,25 @@ class DecisionProjection<T : Any> private constructor(val value: T, val response
             val values = answeredValues(response)
             return DecisionProjection(convert(type.name) { mapper.convertValue(values, type) }, response)
         }
+
+        /**
+         * Projects values built from the response onto [type], using [mapper] to do the conversion.
+         * Use this overload when the plain answered values are not enough, for example to keep a
+         * rating's whole outcome or to add values that come from outside the response. [values]
+         * gets the response and returns the map to convert.
+         *
+         * @throws DecisionProjectionException if [values] or the conversion fails with a Jackson
+         * error, or the values do not fit [type]. A [DecisionProjectionException] thrown by
+         * [values], such as one from [answeredValues], passes through unchanged.
+         */
+        @JvmStatic
+        fun <T : Any> of(
+            response: DecisionResponse,
+            type: Class<T>,
+            mapper: ObjectMapper,
+            values: java.util.function.Function<DecisionResponse, out Map<String, *>>,
+        ): DecisionProjection<T> =
+            DecisionProjection(convert(type.name) { mapper.convertValue(values.apply(response), type) }, response)
 
         /**
          * Projects the response's answered values onto [type], using a default JSON mapper to do

@@ -281,7 +281,7 @@ class AnnotatedKotlinTest {
 
     @Test
     fun `classification reads a Kotlin enum and maps a selection to its entry`() {
-        val departments = AnnotatedDecisions.classification(RoutedDepartment::class.java)
+        val departments = AnnotatedDecisions.defaults().classification(RoutedDepartment::class.java)
         val selected = ClassificationResult.Selected("TECHNICAL", ModelProvenance("stub-model", "stub"))
         val expected = classificationSpec {
             asking(TEAM)
@@ -296,7 +296,7 @@ class AnnotatedKotlinTest {
     @Test
     fun `classification rejects a Kotlin enum entry without Described`() {
         val failure = assertThrows(AnnotatedDecisionException::class.java) {
-            AnnotatedDecisions.classification(UndescribedDepartment::class.java)
+            AnnotatedDecisions.defaults().classification(UndescribedDepartment::class.java)
         }
 
         assertEquals(

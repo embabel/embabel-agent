@@ -101,7 +101,7 @@ class AnnotatedApiEnhancementsTest {
         assertSame(response, projection.getResponse());
         assertEquals(Map.of("assignedTeam", "route-v1"), decision.questionNames());
         assertEquals("billing-v1", decision.classificationSpec().getCategories().getFirst().getId());
-        var mapping = AnnotatedDecisions.classification(Team.class);
+        var mapping = AnnotatedDecisions.defaults().classification(Team.class);
         assertEquals(mapping.getCategories(), decision.classificationSpec().getCategories());
         assertEquals(Team.BILLING,
             ((com.embabel.common.ai.classification.MappedClassificationResult.Selected<Team>)
@@ -249,9 +249,9 @@ class AnnotatedApiEnhancementsTest {
             assertThrows(AnnotatedDecisionException.class, () -> DEFAULTS.of(type));
         }
         assertTrue(assertThrows(AnnotatedDecisionException.class,
-            () -> AnnotatedDecisions.classification(BlankCategory.class)).getMessage().contains("blank @Described"));
+            () -> AnnotatedDecisions.defaults().classification(BlankCategory.class)).getMessage().contains("blank @Described"));
         assertTrue(assertThrows(AnnotatedDecisionException.class,
-            () -> AnnotatedDecisions.classification(BlankId.class)).getMessage().contains("blank @DecisionId"));
+            () -> AnnotatedDecisions.defaults().classification(BlankId.class)).getMessage().contains("blank @DecisionId"));
     }
 
     @Test

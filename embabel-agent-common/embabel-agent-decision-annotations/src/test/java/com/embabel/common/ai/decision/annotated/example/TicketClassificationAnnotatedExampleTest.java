@@ -51,7 +51,7 @@ class TicketClassificationAnnotatedExampleTest {
     // tag::annotated-classification-route[]
     record TicketRouter(ClassificationService classifier) {
         Optional<Department> route(String ticket) {
-            var ticketClass = AnnotatedDecisions.classification(Department.class);
+            var ticketClass = AnnotatedDecisions.defaults().classification(Department.class);
             ClassificationResult result = classifier.classify(ticket, ticketClass.spec());
             if (ticketClass.map(result) instanceof MappedClassificationResult.Selected<Department> selected) {
                 return Optional.of(selected.getValue());
