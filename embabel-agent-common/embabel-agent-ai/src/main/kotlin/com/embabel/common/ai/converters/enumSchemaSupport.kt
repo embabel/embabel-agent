@@ -42,8 +42,8 @@ import tools.jackson.databind.ObjectMapper
  *
  * **Trade-off**: the `oneOf` keyword is not accepted by OpenAI's strict structured-output
  * mode. Embabel detects this and falls back to sending the schema as prompt text for that
- * call, rather than using native structured output. The descriptions still reach the model
- * via the prompt schema on all providers (OpenAI, Google GenAI, Anthropic, etc.).
+ * call. The description string from each constant's [@JsonPropertyDescription][JsonPropertyDescription]
+ * still reaches the model via that prompt text.
  *
  * This annotation is processed by [EnumConstantDescriptionProvider], which is wired into
  * the schema generator by [ChatClientLlmOperations]. Annotating an enum without wiring the
@@ -96,10 +96,8 @@ annotation class EnumAsOneOf
  * ]}
  * ```
  *
- * The `const` value for each constant comes from serialising the constant through
- * the configured [ObjectMapper]. This means `@JsonValue`, `@JsonProperty`, and any
- * custom serialiser are respected — the value written to `const` is exactly what
- * Jackson would write when serialising that constant anywhere else in the application.
+ * The `const` value defaults to the Java name of the constant. If the enum defines
+ * a `@JsonValue` method or a `@JsonProperty` rename, that overridden value is used instead.
  *
  * This provider is installed unconditionally on the schema generator. Victools calls it
  * for every type it resolves, including enums nested inside collections and records at
@@ -134,23 +132,29 @@ class EnumConstantDescriptionProvider(
         if (!rawType.isEnum) return null
         if (!rawType.isAnnotationPresent(EnumAsOneOf::class.java)) return null
 
-        // Class.enumConstants returns null for non-enum classes. The isEnum check
-        // above guarantees we have an enum here, but the return type is nullable
-        // so we guard anyway.
+        // rawType.isEnum confirms the type is an enum. rawType.enumConstants gives us
+        // the actual constant instances to iterate over. Its return type is nullable in
+        // the Java API (it returns null for non-enum classes), so we guard even though
+        // isEnum has already confirmed this is an enum.
         val constants: Array<out Any> = rawType.enumConstants ?: return null
 
         // Holds the serialised constant value and its optional description.
         // Using a local data class keeps the association explicit without a Pair.
         data class ConstantMeta(val serializedName: JsonNode, val description: String?)
 
-        // Build a lookup from each constant's Java field name to its metadata.
-        // We use the field name (URGENT, NORMAL, …) as the key because that is
-        // stable regardless of any @JsonValue or @JsonProperty renaming.
+        // Build a map of every constant to its serialised name and description.
+        // Used below to validate all constants before building the schema, and to
+        // populate each oneOf entry.
+        // We use the Java field name (URGENT, NORMAL, …) as the key because it is
+        // stable regardless of any @JsonValue or @JsonProperty rename.
         val meta: Map<String, ConstantMeta> = constants.associate { constant ->
             val enumName = (constant as Enum<*>).name
 
             // Read @JsonPropertyDescription from the field declaration, not from
             // a method, because enum constants are declared as fields in bytecode.
+            // getDeclaredField throws NoSuchFieldException if the field is missing —
+            // this cannot happen for a well-formed enum since enumName comes from the
+            // constant itself, but we guard against a malformed class loaded at runtime.
             val description = runCatching {
                 rawType.getDeclaredField(enumName)
                     .getAnnotation(JsonPropertyDescription::class.java)
@@ -158,8 +162,8 @@ class EnumConstantDescriptionProvider(
                     ?.takeIf { it.isNotEmpty() }
             }.getOrNull()
 
-            // Serialise the constant through the ObjectMapper so that @JsonValue,
-            // @JsonProperty, and custom serialisers are honoured. Fall back to the
+            // valueToTree throws IllegalArgumentException if the serialiser cannot
+            // produce a tree node (e.g. a streaming serialiser). Fall back to the
             // declared field name if serialisation fails.
             val serializedName: JsonNode = runCatching {
                 objectMapper.valueToTree<JsonNode>(constant)

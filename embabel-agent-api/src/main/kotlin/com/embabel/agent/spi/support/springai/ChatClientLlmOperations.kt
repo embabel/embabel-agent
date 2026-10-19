@@ -986,8 +986,9 @@ internal class ChatClientLlmOperations(
      * any enum annotated with [@EnumAsOneOf][EnumAsOneOf] produces a `oneOf` schema
      * with per-constant descriptions. Unannotated enums are unaffected.
      *
-     * A separate overload exists for [ParameterizedTypeReference]-typed outputs. The two
-     * cannot be merged into one generic function because they call different
+     * A separate overload exists for [ParameterizedTypeReference]-typed outputs.
+     * The [Class] overload and the [ParameterizedTypeReference] overload cannot be merged
+     * into one generic function because they call different
      * [FilteringJacksonOutputConverter] constructors via `super`.
      */
     private fun <T : Any> buildFilteringConverter(
@@ -1008,9 +1009,10 @@ internal class ChatClientLlmOperations(
      * any enum annotated with [@EnumAsOneOf][EnumAsOneOf] produces a `oneOf` schema
      * with per-constant descriptions. Unannotated enums are unaffected.
      *
-     * A separate overload exists for [Class]-typed outputs. The two cannot be merged into
-     * one generic function because they call different [FilteringJacksonOutputConverter]
-     * constructors via `super`.
+     * A separate overload exists for [Class]-typed outputs.
+     * The [ParameterizedTypeReference] overload and the [Class] overload cannot be merged
+     * into one generic function because they call different
+     * [FilteringJacksonOutputConverter] constructors via `super`.
      */
     private fun <T : Any> buildFilteringConverter(
         typeReference: ParameterizedTypeReference<T>,
