@@ -19,7 +19,6 @@ import com.embabel.agent.typesafe.TypeSafeClientOptions
 import com.embabel.agent.typesafe.TypeSafeModelFactory
 import com.embabel.common.ai.autoconfig.DecisionModelsRegistrar
 import com.embabel.common.ai.autoconfig.ProviderInitialization
-import com.embabel.common.ai.autoconfig.RegisteredModel
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.beans.factory.BeanFactory
 import org.springframework.beans.factory.ObjectProvider
@@ -73,21 +72,8 @@ class TypeSafeModelsConfig(
      * @return the models registered
      */
     @Bean
-    fun typeSafeModelsInitializer(beanFactory: ConfigurableListableBeanFactory): ProviderInitialization {
-        val registered = beanFactory.beanDefinitionNames.mapNotNull { name ->
-            val definition = beanFactory.getBeanDefinition(name)
-            if (definition.getAttribute(DecisionModelsRegistrar.CATALOG_PROVIDER_ATTRIBUTE) != PROVIDER) return@mapNotNull null
-            val modelId = definition.getAttribute(DecisionModelsRegistrar.CATALOG_MODEL_ATTRIBUTE) as? String
-                ?: return@mapNotNull null
-            logger.info("Registered TypeSafe decision model bean: {} -> {}", name, modelId)
-            RegisteredModel(beanName = name, modelId = modelId)
-        }
-        return ProviderInitialization(
-            provider = PROVIDER,
-            registeredLlms = emptyList(),
-            registeredDecisionModels = registered,
-        ).also { logger.info(it.summary()) }
-    }
+    fun typeSafeModelsInitializer(beanFactory: ConfigurableListableBeanFactory): ProviderInitialization =
+        DecisionModelsRegistrar.initialization(PROVIDER, beanFactory)
 
     companion object {
 

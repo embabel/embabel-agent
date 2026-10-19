@@ -19,6 +19,7 @@ import com.embabel.common.ai.decision.DecisionService
 import com.embabel.common.ai.model.DecisionServiceRegistry
 import org.jetbrains.annotations.ApiStatus
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory
 import org.springframework.beans.factory.support.BeanDefinitionBuilder
 import org.springframework.beans.factory.support.BeanDefinitionRegistry
 import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor
@@ -86,5 +87,29 @@ class DecisionModelsRegistrar(
         const val CATALOG_PROVIDER_ATTRIBUTE = "com.embabel.decision.catalogProvider"
 
         private val logger = LoggerFactory.getLogger(DecisionModelsRegistrar::class.java)
+
+        /**
+         * Reports the catalog models a provider's registrar defined, the way the chat model starters
+         * report theirs. Models the application replaced, and other providers' models, are left out.
+         *
+         * @param provider the provider name the registrar was given
+         * @param beanFactory the factory holding the catalog model definitions
+         * @return the provider's initialization, with only decision models
+         */
+        @JvmStatic
+        fun initialization(provider: String, beanFactory: ConfigurableListableBeanFactory): ProviderInitialization {
+            val registered = beanFactory.beanDefinitionNames.mapNotNull { name ->
+                val definition = beanFactory.getBeanDefinition(name)
+                if (definition.getAttribute(CATALOG_PROVIDER_ATTRIBUTE) != provider) return@mapNotNull null
+                val modelId = definition.getAttribute(CATALOG_MODEL_ATTRIBUTE) as? String ?: return@mapNotNull null
+                logger.info("Registered {} decision model bean: {} -> {}", provider, name, modelId)
+                RegisteredModel(beanName = name, modelId = modelId)
+            }
+            return ProviderInitialization(
+                provider = provider,
+                registeredLlms = emptyList(),
+                registeredDecisionModels = registered,
+            ).also { logger.info(it.summary()) }
+        }
     }
 }

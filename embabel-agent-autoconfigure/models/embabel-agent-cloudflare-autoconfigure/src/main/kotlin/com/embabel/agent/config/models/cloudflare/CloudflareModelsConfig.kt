@@ -18,7 +18,6 @@ package com.embabel.agent.config.models.cloudflare
 import com.embabel.agent.cloudflare.CloudflareModelFactory
 import com.embabel.common.ai.autoconfig.DecisionModelsRegistrar
 import com.embabel.common.ai.autoconfig.ProviderInitialization
-import com.embabel.common.ai.autoconfig.RegisteredModel
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.BeanFactory
@@ -73,21 +72,8 @@ class CloudflareModelsConfig(
      * @return the models registered
      */
     @Bean
-    fun cloudflareModelsInitializer(beanFactory: ConfigurableListableBeanFactory): ProviderInitialization {
-        val registered = beanFactory.beanDefinitionNames.mapNotNull { name ->
-            val definition = beanFactory.getBeanDefinition(name)
-            if (definition.getAttribute(DecisionModelsRegistrar.CATALOG_PROVIDER_ATTRIBUTE) != PROVIDER) return@mapNotNull null
-            val modelId = definition.getAttribute(DecisionModelsRegistrar.CATALOG_MODEL_ATTRIBUTE) as? String
-                ?: return@mapNotNull null
-            logger.info("Registered Cloudflare decision model bean: {} -> {}", name, modelId)
-            RegisteredModel(beanName = name, modelId = modelId)
-        }
-        return ProviderInitialization(
-            provider = PROVIDER,
-            registeredLlms = emptyList(),
-            registeredDecisionModels = registered,
-        ).also { logger.info(it.summary()) }
-    }
+    fun cloudflareModelsInitializer(beanFactory: ConfigurableListableBeanFactory): ProviderInitialization =
+        DecisionModelsRegistrar.initialization(PROVIDER, beanFactory)
 
     companion object {
 
