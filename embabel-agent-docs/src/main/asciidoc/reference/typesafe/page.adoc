@@ -136,6 +136,7 @@ Use another factory for another address or key source.
 
 TypeSafe always needs a key.
 A missing key fails each call with `UNAVAILABLE` and cause `credential`, before anything is sent.
+`buildValidated()` rejects it with `InvalidApiKeyException` and the message `TypeSafe credential is missing`, without contacting TypeSafe.
 
 `buildValidated()` checks the current key against TypeSafe's model listing and returns the default model.
 A rejected key throws `InvalidApiKeyException`:

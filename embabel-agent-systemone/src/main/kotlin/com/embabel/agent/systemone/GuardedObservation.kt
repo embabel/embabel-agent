@@ -46,6 +46,16 @@ internal class GuardedObservation(
         }
     }
 
+    /**
+     * Reports why the call failed, so tracing handlers can mark the span. Only pass exceptions
+     * that are safe to record, since handlers may export their message.
+     *
+     * @param failure what went wrong
+     */
+    fun error(failure: Throwable) {
+        observation?.let { current -> guard("error") { current.error(failure) } }
+    }
+
     /** Adds the closing tags and stops the observation. */
     fun stop(vararg tags: Pair<String, String>) {
         observation?.let { current ->

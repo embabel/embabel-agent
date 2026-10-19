@@ -35,7 +35,11 @@ import com.embabel.common.ai.decision.RatingResult
 import com.embabel.common.ai.decision.spi.PropositionAssessment
 import com.embabel.common.ai.decision.spi.RatingAssessment
 import com.embabel.common.byok.InvalidApiKeyException
+import com.embabel.common.ai.decision.systemone.SystemOneCodec
 import com.sun.net.httpserver.HttpServer
+import io.mockk.every
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import io.micrometer.observation.Observation
 import io.micrometer.observation.ObservationHandler
 import io.micrometer.observation.ObservationRegistry
@@ -170,6 +174,17 @@ class SystemOneModelFactoryTest {
             )
             assertEquals("Bearer test-key", headers!!.getFirst(HttpHeaders.AUTHORIZATION))
             assertEquals(MediaType.APPLICATION_JSON, headers!!.contentType)
+        }
+
+        @Test
+        fun `a key with a trailing newline is trimmed and sent`() {
+            val mocked = mocked(key = { " sk-abc\n" })
+            mocked.server.expect(requestTo("$base/v1/systemone"))
+                .andExpect { assertEquals("Bearer sk-abc", it.headers.getFirst(HttpHeaders.AUTHORIZATION)) }
+                .andRespond(withSuccess(noulBody, MediaType.APPLICATION_JSON))
+
+            assertNull(ask(mocked.factory).requestFailure)
+            mocked.server.verify()
         }
 
         @Test
@@ -431,6 +446,51 @@ class SystemOneModelFactoryTest {
         }
 
         @Test
+        fun `a malformed or overlong model name in the response falls back to the requested model`() {
+            listOf("<script>alert(1)</script>", "m".repeat(129)).forEach { model ->
+                val mocked = mocked()
+                mocked.server.expect(requestTo("$base/v1/systemone"))
+                    .andRespond(withSuccess(noulBody.replace("model-1b", model), MediaType.APPLICATION_JSON))
+
+                val answered = ask(mocked.factory).answer(urgent) as PropositionResult.Answered
+
+                assertEquals("model-1", answered.provenance.modelName, model)
+            }
+        }
+
+        @Test
+        fun `a model name with a namespace and tag is kept`() {
+            val mocked = mocked()
+            mocked.server.expect(requestTo("$base/v1/systemone"))
+                .andRespond(withSuccess(noulBody.replace("model-1b", "hf.co/acme/jev-2:q4_K_M"), MediaType.APPLICATION_JSON))
+
+            val answered = ask(mocked.factory).answer(urgent) as PropositionResult.Answered
+
+            assertEquals("hf.co/acme/jev-2:q4_K_M", answered.provenance.modelName)
+        }
+
+        @Test
+        fun `a result the answers cannot be built from fails the request with one bounded warning`() {
+            val mocked = mocked()
+            mocked.server.expect(requestTo("$base/v1/systemone")).andRespond(withSuccess(noulBody, MediaType.APPLICATION_JSON))
+            // decode is a @JvmStatic member, so Kotlin calls it as a static method.
+            mockkStatic(SystemOneCodec::class)
+            try {
+                every { SystemOneCodec.decode(any(), any(), any(), any()) } throws IllegalArgumentException("SENTINEL")
+
+                val response = ask(mocked.factory)
+
+                assertEquals(FailureReason.INVALID_RESPONSE, response.requestFailure)
+                assertEquals(PropositionResult.Failure(FailureReason.INVALID_RESPONSE), response.answer(urgent))
+            } finally {
+                unmockkStatic(SystemOneCodec::class)
+            }
+            val line = warnings().single()
+            assertTrue(line.contains("cause=invalid_response"), line)
+            assertFalse(line.contains("SENTINEL"), line)
+        }
+
+        @Test
         fun `an error status fails the whole request as unavailable without reading the body`() {
             val mocked = mocked()
             val body = CountingStream(4096)
@@ -516,11 +576,15 @@ class SystemOneModelFactoryTest {
     inner class Observations {
 
         private val stopped = mutableListOf<Observation.Context>()
+        private val errors = mutableListOf<Throwable>()
         private val registry = ObservationRegistry.create().apply {
             observationConfig().observationHandler(object : ObservationHandler<Observation.Context> {
                 override fun supportsContext(context: Observation.Context) = true
                 override fun onStop(context: Observation.Context) {
                     stopped += context
+                }
+                override fun onError(context: Observation.Context) {
+                    if (context.name == "embabel.systemone.request") errors += context.error!!
                 }
             })
         }
@@ -606,6 +670,28 @@ class SystemOneModelFactoryTest {
             )
             assertTrue(stopped.flatMap { it.highCardinalityKeyValues }.isEmpty())
         }
+
+        @Test
+        fun `a failed call reports its error to the observation without the endpoint or body`() {
+            val mocked = mocked(registry = registry)
+            mocked.server.expect(requestTo("$base/v1/systemone")).andRespond(withStatus(HttpStatus.BAD_GATEWAY).body("SENTINEL"))
+
+            ask(mocked.factory)
+
+            val error = errors.single()
+            assertTrue(error is SystemOneFailure, error.toString())
+            listOf("SENTINEL", "systemone.example").forEach { assertFalse(error.toString().contains(it), error.toString()) }
+        }
+
+        @Test
+        fun `a key that cannot be resolved records no request observation, since nothing was sent`() {
+            val mocked = mocked(key = { error("vault down") }, registry = registry)
+
+            assertEquals(FailureReason.UNAVAILABLE, ask(mocked.factory).requestFailure)
+
+            assertTrue(tags().isEmpty(), tags().toString())
+            mocked.server.verify()
+        }
     }
 
     @Nested
@@ -653,7 +739,17 @@ class SystemOneModelFactoryTest {
         fun `a blank key is invalid without calling the endpoint`() {
             val mocked = mocked(key = { "" })
 
-            assertThrows<InvalidApiKeyException> { mocked.factory.buildValidated() }
+            val e = assertThrows<InvalidApiKeyException> { mocked.factory.buildValidated() }
+            assertEquals("Example credential is missing", e.message)
+            mocked.server.verify()
+        }
+
+        @Test
+        fun `a supplier that rejects a blank key itself is reported as a missing credential`() {
+            val mocked = mocked(key = { throw InvalidApiKeyException("blank") })
+
+            val e = assertThrows<InvalidApiKeyException> { mocked.factory.buildValidated() }
+            assertEquals("Example credential is missing", e.message)
             mocked.server.verify()
         }
 

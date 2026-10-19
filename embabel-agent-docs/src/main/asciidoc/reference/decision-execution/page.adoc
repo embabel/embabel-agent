@@ -531,7 +531,7 @@ The stub supports every kind unless the builder's `capabilities(...)` sets other
 
 |Rating
 |`score`
-|The value becomes `RatingScore(value, EXPECTED_LEVEL_INDEX)`. The probabilities, keyed by level index, must cover exactly the levels and sum to 1 within `1e-6`. They become the distribution. The confidence is kept as reported.
+|The value becomes `RatingScore(value, EXPECTED_LEVEL_INDEX)`. The probabilities, keyed by level index, must cover exactly the levels and sum to 1 within `1e-6`. They become the distribution. A confidence of 0 is `Inconclusive`, as it is for a choice. Otherwise the confidence is kept as reported.
 |===
 
 The score is the probability-weighted mean of the zero-based level positions.

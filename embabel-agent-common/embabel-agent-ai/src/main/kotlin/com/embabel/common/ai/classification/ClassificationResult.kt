@@ -30,6 +30,12 @@ import kotlin.math.abs
 /** How far a reported distribution's probabilities may sum from 1. */
 internal const val DISTRIBUTION_TOLERANCE = 1e-6
 
+/** Tells whether probabilities sum to 1, allowing [DISTRIBUTION_TOLERANCE] of rounding either way. */
+internal fun sumsToOne(probabilities: Collection<Double>): Boolean = abs(probabilities.sum() - 1.0) <= DISTRIBUTION_TOLERANCE
+
+/** Tells whether a value is a probability: finite and between 0 and 1 inclusive. */
+internal fun isProbability(value: Double): Boolean = value.isFinite() && value in 0.0..1.0
+
 /**
  * Provider-reported identity of the model that produced an assessment. Optional version and
  * request ID remain absent when unknown. This evidence does not assert calibration or resolve a model.
@@ -108,7 +114,7 @@ data class CategoryProbability @JsonCreator constructor(
 ) {
     init {
         require(categoryId.isNotBlank()) { "Category id must not be blank" }
-        require(probability.isFinite() && probability in 0.0..1.0) {
+        require(isProbability(probability)) {
             "Probability must be finite and between 0 and 1"
         }
     }
@@ -169,16 +175,15 @@ sealed interface ClassificationResult {
 
         init {
             require(categoryId.isNotBlank()) { "Selected category ID must not be blank" }
-            require(confidence == null || confidence.isFinite() && confidence in 0.0..1.0) {
+            require(confidence == null || isProbability(confidence)) {
                 "Confidence must be finite and between 0 and 1"
             }
             if (this.distribution.isNotEmpty()) {
                 val ids = this.distribution.map { it.categoryId }
                 require(ids.size == ids.toSet().size) { "Distribution category ids must be unique" }
-                val sum = this.distribution.sumOf { it.probability }
-                // Allow rounding error on either side of 1.
-                require(abs(sum - 1.0) <= DISTRIBUTION_TOLERANCE) {
-                    "Distribution probabilities must sum to 1 within 1e-6, but summed to $sum"
+                val probabilities = this.distribution.map { it.probability }
+                require(sumsToOne(probabilities)) {
+                    "Distribution probabilities must sum to 1 within 1e-6, but summed to ${probabilities.sum()}"
                 }
                 require(categoryId in ids) { "The distribution must include the selected category id" }
             }

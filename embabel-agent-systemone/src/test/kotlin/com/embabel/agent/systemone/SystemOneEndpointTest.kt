@@ -36,6 +36,9 @@ class SystemOneEndpointTest {
                 "https://api.example.com#secret",
                 "ftp://api.example.com",
                 "api.example.com",
+                "http:///v1",
+                "http:api.example.com",
+                "http://user:secret@typesafe_gateway:8080",
             ).forEach { uri ->
                 val e = assertThrows<IllegalArgumentException>(uri) { SystemOneEndpoint("Example", URI.create(uri)) }
                 assertFalse(e.message!!.contains("secret"), uri)
@@ -49,6 +52,20 @@ class SystemOneEndpointTest {
             assertThrows<IllegalArgumentException> { SystemOneEndpoint("Example", base, connectTimeout = Duration.ZERO) }
             assertThrows<IllegalArgumentException> { SystemOneEndpoint("Example", base, readTimeout = Duration.ofDays(30)) }
             assertThrows<IllegalArgumentException> { SystemOneEndpoint("Example", base, maxResponseBytes = 0) }
+        }
+
+        @Test
+        fun `rejects a timeout too large to count in milliseconds`() {
+            val base = URI.create("https://api.example.com")
+            assertThrows<IllegalArgumentException> {
+                SystemOneEndpoint("Example", base, connectTimeout = Duration.ofSeconds(Long.MAX_VALUE))
+            }
+        }
+
+        @Test
+        fun `accepts a host name with an underscore, as docker compose service names often have`() {
+            val endpoint = SystemOneEndpoint("Example", URI.create("http://typesafe_gateway:8080/base"))
+            assertEquals(URI.create("http://typesafe_gateway:8080/base/v1/models"), endpoint.resolve("/v1/models"))
         }
     }
 

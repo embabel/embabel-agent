@@ -43,15 +43,16 @@ import java.util.function.Supplier
  * Sends System One calls over HTTP and hands back the raw body, or throws a [SystemOneFailure].
  *
  * - The key is resolved on every call and set by the last interceptor, so it replaces any
- *   Authorization header the application's client adds. A blank key sends no Authorization
- *   header. A key that can't be resolved or holds control characters fails the call before
- *   anything is sent.
+ *   Authorization header the application's client adds. Surrounding whitespace is trimmed, and a
+ *   blank key sends no Authorization header. A key that can't be resolved or holds control
+ *   characters fails the call before anything is sent, and before its observation starts.
  * - Error bodies are never read, and a body over the endpoint's limit is rejected from its
  *   declared length or after one byte past the limit. Response buffering is turned off on the
  *   client, and the stream is closed before the response, so a rejected body is never drained.
  * - Each call is observed as `embabel.systemone.request`, tagged with provider, operation,
- *   outcome and status family. A failing observation handler never changes the result or leaves
- *   its scope open. There are no retries.
+ *   outcome and status family. A failed call also reports its [SystemOneFailure] or cancellation
+ *   to the observation as its error. A failing observation handler never changes the result or
+ *   leaves its scope open. There are no retries.
  * - A caller that is already interrupted gets a [CancellationException] before anything is sent,
  *   and a call that fails because of an interrupt is cancelled too. The interrupt flag stays set.
  */
@@ -80,12 +81,16 @@ internal class SystemOneTransport(
      * @param body the encoded request
      * @return the endpoint's reply
      */
-    fun decide(body: ByteArray): Reply = call(OPERATION_DECIDE) {
-        restClient.post().uri(endpoint.resolve(SystemOneCodec.DECISION_PATH))
-            .contentType(MediaType.APPLICATION_JSON)
-            .accept(MediaType.APPLICATION_JSON)
-            .attribute(KEY_ATTRIBUTE, resolveKey(apiKey) ?: NO_KEY)
-            .body(body)
+    fun decide(body: ByteArray): Reply {
+        // Resolve the key before the observation starts, so a credential failure records no request.
+        val key = resolveKey(apiKey) ?: NO_KEY
+        return call(OPERATION_DECIDE) {
+            restClient.post().uri(endpoint.resolve(SystemOneCodec.DECISION_PATH))
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .attribute(KEY_ATTRIBUTE, key)
+                .body(body)
+        }
     }
 
     /**
@@ -94,10 +99,13 @@ internal class SystemOneTransport(
      * @param key supplies the key for this call, the transport's own supplier by default
      * @return the endpoint's reply
      */
-    fun listModels(key: Supplier<String?> = apiKey): Reply = call(OPERATION_MODELS) {
-        restClient.get().uri(endpoint.resolve(SystemOneCodec.MODELS_PATH))
-            .accept(MediaType.APPLICATION_JSON)
-            .attribute(KEY_ATTRIBUTE, resolveKey(key) ?: NO_KEY)
+    fun listModels(key: Supplier<String?> = apiKey): Reply {
+        val resolved = resolveKey(key) ?: NO_KEY
+        return call(OPERATION_MODELS) {
+            restClient.get().uri(endpoint.resolve(SystemOneCodec.MODELS_PATH))
+                .accept(MediaType.APPLICATION_JSON)
+                .attribute(KEY_ATTRIBUTE, resolved)
+        }
     }
 
     /**
@@ -120,9 +128,11 @@ internal class SystemOneTransport(
             if (failure.isInterruption()) throw interrupted()
             throw SystemOneFailure.unavailable(SystemOneFailure.CREDENTIAL)
         }
-        if (key.isNullOrBlank()) return null
-        if (key.any(Char::isISOControl)) throw SystemOneFailure.unavailable(SystemOneFailure.CREDENTIAL)
-        return key.trim()
+        // Trim first, so a key read from a file or environment with a trailing newline still works.
+        val trimmed = key?.trim()
+        if (trimmed.isNullOrEmpty()) return null
+        if (trimmed.any(Char::isISOControl)) throw SystemOneFailure.unavailable(SystemOneFailure.CREDENTIAL)
+        return trimmed
     }
 
     /**
@@ -144,7 +154,11 @@ internal class SystemOneTransport(
             return reply
         } catch (failure: SystemOneFailure) {
             status = failure.status
+            observation.error(failure)
             throw failure
+        } catch (cancelled: CancellationException) {
+            observation.error(cancelled)
+            throw cancelled
         } finally {
             val family = SystemOneFailure.family(status)
             observation.stop("outcome" to outcome, "status.family" to family)
@@ -246,10 +260,9 @@ internal class SystemOneTransport(
             failure is RestClientException -> SystemOneFailure.INVALID_RESPONSE
             else -> SystemOneFailure.OTHER
         }
-        val reason = if (category in setOf(SystemOneFailure.TIMEOUT, SystemOneFailure.CONNECTION)) {
-            FailureReason.UNAVAILABLE
-        } else {
-            FailureReason.INVALID_RESPONSE
+        val reason = when (category) {
+            SystemOneFailure.TIMEOUT, SystemOneFailure.CONNECTION -> FailureReason.UNAVAILABLE
+            else -> FailureReason.INVALID_RESPONSE
         }
         return SystemOneFailure(reason, category)
     }

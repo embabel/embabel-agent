@@ -81,7 +81,7 @@ Members the codec doesn't know are ignored, so a newer model can add fields.
 <<reference.decision-execution>> lists the evidence rules for each answer type.
 
 The response's `model` goes into each answer's provenance.
-When it is missing or blank, provenance names the requested model.
+When it is missing, blank, longer than 128 characters, or holds anything but letters, digits and `. _ : / @ + -`, provenance names the requested model.
 
 ==== Using an endpoint
 
@@ -103,7 +103,7 @@ include::../../../../../../embabel-agent-systemone/src/test/java/com/embabel/age
 
 |`baseUri`
 |required
-|The endpoint address. It must be http or https, and must not carry user info, a query or a fragment.
+|The endpoint address. It must be absolute http or https, and must not carry user info, a query or a fragment. Host names with an underscore, such as a docker compose service called `typesafe_gateway`, are accepted.
 
 |`connectTimeout`
 |10 seconds
@@ -129,6 +129,8 @@ A base path is kept, so `http://proxy.example/systemone` sends decisions to `htt
 `modelNames()` asks the endpoint which models it serves.
 It reads the System One listing, `{"models": [{"name"}]}`.
 It also reads the OpenAI listing shape, `{"data": [{"id"}]}`, which Ollama serves.
+A failed listing throws `IllegalStateException`.
+An interrupted caller gets a `CancellationException`, which is a subclass of `IllegalStateException`, so catch it first.
 
 [source,java]
 ----
@@ -138,6 +140,8 @@ include::../../../../../../embabel-agent-systemone/src/test/java/com/embabel/age
 The factory implements `ByokFactory<DecisionService>`.
 `buildValidated()` reads the key once, lists the endpoint's models with it, and returns the default model.
 A blank key, a rejected listing or an unreachable endpoint throws `InvalidApiKeyException`.
+A blank key, including one the key supplier rejects itself with `InvalidApiKeyException`, gives the message `<provider> credential is missing`.
+The other cases say the credential `could not be validated`.
 
 [source,java]
 ----
@@ -221,8 +225,10 @@ SYSTEMONE_SMOKE_URL=http://localhost:11434 SYSTEMONE_SMOKE_MODEL=clef-flash mvn 
 ==== Transport
 
 * The key supplier runs on every call, so a rotated key takes effect on the next call.
+Surrounding whitespace, such as a trailing newline from a key file, is trimmed.
 A blank key sends no Authorization header, for endpoints that need none, and drops one the application's client would add.
 A supplier that throws, or a key holding control characters, fails the call with `UNAVAILABLE` before anything is sent.
+No `embabel.systemone.request` observation is recorded for it, since no request was made.
 * A `RestClient.Builder` passed to the factory is cloned, so its transport, interceptors and timeouts apply.
 Without one, the factory builds a client with the endpoint's timeouts that does not follow redirects.
 * There are no retries. Each call is one attempt.
@@ -253,7 +259,7 @@ A failed call fails every question in the request with one reason:
 |`UNAVAILABLE`
 |`credential`
 
-|A body over the limit, or an envelope the codec can't read
+|A body over the limit, an envelope the codec can't read, or answers the result types reject
 |`INVALID_RESPONSE`
 |`invalid_response`
 |===
@@ -330,6 +336,8 @@ Each call is observed as `embabel.systemone.request`, with these low cardinality
 |`2xx`, `4xx`, `5xx` and so on, or `none` without a response
 |===
 
+A failed call also reports its error to the observation, so tracing handlers can mark the span.
+The error carries only the failure's cause category, never the endpoint, key or body.
 A handler that throws never changes the call's result or leaves its scope open.
 For decision and classification calls, the observation sits inside the framework's `embabel.ai.decision` or `embabel.ai.classification` observation.
 Model listing and key validation have no framework observation around them.

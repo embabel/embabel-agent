@@ -88,8 +88,13 @@ open class SystemOneModelFactory @JvmOverloads constructor(
     /**
      * Lists the models the endpoint serves.
      *
+     * An interrupted caller gets a [CancellationException]. That is a subclass of
+     * [IllegalStateException], so catch it first if you catch [IllegalStateException], or the
+     * interrupt is lost.
+     *
      * @return the model names in the order the endpoint lists them
      * @throws IllegalStateException if the endpoint can't be reached or its listing can't be read
+     * @throws CancellationException if the caller or key supplier is interrupted
      */
     fun modelNames(): List<String> = modelNames(apiKey)
 
@@ -107,8 +112,10 @@ open class SystemOneModelFactory @JvmOverloads constructor(
     /**
      * Reads the key once, checks it by listing the endpoint's models with it, then returns a service
      * for the default model. A missing key, a rejected listing or an unreachable endpoint all count
-     * as an invalid key. An already interrupted caller is cancelled before the key is read,
-     * including when no key is configured. An interrupted key supplier also throws a [CancellationException].
+     * as an invalid key. A key supplier that throws [InvalidApiKeyException] itself, as one that
+     * insists on a key does for a blank one, counts as a missing key. An already interrupted caller
+     * is cancelled before the key is read, including when no key is configured. An interrupted key
+     * supplier also throws a [CancellationException].
      *
      * @return a service for the default model
      * @throws InvalidApiKeyException if the key can't be validated
@@ -118,7 +125,7 @@ open class SystemOneModelFactory @JvmOverloads constructor(
         val provider = endpoint.provider
         logger.debug("{} credential validation started", provider)
         val key = try {
-            transport.resolveKey(apiKey)
+            transport.resolveKey(::keyOrNull)
         } catch (failure: SystemOneFailure) {
             logger.warn("{} credential could not be resolved: cause={}", provider, failure.category)
             throw InvalidApiKeyException("$provider credential could not be validated")
@@ -134,6 +141,18 @@ open class SystemOneModelFactory @JvmOverloads constructor(
         logger.info("{} credential validation succeeded", provider)
         return build()
     }
+
+    /**
+     * Reads the key for validation, treating the supplier's own rejection of a blank key as no key.
+     *
+     * @return the key, or null when there is none
+     */
+    private fun keyOrNull(): String? =
+        try {
+            apiKey.get()
+        } catch (_: InvalidApiKeyException) {
+            null
+        }
 
     override fun toString(): String = "SystemOneModelFactory(endpoint=$endpoint, defaultModel=$defaultModel)"
 

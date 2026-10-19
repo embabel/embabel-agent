@@ -18,10 +18,10 @@ package com.embabel.agent.typesafe;
 import com.embabel.agent.systemone.SystemOneEndpoint;
 
 import org.jetbrains.annotations.ApiStatus.Experimental;
+import org.springframework.util.Assert;
 
 import java.net.URI;
 import java.time.Duration;
-import java.util.Objects;
 
 /**
  * Where TypeSafe lives and how long to wait for it. None of these settings are secret.
@@ -43,12 +43,12 @@ public record TypeSafeClientOptions(
     /**
      * Checks the settings without resolving a key or opening a connection.
      *
-     * @throws IllegalArgumentException if the address, a timeout or the response limit is unusable
+     * @throws IllegalArgumentException if the address, a timeout or the response limit is missing or unusable
      */
     public TypeSafeClientOptions {
-        Objects.requireNonNull(baseUri, "baseUri");
-        Objects.requireNonNull(connectTimeout, "connectTimeout");
-        Objects.requireNonNull(readTimeout, "readTimeout");
+        Assert.notNull(baseUri, "TypeSafe base URI is required");
+        Assert.notNull(connectTimeout, "TypeSafe connect timeout is required");
+        Assert.notNull(readTimeout, "TypeSafe read timeout is required");
         endpoint(baseUri, connectTimeout, readTimeout, maxResponseBytes);
     }
 

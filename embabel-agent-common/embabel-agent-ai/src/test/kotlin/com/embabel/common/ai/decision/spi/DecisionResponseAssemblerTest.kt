@@ -198,7 +198,7 @@ class DecisionResponseAssemblerTest {
 
         @Test
         fun `unreadable rejects an anomaly the caller cannot report`() {
-            listOf(Anomaly.MISSING, Anomaly.WRONG_KIND, Anomaly.OUT_OF_DOMAIN, Anomaly.DUPLICATE, Anomaly.UNEXPECTED, Anomaly.UNSAFE_ENVELOPE)
+            listOf(Anomaly.MISSING, Anomaly.OUT_OF_DOMAIN, Anomaly.DUPLICATE, Anomaly.UNEXPECTED, Anomaly.UNSAFE_ENVELOPE)
                 .forEach { anomaly -> assertThrows<IllegalArgumentException> { assembler().unreadable("department", anomaly) } }
         }
 
@@ -408,6 +408,17 @@ class DecisionResponseAssemblerTest {
                     "department=OUT_OF_DOMAIN, frustration=OUT_OF_RANGE, channel=MISSING; unexpected answers: 1",
                 message,
             )
+        }
+
+        @Test
+        fun `a provider can report an answer of the wrong kind directly`() {
+            val message = singleWarn(capture {
+                val response = assembler().proposition("is_urgent", yes).unreadable("department", Anomaly.WRONG_KIND)
+                    .rating("frustration", rated).build()
+                assertTrue(failed(response, "department"))
+                assertEquals(yes, response.answer(urgent))
+            })
+            assertTrue(message.contains("department=WRONG_KIND"), message)
         }
 
         @Test

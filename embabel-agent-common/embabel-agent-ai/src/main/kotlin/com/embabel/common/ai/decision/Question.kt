@@ -451,40 +451,77 @@ internal object OutcomeRules {
         requireEntryIds(name, "level", ids)
     }
 
+    /** The rule an outcome broke, so callers can name it without re-checking the rules themselves. */
+    enum class Violation {
+        /** A selected id is not one of the options or levels. */
+        OUT_OF_DOMAIN,
+
+        /** A distribution does not cover exactly the options or levels. */
+        BAD_DISTRIBUTION,
+
+        /** A score is above the last level index. */
+        OUT_OF_RANGE,
+    }
+
     /**
-     * Returns the result unchanged if a selection names one of the options and its distribution,
-     * when present, covers exactly the options.
+     * Returns the first rule a choice outcome breaks: a selection must name one of the options,
+     * and its distribution, when present, must cover exactly the options.
+     *
+     * @return the broken rule, or null when the outcome fits
      */
+    fun choiceViolation(options: List<Category>, result: ClassificationResult): Violation? {
+        if (result !is ClassificationResult.Selected) return null
+        val optionIds = options.map { it.id }.toSet()
+        return when {
+            result.categoryId !in optionIds -> Violation.OUT_OF_DOMAIN
+            result.distribution.isNotEmpty() && result.distribution.map { it.categoryId }.toSet() != optionIds ->
+                Violation.BAD_DISTRIBUTION
+            else -> null
+        }
+    }
+
+    /**
+     * Returns the first rule a rating outcome breaks: a selected level must be one of the levels,
+     * a distribution must cover exactly them, and a score must be at most the last level index.
+     *
+     * @return the broken rule, or null when the outcome fits
+     */
+    fun ratingViolation(levels: List<RatingLevel>, result: RatingResult): Violation? {
+        if (result !is RatingResult.Answered) return null
+        val levelIds = levels.map { it.id }.toSet()
+        val score = result.score
+        return when {
+            result.selectedLevelId != null && result.selectedLevelId !in levelIds -> Violation.OUT_OF_DOMAIN
+            result.distribution.isNotEmpty() && result.distribution.map { it.levelId }.toSet() != levelIds ->
+                Violation.BAD_DISTRIBUTION
+            score != null && score.value > levels.size - 1 -> Violation.OUT_OF_RANGE
+            else -> null
+        }
+    }
+
+    /** Returns the result unchanged if it breaks none of the [choiceViolation] rules. */
     fun fitChoice(name: String, options: List<Category>, result: ClassificationResult): ClassificationResult {
-        if (result is ClassificationResult.Selected) {
-            val optionIds = options.map { it.id }.toSet()
-            require(result.categoryId in optionIds) {
-                "Question '$name': the selected category id is not one of its options"
-            }
-            require(result.distribution.isEmpty() || result.distribution.map { it.categoryId }.toSet() == optionIds) {
-                "Question '$name': the distribution must cover exactly its options"
-            }
+        val violation = choiceViolation(options, result)
+        require(violation != Violation.OUT_OF_DOMAIN) {
+            "Question '$name': the selected category id is not one of its options"
+        }
+        require(violation != Violation.BAD_DISTRIBUTION) {
+            "Question '$name': the distribution must cover exactly its options"
         }
         return result
     }
 
-    /**
-     * Returns the result unchanged if its evidence fits the levels: a selected level is one of
-     * them, a distribution covers exactly them, and a score is at most the last level index.
-     */
+    /** Returns the result unchanged if it breaks none of the [ratingViolation] rules. */
     fun fitRating(name: String, levels: List<RatingLevel>, result: RatingResult): RatingResult {
-        if (result is RatingResult.Answered) {
-            val levelIds = levels.map { it.id }.toSet()
-            require(result.selectedLevelId == null || result.selectedLevelId in levelIds) {
-                "Question '$name': the selected level id is not one of its levels"
-            }
-            require(result.distribution.isEmpty() || result.distribution.map { it.levelId }.toSet() == levelIds) {
-                "Question '$name': the distribution must cover exactly its levels"
-            }
-            val score = result.score
-            require(score == null || score.value <= levels.size - 1) {
-                "Question '$name': the score ${score?.value} is above the last level index ${levels.size - 1}"
-            }
+        val violation = ratingViolation(levels, result)
+        require(violation != Violation.OUT_OF_DOMAIN) {
+            "Question '$name': the selected level id is not one of its levels"
+        }
+        require(violation != Violation.BAD_DISTRIBUTION) {
+            "Question '$name': the distribution must cover exactly its levels"
+        }
+        require(violation != Violation.OUT_OF_RANGE) {
+            "Question '$name': the score ${(result as? RatingResult.Answered)?.score?.value} is above the last level index ${levels.size - 1}"
         }
         return result
     }

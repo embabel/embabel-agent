@@ -44,7 +44,11 @@ import java.util.concurrent.TimeUnit
  *
  * A failed call returns failure outcomes and logs one WARN line with fixed fields: service,
  * provider, operation, cause, status class, attempts, elapsed time and request id. Inputs,
- * bodies, keys and endpoints never appear in it.
+ * bodies, keys and endpoints never appear in it. A response whose answers can't be turned into
+ * results fails the same way, as an invalid response.
+ *
+ * Provenance names the model the response reports when that name is up to 128 letters, digits
+ * and `. _ : / @ + -`. Otherwise it names the requested model, so response text can't reach it.
  */
 internal class SystemOneDecisionService(
     override val name: String,
@@ -73,7 +77,8 @@ internal class SystemOneDecisionService(
         run(DecisionRequest.of(input, question), Operation.RATE).answer(question)
 
     /**
-     * Sends the request's question set and decodes the reply. A failed call returns failure outcomes.
+     * Sends the request's question set and decodes the reply. A failed call, or a reply that can't
+     * be turned into results, returns failure outcomes.
      *
      * @param request the input and questions
      * @param operation which public call this is, for logs
@@ -89,9 +94,12 @@ internal class SystemOneDecisionService(
         trace(operation, reply)
         return try {
             SystemOneCodec.decode(reply.body, request.spec, name) { model ->
-                ModelProvenance(model ?: name, provider, null, reply.requestId)
+                ModelProvenance(model?.takeIf(MODEL::matches) ?: name, provider, null, reply.requestId)
             }
         } catch (_: SystemOneFormatException) {
+            failed(request, operation, SystemOneFailure.invalidResponse(reply.status, reply.requestId), started)
+        } catch (_: IllegalArgumentException) {
+            // A result type rejected the answers. Its message can quote them, so it is dropped.
             failed(request, operation, SystemOneFailure.invalidResponse(reply.status, reply.requestId), started)
         }
     }
@@ -156,6 +164,7 @@ internal class SystemOneDecisionService(
 
     private companion object {
         const val PROPOSITION = "proposition"
+        val MODEL = Regex("[A-Za-z0-9._:/@+-]{1,128}")
         val CAPABILITIES: DecisionCapabilities = DecisionCapabilities.of(QuestionKind.entries.toSet())
         val logger = LoggerFactory.getLogger(SystemOneDecisionService::class.java)
     }

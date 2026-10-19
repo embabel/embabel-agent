@@ -224,6 +224,13 @@ class SystemOneCodecTest {
         }
 
         @Test
+        fun `zero confidence is inconclusive, as it is for a choice`() {
+            val flat = """"q3":{"type":"score","score":1.0,"legend":{"0":"a","1":"b","2":"c"},"probabilities":{"0":0.25,"1":0.5,"2":0.25},"confidence":0.0}"""
+            val response = decode(body(noul, choice, flat))
+            assertEquals(RatingResult.Inconclusive(provenance("jev-1")), response.answer(anger))
+        }
+
+        @Test
         fun `a wrong legend, bad distribution or out of range score fails only that question`() {
             listOf(
                 """{"type":"score","score":1.5,"legend":{"0":"a","1":"b","2":"c"},"confidence":0.2}""",

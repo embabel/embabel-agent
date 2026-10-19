@@ -23,7 +23,8 @@ import java.time.Duration
  * Where a System One endpoint lives and how to talk to it.
  *
  * The address must be absolute http or https and must not carry user info, a query or a
- * fragment, because those can hold credentials and would end up in logs. A base path is kept, so
+ * fragment, because those can hold credentials and would end up in logs. A host name that Java
+ * can't parse as one, such as a docker compose service called `typesafe_gateway`, is accepted. A base path is kept, so
  * `http://proxy.example/systemone` sends decisions to `http://proxy.example/systemone/v1/systemone`.
  * The timeouts and the response limit apply when the factory builds its own HTTP client. An
  * application client keeps its own timeouts, and the response limit still applies.
@@ -47,10 +48,13 @@ class SystemOneEndpoint @JvmOverloads constructor(
 
     init {
         require(provider.isNotBlank()) { "The provider name must not be blank" }
-        require(baseUri.scheme in SCHEMES && !baseUri.host.isNullOrBlank()) {
+        // java.net.URI leaves the host null for names with an underscore, so check the authority instead.
+        require(baseUri.scheme in SCHEMES && !baseUri.rawAuthority.isNullOrBlank()) {
             "The System One endpoint must be an absolute http or https address"
         }
-        require(baseUri.rawUserInfo == null && baseUri.rawQuery == null && baseUri.rawFragment == null) {
+        // Such an authority is not split into parts either, so user info can only be spotted by its '@'.
+        val userInfo = baseUri.rawUserInfo != null || baseUri.rawAuthority.contains('@')
+        require(!userInfo && baseUri.rawQuery == null && baseUri.rawFragment == null) {
             "The System One endpoint must not carry user info, a query or a fragment"
         }
         requireTimeout("connect", connectTimeout)
@@ -82,8 +86,11 @@ class SystemOneEndpoint @JvmOverloads constructor(
 
         private val SCHEMES = setOf("http", "https")
 
+        private val MAX_TIMEOUT = Duration.ofMillis(Int.MAX_VALUE.toLong())
+
         private fun requireTimeout(name: String, timeout: Duration) {
-            require(timeout >= Duration.ofMillis(1) && timeout.toMillis() <= Int.MAX_VALUE) {
+            // Compare durations, since toMillis overflows for very long ones.
+            require(timeout >= Duration.ofMillis(1) && timeout <= MAX_TIMEOUT) {
                 "The $name timeout must be between 1 ms and ${Int.MAX_VALUE} ms"
             }
         }

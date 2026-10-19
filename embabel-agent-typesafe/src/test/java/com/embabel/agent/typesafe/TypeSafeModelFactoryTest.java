@@ -138,7 +138,9 @@ class TypeSafeModelFactoryTest {
             var mocked = mocked(TypeSafeClientOptions.defaults(), () -> "");
             var factory = mocked.factory();
 
-            assertThatThrownBy(factory::buildValidated).isInstanceOf(InvalidApiKeyException.class);
+            assertThatThrownBy(factory::buildValidated)
+                    .isInstanceOf(InvalidApiKeyException.class)
+                    .hasMessage("TypeSafe credential is missing");
             mocked.server().verify();
         }
 
@@ -196,6 +198,18 @@ class TypeSafeModelFactoryTest {
             assertThatThrownBy(() -> new TypeSafeClientOptions(uri, Duration.ZERO, second, 1))
                     .isInstanceOf(IllegalArgumentException.class);
             assertThatThrownBy(() -> new TypeSafeClientOptions(uri, second, second, 0))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+
+        @Test
+        void rejectsMissingSettingsAsIllegalArguments() {
+            var uri = URI.create("https://api.typesafe.ai");
+            var second = Duration.ofSeconds(1);
+            assertThatThrownBy(() -> new TypeSafeClientOptions(null, second, second, 1))
+                    .isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> new TypeSafeClientOptions(uri, null, second, 1))
+                    .isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> new TypeSafeClientOptions(uri, second, null, 1))
                     .isInstanceOf(IllegalArgumentException.class);
         }
 
