@@ -227,8 +227,26 @@ class AnthropicModelsConfig(
                     modelDef.topK?.let { topK(it) }
                     modelDef.topP?.let { topP(it) }
                     temperature(modelDef.temperature)
+                } else {
+                    warnAboutIgnoredSampling(modelDef)
                 }
             }
             .build()
+    }
+
+    /** Warn-and-drop, as [AnthropicOptionsConverter] does; runs once per model at startup. */
+    private fun warnAboutIgnoredSampling(modelDef: AnthropicModelDefinition) {
+        val ignored = listOfNotNull(
+            modelDef.temperature.takeIf { it != 1.0 }?.let { "temperature=$it" },
+            modelDef.topP?.let { "topP=$it" },
+            modelDef.topK?.let { "topK=$it" },
+        )
+        if (ignored.isNotEmpty()) {
+            logger.warn(
+                "Model '{}' rejects sampling parameters, so the following are ignored rather than sent: {}",
+                modelDef.modelId,
+                ignored.joinToString(", "),
+            )
+        }
     }
 }
