@@ -52,8 +52,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode
  *   1. Exits immediately for non-JSON requests (streaming, GET) — no overhead
  *   2. Parses the JSON body into a mutable Jackson tree
  *   3. Exits immediately if the request has no thinking config (non-thinking calls skipped)
- *   4. For each assistant message: removes duplicate text blocks, then sorts to
- *      [thinking, text, tool_use]
+ *   4. For each assistant message: removes duplicate text blocks, then moves
+ *      thinking/redacted_thinking to the front (other blocks keep their relative order)
  *   5. If nothing changed, forwards the original (buffered) request unchanged
  *
  * Wired via [AnthropicModelFactory.createAnthropicClient].
@@ -61,15 +61,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 internal object ThinkingBlockOrderingInterceptor {
 
     private val mapper = ObjectMapper()
-
-    // Anthropic's required position for each content block type.
-    // Any unknown type (e.g. "image") gets Int.MAX_VALUE and sorts to the end.
-    private val BLOCK_ORDER = mapOf(
-        "thinking"          to 0,   // internal reasoning — must appear first
-        "redacted_thinking" to 1,   // opaque thinking block (Anthropic may return this for cached thinking)
-        "text"              to 2,   // visible text response
-        "tool_use"          to 3,   // tool call — must appear last
-    )
 
     /**
      * Returns an [Interceptor] for use with
@@ -182,17 +173,23 @@ internal object ThinkingBlockOrderingInterceptor {
                 .mapNotNull { it.get("thinking")?.asText() }
                 .toSet()
 
-            val sorted = blocks
-                // Remove text_blocks whose content is identical to a thinking block.
-                // The original Anthropic response had no such text_block; Spring AI introduced it
-                // by copying thinking text into AssistantMessage.text.
-                .filter { block ->
-                    if (block.get("type")?.asText() != "text") return@filter true  // keep non-text blocks unchanged
-                    val text = block.get("text")?.asText() ?: return@filter true   // keep if text field absent
-                    text !in thinkingTexts                                          // drop if it duplicates thinking content
-                }
-                // Sort remaining blocks to Anthropic's required order: thinking → text → tool_use
-                .sortedBy { block -> BLOCK_ORDER[block.get("type")?.asText()] ?: Int.MAX_VALUE }
+            // Remove text_blocks whose content is identical to a thinking block.
+            // The original Anthropic response had no such text_block; Spring AI introduced it
+            // by copying thinking text into AssistantMessage.text.
+            val deduped = blocks.filter { block ->
+                if (block.get("type")?.asText() != "text") return@filter true  // keep non-text blocks unchanged
+                val text = block.get("text")?.asText() ?: return@filter true   // keep if text field absent
+                text !in thinkingTexts                                          // drop if it duplicates thinking content
+            }
+
+            // Move thinking/redacted_thinking to the front; preserve relative order of all
+            // other blocks (text, tool_use) unchanged. A global type-sort would break any
+            // legitimately interleaved thinking and tool_use content — we only need to
+            // guarantee that thinking precedes text, not impose a total ordering.
+            val (thinkingBlocks, otherBlocks) = deduped.partition {
+                it.get("type")?.asText()?.let { t -> t == "thinking" || t == "redacted_thinking" } == true
+            }
+            val sorted = thinkingBlocks + otherBlocks
 
             // Reference equality (===): same JsonNode object at the same position means no change.
             // The size check catches removed duplicate text blocks.
