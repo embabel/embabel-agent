@@ -25,13 +25,13 @@ sealed class ThinkingMode {
     /**
      * Claude 5.1+ without a thinking budget: omit the thinking field entirely, so Anthropic's
      * adaptive default applies. Also used when the caller opted out on a model that rejects
-     * thinking.type="disabled" (see [ClaudeCapabilities.rejectsThinkingDisabled]).
+     * thinking.type="disabled" (see [ClaudeCapabilities.Companion.rejectsThinkingDisabled]).
      */
     data object Omit : ThinkingMode()
 
     /**
      * Old models without a thinking budget, or an explicit opt-out on a model that accepts it
-     * (e.g. Claude Haiku 5.5): send thinking.type="disabled".
+     * (e.g. Claude Haiku 5.5, see [ClaudeCapabilities.Companion.rejectsThinkingDisabled]): send thinking.type="disabled".
      */
     data object Disabled : ThinkingMode()
 
@@ -66,29 +66,20 @@ sealed class ThinkingMode {
  *   "claude-fable-5-1"           → 51
  * An unrecognised model ID yields version 0 — treated as an old model that accepts
  * the disabled flag and temperature/topP/topK sampling parameters.
- * The model family (Haiku) is also read from the ID by [of]; see [rejectsThinkingDisabled].
+ * Capabilities depend on the version only; the one family exception is resolved by model ID
+ * in [Companion.rejectsThinkingDisabled].
  */
 data class ClaudeCapabilities(val version: Int) {
-
-    /**
-     * Haiku accepts thinking.type="disabled" where its 5.1+ siblings reject it. Set only by [of], and
-     * kept out of the primary constructor so the public constructor, copy() and equals() are unchanged.
-     */
-    private var haiku: Boolean = false
-
-    private constructor(version: Int, haiku: Boolean) : this(version) {
-        this.haiku = haiku
-    }
 
     /** Claude ≥4.7 uses the adaptive thinking API — reserved for Thinking.adaptive() (not yet exposed). */
     val usesAdaptiveThinking: Boolean = version >= 47
 
     /**
-     * Claude 5.1+ rejects thinking.type="disabled" with HTTP 400 — the "thinking" key must be omitted entirely —
-     * except the Haiku family: Haiku 5.5 accepts it at effort high or below.
+     * Generation rule: Claude 5.1+ rejects thinking.type="disabled" with HTTP 400 — the "thinking" key must be
+     * omitted entirely. The Haiku family is the exception (Haiku 5.5 accepts it at effort high or below); the
+     * version alone cannot tell, so callers holding a model ID use [Companion.rejectsThinkingDisabled].
      */
-    val rejectsThinkingDisabled: Boolean
-        get() = version >= 51 && !haiku
+    val rejectsThinkingDisabled: Boolean = version >= 51
 
     /**
      * Claude <4.7 accepts temperature, topP and topK. Claude ≥4.7 rejects non-default values of
@@ -98,13 +89,13 @@ data class ClaudeCapabilities(val version: Int) {
 
     /**
      * Resolves the thinking configuration to send for a given token budget when the caller did not
-     * explicitly opt out. An explicit opt-out is resolved by the converter against [rejectsThinkingDisabled].
+     * explicitly opt out. An explicit opt-out is resolved by the converter against [Companion.rejectsThinkingDisabled].
      *
      * @param budget null — thinking not requested (not enabled or no budget set); non-null positive Int — requested token budget.
      * @return the [ThinkingMode] the converter should act on.
      */
     fun resolveThinking(budget: Int?): ThinkingMode = when {
-        budget == null && version >= 51           -> ThinkingMode.Omit
+        budget == null && rejectsThinkingDisabled -> ThinkingMode.Omit
         // Claude 5.1+: send no "thinking" key in the request JSON at all, so Anthropic's adaptive default applies.
         // Most 5.1+ models reject "thinking": {"type": "disabled"} with HTTP 400; Haiku accepts it,
         // but only an explicit opt-out sends it there.
@@ -136,8 +127,15 @@ data class ClaudeCapabilities(val version: Int) {
             } else {
                 0
             }
-            return ClaudeCapabilities(version, haiku = model.contains("haiku"))
+            return ClaudeCapabilities(version)
         }
+
+        /**
+         * [ClaudeCapabilities.rejectsThinkingDisabled] with the family exception applied: Haiku accepts
+         * thinking.type="disabled" where its 5.1+ siblings reject it, though only at effort high or below.
+         */
+        internal fun rejectsThinkingDisabled(model: String): Boolean =
+            of(model).rejectsThinkingDisabled && !model.contains("haiku")
 
         fun mapBudgetToEffort(budget: Int): OutputConfig.Effort = when {
             budget < 1024  -> OutputConfig.Effort.LOW

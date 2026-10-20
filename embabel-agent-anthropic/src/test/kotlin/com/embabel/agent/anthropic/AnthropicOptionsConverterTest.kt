@@ -20,6 +20,7 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import com.anthropic.models.messages.OutputConfig
+import com.anthropic.models.messages.ThinkingConfigAdaptive
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.test.models.OptionsConverterTestSupport
 import com.embabel.chat.MessageRole
@@ -35,6 +36,13 @@ import org.slf4j.LoggerFactory
 import org.springframework.ai.anthropic.AnthropicCacheStrategy
 import org.springframework.ai.anthropic.AnthropicCacheTtl
 import org.springframework.ai.anthropic.AnthropicChatOptions
+import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.chat.messages.AssistantMessage
+import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
+import org.springframework.ai.chat.prompt.ChatOptions
+import org.springframework.ai.chat.prompt.Prompt
 
 class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
     optionsConverter = AnthropicOptionsConverter
@@ -369,8 +377,37 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
         }
 
         @Test
-        fun `claude-haiku-5-5 withoutThinking sets no effort — disabled is only valid at high or below`() {
-            assertNull(convert(LlmOptions().withoutThinking(), haiku).outputConfig?.effort()?.orElse(null))
+        fun `claude-haiku-5-5 withoutThinking sets medium effort — disabled is only valid at high or below`() {
+            assertEquals(OutputConfig.Effort.MEDIUM, convert(LlmOptions().withoutThinking(), haiku).outputConfig?.effort()?.orElse(null))
+        }
+
+        /**
+         * The legacy streaming path goes through ChatClient, which starts from the model's default options
+         * and combines only the non-null request values. A catalog default effort must not survive next to disabled.
+         */
+        @Test
+        fun `claude-haiku-5-5 withoutThinking overrides a catalog default effort through ChatClient merge`() {
+            listOf(OutputConfig.Effort.XHIGH, OutputConfig.Effort.MAX).forEach { assertOptOutWinsMerge(it) }
+        }
+
+        private fun assertOptOutWinsMerge(defaultEffort: OutputConfig.Effort) {
+            val defaults = AnthropicChatOptions.builder()
+                .model(haiku)
+                .thinkingAdaptive(ThinkingConfigAdaptive.Display.SUMMARIZED)
+                .effort(defaultEffort)
+                .build()
+            val model = CapturingChatModel(defaults)
+            ChatClient.create(model).prompt(Prompt("test", convert(LlmOptions().withoutThinking(), haiku))).call().content()
+
+            val merged = model.captured!!.options as AnthropicChatOptions
+            assertTrue(merged.thinking?.isDisabled() == true, "expected thinking disabled, got ${merged.thinking}")
+            assertEquals(OutputConfig.Effort.MEDIUM, merged.outputConfig?.effort()?.orElse(null), "default effort $defaultEffort survived the merge")
+        }
+
+        @Test
+        fun `older models withoutThinking set no effort`() {
+            assertNull(convert(LlmOptions().withoutThinking(), AnthropicModels.CLAUDE_SONNET_4_5).outputConfig)
+            assertNull(convert(LlmOptions().withoutThinking(), AnthropicModels.CLAUDE_OPUS_4_8).outputConfig)
         }
 
         @Test
@@ -439,10 +476,24 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
         }
 
         @Test
+        fun `claude-opus-5-5 withoutThinking sets no effort`() {
+            assertNull(convert(LlmOptions().withoutThinking(), AnthropicModels.CLAUDE_OPUS_5_5).outputConfig)
+        }
+
+        @Test
         fun `claude-opus-4-8 with budget uses adaptive thinking`() {
             val opts = convert(LlmOptions().withThinking(Thinking.withTokenBudget(8000)), AnthropicModels.CLAUDE_OPUS_4_8)
             assertTrue(opts.thinking.isAdaptive())
             assertEquals(OutputConfig.Effort.HIGH, opts.outputConfig?.effort()?.orElse(null))
+        }
+    }
+
+    private class CapturingChatModel(private val defaults: AnthropicChatOptions) : ChatModel {
+        var captured: Prompt? = null
+        override fun getOptions(): ChatOptions = defaults
+        override fun call(prompt: Prompt): ChatResponse {
+            captured = prompt
+            return ChatResponse(listOf(Generation(AssistantMessage("ok"))))
         }
     }
 

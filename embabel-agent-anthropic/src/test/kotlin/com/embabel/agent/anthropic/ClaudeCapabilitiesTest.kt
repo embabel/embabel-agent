@@ -162,13 +162,46 @@ class ClaudeCapabilitiesTest {
         }
 
         @Test
-        fun `claude-haiku-5-5 accepts thinking disabled — family exception to 5-1+ rule`() {
-            assertFalse(ClaudeCapabilities.of("claude-haiku-5-5").rejectsThinkingDisabled)
+        fun `claude-haiku-5-5 model accepts thinking disabled — family exception to 5-1+ rule`() {
+            assertFalse(ClaudeCapabilities.rejectsThinkingDisabled("claude-haiku-5-5"))
         }
 
         @Test
-        fun `claude-haiku-5-5 date snapshot accepts thinking disabled`() {
-            assertFalse(ClaudeCapabilities.of("claude-haiku-5-5-20990101").rejectsThinkingDisabled)
+        fun `claude-haiku-5-5 date snapshot model accepts thinking disabled`() {
+            assertFalse(ClaudeCapabilities.rejectsThinkingDisabled("claude-haiku-5-5-20990101"))
+        }
+
+        @Test
+        fun `claude-sonnet-5-5 and opus-5-5 models reject thinking disabled`() {
+            assertTrue(ClaudeCapabilities.rejectsThinkingDisabled("claude-sonnet-5-5"))
+            assertTrue(ClaudeCapabilities.rejectsThinkingDisabled("claude-opus-5-5"))
+        }
+
+        @Test
+        fun `older and unknown models accept thinking disabled`() {
+            assertFalse(ClaudeCapabilities.rejectsThinkingDisabled("claude-haiku-4-5"))
+            assertFalse(ClaudeCapabilities.rejectsThinkingDisabled("claude-opus-4-8"))
+            assertFalse(ClaudeCapabilities.rejectsThinkingDisabled("unknown-model"))
+        }
+
+        @Test
+        fun `copy of claude-haiku-5-5 capabilities behaves identically — no state outside the constructor`() {
+            val haiku = ClaudeCapabilities.of("claude-haiku-5-5")
+            val copied = haiku.copy()
+            assertEquals(haiku, copied)
+            assertEquals(haiku.rejectsThinkingDisabled, copied.rejectsThinkingDisabled)
+            assertEquals(haiku.usesAdaptiveThinking, copied.usesAdaptiveThinking)
+            assertEquals(haiku.acceptsSampling, copied.acceptsSampling)
+            assertEquals(haiku.resolveThinking(null), copied.resolveThinking(null))
+            assertEquals(haiku.resolveThinking(20000), copied.resolveThinking(20000))
+        }
+
+        @Test
+        fun `capabilities are fully determined by version — equal versions behave identically`() {
+            val haiku = ClaudeCapabilities.of("claude-haiku-5-5")
+            val sonnet = ClaudeCapabilities.of("claude-sonnet-5-5")
+            assertEquals(haiku, sonnet)
+            assertEquals(haiku.rejectsThinkingDisabled, sonnet.rejectsThinkingDisabled)
         }
 
         @Test
