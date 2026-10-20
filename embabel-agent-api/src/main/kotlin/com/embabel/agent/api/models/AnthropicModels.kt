@@ -23,6 +23,11 @@ class AnthropicModels {
 
     companion object {
 
+        @Suppress("kotlin:S1133")
+        @Deprecated(
+            "Retired by Anthropic on 2026-02-19 and no longer in the model catalog",
+            ReplaceWith("CLAUDE_SONNET_5_5"),
+        )
         const val CLAUDE_37_SONNET = "claude-3-7-sonnet-latest"
 
         @Deprecated(
@@ -31,6 +36,11 @@ class AnthropicModels {
         )
         const val CLAUDE_35_HAIKU = "claude-3-5-haiku-latest"
 
+        @Suppress("kotlin:S1133")
+        @Deprecated(
+            "Retired by Anthropic on 2026-06-15 and no longer in the model catalog",
+            ReplaceWith("CLAUDE_OPUS_5_5"),
+        )
         const val CLAUDE_40_OPUS = "claude-opus-4-20250514"
 
         const val CLAUDE_SONNET_4_5 = "claude-sonnet-4-5"
