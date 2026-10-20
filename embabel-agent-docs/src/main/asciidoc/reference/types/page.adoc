@@ -201,7 +201,7 @@ Java::
 var image = AgentImage.fromFile(imageFile);
 
 var answer = context.ai()
-    .withLlm(AnthropicModels.CLAUDE_35_HAIKU)  // <1>
+    .withLlm(AnthropicModels.CLAUDE_HAIKU_4_5)  // <1>
     .withImage(image)  // <2>
     .generateText("What is in this image?");
 ----
@@ -213,7 +213,7 @@ Kotlin::
 val image = AgentImage.fromFile(imageFile)
 
 val answer = context.ai()
-    .withLlm(AnthropicModels.CLAUDE_35_HAIKU)  // <1>
+    .withLlm(AnthropicModels.CLAUDE_HAIKU_4_5)  // <1>
     .withImage(image)  // <2>
     .generateText("What is in this image?")
 ----

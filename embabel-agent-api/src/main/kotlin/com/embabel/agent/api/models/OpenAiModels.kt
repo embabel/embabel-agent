@@ -19,7 +19,7 @@ package com.embabel.agent.api.models
 /**
  * Well-known models from OpenAI.
  * Model IDs verified against GET /v1/models on 2026-03-29; GPT-5.5 and GPT-5.6
- * against developers.openai.com/api/docs/models on 2026-08-04.
+ * against developers.openai.com/api/docs/models on 2026-08-04, GPT-6 on 2026-10-05.
  * Undated aliases (e.g. GPT_54) always resolve to the latest pinned version.
  * Use dated constants (e.g. GPT_54_2026_03_05) for reproducible behaviour.
  */
@@ -28,7 +28,17 @@ class OpenAiModels {
     companion object {
 
         // =====================================================================
-        // GPT-5.6 FAMILY (Current Flagship - July 2026)
+        // GPT-6 FAMILY (Current Flagship)
+        // Astra is the flagship, 6.1 Sol balances cost, Luna is the high-volume tier.
+        // =====================================================================
+
+        const val GPT_6_ASTRA = "gpt-6-astra"
+        const val GPT_61_SOL = "gpt-6.1-sol"
+        const val GPT_6_SOL = "gpt-6-sol"
+        const val GPT_6_LUNA = "gpt-6-luna"
+
+        // =====================================================================
+        // GPT-5.6 FAMILY (July 2026)
         // Tiers are Luna/Terra/Sol; "pro" is now a Responses-only reasoning
         // mode rather than a model.
         // =====================================================================
@@ -63,13 +73,6 @@ class OpenAiModels {
 
         const val GPT_54_PRO = "gpt-5.4-pro"
         const val GPT_54_PRO_2026_03_05 = "gpt-5.4-pro-2026-03-05"
-
-        // =====================================================================
-        // GPT-5.3 CHAT (March 2026)
-        // https://developers.openai.com/api/docs/models/gpt-5.3-chat-latest
-        // =====================================================================
-
-        const val GPT_53_CHAT_LATEST = "gpt-5.3-chat-latest"
 
         // =====================================================================
         // GPT-5.2 FAMILY (December 2025)
