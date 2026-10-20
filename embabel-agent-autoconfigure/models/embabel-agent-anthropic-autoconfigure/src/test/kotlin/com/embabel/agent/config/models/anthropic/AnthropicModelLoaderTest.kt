@@ -218,7 +218,10 @@ class AnthropicModelLoaderTest {
     fun `models Anthropic has retired are not in the catalog`() {
         val modelIds = AnthropicModelLoader().loadAutoConfigMetadata().models.map { it.modelId }
 
-        listOf("claude-opus-4-1", "claude-sonnet-4-0", "claude-opus-4-0", "claude-3-5-haiku-latest")
+        listOf(
+            "claude-opus-4-1", "claude-sonnet-4-0", "claude-opus-4-0", "claude-opus-4-20250514",
+            "claude-3-5-haiku-latest", "claude-3-7-sonnet-latest",
+        )
             .forEach { assertFalse(it in modelIds, "$it is retired and must not be listed") }
     }
 
