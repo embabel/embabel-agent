@@ -215,6 +215,16 @@ class AnthropicModelLoaderTest {
     }
 
     @Test
+    fun `Claude Haiku 5_5 is in the catalog with its base-tier pricing`() {
+        val haiku55 = AnthropicModelLoader().loadAutoConfigMetadata().models.first { it.name == "claude_haiku_55" }
+
+        assertEquals(AnthropicModels.CLAUDE_HAIKU_5_5, haiku55.modelId)
+        assertEquals("Claude Haiku 5.5", haiku55.displayName)
+        assertEquals(0.10, haiku55.pricingModel?.usdPer1mInputTokens)
+        assertEquals(0.50, haiku55.pricingModel?.usdPer1mOutputTokens)
+    }
+
+    @Test
     fun `models Anthropic has retired are not in the catalog`() {
         val modelIds = AnthropicModelLoader().loadAutoConfigMetadata().models.map { it.modelId }
 
