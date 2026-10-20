@@ -183,7 +183,7 @@ val response2 = runner
 
 ==== Native Thinking (Anthropic Adaptive Models)
 
-Claude 5.x models (`claude-sonnet-5-5`, `claude-opus-5-5`, `claude-fable-5-1`) and Claude ≥4.7
+Claude 5.x models (`claude-sonnet-5-5`, `claude-opus-5-5`, `claude-haiku-5-5`, `claude-fable-5-1`) and Claude ≥4.7
 models (`claude-opus-4-8`) use Anthropic's adaptive thinking API. When a token budget is supplied,
 the model decides internally when and how much to think; the reasoning is returned as a summarized
 block alongside the answer. Embabel marks these blocks with `ThinkingOrigin.NATIVE`.
