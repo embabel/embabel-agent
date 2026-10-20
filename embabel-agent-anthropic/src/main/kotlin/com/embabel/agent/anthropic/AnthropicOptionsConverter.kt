@@ -40,9 +40,22 @@ object AnthropicOptionsConverter : OptionsConverter {
     /** Keyed by model and ignored parameter names, so bounded by models × name subsets. */
     internal val warnedIgnoredSampling = ConcurrentHashMap.newKeySet<String>()
 
+    /** Keyed by model ID only, so bounded by the number of models. */
+    internal val warnedThinkingNotDisabled = ConcurrentHashMap.newKeySet<String>()
+
     override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
         val caps = ClaudeCapabilities.of(model)
-        val decision = caps.resolveThinking(resolveThinkingBudget(options))
+        val decision = if (isThinkingOptOut(options)) {
+            if (caps.rejectsThinkingDisabled) {
+                warnThinkingCannotBeDisabled(model)
+                ThinkingMode.Omit
+            } else {
+                // No effort is set on this path, so Haiku 5.5's "disabled only at effort high or below" holds.
+                ThinkingMode.Disabled
+            }
+        } else {
+            caps.resolveThinking(resolveThinkingBudget(options))
+        }
         if (!caps.acceptsSampling) {
             warnAboutIgnoredSampling(options, model)
         }
@@ -51,8 +64,8 @@ object AnthropicOptionsConverter : OptionsConverter {
             .maxTokens(options.maxTokens ?: DEFAULT_MAX_TOKENS)
             .apply {
                 when (decision) {
-                    is ThinkingMode.Omit        -> Unit // do not set "thinking" — Claude 5.1+ rejects thinking.type="disabled" with HTTP 400
-                    is ThinkingMode.Disabled    -> thinkingDisabled()                          // send "thinking": {"type": "disabled"} — required by Claude ≤5.0
+                    is ThinkingMode.Omit        -> Unit // do not set "thinking" — Claude 5.1+ (except Haiku) rejects thinking.type="disabled" with HTTP 400
+                    is ThinkingMode.Disabled    -> thinkingDisabled()                          // send "thinking": {"type": "disabled"} — Claude ≤5.0, or explicit opt-out on Haiku 5.5
                     is ThinkingMode.Adaptive    -> { thinkingAdaptive(ThinkingConfigAdaptive.Display.SUMMARIZED); effort(decision.effort) }
                     // Claude ≥4.7: adaptive thinking. SUMMARIZED must be set explicitly — the default
                     // display on 5.x is "omitted" (empty thinking fields). SUMMARIZED is the only option
@@ -113,10 +126,30 @@ object AnthropicOptionsConverter : OptionsConverter {
     }
 
     /**
+     * True when the caller explicitly turned thinking off ([LlmOptions.withoutThinking]). Not set (null) and
+     * extraction-only configs (enabled=false but extractThinking=true, as used by the thinking prompt runner) are not opt-outs.
+     */
+    private fun isThinkingOptOut(options: LlmOptions): Boolean {
+        val thinking = options.thinking ?: return false
+        return !thinking.enabled && !thinking.extractThinking
+    }
+
+    /** Warns once per model: the request still runs, with Anthropic's adaptive default thinking. */
+    private fun warnThinkingCannotBeDisabled(model: String) {
+        if (warnedThinkingNotDisabled.add(model)) {
+            logger.warn(
+                "Model '{}' cannot disable thinking, so the thinking opt-out is ignored and the model's adaptive default applies",
+                model,
+            )
+        }
+    }
+
+    /**
      * Returns the token budget if thinking is explicitly enabled with a positive budget;
      * null otherwise (thinking not requested, not enabled, or no budget specified).
      *
-     * Null → no thinking: omit the field (Claude 5.1+) or send thinkingDisabled() (older models).
+     * Null → no thinking: omit the field (Claude 5.1+) or send thinkingDisabled() (older models);
+     * an explicit opt-out is handled before this by [isThinkingOptOut].
      * Non-null → thinking requested: use adaptive thinking (Claude ≥4.7) or budget-based thinking (older models).
      */
     private fun resolveThinkingBudget(options: LlmOptions): Int? {

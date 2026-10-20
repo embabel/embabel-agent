@@ -15,6 +15,10 @@
  */
 package com.embabel.agent.anthropic
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.anthropic.models.messages.OutputConfig
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.test.models.OptionsConverterTestSupport
@@ -27,6 +31,7 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 import org.springframework.ai.anthropic.AnthropicCacheStrategy
 import org.springframework.ai.anthropic.AnthropicCacheTtl
 import org.springframework.ai.anthropic.AnthropicChatOptions
@@ -345,6 +350,99 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
             ) as AnthropicChatOptions
             assertTrue(opts.thinking.isEnabled(), "expected legacy enabled thinking for claude-sonnet-4-5")
             assertEquals(2000L, opts.thinking.asEnabled().budgetTokens())
+        }
+    }
+
+
+    @Nested
+    inner class ThinkingOptOutTests {
+
+        private val haiku = "claude-haiku-5-5"
+
+        private fun convert(options: LlmOptions, model: String) =
+            optionsConverter.convertOptions(options, model) as AnthropicChatOptions
+
+        @Test
+        fun `claude-haiku-5-5 withoutThinking sends thinking disabled`() {
+            val opts = convert(LlmOptions().withoutThinking(), haiku)
+            assertTrue(opts.thinking?.isDisabled() == true, "expected thinking disabled, got ${opts.thinking}")
+        }
+
+        @Test
+        fun `claude-haiku-5-5 withoutThinking sets no effort — disabled is only valid at high or below`() {
+            assertNull(convert(LlmOptions().withoutThinking(), haiku).outputConfig?.effort()?.orElse(null))
+        }
+
+        @Test
+        fun `claude-haiku-5-5 thinking not set omits thinking field`() {
+            assertNull(convert(LlmOptions(), haiku).thinking)
+        }
+
+        @Test
+        fun `claude-haiku-5-5 with extraction only omits thinking field — extraction is not an opt-out`() {
+            assertNull(convert(LlmOptions().withThinking(Thinking.withExtraction()), haiku).thinking)
+        }
+
+        @Test
+        fun `claude-haiku-5-5 with budget uses adaptive thinking and mapped effort`() {
+            val opts = convert(LlmOptions().withThinking(Thinking.withTokenBudget(8000)), haiku)
+            assertTrue(opts.thinking.isAdaptive())
+            assertEquals(OutputConfig.Effort.HIGH, opts.outputConfig?.effort()?.orElse(null))
+        }
+
+        @Test
+        fun `claude-sonnet-5-5 withoutThinking omits thinking and warns once`() {
+            val model = AnthropicModels.CLAUDE_SONNET_5_5
+            AnthropicOptionsConverter.warnedThinkingNotDisabled.remove(model)
+            val logger = LoggerFactory.getLogger(AnthropicOptionsConverter::class.java) as Logger
+            val logs = ListAppender<ILoggingEvent>().apply { start() }
+            logger.addAppender(logs)
+            try {
+                assertNull(convert(LlmOptions().withoutThinking(), model).thinking)
+                assertNull(convert(LlmOptions().withoutThinking(), model).thinking)
+                val warnings = logs.list.filter { it.level == Level.WARN && it.formattedMessage.contains("cannot disable thinking") }
+                assertEquals(1, warnings.size, "expected exactly one warning, got ${warnings.map { it.formattedMessage }}")
+                assertTrue(warnings.single().formattedMessage.contains(model))
+            } finally {
+                logger.detachAppender(logs)
+            }
+        }
+
+        @Test
+        fun `claude-opus-5-5 withoutThinking omits thinking field`() {
+            assertNull(convert(LlmOptions().withoutThinking(), AnthropicModels.CLAUDE_OPUS_5_5).thinking)
+        }
+
+        @Test
+        fun `claude-sonnet-5-5 and opus-5-5 thinking not set omit thinking field`() {
+            assertNull(convert(LlmOptions(), AnthropicModels.CLAUDE_SONNET_5_5).thinking)
+            assertNull(convert(LlmOptions(), AnthropicModels.CLAUDE_OPUS_5_5).thinking)
+        }
+
+        @Test
+        fun `claude-opus-5-5 with budget uses adaptive thinking and mapped effort`() {
+            val opts = convert(LlmOptions().withThinking(Thinking.withTokenBudget(2000)), AnthropicModels.CLAUDE_OPUS_5_5)
+            assertTrue(opts.thinking.isAdaptive())
+            assertEquals(OutputConfig.Effort.MEDIUM, opts.outputConfig?.effort()?.orElse(null))
+        }
+
+        @Test
+        fun `claude-sonnet-4-5 not set and withoutThinking both send disabled`() {
+            assertTrue(convert(LlmOptions(), AnthropicModels.CLAUDE_SONNET_4_5).thinking.isDisabled())
+            assertTrue(convert(LlmOptions().withoutThinking(), AnthropicModels.CLAUDE_SONNET_4_5).thinking.isDisabled())
+        }
+
+        @Test
+        fun `claude-opus-4-8 not set and withoutThinking both send disabled`() {
+            assertTrue(convert(LlmOptions(), AnthropicModels.CLAUDE_OPUS_4_8).thinking.isDisabled())
+            assertTrue(convert(LlmOptions().withoutThinking(), AnthropicModels.CLAUDE_OPUS_4_8).thinking.isDisabled())
+        }
+
+        @Test
+        fun `claude-opus-4-8 with budget uses adaptive thinking`() {
+            val opts = convert(LlmOptions().withThinking(Thinking.withTokenBudget(8000)), AnthropicModels.CLAUDE_OPUS_4_8)
+            assertTrue(opts.thinking.isAdaptive())
+            assertEquals(OutputConfig.Effort.HIGH, opts.outputConfig?.effort()?.orElse(null))
         }
     }
 

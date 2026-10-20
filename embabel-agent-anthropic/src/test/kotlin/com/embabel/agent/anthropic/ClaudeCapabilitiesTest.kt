@@ -162,6 +162,23 @@ class ClaudeCapabilitiesTest {
         }
 
         @Test
+        fun `claude-haiku-5-5 accepts thinking disabled — family exception to 5-1+ rule`() {
+            assertFalse(ClaudeCapabilities.of("claude-haiku-5-5").rejectsThinkingDisabled)
+        }
+
+        @Test
+        fun `claude-haiku-5-5 date snapshot accepts thinking disabled`() {
+            assertFalse(ClaudeCapabilities.of("claude-haiku-5-5-20990101").rejectsThinkingDisabled)
+        }
+
+        @Test
+        fun `claude-haiku-5-5 uses adaptive thinking and does not accept sampling`() {
+            val caps = ClaudeCapabilities.of("claude-haiku-5-5")
+            assertTrue(caps.usesAdaptiveThinking)
+            assertFalse(caps.acceptsSampling)
+        }
+
+        @Test
         fun `unknown model does not use adaptive thinking`() {
             assertFalse(ClaudeCapabilities.of("unknown-model").usesAdaptiveThinking)
         }
@@ -193,6 +210,16 @@ class ClaudeCapabilitiesTest {
         @Test
         fun `no budget on Claude 5-5 returns Omit`() {
             assertEquals(ThinkingMode.Omit, ClaudeCapabilities.of("claude-sonnet-5-5").resolveThinking(null))
+        }
+
+        @Test
+        fun `no budget on claude-haiku-5-5 returns Omit — unset keeps Anthropic's adaptive default`() {
+            assertEquals(ThinkingMode.Omit, ClaudeCapabilities.of("claude-haiku-5-5").resolveThinking(null))
+        }
+
+        @Test
+        fun `budget on claude-haiku-5-5 returns Adaptive with mapped effort`() {
+            assertEquals(ThinkingMode.Adaptive(OutputConfig.Effort.HIGH), ClaudeCapabilities.of("claude-haiku-5-5").resolveThinking(8000))
         }
 
         @Test
