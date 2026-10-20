@@ -1,9 +1,9 @@
 # ============================================
 # anthropic-models.yml
 # ============================================
-# Updated with latest Anthropic models as of October 5, 2026
+# Updated with latest Anthropic models as of October 20, 2026
 # Using official Anthropic API aliases
-# IDs, prices and lifecycle verified 2026-10-05 against
+# IDs, prices and lifecycle verified 2026-10-05 (Haiku 5.5: 2026-10-20) against
 # platform.claude.com/docs/en/about-claude/models/overview, /pricing and
 # /model-deprecations.
 
@@ -33,6 +33,7 @@ models:
   # CLAUDE 5 GENERATION
   # 1M context, 128K max output. Thinking is adaptive and cannot be turned
   # off on Opus 5.5 and Fable 5.1; Sonnet 5.5 also rejects "disabled".
+  # Haiku 5.5 accepts "disabled" only at effort high or below.
   # ========================================
 
   # Claude Fable 5.1 - Demanding reasoning and long-horizon agentic work
@@ -65,6 +66,18 @@ models:
     pricing_model:
       usd_per1m_input_tokens: 2.0
       usd_per1m_output_tokens: 10.0
+
+  # Claude Haiku 5.5 - High-volume, latency-sensitive tasks (classification,
+  # extraction, routing). Priced by prompt length: the rates below apply to
+  # prompts up to 100K tokens; prompts over 100K pay $0.50 / $2.50 per 1M.
+  - name: "claude_haiku_55"
+    model_id: "claude-haiku-5-5"
+    display_name: "Claude Haiku 5.5"
+    knowledge_cutoff_date: "2026-06-01"
+    max_tokens: 8192
+    pricing_model:
+      usd_per1m_input_tokens: 0.10
+      usd_per1m_output_tokens: 0.50
 
   # ========================================
   # CLAUDE 4.8 FAMILY

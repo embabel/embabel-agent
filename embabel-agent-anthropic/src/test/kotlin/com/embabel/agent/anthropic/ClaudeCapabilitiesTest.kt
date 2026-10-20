@@ -16,6 +16,7 @@
 package com.embabel.agent.anthropic
 
 import com.anthropic.models.messages.OutputConfig
+import com.embabel.agent.api.models.AnthropicModels
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -55,6 +56,11 @@ class ClaudeCapabilitiesTest {
         @Test
         fun `claude-sonnet-5-5 parses to version 55`() {
             assertEquals(55, ClaudeCapabilities.of("claude-sonnet-5-5").version)
+        }
+
+        @Test
+        fun `claude-haiku-5-5 parses to version 55`() {
+            assertEquals(55, ClaudeCapabilities.of(AnthropicModels.CLAUDE_HAIKU_5_5).version)
         }
 
         @Test
@@ -159,6 +165,11 @@ class ClaudeCapabilitiesTest {
         @Test
         fun `claude-sonnet-5-5 does not accept sampling`() {
             assertFalse(ClaudeCapabilities.of("claude-sonnet-5-5").acceptsSampling)
+        }
+
+        @Test
+        fun `claude-haiku-5-5 uses adaptive thinking`() {
+            assertTrue(ClaudeCapabilities.of(AnthropicModels.CLAUDE_HAIKU_5_5).usesAdaptiveThinking)
         }
 
         @Test
