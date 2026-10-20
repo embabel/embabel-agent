@@ -16,19 +16,30 @@
 package com.embabel.agent.api.tool;
 
 import com.embabel.agent.api.annotation.LlmTool;
+import org.aopalliance.intercept.MethodInterceptor;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.aop.framework.ProxyFactory;
+import org.springframework.aop.support.AopUtils;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JavaGenericToolArgumentsTest {
 
     public record Item(String name) {}
 
-    public static class InventoryTools {
+    public interface Inventory {
+        String firstName(List<Item> items);
+    }
+
+    public static class InventoryTools implements Inventory {
+        @Override
         @LlmTool(description = "Read the first item name")
         public String firstName(List<Item> items) {
             return items.getFirst().name();
@@ -70,8 +81,57 @@ class JavaGenericToolArgumentsTest {
         assertText("singleName", "{\"item\":{\"name\":\"book\"}}", "book");
     }
 
+    @Nested
+    class ClassBasedProxy {
+
+        @Test
+        void convertsListElementsAndInvokesAdvice() {
+            assertProxiedText("firstName", "{\"items\":[{\"name\":\"book\"}]}", "book");
+        }
+
+        @Test
+        void convertsMapValuesAndInvokesAdvice() {
+            assertProxiedText("indexedName", "{\"items\":{\"first\":{\"name\":\"book\"}}}", "book");
+        }
+
+        @Test
+        void convertsLongElementsAndInvokesAdvice() {
+            assertProxiedText("firstId", "{\"ids\":[1]}", "1");
+        }
+
+        private void assertProxiedText(String name, String input, String expected) {
+            var invocations = new AtomicInteger();
+            var factory = new ProxyFactory(new InventoryTools());
+            factory.setProxyTargetClass(true);
+            factory.addAdvice((MethodInterceptor) invocation -> {
+                invocations.incrementAndGet();
+                return invocation.proceed();
+            });
+            var proxy = factory.getProxy();
+            assertTrue(AopUtils.isCglibProxy(proxy));
+            assertText(proxy, name, input, expected);
+            assertEquals(1, invocations.get());
+        }
+    }
+
+    @Nested
+    class InterfaceBasedProxy {
+
+        @Test
+        void doesNotDiscoverToolsOnAJdkDynamicProxy() {
+            var factory = new ProxyFactory(new InventoryTools());
+            var proxy = factory.getProxy();
+            assertTrue(AopUtils.isJdkDynamicProxy(proxy));
+            assertTrue(Tool.safelyFromInstance(proxy).isEmpty());
+        }
+    }
+
     private void assertText(String name, String input, String expected) {
-        var tool = Tool.fromInstance(new InventoryTools()).stream()
+        assertText(new InventoryTools(), name, input, expected);
+    }
+
+    private void assertText(Object instance, String name, String input, String expected) {
+        var tool = Tool.fromInstance(instance).stream()
                 .filter(candidate -> candidate.getDefinition().getName().equals(name))
                 .findFirst()
                 .orElseThrow();
