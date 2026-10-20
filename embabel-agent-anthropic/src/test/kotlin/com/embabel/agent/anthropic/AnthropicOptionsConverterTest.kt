@@ -233,53 +233,58 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
     @Nested
     inner class SamplingParameterTests {
 
+        private val sampling = LlmOptions().withTemperature(0.7).withTopP(0.9).withTopK(40)
+
+        private fun convert(options: LlmOptions, model: String) =
+            optionsConverter.convertOptions(options, model) as AnthropicChatOptions
+
+        private fun assertNoSampling(opts: AnthropicChatOptions) {
+            assertNull(opts.temperature, "temperature")
+            assertNull(opts.topP, "topP")
+            assertNull(opts.topK, "topK")
+        }
+
         @Test
-        fun `claude-opus-4-8 without thinking — temperature passed through`() {
-            // ThinkingMode Disabled on ≥4.7: temperature must not be suppressed
-            val opts = optionsConverter.convertOptions(
-                LlmOptions().withTemperature(0.7),
-                AnthropicModels.CLAUDE_OPUS_4_8,
-            ) as AnthropicChatOptions
+        fun `claude-opus-4-8 with thinking off drops temperature, topP and topK`() {
+            assertNoSampling(convert(sampling.withoutThinking(), AnthropicModels.CLAUDE_OPUS_4_8))
+        }
+
+        @Test
+        fun `claude-opus-4-8 with thinking omitted drops temperature, topP and topK`() {
+            assertNoSampling(convert(sampling, AnthropicModels.CLAUDE_OPUS_4_8))
+        }
+
+        @Test
+        fun `claude-opus-4-8 with thinking on drops temperature, topP and topK`() {
+            assertNoSampling(convert(sampling.withThinking(Thinking.withTokenBudget(8000)), AnthropicModels.CLAUDE_OPUS_4_8))
+        }
+
+        @Test
+        fun `claude-sonnet-5-5 with thinking off drops temperature, topP and topK`() {
+            assertNoSampling(convert(sampling.withoutThinking(), AnthropicModels.CLAUDE_SONNET_5_5))
+        }
+
+        @Test
+        fun `claude-sonnet-5-5 with thinking omitted drops temperature, topP and topK`() {
+            assertNoSampling(convert(sampling, AnthropicModels.CLAUDE_SONNET_5_5))
+        }
+
+        @Test
+        fun `claude-sonnet-5-5 with thinking on drops temperature, topP and topK`() {
+            assertNoSampling(convert(sampling.withThinking(Thinking.withTokenBudget(8000)), AnthropicModels.CLAUDE_SONNET_5_5))
+        }
+
+        @Test
+        fun `claude-sonnet-5-5 drops default temperature too`() {
+            assertNull(convert(LlmOptions().withTemperature(1.0), AnthropicModels.CLAUDE_SONNET_5_5).temperature)
+        }
+
+        @Test
+        fun `claude-sonnet-4-5 passes temperature, topP and topK through`() {
+            val opts = convert(sampling, AnthropicModels.CLAUDE_SONNET_4_5)
             assertEquals(0.7, opts.temperature)
-        }
-
-        @Test
-        fun `claude-opus-4-8 without thinking — topP passed through`() {
-            val opts = optionsConverter.convertOptions(
-                LlmOptions().withTopP(0.9),
-                AnthropicModels.CLAUDE_OPUS_4_8,
-            ) as AnthropicChatOptions
             assertEquals(0.9, opts.topP)
-        }
-
-        @Test
-        fun `claude-sonnet-5-5 without thinking — temperature passed through`() {
-            // ThinkingMode Omit on 5.x: temperature must not be suppressed
-            val opts = optionsConverter.convertOptions(
-                LlmOptions().withTemperature(0.5),
-                AnthropicModels.CLAUDE_SONNET_5_5,
-            ) as AnthropicChatOptions
-            assertEquals(0.5, opts.temperature)
-        }
-
-        @Test
-        fun `claude-sonnet-5-5 with thinking — temperature suppressed`() {
-            // ThinkingMode Adaptive: temperature conflicts with active thinking
-            val opts = optionsConverter.convertOptions(
-                LlmOptions().withThinking(Thinking.withTokenBudget(8000)).withTemperature(0.7),
-                AnthropicModels.CLAUDE_SONNET_5_5,
-            ) as AnthropicChatOptions
-            assertNull(opts.temperature)
-        }
-
-        @Test
-        fun `claude-opus-4-8 with thinking — temperature suppressed`() {
-            // ThinkingMode Adaptive (opus-4-8 ≥4.7 with budget): temperature must be suppressed
-            val opts = optionsConverter.convertOptions(
-                LlmOptions().withThinking(Thinking.withTokenBudget(8000)).withTemperature(0.7),
-                AnthropicModels.CLAUDE_OPUS_4_8,
-            ) as AnthropicChatOptions
-            assertNull(opts.temperature)
+            assertEquals(40, opts.topK)
         }
     }
 

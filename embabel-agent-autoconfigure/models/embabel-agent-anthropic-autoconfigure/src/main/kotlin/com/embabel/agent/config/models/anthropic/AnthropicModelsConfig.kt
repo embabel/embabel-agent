@@ -216,16 +216,15 @@ class AnthropicModelsConfig(
             .model(modelDef.modelId)
             .maxTokens(modelDef.maxTokens)
             .apply {
-                modelDef.topK?.let { topK(it) }
                 when (decision) {
                     is ThinkingMode.Omit        -> Unit // do not set "thinking" — Claude 5.1+ rejects thinking.type="disabled" with HTTP 400
                     is ThinkingMode.Disabled    -> thinkingDisabled()
                     is ThinkingMode.Adaptive    -> { thinkingAdaptive(ThinkingConfigAdaptive.Display.SUMMARIZED); effort(decision.effort) }
                     is ThinkingMode.BudgetBased -> thinkingEnabled(decision.budgetTokens)
                 }
-                // temperature/topP conflict with active thinking (Adaptive, BudgetBased) on ≥4.7 models;
-                // safe to send when thinking is Disabled, Omit, or the model predates adaptive thinking.
-                if (caps.acceptsSampling || decision in setOf(ThinkingMode.Disabled, ThinkingMode.Omit)) {
+                // Claude ≥4.7 rejects non-default temperature, topP and topK whatever the thinking mode.
+                if (caps.acceptsSampling) {
+                    modelDef.topK?.let { topK(it) }
                     modelDef.topP?.let { topP(it) }
                     temperature(modelDef.temperature)
                 }

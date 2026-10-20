@@ -58,7 +58,7 @@ sealed class ThinkingMode {
  *   "claude-sonnet-4-5-20250929" → 45  (date suffix stripped)
  *   "claude-fable-5-1"           → 51
  * An unrecognised model ID yields version 0 — treated as an old model that accepts
- * the disabled flag and temperature/topP sampling parameters.
+ * the disabled flag and temperature/topP/topK sampling parameters.
  */
 data class ClaudeCapabilities(val version: Int) {
 
@@ -68,7 +68,10 @@ data class ClaudeCapabilities(val version: Int) {
     /** Claude 5.1+ rejects thinking.type="disabled" with HTTP 400 — the "thinking" key must be omitted entirely. */
     val rejectsThinkingDisabled: Boolean = version >= 51
 
-    /** Claude <4.7 accepts temperature and topP; ≥4.7 rejects these sampling parameters when thinking is active. */
+    /**
+     * Claude <4.7 accepts temperature, topP and topK. Claude ≥4.7 rejects non-default values of
+     * all three on every request, whatever the thinking mode.
+     */
     val acceptsSampling: Boolean = version < 47
 
     /**

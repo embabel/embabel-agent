@@ -24,6 +24,7 @@ import org.springframework.ai.anthropic.AnthropicCacheStrategy
 import org.springframework.ai.anthropic.AnthropicChatOptions
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.messages.MessageType
+import java.util.concurrent.ConcurrentHashMap
 
 object AnthropicOptionsConverter : OptionsConverter {
 
@@ -34,13 +35,19 @@ object AnthropicOptionsConverter : OptionsConverter {
      */
     const val DEFAULT_MAX_TOKENS = 8192
 
+    private const val DEFAULT_TEMPERATURE = 1.0
+
+    private val warnedIgnoredSampling = ConcurrentHashMap.newKeySet<String>()
+
     override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
         val caps = ClaudeCapabilities.of(model)
         val decision = caps.resolveThinking(resolveThinkingBudget(options))
+        if (!caps.acceptsSampling) {
+            warnAboutIgnoredSampling(options, model)
+        }
         val builder = AnthropicChatOptions.builder()
             .model(model)
             .maxTokens(options.maxTokens ?: DEFAULT_MAX_TOKENS)
-            .topK(options.topK)
             .apply {
                 when (decision) {
                     is ThinkingMode.Omit        -> Unit // do not set "thinking" — Claude 5.1+ rejects thinking.type="disabled" with HTTP 400
@@ -52,11 +59,10 @@ object AnthropicOptionsConverter : OptionsConverter {
                     // the "signature" field). There is no "full" display option in the adaptive API.
                     is ThinkingMode.BudgetBased -> thinkingEnabled(decision.budgetTokens)      // send "thinking": {"type": "enabled", "budget_tokens": N}
                 }
-                // temperature/topP conflict with active thinking (Adaptive, BudgetBased) on ≥4.7 models;
-                // safe to send when thinking is Disabled, Omit, or the model predates adaptive thinking.
-                if (caps.acceptsSampling || decision in setOf(ThinkingMode.Disabled, ThinkingMode.Omit)) {
+                if (caps.acceptsSampling) {
                     temperature(options.temperature)
                     topP(options.topP)
+                    topK(options.topK)
                 }
             }
 
@@ -82,6 +88,26 @@ object AnthropicOptionsConverter : OptionsConverter {
         }
 
         return builder.build()
+    }
+
+    /**
+     * Warn-and-drop, as for OpenAI: refusing the call would cost the caller an answer over a
+     * parameter that was never essential. Default temperature is what the model uses anyway.
+     * Warns once per model and set of ignored values, since the same options repeat on every call.
+     */
+    private fun warnAboutIgnoredSampling(options: LlmOptions, model: String) {
+        val ignored = listOfNotNull(
+            options.temperature?.takeIf { it != DEFAULT_TEMPERATURE }?.let { "temperature=$it" },
+            options.topP?.let { "topP=$it" },
+            options.topK?.let { "topK=$it" },
+        ).joinToString(", ")
+        if (ignored.isNotEmpty() && warnedIgnoredSampling.add("$model|$ignored")) {
+            logger.warn(
+                "Model '{}' rejects sampling parameters, so the following are ignored rather than sent: {}",
+                model,
+                ignored,
+            )
+        }
     }
 
     /**
