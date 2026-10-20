@@ -28,6 +28,7 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.Thinking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
@@ -377,31 +378,56 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
         }
 
         @Test
-        fun `claude-haiku-5-5 withoutThinking sets medium effort — disabled is only valid at high or below`() {
-            assertEquals(OutputConfig.Effort.MEDIUM, convert(LlmOptions().withoutThinking(), haiku).outputConfig?.effort()?.orElse(null))
+        fun `claude-haiku-5-5 withoutThinking sets no output config — caller and default output controls survive`() {
+            assertNull(convert(LlmOptions().withoutThinking(), haiku).outputConfig)
         }
 
         /**
-         * The legacy streaming path goes through ChatClient, which starts from the model's default options
-         * and combines only the non-null request values. A catalog default effort must not survive next to disabled.
+         * The legacy streaming path goes through ChatClient, which starts from the model's default options and
+         * replaces outputConfig wholesale with any non-null request value. The opt-out must leave it null so a
+         * default schema and an already-compatible effort survive.
          */
         @Test
-        fun `claude-haiku-5-5 withoutThinking overrides a catalog default effort through ChatClient merge`() {
-            listOf(OutputConfig.Effort.XHIGH, OutputConfig.Effort.MAX).forEach { assertOptOutWinsMerge(it) }
-        }
-
-        private fun assertOptOutWinsMerge(defaultEffort: OutputConfig.Effort) {
+        fun `claude-haiku-5-5 withoutThinking keeps a default output schema and low effort through ChatClient merge`() {
             val defaults = AnthropicChatOptions.builder()
                 .model(haiku)
                 .thinkingAdaptive(ThinkingConfigAdaptive.Display.SUMMARIZED)
-                .effort(defaultEffort)
+                .effort(OutputConfig.Effort.LOW)
+                .outputSchema("""{"type":"object","properties":{},"additionalProperties":false}""")
                 .build()
-            val model = CapturingChatModel(defaults)
-            ChatClient.create(model).prompt(Prompt("test", convert(LlmOptions().withoutThinking(), haiku))).call().content()
 
-            val merged = model.captured!!.options as AnthropicChatOptions
+            val merged = mergeThroughChatClient(defaults, convert(LlmOptions().withoutThinking(), haiku))
+
             assertTrue(merged.thinking?.isDisabled() == true, "expected thinking disabled, got ${merged.thinking}")
-            assertEquals(OutputConfig.Effort.MEDIUM, merged.outputConfig?.effort()?.orElse(null), "default effort $defaultEffort survived the merge")
+            assertNotNull(merged.outputSchema, "default output schema was dropped by the merge")
+            assertEquals(OutputConfig.Effort.LOW, merged.outputConfig?.effort()?.orElse(null))
+        }
+
+        /**
+         * Known limitation: a default effort of XHIGH/MAX (e.g. a Haiku catalog thinking budget ≥ 16384) survives
+         * next to disabled, which Anthropic rejects with HTTP 400. Follow-up: clamp effort at the merge boundary
+         * (https://github.com/embabel/embabel-agent/issues/2174). Flip this test when it lands.
+         */
+        @Test
+        fun `claude-haiku-5-5 withoutThinking keeps an xhigh or max default effort through ChatClient merge — known limitation`() {
+            listOf(OutputConfig.Effort.XHIGH, OutputConfig.Effort.MAX).forEach { defaultEffort ->
+                val defaults = AnthropicChatOptions.builder()
+                    .model(haiku)
+                    .thinkingAdaptive(ThinkingConfigAdaptive.Display.SUMMARIZED)
+                    .effort(defaultEffort)
+                    .build()
+
+                val merged = mergeThroughChatClient(defaults, convert(LlmOptions().withoutThinking(), haiku))
+
+                assertTrue(merged.thinking?.isDisabled() == true, "expected thinking disabled, got ${merged.thinking}")
+                assertEquals(defaultEffort, merged.outputConfig?.effort()?.orElse(null))
+            }
+        }
+
+        private fun mergeThroughChatClient(defaults: AnthropicChatOptions, request: AnthropicChatOptions): AnthropicChatOptions {
+            val model = CapturingChatModel(defaults)
+            ChatClient.create(model).prompt(Prompt("test", request)).call().content()
+            return model.captured!!.options as AnthropicChatOptions
         }
 
         @Test

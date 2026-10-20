@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.anthropic
 
-import com.anthropic.models.messages.OutputConfig
 import com.anthropic.models.messages.ThinkingConfigAdaptive
 import com.embabel.chat.MessageRole
 import com.embabel.common.ai.model.LlmOptions
@@ -37,8 +36,6 @@ object AnthropicOptionsConverter : OptionsConverter {
     const val DEFAULT_MAX_TOKENS = 8192
 
     private const val DEFAULT_TEMPERATURE = 1.0
-
-    private val HAIKU_DISABLED_EFFORT = OutputConfig.Effort.MEDIUM
 
     /** Keyed by model and ignored parameter names, so bounded by models × name subsets. */
     internal val warnedIgnoredSampling = ConcurrentHashMap.newKeySet<String>()
@@ -69,10 +66,11 @@ object AnthropicOptionsConverter : OptionsConverter {
                     is ThinkingMode.Omit        -> Unit // do not set "thinking" — Claude 5.1+ (except Haiku) rejects thinking.type="disabled" with HTTP 400
                     is ThinkingMode.Disabled    -> {
                         thinkingDisabled() // send "thinking": {"type": "disabled"} — Claude ≤5.0, or explicit opt-out on Haiku 5.5
-                        // A 5.1+ model reaching Disabled is Haiku, which accepts disabled only at effort high or below.
-                        // Set the effort explicitly so it replaces any catalog default effort (e.g. XHIGH) when
-                        // ChatClient merges the model's default options with these. MEDIUM is Haiku's default effort.
-                        if (caps.rejectsThinkingDisabled) effort(HAIKU_DISABLED_EFFORT)
+                        // No outputConfig: Spring AI replaces it wholesale when merging, so setting effort here would
+                        // drop a caller's or default output config (schema, effort). Known limitation: Haiku accepts
+                        // disabled only at effort high or below, so on the legacy ChatClient streaming path a merged
+                        // default effort of xhigh/max (e.g. a Haiku catalog thinking budget ≥ 16384) gets HTTP 400.
+                        // ponytail: clamp effort at the merge boundary, https://github.com/embabel/embabel-agent/issues/2174
                     }
                     is ThinkingMode.Adaptive    -> { thinkingAdaptive(ThinkingConfigAdaptive.Display.SUMMARIZED); effort(decision.effort) }
                     // Claude ≥4.7: adaptive thinking. SUMMARIZED must be set explicitly — the default
