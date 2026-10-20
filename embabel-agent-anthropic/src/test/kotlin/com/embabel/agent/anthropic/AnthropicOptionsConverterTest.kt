@@ -280,6 +280,14 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
         }
 
         @Test
+        fun `warn-once state stays bounded when temperature varies`() {
+            val model = AnthropicModels.CLAUDE_OPUS_4_8
+            (1..50).forEach { convert(LlmOptions().withTemperature(it / 100.0), model) }
+            val keysForModel = AnthropicOptionsConverter.warnedIgnoredSampling.count { it.startsWith("$model|") }
+            assertTrue(keysForModel <= 7, "expected at most one key per parameter-name subset, got $keysForModel")
+        }
+
+        @Test
         fun `claude-sonnet-4-5 passes temperature, topP and topK through`() {
             val opts = convert(sampling, AnthropicModels.CLAUDE_SONNET_4_5)
             assertEquals(0.7, opts.temperature)

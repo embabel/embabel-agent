@@ -37,7 +37,8 @@ object AnthropicOptionsConverter : OptionsConverter {
 
     private const val DEFAULT_TEMPERATURE = 1.0
 
-    private val warnedIgnoredSampling = ConcurrentHashMap.newKeySet<String>()
+    /** Keyed by model and ignored parameter names, so bounded by models × name subsets. */
+    internal val warnedIgnoredSampling = ConcurrentHashMap.newKeySet<String>()
 
     override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
         val caps = ClaudeCapabilities.of(model)
@@ -93,19 +94,20 @@ object AnthropicOptionsConverter : OptionsConverter {
     /**
      * Warn-and-drop, as for OpenAI: refusing the call would cost the caller an answer over a
      * parameter that was never essential. Default temperature is what the model uses anyway.
-     * Warns once per model and set of ignored values, since the same options repeat on every call.
+     * Warns once per model and set of ignored parameter names, since the same options repeat on every call.
+     * Values stay out of the key so varying them cannot grow the set.
      */
     private fun warnAboutIgnoredSampling(options: LlmOptions, model: String) {
         val ignored = listOfNotNull(
-            options.temperature?.takeIf { it != DEFAULT_TEMPERATURE }?.let { "temperature=$it" },
-            options.topP?.let { "topP=$it" },
-            options.topK?.let { "topK=$it" },
-        ).joinToString(", ")
-        if (ignored.isNotEmpty() && warnedIgnoredSampling.add("$model|$ignored")) {
+            options.temperature?.takeIf { it != DEFAULT_TEMPERATURE }?.let { "temperature" to it },
+            options.topP?.let { "topP" to it },
+            options.topK?.let { "topK" to it },
+        )
+        if (ignored.isNotEmpty() && warnedIgnoredSampling.add("$model|${ignored.joinToString(",") { it.first }}")) {
             logger.warn(
                 "Model '{}' rejects sampling parameters, so the following are ignored rather than sent: {}",
                 model,
-                ignored,
+                ignored.joinToString(", ") { "${it.first}=${it.second}" },
             )
         }
     }
