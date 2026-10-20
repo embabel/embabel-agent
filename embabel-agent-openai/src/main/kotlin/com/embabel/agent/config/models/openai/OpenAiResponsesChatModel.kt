@@ -225,7 +225,7 @@ class OpenAiResponsesChatModel(
         ResponseInputItem.ofFunctionCallOutput(
             ResponseInputItem.FunctionCallOutput.builder()
                 .callId(response.id())
-                .output(response.responseData())
+                .output(response.responseData().orEmpty())
                 .build()
         )
 

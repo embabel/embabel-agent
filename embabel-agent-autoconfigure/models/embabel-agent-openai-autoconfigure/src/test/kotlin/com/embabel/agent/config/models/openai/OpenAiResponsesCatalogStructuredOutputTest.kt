@@ -53,7 +53,7 @@ import java.util.Optional
 class OpenAiResponsesCatalogStructuredOutputTest {
 
     @Test
-    fun `a schema the native support configures reaches the Responses API`() {
+    fun `catalog native structured output reaches the Responses API`() {
         val responsesModel = OpenAiModelLoader().loadAutoConfigMetadata().effectiveModels()
             .first { it.apiFormat == OpenAiApiFormat.RESPONSES }
 

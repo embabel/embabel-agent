@@ -204,6 +204,25 @@ class OpenAiCompatibleModelFactoryResponsesTest {
         assertEquals("sunny", functionOutput["output"].asString())
     }
 
+    @Test
+    fun `null and empty tool results round trip as empty function outputs`() {
+        call(
+            optionsFor(LlmOptions.withModel(LUNA)),
+            UserMessage("continue"),
+            ToolResponseMessage.builder()
+                .responses(
+                    listOf(
+                        ToolResponseMessage.ToolResponse("call_null", "void_tool", null),
+                        ToolResponseMessage.ToolResponse("call_empty", "empty_tool", ""),
+                    )
+                )
+                .build(),
+        )
+
+        val outputs = captured.single().body["input"].filter { it["type"]?.asString() == "function_call_output" }
+        assertEquals(listOf("", ""), outputs.map { it["output"].asString() })
+    }
+
     /**
      * Native structured output is the caller's choice, made by passing the catalog's native
      * support (see `OpenAiResponsesCatalogStructuredOutputTest`); the factory keeps no copy of it.
