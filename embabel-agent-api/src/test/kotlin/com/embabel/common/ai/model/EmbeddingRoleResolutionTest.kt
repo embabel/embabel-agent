@@ -111,14 +111,14 @@ class EmbeddingRoleResolutionTest {
     private fun provider(
         properties: ConfigurableModelProviderProperties,
         embeddings: List<EmbeddingService>,
-        embeddingRoleResolvers: List<EmbeddingRoleResolver> = emptyList(),
-        credentialEmbeddingServiceFactories: List<CredentialEmbeddingServiceFactory> = emptyList(),
+        roleResolvers: List<RoleResolver<*, *>> = emptyList(),
+        credentialModelFactories: List<CredentialModelFactory<*>> = emptyList(),
     ) = ConfigurableModelProvider(
         llms = listOf(defaultLlm),
         embeddingServices = embeddings,
         properties = properties,
-        embeddingRoleResolvers = embeddingRoleResolvers,
-        credentialEmbeddingServiceFactories = credentialEmbeddingServiceFactories,
+        roleResolvers = roleResolvers,
+        credentialModelFactories = credentialModelFactories,
     )
 
     /**
@@ -132,13 +132,13 @@ class EmbeddingRoleResolutionTest {
             embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(OPENAI to SMALL_MODEL)),
         ),
         listOf(placeholder),
-        embeddingRoleResolvers = listOf(
-            EmbeddingRoleResolver { _, _ ->
-                EmbeddingRoleResolution.Credential(ProviderCredential(OPENAI, "sk-stored"))
+        roleResolvers = listOf(
+            RoleResolver.of(EmbeddingService.KIND) { _, _ ->
+                RoleResolution.Credential(ProviderCredential(OPENAI, "sk-stored"))
             },
         ),
-        credentialEmbeddingServiceFactories = listOf(
-            CredentialEmbeddingServiceFactory { credential, model ->
+        credentialModelFactories = listOf(
+            CredentialModelFactory.of(EmbeddingService.KIND) { credential, model ->
                 FakeEmbeddingService(model, credential.provider, dimensions = LARGE_DIMENSIONS)
             },
         ),
@@ -185,8 +185,8 @@ class EmbeddingRoleResolutionTest {
             val mp = provider(
                 properties,
                 listOf(placeholder),
-                credentialEmbeddingServiceFactories = listOf(
-                    CredentialEmbeddingServiceFactory { credential, model ->
+                credentialModelFactories = listOf(
+                    CredentialModelFactory.of(EmbeddingService.KIND) { credential, model ->
                         FakeEmbeddingService(model, credential.provider)
                     },
                 ),
@@ -216,9 +216,9 @@ class EmbeddingRoleResolutionTest {
                     embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
                 ),
                 listOf(placeholder),
-                embeddingRoleResolvers = listOf(
-                    EmbeddingRoleResolver { _, _ ->
-                        storedKey?.let { EmbeddingRoleResolution.Service(FakeEmbeddingService("stored", OPENAI)) }
+                roleResolvers = listOf(
+                    RoleResolver.of(EmbeddingService.KIND) { _, _ ->
+                        storedKey?.let { RoleResolution.Service(FakeEmbeddingService("stored", OPENAI)) }
                     },
                 ),
             )
@@ -244,8 +244,8 @@ class EmbeddingRoleResolutionTest {
                     embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(OPENAI to SMALL_MODEL)),
                 ),
                 listOf(placeholder),
-                credentialEmbeddingServiceFactories = listOf(
-                    CredentialEmbeddingServiceFactory { credential, model ->
+                credentialModelFactories = listOf(
+                    CredentialModelFactory.of(EmbeddingService.KIND) { credential, model ->
                         builds++
                         FakeEmbeddingService(model, credential.provider)
                     },
@@ -290,9 +290,9 @@ class EmbeddingRoleResolutionTest {
                     embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
                 ),
                 listOf(small, mistral),
-                embeddingRoleResolvers = listOf(
-                    EmbeddingRoleResolver { role, _ ->
-                        if (role == DOCUMENTS_ROLE) EmbeddingRoleResolution.Model(MISTRAL_MODEL) else null
+                roleResolvers = listOf(
+                    RoleResolver.of(EmbeddingService.KIND) { role, _ ->
+                        if (role == DOCUMENTS_ROLE) RoleResolution.Bound(ModelName(MISTRAL_MODEL)) else null
                     },
                 ),
             )
@@ -345,7 +345,7 @@ class EmbeddingRoleResolutionTest {
                     embeddingServices = mapOf("shared-name" to SMALL_MODEL),
                 ),
                 roleResolvers = listOf(
-                    RoleResolver { _, _ ->
+                    RoleResolver.of(LlmService.KIND) { _, _ ->
                         chatResolverAsked = true
                         RoleResolution.Service(defaultLlm)
                     },
@@ -772,15 +772,13 @@ class EmbeddingRoleResolutionTest {
 
         @Test
         fun `the nested map wins over the flat one for the active provider`() {
-            val resolver = ConfigurableEmbeddingRoleResolver(
-                ConfigurableModelProviderProperties(
-                    embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
-                    embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(MISTRAL to MISTRAL_MODEL)),
-                ),
-            ) { OPENAI }
-            assertEquals(MISTRAL_MODEL, resolver.configuredModelFor(DOCUMENTS_ROLE, MISTRAL))
-            assertEquals(SMALL_MODEL, resolver.configuredModelFor(DOCUMENTS_ROLE, OPENAI))
-            assertNull(resolver.configuredModelFor("no-such-role", OPENAI))
+            val roles = ConfigurableModelProviderProperties(
+                embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
+                embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(MISTRAL to MISTRAL_MODEL)),
+            ).embeddingRoleBindings()
+            assertEquals(MISTRAL_MODEL, roles.configuredFor(DOCUMENTS_ROLE, MISTRAL)?.modelName)
+            assertEquals(SMALL_MODEL, roles.configuredFor(DOCUMENTS_ROLE, OPENAI)?.modelName)
+            assertNull(roles.configuredFor("no-such-role", OPENAI))
         }
     }
 }

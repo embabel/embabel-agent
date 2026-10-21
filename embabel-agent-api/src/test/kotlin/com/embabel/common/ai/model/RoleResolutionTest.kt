@@ -86,14 +86,14 @@ class RoleResolutionTest {
             roles = nestedRoles,
             defaultLlm = "gpt-4.1-mini",
         ),
-        roleResolvers: List<RoleResolver> = emptyList(),
-        factories: List<CredentialLlmServiceFactory> = emptyList(),
+        roleResolvers: List<RoleResolver<*, *>> = emptyList(),
+        factories: List<CredentialModelFactory<*>> = emptyList(),
     ) = ConfigurableModelProvider(
         llms = models,
         embeddingServices = emptyList(),
         properties = properties,
         roleResolvers = roleResolvers,
-        credentialLlmServiceFactories = factories,
+        credentialModelFactories = factories,
     )
 
     @Nested
@@ -110,7 +110,7 @@ class RoleResolutionTest {
             val built = mutableListOf<String>()
             val mp = provider(
                 factories = listOf(
-                    CredentialLlmServiceFactory { _, model ->
+                    CredentialModelFactory.of(LlmService.KIND) { _, model ->
                         built += model
                         anthropicModel
                     },
@@ -397,7 +397,7 @@ class RoleResolutionTest {
         fun `an application resolver wins over configuration`() {
             val mp = provider(
                 roleResolvers = listOf(
-                    RoleResolver { _, _ -> RoleResolution.Service(anthropicModel) },
+                    RoleResolver.of(LlmService.KIND) { _, _ -> RoleResolution.Service(anthropicModel) },
                 ),
             )
             assertSame(anthropicModel, mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE)))
@@ -407,8 +407,8 @@ class RoleResolutionTest {
         fun `a resolver returning null delegates to the next one`() {
             val mp = provider(
                 roleResolvers = listOf(
-                    RoleResolver { _, _ -> null },
-                    RoleResolver { _, _ -> RoleResolution.Service(anthropicModel) },
+                    RoleResolver.of(LlmService.KIND) { _, _ -> null },
+                    RoleResolver.of(LlmService.KIND) { _, _ -> RoleResolution.Service(anthropicModel) },
                 ),
             )
             assertSame(anthropicModel, mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE)))
@@ -419,7 +419,7 @@ class RoleResolutionTest {
             var seen: ModelSelectionContext? = null
             val mp = provider(
                 roleResolvers = listOf(
-                    RoleResolver { _, context ->
+                    RoleResolver.of(LlmService.KIND) { _, context ->
                         seen = context
                         RoleResolution.Service(anthropicModel)
                     },
@@ -439,7 +439,7 @@ class RoleResolutionTest {
         private val userService = llm("claude-haiku-4-5", "anthropic")
         private var buildCount = 0
 
-        private val factory = CredentialLlmServiceFactory { credential, model ->
+        private val factory = CredentialModelFactory.of(LlmService.KIND) { credential, model ->
             if (credential.provider == "anthropic" && model == "claude-haiku-4-5") {
                 buildCount++
                 userService
@@ -487,7 +487,7 @@ class RoleResolutionTest {
         @Test
         fun `two users with different keys do not share a service`() {
             val built = mutableListOf<ProviderCredential>()
-            val perKeyFactory = CredentialLlmServiceFactory { credential, _ ->
+            val perKeyFactory = CredentialModelFactory.of(LlmService.KIND) { credential, _ ->
                 built += credential
                 llm("claude-haiku-4-5", "anthropic")
             }
@@ -539,7 +539,7 @@ class RoleResolutionTest {
             // The cache is keyed by a digest of the key rather than the key itself. That must not
             // change what the cache MEANS: same key reuses, different key rebuilds.
             val built = mutableListOf<String>()
-            val perKeyFactory = CredentialLlmServiceFactory { credential, _ ->
+            val perKeyFactory = CredentialModelFactory.of(LlmService.KIND) { credential, _ ->
                 built += credential.apiKey
                 llm("claude-haiku-4-5", "anthropic")
             }
@@ -679,7 +679,7 @@ class RoleResolutionTest {
                     credentialServiceCacheSize = 2,
                 ),
                 factories = listOf(
-                    CredentialLlmServiceFactory { credential, _ ->
+                    CredentialModelFactory.of(LlmService.KIND) { credential, _ ->
                         built += credential.apiKey
                         llm("claude-haiku-4-5", "anthropic")
                     },
@@ -758,9 +758,10 @@ class RoleResolutionTest {
     @Nested
     inner class PlatformResolver {
 
-        private val resolver = ConfigurableRoleResolver(
-            ConfigurableModelProviderProperties(roles = nestedRoles, defaultLlm = "gpt-4.1-mini"),
-        ) { "openai" }
+        private val roles =
+            ConfigurableModelProviderProperties(roles = nestedRoles, defaultLlm = "gpt-4.1-mini").chatRoles()
+
+        private val resolver = ConfigurableRoleResolver(LlmService.KIND, roles) { "openai" }
 
         @Test
         fun `runs last, so an application resolver can always take precedence`() {
@@ -769,7 +770,7 @@ class RoleResolutionTest {
 
         @Test
         fun `says nothing when there is no provider to resolve against`() {
-            assertNull(resolver.optionsFor(CHEAPEST_ROLE, provider = null))
+            assertNull(roles.boundFor(CHEAPEST_ROLE, provider = null))
         }
 
         @Test
@@ -808,7 +809,7 @@ class RoleResolutionTest {
         @Test
         fun `the configured view ignores application resolvers, which are per-call`() {
             val mp = provider(
-                roleResolvers = listOf(RoleResolver { _, _ -> RoleResolution.Service(anthropicModel) }),
+                roleResolvers = listOf(RoleResolver.of(LlmService.KIND) { _, _ -> RoleResolution.Service(anthropicModel) }),
             )
             // The resolver decides what RUNS; configuration is what the deployment DECLARES.
             assertEquals(OpenAiModels.GPT_6_LUNA, mp.configuredOptionsForRole(CHEAPEST_ROLE)?.modelName)
@@ -821,7 +822,7 @@ class RoleResolutionTest {
 
         @Test
         fun `says nothing about a role it has never heard of`() {
-            assertNull(resolver.optionsFor("no-such-role", provider = "openai"))
+            assertNull(roles.boundFor("no-such-role", provider = "openai"))
             assertNull(resolver.resolve("no-such-role", ModelSelectionContext.EMPTY))
         }
     }
@@ -929,7 +930,7 @@ class RoleResolutionTest {
                     defaultLlm = CHEAPEST_ROLE,
                 ),
                 factories = listOf(
-                    CredentialLlmServiceFactory { _, model ->
+                    CredentialModelFactory.of(LlmService.KIND) { _, model ->
                         built = model
                         anthropicModel
                     },
@@ -949,8 +950,8 @@ class RoleResolutionTest {
             val mp = provider(
                 models = listOf(placeholderModel),
                 properties = ConfigurableModelProviderProperties(defaultLlm = "workhorse"),
-                roleResolvers = listOf(RoleResolver { role, _ ->
-                    RoleResolution.Service(anthropicModel).takeIf { role == "workhorse" }
+                roleResolvers = listOf(RoleResolver.of(LlmService.KIND) { role, _ ->
+                    RoleResolution.Service<LlmService<*>, LlmOptions>(anthropicModel).takeIf { role == "workhorse" }
                 }),
             )
             assertSame(anthropicModel, mp.getLlm(DefaultModelSelectionCriteria))
@@ -964,7 +965,7 @@ class RoleResolutionTest {
                     roles = nestedRoles,
                     defaultLlm = "gpt-4.1-mini",
                 ),
-                roleResolvers = listOf(RoleResolver { _, _ -> asked = true; null }),
+                roleResolvers = listOf(RoleResolver.of(LlmService.KIND) { _, _ -> asked = true; null }),
             )
             assertSame(defaultModel, mp.getLlm(DefaultModelSelectionCriteria))
             assertFalse(asked)
