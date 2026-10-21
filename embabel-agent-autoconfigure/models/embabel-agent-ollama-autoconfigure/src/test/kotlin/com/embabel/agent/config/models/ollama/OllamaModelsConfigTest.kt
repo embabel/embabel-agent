@@ -15,11 +15,13 @@
  */
 package com.embabel.agent.config.models.ollama
 
+import com.embabel.common.ai.model.local.LocalModel
+import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.agent.spi.LlmService
 import com.embabel.agent.api.models.OllamaModels
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
 import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
-import com.embabel.common.ai.model.local.LocalModelKind
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.SpringAiEmbeddingService
 import io.micrometer.observation.ObservationRegistry
@@ -89,6 +91,8 @@ class OllamaModelsConfigTest {
         // Mock basic dependencies
         every { mockBeanFactory.registerSingleton(any(), any()) } just Runs
         every { mockProperties.allWellKnownEmbeddingServiceNames() } returns setOf("embeddinggemma:latest")
+        every { mockProperties.chatRoles() } returns ConfigurableModelProviderProperties().chatRoles()
+        every { mockProperties.embeddingRoleBindings() } returns ConfigurableModelProviderProperties().embeddingRoleBindings()
         every { mockObservationRegistry.getIfUnique(any()) } returns ObservationRegistry.NOOP
 
         // Mock RestClient.Builder provider chain
@@ -436,11 +440,11 @@ class OllamaModelsConfigTest {
 
             assertEquals(
                 setOf("deepseek-r1:latest", "qwen3:latest", "gemma3:latest"),
-                catalog.servedNames(LocalModelKind.CHAT),
+                catalog.servedNames(LlmService.KIND),
             )
             assertEquals(
                 setOf("embeddinggemma:latest"),
-                catalog.servedNames(LocalModelKind.EMBEDDING),
+                catalog.servedNames(EmbeddingService.KIND),
                 "configuration decides the kind, since /api/tags does not say",
             )
         }
@@ -453,7 +457,7 @@ class OllamaModelsConfigTest {
             val catalog = createConfig("", nodes).ollamaLocalModelCatalog()
 
             assertTrue(
-                catalog.servedNames(LocalModelKind.CHAT).contains("gpu-qwen3:latest"),
+                catalog.servedNames(LlmService.KIND).contains("gpu-qwen3:latest"),
                 "a node-scoped model is asked for under the prefixed name, so it must be listed under it",
             )
         }
@@ -462,7 +466,7 @@ class OllamaModelsConfigTest {
         fun `a served chat model resolves to a service by name`() {
             val catalog = createConfig("http://localhost:11434", null).ollamaLocalModelCatalog()
 
-            val llm = catalog.llmNamed("qwen3:latest")
+            val llm = catalog.named(LlmService.KIND, "qwen3:latest")
 
             assertNotNull(llm)
             assertEquals("qwen3:latest", llm.name)
@@ -473,7 +477,7 @@ class OllamaModelsConfigTest {
         fun `a served embedding model resolves to a service by name`() {
             val catalog = createConfig("http://localhost:11434", null).ollamaLocalModelCatalog()
 
-            val embedding = catalog.embeddingNamed("embeddinggemma:latest")
+            val embedding = catalog.named(EmbeddingService.KIND, "embeddinggemma:latest")
 
             assertNotNull(embedding)
             assertEquals("embeddinggemma:latest", embedding.name)
@@ -488,7 +492,7 @@ class OllamaModelsConfigTest {
         fun `a node-scoped chat model is listed under its prefixed name and requested under its raw one`() {
             val catalog = createConfig("", gpuNode()).ollamaLocalModelCatalog()
 
-            val llm = assertIs<SpringAiLlmService>(catalog.llmNamed("gpu-qwen3:latest"))
+            val llm = assertIs<SpringAiLlmService>(catalog.named(LlmService.KIND, "gpu-qwen3:latest"))
 
             assertEquals("gpu-qwen3:latest", llm.name)
             assertEquals("qwen3:latest", llm.convertOptions(LlmOptions()).model)
@@ -499,7 +503,7 @@ class OllamaModelsConfigTest {
         fun `a node-scoped embedding model is listed under its prefixed name and requested under its raw one`() {
             val catalog = createConfig("", gpuNode()).ollamaLocalModelCatalog()
 
-            val embedding = assertIs<SpringAiEmbeddingService>(catalog.embeddingNamed("gpu-embeddinggemma:latest"))
+            val embedding = assertIs<SpringAiEmbeddingService>(catalog.named(EmbeddingService.KIND, "gpu-embeddinggemma:latest"))
 
             assertEquals("gpu-embeddinggemma:latest", embedding.name)
             assertEquals("embeddinggemma:latest", requestedEmbeddingModel(embedding))
@@ -522,17 +526,17 @@ class OllamaModelsConfigTest {
 
             assertEquals(
                 chatModels.flatMap { listOf(it, "gpu-$it", "cpu-$it") }.toSet(),
-                catalog.servedNames(LocalModelKind.CHAT),
+                catalog.servedNames(LlmService.KIND),
             )
             listOf(null, "gpu", "cpu").forEach { node ->
                 chatModels.forEach { raw ->
                     val listed = node?.let { "$it-$raw" } ?: raw
-                    val llm = assertIs<SpringAiLlmService>(catalog.llmNamed(listed), listed)
+                    val llm = assertIs<SpringAiLlmService>(catalog.named(LlmService.KIND, listed), listed)
                     assertEquals(listed, llm.name)
                     assertEquals(raw, llm.convertOptions(LlmOptions()).model, "request name for $listed")
                 }
                 val listedEmbedding = node?.let { "$it-embeddinggemma:latest" } ?: "embeddinggemma:latest"
-                val embedding = assertIs<SpringAiEmbeddingService>(catalog.embeddingNamed(listedEmbedding))
+                val embedding = assertIs<SpringAiEmbeddingService>(catalog.named(EmbeddingService.KIND, listedEmbedding))
                 assertEquals("embeddinggemma:latest", requestedEmbeddingModel(embedding), "request name for $listedEmbedding")
             }
         }
@@ -541,8 +545,8 @@ class OllamaModelsConfigTest {
         fun `a model the server is not serving resolves to nothing`() {
             val catalog = createConfig("http://localhost:11434", null).ollamaLocalModelCatalog()
 
-            assertNull(catalog.llmNamed("never-pulled:latest"))
-            assertNull(catalog.embeddingNamed("never-pulled:latest"))
+            assertNull(catalog.named(LlmService.KIND, "never-pulled:latest"))
+            assertNull(catalog.named(EmbeddingService.KIND, "never-pulled:latest"))
         }
 
         /**
@@ -562,8 +566,8 @@ class OllamaModelsConfigTest {
                 config.ollamaLocalModelEmbeddingRoleResolver(),
             )
 
-            config.ollamaLocalModelCatalog().servedNames(LocalModelKind.CHAT)
-            config.ollamaLocalModelCatalog().servedNames(LocalModelKind.EMBEDDING)
+            config.ollamaLocalModelCatalog().servedNames(LlmService.KIND)
+            config.ollamaLocalModelCatalog().servedNames(EmbeddingService.KIND)
 
             verify(exactly = 1) { mockRequestHeadersUriSpec.uri("http://localhost:11434/api/tags") }
         }

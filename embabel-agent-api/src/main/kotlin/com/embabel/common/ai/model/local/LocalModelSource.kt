@@ -17,16 +17,17 @@ package com.embabel.common.ai.model.local
 
 import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
-import com.embabel.common.ai.model.CredentialEmbeddingServiceFactory
-import com.embabel.common.ai.model.CredentialLlmServiceFactory
+import com.embabel.common.ai.model.CredentialModelFactory
 import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.ModelCapability
+import com.embabel.common.ai.model.ModelKind
 import com.embabel.common.ai.model.ModelMetadata
 
 /**
  * A local model runner - Docker Model Runner, LM Studio, Ollama - asked what it is serving NOW.
  *
- * The local counterpart of [CredentialLlmServiceFactory] and [CredentialEmbeddingServiceFactory],
- * and it exists for the same reason they do: something has to be able to answer for a model the
+ * The local counterpart of [CredentialModelFactory], and it exists for
+ * the same reason it does: something has to be able to answer for a model the
  * platform did not know about when it was built.
  *
  * WHY THIS IS NOT JUST STARTUP DISCOVERY. Each runner's autoconfiguration enumerates models in a
@@ -56,83 +57,89 @@ interface LocalModelSource {
     val provider: String
 
     /**
-     * What the runner is serving right now, by the names models are asked for under, each with what
-     * it is for.
+     * What the runner is serving right now, by the names models are asked for under, each with the
+     * kind of model it is.
      *
      * Empty when the runner is unreachable, which declines every role rather than failing one.
      *
      * [LocalModel.kind] must be decided the same way this source's startup registration decides it,
-     * so a model does not change category by virtue of having arrived late.
+     * so a model does not change kind by virtue of having arrived late.
      */
     fun servedModels(): Set<LocalModel>
 
     /**
-     * A chat service for [model], or null if this source cannot build one.
+     * A model of [kind] for [model], or null if this source cannot build one.
      *
-     * Called only for a model [servedModels] just reported, and at most once per model name:
-     * [LocalModelCatalog] holds what this returns.
+     * Called only for a model [servedModels] just reported, and at most once per kind and model
+     * name: [LocalModelCatalog] holds what this returns. Returning null is the right answer for a
+     * kind this runner does not serve, and for a runner that can tell a chat model from an embedding
+     * model and knows this one is not of [kind]. A runner that cannot tell should build, since the
+     * role asking is what says which it is.
      */
-    fun llmService(model: String): LlmService<*>?
-
-    /**
-     * An embedding service for [model], or null if this source cannot build one.
-     *
-     * Called on the same terms as [llmService]. Returning null is the right answer for a runner
-     * that can tell a chat model from an embedding model and knows this one is not the latter;
-     * a runner that cannot tell should build, since the role asking is what says which it is.
-     */
-    fun embeddingService(model: String): EmbeddingService?
+    fun <C : ModelCapability> model(kind: ModelKind<C, *>, model: String): C?
 }
 
 /**
- * What a model a local runner is serving is FOR.
+ * A model a local runner is serving right now.
  *
- * A runner lists names; what a name is for is either something the runner states (LM Studio reports
- * a type) or something configuration decides (Docker and Ollama read
- * [ConfigurableModelProviderProperties.allWellKnownEmbeddingServiceNames], which is the same rule
- * their startup registration uses). Either way a [LocalModelSource] must answer, because the
- * platform lists chat models and embedding models separately and cannot guess.
+ * [kind] decides which listing the model appears in and what a caller naming it gets back. It does
+ * NOT gate role resolution: there, the role that asked is the better signal - an embedding role
+ * asking for a name means that name is an embedding model, whatever a runner's own type field says -
+ * and declining on a disagreement would break a configuration that works.
+ *
+ * A runner lists names; what a name is is either something the runner states (LM Studio reports a
+ * type) or something configuration decides ([kindFromConfiguration]).
  */
-enum class LocalModelKind {
-    CHAT,
-    EMBEDDING,
-    ;
+data class LocalModel(
+    val name: String,
+    val kind: ModelKind<*, *>,
+) {
 
     companion object {
 
         /**
-         * What a model is for when the runner itself does not say.
+         * What kind of model [modelName] is when the runner itself does not say.
          *
          * Docker's `/v1/models` and Ollama's `/api/tags` list names and nothing else, so
          * configuration decides: a model some `embedding-services` entry or embedding role names is
          * an embedding model, and anything else is a chat model.
          *
          * ONE function rather than one per runner, because both runners' startup registration
-         * applies this same rule and the guarantee that matters - a model cannot land in one
-         * category at boot and the other when pulled later - is only as good as the two copies
-         * staying identical. LM Studio does not call this; it reports a type per model.
+         * applies this same rule and the guarantee that matters - a model cannot land in one kind at
+         * boot and the other when pulled later - is only as good as the two copies staying
+         * identical. LM Studio does not call this; it reports a type per model.
          */
-        fun fromConfiguration(
+        @JvmStatic
+        fun kindFromConfiguration(
             modelName: String,
             properties: ConfigurableModelProviderProperties,
-        ): LocalModelKind =
+        ): ModelKind<*, *> =
             if (properties.allWellKnownEmbeddingServiceNames().contains(modelName)) {
-                EMBEDDING
+                EmbeddingService.KIND
             } else {
-                CHAT
+                LlmService.KIND
             }
     }
 }
 
 /**
- * A model a local runner is serving right now.
+ * A runner that serves chat and embedding models, which every shipped runner is.
  *
- * [kind] decides which list the model appears in and what a caller naming it gets back. It does NOT
- * gate role resolution: there, the role that asked is the better signal - an embedding role asking
- * for a name means that name is an embedding model, whatever a runner's own type field says - and
- * declining on a disagreement would break a configuration that works.
+ * Builds through [chatModel] and [embeddingModel] and declines every other kind, so a runner states
+ * how it builds each kind it serves and nothing more.
  */
-data class LocalModel(
-    val name: String,
-    val kind: LocalModelKind,
-)
+abstract class ChatAndEmbeddingModelSource : LocalModelSource {
+
+    /** A chat model for [model], or null if this runner cannot build one. */
+    protected abstract fun chatModel(model: String): LlmService<*>?
+
+    /** An embedding model for [model], or null if this runner cannot build one. */
+    protected abstract fun embeddingModel(model: String): EmbeddingService?
+
+    final override fun <C : ModelCapability> model(kind: ModelKind<C, *>, model: String): C? =
+        when {
+            kind === LlmService.KIND -> chatModel(model)?.let(kind.capability::cast)
+            kind === EmbeddingService.KIND -> embeddingModel(model)?.let(kind.capability::cast)
+            else -> null
+        }
+}

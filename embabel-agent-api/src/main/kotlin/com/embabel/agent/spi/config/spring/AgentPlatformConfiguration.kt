@@ -40,9 +40,7 @@ import com.embabel.common.util.EmbabelObjectMapperHolder
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.model.ConfigurableModelProvider
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
-import com.embabel.common.ai.model.CredentialEmbeddingServiceFactory
-import com.embabel.common.ai.model.CredentialLlmServiceFactory
-import com.embabel.common.ai.model.EmbeddingRoleResolver
+import com.embabel.common.ai.model.CredentialModelFactory
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.local.LocalModelCatalog
 import com.embabel.common.ai.model.ModelProvider
@@ -244,18 +242,13 @@ class AgentPlatformConfiguration(
             llms = applicationContext.getBeansOfType(LlmService::class.java).values.toList(),
             embeddingServices = applicationContext.getBeansOfType(EmbeddingService::class.java).values.toList(),
             properties = properties,
-            // Ordered, so that one application resolver can take precedence over another
+            // Ordered, so that one application resolver can take precedence over another. Every
+            // kind arrives together; each resolver says which kind it answers for, and only that
+            // kind's selection asks it, so a chat role and an embedding role may share a name.
             roleResolvers = applicationContext.getBeanProvider(RoleResolver::class.java)
                 .orderedStream().toList(),
-            credentialLlmServiceFactories = applicationContext
-                .getBeanProvider(CredentialLlmServiceFactory::class.java)
-                .orderedStream().toList(),
-            // A separate chain from roleResolvers: an embedding role and a chat role may share a
-            // name, and a resolver that answers for one must not be asked about the other.
-            embeddingRoleResolvers = applicationContext.getBeanProvider(EmbeddingRoleResolver::class.java)
-                .orderedStream().toList(),
-            credentialEmbeddingServiceFactories = applicationContext
-                .getBeanProvider(CredentialEmbeddingServiceFactory::class.java)
+            credentialModelFactories = applicationContext
+                .getBeanProvider(CredentialModelFactory::class.java)
                 .orderedStream().toList(),
             // What local runners are serving NOW, so a model pulled after startup is listed and
             // usable by name rather than only reachable through a role.

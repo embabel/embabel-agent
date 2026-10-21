@@ -22,14 +22,12 @@ import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.*
 import com.embabel.common.ai.model.local.DiscoveryFailureReporter
-import com.embabel.common.ai.model.local.LocalModel
 import com.embabel.common.ai.model.local.LocalModelBeans
+import com.embabel.common.ai.model.local.ChatAndEmbeddingModelSource
+import com.embabel.common.ai.model.local.LocalModel
 import com.embabel.common.ai.model.local.LocalModelCatalog
 import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
-import com.embabel.common.ai.model.local.LocalModelEmbeddingRoleResolver
-import com.embabel.common.ai.model.local.LocalModelKind
 import com.embabel.common.ai.model.local.LocalModelRoleResolver
-import com.embabel.common.ai.model.local.LocalModelSource
 import com.embabel.common.util.ObjectProviders
 import com.fasterxml.jackson.annotation.JsonProperty
 import io.micrometer.observation.ObservationRegistry
@@ -369,8 +367,8 @@ class OllamaModelsConfig(
      * what startup registration here applies. One function, so a model cannot land in one category
      * at boot and the other when pulled later.
      */
-    private fun kindOf(modelName: String): LocalModelKind =
-        LocalModelKind.fromConfiguration(modelName, properties)
+    private fun kindOf(modelName: String): ModelKind<*, *> =
+        LocalModel.kindFromConfiguration(modelName, properties)
 
     /**
      * An Ollama server this deployment is configured to use: the default instance, or a named node.
@@ -417,7 +415,7 @@ class OllamaModelsConfig(
      * [ollamaModelsInitializer] still registers what was pulled at boot; this covers `ollama pull`
      * afterwards, which otherwise needed a restart before anything could use the model.
      */
-    private inner class OllamaModelSource : LocalModelSource {
+    private inner class OllamaModelSource : ChatAndEmbeddingModelSource() {
 
         override val provider: String = OllamaModels.PROVIDER
 
@@ -433,12 +431,12 @@ class OllamaModelsConfig(
                 }
                 .toSet()
 
-        override fun llmService(model: String): LlmService<*>? =
+        override fun chatModel(model: String): LlmService<*>? =
             servedOllamaModel(model)?.let {
                 ollamaLlmOf(it.modelName, it.endpoint.baseUrl, it.endpoint.nodeName)
             }
 
-        override fun embeddingService(model: String): EmbeddingService? =
+        override fun embeddingModel(model: String): EmbeddingService? =
             servedOllamaModel(model)?.let {
                 ollamaEmbeddingServiceOf(it.modelName, it.endpoint.baseUrl, it.endpoint.nodeName)
             }
@@ -459,10 +457,11 @@ class OllamaModelsConfig(
     fun ollamaLocalModelCatalog(): LocalModelCatalog = localModelBeans.catalog
 
     @Bean
-    fun ollamaLocalModelRoleResolver(): LocalModelRoleResolver = localModelBeans.roleResolver
+    fun ollamaLocalModelRoleResolver(): LocalModelRoleResolver<LlmService<*>, LlmOptions> =
+        localModelBeans.chatRoleResolver
 
     @Bean
-    fun ollamaLocalModelEmbeddingRoleResolver(): LocalModelEmbeddingRoleResolver =
+    fun ollamaLocalModelEmbeddingRoleResolver(): LocalModelRoleResolver<EmbeddingService, ModelName> =
         localModelBeans.embeddingRoleResolver
 }
 

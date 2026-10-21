@@ -29,10 +29,9 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ByRoleModelSelectionCriteria
 import com.embabel.common.ai.model.ConfigurableModelProvider
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
-import com.embabel.common.ai.model.CredentialEmbeddingServiceFactory
+import com.embabel.common.ai.model.CredentialModelFactory
 import com.embabel.common.ai.model.CredentialEndpoint
 import com.embabel.common.ai.model.CredentialEndpointResolver
-import com.embabel.common.ai.model.CredentialLlmServiceFactory
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
 import com.embabel.common.ai.model.ModelSelectionContext
@@ -65,7 +64,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Per-user keys do not work out of the box unless something ships a [CredentialLlmServiceFactory]:
+ * Per-user keys do not work out of the box unless something ships a chat [CredentialModelFactory]:
  * a role returning `RoleResolution.Credential` fails with `NoSuitableModelException` until the
  * application supplies one, and every application that has needed one has written the same `when`
  * over provider names. Putting `starter-byok` on the classpath should be enough, and these tests
@@ -120,12 +119,12 @@ class CredentialEndpointConfigTest {
         .withConfiguration(AutoConfigurations.of(AgentByokAutoConfiguration::class.java))
 
     /**
-     * Every [CredentialLlmServiceFactory] the context contributed, in no particular order - the
+     * Every chat [CredentialModelFactory] the context contributed, in no particular order - the
      * platform consults all of them and takes the first non-null answer, so order is not something
      * these tests should depend on.
      */
-    private fun factoriesIn(context: ApplicationContext): List<CredentialLlmServiceFactory> =
-        context.getBeansOfType(CredentialLlmServiceFactory::class.java).values.toList()
+    private fun factoriesIn(context: ApplicationContext): List<CredentialModelFactory<LlmService<*>>> =
+        context.chatModelFactories().values.toList()
 
     /**
      * Ask each factory in turn for a service, exactly as
@@ -134,16 +133,16 @@ class CredentialEndpointConfigTest {
      * @return the service built for [provider] and [model], or null if no factory handled it
      */
     private fun build(
-        factories: List<CredentialLlmServiceFactory>,
+        factories: List<CredentialModelFactory<LlmService<*>>>,
         provider: String,
         model: String,
     ): LlmService<*>? = factories.firstNotNullOfOrNull {
-        it.createLlmService(ProviderCredential(provider, TEST_API_KEY), model)
+        it.create(ProviderCredential(provider, TEST_API_KEY), model)
     }
 
     /** As above, for a test that needs the gateway to be a socket it controls. */
     private fun build(
-        factories: List<CredentialLlmServiceFactory>,
+        factories: List<CredentialModelFactory<LlmService<*>>>,
         provider: String,
         model: String,
         gatewayUrl: String,
@@ -153,7 +152,7 @@ class CredentialEndpointConfigTest {
     fun `a factory per provider module with nothing but the starter on the classpath`() {
         contextRunner.run { context ->
             assertThat(context).hasNotFailed()
-            assertThat(context.getBeansOfType(CredentialLlmServiceFactory::class.java))
+            assertThat(context.chatModelFactories())
                 .containsOnlyKeys(OPENAI_COMPATIBLE_FACTORY_BEAN, ANTHROPIC_FACTORY_BEAN)
         }
     }
@@ -258,14 +257,14 @@ class CredentialEndpointConfigTest {
          * the right one happened to be consulted first - which is bean ordering, not behaviour.
          */
         contextRunner.run { context ->
-            val beans = context.getBeansOfType(CredentialLlmServiceFactory::class.java)
+            val beans = context.chatModelFactories()
             val openAi = beans.getValue(OPENAI_COMPATIBLE_FACTORY_BEAN)
             val anthropic = beans.getValue(ANTHROPIC_FACTORY_BEAN)
             val anthropicKey = ProviderCredential(AnthropicModels.PROVIDER, TEST_API_KEY)
             val openAiKey = ProviderCredential(OpenAiModels.PROVIDER, TEST_API_KEY)
 
-            assertThat(openAi.createLlmService(anthropicKey, AnthropicModels.CLAUDE_HAIKU_4_5)).isNull()
-            assertThat(anthropic.createLlmService(openAiKey, OpenAiModels.GPT_41_MINI)).isNull()
+            assertThat(openAi.create(anthropicKey, AnthropicModels.CLAUDE_HAIKU_4_5)).isNull()
+            assertThat(anthropic.create(openAiKey, OpenAiModels.GPT_41_MINI)).isNull()
         }
     }
 
@@ -285,7 +284,7 @@ class CredentialEndpointConfigTest {
         // override rather than add. The Anthropic factory must survive the override - which is why
         // the shipped beans back off by name rather than by type.
         contextRunner.withUserConfiguration(OwnOpenAiFactory::class.java).run { context ->
-            assertThat(context.getBeansOfType(CredentialLlmServiceFactory::class.java))
+            assertThat(context.chatModelFactories())
                 .containsOnlyKeys(OPENAI_COMPATIBLE_FACTORY_BEAN, ANTHROPIC_FACTORY_BEAN)
             assertThat(build(factoriesIn(context), OpenAiModels.PROVIDER, "anything")?.name)
                 .isEqualTo(OVERRIDE_SERVICE_NAME)
@@ -302,7 +301,7 @@ class CredentialEndpointConfigTest {
             .withClassLoader(FilteredClassLoader(AnthropicModelFactory::class.java))
             .run { context ->
                 assertThat(context).hasNotFailed()
-                assertThat(context.getBeansOfType(CredentialLlmServiceFactory::class.java))
+                assertThat(context.chatModelFactories())
                     .containsOnlyKeys(OPENAI_COMPATIBLE_FACTORY_BEAN)
             }
     }
@@ -319,7 +318,7 @@ class CredentialEndpointConfigTest {
             )
             .run { context ->
                 assertThat(context).hasNotFailed()
-                assertThat(context.getBeansOfType(CredentialLlmServiceFactory::class.java)).isEmpty()
+                assertThat(context.chatModelFactories()).isEmpty()
                 assertThat(context).hasBean(SetupRequiredLlm.NAME)
             }
     }
@@ -404,7 +403,7 @@ class CredentialEndpointConfigTest {
          * every BYOK deployment quietly rebuilding a client on every call.
          */
         val builds = AtomicInteger()
-        val counting = CredentialLlmServiceFactory { credential, model ->
+        val counting = CredentialModelFactory.of(LlmService.KIND) { credential, model ->
             if (!credential.provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) null
             else {
                 builds.incrementAndGet()
@@ -426,7 +425,7 @@ class CredentialEndpointConfigTest {
      * A pure BYOK deployment: the placeholder is the only registered model, and `cheapest` is
      * configured per provider so a user's key selects a model without the deployment holding one.
      */
-    private fun pureByokProviderUsing(factories: List<CredentialLlmServiceFactory>) =
+    private fun pureByokProviderUsing(factories: List<CredentialModelFactory<LlmService<*>>>) =
         ConfigurableModelProvider(
             llms = listOf(SetupRequiredLlm.llmService()),
             embeddingServices = emptyList(),
@@ -438,7 +437,7 @@ class CredentialEndpointConfigTest {
                     ),
                 ),
             ),
-            credentialLlmServiceFactories = factories,
+            credentialModelFactories = factories,
         )
 
     /** The per-call context an application sets at its request boundary once a user's key is known. */
@@ -454,7 +453,7 @@ class CredentialEndpointConfigTest {
     class OwnOpenAiFactory {
 
         @Bean(OPENAI_COMPATIBLE_FACTORY_BEAN)
-        fun openAiCompatibleCredentialLlmServiceFactory() = CredentialLlmServiceFactory { credential, _ ->
+        fun openAiCompatibleCredentialLlmServiceFactory() = CredentialModelFactory.of(LlmService.KIND) { credential, _ ->
             if (!credential.provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) null
             else SpringAiLlmService(
                 name = OVERRIDE_SERVICE_NAME,
@@ -569,11 +568,11 @@ class CredentialEndpointConfigTest {
              * talk to - which, taking the first non-null answer, would otherwise depend on bean order.
              */
             contextRunner.withUserConfiguration(OwnGatewayEndpoint::class.java).run { context ->
-                val beans = context.getBeansOfType(CredentialLlmServiceFactory::class.java)
+                val beans = context.chatModelFactories()
                 val gatewayKey = ProviderCredential(GATEWAY_PROVIDER, TEST_API_KEY)
 
-                assertThat(beans.getValue(ANTHROPIC_FACTORY_BEAN).createLlmService(gatewayKey, "some-model")).isNull()
-                assertThat(beans.getValue(OPENAI_COMPATIBLE_FACTORY_BEAN).createLlmService(gatewayKey, "some-model"))
+                assertThat(beans.getValue(ANTHROPIC_FACTORY_BEAN).create(gatewayKey, "some-model")).isNull()
+                assertThat(beans.getValue(OPENAI_COMPATIBLE_FACTORY_BEAN).create(gatewayKey, "some-model"))
                     .isNotNull()
             }
         }
@@ -634,10 +633,10 @@ class CredentialEndpointConfigTest {
                     .withUserConfiguration(OwnGatewayEndpoint::class.java)
                     .withPropertyValues("embabel.agent.platform.models.ourgateway.read-timeout=300ms")
                     .run { context ->
-                        val factory = context.getBean(CredentialEmbeddingServiceFactory::class.java)
+                        val factory = context.embeddingModelFactories().values.single()
 
                         assertFailsWithinTenSeconds {
-                            factory.createEmbeddingService(ProviderCredential(GATEWAY_PROVIDER, TEST_API_KEY), "slow-embedding")
+                            factory.create(ProviderCredential(GATEWAY_PROVIDER, TEST_API_KEY), "slow-embedding")
                         }
                         assertThat(requests.get()).describedAs("timed-out attempts").isEqualTo(3)
                     }

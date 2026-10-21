@@ -19,7 +19,7 @@ import com.embabel.agent.anthropic.AnthropicModelFactory
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.autoconfigure.models.byok.AgentByokAutoConfiguration
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
-import com.embabel.common.ai.model.CredentialEmbeddingServiceFactory
+import com.embabel.common.ai.model.CredentialModelFactory
 import com.embabel.common.ai.model.CredentialEndpoint
 import com.embabel.common.ai.model.CredentialEndpointResolver
 import com.embabel.common.ai.model.EmbeddingService
@@ -82,23 +82,23 @@ class CredentialEmbeddingServiceFactoryTest {
     private val contextRunner = ApplicationContextRunner()
         .withConfiguration(AutoConfigurations.of(AgentByokAutoConfiguration::class.java))
 
-    private fun factoriesIn(context: ApplicationContext): List<CredentialEmbeddingServiceFactory> =
-        context.getBeansOfType(CredentialEmbeddingServiceFactory::class.java).values.toList()
+    private fun factoriesIn(context: ApplicationContext): List<CredentialModelFactory<EmbeddingService>> =
+        context.embeddingModelFactories().values.toList()
 
     /** Ask each factory in turn, exactly as `ConfigurableModelProvider` does. */
     private fun build(
-        factories: List<CredentialEmbeddingServiceFactory>,
+        factories: List<CredentialModelFactory<EmbeddingService>>,
         provider: String,
         model: String = EMBEDDING_MODEL,
     ): EmbeddingService? = factories.firstNotNullOfOrNull {
-        it.createEmbeddingService(ProviderCredential(provider, TEST_API_KEY), model)
+        it.create(ProviderCredential(provider, TEST_API_KEY), model)
     }
 
     @Test
     fun `the starter contributes one embedding factory, for the OpenAI protocol`() {
         contextRunner.run { context ->
             assertThat(context).hasNotFailed()
-            assertThat(context.getBeansOfType(CredentialEmbeddingServiceFactory::class.java))
+            assertThat(context.embeddingModelFactories())
                 .containsOnlyKeys(EMBEDDING_FACTORY_BEAN)
         }
     }
@@ -129,7 +129,7 @@ class CredentialEmbeddingServiceFactoryTest {
             .withClassLoader(FilteredClassLoader(OpenAiCompatibleModelFactory::class.java))
             .run { context ->
                 assertThat(context).hasNotFailed()
-                assertThat(context.getBeansOfType(CredentialEmbeddingServiceFactory::class.java)).isEmpty()
+                assertThat(context.embeddingModelFactories()).isEmpty()
             }
     }
 
@@ -138,7 +138,7 @@ class CredentialEmbeddingServiceFactoryTest {
         contextRunner
             .withClassLoader(FilteredClassLoader(AnthropicModelFactory::class.java))
             .run { context ->
-                assertThat(context.getBeansOfType(CredentialEmbeddingServiceFactory::class.java))
+                assertThat(context.embeddingModelFactories())
                     .containsOnlyKeys(EMBEDDING_FACTORY_BEAN)
             }
     }
@@ -189,7 +189,7 @@ class CredentialEmbeddingServiceFactoryTest {
      * @param block given the path the probe arrived on, and the factories the context contributed
      */
     private fun withEmbeddingProvider(
-        block: (probedPath: CompletableFuture<String>, factories: List<CredentialEmbeddingServiceFactory>) -> Unit,
+        block: (probedPath: CompletableFuture<String>, factories: List<CredentialModelFactory<EmbeddingService>>) -> Unit,
     ) {
         val server = HttpServer.create(InetSocketAddress(0), 0)
         val probedPath = CompletableFuture<String>()
@@ -252,7 +252,7 @@ class CredentialEmbeddingServiceFactoryTest {
 
         @Bean(EMBEDDING_FACTORY_BEAN)
         fun openAiCompatibleCredentialEmbeddingServiceFactory() =
-            CredentialEmbeddingServiceFactory { credential, _ ->
+            CredentialModelFactory.of(EmbeddingService.KIND) { credential, _ ->
                 if (!credential.provider.equals(GATEWAY_PROVIDER, ignoreCase = true)) null
                 else object : EmbeddingService {
                     override val name = OVERRIDE_SERVICE_NAME

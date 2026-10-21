@@ -15,6 +15,7 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.agent.spi.LlmService
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -59,9 +60,8 @@ class CredentialEndpointTest {
         fun `the factory it replaces cannot say the same`() {
             // Not a complaint about that type - it builds the service itself, so it has to name one.
             // Pinned so that if it ever stops naming an SPI type, this pair of tiers gets revisited.
-            val create = CredentialLlmServiceFactory::class.java.methods.single { it.name == "createLlmService" }
-
-            assertThat(typesIn(create)).anyMatch { it.startsWith(SPI_PACKAGE) }
+            // A chat factory builds the chat kind, whose capability is the SPI's LlmService.
+            assertThat(LlmService.KIND.capability.name).startsWith(SPI_PACKAGE)
         }
 
         private fun typesIn(method: Method): List<String> =
