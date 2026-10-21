@@ -25,6 +25,7 @@ import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.StreamingChatCompletion
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
@@ -59,6 +60,9 @@ import java.util.concurrent.Executors
 class RoleResolutionWiringTest {
 
     private data class Dog(val name: String)
+
+    /** An LLM service that can stream, for mocking. */
+    private interface StreamingLlm : LlmService<StreamingLlm>, StreamingChatCompletion
 
     private fun llm(name: String, chatModel: FakeChatModel): LlmService<*> =
         SpringAiLlmService(name, "openai", chatModel, DefaultOptionsConverter)
@@ -134,12 +138,12 @@ class RoleResolutionWiringTest {
         // Streaming is the chat path. Resolving only far enough to choose a model would leave the
         // streamer running on whatever the caller happened to pass, which is nothing.
         val streamed = slot<LlmOptions>()
-        val roleModel = mockk<LlmService<*>>(relaxed = true)
+        val roleModel = mockk<StreamingLlm>(relaxed = true)
         every { roleModel.name } returns OpenAiModels.GPT_6_LUNA
         every { roleModel.provider } returns "openai"
         every { roleModel.createMessageStreamer(capture(streamed)) } returns mockk(relaxed = true)
 
-        val defaultModel = mockk<LlmService<*>>(relaxed = true)
+        val defaultModel = mockk<StreamingLlm>(relaxed = true)
         every { defaultModel.name } returns "gpt-4.1-mini"
         every { defaultModel.provider } returns "openai"
 
