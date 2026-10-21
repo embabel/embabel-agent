@@ -16,16 +16,25 @@
 package com.embabel.agent.anthropic
 
 import com.anthropic.models.messages.OutputConfig
+import org.slf4j.LoggerFactory
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Outcome of [ClaudeCapabilities.resolveThinking]: what the converter should send
  * for the thinking field given this model and the requested budget.
  */
 sealed class ThinkingMode {
-    /** Claude 5.1+ without a thinking budget: omit the thinking field entirely. */
+    /**
+     * Claude 5.1+ without a thinking budget: omit the thinking field entirely, so Anthropic's
+     * adaptive default applies. Also used when the caller opted out on a model that rejects
+     * thinking.type="disabled" (see [ClaudeCapabilities.Companion.rejectsThinkingDisabled]).
+     */
     data object Omit : ThinkingMode()
 
-    /** Old models without a thinking budget: send thinking.type="disabled". */
+    /**
+     * Old models without a thinking budget, or an explicit opt-out on a model that accepts it
+     * (e.g. Claude Haiku 5.5, see [ClaudeCapabilities.Companion.rejectsThinkingDisabled]): send thinking.type="disabled".
+     */
     data object Disabled : ThinkingMode()
 
     /**
@@ -58,29 +67,40 @@ sealed class ThinkingMode {
  *   "claude-sonnet-4-5-20250929" → 45  (date suffix stripped)
  *   "claude-fable-5-1"           → 51
  * An unrecognised model ID yields version 0 — treated as an old model that accepts
- * the disabled flag and temperature/topP sampling parameters.
+ * the disabled flag and temperature/topP/topK sampling parameters.
+ * Capabilities depend on the version only; the one family exception is resolved by model ID
+ * in [Companion.rejectsThinkingDisabled].
  */
 data class ClaudeCapabilities(val version: Int) {
 
     /** Claude ≥4.7 uses the adaptive thinking API — reserved for Thinking.adaptive() (not yet exposed). */
     val usesAdaptiveThinking: Boolean = version >= 47
 
-    /** Claude 5.1+ rejects thinking.type="disabled" with HTTP 400 — the "thinking" key must be omitted entirely. */
+    /**
+     * Generation rule: Claude 5.1+ rejects thinking.type="disabled" with HTTP 400 — the "thinking" key must be
+     * omitted entirely. The Haiku family is the exception (Haiku 5.5 accepts it at effort high or below); the
+     * version alone cannot tell, so callers holding a model ID use [Companion.rejectsThinkingDisabled].
+     */
     val rejectsThinkingDisabled: Boolean = version >= 51
 
-    /** Claude <4.7 accepts temperature and topP; ≥4.7 rejects these sampling parameters when thinking is active. */
+    /**
+     * Claude <4.7 accepts temperature, topP and topK. Claude ≥4.7 rejects non-default values of
+     * all three on every request, whatever the thinking mode.
+     */
     val acceptsSampling: Boolean = version < 47
 
     /**
-     * Resolves the thinking configuration to send for a given token budget.
+     * Resolves the thinking configuration to send for a given token budget when the caller did not
+     * explicitly opt out. An explicit opt-out is resolved by the converter against [Companion.rejectsThinkingDisabled].
      *
      * @param budget null — thinking not requested (not enabled or no budget set); non-null positive Int — requested token budget.
      * @return the [ThinkingMode] the converter should act on.
      */
     fun resolveThinking(budget: Int?): ThinkingMode = when {
         budget == null && rejectsThinkingDisabled -> ThinkingMode.Omit
-        // Claude 5.1+: send no "thinking" key in the request JSON at all.
-        // Sending "thinking": {"type": "disabled"} causes HTTP 400 on these models.
+        // Claude 5.1+: send no "thinking" key in the request JSON at all, so Anthropic's adaptive default applies.
+        // Most 5.1+ models reject "thinking": {"type": "disabled"} with HTTP 400; Haiku accepts it,
+        // but only an explicit opt-out sends it there.
 
         budget == null                            -> ThinkingMode.Disabled
         // Claude ≤5.0: send "thinking": {"type": "disabled"} in the request JSON.
@@ -110,6 +130,42 @@ data class ClaudeCapabilities(val version: Int) {
                 0
             }
             return ClaudeCapabilities(version)
+        }
+
+        /**
+         * [ClaudeCapabilities.rejectsThinkingDisabled] with the family exception applied: Haiku accepts
+         * thinking.type="disabled" where its 5.1+ siblings reject it, though only at effort high or below.
+         */
+        internal fun rejectsThinkingDisabled(model: String): Boolean =
+            of(model).rejectsThinkingDisabled && !model.contains("haiku")
+
+        private val logger = LoggerFactory.getLogger(ClaudeCapabilities::class.java)
+
+        /** Anthropic's default temperature. A model that rejects sampling uses it anyway, so it is never reported. */
+        private const val DEFAULT_TEMPERATURE = 1.0
+
+        /** Keyed by model and dropped parameter names, not values, so varying a value per request cannot grow it. */
+        internal val warnedIgnoredSampling = ConcurrentHashMap.newKeySet<String>()
+
+        /**
+         * Logs which sampling values a Claude ≥4.7 model will not get. Callers drop them and still make the
+         * call, because failing a request over a temperature or topP setting would be worse for the caller.
+         * Logs once per model and combination of dropped names; unset values and the default temperature
+         * are never reported.
+         */
+        fun warnAboutIgnoredSampling(model: String, temperature: Double?, topP: Double?, topK: Int?) {
+            val ignored = listOfNotNull(
+                temperature?.takeIf { it != DEFAULT_TEMPERATURE }?.let { "temperature" to it }, // skip the default
+                topP?.let { "topP" to it },
+                topK?.let { "topK" to it },
+            )
+            if (ignored.isNotEmpty() && warnedIgnoredSampling.add("$model|${ignored.joinToString(",") { it.first }}")) {
+                logger.warn(
+                    "Model '{}' rejects sampling parameters, so the following are ignored rather than sent: {}",
+                    model,
+                    ignored.joinToString(", ") { "${it.first}=${it.second}" },
+                )
+            }
         }
 
         fun mapBudgetToEffort(budget: Int): OutputConfig.Effort = when {
