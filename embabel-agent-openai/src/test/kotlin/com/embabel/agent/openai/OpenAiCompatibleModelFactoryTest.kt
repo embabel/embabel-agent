@@ -109,4 +109,23 @@ class OpenAiCompatibleModelFactoryTest {
         assertNull(effortSentTo(GoogleGenAiModels.PROVIDER))
     }
 
+    @Test
+    fun `a provider that opts in forwards the reasoning effort`() {
+        val mf = OpenAiCompatibleModelFactory(
+            baseUrl = null,
+            apiKey = "test-key",
+            completionsPath = null,
+            embeddingsPath = null,
+            observationRegistry = mockk(),
+            restClientBuilder = restClientBuilder,
+        )
+        val llm = mf.openAiCompatibleLlm(
+            model = "foo", pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+            provider = "LM Studio", knowledgeCutoffDate = null, forwardsReasoningEffort = true,
+        ) as SpringAiLlmService
+        val options = LlmOptions().withOpenAiReasoningEffort("none")
+        assertEquals("none", (llm.optionsConverter.convertOptions(options, "foo") as OpenAiChatOptions).reasoningEffort)
+        assertNull((llm.optionsConverter.convertOptions(LlmOptions(), "foo") as OpenAiChatOptions).reasoningEffort)
+    }
+
 }
