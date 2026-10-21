@@ -31,6 +31,50 @@ class ContentChunkerTest {
     )
 
     @Test
+    fun `container size includes separators between leaves`() {
+        val maxChunkSize = 15
+        val chunker = InMemoryContentChunker(ContentChunker.Config(maxChunkSize = maxChunkSize, overlapSize = 0))
+        val document = MaterializedDocument(
+            id = "document",
+            title = "Document",
+            children = listOf("A", "B", "C").map { title ->
+                LeafSection(id = title, title = title, text = "abc")
+            },
+            uri = "test",
+        )
+
+        val chunks = chunker.chunk(document)
+
+        // The 19-character document must be split to respect the configured limit.
+        assertTrue(chunks.all { it.text.length <= maxChunkSize }, "Chunk lengths: ${chunks.map { it.text.length }}")
+        // Splitting must retain every title and all content in the original order.
+        assertEquals("A\nabc\n\nB\nabc\n\nC\nabc", chunks.joinToString("\n\n") { it.text })
+    }
+
+    @Test
+    fun `container stays in one chunk when content including separators exactly fits`() {
+        val expectedContent = "A\nabc\n\nB\nabc\n\nC\nabc"
+        val chunker = InMemoryContentChunker(
+            ContentChunker.Config(maxChunkSize = expectedContent.length, overlapSize = 0)
+        )
+        val document = MaterializedDocument(
+            id = "document",
+            title = "Document",
+            children = listOf("A", "B", "C").map { title ->
+                LeafSection(id = title, title = title, text = "abc")
+            },
+            uri = "test",
+        )
+
+        val chunks = chunker.chunk(document)
+
+        // Count separators only between leaves, so an exact fit does not split.
+        assertEquals(1, chunks.size)
+        // The single chunk must contain all three leaves and both separators.
+        assertEquals(expectedContent, chunks.single().text)
+    }
+
+    @Test
     fun `test single chunk for container with small total content`() {
         val leaf1 = LeafSection(
             id = "leaf-1",
