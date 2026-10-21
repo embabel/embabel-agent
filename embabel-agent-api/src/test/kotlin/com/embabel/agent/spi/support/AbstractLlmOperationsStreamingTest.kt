@@ -20,6 +20,7 @@ import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.StreamingChatCompletion
 import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.support.streaming.StreamingLlmOperationsImpl
@@ -39,6 +40,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import jakarta.validation.Validation
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -51,9 +53,12 @@ import kotlin.test.assertIs
  */
 class AbstractLlmOperationsStreamingTest {
 
+    /** An LLM service that can stream, for mocking. */
+    private interface StreamingLlm : LlmService<StreamingLlm>, StreamingChatCompletion
+
     private lateinit var mockModelProvider: ModelProvider
     private lateinit var mockToolDecorator: ToolDecorator
-    private lateinit var mockLlmService: LlmService<*>
+    private lateinit var mockLlmService: StreamingLlm
     private lateinit var mockMessageStreamer: LlmMessageStreamer
     private lateinit var mockAsyncer: Asyncer
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
@@ -100,12 +105,26 @@ class AbstractLlmOperationsStreamingTest {
     }
 
     @Test
-    fun `createStreamingOperations calls createMessageStreamer on LlmService`() {
+    fun `createStreamingOperations asks the model's streaming capability for a streamer`() {
         val options = LlmOptions()
 
         llmOperations.createStreamingOperations(options)
 
         verify { mockLlmService.createMessageStreamer(options) }
+    }
+
+    @Test
+    fun `createStreamingOperations fails and names the model when the model cannot stream`() {
+        val textOnly = mockk<LlmService<*>>()
+        every { textOnly.name } returns "text-only"
+        every { textOnly.provider } returns "test"
+        every { mockModelProvider.getLlm(any<ModelSelectionCriteria>()) } returns textOnly
+
+        val failure = assertThrows<UnsupportedOperationException> {
+            llmOperations.createStreamingOperations(LlmOptions())
+        }
+
+        assertTrue(failure.message.orEmpty().contains("'text-only'"), failure.message)
     }
 
     /**
