@@ -41,6 +41,9 @@ class InMemoryBlackboard(
             synchronized(_entries) {
                 _entries.addAll(this@InMemoryBlackboard._entries)
             }
+            // Also copy the hidden objects. They are already in the entries above,
+            // so without this they would show up again in the child.
+            hiddens.addAll(this@InMemoryBlackboard.hiddens)
             protectedKeys.addAll(this@InMemoryBlackboard.protectedKeys)
         }
     }
