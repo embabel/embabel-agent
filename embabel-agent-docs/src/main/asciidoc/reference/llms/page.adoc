@@ -1647,4 +1647,4 @@ static class MonthItem {
 - **Arrays of objects**: Some providers, including OpenAI according to Spring AI documentation, do not support arrays of objects natively. Embabel falls back to normal object construction for unsupported shapes.
 - **Streaming**: Native structured output is not supported for streaming by Spring AI currently
 - **`ifPossible` APIs**: `createObjectIfPossible` and related paths use `MaybeReturn` semantics and stay on Embabel's fallback object construction path.
-- **Provider coverage**: OpenAI-compatible `response_format` is the primary supported path. Anthropic native structured output is currently disabled by default until its semantics are verified.
+- **Provider coverage**: OpenAI-compatible `response_format` is the primary supported path. Models built on the OpenAI Responses API send the same schema as `text.format`; see <<reference.customizing>> for their `nativeSupport` settings. Anthropic native structured output is currently disabled by default until its semantics are verified.

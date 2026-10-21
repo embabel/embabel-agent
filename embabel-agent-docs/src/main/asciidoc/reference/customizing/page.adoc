@@ -132,6 +132,53 @@ class CustomOpenAiCompatibleModels(
 ----
 ====
 
+===== Serving a model over the Responses API
+
+`openAiCompatibleLlm` uses the OpenAI Chat Completions API.
+Some models need the OpenAI Responses API instead: GPT-5.6 and GPT-6 models reject function tools over Chat Completions when reasoning is enabled, and `*-pro` models are served only over Responses.
+
+[cols="1,1,1",options="header"]
+|===
+| Model type | API | Reasoning
+| Standard models | Chat Completions | On or off
+| GPT-5.6 and GPT-6 (including `*-pro`) | Responses | On or off
+| GPT-5.6 and GPT-6 (non-`*-pro`) | Chat Completions | Off only when using function tools
+|===
+
+For Responses-served models, build the service with `openAiResponsesLlm` from the same factory:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Bean
+LlmService<?> luna() {
+    return factory.openAiResponsesLlm("gpt-6-luna", null, "OpenAI", null);
+}
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Bean
+fun luna(): LlmService<*> =
+    openAiResponsesLlm(
+        model = "gpt-6-luna",
+        provider = "OpenAI",
+        // Optional: the shipped OpenAI catalog's native structured-output settings
+        nativeSupport = OpenAiModelLoader().loadAutoConfigMetadata().nativeSupportDefaults,
+    )
+----
+====
+
+- *Requests*: no sampling parameters are sent, and `LlmOptions.maxTokens` becomes `max_output_tokens`, which also covers reasoning tokens.
+- *Reasoning*: set the effort per call with `LlmOptions.withOpenAiReasoningEffort("low")`. It is sent as the Responses `reasoning.effort` whatever the `provider` name is.
+- *Structured output*: native only when `nativeSupport` declares it, as with the catalog settings above. Schemas that fail the native-output compatibility check fall back to prompt-based output, as for catalog models. Without `nativeSupport`, structured output is prompt-based.
+- *Limits*: this transport does not stream, and it rejects media content in messages. The endpoint must implement `/v1/responses`.
+
 ==== Adding embedding models
 
 Embedding models can also be added as beans of the Embabel type `EmbeddingService`.
