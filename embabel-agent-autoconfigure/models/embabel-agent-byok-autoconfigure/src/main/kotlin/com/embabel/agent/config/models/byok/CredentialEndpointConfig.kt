@@ -20,10 +20,11 @@ import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.openai.OpenAiClientTimeouts
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
-import com.embabel.common.ai.model.CredentialEmbeddingServiceFactory
+import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.CredentialEndpoint
 import com.embabel.common.ai.model.CredentialEndpointResolver
-import com.embabel.common.ai.model.CredentialLlmServiceFactory
+import com.embabel.common.ai.model.CredentialModelFactory
+import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.ProviderCredential
 import com.embabel.common.util.loggerFor
 import org.springframework.beans.factory.ObjectProvider
@@ -43,7 +44,7 @@ private const val MODELS_PREFIX = "embabel.agent.platform.models"
 
 /**
  * Makes per-user keys work with nothing on the classpath but `embabel-agent-starter-byok`: one
- * [CredentialLlmServiceFactory] per wire protocol, each turning an endpoint of that protocol into
+ * chat [CredentialModelFactory] per wire protocol, each turning an endpoint of that protocol into
  * a client for the user's own key.
  *
  * Where a key is sent is decided before that, and an application can decide it: each factory asks
@@ -96,7 +97,7 @@ class CredentialEndpointConfig @Autowired constructor(
      * Builds anything routed to Anthropic's protocol, whoever routed it there.
      *
      * Declines every other protocol rather than answering for it, so the factory for that protocol
-     * gets its turn - the same contract a hand-written [CredentialLlmServiceFactory] follows for a
+     * gets its turn - the same contract a hand-written chat [CredentialModelFactory] follows for a
      * provider it does not handle.
      */
     @Bean("anthropicCredentialLlmServiceFactory")
@@ -104,12 +105,12 @@ class CredentialEndpointConfig @Autowired constructor(
     @ConditionalOnMissingBean(name = ["anthropicCredentialLlmServiceFactory"])
     fun anthropicCredentialLlmServiceFactory(
         resolvers: ObjectProvider<CredentialEndpointResolver>,
-    ): CredentialLlmServiceFactory {
+    ): CredentialModelFactory<LlmService<*>> {
         logger.info(
             "Per-user keys can build a service over Anthropic's protocol, for provider '{}' or any a CredentialEndpointResolver routes there",
             AnthropicModels.PROVIDER,
         )
-        return CredentialLlmServiceFactory { credential, model ->
+        return CredentialModelFactory.of(LlmService.KIND) { credential, model ->
             val endpoint = resolvedByApplication(resolvers, credential, model) ?: anthropicEndpointFor(credential)
             (endpoint as? CredentialEndpoint.Anthropic)?.let {
                 AnthropicModelFactory(apiKey = credential.apiKey, baseUrl = it.baseUrl)
@@ -135,12 +136,12 @@ class CredentialEndpointConfig @Autowired constructor(
     @ConditionalOnMissingBean(name = ["openAiCompatibleCredentialLlmServiceFactory"])
     fun openAiCompatibleCredentialLlmServiceFactory(
         resolvers: ObjectProvider<CredentialEndpointResolver>,
-    ): CredentialLlmServiceFactory {
+    ): CredentialModelFactory<LlmService<*>> {
         logger.info(
             "Per-user keys can build a service over the OpenAI protocol, for any provider {} knows or a CredentialEndpointResolver routes there",
             OpenAiCompatibleModelFactory::class.java.simpleName,
         )
-        return CredentialLlmServiceFactory { credential, model ->
+        return CredentialModelFactory.of(LlmService.KIND) { credential, model ->
             val endpoint = resolvedByApplication(resolvers, credential, model) ?: openAiCompatibleEndpointFor(credential)
             (endpoint as? CredentialEndpoint.OpenAiCompatible)?.let {
                 OpenAiCompatibleModelFactory(
@@ -178,12 +179,12 @@ class CredentialEndpointConfig @Autowired constructor(
     @ConditionalOnMissingBean(name = ["openAiCompatibleCredentialEmbeddingServiceFactory"])
     fun openAiCompatibleCredentialEmbeddingServiceFactory(
         resolvers: ObjectProvider<CredentialEndpointResolver>,
-    ): CredentialEmbeddingServiceFactory {
+    ): CredentialModelFactory<EmbeddingService> {
         logger.info(
             "Per-user keys can build an embedding service over the OpenAI protocol, for any provider {} knows or a CredentialEndpointResolver routes there",
             OpenAiCompatibleModelFactory::class.java.simpleName,
         )
-        return CredentialEmbeddingServiceFactory { credential, model ->
+        return CredentialModelFactory.of(EmbeddingService.KIND) { credential, model ->
             val endpoint = resolvedByApplication(resolvers, credential, model) ?: openAiCompatibleEndpointFor(credential)
             (endpoint as? CredentialEndpoint.OpenAiCompatible)?.let {
                 OpenAiCompatibleModelFactory(
