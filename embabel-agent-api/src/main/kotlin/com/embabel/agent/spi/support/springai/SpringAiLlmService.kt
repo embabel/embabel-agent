@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.StreamingChatCompletion
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.support.springai.streaming.SpringAiLlmMessageStreamer
@@ -86,7 +87,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
         SpringAiNativeThinkingExtractor.NOOP,
     val nativeSupport: NativeSupport? = null,
     val promptTokensExcludeCache: Boolean = false,
-) : LlmService<SpringAiLlmService>, AiModel<ChatModel>, AutoCloseable {
+) : LlmService<SpringAiLlmService>, StreamingChatCompletion, AiModel<ChatModel>, AutoCloseable {
 
     /**
      * Registers cleanup for a newly built chat model. The action must not retain the model.
