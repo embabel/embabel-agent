@@ -19,6 +19,7 @@ import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.ModelCapability
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptContributorConsumer
 import java.time.LocalDate
@@ -36,7 +37,7 @@ import java.time.LocalDate
  * @see com.embabel.agent.spi.support.springai.SpringAiLlmService for the Spring AI implementation
  * @see LlmMessageSender for the interface used to make LLM calls
  */
-interface LlmService<THIS : LlmService<THIS>> : LlmMetadata, PromptContributorConsumer {
+interface LlmService<THIS : LlmService<THIS>> : LlmMetadata, ModelCapability, PromptContributorConsumer {
 
     /**
      * Create a message sender for this LLM configured with the given options.

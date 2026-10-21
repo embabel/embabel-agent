@@ -16,6 +16,7 @@
 package com.embabel.common.ai.classification
 
 import com.embabel.common.ai.decision.UnsupportedDecisionException
+import com.embabel.common.ai.model.ModelCapability
 import com.embabel.common.ai.model.ModelMetadata
 import com.embabel.common.ai.model.ModelType
 import com.embabel.common.core.types.HasInfoString
@@ -39,7 +40,7 @@ interface ClassificationServiceMetadata : ModelMetadata {
 
 /** Provider-neutral closed-category classification; implementations own execution and provider integration. */
 @ApiStatus.Experimental
-interface ClassificationService : ClassificationServiceMetadata, HasInfoString {
+interface ClassificationService : ClassificationServiceMetadata, ModelCapability, HasInfoString {
     /**
      * Classify text using only the request's category domain, returning evidence rather than routing policy.
      *
