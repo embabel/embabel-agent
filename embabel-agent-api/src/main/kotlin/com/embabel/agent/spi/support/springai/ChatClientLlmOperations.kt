@@ -52,6 +52,9 @@ import com.embabel.chat.Message
 import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
 import com.embabel.common.ai.converters.JsonSchemaProvider
 import com.embabel.common.ai.converters.RequiredFieldNormalization
+import com.embabel.common.ai.converters.EnumAsOneOf
+import com.embabel.common.ai.converters.EnumConstantDescriptionProvider
+import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.core.thinking.ThinkingException
@@ -60,12 +63,15 @@ import com.embabel.common.core.thinking.spi.InternalThinkingApi
 import com.embabel.common.core.thinking.spi.extractAllThinkingBlocks
 import com.embabel.common.textio.template.TemplateRenderer
 import tools.jackson.databind.DatabindException
+import tools.jackson.databind.ObjectMapper
 import io.micrometer.observation.ObservationRegistry
 import jakarta.annotation.PostConstruct
 import jakarta.validation.Validator
 import org.springframework.beans.factory.annotation.Value
 import java.lang.reflect.ParameterizedType
+import java.lang.reflect.Field
 import java.util.Locale
+import java.util.function.Predicate
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
@@ -211,7 +217,7 @@ internal class ChatClientLlmOperations(
         val outputClassAny = outputClass as Class<Any>
         // Keep a reference to the JSON converter so it can supply the schema for native
         // structured output (#1715); FilteringJacksonOutputConverter is a JsonSchemaProvider.
-        val jsonConverter = FilteringJacksonOutputConverter<Any>(
+        val jsonConverter = buildFilteringConverter<Any>(
             clazz = outputClassAny,
             objectMapper = objectMapper,
             fieldFilter = interaction.fieldFilter,
@@ -244,7 +250,7 @@ internal class ChatClientLlmOperations(
             MaybeReturn::class.java,
             outputClass,
         )
-        val jsonConverter = FilteringJacksonOutputConverter(
+        val jsonConverter = buildFilteringConverter(
             typeReference = typeReference,
             objectMapper = objectMapper,
             fieldFilter = interaction.fieldFilter,
@@ -331,7 +337,7 @@ internal class ChatClientLlmOperations(
                 expectedType = outputClassAny,
                 delegate = WithExampleConverter<Any>(
                     delegate = SuppressThinkingConverter<Any>(
-                        FilteringJacksonOutputConverter<Any>(
+                        buildFilteringConverter(
                             clazz = outputClassAny,
                             objectMapper = objectMapper,
                             fieldFilter = interaction.fieldFilter,
@@ -497,7 +503,7 @@ internal class ChatClientLlmOperations(
                 expectedType = MaybeReturn::class.java,
                 delegate = WithExampleConverter(
                     delegate = SuppressThinkingConverter(
-                        FilteringJacksonOutputConverter(
+                        buildFilteringConverter(
                             typeReference = typeReference,
                             objectMapper = objectMapper,
                             fieldFilter = interaction.fieldFilter,
@@ -968,6 +974,56 @@ internal class ChatClientLlmOperations(
             super.createStreamingOperations(options)
         }
     }
+
+    // ====================================
+    // SCHEMA CUSTOMISATION HELPERS
+    // ====================================
+
+    /**
+     * Builds a [FilteringJacksonOutputConverter] for a [Class]-typed output.
+     *
+     * [EnumConstantDescriptionProvider] is wired into the schema generator so that
+     * any enum annotated with [@EnumAsOneOf][EnumAsOneOf] produces a `oneOf` schema
+     * with per-constant descriptions. Unannotated enums are unaffected.
+     *
+     * A separate overload exists for [ParameterizedTypeReference]-typed outputs.
+     * The [Class] overload and the [ParameterizedTypeReference] overload cannot be merged
+     * into one generic function because they call different
+     * [FilteringJacksonOutputConverter] constructors via `super`.
+     */
+    private fun <T : Any> buildFilteringConverter(
+        clazz: Class<T>,
+        objectMapper: ObjectMapper,
+        fieldFilter: Predicate<Field>,
+        requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
+    ): FilteringJacksonOutputConverter<T> =
+        object : FilteringJacksonOutputConverter<T>(clazz, objectMapper, fieldFilter, requiredFieldNormalization) {
+            override fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder =
+                super.schemaGeneratorConfigBuilder().with(EnumConstantDescriptionProvider(objectMapper))
+        }
+
+    /**
+     * Builds a [FilteringJacksonOutputConverter] for a [ParameterizedTypeReference]-typed output.
+     *
+     * [EnumConstantDescriptionProvider] is wired into the schema generator so that
+     * any enum annotated with [@EnumAsOneOf][EnumAsOneOf] produces a `oneOf` schema
+     * with per-constant descriptions. Unannotated enums are unaffected.
+     *
+     * A separate overload exists for [Class]-typed outputs.
+     * The [ParameterizedTypeReference] overload and the [Class] overload cannot be merged
+     * into one generic function because they call different
+     * [FilteringJacksonOutputConverter] constructors via `super`.
+     */
+    private fun <T : Any> buildFilteringConverter(
+        typeReference: ParameterizedTypeReference<T>,
+        objectMapper: ObjectMapper,
+        fieldFilter: Predicate<Field>,
+        requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
+    ): FilteringJacksonOutputConverter<T> =
+        object : FilteringJacksonOutputConverter<T>(typeReference, objectMapper, fieldFilter, requiredFieldNormalization) {
+            override fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder =
+                super.schemaGeneratorConfigBuilder().with(EnumConstantDescriptionProvider(objectMapper))
+        }
 }
 
 /**
