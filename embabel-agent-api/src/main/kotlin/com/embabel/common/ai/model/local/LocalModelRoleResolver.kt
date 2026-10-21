@@ -15,28 +15,33 @@
  */
 package com.embabel.common.ai.model.local
 
-import com.embabel.common.ai.model.ConfigurableEmbeddingRoleResolver
+import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
 import com.embabel.common.ai.model.ConfigurableRoleResolver
-import com.embabel.common.ai.model.EmbeddingRoleResolution
-import com.embabel.common.ai.model.EmbeddingRoleResolver
+import com.embabel.common.ai.model.ConfiguredRoles
+import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.ModelCapability
+import com.embabel.common.ai.model.ModelKind
+import com.embabel.common.ai.model.ModelName
 import com.embabel.common.ai.model.ModelSelectionContext
+import com.embabel.common.ai.model.RoleBinding
 import com.embabel.common.ai.model.RoleResolution
 import com.embabel.common.ai.model.RoleResolver
 import com.embabel.common.util.loggerFor
 import org.springframework.core.Ordered
 
 /**
- * Satisfies a chat role with a model a local runner is serving RIGHT NOW.
+ * Satisfies a role of one [ModelKind] with a model a local runner is serving RIGHT NOW.
  *
  * The local counterpart of the credential path, seam for seam: configuration names the model per
- * provider, the resolver is asked per call, and what it returns is a service built on the spot. The
+ * provider, the resolver is asked per call, and what it returns is a model built on the spot. The
  * difference is only where the endpoint comes from - a key for the credential path, a runner on this
  * machine for this one - and the asymmetry the platform had was that only one of them was asked
  * again after startup.
  *
- * Reads the same configuration [ConfigurableRoleResolver] does, through that class's own read side,
- * so the two cannot drift on what a role means:
+ * Reads the same [ConfiguredRoles] [ConfigurableRoleResolver] does, so the two cannot drift on what
+ * a role means:
  *
  * ```yaml
  * embabel:
@@ -56,19 +61,18 @@ import org.springframework.core.Ordered
  * provider; a model the runner is not serving, so an absent runner simply answers nothing; and any
  * call with a user credential for some OTHER provider, because a user who brought a key asked for
  * their provider and serving them a model off this machine would answer with the wrong one.
+ *
+ * @param kind the kind of model this resolver answers for
+ * @param catalog what the runner is serving, shared by the resolvers of every kind
+ * @param roles what configuration says this kind's roles mean
  */
-class LocalModelRoleResolver(
+class LocalModelRoleResolver<C : ModelCapability, B : RoleBinding>(
+    override val kind: ModelKind<C, B>,
     private val catalog: LocalModelCatalog,
-    properties: ConfigurableModelProviderProperties,
-) : RoleResolver, Ordered {
+    private val roles: ConfiguredRoles<B>,
+) : RoleResolver<C, B>, Ordered {
 
-    private val logger = loggerFor<LocalModelRoleResolver>()
-
-    /**
-     * Only the READ side of this is used - [ConfigurableRoleResolver.configuredOptionsFor] takes
-     * the provider as an argument - so the default-provider function is never called.
-     */
-    private val configured = ConfigurableRoleResolver(properties) { null }
+    private val logger = loggerFor<LocalModelRoleResolver<*, *>>()
 
     /**
      * Last, like the platform's own resolvers, so an application that has decided what a role means
@@ -81,70 +85,29 @@ class LocalModelRoleResolver(
      */
     override fun getOrder(): Int = Ordered.LOWEST_PRECEDENCE
 
-    override fun resolve(role: String, context: ModelSelectionContext): RoleResolution? {
+    override fun resolve(role: String, context: ModelSelectionContext): RoleResolution<C, B>? {
         if (!servesThisCaller(context, catalog.provider)) {
             return null
         }
-        val options = configured.configuredOptionsFor(role, catalog.provider) ?: return null
-        val model = options.modelName ?: return null
+        val binding = roles.configuredFor(role, catalog.provider) ?: return null
+        val model = binding.modelName ?: return null
         if (!catalog.serves(model)) {
             return null
         }
-        val llmService = catalog.llmService(model)
-        if (llmService == null) {
+        val service = catalog.model(kind, model)
+        if (service == null) {
             logger.warn(
-                "{} is serving '{}' for role '{}', but nothing built a chat service for it",
-                catalog.provider, model, role,
+                "{} is serving '{}' for {} role '{}', but nothing built a {} model for it",
+                catalog.provider, model, kind.name, role, kind.name,
             )
             return null
         }
-        // The role's options travel with the service, so a temperature configured beside the model
+        // The role's binding travels with the model, so a temperature configured beside the model
         // name is not lost by virtue of the model being local.
-        return RoleResolution.Service(llmService, options)
+        return RoleResolution.Service(service, binding)
     }
-}
 
-/**
- * Satisfies an embedding role with a model a local runner is serving RIGHT NOW.
- *
- * The embedding half of [LocalModelRoleResolver], and the half the gap bit hardest: a vector index
- * cannot be created at all until a model states its width, so an appliance that had just pulled an
- * embedding model could not turn document features on until the process came back.
- *
- * A separate class because `RoleResolver.resolve` and `EmbeddingRoleResolver.resolve` take the same
- * arguments and return different types, so one class cannot implement both - not because the two
- * decide differently. They share a [LocalModelCatalog], so the runner is asked once for both.
- */
-class LocalModelEmbeddingRoleResolver(
-    private val catalog: LocalModelCatalog,
-    properties: ConfigurableModelProviderProperties,
-) : EmbeddingRoleResolver, Ordered {
-
-    private val logger = loggerFor<LocalModelEmbeddingRoleResolver>()
-
-    private val configured = ConfigurableEmbeddingRoleResolver(properties) { null }
-
-    /** Last, for the reason [LocalModelRoleResolver.getOrder] gives. */
-    override fun getOrder(): Int = Ordered.LOWEST_PRECEDENCE
-
-    override fun resolve(role: String, context: ModelSelectionContext): EmbeddingRoleResolution? {
-        if (!servesThisCaller(context, catalog.provider)) {
-            return null
-        }
-        val model = configured.configuredModelFor(role, catalog.provider) ?: return null
-        if (!catalog.serves(model)) {
-            return null
-        }
-        val embeddingService = catalog.embeddingService(model)
-        if (embeddingService == null) {
-            logger.warn(
-                "{} is serving '{}' for role '{}', but nothing built an embedding service for it",
-                catalog.provider, model, role,
-            )
-            return null
-        }
-        return EmbeddingRoleResolution.Service(embeddingService)
-    }
+    override fun toString(): String = "LocalModelRoleResolver(${kind.name}, ${catalog.provider})"
 }
 
 /**
@@ -152,7 +115,7 @@ class LocalModelEmbeddingRoleResolver(
  *
  * It is, unless the caller brought a key for a DIFFERENT provider. Then it is not: the user asked
  * for their provider and expects to be billed for it, and a local model would quietly answer with
- * something else. Shared by the two resolvers so the rule is stated once.
+ * something else.
  */
 private fun servesThisCaller(context: ModelSelectionContext, provider: String): Boolean {
     val credentialProvider = context.credential?.provider ?: return true
@@ -160,11 +123,11 @@ private fun servesThisCaller(context: ModelSelectionContext, provider: String): 
 }
 
 /**
- * The three objects a local runner's autoconfiguration publishes, built over ONE catalog.
+ * The objects a local runner's autoconfiguration publishes, built over ONE catalog.
  *
  * A runner module has nothing to decide here - it supplies a [LocalModelSource] and the rest is the
- * same every time - so the wiring lives once rather than three times. That the two resolvers share
- * a catalog was previously a comment in each module saying they did; here it is the construction.
+ * same every time - so the wiring lives once rather than once per module. That the resolvers share
+ * a catalog is the construction, not a comment.
  *
  * Each module still declares its own `@Bean` methods returning these fields, because bean names
  * must differ across modules and a `@Configuration(proxyBeanMethods = false)` class calling its own
@@ -183,8 +146,11 @@ class LocalModelBeans(
     /** Published so the platform can LIST what the runner is serving, not only resolve roles. */
     val catalog: LocalModelCatalog = LocalModelCatalog(source, discovery)
 
-    val roleResolver: LocalModelRoleResolver = LocalModelRoleResolver(catalog, properties)
+    /** Satisfies chat roles from the runner. */
+    val chatRoleResolver: LocalModelRoleResolver<LlmService<*>, LlmOptions> =
+        LocalModelRoleResolver(LlmService.KIND, catalog, properties.chatRoles())
 
-    val embeddingRoleResolver: LocalModelEmbeddingRoleResolver =
-        LocalModelEmbeddingRoleResolver(catalog, properties)
+    /** Satisfies embedding roles from the runner. */
+    val embeddingRoleResolver: LocalModelRoleResolver<EmbeddingService, ModelName> =
+        LocalModelRoleResolver(EmbeddingService.KIND, catalog, properties.embeddingRoleBindings())
 }

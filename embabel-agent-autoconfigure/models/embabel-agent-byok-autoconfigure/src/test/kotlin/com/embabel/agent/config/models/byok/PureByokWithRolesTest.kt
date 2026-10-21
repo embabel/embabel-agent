@@ -15,12 +15,13 @@
  */
 package com.embabel.agent.config.models.byok
 
+import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.AiModel
 import com.embabel.common.ai.model.ByRoleModelSelectionCriteria
 import com.embabel.common.ai.model.ConfigurableModelProvider
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
-import com.embabel.common.ai.model.CredentialLlmServiceFactory
+import com.embabel.common.ai.model.CredentialModelFactory
 import com.embabel.common.ai.model.DefaultModelSelectionCriteria
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelSelectionContext
@@ -109,7 +110,7 @@ class PureByokWithRolesTest {
                 defaultLlm = CHEAPEST_ROLE,
                 roles = mapOf(CHEAPEST_ROLE to mapOf(OTHER_PROVIDER to LlmOptions.withModel("$OTHER_PROVIDER-large"))),
             ),
-            credentialLlmServiceFactories = listOf(CredentialLlmServiceFactory { _, _ -> userService }),
+            credentialModelFactories = listOf(CredentialModelFactory.of(LlmService.KIND) { _, _ -> userService }),
         )
 
         // Before the key: the placeholder, exactly as a pure BYOK deployment has always behaved.

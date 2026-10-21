@@ -18,6 +18,7 @@ package com.embabel.agent.spi
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.ModelKind
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptContributorConsumer
 import java.time.LocalDate
@@ -36,6 +37,13 @@ import java.time.LocalDate
  * @see LlmMessageSender for the interface used to make LLM calls
  */
 interface LlmService<THIS : LlmService<THIS>> : LlmMetadata, ChatCompletion, PromptContributorConsumer {
+
+    companion object {
+
+        /** Chat models. A role binds one to [LlmOptions]: a model name and the tuning that travels with it. */
+        @JvmField
+        val KIND: ModelKind<LlmService<*>, LlmOptions> = ModelKind("chat", LlmService::class.java)
+    }
 
     /**
      * Check if this LLM service supports streaming operations.
