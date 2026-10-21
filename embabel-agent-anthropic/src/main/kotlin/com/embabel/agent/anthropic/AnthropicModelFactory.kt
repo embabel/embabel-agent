@@ -103,6 +103,9 @@ open class AnthropicModelFactory(
         val builder = AnthropicOkHttpClient.builder()
             .apiKey(apiKey)
             .timeout(READ_TIMEOUT)
+            // Fix Spring AI content block ordering bug (issue #2121): rebuilds assistant
+            // message history as [thinking, text, tool_use] instead of [text, thinking, tool_use].
+            .addInterceptor(ThinkingBlockOrderingInterceptor.asInterceptor())
         if (!baseUrl.isNullOrBlank()) {
             logger.info("Using custom Anthropic base URL: {}", baseUrl)
             builder.baseUrl(baseUrl)
