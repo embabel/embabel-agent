@@ -31,7 +31,7 @@ import com.embabel.common.ai.model.ConfigurableModelProvider;
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties;
 import com.embabel.common.ai.model.CredentialEndpoint;
 import com.embabel.common.ai.model.CredentialEndpointResolver;
-import com.embabel.common.ai.model.CredentialLlmServiceFactory;
+import com.embabel.common.ai.model.CredentialModelFactory;
 import com.embabel.common.ai.model.DefaultModelSelectionCriteria;
 import com.embabel.common.ai.model.EmbeddingService;
 import com.embabel.common.ai.model.ModelProvider;
@@ -60,6 +60,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * provider autoconfiguration ever leaks onto the classpath it would demand a key and fail here.
  */
 class ByokStarterBootTest {
+
+    /** The chat credential factories the context contributed. */
+    private static List<CredentialModelFactory<?>> chatFactories(ApplicationContext context) {
+        return context.getBeansOfType(CredentialModelFactory.class).values().stream()
+                .filter(factory -> factory.getKind() == LlmService.KIND)
+                .<CredentialModelFactory<?>>map(factory -> factory)
+                .toList();
+    }
+
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(AgentByokAutoConfiguration.class))
@@ -102,8 +111,7 @@ class ByokStarterBootTest {
     @Test
     void shipsCredentialFactoriesCoveringEveryProviderByokSupports() {
         contextRunner.run(context -> {
-            var factories = new ArrayList<>(
-                    context.getBeansOfType(CredentialLlmServiceFactory.class).values());
+            var factories = chatFactories(context);
             var wholeSurface = Map.of(
                     AnthropicModels.PROVIDER, AnthropicModels.CLAUDE_HAIKU_4_5,
                     OpenAiModels.PROVIDER, OpenAiModels.GPT_41_MINI,
@@ -115,7 +123,7 @@ class ByokStarterBootTest {
             wholeSurface.forEach((provider, model) -> {
                 var credential = new ProviderCredential(provider, "sk-test-not-a-real-key");
                 var service = factories.stream()
-                        .map(factory -> factory.createLlmService(credential, model))
+                        .map(factory -> (LlmService<?>) factory.create(credential, model))
                         .filter(java.util.Objects::nonNull)
                         .findFirst();
                 assertThat(service).describedAs(provider).isPresent();
@@ -127,17 +135,16 @@ class ByokStarterBootTest {
     /**
      * The extension point as a Java application meets it: one bean, one value, and no import from
      * {@code com.embabel.agent.spi} - which is the whole reason it exists alongside
-     * {@link CredentialLlmServiceFactory}.
+     * a chat {@link CredentialModelFactory}.
      */
     @Test
     void anApplicationAddsAProviderTheFrameworkDoesNotShip() {
         contextRunner.withUserConfiguration(OwnGatewayEndpoint.class).run(context -> {
-            var factories = new ArrayList<>(
-                    context.getBeansOfType(CredentialLlmServiceFactory.class).values());
+            var factories = chatFactories(context);
             var credential = new ProviderCredential(OwnGatewayEndpoint.PROVIDER, "sk-test-not-a-real-key");
 
             var service = factories.stream()
-                    .map(factory -> factory.createLlmService(credential, "some-model"))
+                    .map(factory -> (LlmService<?>) factory.create(credential, "some-model"))
                     .filter(java.util.Objects::nonNull)
                     .findFirst();
 
