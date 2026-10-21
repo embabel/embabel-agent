@@ -533,6 +533,25 @@ class RoleResolutionTest {
         }
 
         @Test
+        fun `an application resolver's key builds the model a flat-only role names, on that key`() {
+            // The same rule as embedding roles: only the model NAME is taken from the flat map, and
+            // the model is built on the user's key, so the user pays for what their role names.
+            val mp = provider(
+                properties = ConfigurableModelProviderProperties(
+                    llms = mapOf("drafting" to "claude-haiku-4-5"),
+                    defaultLlm = "gpt-4.1-mini",
+                ),
+                roleResolvers = listOf(
+                    RoleResolver.of(LlmService.KIND) { _, _ ->
+                        RoleResolution.Credential(ProviderCredential("anthropic", "sk-test"))
+                    },
+                ),
+                platforms = listOf(platform),
+            )
+            assertSame(userService, mp.getLlm(ByRoleModelSelectionCriteria("drafting")))
+        }
+
+        @Test
         fun `the role's tuning for that provider travels with the user's key`() {
             val mp = provider(platforms = listOf(platform))
             val resolved = ModelSelectionContextHolder.with(
