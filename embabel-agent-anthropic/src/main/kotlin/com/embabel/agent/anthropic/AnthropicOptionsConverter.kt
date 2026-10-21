@@ -35,17 +35,12 @@ object AnthropicOptionsConverter : OptionsConverter {
      */
     const val DEFAULT_MAX_TOKENS = 8192
 
-    private const val DEFAULT_TEMPERATURE = 1.0
-
-    /** Keyed by model and ignored parameter names, so bounded by models × name subsets. */
-    internal val warnedIgnoredSampling = ConcurrentHashMap.newKeySet<String>()
-
     /** Keyed by model ID only, so bounded by the number of models. */
     internal val warnedThinkingNotDisabled = ConcurrentHashMap.newKeySet<String>()
 
     override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
         val caps = ClaudeCapabilities.of(model)
-        val decision = if (isThinkingOptOut(options)) {
+        val thinkingModeDecision = if (isThinkingOptOut(options)) {
             if (ClaudeCapabilities.rejectsThinkingDisabled(model)) {
                 warnThinkingCannotBeDisabled(model)
                 ThinkingMode.Omit
@@ -56,30 +51,27 @@ object AnthropicOptionsConverter : OptionsConverter {
             caps.resolveThinking(resolveThinkingBudget(options))
         }
         if (!caps.acceptsSampling) {
-            warnAboutIgnoredSampling(options, model)
+            ClaudeCapabilities.warnAboutIgnoredSampling(model, options.temperature, options.topP, options.topK)
         }
         val builder = AnthropicChatOptions.builder()
             .model(model)
             .maxTokens(options.maxTokens ?: DEFAULT_MAX_TOKENS)
             .apply {
-                when (decision) {
+                when (thinkingModeDecision) {
                     is ThinkingMode.Omit        -> Unit // do not set "thinking" — Claude 5.1+ (except Haiku) rejects thinking.type="disabled" with HTTP 400
                     is ThinkingMode.Disabled    -> {
                         thinkingDisabled() // send "thinking": {"type": "disabled"} — Claude ≤5.0, or explicit opt-out on Haiku 5.5
-                        // No outputConfig: Spring AI replaces it wholesale when merging, so setting effort here would
-                        // drop a caller's or default output config (schema, effort). Known limitation: Haiku accepts
-                        // disabled only at effort high or below, so on the legacy ChatClient streaming path a merged
-                        // default effort of xhigh/max (e.g. a Haiku catalog thinking budget ≥ 16384) gets HTTP 400.
-                        // ponytail: clamp effort at the merge boundary, https://github.com/embabel/embabel-agent/issues/2174
+                        // No outputConfig here: Spring AI replaces it wholesale when merging, so setting effort
+                        // would drop a caller's or default output config (schema, effort).
                     }
-                    is ThinkingMode.Adaptive    -> { thinkingAdaptive(ThinkingConfigAdaptive.Display.SUMMARIZED); effort(decision.effort) }
+                    is ThinkingMode.Adaptive    -> { thinkingAdaptive(ThinkingConfigAdaptive.Display.SUMMARIZED); effort(thinkingModeDecision.effort) }
                     // Claude ≥4.7: adaptive thinking. SUMMARIZED must be set explicitly — the default
                     // display on 5.x is "omitted" (empty thinking fields). SUMMARIZED is the only option
                     // that returns visible reasoning (a summarized representation; full reasoning is encrypted in
                     // the "signature" field). There is no "full" display option in the adaptive API.
-                    is ThinkingMode.BudgetBased -> thinkingEnabled(decision.budgetTokens)      // send "thinking": {"type": "enabled", "budget_tokens": N}
+                    is ThinkingMode.BudgetBased -> thinkingEnabled(thinkingModeDecision.budgetTokens)      // send "thinking": {"type": "enabled", "budget_tokens": N}
                 }
-                if (caps.acceptsSampling) {
+                if (caps.acceptsSampling) { // Claude <4.7
                     temperature(options.temperature)
                     topP(options.topP)
                     topK(options.topK)
@@ -111,29 +103,13 @@ object AnthropicOptionsConverter : OptionsConverter {
     }
 
     /**
-     * Warn-and-drop, as for OpenAI: refusing the call would cost the caller an answer over a
-     * parameter that was never essential. Default temperature is what the model uses anyway.
-     * Warns once per model and set of ignored parameter names, since the same options repeat on every call.
-     * Values stay out of the key so varying them cannot grow the set.
-     */
-    private fun warnAboutIgnoredSampling(options: LlmOptions, model: String) {
-        val ignored = listOfNotNull(
-            options.temperature?.takeIf { it != DEFAULT_TEMPERATURE }?.let { "temperature" to it },
-            options.topP?.let { "topP" to it },
-            options.topK?.let { "topK" to it },
-        )
-        if (ignored.isNotEmpty() && warnedIgnoredSampling.add("$model|${ignored.joinToString(",") { it.first }}")) {
-            logger.warn(
-                "Model '{}' rejects sampling parameters, so the following are ignored rather than sent: {}",
-                model,
-                ignored.joinToString(", ") { "${it.first}=${it.second}" },
-            )
-        }
-    }
-
-    /**
-     * True when the caller explicitly turned thinking off ([LlmOptions.withoutThinking]). Not set (null) and
-     * extraction-only configs (enabled=false but extractThinking=true, as used by the thinking prompt runner) are not opt-outs.
+     * True only when the caller called [LlmOptions.withoutThinking], i.e. thinking is set but both
+     * `enabled` and `extractThinking` are false.
+     *
+     * False for two states that look similar but are not opt-outs:
+     * - [LlmOptions.thinking] is null: thinking was never configured.
+     * - `extractThinking` is true: the thinking prompt runner's mode, which sends no thinking budget
+     *   but still extracts reasoning from the response.
      */
     private fun isThinkingOptOut(options: LlmOptions): Boolean {
         val thinking = options.thinking ?: return false

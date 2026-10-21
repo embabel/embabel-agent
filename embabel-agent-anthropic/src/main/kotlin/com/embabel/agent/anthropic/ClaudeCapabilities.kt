@@ -16,6 +16,8 @@
 package com.embabel.agent.anthropic
 
 import com.anthropic.models.messages.OutputConfig
+import org.slf4j.LoggerFactory
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Outcome of [ClaudeCapabilities.resolveThinking]: what the converter should send
@@ -136,6 +138,35 @@ data class ClaudeCapabilities(val version: Int) {
          */
         internal fun rejectsThinkingDisabled(model: String): Boolean =
             of(model).rejectsThinkingDisabled && !model.contains("haiku")
+
+        private val logger = LoggerFactory.getLogger(ClaudeCapabilities::class.java)
+
+        /** Anthropic's default temperature. A model that rejects sampling uses it anyway, so it is never reported. */
+        private const val DEFAULT_TEMPERATURE = 1.0
+
+        /** Keyed by model and dropped parameter names, not values, so varying a value per request cannot grow it. */
+        internal val warnedIgnoredSampling = ConcurrentHashMap.newKeySet<String>()
+
+        /**
+         * Logs which sampling values a Claude ≥4.7 model will not get. Callers drop them and still make the
+         * call, because failing a request over a temperature or topP setting would be worse for the caller.
+         * Logs once per model and combination of dropped names; unset values and the default temperature
+         * are never reported.
+         */
+        fun warnAboutIgnoredSampling(model: String, temperature: Double?, topP: Double?, topK: Int?) {
+            val ignored = listOfNotNull(
+                temperature?.takeIf { it != DEFAULT_TEMPERATURE }?.let { "temperature" to it }, // skip the default
+                topP?.let { "topP" to it },
+                topK?.let { "topK" to it },
+            )
+            if (ignored.isNotEmpty() && warnedIgnoredSampling.add("$model|${ignored.joinToString(",") { it.first }}")) {
+                logger.warn(
+                    "Model '{}' rejects sampling parameters, so the following are ignored rather than sent: {}",
+                    model,
+                    ignored.joinToString(", ") { "${it.first}=${it.second}" },
+                )
+            }
+        }
 
         fun mapBudgetToEffort(budget: Int): OutputConfig.Effort = when {
             budget < 1024  -> OutputConfig.Effort.LOW

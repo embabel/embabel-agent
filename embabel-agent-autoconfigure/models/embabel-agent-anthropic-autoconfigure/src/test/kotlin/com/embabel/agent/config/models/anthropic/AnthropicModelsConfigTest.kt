@@ -19,6 +19,7 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import com.embabel.agent.anthropic.ClaudeCapabilities
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import io.micrometer.observation.ObservationRegistry
@@ -36,7 +37,7 @@ class AnthropicModelsConfigTest {
     private class Built(val options: AnthropicChatOptions, val warnings: List<String>)
 
     private fun build(modelDef: AnthropicModelDefinition): Built {
-        val logger = LoggerFactory.getLogger(AnthropicModelsConfig::class.java) as Logger
+        val logger = LoggerFactory.getLogger(ClaudeCapabilities::class.java) as Logger
         val logs = ListAppender<ILoggingEvent>().apply { start() }
         logger.addAppender(logs)
         try {

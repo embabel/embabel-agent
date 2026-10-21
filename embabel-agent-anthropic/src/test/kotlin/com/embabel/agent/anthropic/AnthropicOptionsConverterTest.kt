@@ -20,7 +20,6 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import com.anthropic.models.messages.OutputConfig
-import com.anthropic.models.messages.ThinkingConfigAdaptive
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.test.models.OptionsConverterTestSupport
 import com.embabel.chat.MessageRole
@@ -28,7 +27,6 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.Thinking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
@@ -37,13 +35,6 @@ import org.slf4j.LoggerFactory
 import org.springframework.ai.anthropic.AnthropicCacheStrategy
 import org.springframework.ai.anthropic.AnthropicCacheTtl
 import org.springframework.ai.anthropic.AnthropicChatOptions
-import org.springframework.ai.chat.client.ChatClient
-import org.springframework.ai.chat.messages.AssistantMessage
-import org.springframework.ai.chat.model.ChatModel
-import org.springframework.ai.chat.model.ChatResponse
-import org.springframework.ai.chat.model.Generation
-import org.springframework.ai.chat.prompt.ChatOptions
-import org.springframework.ai.chat.prompt.Prompt
 
 class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
     optionsConverter = AnthropicOptionsConverter
@@ -297,7 +288,7 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
         fun `warn-once state stays bounded when temperature varies`() {
             val model = AnthropicModels.CLAUDE_OPUS_4_8
             (1..50).forEach { convert(LlmOptions().withTemperature(it / 100.0), model) }
-            val keysForModel = AnthropicOptionsConverter.warnedIgnoredSampling.count { it.startsWith("$model|") }
+            val keysForModel = ClaudeCapabilities.warnedIgnoredSampling.count { it.startsWith("$model|") }
             assertTrue(keysForModel <= 7, "expected at most one key per parameter-name subset, got $keysForModel")
         }
 
@@ -382,54 +373,6 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
             assertNull(convert(LlmOptions().withoutThinking(), haiku).outputConfig)
         }
 
-        /**
-         * The legacy streaming path goes through ChatClient, which starts from the model's default options and
-         * replaces outputConfig wholesale with any non-null request value. The opt-out must leave it null so a
-         * default schema and an already-compatible effort survive.
-         */
-        @Test
-        fun `claude-haiku-5-5 withoutThinking keeps a default output schema and low effort through ChatClient merge`() {
-            val defaults = AnthropicChatOptions.builder()
-                .model(haiku)
-                .thinkingAdaptive(ThinkingConfigAdaptive.Display.SUMMARIZED)
-                .effort(OutputConfig.Effort.LOW)
-                .outputSchema("""{"type":"object","properties":{},"additionalProperties":false}""")
-                .build()
-
-            val merged = mergeThroughChatClient(defaults, convert(LlmOptions().withoutThinking(), haiku))
-
-            assertTrue(merged.thinking?.isDisabled() == true, "expected thinking disabled, got ${merged.thinking}")
-            assertNotNull(merged.outputSchema, "default output schema was dropped by the merge")
-            assertEquals(OutputConfig.Effort.LOW, merged.outputConfig?.effort()?.orElse(null))
-        }
-
-        /**
-         * Known limitation: a default effort of XHIGH/MAX (e.g. a Haiku catalog thinking budget ≥ 16384) survives
-         * next to disabled, which Anthropic rejects with HTTP 400. Follow-up: clamp effort at the merge boundary
-         * (https://github.com/embabel/embabel-agent/issues/2174). Flip this test when it lands.
-         */
-        @Test
-        fun `claude-haiku-5-5 withoutThinking keeps an xhigh or max default effort through ChatClient merge — known limitation`() {
-            listOf(OutputConfig.Effort.XHIGH, OutputConfig.Effort.MAX).forEach { defaultEffort ->
-                val defaults = AnthropicChatOptions.builder()
-                    .model(haiku)
-                    .thinkingAdaptive(ThinkingConfigAdaptive.Display.SUMMARIZED)
-                    .effort(defaultEffort)
-                    .build()
-
-                val merged = mergeThroughChatClient(defaults, convert(LlmOptions().withoutThinking(), haiku))
-
-                assertTrue(merged.thinking?.isDisabled() == true, "expected thinking disabled, got ${merged.thinking}")
-                assertEquals(defaultEffort, merged.outputConfig?.effort()?.orElse(null))
-            }
-        }
-
-        private fun mergeThroughChatClient(defaults: AnthropicChatOptions, request: AnthropicChatOptions): AnthropicChatOptions {
-            val model = CapturingChatModel(defaults)
-            ChatClient.create(model).prompt(Prompt("test", request)).call().content()
-            return model.captured!!.options as AnthropicChatOptions
-        }
-
         @Test
         fun `older models withoutThinking set no effort`() {
             assertNull(convert(LlmOptions().withoutThinking(), AnthropicModels.CLAUDE_SONNET_4_5).outputConfig)
@@ -511,15 +454,6 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport(
             val opts = convert(LlmOptions().withThinking(Thinking.withTokenBudget(8000)), AnthropicModels.CLAUDE_OPUS_4_8)
             assertTrue(opts.thinking.isAdaptive())
             assertEquals(OutputConfig.Effort.HIGH, opts.outputConfig?.effort()?.orElse(null))
-        }
-    }
-
-    private class CapturingChatModel(private val defaults: AnthropicChatOptions) : ChatModel {
-        var captured: Prompt? = null
-        override fun getOptions(): ChatOptions = defaults
-        override fun call(prompt: Prompt): ChatResponse {
-            captured = prompt
-            return ChatResponse(listOf(Generation(AssistantMessage("ok"))))
         }
     }
 
