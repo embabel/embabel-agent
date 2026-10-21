@@ -20,6 +20,7 @@ import com.embabel.common.ai.model.ConfigurableModelProvider
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
 import com.embabel.common.ai.model.DefaultModelSelectionCriteria
 import com.embabel.agent.spi.PlaceholderLlmService
+import com.embabel.agent.spi.StreamingChatCompletion
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.AiModel
 import com.embabel.common.ai.prompt.PromptContributor
@@ -113,10 +114,16 @@ class SetupRequiredLlmTest {
     }
 
     @Test
+    fun `the placeholder can be asked for a streamer through the streaming capability`() {
+        // Streaming must fail at call time with the setup message, the same as sending does.
+        assertThat(SetupRequiredLlm.llmService()).isInstanceOf(StreamingChatCompletion::class.java)
+    }
+
+    @Test
     fun `a message sender can be created, so failure happens at call time not setup time`() {
         val service = SetupRequiredLlm.llmService()
         assertThat(service.createMessageSender(LlmOptions())).isNotNull()
-        assertThat(service.createMessageStreamer(LlmOptions())).isNotNull()
+        assertThat((service as StreamingChatCompletion).createMessageStreamer(LlmOptions())).isNotNull()
     }
 
     @Test
