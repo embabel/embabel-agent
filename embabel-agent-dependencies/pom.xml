@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.build</groupId>
         <artifactId>embabel-dependencies-parent</artifactId>
-        <version>2.0.3</version>
+        <version>2.0.4-SNAPSHOT</version>
         <relativePath />
     </parent>
     <groupId>com.embabel.agent</groupId>
@@ -515,12 +515,6 @@
                 <groupId>io.opentelemetry.semconv</groupId>
                 <artifactId>opentelemetry-semconv</artifactId>
                 <version>1.29.0-alpha</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.github.victools</groupId>
-                <artifactId>jsonschema-module-jakarta-validation</artifactId>
-                <version>5.0.0</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
