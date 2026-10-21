@@ -29,7 +29,9 @@ import com.embabel.agent.core.support.InvalidLlmReturnTypeException
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.StreamingChatCompletion
 import com.embabel.agent.spi.ToolDecorator
+import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.chat.Message
@@ -581,13 +583,26 @@ abstract class AbstractLlmOperations(
         // and streaming is the chat path, where that tuning matters most.
         val resolved = withRoleResolved(options)
         val llmService = chooseLlm(resolved)
-        val messageStreamer = llmService.createMessageStreamer(resolved)
+        val messageStreamer = messageStreamerOf(llmService, resolved)
         return StreamingLlmOperationsImpl(
             messageStreamer = messageStreamer,
             objectMapper = objectMapper,
             llmService = llmService,
             toolDecorator = toolDecorator,
         )
+    }
+
+    /**
+     * Ask the model's streaming capability for a streamer.
+     *
+     * @throws UnsupportedOperationException when the model cannot stream
+     */
+    private fun messageStreamerOf(llmService: LlmService<*>, options: LlmOptions): LlmMessageStreamer {
+        val streaming = llmService as? StreamingChatCompletion
+            ?: throw UnsupportedOperationException(
+                "LLM service '${llmService.name}' from provider '${llmService.provider}' cannot stream: it does not implement StreamingChatCompletion",
+            )
+        return streaming.createMessageStreamer(options)
     }
 
     protected abstract fun <O> doTransformIfPossible(
