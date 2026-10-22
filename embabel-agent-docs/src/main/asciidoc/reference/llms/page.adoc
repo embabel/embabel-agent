@@ -462,6 +462,10 @@ data class MyCustomLlmService(
 ----
 ====
 
+This service can only send messages, so it reports that it cannot stream.
+To support streaming, also implement `StreamingChatCompletion` and its `createMessageStreamer(options)` method.
+Asking for streaming operations on a service that does not implement it fails with `UnsupportedOperationException`.
+
 Then register it as a Spring bean:
 
 [tabs]
