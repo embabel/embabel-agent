@@ -40,6 +40,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import jakarta.validation.Validation
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -125,6 +126,15 @@ class AbstractLlmOperationsStreamingTest {
         }
 
         assertTrue(failure.message.orEmpty().contains("'text-only'"), failure.message)
+    }
+
+    @Test
+    fun `supportsStreaming is false for a model that says it streams but does not implement streaming`() {
+        val textOnly = mockk<LlmService<*>>()
+        every { textOnly.supportsStreaming() } returns true
+        every { mockModelProvider.getLlm(any<ModelSelectionCriteria>()) } returns textOnly
+
+        assertFalse(llmOperations.supportsStreaming(LlmOptions()))
     }
 
     /**
