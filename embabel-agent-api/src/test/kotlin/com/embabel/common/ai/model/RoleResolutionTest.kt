@@ -548,6 +548,8 @@ class RoleResolutionTest {
                 ),
                 platforms = listOf(platform),
             )
+            // The platform's service is returned, so the model was built on the user's key and not
+            // looked up among the deployment's registered models.
             assertSame(userService, mp.getLlm(ByRoleModelSelectionCriteria("drafting")))
         }
 
@@ -561,13 +563,16 @@ class RoleResolutionTest {
                 ),
                 platforms = listOf(platform),
             )
+            // "drafting" is in neither role map, so nothing can be built for it and selection throws.
             val warnings = captureWarnings {
                 assertThrows<NoSuitableModelException> { mp.getLlm(ByRoleModelSelectionCriteria("drafting")) }
             }
+            // A warning on ConfigurableModelProvider's logger names the role, the user's provider,
+            // and both role maps the model name was looked up in.
             assertTrue(
                 warnings.any {
                     it.contains("'drafting'") && it.contains("'mistral'") &&
-                        it.contains("embabel.models.roles or embabel.models.llms")
+                        it.contains(ChatModelSelection.ROLES_PROPERTIES)
                 },
                 warnings.toString(),
             )
