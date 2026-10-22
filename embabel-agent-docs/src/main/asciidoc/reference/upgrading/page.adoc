@@ -1,7 +1,7 @@
 [[reference.upgrading]]
-=== Migrating from 1.5.x
+=== Upgrading to 2.0
 
-This section lists the changes to make when you upgrade from a 1.5.x release.
+This section lists the changes to make when you upgrade from a 1.5.x release to 2.0.
 It applies to code that implements the model SPI: a custom `LlmService`, a `RoleResolver`, a factory that builds models from a user's key, or a source of locally served models.
 
 These things do not change:
@@ -23,7 +23,7 @@ The "Shipped in" column is the first release that contained the removed type or 
 
 [cols="3,4,1",options="header"]
 |===
-|Removed in this release |Use instead |Shipped in
+|Removed in 2.0 |Use instead |Shipped in
 
 |`LlmService.createMessageStreamer(options)`
 |Implement `StreamingChatCompletion`, which declares `createMessageStreamer(options)`. A service that does not stream implements neither.
