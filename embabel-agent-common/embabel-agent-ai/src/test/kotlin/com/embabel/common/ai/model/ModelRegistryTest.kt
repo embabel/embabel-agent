@@ -180,6 +180,71 @@ class ModelRegistryTest {
         assertThrows<IllegalArgumentException> { registry.select(Animation::class.java) }
     }
 
+    @Test
+    fun `two different defaults for one family fail the build and name the default property`() {
+        val failure = assertThrows<IllegalArgumentException> {
+            builder()
+                .register("sketch", Drawer())
+                .register("motion", Animator())
+                .defaultFor(Drawing::class.java, "sketch")
+                .defaultFor(Drawing::class.java, "motion")
+                .build()
+        }
+        assertTrue(failure.message.orEmpty().contains("embabel.models.drawing.default"), failure.message)
+    }
+
+    @Test
+    fun `setting the same default or the same role binding twice is accepted`() {
+        val drawer = Drawer()
+        val registry = builder()
+            .register("sketch", drawer)
+            .defaultFor(Drawing::class.java, "sketch")
+            .defaultFor(Drawing::class.java, "sketch")
+            .role(Drawing::class.java, "cheap", "sketch")
+            .role(Drawing::class.java, "cheap", "sketch")
+            .build()
+        val drawings = registry.select(Drawing::class.java)
+
+        assertSame(drawer, drawings.defaultService())
+        assertSame(drawer, drawings.byRole("cheap"))
+    }
+
+    @Test
+    fun `a role bound to a blank name and a blank default candidate each fail the build`() {
+        assertThrows<IllegalArgumentException> {
+            builder().register("sketch", Drawer()).role(Drawing::class.java, "cheap", " ").build()
+        }
+        assertThrows<IllegalArgumentException> {
+            builder().register("sketch", Drawer()).defaultCandidate(" ").build()
+        }
+    }
+
+    @Test
+    fun `a source whose every name is held by a registered model is left out of selection messages`() {
+        // The registered model "served" hides the only model the counting source serves.
+        val registry = builder()
+            .register("served", Drawer())
+            .source(CountingSource())
+            .source(NamedSource("other", "extra"))
+            .build()
+
+        val failure = assertThrows<ServiceSelectionException> {
+            registry.select(Drawing::class.java).named("missing")
+        }
+        val message = failure.message.orEmpty()
+        // The source that still serves a name is listed with that name.
+        assertTrue(message.contains("other [extra]"), message)
+        // The counting source has no name left to serve, so it is not listed with an empty list.
+        assertFalse(message.contains("test []"), message)
+    }
+
+    /** Serves drawing models under the given names, from a provider with the given name. */
+    private class NamedSource(override val provider: String, private vararg val names: String) : ModelSource<Drawing> {
+        override val type = Drawing::class.java
+        override fun modelNames() = names.toList()
+        override fun modelNamed(name: String): Drawing? = if (name in names) Drawer() else null
+    }
+
     /** Serves one drawing model, named `served`, and counts how many times it builds it. */
     private class CountingSource : ModelSource<Drawing> {
         var created = 0
