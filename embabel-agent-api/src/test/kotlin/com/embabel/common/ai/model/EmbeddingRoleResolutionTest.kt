@@ -802,8 +802,11 @@ class EmbeddingRoleResolutionTest {
                 embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
                 embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(MISTRAL to MISTRAL_MODEL)),
             ).embeddingRoleBindings()
+            // Mistral has a nested entry, so that entry is used.
             assertEquals(MISTRAL_MODEL, roles.configuredFor(DOCUMENTS_ROLE, MISTRAL)?.modelName)
+            // OpenAI has no nested entry for the role, so the flat map answers.
             assertEquals(SMALL_MODEL, roles.configuredFor(DOCUMENTS_ROLE, OPENAI)?.modelName)
+            // A role in neither map has no binding.
             assertNull(roles.configuredFor("no-such-role", OPENAI))
         }
     }

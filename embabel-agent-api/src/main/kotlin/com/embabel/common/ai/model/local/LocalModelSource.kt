@@ -26,9 +26,8 @@ import com.embabel.common.ai.model.ModelMetadata
 /**
  * A local model runner - Docker Model Runner, LM Studio, Ollama - asked what it is serving NOW.
  *
- * The local counterpart of [CredentialModelFactory], and it exists for
- * the same reason it does: something has to be able to answer for a model the
- * platform did not know about when it was built.
+ * The local counterpart of [CredentialModelFactory], and it exists for the same reason: something
+ * has to be able to answer for a model the platform did not know about when it was built.
  *
  * WHY THIS IS NOT JUST STARTUP DISCOVERY. Each runner's autoconfiguration enumerates models in a
  * [com.embabel.common.ai.autoconfig.ProviderInitialization] and `registerSingleton`s one bean per
@@ -87,8 +86,8 @@ interface LocalModelSource {
  * asking for a name means that name is an embedding model, whatever a runner's own type field says -
  * and declining on a disagreement would break a configuration that works.
  *
- * A runner lists names; what a name is is either something the runner states (LM Studio reports a
- * type) or something configuration decides ([kindFromConfiguration]).
+ * A runner lists names. The kind of each name is either stated by the runner (LM Studio reports a
+ * type) or decided by configuration ([kindFromConfiguration]).
  */
 data class LocalModel(
     val name: String,
@@ -137,6 +136,8 @@ abstract class ChatAndEmbeddingModelSource : LocalModelSource {
     protected abstract fun embeddingModel(model: String): EmbeddingService?
 
     final override fun <C : ModelCapability> model(kind: ModelKind<C, *>, model: String): C? =
+        // Kinds are compared by identity. The cast only changes the static type: the branch has
+        // already established that C is the capability of the kind returned.
         when {
             kind === LlmService.KIND -> chatModel(model)?.let(kind.capability::cast)
             kind === EmbeddingService.KIND -> embeddingModel(model)?.let(kind.capability::cast)
