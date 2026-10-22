@@ -132,9 +132,11 @@ open class OpenAiCompatibleModelFactory(
 
     companion object {
         private val RESPONSES_OBJECT_MAPPER = ObjectMapper()
-        private val OPEN_AI = ProviderEndpoint(OpenAiModels.PROVIDER, null)
-        private val DEEP_SEEK = ProviderEndpoint(DeepSeekModels.PROVIDER, "https://api.deepseek.com")
-        private val MISTRAL = ProviderEndpoint(MistralAiModels.PROVIDER, "https://api.mistral.ai/v1")
+        // Internal so the named platforms in this module (OpenAiPlatform, DeepSeekPlatform,
+        // MistralAiPlatform) read the same base URLs instead of repeating them.
+        internal val OPEN_AI = ProviderEndpoint(OpenAiModels.PROVIDER, null)
+        internal val DEEP_SEEK = ProviderEndpoint(DeepSeekModels.PROVIDER, "https://api.deepseek.com")
+        internal val MISTRAL = ProviderEndpoint(MistralAiModels.PROVIDER, "https://api.mistral.ai/v1")
         private val GEMINI = ProviderEndpoint(
             GoogleGenAiModels.PROVIDER,
             "https://generativelanguage.googleapis.com/v1beta/openai",

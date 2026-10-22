@@ -34,12 +34,14 @@ import org.jetbrains.annotations.ApiStatus
  * Anthropic protocol. For those, register a [CredentialEndpointResolver] that returns the endpoint;
  * it needs no SPI type.
  *
- * `embabel-agent-starter-byok` ships one platform per wire protocol, covering every provider BYOK
- * supports, so per-user keys work with no application code at all; see
- * `com.embabel.agent.config.models.byok.CredentialEndpointConfig`. Each shipped bean is skipped
- * when the application registers a bean with the same name. A bean registered that way replaces
- * every kind the shipped platform builds, and also replaces the code that builds clients for the
- * endpoints [CredentialEndpointResolver]s return for that protocol.
+ * `embabel-agent-starter-byok` ships a platform for each of OpenAI, DeepSeek, Mistral AI and
+ * Anthropic, and one for every other OpenAI-compatible endpoint, so per-user keys work with no
+ * application code at all; see `com.embabel.agent.config.models.byok.CredentialEndpointConfig`.
+ * Each shipped bean is skipped when the application registers a bean with the same name. A bean
+ * registered that way replaces every kind the shipped platform builds, and leaves the other shipped
+ * platforms in place. Replacing `anthropicModelPlatform` or `openAiCompatibleModelPlatform` also
+ * replaces how models are built at the endpoints an application's [CredentialEndpointResolver]
+ * returns, because those two beans build them.
  *
  * Kotlin:
  *
