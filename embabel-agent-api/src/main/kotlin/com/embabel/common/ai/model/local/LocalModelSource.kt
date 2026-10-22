@@ -17,16 +17,16 @@ package com.embabel.common.ai.model.local
 
 import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
-import com.embabel.common.ai.model.CredentialModelFactory
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.ModelCapability
 import com.embabel.common.ai.model.ModelKind
 import com.embabel.common.ai.model.ModelMetadata
+import com.embabel.common.ai.model.ModelPlatform
 
 /**
  * A local model runner - Docker Model Runner, LM Studio, Ollama - asked what it is serving NOW.
  *
- * The local counterpart of [CredentialModelFactory], and it exists for the same reason: something
+ * The local counterpart of [ModelPlatform], and it exists for the same reason: something
  * has to be able to answer for a model the platform did not know about when it was built.
  *
  * WHY THIS IS NOT JUST STARTUP DISCOVERY. Each runner's autoconfiguration enumerates models in a
