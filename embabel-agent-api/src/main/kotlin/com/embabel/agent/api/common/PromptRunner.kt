@@ -455,8 +455,8 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
      * Check if thinking extraction is supported by this runner and the model it uses.
      *
      * Thinking extraction returns the blocks of reasoning (like `<think>...</think>`) from an
-     * LLM response together with the result. Only a [ThinkingPromptRunner] supports thinking;
-     * this default answers false for every other runner.
+     * LLM response together with the result. This default answers false. [ThinkingPromptRunner]
+     * overrides it, and the runner returned by `Ai` answers what the selected model supports.
      *
      * @return true if [thinking] can be called, false if thinking is not available
      */
@@ -465,18 +465,19 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
     /**
      * Return a [PromptRunner.Thinking] for extracting thinking blocks.
      *
-     * A [ThinkingPromptRunner] implements this. Every other runner throws
-     * [UnsupportedOperationException], whatever [supportsThinking] returns.
+     * This default throws [UnsupportedOperationException]. A [ThinkingPromptRunner] must implement
+     * it. A custom runner that implements thinking should implement [ThinkingPromptRunner], so that
+     * callers who check for that type find it.
      *
      * @return thinking operations returning results with extracted reasoning
-     * @throws UnsupportedOperationException if this runner is not a [ThinkingPromptRunner]
+     * @throws UnsupportedOperationException if this runner does not implement thinking
      */
     fun thinking(): Thinking {
         throw UnsupportedOperationException(
             """
             Thinking not supported by this PromptRunner implementation.
-            Only a ThinkingPromptRunner supports thinking. Before calling thinking(), check that the
-            runner is a ThinkingPromptRunner and that supportsThinking() returns true.
+            A runner that supports thinking implements ThinkingPromptRunner. Before calling thinking(),
+            check that the runner is a ThinkingPromptRunner and that supportsThinking() returns true.
             """.trimIndent()
         )
     }

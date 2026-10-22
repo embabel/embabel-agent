@@ -29,6 +29,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -85,6 +86,22 @@ class ThinkingPromptRunnerTest {
             assertThrows<UnsupportedOperationException> {
                 runner.thinking()
             }
+        }
+
+        @Test
+        fun `a custom runner that implements thinking without the type still works, but the type check skips it`() {
+            // A runner written before ThinkingPromptRunner existed overrides both methods itself.
+            val operations = mockk<PromptRunner.Thinking>()
+            val runner: PromptRunner = object : PromptRunner by fakeRunnerWithThinkingEnabled() {
+                override fun supportsThinking(): Boolean = true
+                override fun thinking(): PromptRunner.Thinking = operations
+            }
+
+            // Calling thinking() on it still returns its own operations
+            assertSame(operations, runner.thinking())
+            // The documented check skips it, because it is not a ThinkingPromptRunner.
+            // To be found by that check, the runner must implement ThinkingPromptRunner.
+            assertFalse(runner is ThinkingPromptRunner)
         }
     }
 
