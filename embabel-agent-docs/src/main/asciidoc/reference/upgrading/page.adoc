@@ -1,0 +1,394 @@
+[[reference.upgrading]]
+=== Migrating from 1.5.x
+
+This section lists the changes to make when you upgrade from a 1.5.x release.
+It applies to code that implements the model SPI: a custom `LlmService`, a `RoleResolver`, a factory that builds models from a user's key, or a source of locally served models.
+
+These things do not change:
+
+- **YAML configuration.** The keys under `embabel.models`, such as `default-llm`, `default-embedding-model`, `llms`, `roles`, `embedding-services` and `embedding-roles`, have the same names and the same meaning.
+- **Calling code.** `Ai`, `PromptRunner`, `ModelProvider` and `EmbeddingService.embed` have the same methods. Code that only calls them compiles and behaves as before.
+- **`CredentialEndpointResolver`.** A BYOK application that only registers `CredentialEndpointResolver` beans needs no change.
+
+If your application uses none of the types in the table below, there is nothing to migrate.
+
+==== What replaces each removed type
+
+Chat and embedding used to have one set of SPI types each.
+They now share generic types, and each generic type takes a `ModelKind` that says which kind of model it is for.
+Use `LlmService.KIND` for chat models and `EmbeddingService.KIND` for embedding models.
+A `RoleResolver` of `LlmService.KIND` is asked only about chat roles, and one of `EmbeddingService.KIND` only about embedding roles.
+
+The "Shipped in" column is the first release that contained the removed type or method.
+
+[cols="3,4,1",options="header"]
+|===
+|Removed in this release |Use instead |Shipped in
+
+|`LlmService.createMessageStreamer(options)`
+|Implement `StreamingChatCompletion`, which declares `createMessageStreamer(options)`. A service that does not stream implements neither.
+|0.4.0
+
+|`LlmService.supportsStreaming()` with no default
+|`supportsStreaming()` now returns `this is StreamingChatCompletion` by default. Override it only to ask the provider whether a model streams.
+|0.4.0
+
+|`RoleResolver` (chat only, a `fun interface`)
+|`RoleResolver<LlmService<*>, LlmOptions>`, created with `RoleResolver.of(LlmService.KIND) { role, context -> ... }`
+|1.5.1
+
+|`RoleResolution.Options(llmOptions)`
+|`RoleResolution.Bound(binding)`, where `binding` is the `LlmOptions`
+|1.5.1
+
+|`RoleResolution.Service(llmService, llmOptions)`
+|`RoleResolution.Service(service, binding)`. `binding` may be omitted and is then null.
+|1.5.1
+
+|`EmbeddingRoleResolver`
+|`RoleResolver<EmbeddingService, ModelName>`, created with `RoleResolver.of(EmbeddingService.KIND) { role, context -> ... }`
+|1.5.3
+
+|`EmbeddingRoleResolution.Model(model)`
+|`RoleResolution.Bound(ModelName(model))`
+|1.5.3
+
+|`EmbeddingRoleResolution.Credential(credential)`
+|`RoleResolution.Credential(credential)`, the same case chat uses
+|1.5.3
+
+|`EmbeddingRoleResolution.Service(embeddingService)`
+|`RoleResolution.Service(service)`
+|1.5.3
+
+|`CredentialLlmServiceFactory`
+|A `ModelPlatform` that builds `LlmService.KIND`
+|1.5.1
+
+|`CredentialEmbeddingServiceFactory`
+|A `ModelPlatform` that builds `EmbeddingService.KIND`. One platform can build chat and embedding models from the same key.
+|1.5.3
+
+|`ConfigurableRoleResolver(properties, defaultProviderName)`
+|`ConfigurableRoleResolver(LlmService.KIND, properties.chatRoles(), defaultProviderName)`
+|1.5.1
+
+|`ConfigurableRoleResolver.configuredOptionsFor(role, provider)` and `optionsFor(role, provider)`
+|`properties.chatRoles().configuredFor(role, provider)` and `boundFor(role, provider)`
+|1.5.1
+
+|`ConfigurableEmbeddingRoleResolver(properties, defaultProviderName)`
+|`ConfigurableRoleResolver(EmbeddingService.KIND, properties.embeddingRoleBindings(), defaultProviderName)`
+|1.5.3
+
+|`ConfigurableEmbeddingRoleResolver.configuredModelFor(role, provider)` and `modelFor(role, provider)`
+|`properties.embeddingRoleBindings().configuredFor(role, provider)?.modelName` and `boundFor(role, provider)?.modelName`
+|1.5.3
+
+|`LocalModelRoleResolver(catalog, properties)`
+|`LocalModelRoleResolver(LlmService.KIND, catalog, properties.chatRoles())`
+|1.5.3
+
+|`LocalModelEmbeddingRoleResolver(catalog, properties)`
+|`LocalModelRoleResolver(EmbeddingService.KIND, catalog, properties.embeddingRoleBindings())`
+|1.5.3
+
+|`LocalModelBeans.roleResolver`
+|`LocalModelBeans.chatRoleResolver`. `embeddingRoleResolver` keeps its name.
+|1.5.3
+
+|`LocalModelKind.CHAT` and `LocalModelKind.EMBEDDING`, in `LocalModel.kind`
+|`LlmService.KIND` and `EmbeddingService.KIND`. `LocalModel.kind` is now a `ModelKind`.
+|1.5.3
+
+|`LocalModelKind.fromConfiguration(modelName, properties)`
+|`LocalModel.kindFromConfiguration(modelName, properties)`
+|1.5.3
+
+|`LocalModelSource.llmService(model)` and `embeddingService(model)`
+|`LocalModelSource.model(kind, model)`. A source that serves chat and embedding models can extend `ChatAndEmbeddingModelSource` and implement `chatModel(model)` and `embeddingModel(model)`.
+|1.5.3
+
+|`LocalModelCatalog.llmNamed(model)` and `embeddingNamed(model)`
+|`LocalModelCatalog.named(LlmService.KIND, model)` and `named(EmbeddingService.KIND, model)`
+|1.5.3
+
+|`LocalModelCatalog.llmService(model)` and `embeddingService(model)`
+|`LocalModelCatalog.model(LlmService.KIND, model)` and `model(EmbeddingService.KIND, model)`
+|1.5.3
+
+|`LocalModelCatalog.servedNames(LocalModelKind)`
+|`LocalModelCatalog.servedNames(ModelKind)`
+|1.5.3
+
+|`ConfigurableModelProvider` constructor parameters `credentialLlmServiceFactories` (1.5.1), `embeddingRoleResolvers` and `credentialEmbeddingServiceFactories` (1.5.3), and the type of `roleResolvers`, which was `List<RoleResolver>`
+|`roleResolvers: List<RoleResolver<*, *>>`, which holds the resolvers of both kinds, and `modelPlatforms: List<ModelPlatform>`
+|1.5.1
+|===
+
+`RoleResolution.Credential` keeps its name and its constructor.
+`ProviderCredential`, `ModelSelectionContext` and `ModelSelectionContextHolder` do not change.
+
+===== Bean names in `embabel-agent-starter-byok`
+
+The starter used to ship one factory bean per protocol and kind.
+It now ships one `ModelPlatform` bean per protocol.
+If your application replaced a shipped bean by registering a bean of the same name, rename your bean:
+
+[cols="1,1",options="header"]
+|===
+|1.5.x bean name |Bean name now
+
+|`anthropicCredentialLlmServiceFactory`
+|`anthropicModelPlatform`
+
+|`openAiCompatibleCredentialLlmServiceFactory`
+|`openAiCompatibleModelPlatform`
+
+|`openAiCompatibleCredentialEmbeddingServiceFactory`
+|`openAiCompatibleModelPlatform`
+|===
+
+The OpenAI-compatible platform builds chat and embedding models.
+A bean named `openAiCompatibleModelPlatform` therefore replaces both, so it must build every kind your application uses with OpenAI-compatible keys.
+See <<reference.llms,Working with LLMs>> for the list of shipped platforms.
+
+==== A custom streaming `LlmService`
+
+In 1.5.x every `LlmService` declared `createMessageStreamer` and `supportsStreaming`, so a service that could not stream had to implement both anyway.
+Now streaming is a separate interface, `StreamingChatCompletion`.
+
+Before:
+
+[source,kotlin]
+----
+data class MyCustomLlmService(
+    // ... properties
+) : LlmService<MyCustomLlmService> {
+
+    override fun createMessageSender(options: LlmOptions): LlmMessageSender =
+        MyCustomLlmMessageSender(httpClient, apiKey, options.model ?: name)
+
+    override fun createMessageStreamer(options: LlmOptions): LlmMessageStreamer =
+        MyCustomLlmMessageStreamer(httpClient, apiKey, options.model ?: name)
+
+    override fun supportsStreaming(): Boolean = true
+
+    // ... other methods
+}
+----
+
+After:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+data class MyCustomLlmService(
+    // ... properties
+) : LlmService<MyCustomLlmService>, StreamingChatCompletion {
+
+    override fun createMessageSender(options: LlmOptions): LlmMessageSender =
+        MyCustomLlmMessageSender(httpClient, apiKey, options.model ?: name)
+
+    // Declared by StreamingChatCompletion now, not by LlmService.
+    override fun createMessageStreamer(options: LlmOptions): LlmMessageStreamer =
+        MyCustomLlmMessageStreamer(httpClient, apiKey, options.model ?: name)
+
+    // supportsStreaming() is removed: it returns true because this class implements StreamingChatCompletion.
+
+    // ... other methods
+}
+----
+
+Java::
++
+[source,java]
+----
+public class MyCustomLlmService implements LlmService<MyCustomLlmService>, StreamingChatCompletion {
+
+    @Override
+    public LlmMessageSender createMessageSender(LlmOptions options) {
+        return new MyCustomLlmMessageSender(httpClient, apiKey, options.getModel() != null ? options.getModel() : name);
+    }
+
+    // Declared by StreamingChatCompletion now, not by LlmService.
+    @Override
+    public LlmMessageStreamer createMessageStreamer(LlmOptions options) {
+        return new MyCustomLlmMessageStreamer(httpClient, apiKey, options.getModel() != null ? options.getModel() : name);
+    }
+
+    // supportsStreaming() is removed: it returns true because this class implements StreamingChatCompletion.
+
+    // ... other methods
+}
+----
+====
+
+A service that does not stream deletes its `createMessageStreamer` and `supportsStreaming` methods and does not implement `StreamingChatCompletion`.
+Keep a `supportsStreaming()` override only if it asks the provider whether the model streams.
+An override that returns true on a class that does not implement `StreamingChatCompletion` has no effect: the platform reports that the model does not stream.
+
+==== Role resolvers that return a user's key
+
+`RoleResolver` is no longer a `fun interface`, because each resolver now states its kind.
+Create one with `RoleResolver.of(kind) { role, context -> ... }`, or implement `RoleResolver<C, B>` and override `kind` and `resolve`.
+The embedding resolver is the same type with `EmbeddingService.KIND`.
+
+Before:
+
+[source,kotlin]
+----
+@Component
+class ByokRoleResolver(
+    private val userKeyStore: UserKeyStore,
+) : RoleResolver {
+
+    override fun resolve(role: String, context: ModelSelectionContext): RoleResolution? =
+        context.userId
+            ?.let { userKeyStore.activeKeyFor(it) }
+            ?.let { RoleResolution.Credential(ProviderCredential(it.provider, it.apiKey)) }
+}
+
+@Component
+class ByokEmbeddingRoleResolver(
+    private val userKeyStore: UserKeyStore,
+) : EmbeddingRoleResolver {
+
+    override fun resolve(role: String, context: ModelSelectionContext): EmbeddingRoleResolution? =
+        context.userId
+            ?.let { userKeyStore.activeKeyFor(it) }
+            ?.let { EmbeddingRoleResolution.Credential(ProviderCredential(it.provider, it.apiKey)) }
+}
+----
+
+After:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+@Configuration
+class ByokResolvers {
+
+    // Chat roles: asked only about roles of LlmService.KIND.
+    @Bean
+    fun byokRoleResolver(userKeyStore: UserKeyStore): RoleResolver<LlmService<*>, LlmOptions> =
+        RoleResolver.of(LlmService.KIND) { _, context -> credentialFor(userKeyStore, context) }
+
+    // Embedding roles: asked only about roles of EmbeddingService.KIND.
+    @Bean
+    fun byokEmbeddingRoleResolver(userKeyStore: UserKeyStore): RoleResolver<EmbeddingService, ModelName> =
+        RoleResolver.of(EmbeddingService.KIND) { _, context -> credentialFor(userKeyStore, context) }
+
+    // One lookup for both kinds. RoleResolution.Credential is the same case for chat and embedding.
+    private fun credentialFor(userKeyStore: UserKeyStore, context: ModelSelectionContext) =
+        context.userId
+            ?.let { userKeyStore.activeKeyFor(it) }
+            ?.let { RoleResolution.Credential(ProviderCredential(it.provider, it.apiKey)) }
+}
+----
+
+Java::
++
+[source,java]
+----
+@Configuration
+class ByokResolvers {
+
+    // Chat roles: asked only about roles of LlmService.KIND.
+    @Bean
+    RoleResolver<LlmService<?>, LlmOptions> byokRoleResolver(UserKeyStore userKeyStore) {
+        return RoleResolver.of(LlmService.KIND, (role, context) -> credentialFor(userKeyStore, context));
+    }
+
+    // Embedding roles: asked only about roles of EmbeddingService.KIND.
+    @Bean
+    RoleResolver<EmbeddingService, ModelName> byokEmbeddingRoleResolver(UserKeyStore userKeyStore) {
+        return RoleResolver.of(EmbeddingService.KIND, (role, context) -> credentialFor(userKeyStore, context));
+    }
+
+    // Returns null when the user has no key, so the next resolver decides.
+    private static RoleResolution.Credential credentialFor(UserKeyStore userKeyStore, ModelSelectionContext context) {
+        if (context.getUserId() == null) {
+            return null;
+        }
+        var key = userKeyStore.activeKeyFor(context.getUserId());
+        return key == null ? null : new RoleResolution.Credential(new ProviderCredential(key.provider(), key.apiKey()));
+    }
+}
+----
+====
+
+A resolver that returned `RoleResolution.Options(llmOptions)` now returns `RoleResolution.Bound(llmOptions)`.
+An embedding resolver that returned `EmbeddingRoleResolution.Model("text-embedding-3-small")` now returns `RoleResolution.Bound(ModelName("text-embedding-3-small"))`.
+
+Pass the kind's own constant, `LlmService.KIND` or `EmbeddingService.KIND`.
+The platform compares kinds by identity, so a resolver created with a new `ModelKind` of the same name is never asked, and the platform logs a warning about it at startup.
+
+==== A credential factory becomes a `ModelPlatform`
+
+A `ModelPlatform` replaces both `CredentialLlmServiceFactory` and `CredentialEmbeddingServiceFactory`.
+Build one with `ModelPlatform.builder()` and call `builds(kind) { credential, model -> ... }` once for each kind it can build.
+The function returns null for a provider it does not handle, as the factory did.
+
+Before:
+
+[source,kotlin]
+----
+@Bean
+fun gatewayLlmServiceFactory() = CredentialLlmServiceFactory { credential, model ->
+    if (credential.provider == "gateway") GatewayLlmService(credential.apiKey, model) else null
+}
+
+@Bean
+fun gatewayEmbeddingServiceFactory() = CredentialEmbeddingServiceFactory { credential, model ->
+    if (credential.provider == "gateway") GatewayEmbeddingService(credential.apiKey, model) else null
+}
+----
+
+After:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+@Bean
+fun gatewayPlatform(): ModelPlatform =
+    ModelPlatform.builder()
+        // Each function returns null for any other provider, so other platforms handle those keys.
+        .builds(LlmService.KIND) { credential, model ->
+            if (credential.provider == "gateway") GatewayLlmService(credential.apiKey, model) else null
+        }
+        .builds(EmbeddingService.KIND) { credential, model ->
+            if (credential.provider == "gateway") GatewayEmbeddingService(credential.apiKey, model) else null
+        }
+        .build()
+----
+
+Java::
++
+[source,java]
+----
+@Bean
+ModelPlatform gatewayPlatform() {
+    return ModelPlatform.builder()
+            // Each function returns null for any other provider, so other platforms handle those keys.
+            .builds(LlmService.KIND, (credential, model) ->
+                    credential.getProvider().equals("gateway") ? new GatewayLlmService(credential.getApiKey(), model) : null)
+            .builds(EmbeddingService.KIND, (credential, model) ->
+                    credential.getProvider().equals("gateway") ? new GatewayEmbeddingService(credential.getApiKey(), model) : null)
+            .build();
+}
+----
+====
+
+A platform that builds only one kind calls `builds` once.
+The platform caches each model per provider, key and model name, as it cached what a factory built.
+For a provider that uses the OpenAI or Anthropic protocol, a `CredentialEndpointResolver` is still the simpler choice, because it needs no SPI type; see <<reference.llms,Working with LLMs>>.

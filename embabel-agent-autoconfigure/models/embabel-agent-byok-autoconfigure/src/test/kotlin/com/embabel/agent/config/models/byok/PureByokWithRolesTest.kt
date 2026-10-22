@@ -21,9 +21,9 @@ import com.embabel.common.ai.model.AiModel
 import com.embabel.common.ai.model.ByRoleModelSelectionCriteria
 import com.embabel.common.ai.model.ConfigurableModelProvider
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
-import com.embabel.common.ai.model.CredentialModelFactory
 import com.embabel.common.ai.model.DefaultModelSelectionCriteria
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.ModelPlatform
 import com.embabel.common.ai.model.ModelSelectionContext
 import com.embabel.common.ai.model.ModelSelectionContextHolder
 import com.embabel.common.ai.model.NoSuitableModelException
@@ -110,7 +110,7 @@ class PureByokWithRolesTest {
                 defaultLlm = CHEAPEST_ROLE,
                 roles = mapOf(CHEAPEST_ROLE to mapOf(OTHER_PROVIDER to LlmOptions.withModel("$OTHER_PROVIDER-large"))),
             ),
-            credentialModelFactories = listOf(CredentialModelFactory.of(LlmService.KIND) { _, _ -> userService }),
+            modelPlatforms = listOf(ModelPlatform.builder().builds(LlmService.KIND) { _, _ -> userService }.build()),
         )
 
         // Before the key: the placeholder, exactly as a pure BYOK deployment has always behaved.

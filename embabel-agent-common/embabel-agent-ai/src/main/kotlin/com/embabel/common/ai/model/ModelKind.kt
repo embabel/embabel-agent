@@ -22,14 +22,14 @@ import org.jetbrains.annotations.ApiStatus
  * names for it.
  *
  * This is a class, not an enum, so a new kind of model can be added without changing this file:
- * declare one instance next to the capability interface. Resolvers, credential factories and local
+ * declare one instance next to the capability interface. Resolvers, model platforms and local
  * model runners say which kind they serve by holding that instance, and the platform compares kinds
  * by identity (`===`), not by name. Declare each kind once as a constant and always refer to that
  * constant. The platform ships two: `LlmService.KIND` for chat and [EmbeddingService.KIND].
  *
  * The platform's model provider selects only those two kinds. A new kind, such as the one below,
- * also needs code that selects models of that kind. Until that exists, a resolver or credential
- * factory that holds the new kind is reported at startup and never asked.
+ * also needs code that selects models of that kind. Until that exists, a resolver that holds the
+ * new kind, or a model platform that builds only new kinds, is reported at startup and never asked.
  *
  * ```kotlin
  * interface RerankingService : ModelCapability {
