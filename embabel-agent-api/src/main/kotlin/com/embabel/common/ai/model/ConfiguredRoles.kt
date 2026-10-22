@@ -73,16 +73,4 @@ class ConfiguredRoles<B : RoleBinding>(
 
     /** The nested entry for [role] under [provider] if there is one, otherwise the flat map's. */
     fun configuredFor(role: String, provider: String?): B? = boundFor(role, provider) ?: flatFor(role)
-
-    /** Whether configuration declares [role] in either shape. */
-    fun declares(role: String): Boolean = flat().containsKey(role) || byProvider().containsKey(role)
-
-    /** Every role either shape declares. */
-    fun roleNames(): Set<String> = flat().keys + byProvider().keys
-
-    /** The flat map, role to binding. */
-    fun flatBindings(): Map<String, B> = flat()
-
-    /** The nested map, role to provider to binding. */
-    fun providerBindings(): Map<String, Map<String, B>> = byProvider()
 }

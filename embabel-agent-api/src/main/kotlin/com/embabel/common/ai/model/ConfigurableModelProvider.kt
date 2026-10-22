@@ -736,6 +736,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             }
         }
         checkNestedRoles()
+        warnOfUnselectedKinds(roleResolvers, credentialModelFactories)
         logger.info(infoString(verbose = true))
 
         properties.embeddingServices.forEach { (role, model) ->
@@ -783,6 +784,32 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                     )
                 }
             }
+        }
+    }
+
+    /**
+     * Warn about resolvers and factories that hold a kind this provider never selects.
+     *
+     * Kinds are matched by identity, so a resolver or factory holding any other kind - a new
+     * [ModelKind] built with the chat kind's name, say - is never asked. Saying so at startup is
+     * the difference between a bean that does nothing and a bean that does nothing without a trace.
+     */
+    private fun warnOfUnselectedKinds(
+        roleResolvers: List<RoleResolver<*, *>>,
+        credentialModelFactories: List<CredentialModelFactory<*>>,
+    ) {
+        val selected = setOf<ModelKind<*, *>>(LlmService.KIND, EmbeddingService.KIND)
+        roleResolvers.filter { it.kind !in selected }.forEach {
+            logger.warn(
+                "Role resolver {} answers for {}, which this provider does not select, so it will never be asked. Use the kind's own constant, such as LlmService.KIND or EmbeddingService.KIND",
+                it, it.kind,
+            )
+        }
+        credentialModelFactories.filter { it.kind !in selected }.forEach {
+            logger.warn(
+                "Credential model factory {} builds {}, which this provider does not select, so it will never be asked. Use the kind's own constant, such as LlmService.KIND or EmbeddingService.KIND",
+                it, it.kind,
+            )
         }
     }
 
