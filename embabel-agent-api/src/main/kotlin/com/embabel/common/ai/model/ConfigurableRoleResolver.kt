@@ -35,8 +35,8 @@ import org.springframework.core.Ordered
  * @param kind the kind of model this resolver answers for
  * @param roles what configuration says this kind's roles mean
  * @param defaultProviderName provider of the deployment's default model of this kind, used when no
- * key is active. A function because that default is resolved by [ConfigurableModelProvider] against
- * registered beans, after this is constructed.
+ * key is active. A function because that default is resolved by the chat or embedding selection
+ * against registered beans, after this is constructed.
  */
 @ApiStatus.Experimental
 class ConfigurableRoleResolver<C : ModelCapability, B : RoleBinding>(

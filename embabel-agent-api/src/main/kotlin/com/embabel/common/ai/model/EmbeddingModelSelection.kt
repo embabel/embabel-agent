@@ -54,6 +54,9 @@ internal class EmbeddingModelSelection(
         kind = EmbeddingService.KIND,
         registered = embeddingServices,
         roles = properties.embeddingRoleBindings(),
+        // The lambda is called when a role is resolved, not when the resolver is built, so
+        // `registeredDefaultEmbeddingService`, which is declared below this property, is set by
+        // the time it is read.
         resolvers = applicationResolvers +
             ConfigurableRoleResolver(EmbeddingService.KIND, properties.embeddingRoleBindings()) {
                 defaultEmbeddingProviderName()
@@ -61,7 +64,7 @@ internal class EmbeddingModelSelection(
         modelPlatforms = modelPlatforms,
         catalogs = localModelCatalogs,
         credentialCacheSize = properties.credentialServiceCacheSize,
-        rolesProperty = "embabel.models.embedding-roles or embabel.models.embedding-services",
+        rolesProperty = ROLES_PROPERTIES,
         isPlaceholder = { it.awaitingProviderKey },
     )
 
@@ -74,10 +77,10 @@ internal class EmbeddingModelSelection(
      * The registered service `default-embedding-model` names directly, or null when it names a
      * role - or a model nothing has registered.
      *
-     * The counterpart of [ChatModelSelection]'s registered default, and it plays the same part: a name that resolves
-     * here is resolved ONCE, at startup, so the ordinary keyed-at-boot deployment pays nothing for
-     * per-call resolution and cannot have its default changed underneath it. Null is what sends
-     * the default through the resolver chain on every call.
+     * The counterpart of [ChatModelSelection]'s registered default, and it plays the same part: a
+     * name that resolves here is resolved ONCE, at startup, so the ordinary keyed-at-boot
+     * deployment pays nothing for per-call resolution and cannot have its default changed
+     * underneath it. Null is what sends the default through the resolver chain on every call.
      */
     private val registeredDefaultEmbeddingService: EmbeddingService? =
         properties.defaultEmbeddingModel
@@ -115,8 +118,8 @@ internal class EmbeddingModelSelection(
     }
 
     /**
-     * The provider behind the deployment's default embedding service, for
-     * the embedding [ConfigurableRoleResolver] to pick a column with when no user key is active.
+     * The provider behind the deployment's default embedding service. When no user key is active,
+     * the embedding [ConfigurableRoleResolver] reads the `embedding-roles` entry for this provider.
      *
      * Reads only what is REGISTERED, never the role chain: the chain is what calls this, and
      * asking it back would recurse. A deployment whose default is a role and whose key has not
@@ -151,13 +154,14 @@ internal class EmbeddingModelSelection(
      * What an explicitly requested embedding role does when nothing satisfied it: it throws, in
      * every deployment, keyed or not.
      *
-     * DELIBERATELY UNLIKE chat's role resolution in [ChatModelSelection], which hands an unsatisfied chat role the placeholder when
-     * a key has yet to arrive. An embedding model is a schema commitment - a vector index is
-     * created AT its width - so there is nothing a placeholder can stand in for, and handing one
-     * back would turn "this role names no model I can serve" into a service whose
-     * [EmbeddingService.awaitingProviderKey] invites the caller to skip silently. The asymmetry is
-     * stated where the fallback is defined, in [placeholderEmbeddingService] and beside the
-     * startup validation, and this is the third place it has to hold.
+     * DELIBERATELY UNLIKE chat's role resolution in [ChatModelSelection], which hands an
+     * unsatisfied chat role the placeholder when a key has yet to arrive. An embedding model is a
+     * schema commitment - a vector index is created AT its width - so there is nothing a
+     * placeholder can stand in for, and handing one back would turn "this role names no model I
+     * can serve" into a service whose [EmbeddingService.awaitingProviderKey] invites the caller to
+     * skip silently. The asymmetry is stated where the fallback is defined, in
+     * [placeholderEmbeddingService] and beside the startup validation, and this is the third place
+     * it has to hold.
      *
      * The DEFAULT is a different question and keeps its placeholder: a caller asking for whatever
      * the deployment has is entitled to be told, by a service that says so, that it has nothing.
@@ -171,8 +175,9 @@ internal class EmbeddingModelSelection(
     /**
      * The registered embedding placeholder, if this deployment carries one.
      *
-     * Structural rather than by name, like chat's: `com.embabel.agent.spi` owns the
-     * marker and this class must not depend on the BYOK module that implements it.
+     * Structural rather than by name, like chat's: the marker is
+     * [EmbeddingService.awaitingProviderKey], and this class must not depend on the BYOK module
+     * that implements it.
      *
      * Note what falling back does NOT do. The placeholder cannot embed and will not report a
      * dimension, so every consumer that reaches it still fails - deliberately, because an
@@ -264,12 +269,13 @@ internal class EmbeddingModelSelection(
     }
 
     /**
-     * Whether this deployment is waiting for an EMBEDDING key, the counterpart of [ChatModelSelection.setupRequired].
+     * Whether this deployment is waiting for an EMBEDDING key, the counterpart of
+     * [ChatModelSelection.setupRequired].
      *
      * Separate, because the two halves are configured independently: an application can hold a
      * server-side chat key while embedding keys arrive per user, or the reverse. Deriving the
-     * embedding gate from [ChatModelSelection.setupRequired] made a deployment with a real LLM fail its context
-     * refresh on an embedding role it has no key for yet - exactly the startup failure the
+     * embedding gate from [ChatModelSelection.setupRequired] made a deployment with a real LLM fail
+     * its context refresh on an embedding role it has no key for yet - exactly the startup failure the
      * placeholder exists to remove, reappearing in the mixed configuration.
      */
     private val embeddingSetupRequired: Boolean =
@@ -285,18 +291,19 @@ internal class EmbeddingModelSelection(
         properties.embeddingServices.forEach { (role, model) ->
             if (embeddingServices.none { it.name == model }) {
                 /*
-                 * The same gate as the LLM roles above, and for the same reason: an unresolvable
-                 * name is a typo in a deployment that holds a key, and expected in one still
-                 * waiting for it. There is no fallback here, though, and there should not be -
+                 * The same gate as the flat LLM roles in [ChatModelSelection.validate], and for
+                 * the same reason: an unresolvable name is a typo in a deployment that holds a
+                 * key, and expected in one still waiting for it. There is no fallback here, though, and there should not be -
                  * an embedding model is a schema commitment and nothing can stand in for one.
                  * The gate decides only whether the deployment STARTS; asking for the service
                  * still throws.
                  *
-                 * Either gate opens it. [chatSetupRequired] alone was not enough: the two halves are
-                 * configured independently, so a deployment holding a chat key while embedding keys
-                 * arrive at runtime is awaiting one here and was failing to start. [chatSetupRequired]
-                 * still counts on its own, because a deployment awaiting a chat key has registered
-                 * nothing at all yet, embedding services included.
+                 * Either gate opens it. [chatSetupRequired] alone was not enough: chat keys and
+                 * embedding keys are configured independently, so a deployment holding a chat key
+                 * while embedding keys arrive at runtime is awaiting one here and was failing to
+                 * start. [chatSetupRequired] still counts on its own, because a deployment
+                 * awaiting a chat key has registered nothing at all yet, embedding services
+                 * included.
                  */
                 if (chatSetupRequired || embeddingSetupRequired) {
                     logger.warn(
@@ -312,11 +319,12 @@ internal class EmbeddingModelSelection(
             }
         }
         /*
-         * The nested map is NOT checked the way the flat one is, matching how `roles` is treated
-         * for chat. An entry there names a model under a provider this deployment may hold no key
-         * for - that is what the shape is FOR - so an unregistered name is expected rather than a
-         * typo, and failing on it would stop exactly the bring-your-own-key deployment the map
-         * exists to serve. Report it and carry on.
+         * The nested map is NOT checked the way the flat one is. Chat fails on a nested `roles`
+         * entry for the deployment's own provider; here an unregistered entry is only reported,
+         * whatever its provider. An entry names a model under a provider this deployment may
+         * hold no key for - that is what the shape is FOR - so an unregistered name is expected
+         * rather than a typo, and failing on it would stop exactly the bring-your-own-key
+         * deployment the map exists to serve. Report it and carry on.
          */
         properties.embeddingRoles.forEach { (role, byProvider) ->
             byProvider.forEach { (provider, model) ->
@@ -392,9 +400,10 @@ internal class EmbeddingModelSelection(
              * key: handing back the deployment default, which is what the `else` did, embeds on
              * the deployment's key and bills the deployment, while reporting success.
              *
-             * Checked rather than unchecked, unlike [ChatModelSelection.getLlm]. Criteria are Jackson-deserializable
-             * and generic, so a wrong payload is reachable, and NoSuitableModelException names the
-             * criteria where a ClassCastException names two erased types.
+             * Checked rather than unchecked, unlike [ChatModelSelection.getLlm]. Criteria are
+             * Jackson-deserializable and generic, so a wrong payload is reachable, and
+             * NoSuitableModelException names the criteria where a ClassCastException names two
+             * erased types.
              */
             is PreResolvedModelSelectionCriteria<*> ->
                 criteria.resolved as? EmbeddingService ?: embeddingNameFallback(criteria)
@@ -402,11 +411,11 @@ internal class EmbeddingModelSelection(
             /*
              * The default, which is what both mean.
              *
-             * DELIBERATELY UNLIKE [ChatModelSelection.getLlm], where AUTO is an error because the infrastructure
-             * above resolves it first. Nothing analyses a prompt to pick a vector width, so for
-             * embeddings AUTO has only ever meant "whatever this deployment has" - and that is a
-             * service the caller can ask, via EmbeddingService.awaitingProviderKey, whether it is
-             * real yet.
+             * DELIBERATELY UNLIKE [ChatModelSelection.getLlm], where AUTO is an error because the
+             * infrastructure above resolves it first. Nothing analyses a prompt to pick a vector
+             * width, so for embeddings AUTO has only ever meant "whatever this deployment has" - and
+             * that is a service the caller can ask, via EmbeddingService.awaitingProviderKey,
+             * whether it is real yet.
              */
             is AutoModelSelectionCriteria, is DefaultModelSelectionCriteria -> defaultEmbeddingService()
         }
@@ -428,7 +437,7 @@ internal class EmbeddingModelSelection(
      * caller meant as a model can be captured by a resolver.
      *
      * A placeholder never answers a NAME directly. A role may point at one deliberately - see
-     * [attemptEmbeddingRole], where the caller asked for a role and a placeholder is a legitimate
+     * [ModelFamily.materialize], where the caller asked for a role and a placeholder is a legitimate
      * "not yet" - but a caller naming a model is naming a width, and the placeholder has none.
      */
     private fun attemptEmbeddingName(name: String, context: ModelSelectionContext): EmbeddingService? =
@@ -475,6 +484,8 @@ internal class EmbeddingModelSelection(
             return null
         }
         val role = properties.defaultEmbeddingModel ?: return null
+        // Only a Credential answer carries a key to build the named model on. A Bound or Service
+        // answer names a model of its own, which is not the model the caller asked for.
         val credential = (family.resolve(role, context) as? RoleResolution.Credential)
             ?.credential
         if (credential == null) {
@@ -497,4 +508,10 @@ internal class EmbeddingModelSelection(
 
     /** Every embedding model name a caller could ask for. */
     fun listableNames(): List<String> = family.listableNames()
+
+    companion object {
+
+        /** The properties an embedding role's model is looked up in, named in log messages. */
+        const val ROLES_PROPERTIES = "embabel.models.embedding-roles or embabel.models.embedding-services"
+    }
 }
