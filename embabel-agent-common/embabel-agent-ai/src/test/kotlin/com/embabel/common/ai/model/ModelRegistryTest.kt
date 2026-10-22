@@ -17,6 +17,7 @@ package com.embabel.common.ai.model
 
 import com.embabel.common.ai.model.ServiceSelectionException.Reason
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -66,7 +67,9 @@ class ModelRegistryTest {
         val animator = Animator()
         val registry = builder().register("sketch", Drawer()).register("motion", animator).build()
 
+        // The animator is the only animation model, so it is the animation default.
         assertSame(animator, registry.select(Animation::class.java).defaultService())
+        // The drawing family also holds the animator, because an animation is a drawing.
         assertSame(animator, registry.select(Drawing::class.java).named("motion"))
     }
 
@@ -120,16 +123,9 @@ class ModelRegistryTest {
         val first = drawings.named("served")
         val second = drawings.named("served")
 
+        // Both lookups return the same model, and the source built it once.
         assertSame(first, second)
         assertEquals(1, source.created)
-    }
-
-    @Test
-    fun `a source's models cannot be a default for a family their type does not fit`() {
-        val failure = assertThrows<IllegalArgumentException> {
-            builder().source(CountingSource()).defaultFor(Animation::class.java, "served").build()
-        }
-        assertTrue(failure.message.orEmpty().contains("served"), failure.message)
     }
 
     @Test
@@ -138,8 +134,10 @@ class ModelRegistryTest {
             builder().source(CountingSource()).defaultFor(Animation::class.java, "served").build()
         }
         val message = failure.message.orEmpty()
+        // The message says the model cannot animate.
         assertTrue(message.contains("without animation support"), message)
-        assertTrue(!message.contains("unknown service"), message)
+        // The message does not say the model is missing, because the source serves it.
+        assertFalse(message.contains("unknown service"), message)
     }
 
     @Test
@@ -159,7 +157,8 @@ class ModelRegistryTest {
         val failure = assertThrows<ServiceSelectionException> {
             registry.select(Animation::class.java).defaultService()
         }
-        assertTrue(!failure.message.orEmpty().contains("served"), failure.message)
+        // The source serves only drawing models, so its model is not listed for the animation family.
+        assertFalse(failure.message.orEmpty().contains("served"), failure.message)
     }
 
     @Test

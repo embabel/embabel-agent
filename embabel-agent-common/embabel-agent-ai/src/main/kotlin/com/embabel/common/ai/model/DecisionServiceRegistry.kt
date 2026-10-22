@@ -44,8 +44,8 @@ import java.util.Collections
  * candidate or single-service rules.
  *
  * Selection is done by a [ModelRegistry] with one family per capability interface. This class
- * keeps the decision-specific parts: the two families, the capabilities summary and the
- * observation registry.
+ * keeps the decision-specific parts: the decision and classification family specs, the
+ * capabilities summary and the observation registry.
  */
 @ApiStatus.Experimental
 class DecisionServiceRegistry private constructor(
