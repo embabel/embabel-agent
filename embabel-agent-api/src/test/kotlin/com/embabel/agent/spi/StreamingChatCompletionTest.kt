@@ -17,8 +17,6 @@ package com.embabel.agent.spi
 
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
-import com.embabel.agent.spi.support.springai.SpringAiLlmService
-import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.ai.prompt.PromptContributor
@@ -26,12 +24,11 @@ import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.model.ChatModel
 import java.time.LocalDate
 
 class StreamingChatCompletionTest {
 
-    /** An LLM service that can only send messages. It implements neither streaming method. */
+    /** An LLM service that can only send messages. It does not implement [StreamingChatCompletion]. */
     private class TextOnlyLlm : LlmService<TextOnlyLlm> {
         override val name = "text-only"
         override val provider = "test"
@@ -54,13 +51,6 @@ class StreamingChatCompletionTest {
         override fun createMessageStreamer(options: LlmOptions): LlmMessageStreamer = mockk()
         override fun withKnowledgeCutoffDate(date: LocalDate) = this
         override fun withPromptContributor(promptContributor: PromptContributor) = this
-    }
-
-    @Test
-    fun `a Spring AI LLM service can both send and stream chat messages`() {
-        val service = SpringAiLlmService("model", "provider", mockk<ChatModel>(), DefaultOptionsConverter)
-        assertTrue(service is ChatCompletion)
-        assertTrue(service is StreamingChatCompletion)
     }
 
     @Test

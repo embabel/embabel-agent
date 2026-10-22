@@ -115,7 +115,8 @@ class SetupRequiredLlmTest {
 
     @Test
     fun `the placeholder can be asked for a streamer through the streaming capability`() {
-        // Streaming must fail at call time with the setup message, the same as sending does.
+        // The placeholder implements StreamingChatCompletion, so asking it for streaming operations
+        // does not fail with UnsupportedOperationException before the setup message can be shown.
         assertThat(SetupRequiredLlm.llmService()).isInstanceOf(StreamingChatCompletion::class.java)
     }
 
@@ -123,6 +124,8 @@ class SetupRequiredLlmTest {
     fun `a message sender can be created, so failure happens at call time not setup time`() {
         val service = SetupRequiredLlm.llmService()
         assertThat(service.createMessageSender(LlmOptions())).isNotNull()
+        // llmService() returns LlmService<*>, which has no createMessageStreamer method.
+        // The cast is safe because the placeholder implements StreamingChatCompletion (tested above).
         assertThat((service as StreamingChatCompletion).createMessageStreamer(LlmOptions())).isNotNull()
     }
 

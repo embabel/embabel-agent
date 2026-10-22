@@ -603,6 +603,7 @@ abstract class AbstractLlmOperations(
      * @throws UnsupportedOperationException when the model cannot stream
      */
     private fun messageStreamerOf(llmService: LlmService<*>, options: LlmOptions): LlmMessageStreamer {
+        // A service that does not implement StreamingChatCompletion has no createMessageStreamer method.
         val streaming = llmService as? StreamingChatCompletion
             ?: throw UnsupportedOperationException(
                 "LLM service '${llmService.name}' from provider '${llmService.provider}' cannot stream: it does not implement StreamingChatCompletion",

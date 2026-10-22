@@ -463,8 +463,22 @@ data class MyCustomLlmService(
 ====
 
 This service can only send messages, so it reports that it cannot stream.
-To support streaming, also implement `StreamingChatCompletion` and its `createMessageStreamer(options)` method.
-Asking for streaming operations on a service that does not implement it fails with `UnsupportedOperationException`.
+To support streaming, also implement `StreamingChatCompletion` and its `createMessageStreamer(options)` method:
+
+[source,kotlin]
+----
+data class MyCustomLlmService(
+    // ... same properties as above
+) : LlmService<MyCustomLlmService>, StreamingChatCompletion {
+
+    override fun createMessageStreamer(options: LlmOptions): LlmMessageStreamer =
+        MyCustomLlmMessageStreamer(httpClient, apiKey, options.model ?: name)
+
+    // ... other methods as above
+}
+----
+
+Asking for streaming operations on a service that does not implement `StreamingChatCompletion` fails with `UnsupportedOperationException`.
 
 Then register it as a Spring bean:
 
