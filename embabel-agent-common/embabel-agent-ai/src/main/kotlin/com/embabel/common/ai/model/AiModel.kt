@@ -24,9 +24,10 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo
 import org.jetbrains.annotations.ApiStatus
 
 /**
- * Model families. External exhaustive switches must handle newly introduced families.
+ * Model families.
  *
- * This set is closed. A new kind of model is a new [ModelCapability] interface, not a new value here.
+ * This set is closed. A new kind of model is a new [ModelCapability] interface, not a new value here,
+ * so an exhaustive switch over these values does not need to change when a new kind of model is added.
  */
 enum class ModelType {
     LLM, EMBEDDING,
