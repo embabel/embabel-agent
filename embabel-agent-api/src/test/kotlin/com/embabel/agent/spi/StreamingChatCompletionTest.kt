@@ -16,6 +16,7 @@
 package com.embabel.agent.spi
 
 import com.embabel.agent.spi.loop.LlmMessageSender
+import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.LlmOptions
@@ -42,6 +43,19 @@ class StreamingChatCompletionTest {
         override fun withPromptContributor(promptContributor: PromptContributor) = this
     }
 
+    /** An LLM service that can stream and does not override supportsStreaming. */
+    private class StreamingLlm : LlmService<StreamingLlm>, StreamingChatCompletion {
+        override val name = "streaming"
+        override val provider = "test"
+        override val knowledgeCutoffDate: LocalDate? = null
+        override val pricingModel: PricingModel? = null
+        override val promptContributors: List<PromptContributor> = emptyList()
+        override fun createMessageSender(options: LlmOptions): LlmMessageSender = mockk()
+        override fun createMessageStreamer(options: LlmOptions): LlmMessageStreamer = mockk()
+        override fun withKnowledgeCutoffDate(date: LocalDate) = this
+        override fun withPromptContributor(promptContributor: PromptContributor) = this
+    }
+
     @Test
     fun `a Spring AI LLM service can both send and stream chat messages`() {
         val service = SpringAiLlmService("model", "provider", mockk<ChatModel>(), DefaultOptionsConverter)
@@ -52,5 +66,10 @@ class StreamingChatCompletionTest {
     @Test
     fun `an LLM service that does not implement streaming reports that it cannot stream`() {
         assertFalse(TextOnlyLlm().supportsStreaming())
+    }
+
+    @Test
+    fun `an LLM service that implements streaming reports that it can stream`() {
+        assertTrue(StreamingLlm().supportsStreaming())
     }
 }

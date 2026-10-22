@@ -567,9 +567,14 @@ abstract class AbstractLlmOperations(
         return modelProvider.getLlm(crit)
     }
 
+    /**
+     * A model streams only when it implements [StreamingChatCompletion] and says it streams.
+     * Without the type check, a service that overrides `supportsStreaming()` to true but cannot
+     * create a streamer would pass this check and then fail in [createStreamingOperations].
+     */
     override fun supportsStreaming(options: LlmOptions): Boolean {
         val llmService = chooseLlm(withRoleResolved(options))
-        return llmService.supportsStreaming()
+        return llmService is StreamingChatCompletion && llmService.supportsStreaming()
     }
 
     override fun supportsThinking(options: LlmOptions): Boolean {
