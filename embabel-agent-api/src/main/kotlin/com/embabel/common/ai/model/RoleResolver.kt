@@ -139,7 +139,7 @@ private class FunctionRoleResolver<C : ModelCapability, B : RoleBinding>(
 internal fun <C : ModelCapability, B : RoleBinding> List<RoleResolver<*, *>>.ofKind(
     kind: ModelKind<C, B>,
 ): List<RoleResolver<C, B>> =
-    // Kinds are matched by identity. A resolver that holds this exact kind instance was declared
-    // RoleResolver<C, B>, so the cast is safe.
+    // A kind equals only itself. A resolver that holds this kind was declared RoleResolver<C, B>,
+    // so the cast is safe.
     @Suppress("UNCHECKED_CAST")
-    (filter { it.kind === kind } as List<RoleResolver<C, B>>)
+    (filter { it.kind == kind } as List<RoleResolver<C, B>>)
