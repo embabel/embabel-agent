@@ -259,6 +259,23 @@ class LocalModelResolutionTest {
             assertEquals(0, runner.listings, "a role this provider says nothing about must not be an HTTP call")
         }
 
+        /**
+         * A chat binding can carry tuning without a model name. The resolver has no model to ask
+         * the runner for, so it declines without asking the runner anything.
+         */
+        @Test
+        fun `a chat role with tuning but no model under this provider is left to the rest of the chain`() {
+            val properties = ConfigurableModelProviderProperties(
+                defaultLlm = DEFAULT_LLM,
+                roles = mapOf(CHEAPEST_ROLE to mapOf(DOCKER to LlmOptions().withTemperature(0.2))),
+            )
+            val runner = FakeRunner(serving = chat(PULLED_LLM))
+            val resolver = LocalModelRoleResolver(LlmService.KIND, catalog(runner), properties.chatRoles())
+
+            assertNull(resolver.resolve(CHEAPEST_ROLE, ModelSelectionContext.EMPTY))
+            assertEquals(0, runner.listings, "a binding that names no model must not be an HTTP call")
+        }
+
         @Test
         fun `an unreachable runner declines rather than failing`() {
             val runner = FakeRunner(serving = embedding(PULLED_EMBEDDING), reachable = false)
