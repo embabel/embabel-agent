@@ -29,7 +29,7 @@ An even more important use case arises when the LLM cannot fulfill a request—f
 
 Thinking support has two parts:
 
-- The runner must be a `ThinkingPromptRunner`. This is a type check, so a runner cannot report thinking support without implementing `thinking()`.
+- The runner must be a `ThinkingPromptRunner`. The compiler requires every `ThinkingPromptRunner` to implement `thinking()`.
 - The selected model must support thinking. `supportsThinking()` on the runner returns what the selected model reports.
 
 Check both before you call `thinking()` when the runner or the model may vary:
@@ -202,14 +202,14 @@ Java::
 ----
 // Only return the "analysis" reasoning block; model is guided to use that tag
 ThinkingResponse<MonthItem> response = ai
-        .withLlm(LlmOptions.withModel("claude-opus-4-8")
+        .withLlm(LlmOptions.withModel("claude-sonnet-5-5")
                 .withThinking(Thinking.withIncludedTags("analysis")))
         .thinking()
         .createObject(prompt, MonthItem.class);
 
 // Drop "scratchpad" blocks, keep all others
 ThinkingResponse<MonthItem> response2 = ai
-        .withLlm(LlmOptions.withModel("claude-opus-4-8")
+        .withLlm(LlmOptions.withModel("claude-sonnet-5-5")
                 .withThinking(Thinking.withExcludedTags("scratchpad")))
         .thinking()
         .createObject(prompt, MonthItem.class);
@@ -221,14 +221,14 @@ Kotlin::
 ----
 // Only return the "analysis" reasoning block; model is guided to use that tag
 val response = ai
-        .withLlm(LlmOptions.withModel("claude-opus-4-8")
+        .withLlm(LlmOptions.withModel("claude-sonnet-5-5")
             .withThinking(Thinking.withIncludedTags("analysis")))
         .thinking()
         .createObject(prompt, MonthItem::class.java)
 
 // Drop "scratchpad" blocks, keep all others
 val response2 = ai
-        .withLlm(LlmOptions.withModel("claude-opus-4-8")
+        .withLlm(LlmOptions.withModel("claude-sonnet-5-5")
             .withThinking(Thinking.withExcludedTags("scratchpad")))
         .thinking()
         .createObject(prompt, MonthItem::class.java)
