@@ -276,8 +276,7 @@ class ThinkingPromptRunnerOperationsTest {
             override fun withLlmService(llmService: com.embabel.agent.spi.LlmService<*>): PromptRunner = this
         }
 
-        // When/Then: Call withThinking() on StreamingPromptRunner should throw exception
-        // testStreamingRunner.withThinking().createObject("test prompt", String::class.java) // does not compile - ThinkingCapability has no createObject method
+        // When/Then: this StreamingPromptRunner is not a ThinkingPromptRunner, so thinking() throws
 
         assertThrows<UnsupportedOperationException> {
             testStreamingRunner.thinking()
@@ -299,8 +298,7 @@ class ThinkingPromptRunnerOperationsTest {
             responses = mutableListOf("fake test result")
         )
 
-        // When/Then: Call withThinking() on FakePromptRunner should throw exception
-        // fakeRunner.withThinking().createObject("test prompt", String::class.java) // does not compile - ThinkingCapability has no createObject method
+        // When/Then: FakePromptRunner is not a ThinkingPromptRunner, so thinking() throws
 
         assertThrows<UnsupportedOperationException> {
             fakeRunner.thinking()
