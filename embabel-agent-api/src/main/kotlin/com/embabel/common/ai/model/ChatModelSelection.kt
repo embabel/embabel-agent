@@ -54,12 +54,14 @@ internal class ChatModelSelection(
         kind = LlmService.KIND,
         registered = llms,
         roles = properties.chatRoles(),
+        // The lambda is called when a role is resolved, not when the resolver is built, so
+        // `defaultLlm`, which is declared below this property, is set by the time it is read.
         resolvers = applicationResolvers +
             ConfigurableRoleResolver(LlmService.KIND, properties.chatRoles()) { defaultLlm.provider },
         modelPlatforms = modelPlatforms,
         catalogs = localModelCatalogs,
         credentialCacheSize = properties.credentialServiceCacheSize,
-        rolesProperty = "embabel.models.roles or embabel.models.llms",
+        rolesProperty = ROLES_PROPERTIES,
         isPlaceholder = { it is PlaceholderLlmService },
     )
 
@@ -193,8 +195,8 @@ internal class ChatModelSelection(
                 // Fatal, unless this deployment is waiting for a key. A name that resolves to
                 // nothing is a typo in a deployment that has one, and letting it start would move
                 // the failure to whichever unrelated call first asks for that role. A deployment in
-                // setup-required mode has no models registered yet by definition, so the same name
-                // is expected there and only worth reporting.
+                // setup-required mode is waiting for the key that registers its models, so the same
+                // name is expected there and only worth reporting.
                 if (setupRequired) {
                     logger.warn(
                         """
@@ -365,6 +367,8 @@ internal class ChatModelSelection(
     private fun attemptRole(role: String, context: ModelSelectionContext): RoleAttempt {
         val resolution = family.resolve(role, context)
         val resolved = family.materialize(role, resolution)
+            // A model resolved without a binding carries no configured tuning, so it gets the
+            // platform default options.
             ?.let { ResolvedRole(it.model, it.binding ?: LlmOptions.withDefaults()) }
         return RoleAttempt(resolution, resolved)
     }
@@ -452,8 +456,8 @@ internal class ChatModelSelection(
     /**
      * Every chat model name a caller could ask for, for the "available" list in a failure.
      *
-     * The same set [ConfigurableModelProvider.listModelNames] reports, so being told what is available and then asking for
-     * one of them cannot disagree.
+     * The same set [ConfigurableModelProvider.listModelNames] reports, so being told what is
+     * available and then asking for one of them cannot disagree.
      */
     fun listableLlmNames(): List<String> = family.listableNames()
 
@@ -511,4 +515,10 @@ internal class ChatModelSelection(
         val llmService: LlmService<*>,
         val llmOptions: LlmOptions,
     )
+
+    companion object {
+
+        /** The properties a chat role's model is looked up in, named in log messages. */
+        const val ROLES_PROPERTIES = "embabel.models.roles or embabel.models.llms"
+    }
 }
