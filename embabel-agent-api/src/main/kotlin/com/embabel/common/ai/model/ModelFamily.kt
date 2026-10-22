@@ -26,21 +26,22 @@ import java.util.Collections
  * resolvers, build a model from a user's key and cache it, ask local runners, find the registered
  * placeholder, and list what can be asked for by name.
  *
- * What a kind does when nothing satisfies a request - fall back to a placeholder, or fail - is a
- * policy, and belongs to the selection that uses a family, not to the family. See
- * [ChatModelSelection] and [EmbeddingModelSelection].
+ * What happens when nothing satisfies a request, returning the placeholder or throwing, differs by
+ * kind. The selection that uses a family decides it, not the family. See [ChatModelSelection] and
+ * [EmbeddingModelSelection].
  *
  * @param kind the kind of model this family selects
  * @param registered the models registered at startup
  * @param roles what configuration says this kind's roles mean
  * @param resolvers application resolvers in order, then the platform's configurable one
- * @param modelPlatforms platforms that build a model of this kind from a user's key
+ * @param modelPlatforms platforms that build models from a user's key; only those listing [kind]
+ *   are asked
  * @param catalogs what local runners are serving
  * @param credentialCacheSize how many models built from user keys to keep
  * @param rolesProperty the role properties a credential's model is looked up in, for messages, such as
  * `embabel.models.roles or embabel.models.llms`
  * @param isPlaceholder whether a registered model is the placeholder, which is registered while the
- * deployment has no key for a real model of this kind
+ * deployment has no key for any other model of this kind
  */
 internal class ModelFamily<C, B : RoleBinding>(
     val kind: ModelKind<C, B>,
@@ -55,15 +56,15 @@ internal class ModelFamily<C, B : RoleBinding>(
 ) where C : ModelCapability, C : ModelMetadata {
 
     /**
-     * Logs as [ConfigurableModelProvider], as both selections do, so every line selection writes
-     * stays under the one logger an operator already filters or captures.
+     * Logs under the [ConfigurableModelProvider] logger, as both selections do, so an operator who
+     * filters or captures that logger sees every model selection message.
      */
     private val logger = loggerFor<ConfigurableModelProvider>()
 
     /**
-     * Models built from user keys, which are per-user and so cannot be Spring beans.
-     * Bounded, and least-recently-used entries are dropped: an unbounded map here would retain a
-     * model for every key the deployment has ever seen.
+     * Models built from user keys. They belong to one user each, so they cannot be Spring beans.
+     * The map holds at most `credentialCacheSize` models and drops the least recently used one when
+     * it is full. Without a limit it would keep a model for every key the deployment has ever seen.
      */
     private val credentialModels: MutableMap<CredentialModelKey, C> =
         // 16 and 0.75 are LinkedHashMap's default capacity and load factor. `true` orders entries by
@@ -84,12 +85,10 @@ internal class ModelFamily<C, B : RoleBinding>(
     /**
      * A model of this kind a local runner is serving under this exact name, or null.
      *
-     * The by-NAME counterpart of what [com.embabel.common.ai.model.local.LocalModelRoleResolver]
-     * does for a role, and the reason a listing can name a model that arrived after startup
-     * without lying: everything the platform lists is something a caller can then ask for.
-     * Catalogs are tried in bean order, and the first that is serving the name answers - two
-     * runners serving the same model name serve the same model, so there is nothing to choose
-     * between them.
+     * [com.embabel.common.ai.model.local.LocalModelRoleResolver] does this for a role; this does it
+     * for a name. Because of it, a model that a listing reports after startup can also be asked for
+     * by name. Catalogs are tried in bean order and the first that serves the name answers. Two
+     * runners that serve the same model name serve the same model, so the order does not matter.
      */
     fun locallyServed(name: String): C? = catalogs.firstNotNullOfOrNull { it.named(kind, name) }
 
@@ -97,9 +96,9 @@ internal class ModelFamily<C, B : RoleBinding>(
     fun locallyServedNames(): List<String> = catalogs.flatMap { it.servedNames(kind) }.distinct()
 
     /**
-     * Every name a caller could ask for: registered at startup, or being served by a local runner
-     * since. The same set listings report, so being told what is available and then asking for one
-     * of them cannot disagree.
+     * Every name a caller can ask for: the names registered at startup and the names a local runner
+     * is serving now. The listings report the same set, so every name a listing reports can be asked
+     * for.
      */
     fun listableNames(): List<String> = (registered.map { it.name } + locallyServedNames()).distinct()
 
@@ -142,7 +141,8 @@ internal class ModelFamily<C, B : RoleBinding>(
         }
 
     /**
-     * Build - or reuse - a model for the one [role] names under the user's own provider.
+     * Builds, or reuses from the cache, the model that [role] names for the provider of the user's
+     * key.
      *
      * The model name is looked up in the nested role map for the user's provider, then in the flat
      * role map. [ConfigurableRoleResolver.resolve] does not read the flat map when a user key is
@@ -169,8 +169,12 @@ internal class ModelFamily<C, B : RoleBinding>(
         // No model platform could build the model for this provider.
         if (built == null) {
             logger.warn(
-                """Nothing built a {} model for provider '{}', needed for role '{}'. Register a CredentialEndpointResolver or a ModelPlatform that builds the {} kind for it, and check that the module that calls that provider's API is on the classpath""",
-                kind.name, credential.provider, role, kind.name,
+                """
+                No model platform built a {} model for provider '{}', which role '{}' needs.
+                Register a CredentialEndpointResolver or a ModelPlatform that builds {} models for provider '{}',
+                and check that the module that calls that provider's API is on the classpath
+                """.trimIndent(),
+                kind.name, credential.provider, role, kind.name, credential.provider,
             )
             return null
         }
@@ -184,15 +188,15 @@ internal class ModelFamily<C, B : RoleBinding>(
      * an embedding width over the network, and computeIfAbsent would hold the map's lock for the
      * duration.
      *
-     * Concretely. Two requests for the same user arrive together, both resolving "cheapest" under
+     * For example, two requests for the same user arrive together, both resolving "cheapest" under
      * the same key, and neither finds a cached entry. With computeIfAbsent, the first holds the
-     * map's lock across a network round trip, and the second blocks on it - as does every unrelated
-     * lookup for every other user, because it is one map. Reading first, both build, both put, and
-     * the second put wins. Both models were built from the same key and model name, so either can be
+     * map's lock across a network round trip, and the second waits for it. Every lookup for every
+     * other user waits too, because all users share this map. Reading first, both build, both put,
+     * and the second put wins. Both models were built from the same key and model name, so either can be
      * used; the one put first is dropped and the cost is one wasted call.
      *
-     * Shared by the ways a credential reaches a model - a role that named it, and a caller that
-     * named it - so the cache is one cache and the locking argument is made once.
+     * Used both when a role resolves to a credential and when a caller names a model to build on
+     * the deployment's credential, so both use the same cache.
      */
     fun credentialModel(credential: ProviderCredential, model: String): C? {
         val key = CredentialModelKey.of(credential, model)
@@ -211,14 +215,13 @@ internal class ModelFamily<C, B : RoleBinding>(
     /**
      * Cache key for a model built from a user's key.
      *
-     * Identifies the key by SHA-256 rather than holding it, so the plaintext is not duplicated
-     * into a map that lives as long as the platform does. The cached model was built from the key
-     * and still holds it, so this narrows the exposure rather than removing it - but it removes
-     * the copy that exists purely for lookup, and keeps keys out of any heap dump taken of the
-     * cache itself.
+     * Holds the SHA-256 digest of the key instead of the key, so the map, which lives as long as
+     * the platform, does not hold another plaintext copy. The cached model was built from the key
+     * and still holds it, so the key stays in memory. The digest removes only the extra copy a
+     * plaintext map key would add, and keeps the key out of the map's keys in a heap dump.
      *
-     * A digest cannot collide in practice, and two users would have to share a provider AND a
-     * model AND a SHA-256 collision to reach one another's model.
+     * For one user to get another user's model, both would need the same provider, the same model
+     * name, and keys with the same SHA-256 digest. SHA-256 digests do not collide in practice.
      */
     private data class CredentialModelKey(
         val provider: String,
