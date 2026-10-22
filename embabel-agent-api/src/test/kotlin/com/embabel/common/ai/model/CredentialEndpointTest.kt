@@ -24,7 +24,7 @@ import java.lang.reflect.Method
 /**
  * The point of these types, asserted rather than stated: a deployment can add a BYOK provider
  * without naming anything under `com.embabel.agent.spi`, which the API evolution guide asks
- * application code not to depend on. [CredentialLlmServiceFactory], the other way to do it,
+ * application code not to depend on. A chat [CredentialModelFactory], the other way to do it,
  * returns an `LlmService` and so cannot make that promise.
  */
 class CredentialEndpointTest {
