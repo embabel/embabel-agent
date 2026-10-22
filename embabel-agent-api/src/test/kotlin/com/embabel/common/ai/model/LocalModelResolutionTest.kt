@@ -128,6 +128,9 @@ class LocalModelResolutionTest {
         override fun infoString(verbose: Boolean?, indent: Int) = name
     }
 
+    /** A kind of model no shipped runner serves. */
+    private interface RerankingModel : ModelCapability
+
     /** A tick the test advances by hand, so an interval is asserted rather than waited out. */
     private class FakeTicker : () -> Long {
         private val nanos = AtomicLong(0)
@@ -337,6 +340,32 @@ class LocalModelResolutionTest {
 
             assertSame(first, second)
             assertEquals(1, runner.embeddingBuilds)
+        }
+
+        @Test
+        fun `one name built as two kinds is held as two models`() {
+            val runner = FakeRunner(serving = chat(PULLED_LLM))
+            val catalog = catalog(runner)
+
+            val asChat = catalog.model(LlmService.KIND, PULLED_LLM)
+            val asEmbedding = catalog.model(EmbeddingService.KIND, PULLED_LLM)
+            catalog.model(LlmService.KIND, PULLED_LLM)
+            catalog.model(EmbeddingService.KIND, PULLED_LLM)
+
+            assertTrue(asChat is LlmService<*>)
+            assertTrue(asEmbedding is EmbeddingService)
+            assertEquals(1, runner.llmBuilds)
+            assertEquals(1, runner.embeddingBuilds)
+        }
+
+        @Test
+        fun `a runner of chat and embedding models builds nothing for another kind`() {
+            val runner = FakeRunner(serving = chat(PULLED_LLM))
+            val reranking = ModelKind<RerankingModel, ModelName>("reranking", RerankingModel::class.java)
+
+            assertNull(catalog(runner).model(reranking, PULLED_LLM))
+            assertEquals(0, runner.llmBuilds)
+            assertEquals(0, runner.embeddingBuilds)
         }
 
         @Test

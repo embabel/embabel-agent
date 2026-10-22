@@ -423,6 +423,75 @@ class RoleResolutionTest {
         }
     }
 
+    /**
+     * Resolvers and credential factories of every kind arrive in one list, and each selection asks
+     * only those of its own kind.
+     */
+    @Nested
+    inner class OnlyTheKindBeingSelectedIsAsked {
+
+        @Test
+        fun `an embedding resolver is not asked about a chat role of the same name`() {
+            var embeddingResolverAsked = false
+            val mp = provider(
+                roleResolvers = listOf(
+                    RoleResolver.of(EmbeddingService.KIND) { _, _ ->
+                        embeddingResolverAsked = true
+                        null
+                    },
+                ),
+            )
+            assertSame(openAiModel, mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE)))
+            assertFalse(embeddingResolverAsked, "a chat role must not reach the embedding chain")
+        }
+
+        @Test
+        fun `an embedding credential factory is not asked to build a chat model`() {
+            var embeddingFactoryAsked = false
+            val mp = provider(
+                factories = listOf(
+                    CredentialModelFactory.of(EmbeddingService.KIND) { _, _ ->
+                        embeddingFactoryAsked = true
+                        null
+                    },
+                    CredentialModelFactory.of(LlmService.KIND) { _, _ -> anthropicModel },
+                ),
+            )
+            val resolved = ModelSelectionContextHolder.with(
+                ModelSelectionContext("ben", ProviderCredential("anthropic", "sk-test")),
+            ) {
+                mp.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE))
+            }
+            assertSame(anthropicModel, resolved)
+            assertFalse(embeddingFactoryAsked, "a chat key must not reach the embedding factories")
+        }
+
+        @Test
+        fun `a resolver and a factory of a kind nothing selects are reported at startup`() {
+            // Built with the chat kind's name and capability, but not the chat kind's constant, so
+            // the platform never asks it. The warning is all that tells the author.
+            val lookalike = ModelKind<LlmService<*>, LlmOptions>("chat", LlmService::class.java)
+            val warnings = captureWarnings {
+                provider(
+                    roleResolvers = listOf(RoleResolver.of(lookalike) { _, _ -> null }),
+                    factories = listOf(CredentialModelFactory.of(lookalike) { _, _ -> null }),
+                )
+            }
+            assertEquals(2, warnings.count { it.contains("will never be asked") }, warnings.toString())
+        }
+
+        @Test
+        fun `resolvers and factories of the selected kinds are not reported`() {
+            val warnings = captureWarnings {
+                provider(
+                    roleResolvers = listOf(RoleResolver.of(LlmService.KIND) { _, _ -> null }),
+                    factories = listOf(CredentialModelFactory.of(EmbeddingService.KIND) { _, _ -> null }),
+                )
+            }
+            assertTrue(warnings.none { it.contains("will never be asked") }, warnings.toString())
+        }
+    }
+
     @Nested
     inner class BringYourOwnKey {
 
