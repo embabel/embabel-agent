@@ -265,6 +265,32 @@ class EmbeddingRoleResolutionTest {
             ) { mp.getEmbeddingService(criteria) }
             assertEquals(2, builds, "a rotated key must not reuse the service built for the old one")
         }
+
+        @Test
+        fun `a chat credential factory is not asked to build an embedding model`() {
+            var chatFactoryAsked = false
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = DEFAULT_LLM,
+                    embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(OPENAI to SMALL_MODEL)),
+                ),
+                listOf(placeholder),
+                credentialModelFactories = listOf(
+                    CredentialModelFactory.of(LlmService.KIND) { _, _ ->
+                        chatFactoryAsked = true
+                        defaultLlm
+                    },
+                    CredentialModelFactory.of(EmbeddingService.KIND) { credential, model ->
+                        FakeEmbeddingService(model, credential.provider)
+                    },
+                ),
+            )
+            val resolved = ModelSelectionContextHolder.with(
+                ModelSelectionContext(credential = ProviderCredential(OPENAI, "sk-user")),
+            ) { mp.getEmbeddingService(ByRoleModelSelectionCriteria(DOCUMENTS_ROLE)) }
+            assertEquals(SMALL_MODEL, resolved.name)
+            assertFalse(chatFactoryAsked, "an embedding key must not reach the chat factories")
+        }
     }
 
     @Nested
@@ -332,7 +358,7 @@ class EmbeddingRoleResolutionTest {
 
         /**
          * A chat resolver must never be consulted for an embedding role, which is the whole reason
-         * [EmbeddingRoleResolution] is a separate type from [RoleResolution].
+         * a [RoleResolver] says which [ModelKind] it answers for.
          */
         @Test
         fun `a chat role resolver is not asked about an embedding role of the same name`() {
