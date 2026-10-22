@@ -90,8 +90,8 @@ interface ModelPlatform {
      * The kinds this platform can build. This is the most a key can reach; a given key may reach
      * fewer, and then [model] returns null for the others.
      *
-     * The platform asks only for kinds in this set. Kinds are compared by identity, so use each
-     * kind's own constant, such as `LlmService.KIND` or [EmbeddingService.KIND].
+     * The platform asks only for kinds in this set. A kind equals only itself, so use each kind's
+     * own constant, such as `LlmService.KIND` or [EmbeddingService.KIND].
      *
      * This set lists what this release of the integration can build today. A release that adds a
      * kind is additive. When a provider stops offering a capability, a later release removes that
@@ -138,7 +138,7 @@ interface ModelPlatform {
             build: (credential: ProviderCredential, model: String) -> C?,
         ): Builder {
             // Two functions for one kind would leave which one runs to list order, so a second one throws.
-            require(builders.none { it.kind === kind }) { "$kind is already built by this platform" }
+            require(builders.none { it.kind == kind }) { "$kind is already built by this platform" }
             return Builder(builders + KindBuilder(kind, build))
         }
 
@@ -179,7 +179,7 @@ private class FunctionModelPlatform(
 
     override fun <C : ModelCapability> model(credential: ProviderCredential, kind: ModelKind<C, *>, model: String): C? =
         // At most one builder holds this kind, because Builder.builds rejects a second one.
-        builders.firstOrNull { it.kind === kind }
+        builders.firstOrNull { it.kind == kind }
             ?.build(credential, model)
             // The builder for this kind instance was given a function returning C, so the cast
             // only checks what the types already say.
@@ -197,6 +197,6 @@ internal fun <C : ModelCapability> List<ModelPlatform>.firstModel(
     kind: ModelKind<C, *>,
     model: String,
 ): C? =
-    // Ask only platforms that list this exact kind instance; the others were not written for it.
-    filter { platform -> platform.kinds.any { it === kind } }
+    // Ask only platforms that list this kind; the others were not written for it.
+    filter { kind in it.kinds }
         .firstNotNullOfOrNull { it.model(credential, kind, model) }

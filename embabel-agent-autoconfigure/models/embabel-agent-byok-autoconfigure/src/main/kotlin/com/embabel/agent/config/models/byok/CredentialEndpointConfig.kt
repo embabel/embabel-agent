@@ -112,7 +112,7 @@ class CredentialEndpointConfig @Autowired constructor(
             .builds(LlmService.KIND) { credential, model ->
                 // The application's resolvers decide first; Anthropic's own endpoint is used only for its own key.
                 val endpoint = resolvedByApplication(resolvers, credential, model) ?: anthropicEndpointFor(credential)
-                // Null when the endpoint speaks another protocol, so that protocol's platform answers.
+                // Null when the endpoint uses another protocol, so that protocol's platform answers.
                 (endpoint as? CredentialEndpoint.Anthropic)?.let {
                     AnthropicModelFactory(apiKey = credential.apiKey, baseUrl = it.baseUrl)
                         .build(
@@ -138,13 +138,12 @@ class CredentialEndpointConfig @Autowired constructor(
      * key, not here: this runs on every cache miss, and it would validate against the spec's own
      * validation model rather than the one the role asked for.
      *
-     * Embedding models ARE validated. A chat model that turns out to be wrong fails the call that
-     * used it and nothing else. An embedding service states a WIDTH, and that width becomes the
-     * shape of a vector index - so one built on an unverified assumption is an index that accepts
-     * writes no later model agrees with, and the damage is silent and durable.
-     * [OpenAiCompatibleModelFactory.buildValidatedEmbeddingService] observes the dimension the
-     * provider actually returns. The cost is one probe per (provider, key, model), since the
-     * platform caches what this returns.
+     * Embedding models are validated. A wrong chat model fails only the call that used it. An
+     * embedding service reports a dimension, and that dimension becomes the size of a vector
+     * index. A service built with a wrong dimension creates an index that later writes do not fit,
+     * and nothing reports the error. [OpenAiCompatibleModelFactory.buildValidatedEmbeddingService]
+     * reads the dimension from the provider's response. The cost is one probe per
+     * (provider, key, model), since the platform caches what this returns.
      */
     @Bean(OPENAI_COMPATIBLE_MODEL_PLATFORM)
     @ConditionalOnClass(OpenAiCompatibleModelFactory::class)
@@ -194,7 +193,7 @@ class CredentialEndpointConfig @Autowired constructor(
         model: String,
     ): CredentialEndpoint.OpenAiCompatible? =
         (resolvedByApplication(resolvers, credential, model) ?: openAiCompatibleEndpointFor(credential))
-            // Null when the endpoint speaks another protocol, so that protocol's platform answers.
+            // Null when the endpoint uses another protocol, so that protocol's platform answers.
             as? CredentialEndpoint.OpenAiCompatible
 
     /** A client factory for [endpoint], authenticated with the user's key and the provider's configured timeouts. */

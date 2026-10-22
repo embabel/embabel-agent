@@ -15,12 +15,12 @@
  */
 package com.embabel.agent.config.models.lmstudio
 
-import com.embabel.common.ai.model.local.LocalModel
-import com.embabel.common.ai.model.EmbeddingService
-import com.embabel.agent.spi.LlmService
 import com.embabel.agent.api.models.LmStudioModels
 import com.embabel.agent.openai.OpenAiClientTimeouts
+import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
+import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.local.LocalModel
 import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
 import io.micrometer.observation.ObservationRegistry
 import kotlin.test.assertEquals

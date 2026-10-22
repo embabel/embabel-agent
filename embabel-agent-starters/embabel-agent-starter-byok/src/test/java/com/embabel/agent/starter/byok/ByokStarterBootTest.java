@@ -64,8 +64,7 @@ class ByokStarterBootTest {
     /** The model platforms the context contributed that build chat models. */
     private static List<ModelPlatform> chatPlatforms(ApplicationContext context) {
         return context.getBeansOfType(ModelPlatform.class).values().stream()
-                // Kinds are compared by identity, the same way the model provider selects platforms.
-                .filter(platform -> platform.getKinds().stream().anyMatch(kind -> kind == LlmService.KIND))
+                .filter(platform -> platform.getKinds().contains(LlmService.KIND))
                 .toList();
     }
 

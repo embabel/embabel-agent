@@ -15,15 +15,15 @@
  */
 package com.embabel.agent.config.models.ollama
 
-import com.embabel.common.ai.model.local.LocalModel
-import com.embabel.common.ai.model.EmbeddingService
-import com.embabel.agent.spi.LlmService
 import com.embabel.agent.api.models.OllamaModels
+import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
-import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
+import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.SpringAiEmbeddingService
+import com.embabel.common.ai.model.local.LocalModel
+import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
 import io.micrometer.observation.ObservationRegistry
 import io.mockk.*
 import org.junit.jupiter.api.AfterEach

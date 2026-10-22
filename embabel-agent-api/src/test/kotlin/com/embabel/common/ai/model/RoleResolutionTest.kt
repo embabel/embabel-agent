@@ -471,14 +471,14 @@ class RoleResolutionTest {
             // Built with the chat kind's name and capability, but not the chat kind's constant, so
             // the model provider never asks it. The warning is all that tells the author.
             val lookalike = ModelKind<LlmService<*>, LlmOptions>("chat", LlmService::class.java)
+            val resolver = RoleResolver.of(lookalike) { _, _ -> null }
+            val platform = platformBuilding(lookalike) { _, _ -> null }
             val warnings = captureWarnings {
-                provider(
-                    roleResolvers = listOf(RoleResolver.of(lookalike) { _, _ -> null }),
-                    platforms = listOf(platformBuilding(lookalike) { _, _ -> null }),
-                )
+                provider(roleResolvers = listOf(resolver), platforms = listOf(platform))
             }
-            // One warning for the resolver and one for the platform.
-            assertEquals(2, warnings.count { it.contains("will never be asked") }, warnings.toString())
+            // One warning names the resolver, and one names the platform.
+            assertEquals(1, warnings.count { it.contains(resolver.toString()) }, warnings.toString())
+            assertEquals(1, warnings.count { it.contains(platform.toString()) }, warnings.toString())
         }
 
         @Test
@@ -490,20 +490,19 @@ class RoleResolutionTest {
                 .builds(unselected) { _, _ -> null }
                 .build()
             val warnings = captureWarnings { provider(platforms = listOf(platform)) }
-            // No warning: one of the platform's kinds is selected.
-            assertTrue(warnings.none { it.contains("will never be asked") }, warnings.toString())
+            // No warning names the platform: one of its kinds is selected.
+            assertTrue(warnings.none { it.contains(platform.toString()) }, warnings.toString())
         }
 
         @Test
         fun `resolvers and platforms of the selected kinds are not reported`() {
+            val resolver = RoleResolver.of(LlmService.KIND) { _, _ -> null }
+            val platform = platformBuilding(EmbeddingService.KIND) { _, _ -> null }
             val warnings = captureWarnings {
-                provider(
-                    roleResolvers = listOf(RoleResolver.of(LlmService.KIND) { _, _ -> null }),
-                    platforms = listOf(platformBuilding(EmbeddingService.KIND) { _, _ -> null }),
-                )
+                provider(roleResolvers = listOf(resolver), platforms = listOf(platform))
             }
-            // No warning: the resolver is asked for chat and the platform for embedding.
-            assertTrue(warnings.none { it.contains("will never be asked") }, warnings.toString())
+            // No warning names either one: the resolver is asked for chat and the platform for embedding.
+            assertTrue(warnings.none { it.contains(resolver.toString()) || it.contains(platform.toString()) }, warnings.toString())
         }
     }
 
@@ -683,7 +682,7 @@ class RoleResolutionTest {
 
         @Test
         fun `a provider no platform handles fails rather than falling back`() {
-            // The role names a model for openai, but the only platform speaks anthropic. Serving
+            // The role names a model for openai, but the only platform builds for anthropic. Serving
             // the deployment's own openai model here would bill the deployment for the user's call.
             val mp = provider(platforms = listOf(platform))
             assertThrows<NoSuitableModelException> {

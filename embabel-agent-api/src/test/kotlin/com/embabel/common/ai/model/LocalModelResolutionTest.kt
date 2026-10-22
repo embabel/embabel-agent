@@ -18,10 +18,15 @@ package com.embabel.common.ai.model
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.PlaceholderEmbeddingService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.common.ai.model.local.ChatAndEmbeddingModelSource
+import com.embabel.common.ai.model.local.LocalModel
+import com.embabel.common.ai.model.local.LocalModelBeans
+import com.embabel.common.ai.model.local.LocalModelCatalog
+import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
+import com.embabel.common.ai.model.local.LocalModelRoleResolver
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -32,12 +37,6 @@ import org.springframework.ai.chat.model.ChatModel
 import org.springframework.core.Ordered
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicLong
-import com.embabel.common.ai.model.local.LocalModel
-import com.embabel.common.ai.model.local.LocalModelBeans
-import com.embabel.common.ai.model.local.LocalModelCatalog
-import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
-import com.embabel.common.ai.model.local.LocalModelRoleResolver
-import com.embabel.common.ai.model.local.ChatAndEmbeddingModelSource
 
 /**
  * A locally served model that appears AFTER startup being usable without a restart.
@@ -690,9 +689,11 @@ class LocalModelResolutionTest {
             val runner = FakeRunner(serving = chat(PULLED_LLM) + embedding(PULLED_EMBEDDING))
             val beans = LocalModelBeans(runner, properties(), discovery)
 
-            // Both resolvers answer, so each one has read the runner's listing.
-            assertNotNull(beans.chatRoleResolver.resolve(CHEAPEST_ROLE, ModelSelectionContext.EMPTY))
-            assertNotNull(beans.embeddingRoleResolver.resolve(DOCUMENTS_ROLE, ModelSelectionContext.EMPTY))
+            // Both resolvers answer with the model the runner serves, so each one has read the listing.
+            val chat = beans.chatRoleResolver.resolve(CHEAPEST_ROLE, ModelSelectionContext.EMPTY)
+            assertEquals(PULLED_LLM, (chat as? RoleResolution.Service)?.service?.name)
+            val embedding = beans.embeddingRoleResolver.resolve(DOCUMENTS_ROLE, ModelSelectionContext.EMPTY)
+            assertEquals(PULLED_EMBEDDING, (embedding as? RoleResolution.Service)?.service?.name)
 
             assertEquals(1, runner.listings, "two resolvers over two catalogs would be two listings")
             assertEquals(DOCKER, beans.catalog.provider)
