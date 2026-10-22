@@ -55,4 +55,24 @@ class ThinkingPromptRunnerJavaTest {
         }
     }
 
+    @Test
+    void javaCallerOfThePlatformRunnerCanSkipTheTypeCheck() {
+        PromptExecutionDelegate delegate = mock(PromptExecutionDelegate.class);
+        ThinkingResponse<String> expected = new ThinkingResponse<>("answer", List.of());
+        // The selected model supports thinking
+        when(delegate.supportsThinking()).thenReturn(true);
+        when(delegate.createObjectWithThinking(anyList(), eq(String.class))).thenReturn(expected);
+        PromptRunner runner = new DelegatingStreamingPromptRunner(delegate);
+
+        // The runner from the platform is always a ThinkingPromptRunner, so the instanceof check is
+        // optional: asking supportsThinking() and then calling thinking() on PromptRunner works
+        if (runner.supportsThinking()) {
+            ThinkingResponse<String> response = runner.thinking().createObject("question", String.class);
+            // The response is the one the delegate produced
+            assertEquals(expected, response);
+        } else {
+            fail("Expected the platform runner to report that the selected model supports thinking");
+        }
+    }
+
 }
