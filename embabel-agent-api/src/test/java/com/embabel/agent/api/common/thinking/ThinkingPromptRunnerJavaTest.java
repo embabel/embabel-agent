@@ -39,7 +39,7 @@ class ThinkingPromptRunnerJavaTest {
     @Test
     void javaCallerChecksTheTypeAndRunsThinking() {
         PromptExecutionDelegate delegate = mock(PromptExecutionDelegate.class);
-        ThinkingResponse<String> expected = new ThinkingResponse<>("answer", List.of(), null);
+        ThinkingResponse<String> expected = new ThinkingResponse<>("answer", List.of());
         // The selected model supports thinking
         when(delegate.supportsThinking()).thenReturn(true);
         when(delegate.createObjectWithThinking(anyList(), eq(String.class))).thenReturn(expected);

@@ -164,11 +164,8 @@ class ThinkingPromptRunnerOperationsTest {
 
 
     /**
-     * Tests that StreamingPromptRunner throws exception when withThinking() is called.
-     *
-     * Verifies that:
-     * 1. StreamingPromptRunner.withThinking() throws UnsupportedOperationException
-     * 2. Exception message guides users to use streaming events instead
+     * Tests that a StreamingPromptRunner that is not a ThinkingPromptRunner throws
+     * UnsupportedOperationException from thinking().
      */
     @Test
     fun `StreamingPromptRunner should throw exception when withThinking called`() {
