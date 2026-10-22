@@ -499,6 +499,19 @@ class LocalModelResolutionTest {
         }
 
         @Test
+        fun `a late chat model is described as an LLM and a late embedding model as an embedding service`() {
+            val mp = provider(FakeRunner(serving = chat(PULLED_LLM) + embedding(PULLED_EMBEDDING)))
+
+            // Each late model is listed once, with the metadata of its own kind and the runner's provider.
+            val chatMetadata = mp.listModels().single { it.name == PULLED_LLM }
+            assertTrue(chatMetadata is LlmMetadata, chatMetadata.toString())
+            assertEquals(DOCKER, chatMetadata.provider)
+            val embeddingMetadata = mp.listModels().single { it.name == PULLED_EMBEDDING }
+            assertTrue(embeddingMetadata is EmbeddingServiceMetadata, embeddingMetadata.toString())
+            assertEquals(DOCKER, embeddingMetadata.provider)
+        }
+
+        @Test
         fun `an unreachable runner adds nothing to the listing`() {
             val runner = FakeRunner(serving = chat(PULLED_LLM), reachable = false)
 
