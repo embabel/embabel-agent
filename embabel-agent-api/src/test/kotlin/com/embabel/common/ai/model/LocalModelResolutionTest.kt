@@ -349,11 +349,11 @@ class LocalModelResolutionTest {
 
             val asChat = catalog.model(LlmService.KIND, PULLED_LLM)
             val asEmbedding = catalog.model(EmbeddingService.KIND, PULLED_LLM)
-            catalog.model(LlmService.KIND, PULLED_LLM)
-            catalog.model(EmbeddingService.KIND, PULLED_LLM)
 
-            assertTrue(asChat is LlmService<*>)
-            assertTrue(asEmbedding is EmbeddingService)
+            // Asking again for each kind returns the model already built for that kind.
+            assertSame(asChat, catalog.model(LlmService.KIND, PULLED_LLM))
+            assertSame(asEmbedding, catalog.model(EmbeddingService.KIND, PULLED_LLM))
+            // Each kind was built once: the chat model did not satisfy the embedding request.
             assertEquals(1, runner.llmBuilds)
             assertEquals(1, runner.embeddingBuilds)
         }
@@ -363,7 +363,9 @@ class LocalModelResolutionTest {
             val runner = FakeRunner(serving = chat(PULLED_LLM))
             val reranking = ModelKind<RerankingModel, ModelName>("reranking", RerankingModel::class.java)
 
+            // The source declines a kind it has no builder for.
             assertNull(catalog(runner).model(reranking, PULLED_LLM))
+            // Neither builder was called on the way to declining.
             assertEquals(0, runner.llmBuilds)
             assertEquals(0, runner.embeddingBuilds)
         }
@@ -688,6 +690,7 @@ class LocalModelResolutionTest {
             val runner = FakeRunner(serving = chat(PULLED_LLM) + embedding(PULLED_EMBEDDING))
             val beans = LocalModelBeans(runner, properties(), discovery)
 
+            // Both resolvers answer, so each one has read the runner's listing.
             assertNotNull(beans.chatRoleResolver.resolve(CHEAPEST_ROLE, ModelSelectionContext.EMPTY))
             assertNotNull(beans.embeddingRoleResolver.resolve(DOCUMENTS_ROLE, ModelSelectionContext.EMPTY))
 

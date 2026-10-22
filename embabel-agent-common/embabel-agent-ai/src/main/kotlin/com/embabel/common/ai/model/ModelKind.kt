@@ -21,10 +21,24 @@ import org.jetbrains.annotations.ApiStatus
  * One kind of model the platform selects, such as chat or embedding, and the type of what a role
  * names for it.
  *
- * Open, not an enum: a new kind of model declares its own instance next to its capability
- * interface, and nothing here has to change. Resolvers, credential factories and local model
- * runners say which kind they serve by holding one, and the platform matches them by identity, so
- * declare each kind once as a constant and refer to that.
+ * This is a class, not an enum, so a new kind of model can be added without changing this file:
+ * declare one instance next to the capability interface. Resolvers, credential factories and local
+ * model runners say which kind they serve by holding that instance, and the platform compares kinds
+ * by identity (`===`), not by name. Declare each kind once as a constant and always refer to that
+ * constant. The platform ships two: `LlmService.KIND` for chat and [EmbeddingService.KIND].
+ *
+ * The platform's model provider selects only those two kinds. A new kind, such as the one below,
+ * also needs code that selects models of that kind. Until that exists, a resolver or credential
+ * factory that holds the new kind is reported at startup and never asked.
+ *
+ * ```kotlin
+ * interface RerankingService : ModelCapability {
+ *     companion object {
+ *         @JvmField
+ *         val KIND = ModelKind<RerankingService, ModelName>("reranking", RerankingService::class.java)
+ *     }
+ * }
+ * ```
  *
  * @param C the capability a model of this kind has
  * @param B what a role binds a model of this kind to: [LlmOptions] for chat, [ModelName] for an

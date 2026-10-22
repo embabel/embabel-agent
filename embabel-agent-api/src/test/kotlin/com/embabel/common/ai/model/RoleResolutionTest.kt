@@ -477,6 +477,7 @@ class RoleResolutionTest {
                     factories = listOf(CredentialModelFactory.of(lookalike) { _, _ -> null }),
                 )
             }
+            // One warning for the resolver and one for the factory.
             assertEquals(2, warnings.count { it.contains("will never be asked") }, warnings.toString())
         }
 

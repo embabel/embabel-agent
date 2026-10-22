@@ -64,11 +64,12 @@ class ByokStarterBootTest {
     /** The chat credential factories the context contributed. */
     private static List<CredentialModelFactory<?>> chatFactories(ApplicationContext context) {
         return context.getBeansOfType(CredentialModelFactory.class).values().stream()
+                // Kinds are compared by identity, the same way the platform selects factories.
                 .filter(factory -> factory.getKind() == LlmService.KIND)
+                // Turns the raw type from getBeansOfType into a wildcard type.
                 .<CredentialModelFactory<?>>map(factory -> factory)
                 .toList();
     }
-
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(AgentByokAutoConfiguration.class))
