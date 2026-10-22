@@ -343,7 +343,7 @@ class CredentialEndpointConfigTest {
     @Test
     fun `the model provider caches the built service, so the model platform need not`() {
         /*
-         * Pins the reason these beans deliberately hold no cache of their own. The model provider already
+         * Pins the reason these beans hold no cache of their own. The model provider already
          * caches per (provider, key, model) behind a bounded LRU; a cache in the bean would be a
          * second, unbounded one holding a service per key the deployment has ever seen. If the
          * model provider ever stopped caching, this fails and the decision gets revisited - rather than
@@ -512,7 +512,7 @@ class CredentialEndpointConfigTest {
         }
 
         @Test
-        fun `each platform builds only the protocol it speaks`() {
+        fun `each platform builds only for its own protocol`() {
             /*
              * The routing this split turns on. A resolver names a wire protocol, and the platform for
              * the other protocol must decline rather than point a client at an endpoint it cannot

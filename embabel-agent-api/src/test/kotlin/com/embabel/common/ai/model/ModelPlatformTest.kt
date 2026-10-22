@@ -20,6 +20,7 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Nested
@@ -46,6 +47,9 @@ class ModelPlatformTest {
 
     private fun llm(name: String, provider: String): LlmService<*> =
         SpringAiLlmService(name, provider, mockk<ChatModel>(), DefaultOptionsConverter)
+
+    /** A capability no shipped kind has, for a kind the test declares itself. */
+    private interface ScoringModel : ModelCapability
 
     private class FakeEmbeddingService(
         override val name: String,
@@ -118,6 +122,17 @@ class ModelPlatformTest {
 
             // Two functions for one kind would make the answer depend on list order.
             assertThrows<IllegalArgumentException> { builder.builds(LlmService.KIND) { _, _ -> null } }
+        }
+
+        @Test
+        fun `two kinds with the same name and capability are different kinds`() {
+            val first = ModelKind<ScoringModel, ModelName>("scoring", ScoringModel::class.java)
+            val second = ModelKind<ScoringModel, ModelName>("scoring", ScoringModel::class.java)
+
+            // A kind equals only itself, so a set holds both.
+            assertNotEquals(first, second)
+            assertEquals(first, first)
+            assertEquals(2, setOf(first, second).size)
         }
 
         @Test

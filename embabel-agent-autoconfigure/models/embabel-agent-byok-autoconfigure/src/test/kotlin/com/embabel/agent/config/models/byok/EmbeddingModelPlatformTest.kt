@@ -106,7 +106,7 @@ class EmbeddingModelPlatformTest {
     @Test
     fun `an Anthropic key gets nothing rather than somebody else's model`() {
         /*
-         * Anthropic has no embedding API, so the Anthropic platform deliberately builds chat only.
+         * Anthropic has no embedding API, so the Anthropic platform builds chat only.
          * Returning null is the whole of the correct behaviour: answering would point a client
          * holding an Anthropic key at an OpenAI endpoint.
          */

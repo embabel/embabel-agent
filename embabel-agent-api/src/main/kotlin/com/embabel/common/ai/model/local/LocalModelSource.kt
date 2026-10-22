@@ -103,10 +103,10 @@ data class LocalModel(
          * configuration decides: a model some `embedding-services` entry or embedding role names is
          * an embedding model, and anything else is a chat model.
          *
-         * ONE function rather than one per runner, because both runners' startup registration
-         * applies this same rule and the guarantee that matters - a model cannot land in one kind at
-         * boot and the other when pulled later - is only as good as the two copies staying
-         * identical. LM Studio does not call this; it reports a type per model.
+         * One function rather than one per runner, because the Docker and Ollama startup
+         * registration applies this same rule. A model must have the same kind at boot and when it
+         * is pulled later, and sharing one function keeps the rule the same in both places. LM
+         * Studio does not call this; it reports a type per model.
          */
         @JvmStatic
         fun kindFromConfiguration(
@@ -126,6 +126,15 @@ data class LocalModel(
  *
  * Builds through [chatModel] and [embeddingModel] and declines every other kind, so a runner states
  * how it builds each kind it serves and nothing more.
+ *
+ * ```kotlin
+ * class MyRunnerSource(private val client: MyRunnerClient) : ChatAndEmbeddingModelSource() {
+ *     override val provider = "my-runner"
+ *     override fun servedModels() = client.listModels().map { LocalModel(it.name, it.kind) }.toSet()
+ *     override fun chatModel(model: String): LlmService<*>? = client.chatService(model)
+ *     override fun embeddingModel(model: String): EmbeddingService? = client.embeddingService(model)
+ * }
+ * ```
  */
 abstract class ChatAndEmbeddingModelSource : LocalModelSource {
 
@@ -136,11 +145,12 @@ abstract class ChatAndEmbeddingModelSource : LocalModelSource {
     protected abstract fun embeddingModel(model: String): EmbeddingService?
 
     final override fun <C : ModelCapability> model(kind: ModelKind<C, *>, model: String): C? =
-        // Kinds are compared by identity. The cast only changes the static type: the branch has
-        // already established that C is the capability of the kind returned.
+        // A kind equals only itself, so each branch matches one shipped kind. The cast only changes
+        // the static type: the branch has already established that C is the capability of the kind
+        // returned.
         when {
-            kind === LlmService.KIND -> chatModel(model)?.let(kind.capability::cast)
-            kind === EmbeddingService.KIND -> embeddingModel(model)?.let(kind.capability::cast)
+            kind == LlmService.KIND -> chatModel(model)?.let(kind.capability::cast)
+            kind == EmbeddingService.KIND -> embeddingModel(model)?.let(kind.capability::cast)
             else -> null
         }
 }

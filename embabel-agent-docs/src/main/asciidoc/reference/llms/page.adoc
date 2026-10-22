@@ -1303,7 +1303,7 @@ That classification decides what a caller naming a model gets back — a chat mo
 Late models are described by name and provider only.
 The rest of a model's metadata is read off a built service, and building one per entry would turn a listing into a round of work against the runner.
 
-To do the same for a runner the framework does not ship, implement `LocalModelSource` — what it is serving, with what each model is for, and how to build a model of a given kind for one — and publish the three beans `LocalModelBeans` builds over it: the catalog, and the two resolvers sharing it.
+To do the same for a runner the framework does not ship, implement `LocalModelSource`. It lists the models the runner is serving, with the kind of each, and builds a model of a given kind by name. Then publish the three beans `LocalModelBeans` builds over it: the catalog, the chat role resolver and the embedding role resolver, which share the catalog.
 A runner that serves chat and embedding models can extend `ChatAndEmbeddingModelSource` instead, which asks for one builder per kind and declines every other kind.
 
 

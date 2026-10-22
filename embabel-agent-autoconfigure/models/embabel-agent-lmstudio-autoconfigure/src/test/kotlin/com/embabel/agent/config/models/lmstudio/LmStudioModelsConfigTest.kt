@@ -15,17 +15,17 @@
  */
 package com.embabel.agent.config.models.lmstudio
 
-import com.embabel.common.ai.model.local.LocalModel
-import com.embabel.common.ai.model.EmbeddingService
-import com.embabel.agent.spi.LlmService
 import com.embabel.agent.api.models.LmStudioModels
 import com.embabel.agent.openai.OpenAiClientTimeouts
 import com.embabel.agent.openai.withOpenAiReasoningEffort
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.LlmOptions
-import org.springframework.ai.openai.OpenAiChatOptions
+import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
+import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.local.LocalModel
 import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
+import org.springframework.ai.openai.OpenAiChatOptions
 import io.micrometer.observation.ObservationRegistry
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull

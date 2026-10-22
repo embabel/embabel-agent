@@ -135,7 +135,7 @@ class LocalModelCatalog(
      * reverse - is worse than declining.
      */
     fun <C : ModelCapability> named(kind: ModelKind<C, *>, model: String): C? =
-        served(model)?.takeIf { it.kind === kind }?.let { model(kind, model) }
+        served(model)?.takeIf { it.kind == kind }?.let { model(kind, model) }
 
     /**
      * A model of [kind] for [model], built once and then reused.
