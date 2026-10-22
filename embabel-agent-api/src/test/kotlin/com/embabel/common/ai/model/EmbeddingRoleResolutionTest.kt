@@ -112,13 +112,13 @@ class EmbeddingRoleResolutionTest {
         properties: ConfigurableModelProviderProperties,
         embeddings: List<EmbeddingService>,
         roleResolvers: List<RoleResolver<*, *>> = emptyList(),
-        credentialModelFactories: List<CredentialModelFactory<*>> = emptyList(),
+        modelPlatforms: List<ModelPlatform> = emptyList(),
     ) = ConfigurableModelProvider(
         llms = listOf(defaultLlm),
         embeddingServices = embeddings,
         properties = properties,
         roleResolvers = roleResolvers,
-        credentialModelFactories = credentialModelFactories,
+        modelPlatforms = modelPlatforms,
     )
 
     /**
@@ -137,8 +137,8 @@ class EmbeddingRoleResolutionTest {
                 RoleResolution.Credential(ProviderCredential(OPENAI, "sk-stored"))
             },
         ),
-        credentialModelFactories = listOf(
-            CredentialModelFactory.of(EmbeddingService.KIND) { credential, model ->
+        modelPlatforms = listOf(
+            platformBuilding(EmbeddingService.KIND) { credential, model ->
                 FakeEmbeddingService(model, credential.provider, dimensions = LARGE_DIMENSIONS)
             },
         ),
@@ -185,8 +185,8 @@ class EmbeddingRoleResolutionTest {
             val mp = provider(
                 properties,
                 listOf(placeholder),
-                credentialModelFactories = listOf(
-                    CredentialModelFactory.of(EmbeddingService.KIND) { credential, model ->
+                modelPlatforms = listOf(
+                    platformBuilding(EmbeddingService.KIND) { credential, model ->
                         FakeEmbeddingService(model, credential.provider)
                     },
                 ),
@@ -244,8 +244,8 @@ class EmbeddingRoleResolutionTest {
                     embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(OPENAI to SMALL_MODEL)),
                 ),
                 listOf(placeholder),
-                credentialModelFactories = listOf(
-                    CredentialModelFactory.of(EmbeddingService.KIND) { credential, model ->
+                modelPlatforms = listOf(
+                    platformBuilding(EmbeddingService.KIND) { credential, model ->
                         builds++
                         FakeEmbeddingService(model, credential.provider)
                     },
@@ -267,20 +267,20 @@ class EmbeddingRoleResolutionTest {
         }
 
         @Test
-        fun `a chat credential factory is not asked to build an embedding model`() {
-            var chatFactoryAsked = false
+        fun `a platform that builds only chat models is not asked to build an embedding model`() {
+            var chatPlatformAsked = false
             val mp = provider(
                 ConfigurableModelProviderProperties(
                     defaultLlm = DEFAULT_LLM,
                     embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(OPENAI to SMALL_MODEL)),
                 ),
                 listOf(placeholder),
-                credentialModelFactories = listOf(
-                    CredentialModelFactory.of(LlmService.KIND) { _, _ ->
-                        chatFactoryAsked = true
+                modelPlatforms = listOf(
+                    platformBuilding(LlmService.KIND) { _, _ ->
+                        chatPlatformAsked = true
                         defaultLlm
                     },
-                    CredentialModelFactory.of(EmbeddingService.KIND) { credential, model ->
+                    platformBuilding(EmbeddingService.KIND) { credential, model ->
                         FakeEmbeddingService(model, credential.provider)
                     },
                 ),
@@ -289,7 +289,7 @@ class EmbeddingRoleResolutionTest {
                 ModelSelectionContext(credential = ProviderCredential(OPENAI, "sk-user")),
             ) { mp.getEmbeddingService(ByRoleModelSelectionCriteria(DOCUMENTS_ROLE)) }
             assertEquals(SMALL_MODEL, resolved.name)
-            assertFalse(chatFactoryAsked, "an embedding key must not reach the chat factories")
+            assertFalse(chatPlatformAsked, "an embedding key must not reach a platform that builds only chat models")
         }
     }
 

@@ -21,10 +21,11 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
 /**
- * The model kind SPI as a Java application uses it: a resolver and a credential factory built
+ * The model kind SPI as a Java application uses it: a resolver and a model platform built
  * from lambdas, returning each case of {@link RoleResolution}.
  */
 class RoleResolverJavaTest {
@@ -67,13 +68,21 @@ class RoleResolverJavaTest {
     }
 
     @Test
-    void aCredentialFactoryCanDeclineAProvider() {
-        CredentialModelFactory<EmbeddingService> factory =
-                CredentialModelFactory.of(EmbeddingService.KIND, (credential, model) -> null);
+    void aModelPlatformCanBuildTwoKindsAndDeclineAProvider() {
+        LlmService<?> chat = mock(LlmService.class);
+        ModelPlatform platform = ModelPlatform.builder()
+                .builds(LlmService.KIND, (credential, model) -> chat)
+                // Builds only for its own provider; null lets the next platform answer.
+                .builds(EmbeddingService.KIND, (credential, model) -> null)
+                .build();
 
-        // The kind is the constant passed in.
-        assertSame(EmbeddingService.KIND, factory.getKind());
-        // Null means this factory does not handle the provider.
-        assertNull(factory.create(CREDENTIAL, "small"));
+        // The platform lists both kinds it was given.
+        assertTrue(platform.getKinds().contains(LlmService.KIND));
+        assertTrue(platform.getKinds().contains(EmbeddingService.KIND));
+        // The chat function's answer comes back, typed as the chat capability.
+        LlmService<?> built = platform.model(CREDENTIAL, LlmService.KIND, "gpt-4.1-mini");
+        assertSame(chat, built);
+        // Null means this platform does not handle the provider for that kind.
+        assertNull(platform.model(CREDENTIAL, EmbeddingService.KIND, "small"));
     }
 }

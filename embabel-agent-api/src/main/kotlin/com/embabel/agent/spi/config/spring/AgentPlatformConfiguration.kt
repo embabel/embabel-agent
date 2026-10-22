@@ -40,9 +40,9 @@ import com.embabel.common.util.EmbabelObjectMapperHolder
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.model.ConfigurableModelProvider
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
-import com.embabel.common.ai.model.CredentialModelFactory
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.local.LocalModelCatalog
+import com.embabel.common.ai.model.ModelPlatform
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.RoleResolver
 import com.embabel.common.core.MobyNameGenerator
@@ -247,8 +247,10 @@ class AgentPlatformConfiguration(
             // kind's selection asks it, so a chat role and an embedding role may share a name.
             roleResolvers = applicationContext.getBeanProvider(RoleResolver::class.java)
                 .orderedStream().toList(),
-            credentialModelFactories = applicationContext
-                .getBeanProvider(CredentialModelFactory::class.java)
+            // Ordered, so that one application platform can take precedence over another for
+            // the same provider. Each platform lists the kinds it builds and is asked only for those.
+            modelPlatforms = applicationContext
+                .getBeanProvider(ModelPlatform::class.java)
                 .orderedStream().toList(),
             // What local runners are serving NOW, so a model pulled after startup is listed and
             // usable by name rather than only reachable through a role.

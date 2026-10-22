@@ -19,10 +19,10 @@ import com.embabel.agent.anthropic.AnthropicModelFactory
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.autoconfigure.models.byok.AgentByokAutoConfiguration
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
-import com.embabel.common.ai.model.CredentialModelFactory
 import com.embabel.common.ai.model.CredentialEndpoint
 import com.embabel.common.ai.model.CredentialEndpointResolver
 import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.ModelPlatform
 import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.ai.model.ProviderCredential
 import com.sun.net.httpserver.HttpServer
@@ -41,9 +41,9 @@ import java.util.concurrent.atomic.AtomicReference
 /**
  * The embedding half of what `embabel-agent-starter-byok` ships, which
  * [CredentialEndpointConfigTest] does not cover: that suite asks what a per-user key builds for
- * CHAT, and would stay green if the embedding factory were deleted.
+ * CHAT, and would stay green if the embedding platform were deleted.
  *
- * The distinction worth testing here is that this factory VALIDATES where the chat ones do not. A
+ * The distinction worth testing here is that the platform VALIDATES embedding models and not chat models. A
  * chat model that turns out to be wrong fails the call that used it; an embedding service states a
  * WIDTH, and that width becomes the shape of a vector index, so one built on an assumption is an
  * index that accepts writes no later model agrees with. So the width has to be OBSERVED, and the
@@ -51,27 +51,27 @@ import java.util.concurrent.atomic.AtomicReference
  *
  * Nothing here reaches the public internet: the probe is pointed at a socket this test opens.
  */
-class CredentialEmbeddingServiceFactoryTest {
+class EmbeddingModelPlatformTest {
 
     private companion object {
 
         /** Never sent anywhere real; shaped like a key only so a stray log line is recognisable. */
         const val TEST_API_KEY = "sk-test-not-a-real-key"
 
-        /** Bean name of the shipped factory, and the name an application overrides by. */
-        const val EMBEDDING_FACTORY_BEAN = "openAiCompatibleCredentialEmbeddingServiceFactory"
+        /** Bean name of the shipped platform that builds embedding models, and the name an application overrides by. */
+        const val EMBEDDING_PLATFORM_BEAN = CredentialEndpointConfig.OPENAI_COMPATIBLE_MODEL_PLATFORM
 
         /** A provider this framework does not ship, reached through an application's own gateway. */
         const val GATEWAY_PROVIDER = "OurGateway"
 
-        /** A provider no shipped factory handles: real, but not part of the BYOK surface. */
+        /** A provider no shipped platform handles: real, but not part of the BYOK surface. */
         const val UNHANDLED_PROVIDER = "Cohere"
 
         const val EMBEDDING_MODEL = "text-embedding-3-small"
 
         /**
          * Deliberately not any real model's width. `text-embedding-3-small` is 1536, so asserting
-         * 1536 would pass just as well against a factory that assumed the catalogue default - which
+         * 1536 would pass just as well against a platform that assumed the catalogue default - which
          * is the bug this test exists to catch.
          */
         const val WIDTH_THE_PROVIDER_REPORTS = 7
@@ -82,54 +82,54 @@ class CredentialEmbeddingServiceFactoryTest {
     private val contextRunner = ApplicationContextRunner()
         .withConfiguration(AutoConfigurations.of(AgentByokAutoConfiguration::class.java))
 
-    private fun factoriesIn(context: ApplicationContext): List<CredentialModelFactory<EmbeddingService>> =
-        context.embeddingModelFactories().values.toList()
+    private fun platformsIn(context: ApplicationContext): List<ModelPlatform> =
+        context.embeddingModelPlatforms().values.toList()
 
-    /** Ask each factory in turn, exactly as `ConfigurableModelProvider` does. */
+    /** Ask each platform in turn for an embedding model, exactly as `ConfigurableModelProvider` does. */
     private fun build(
-        factories: List<CredentialModelFactory<EmbeddingService>>,
+        platforms: List<ModelPlatform>,
         provider: String,
         model: String = EMBEDDING_MODEL,
-    ): EmbeddingService? = factories.firstNotNullOfOrNull {
-        it.create(ProviderCredential(provider, TEST_API_KEY), model)
+    ): EmbeddingService? = platforms.firstNotNullOfOrNull {
+        it.model(ProviderCredential(provider, TEST_API_KEY), EmbeddingService.KIND, model)
     }
 
     @Test
-    fun `the starter contributes one embedding factory, for the OpenAI protocol`() {
+    fun `the starter contributes one embedding platform, for the OpenAI protocol`() {
         contextRunner.run { context ->
             assertThat(context).hasNotFailed()
-            assertThat(context.embeddingModelFactories())
-                .containsOnlyKeys(EMBEDDING_FACTORY_BEAN)
+            assertThat(context.embeddingModelPlatforms())
+                .containsOnlyKeys(EMBEDDING_PLATFORM_BEAN)
         }
     }
 
     @Test
     fun `an Anthropic key gets nothing rather than somebody else's model`() {
         /*
-         * Anthropic has no embedding API, so there is deliberately no counterpart to the Anthropic
-         * chat factory. Declining is the whole of the correct behaviour: answering would point a
-         * client holding an Anthropic key at an OpenAI endpoint.
+         * Anthropic has no embedding API, so the Anthropic platform deliberately builds chat only.
+         * Returning null is the whole of the correct behaviour: answering would point a client
+         * holding an Anthropic key at an OpenAI endpoint.
          */
         contextRunner.run { context ->
-            assertThat(build(factoriesIn(context), AnthropicModels.PROVIDER)).isNull()
+            assertThat(build(platformsIn(context), AnthropicModels.PROVIDER)).isNull()
         }
     }
 
     @Test
     fun `a provider nothing routes returns null rather than a wrong service`() {
         contextRunner.run { context ->
-            assertThat(build(factoriesIn(context), UNHANDLED_PROVIDER)).isNull()
+            assertThat(build(platformsIn(context), UNHANDLED_PROVIDER)).isNull()
         }
     }
 
     @Test
-    fun `the OpenAI module absent from the classpath contributes no embedding factory`() {
+    fun `the OpenAI module absent from the classpath contributes no embedding platform`() {
         // The provider modules are optional dependencies; this one must stay startable without them.
         contextRunner
             .withClassLoader(FilteredClassLoader(OpenAiCompatibleModelFactory::class.java))
             .run { context ->
                 assertThat(context).hasNotFailed()
-                assertThat(context.embeddingModelFactories()).isEmpty()
+                assertThat(context.embeddingModelPlatforms()).isEmpty()
             }
     }
 
@@ -138,17 +138,22 @@ class CredentialEmbeddingServiceFactoryTest {
         contextRunner
             .withClassLoader(FilteredClassLoader(AnthropicModelFactory::class.java))
             .run { context ->
-                assertThat(context.embeddingModelFactories())
-                    .containsOnlyKeys(EMBEDDING_FACTORY_BEAN)
+                assertThat(context.embeddingModelPlatforms())
+                    .containsOnlyKeys(EMBEDDING_PLATFORM_BEAN)
             }
     }
 
     @Test
-    fun `an application factory of the same name replaces the shipped one`() {
-        contextRunner.withUserConfiguration(OwnEmbeddingFactory::class.java).run { context ->
-            val factories = factoriesIn(context)
-            assertThat(factories).hasSize(1)
-            assertThat(build(factories, GATEWAY_PROVIDER)?.name).isEqualTo(OVERRIDE_SERVICE_NAME)
+    fun `an application platform of the same name replaces the shipped one for every kind`() {
+        contextRunner.withUserConfiguration(OwnEmbeddingPlatform::class.java).run { context ->
+            val platforms = platformsIn(context)
+            // Only the application's platform builds embedding models now.
+            assertThat(platforms).hasSize(1)
+            // The model comes from the application's platform, not the shipped one.
+            assertThat(build(platforms, GATEWAY_PROVIDER)?.name).isEqualTo(OVERRIDE_SERVICE_NAME)
+            // The replacement builds embedding only, so the shipped OpenAI-compatible chat models
+            // went with the bean it replaced: only Anthropic's platform still builds chat.
+            assertThat(context.chatModelPlatforms()).containsOnlyKeys(CredentialEndpointConfig.ANTHROPIC_MODEL_PLATFORM)
         }
     }
 
@@ -160,8 +165,8 @@ class CredentialEmbeddingServiceFactoryTest {
          * to OpenAI; assuming the width instead of reading the response would leave a vector index
          * created at a width the provider never agreed to.
          */
-        withEmbeddingProvider { probedPath, factories ->
-            val service = build(factories, GATEWAY_PROVIDER)
+        withEmbeddingProvider { probedPath, platforms ->
+            val service = build(platforms, GATEWAY_PROVIDER)
 
             assertThat(probedPath.getNow(null)).describedAs("probe never reached the gateway").isNotNull()
             assertThat(service).isNotNull()
@@ -177,19 +182,19 @@ class CredentialEmbeddingServiceFactoryTest {
     fun `a BYOK embedding call is not charged to the deployment`() {
         // The user's own key is billed, so counting it against the deployment would be wrong in the
         // one direction that matters.
-        withEmbeddingProvider { _, factories ->
-            assertThat(build(factories, GATEWAY_PROVIDER)?.pricingModel).isEqualTo(PricingModel.ALL_YOU_CAN_EAT)
+        withEmbeddingProvider { _, platforms ->
+            assertThat(build(platforms, GATEWAY_PROVIDER)?.pricingModel).isEqualTo(PricingModel.ALL_YOU_CAN_EAT)
         }
     }
 
     /**
-     * Run [block] against a socket standing in for the gateway, with the shipped factory routed to
-     * it - the only way to exercise a factory that probes without reaching the public internet.
+     * Run [block] against a socket standing in for the gateway, with the shipped platform routed to
+     * it - the only way to exercise a platform that probes without reaching the public internet.
      *
-     * @param block given the path the probe arrived on, and the factories the context contributed
+     * @param block given the path the probe arrived on, and the platforms the context contributed
      */
     private fun withEmbeddingProvider(
-        block: (probedPath: CompletableFuture<String>, factories: List<CredentialModelFactory<EmbeddingService>>) -> Unit,
+        block: (probedPath: CompletableFuture<String>, platforms: List<ModelPlatform>) -> Unit,
     ) {
         val server = HttpServer.create(InetSocketAddress(0), 0)
         val probedPath = CompletableFuture<String>()
@@ -206,7 +211,7 @@ class CredentialEmbeddingServiceFactoryTest {
             OwnGatewayEndpoint.gatewayUrl.set("http://localhost:${server.address.port}")
 
             contextRunner.withUserConfiguration(OwnGatewayEndpoint::class.java).run { context ->
-                block(probedPath, factoriesIn(context))
+                block(probedPath, platformsIn(context))
             }
         } finally {
             server.stop(0)
@@ -248,11 +253,11 @@ class CredentialEmbeddingServiceFactoryTest {
      * speak, registered under the shipped bean's name, which is how it takes precedence.
      */
     @Configuration(proxyBeanMethods = false)
-    class OwnEmbeddingFactory {
+    class OwnEmbeddingPlatform {
 
-        @Bean(EMBEDDING_FACTORY_BEAN)
-        fun openAiCompatibleCredentialEmbeddingServiceFactory() =
-            CredentialModelFactory.of(EmbeddingService.KIND) { credential, _ ->
+        @Bean(EMBEDDING_PLATFORM_BEAN)
+        fun openAiCompatibleModelPlatform(): ModelPlatform = ModelPlatform.builder()
+            .builds(EmbeddingService.KIND) { credential, _ ->
                 if (!credential.provider.equals(GATEWAY_PROVIDER, ignoreCase = true)) null
                 else object : EmbeddingService {
                     override val name = OVERRIDE_SERVICE_NAME
@@ -263,5 +268,6 @@ class CredentialEmbeddingServiceFactoryTest {
                     override fun embed(texts: List<String>) = texts.map { FloatArray(dimensions) }
                 }
             }
+            .build()
     }
 }

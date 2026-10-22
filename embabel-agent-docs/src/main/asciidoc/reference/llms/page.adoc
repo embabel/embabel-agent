@@ -798,11 +798,60 @@ provider, the role fails with `NoSuitableModelException` and a log line naming i
 A resolver returns a value, so it needs no Spring context to test and nothing from
 `com.embabel.agent.spi`, which <<reference.api-evolution,application code should not depend on>>.
 
-For a wire protocol this framework has no client for, register a `CredentialModelFactory` of
-`LlmService.KIND` instead and build the service yourself. That one does name `LlmService`, an SPI type, which is why
-it is the second choice rather than the first. The shipped implementations — one per protocol —
-stand aside for a bean of the same name, but replacing one that way also replaces the code that
-builds what your `CredentialEndpointResolver` beans resolve for that protocol.
+For a wire protocol this framework has no client for, register a `ModelPlatform` instead and build the models yourself.
+A model platform builds the models that one provider key can be used for. It lists the kinds of model it can build in `kinds`, and builds a model of one of those kinds from a credential and a model name.
+The platform asks each registered `ModelPlatform` whose `kinds` contain the kind it needs, in `Ordered` order, and uses the first model that is not null.
+Return null for a provider your platform does not handle, so the next platform is asked.
+A chat model is an `LlmService`, an SPI type, which is why this is the second choice rather than the first.
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+@Bean
+fun gatewayPlatform(): ModelPlatform =
+    ModelPlatform.builder()
+        // Build only for this provider; return null so other platforms handle the rest.
+        .builds(EmbeddingService.KIND) { credential, model ->
+            if (credential.provider == "gateway") GatewayEmbeddingService(credential.apiKey, model) else null
+        }
+        .build()
+----
+
+Java::
++
+[source,java]
+----
+@Bean
+ModelPlatform gatewayPlatform() {
+    return ModelPlatform.builder()
+            .builds(EmbeddingService.KIND, (credential, model) ->
+                    credential.getProvider().equals("gateway") ? new GatewayEmbeddingService(credential.getApiKey(), model) : null)
+            .build();
+}
+----
+====
+
+Call `builds` once per kind; one platform can build chat and embedding models from the same key.
+The platform caches each model it builds per provider, key and model, so a platform should build rather than cache.
+
+The starter ships one platform per wire protocol.
+A shipped platform is not registered when the application registers a bean with the same name:
+
+|===
+| Bean name | Builds
+
+| `openAiCompatibleModelPlatform`
+| Chat and embedding models over the OpenAI protocol
+
+| `anthropicModelPlatform`
+| Chat models over Anthropic's protocol
+|===
+
+Replacing a shipped platform by name replaces every kind it builds.
+It also replaces the code that builds what your `CredentialEndpointResolver` beans resolve for that protocol.
 
 ===== Reading what a role is configured to mean
 
@@ -1166,15 +1215,15 @@ Which column is read comes from the active key.
 Where there is no active key, it comes from the registered embedding services — but only where they agree on one provider.
 A deployment with two registered providers and no key reads `embedding-services` instead of picking a column, because the alternative would be a choice made by bean registration order.
 
-To resolve an embedding role for a user's own key, register a `RoleResolver` of `EmbeddingService.KIND` returning `RoleResolution.Credential`, and the platform builds the service through a `CredentialModelFactory` of the same kind and caches it per provider, key and model.
-`embabel-agent-starter-byok` ships one covering every OpenAI-compatible provider, so this usually needs no application code.
+To resolve an embedding role for a user's own key, register a `RoleResolver` of `EmbeddingService.KIND` returning `RoleResolution.Credential`, and the platform builds the service through a `ModelPlatform` that builds `EmbeddingService.KIND` and caches it per provider, key and model.
+`embabel-agent-starter-byok` ships one covering every OpenAI-compatible provider, the same platform that builds their chat models, so this usually needs no application code.
 
 [NOTE]
 ====
 Embedding roles resolve through their own chain: the platform asks only the resolvers of `EmbeddingService.KIND`.
 A chat role and an embedding role may share a name, and a resolver that answers for one must not be asked about the other.
 An application that resolves both from one source registers one resolver per kind over one shared lookup.
-A resolver or factory holding a kind the platform does not select is never asked, and is reported at startup; refer to the kind's own constant rather than building a new `ModelKind` with the same name.
+A resolver holding a kind the platform does not select is never asked, and is reported at startup; so is a model platform none of whose kinds is selected. Refer to the kind's own constant rather than building a new `ModelKind` with the same name.
 ====
 
 [NOTE]

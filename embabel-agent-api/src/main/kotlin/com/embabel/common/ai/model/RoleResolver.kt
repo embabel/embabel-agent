@@ -43,7 +43,7 @@ sealed interface RoleResolution<out C : ModelCapability, out B : RoleBinding> {
 
     /**
      * A provider key. The platform looks the role up for that provider and builds the model through
-     * a [CredentialModelFactory] of the same kind, caching it.
+     * a [ModelPlatform] that builds this kind, caching it.
      */
     data class Credential(
         val credential: ProviderCredential,
@@ -135,83 +135,6 @@ private class FunctionRoleResolver<C : ModelCapability, B : RoleBinding>(
     override fun toString(): String = "RoleResolver(${kind.name})"
 }
 
-/**
- * Builds a model of one [ModelKind] from a user-supplied key, for a wire protocol the framework has
- * no client for.
- *
- * For chat, use this only when a [CredentialEndpointResolver] cannot do the job. A chat factory
- * returns [com.embabel.agent.spi.LlmService], which is in the `com.embabel.agent.spi` package, and
- * application code is asked not to depend on that package. Most chat providers use the OpenAI or
- * Anthropic protocol. For those, register a [CredentialEndpointResolver] that returns the endpoint;
- * it needs no SPI type.
- *
- * `embabel-agent-starter-byok` ships one implementation per wire protocol, covering every provider
- * BYOK supports, so per-user keys work with no application code at all; see
- * `com.embabel.agent.config.models.byok.CredentialEndpointConfig`. Each shipped bean is skipped
- * when the application registers a bean with the same name. A bean registered that way also
- * replaces the code that builds clients for the endpoints [CredentialEndpointResolver]s return for
- * that protocol.
- *
- * ```kotlin
- * @Bean
- * fun gatewayEmbeddingFactory(): CredentialModelFactory<EmbeddingService> =
- *     CredentialModelFactory.of(EmbeddingService.KIND) { credential, model ->
- *         // Build only for this provider; return null so other factories handle the rest.
- *         if (credential.provider == "gateway") GatewayEmbeddingService(credential.apiKey, model) else null
- *     }
- * ```
- *
- * Without a factory of the right kind that handles the provider, a role resolving to
- * [RoleResolution.Credential] fails with [NoSuitableModelException] and a log line naming the
- * provider nothing handled.
- *
- * Return null for a provider this factory does not handle, rather than building something: the
- * platform tries each factory of the kind in turn, and a factory that answers for everything would
- * hand back a client pointed at the wrong endpoint for someone else's key.
- *
- * The platform caches what this returns, per (provider, key, model), so an implementation should
- * build rather than maintain a cache of its own.
- *
- * @param C the capability of the kind this factory builds
- */
-@ApiStatus.Experimental
-interface CredentialModelFactory<C : ModelCapability> {
-
-    /** The kind of model this factory builds. */
-    val kind: ModelKind<C, *>
-
-    /**
-     * @return a model for [model] authenticated with [credential], or null if this factory does
-     * not handle that provider
-     */
-    fun create(credential: ProviderCredential, model: String): C?
-
-    companion object {
-
-        /**
-         * A factory of [kind] that builds with [create].
-         *
-         * @param kind the kind of model the factory builds
-         * @param create the credential and model name to a model, or null for a provider it does
-         * not handle
-         * @return the factory
-         */
-        @JvmStatic
-        fun <C : ModelCapability> of(
-            kind: ModelKind<C, *>,
-            create: (credential: ProviderCredential, model: String) -> C?,
-        ): CredentialModelFactory<C> = FunctionCredentialModelFactory(kind, create)
-    }
-}
-
-private class FunctionCredentialModelFactory<C : ModelCapability>(
-    override val kind: ModelKind<C, *>,
-    private val build: (credential: ProviderCredential, model: String) -> C?,
-) : CredentialModelFactory<C> {
-    override fun create(credential: ProviderCredential, model: String): C? = build(credential, model)
-    override fun toString(): String = "CredentialModelFactory(${kind.name})"
-}
-
 /** The resolvers of [kind], in order. */
 internal fun <C : ModelCapability, B : RoleBinding> List<RoleResolver<*, *>>.ofKind(
     kind: ModelKind<C, B>,
@@ -220,13 +143,3 @@ internal fun <C : ModelCapability, B : RoleBinding> List<RoleResolver<*, *>>.ofK
     // RoleResolver<C, B>, so the cast is safe.
     @Suppress("UNCHECKED_CAST")
     (filter { it.kind === kind } as List<RoleResolver<C, B>>)
-
-/** The credential factories of [kind], in order. */
-@JvmName("credentialModelFactoriesOfKind")
-internal fun <C : ModelCapability> List<CredentialModelFactory<*>>.ofKind(
-    kind: ModelKind<C, *>,
-): List<CredentialModelFactory<C>> =
-    // A factory that holds this exact kind instance was declared CredentialModelFactory<C>, so the
-    // cast is safe.
-    @Suppress("UNCHECKED_CAST")
-    (filter { it.kind === kind } as List<CredentialModelFactory<C>>)
