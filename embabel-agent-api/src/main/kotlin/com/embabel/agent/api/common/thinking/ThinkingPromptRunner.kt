@@ -25,8 +25,8 @@ import com.embabel.agent.api.common.PromptRunner
  * [supportsThinking], and its [thinking] throws [UnsupportedOperationException].
  *
  * [supportsThinking] defaults to true here. An implementation whose model is chosen per call
- * overrides it to report what the selected model supports. The runner the platform returns from
- * `Ai` does this.
+ * overrides it to report what the selected model supports. The runner returned by `Ai`
+ * overrides it in this way.
  *
  * Usage (Kotlin):
  * ```kotlin

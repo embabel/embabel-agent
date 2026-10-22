@@ -69,8 +69,9 @@ class ThinkingPromptRunnerTest {
         fun `that says it supports thinking gets UnsupportedOperationException from thinking`() {
             // This runner answers true from supportsThinking() but does not implement
             // ThinkingPromptRunner, so it has no thinking() of its own.
-            // Before ThinkingPromptRunner existed, PromptRunner.thinking() trusted the flag and then
-            // failed with IllegalStateException ("Implementation error").
+            // Before ThinkingPromptRunner existed, PromptRunner.thinking() checked supportsThinking()
+            // and the thinking setting in LlmOptions. This runner passes both checks, so the old
+            // code threw IllegalStateException.
             val runner = object : PromptRunner by fakeRunnerWithThinkingEnabled() {
                 override fun supportsThinking(): Boolean = true
 
@@ -80,7 +81,7 @@ class ThinkingPromptRunnerTest {
                 override fun thinking(): PromptRunner.Thinking = super<PromptRunner>.thinking()
             }
 
-            // The answer is now the documented one for a runner without thinking operations
+            // thinking() throws UnsupportedOperationException, as documented for a runner that is not a ThinkingPromptRunner
             assertThrows<UnsupportedOperationException> {
                 runner.thinking()
             }
