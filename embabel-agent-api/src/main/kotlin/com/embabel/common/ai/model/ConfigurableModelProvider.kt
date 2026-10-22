@@ -212,8 +212,8 @@ data class ConfigurableModelProviderProperties(
  *
  * Chat model selection is done by [ChatModelSelection] and embedding model selection by
  * [EmbeddingModelSelection]. Both use a [ModelFamily] for the steps that are the same for every kind
- * of model. This class builds the two selections, validates configuration at startup (chat first,
- * then embedding), and lists models and roles.
+ * of model. This class builds the chat and embedding selections, validates configuration at
+ * startup (chat first, then embedding), and lists models and roles.
  */
 class ConfigurableModelProvider @JvmOverloads constructor(
     private val llms: List<LlmService<*>>,
@@ -229,16 +229,18 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     /**
      * Providers whose models may appear after startup, declared by the resolvers that cover them.
      *
-     * Read by chat's nested-role check and nothing else. It is not part of resolution: what a role
-     * means is the chain's business, and this only decides whether an unregistered name is a typo
-     * worth refusing to start over. See [LateArrivingModels].
+     * Read only by the startup check of chat's nested roles. It does not change how a role
+     * resolves. It only decides whether a role naming an unregistered model stops startup. See
+     * [LateArrivingModels].
      *
      * Catalogs are read as well as resolvers, because a shipped runner's catalog is what knows
      * whether discovery is on - resolvers for it exist either way, so asking them would excuse a
      * provider that has been configured never to be asked.
      */
     private val lateArrivingProviders: Set<String> =
-        (roleResolvers + localModelCatalogs)
+        // Only resolvers of a selected kind: a resolver of any other kind is never asked, so it
+        // cannot make a late model resolve and must not excuse a role from the startup check.
+        (roleResolvers.ofKind(LlmService.KIND) + roleResolvers.ofKind(EmbeddingService.KIND) + localModelCatalogs)
             .filterIsInstance<LateArrivingModels>()
             .mapNotNull { it.lateArrivingProvider?.lowercase() }
             .toSet()
