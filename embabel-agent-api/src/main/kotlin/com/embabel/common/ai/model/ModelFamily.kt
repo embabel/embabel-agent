@@ -39,7 +39,8 @@ import java.util.Collections
  * @param credentialCacheSize how many models built from user keys to keep
  * @param rolesProperty the role properties a credential's model is looked up in, for messages, such as
  * `embabel.models.roles or embabel.models.llms`
- * @param isPlaceholder whether a registered model stands in for one that is awaiting a key
+ * @param isPlaceholder whether a registered model is the placeholder, which is registered while the
+ * deployment has no key for a real model of this kind
  */
 internal class ModelFamily<C, B : RoleBinding>(
     val kind: ModelKind<C, B>,
@@ -65,7 +66,10 @@ internal class ModelFamily<C, B : RoleBinding>(
      * model for every key the deployment has ever seen.
      */
     private val credentialModels: MutableMap<CredentialModelKey, C> =
+        // 16 and 0.75 are LinkedHashMap's default capacity and load factor. `true` orders entries by
+        // last access instead of insertion, so the eldest entry is the least recently used one.
         object : LinkedHashMap<CredentialModelKey, C>(16, 0.75f, true) {
+            // Drop the least recently used entry once the map holds more than the configured size.
             override fun removeEldestEntry(eldest: Map.Entry<CredentialModelKey, C>) =
                 size > credentialCacheSize
         }.let { Collections.synchronizedMap(it) }
@@ -135,8 +139,9 @@ internal class ModelFamily<C, B : RoleBinding>(
     /**
      * The registered placeholder, if this deployment carries one.
      *
-     * Structural rather than by name: `com.embabel.agent.spi` owns the markers, and this class
-     * must not depend on the BYOK module that implements them.
+     * Found with [isPlaceholder] rather than by name. The markers are
+     * [com.embabel.agent.spi.PlaceholderLlmService] for chat and [EmbeddingService.awaitingProviderKey]
+     * for embedding, and this class must not depend on the BYOK module that implements them.
      */
     fun placeholder(): C? = registered.firstOrNull(isPlaceholder)
 
@@ -145,10 +150,9 @@ internal class ModelFamily<C, B : RoleBinding>(
      * serve.
      *
      * A [RoleResolution.Bound] matches registered models by name alone, placeholder included. A
-     * deployment may point a role AT the placeholder deliberately - "this role has no model yet" -
-     * and screening placeholders out here would refuse the one configuration that means to name
-     * one. A role naming a model nothing registered still resolves to nothing, because the name
-     * simply does not match.
+     * deployment may point a role at the placeholder on purpose, to say "this role has no model
+     * yet". If placeholders were skipped here, that configuration would resolve to nothing. A role
+     * naming a model that nothing registered still resolves to nothing, because no name matches.
      */
     fun materialize(role: String, resolution: RoleResolution<C, B>?): Resolved<C, B>? =
         when (resolution) {
@@ -162,16 +166,20 @@ internal class ModelFamily<C, B : RoleBinding>(
     /**
      * Build - or reuse - a model for the one [role] names under the user's own provider.
      *
-     * The lookup ends at the flat map. [ConfigurableRoleResolver.resolve] does not read the flat map
-     * under a user key, because there it would return a model that the DEPLOYMENT's key pays for.
-     * Here only the model NAME is read from it, and the model is built on the user's own key, so
-     * the user pays for the model their role names. Reachable from the flat map only through an application resolver
-     * returning [RoleResolution.Credential], since the configured one gets this far only when the
-     * nested map already answered.
+     * The model name is looked up in the nested role map for the user's provider, then in the flat
+     * role map. [ConfigurableRoleResolver.resolve] does not read the flat map when a user key is
+     * active, because there it would serve a model built on the deployment's key, and the
+     * deployment would pay. Here only the model name is read from the flat map, and the model is
+     * built on the user's key, so the user pays.
+     *
+     * The flat map is only reached here when an application resolver returns
+     * [RoleResolution.Credential]. [ConfigurableRoleResolver] returns one only when the nested map
+     * already has an entry for the user's provider.
      */
     private fun fromCredential(role: String, credential: ProviderCredential): Resolved<C, B>? {
         val binding = roles.configuredFor(role, credential.provider)
         val model = binding?.modelName
+        // The binding found for this role and provider names no model, so there is nothing to build.
         if (model == null) {
             logger.warn(
                 "{} role '{}' has no model configured for provider '{}' under {}",
@@ -180,6 +188,7 @@ internal class ModelFamily<C, B : RoleBinding>(
             return null
         }
         val built = credentialModel(credential, model)
+        // No model platform could build the model for this provider.
         if (built == null) {
             logger.warn(
                 """Nothing built a {} model for provider '{}', needed for role '{}'. Register a CredentialEndpointResolver or a ModelPlatform that builds the {} kind for it, and check that the module that calls that provider's API is on the classpath""",
@@ -248,6 +257,7 @@ internal class ModelFamily<C, B : RoleBinding>(
         companion object {
 
             fun of(credential: ProviderCredential, model: String) = CredentialModelKey(
+                // Lowercased so "OpenAI" and "openai" share one cache entry.
                 provider = credential.provider.lowercase(),
                 apiKeyDigest = digest(credential.apiKey),
                 model = model,
