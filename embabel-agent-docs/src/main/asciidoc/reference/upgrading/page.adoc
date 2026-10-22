@@ -231,6 +231,19 @@ A service that does not stream deletes its `createMessageStreamer` and `supports
 Keep a `supportsStreaming()` override only if it asks the provider whether the model streams.
 An override that returns true on a class that does not implement `StreamingChatCompletion` has no effect: the platform reports that the model does not stream.
 
+Code that calls `createMessageStreamer` on an `LlmService` directly changes too, because `LlmService` no longer declares it.
+Check for the interface first, and still ask `supportsStreaming()`, because implementing `StreamingChatCompletion` means the service has the method, not that the provider streams this model:
+
+[source,kotlin]
+----
+val streamer = (service as? StreamingChatCompletion)
+    ?.takeIf { service.supportsStreaming() }
+    ?.createMessageStreamer(options)
+----
+
+Code compiled against 1.5.x that calls `createMessageStreamer` on an `LlmService` fails with `NoSuchMethodError` on 2.0 until it is changed and recompiled.
+Code that streams through `PromptRunner` needs no change.
+
 ==== Role resolvers that return a user's key
 
 `RoleResolver` is no longer a `fun interface`, because each resolver now states its kind.
