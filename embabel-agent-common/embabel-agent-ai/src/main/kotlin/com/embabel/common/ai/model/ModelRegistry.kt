@@ -92,7 +92,9 @@ class ModelRegistry<M : ModelCapability> private constructor(
      *
      * @param label the family's name in messages and properties, such as `decision`
      * @param builderName the builder named in messages that tell a plain Java caller what to call,
-     * such as `DecisionServiceRegistry.Builder`
+     * such as `DecisionServiceRegistry.Builder`. The messages tell the caller to call
+     * `register(name, model)`, `<label>Default(name)` and `<label>Role(role, name)` on it, so name a
+     * builder that has those methods.
      * @param bindAdvice the advice ending a message about a default or role that names a model of the
      * wrong kind. It is given the model's name and the family type's simple name.
      * @param selectAdvice the advice in a message about selecting a model of the wrong kind by name.
@@ -206,8 +208,7 @@ class ModelRegistry<M : ModelCapability> private constructor(
                 require(name !in models) { "service name '$name' is registered more than once" }
                 namesByInstance[model]?.let { first ->
                     throw IllegalArgumentException(
-                        "the same service instance is registered as '$first' and '$name'. " +
-                            "Register each instance under one name.",
+                        "the same service instance is registered as '$first' and '$name'. Register each instance under one name.",
                     )
                 }
                 models[name] = model
@@ -272,13 +273,18 @@ class ModelRegistry<M : ModelCapability> private constructor(
             val spec = declared.spec
             val type = declared.type
             if (name !in models && name in sourceModels.value.namesFitting(type)) return
+            if (name !in models) {
+                sourceModels.value.typeServing(name)?.let { sourceType ->
+                    throw IllegalArgumentException(
+                        "$binding names provider model '$name' (property $property), which is a ${sourceType.simpleName} without ${spec.label} support. ${spec.bindAdvice(name, type.simpleName)}",
+                    )
+                }
+            }
             val model = requireNotNull(models[name]) {
-                "$binding names unknown service '$name' (property $property). Registered services: " +
-                    "${models.keys.toList()}. Provider models: ${sourceModels.value.describeFitting(type)}."
+                "$binding names unknown service '$name' (property $property). Registered services: ${models.keys.toList()}. Provider models: ${sourceModels.value.describeFitting(type)}."
             }
             require(type.isInstance(model)) {
-                "$binding names service '$name' (property $property), which is a ${describe(model)} service without " +
-                    "${spec.label} support. ${spec.bindAdvice(name, type.simpleName)}"
+                "$binding names service '$name' (property $property), which is a ${describe(model)} service without ${spec.label} support. ${spec.bindAdvice(name, type.simpleName)}"
             }
         }
 
@@ -303,6 +309,9 @@ class ModelRegistry<M : ModelCapability> private constructor(
 
         /** The names served by sources whose models have [type]. */
         fun namesFitting(type: Class<*>): List<String> = fitting(type).flatMap { it.names }
+
+        /** The type of the source that serves [name], or null when no source serves it. */
+        fun typeServing(name: String): Class<*>? = groups.firstOrNull { name in it.names }?.type
 
         /** Lists the models fitting [type] by provider, for example `llm [a, b]; TypeSafe [c]`, or `none`. */
         fun describeFitting(type: Class<*>): String = describe(fitting(type))
@@ -341,19 +350,16 @@ class ModelRegistry<M : ModelCapability> private constructor(
                 eligibleCandidates.size == 1 -> DefaultState.Resolved(eligibleCandidates.single(), "default candidate")
                 eligibleCandidates.size > 1 -> DefaultState.Unresolved(
                     Reason.AMBIGUOUS_DEFAULT,
-                    "No default ${spec.label} service is set and ${eligibleCandidates.size} default candidates " +
-                        "are eligible: $eligibleCandidates.",
+                    "No default ${spec.label} service is set and ${eligibleCandidates.size} default candidates are eligible: $eligibleCandidates.",
                 )
                 eligible.size == 1 -> DefaultState.Resolved(eligible.single(), "only eligible service")
                 eligible.isEmpty() -> DefaultState.Unresolved(
                     Reason.NO_DEFAULT,
-                    "No default ${spec.label} service is set, no default candidate is eligible, and no " +
-                        "${spec.label} service is registered.",
+                    "No default ${spec.label} service is set, no default candidate is eligible, and no ${spec.label} service is registered.",
                 )
                 else -> DefaultState.Unresolved(
                     Reason.AMBIGUOUS_DEFAULT,
-                    "No default ${spec.label} service is set, no default candidate is eligible, and " +
-                        "${eligible.size} ${spec.label} services are eligible: $eligible.",
+                    "No default ${spec.label} service is set, no default candidate is eligible, and ${eligible.size} ${spec.label} services are eligible: $eligible.",
                 )
             }
             return Family(spec, type, eligible, sourceModels, roles, explicitDefault, state, candidates)
@@ -372,8 +378,7 @@ class ModelRegistry<M : ModelCapability> private constructor(
                 onSuccess = { if (it.namesFitting(type).isEmpty()) "" else " Provider models: ${it.describeFitting(type)}." },
                 onFailure = { " Provider models could not be listed." },
             )
-            return "${spec.title} services: $eligible.$models ${spec.title} roles: $roles. " +
-                "${spec.title} default: ${describeDefault()}."
+            return "${spec.title} services: $eligible.$models ${spec.title} roles: $roles. ${spec.title} default: ${describeDefault()}."
         }
     }
 
@@ -386,23 +391,19 @@ class ModelRegistry<M : ModelCapability> private constructor(
             is DefaultState.Resolved -> lookup(state.name)
             is DefaultState.Unresolved -> throw ServiceSelectionException(
                 state.reason,
-                "${state.detail} ${family.context()} Set ${spec.defaultProperty}=<name>, or call " +
-                    "${spec.builderName}.${spec.label}Default(name) in plain Java.",
+                "${state.detail} ${family.context()} Set ${spec.defaultProperty}=<name>, or call ${spec.builderName}.${spec.label}Default(name) in plain Java.",
             )
         }
 
         override fun named(name: String): S {
             val model = models[name] ?: sourceModel(name) ?: throw ServiceSelectionException(
                 Reason.UNKNOWN_NAME,
-                "No ${spec.label} service is registered under the name '$name'. ${family.context()} Register a " +
-                    "service under that name in configuration or with ${spec.builderName}.register(" +
-                    "name, service), or select one of the listed names.",
+                "No ${spec.label} service is registered under the name '$name'. ${family.context()} Register a service under that name in configuration or with ${spec.builderName}.register(name, service), or select one of the listed names.",
             )
             if (!family.type.isInstance(model)) {
                 throw ServiceSelectionException(
                     Reason.WRONG_CAPABILITY,
-                    "Service '$name' is a ${describe(model)} service (${model.javaClass.name}) and cannot answer " +
-                        "${spec.label} requests. ${spec.selectAdvice(family.type.simpleName)} ${family.context()}",
+                    "Service '$name' is a ${describe(model)} service (${model.javaClass.name}) and cannot answer ${spec.label} requests. ${spec.selectAdvice(family.type.simpleName)} ${family.context()}",
                 )
             }
             return cast(model)
@@ -411,9 +412,7 @@ class ModelRegistry<M : ModelCapability> private constructor(
         override fun byRole(role: String): S {
             val name = family.roles[role] ?: throw ServiceSelectionException(
                 Reason.UNKNOWN_ROLE,
-                "No ${spec.label} service is bound to the role '$role'. ${family.context()} Bind the role with " +
-                    "${spec.roleProperty(role)}=<name>, or call ${spec.builderName}." +
-                    "${spec.label}Role(\"$role\", name) in plain Java.",
+                "No ${spec.label} service is bound to the role '$role'. ${family.context()} Bind the role with ${spec.roleProperty(role)}=<name>, or call ${spec.builderName}.${spec.label}Role(\"$role\", name) in plain Java.",
             )
             return lookup(name)
         }

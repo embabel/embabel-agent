@@ -22,6 +22,7 @@ import com.embabel.common.ai.decision.DecisionService
 import io.micrometer.observation.ObservationRegistry
 import org.jetbrains.annotations.ApiStatus
 import org.slf4j.LoggerFactory
+import java.util.Collections
 
 /**
  * Registered decision and classification services with their family defaults and role bindings.
@@ -252,7 +253,7 @@ class DecisionServiceRegistry private constructor(
                         e,
                     )
                 }
-            }.let { java.util.Collections.unmodifiableMap(it) }
+            }.let { Collections.unmodifiableMap(it) }
     }
 
     /** Serves a [DecisionModelProvider]'s models to the [ModelRegistry]. Every one is a decision service. */

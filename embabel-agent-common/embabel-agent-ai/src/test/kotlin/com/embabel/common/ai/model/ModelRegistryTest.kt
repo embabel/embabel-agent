@@ -133,6 +133,48 @@ class ModelRegistryTest {
     }
 
     @Test
+    fun `a default naming a source model of the wrong kind says the model lacks the capability, not that it is unknown`() {
+        val failure = assertThrows<IllegalArgumentException> {
+            builder().source(CountingSource()).defaultFor(Animation::class.java, "served").build()
+        }
+        val message = failure.message.orEmpty()
+        assertTrue(message.contains("without animation support"), message)
+        assertTrue(!message.contains("unknown service"), message)
+    }
+
+    @Test
+    fun `selecting a source model by name from a family its type does not fit fails with wrong capability`() {
+        val registry = builder().source(CountingSource()).build()
+
+        val failure = assertThrows<ServiceSelectionException> {
+            registry.select(Animation::class.java).named("served")
+        }
+        assertEquals(Reason.WRONG_CAPABILITY, failure.reason)
+    }
+
+    @Test
+    fun `a selection error lists only the source models that fit the family`() {
+        val registry = builder().source(CountingSource()).build()
+
+        val failure = assertThrows<ServiceSelectionException> {
+            registry.select(Animation::class.java).defaultService()
+        }
+        assertTrue(!failure.message.orEmpty().contains("served"), failure.message)
+    }
+
+    @Test
+    fun `declaring a second family for the same capability interface fails`() {
+        assertThrows<IllegalArgumentException> { builder().family(Drawing::class.java, drawingFamily) }
+    }
+
+    @Test
+    fun `a default set before its family is declared fails`() {
+        assertThrows<IllegalArgumentException> {
+            ModelRegistry.builder<Drawing>().defaultFor(Drawing::class.java, "sketch")
+        }
+    }
+
+    @Test
     fun `asking for a family that was never declared fails`() {
         val registry = ModelRegistry.builder<Drawing>().build()
 
