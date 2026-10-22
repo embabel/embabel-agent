@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
@@ -233,8 +234,10 @@ class OpenAiCompatiblePlatformTest {
          * @param test given the socket's base URL and the path of the first request it received
          */
         private fun withServer(body: String, test: (baseUrl: String, requestPath: CompletableFuture<String>) -> Unit) {
-            // Port 0 lets the operating system choose a free port.
-            val server = HttpServer.create(InetSocketAddress(0), 0)
+            // Port 0 lets the operating system choose a free port. The server listens on the
+            // IPv4 loopback address and the test calls it by that address, because "localhost" can
+            // resolve to another address where a different process holds the same port.
+            val server = HttpServer.create(InetSocketAddress(InetAddress.getByName(LOOPBACK), 0), 0)
             val requestPath = CompletableFuture<String>()
             server.createContext("/") { exchange ->
                 requestPath.complete(exchange.requestURI.path)
@@ -246,11 +249,13 @@ class OpenAiCompatiblePlatformTest {
             }
             server.start()
             try {
-                test("http://localhost:${server.address.port}", requestPath)
+                test("http://$LOOPBACK:${server.address.port}", requestPath)
             } finally {
                 server.stop(0)
             }
         }
+
+        private val LOOPBACK = "127.0.0.1"
 
         /** One OpenAI embeddings response holding a vector of [width] numbers. */
         private fun embeddingResponse(width: Int): String {
