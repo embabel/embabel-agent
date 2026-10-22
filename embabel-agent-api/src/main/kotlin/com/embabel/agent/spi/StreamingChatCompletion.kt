@@ -23,11 +23,11 @@ import org.jetbrains.annotations.ApiStatus
 /**
  * A model that can stream its response to a list of chat messages as it is generated.
  *
- * An [LlmService] that implements this interface may be able to stream. Implementing it does not
- * prove the model streams: some providers accept a streaming request for a model and then reject
- * it. [LlmService.supportsStreaming] answers the question for a particular model, and the Spring AI
- * implementation answers it by sending a probe request. Keep that probe: the interface says what a
- * service can be asked to do, the probe says whether the provider will do it.
+ * An [LlmService] that implements this interface has a [createMessageStreamer] method. That does
+ * not mean the model streams: some providers accept a streaming request for a model and then
+ * return an error. Call [LlmService.supportsStreaming] to find out whether a particular model
+ * streams. The Spring AI implementation answers it by sending a test streaming request to the
+ * provider.
  */
 @ApiStatus.Experimental
 interface StreamingChatCompletion : ModelCapability {
