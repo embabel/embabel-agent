@@ -19,6 +19,7 @@ import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.PlaceholderEmbeddingService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.local.ChatAndEmbeddingModelSource
+import com.embabel.common.ai.model.local.LateArrivingModels
 import com.embabel.common.ai.model.local.LocalModel
 import com.embabel.common.ai.model.local.LocalModelBeans
 import com.embabel.common.ai.model.local.LocalModelCatalog
@@ -812,6 +813,30 @@ class LocalModelResolutionTest {
                     llms = listOf(bootLlm),
                     embeddingServices = listOf(placeholder),
                     properties = properties,
+                )
+            }
+        }
+
+        /**
+         * A resolver of a kind this provider does not select is never asked, so it cannot make the
+         * late model resolve. Its declaration must not excuse the role either.
+         */
+        @Test
+        fun `a resolver of an unselected kind does not excuse the role`() {
+            val properties = properties()
+            // Named "chat", but a different kind instance from LlmService.KIND, so it is never asked.
+            val otherChatKind = ModelKind<LlmService<*>, LlmOptions>("chat", LlmService::class.java)
+            val unaskedResolver = object : RoleResolver<LlmService<*>, LlmOptions>, LateArrivingModels {
+                override val kind = otherChatKind
+                override val lateArrivingProvider = DOCKER
+                override fun resolve(role: String, context: ModelSelectionContext) = null
+            }
+            assertThrows<IllegalStateException> {
+                ConfigurableModelProvider(
+                    llms = listOf(bootLlm),
+                    embeddingServices = listOf(placeholder),
+                    properties = properties,
+                    roleResolvers = listOf(unaskedResolver),
                 )
             }
         }
