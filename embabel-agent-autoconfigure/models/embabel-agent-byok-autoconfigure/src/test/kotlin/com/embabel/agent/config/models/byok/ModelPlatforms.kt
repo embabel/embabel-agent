@@ -23,8 +23,7 @@ import org.springframework.context.ApplicationContext
 
 /** The model platforms in [this] context that build [kind], by bean name. */
 private fun ApplicationContext.modelPlatformsBuilding(kind: ModelKind<*, *>): Map<String, ModelPlatform> =
-    // Kinds are compared by identity, as the platform compares them.
-    getBeansOfType(ModelPlatform::class.java).filterValues { platform -> platform.kinds.any { it === kind } }
+    getBeansOfType(ModelPlatform::class.java).filterValues { platform -> kind in platform.kinds }
 
 /** The model platforms in [this] context that build chat models, by bean name. */
 internal fun ApplicationContext.chatModelPlatforms(): Map<String, ModelPlatform> =

@@ -258,9 +258,9 @@ class DockerLocalModelsConfig(
      * Docker models are open AI compatible
      */
     private fun dockerModelOf(model: Model): AiModel<*> =
-        // kindFromConfiguration returns one of the two shipped constants, so an identity check
-        // against the embedding kind is enough: every other model is registered as chat.
-        if (kindOf(model.id) === EmbeddingService.KIND) {
+        // kindFromConfiguration returns one of the two shipped constants, so comparing with the
+        // embedding kind is enough: every other model is registered as chat.
+        if (kindOf(model.id) == EmbeddingService.KIND) {
             dockerEmbeddingServiceOf(model.id)
         } else {
             dockerLlmOf(model.id)

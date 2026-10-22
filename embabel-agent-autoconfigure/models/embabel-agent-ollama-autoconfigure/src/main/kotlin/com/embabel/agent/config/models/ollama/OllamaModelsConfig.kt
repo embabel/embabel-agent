@@ -23,8 +23,8 @@ import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.*
 import com.embabel.common.ai.model.local.ChatAndEmbeddingModelSource
 import com.embabel.common.ai.model.local.DiscoveryFailureReporter
-import com.embabel.common.ai.model.local.LocalModelBeans
 import com.embabel.common.ai.model.local.LocalModel
+import com.embabel.common.ai.model.local.LocalModelBeans
 import com.embabel.common.ai.model.local.LocalModelCatalog
 import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
 import com.embabel.common.ai.model.local.LocalModelRoleResolver
