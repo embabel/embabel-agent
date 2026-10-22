@@ -29,10 +29,11 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ByRoleModelSelectionCriteria
 import com.embabel.common.ai.model.ConfigurableModelProvider
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
-import com.embabel.common.ai.model.CredentialModelFactory
 import com.embabel.common.ai.model.CredentialEndpoint
 import com.embabel.common.ai.model.CredentialEndpointResolver
+import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.ModelPlatform
 import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
 import com.embabel.common.ai.model.ModelSelectionContext
 import com.embabel.common.ai.model.ModelSelectionContextHolder
@@ -41,12 +42,10 @@ import com.embabel.common.ai.model.ProviderCredential
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.springframework.beans.factory.support.GenericBeanDefinition
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.FilteredClassLoader
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.ApplicationContext
-import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.Ordered
@@ -64,13 +63,13 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Per-user keys do not work out of the box unless something ships a chat [CredentialModelFactory]:
+ * Per-user keys do not work out of the box unless something ships a [ModelPlatform] that builds chat:
  * a role returning `RoleResolution.Credential` fails with `NoSuitableModelException` until the
  * application supplies one, and every application that has needed one has written the same `when`
  * over provider names. Putting `starter-byok` on the classpath should be enough, and these tests
  * pin that it is.
  *
- * Nothing here reaches the network. The shipped factories build a chat client from a key without
+ * Nothing here reaches the network. The shipped platforms build a chat client from a key without
  * validating it - validation is a separate `buildValidated` call neither bean makes - so the keys
  * below are arbitrary strings and the suite runs the same on a build agent as locally.
  */
@@ -79,28 +78,25 @@ class CredentialEndpointConfigTest {
     private companion object {
 
         /**
-         * Never sent anywhere: the factories under test build a client from a key rather than
+         * Never sent anywhere: the platforms under test build a client from a key rather than
          * calling the provider with it. Shaped like a real key only so a log line accidentally
          * carrying it would be recognisable as test data.
          */
         const val TEST_API_KEY = "sk-test-not-a-real-key"
 
         /**
-         * Bean name of the shipped OpenAI-compatible factory, and the name an application overrides
+         * Bean name of the shipped OpenAI-compatible platform, and the name an application overrides
          * by. One bean covers every provider `embabel-agent-openai` speaks to, not OpenAI alone.
          */
-        const val OPENAI_COMPATIBLE_FACTORY_BEAN = "openAiCompatibleCredentialLlmServiceFactory"
+        const val OPENAI_COMPATIBLE_PLATFORM_BEAN = CredentialEndpointConfig.OPENAI_COMPATIBLE_MODEL_PLATFORM
 
-        /** Bean name of the shipped Anthropic factory. */
-        const val ANTHROPIC_FACTORY_BEAN = "anthropicCredentialLlmServiceFactory"
-
-        /** Bean name of the shipped OpenAI-compatible embedding factory. */
-        const val EMBEDDING_FACTORY_BEAN = "openAiCompatibleCredentialEmbeddingServiceFactory"
+        /** Bean name of the shipped Anthropic platform. */
+        const val ANTHROPIC_PLATFORM_BEAN = CredentialEndpointConfig.ANTHROPIC_MODEL_PLATFORM
 
         /** Name carried by the service an overriding application builds, to tell it apart. */
         const val OVERRIDE_SERVICE_NAME = "from-the-application"
 
-        /** A provider no shipped factory handles: real, but not part of the BYOK surface. */
+        /** A provider no shipped platform handles: real, but not part of the BYOK surface. */
         const val UNHANDLED_PROVIDER = "Cohere"
 
         /** A provider this framework does not ship, reached through an application's own gateway. */
@@ -119,41 +115,41 @@ class CredentialEndpointConfigTest {
         .withConfiguration(AutoConfigurations.of(AgentByokAutoConfiguration::class.java))
 
     /**
-     * Every chat [CredentialModelFactory] the context contributed, in no particular order - the
-     * platform consults all of them and takes the first non-null answer, so order is not something
+     * Every [ModelPlatform] that builds chat the context contributed, in no particular order - the
+     * model provider consults all of them and takes the first non-null answer, so order is not something
      * these tests should depend on.
      */
-    private fun factoriesIn(context: ApplicationContext): List<CredentialModelFactory<LlmService<*>>> =
-        context.chatModelFactories().values.toList()
+    private fun platformsIn(context: ApplicationContext): List<ModelPlatform> =
+        context.chatModelPlatforms().values.toList()
 
     /**
-     * Ask each factory in turn for a service, exactly as
+     * Ask each platform in turn for a service, exactly as
      * [com.embabel.common.ai.model.ConfigurableModelProvider] does, and return the first answer.
      *
-     * @return the service built for [provider] and [model], or null if no factory handled it
+     * @return the service built for [provider] and [model], or null if no platform handled it
      */
     private fun build(
-        factories: List<CredentialModelFactory<LlmService<*>>>,
+        platforms: List<ModelPlatform>,
         provider: String,
         model: String,
-    ): LlmService<*>? = factories.firstNotNullOfOrNull {
-        it.create(ProviderCredential(provider, TEST_API_KEY), model)
+    ): LlmService<*>? = platforms.firstNotNullOfOrNull {
+        it.model(ProviderCredential(provider, TEST_API_KEY), LlmService.KIND, model)
     }
 
     /** As above, for a test that needs the gateway to be a socket it controls. */
     private fun build(
-        factories: List<CredentialModelFactory<LlmService<*>>>,
+        platforms: List<ModelPlatform>,
         provider: String,
         model: String,
         gatewayUrl: String,
-    ): LlmService<*>? = OwnGatewayEndpoint.gatewayUrl.set(gatewayUrl).let { build(factories, provider, model) }
+    ): LlmService<*>? = OwnGatewayEndpoint.gatewayUrl.set(gatewayUrl).let { build(platforms, provider, model) }
 
     @Test
-    fun `a factory per provider module with nothing but the starter on the classpath`() {
+    fun `a platform per provider module with nothing but the starter on the classpath`() {
         contextRunner.run { context ->
             assertThat(context).hasNotFailed()
-            assertThat(context.chatModelFactories())
-                .containsOnlyKeys(OPENAI_COMPATIBLE_FACTORY_BEAN, ANTHROPIC_FACTORY_BEAN)
+            assertThat(context.chatModelPlatforms())
+                .containsOnlyKeys(OPENAI_COMPATIBLE_PLATFORM_BEAN, ANTHROPIC_PLATFORM_BEAN)
         }
     }
 
@@ -174,9 +170,9 @@ class CredentialEndpointConfigTest {
             AtlasCloudModels.PROVIDER to AtlasCloudModels.QWEN3_5_FLASH,
         )
         contextRunner.run { context ->
-            val factories = factoriesIn(context)
+            val platforms = platformsIn(context)
             wholeSurface.forEach { (provider, model) ->
-                val service = build(factories, provider, model)
+                val service = build(platforms, provider, model)
 
                 assertThat(service?.provider).describedAs(provider).isEqualTo(provider)
                 assertThat(service?.name).describedAs(provider).isEqualTo(model)
@@ -187,7 +183,7 @@ class CredentialEndpointConfigTest {
     @Test
     fun `a user key builds an Anthropic service for the model the role named`() {
         contextRunner.run { context ->
-            val service = build(factoriesIn(context), AnthropicModels.PROVIDER, AnthropicModels.CLAUDE_HAIKU_4_5)
+            val service = build(platformsIn(context), AnthropicModels.PROVIDER, AnthropicModels.CLAUDE_HAIKU_4_5)
 
             assertThat(service?.name).isEqualTo(AnthropicModels.CLAUDE_HAIKU_4_5)
             assertThat(service?.provider).isEqualTo(AnthropicModels.PROVIDER)
@@ -197,7 +193,7 @@ class CredentialEndpointConfigTest {
     @Test
     fun `a user key builds an OpenAI service for the model the role named`() {
         contextRunner.run { context ->
-            val service = build(factoriesIn(context), OpenAiModels.PROVIDER, OpenAiModels.GPT_41_MINI)
+            val service = build(platformsIn(context), OpenAiModels.PROVIDER, OpenAiModels.GPT_41_MINI)
 
             assertThat(service?.name).isEqualTo(OpenAiModels.GPT_41_MINI)
             assertThat(service?.provider).isEqualTo(OpenAiModels.PROVIDER)
@@ -209,11 +205,11 @@ class CredentialEndpointConfigTest {
         /*
          * The model name comes from configuration, and a provider ships new ones between framework
          * releases. Rejecting an unknown name would make a BYOK deployment unable to use a model
-         * released after the version it runs - so the factory passes the name through, and a name
+         * released after the version it runs - so the platform passes the name through, and a name
          * the provider does not offer fails at the provider rather than here.
          */
         contextRunner.run { context ->
-            val service = build(factoriesIn(context), OpenAiModels.PROVIDER, "gpt-released-next-year")
+            val service = build(platformsIn(context), OpenAiModels.PROVIDER, "gpt-released-next-year")
 
             assertThat(service?.name).isEqualTo("gpt-released-next-year")
         }
@@ -227,14 +223,14 @@ class CredentialEndpointConfigTest {
          * fail, and it fails at runtime rather than at compile time.
          */
         contextRunner.run { context ->
-            val factories = factoriesIn(context)
+            val platforms = platformsIn(context)
 
-            assertThat(build(factories, "openai", OpenAiModels.GPT_41_MINI)).isNotNull()
-            assertThat(build(factories, "OPENAI", OpenAiModels.GPT_41_MINI)).isNotNull()
-            assertThat(build(factories, "anthropic", AnthropicModels.CLAUDE_HAIKU_4_5)).isNotNull()
-            assertThat(build(factories, "ANTHROPIC", AnthropicModels.CLAUDE_HAIKU_4_5)).isNotNull()
-            assertThat(build(factories, "mistral ai", MistralAiModels.MINISTRAL_8B)).isNotNull()
-            assertThat(build(factories, "deepseek", DeepSeekModels.DEEPSEEK_V4_FLASH)).isNotNull()
+            assertThat(build(platforms, "openai", OpenAiModels.GPT_41_MINI)).isNotNull()
+            assertThat(build(platforms, "OPENAI", OpenAiModels.GPT_41_MINI)).isNotNull()
+            assertThat(build(platforms, "anthropic", AnthropicModels.CLAUDE_HAIKU_4_5)).isNotNull()
+            assertThat(build(platforms, "ANTHROPIC", AnthropicModels.CLAUDE_HAIKU_4_5)).isNotNull()
+            assertThat(build(platforms, "mistral ai", MistralAiModels.MINISTRAL_8B)).isNotNull()
+            assertThat(build(platforms, "deepseek", DeepSeekModels.DEEPSEEK_V4_FLASH)).isNotNull()
         }
     }
 
@@ -243,66 +239,66 @@ class CredentialEndpointConfigTest {
         // A credential carries whatever the application stored. If that spelling reached the built
         // service, cost and metadata lookups would key on two names for one provider.
         contextRunner.run { context ->
-            val service = build(factoriesIn(context), "MISTRAL AI", MistralAiModels.MINISTRAL_8B)
+            val service = build(platformsIn(context), "MISTRAL AI", MistralAiModels.MINISTRAL_8B)
 
             assertThat(service?.provider).isEqualTo(MistralAiModels.PROVIDER)
         }
     }
 
     @Test
-    fun `each factory declines the other's provider rather than answering for it`() {
+    fun `each platform declines the other's provider rather than answering for it`() {
         /*
-         * Asserted per-factory, not just on the pair. `build` takes the first non-null answer, so a
-         * factory that wrongly answered for everything would still look correct there as long as
+         * Asserted per-platform, not just on the pair. `build` takes the first non-null answer, so a
+         * platform that wrongly answered for everything would still look correct there as long as
          * the right one happened to be consulted first - which is bean ordering, not behaviour.
          */
         contextRunner.run { context ->
-            val beans = context.chatModelFactories()
-            val openAi = beans.getValue(OPENAI_COMPATIBLE_FACTORY_BEAN)
-            val anthropic = beans.getValue(ANTHROPIC_FACTORY_BEAN)
+            val beans = context.chatModelPlatforms()
+            val openAi = beans.getValue(OPENAI_COMPATIBLE_PLATFORM_BEAN)
+            val anthropic = beans.getValue(ANTHROPIC_PLATFORM_BEAN)
             val anthropicKey = ProviderCredential(AnthropicModels.PROVIDER, TEST_API_KEY)
             val openAiKey = ProviderCredential(OpenAiModels.PROVIDER, TEST_API_KEY)
 
-            assertThat(openAi.create(anthropicKey, AnthropicModels.CLAUDE_HAIKU_4_5)).isNull()
-            assertThat(anthropic.create(openAiKey, OpenAiModels.GPT_41_MINI)).isNull()
+            assertThat(openAi.model(anthropicKey, LlmService.KIND, AnthropicModels.CLAUDE_HAIKU_4_5)).isNull()
+            assertThat(anthropic.model(openAiKey, LlmService.KIND, OpenAiModels.GPT_41_MINI)).isNull()
         }
     }
 
     @Test
-    fun `a provider neither factory handles returns null rather than a wrong service`() {
-        // Returning null is how a factory declines: the platform tries the next one, and warns
+    fun `a provider neither platform handles returns null rather than a wrong service`() {
+        // Returning null is how a platform declines: the model provider tries the next one, and warns
         // naming the provider if none answer. Answering anyway would build an OpenAI client
         // pointed at someone else's key.
         contextRunner.run { context ->
-            assertThat(build(factoriesIn(context), UNHANDLED_PROVIDER, "mistral-large")).isNull()
+            assertThat(build(platformsIn(context), UNHANDLED_PROVIDER, "mistral-large")).isNull()
         }
     }
 
     @Test
-    fun `an application factory wins over the shipped one, and only that one`() {
+    fun `an application platform wins over the shipped one, and only that one`() {
         // Matters for a custom base URL or a proxy, which is exactly when an application needs to
-        // override rather than add. The Anthropic factory must survive the override - which is why
+        // override rather than add. The Anthropic platform must survive the override - which is why
         // the shipped beans back off by name rather than by type.
-        contextRunner.withUserConfiguration(OwnOpenAiFactory::class.java).run { context ->
-            assertThat(context.chatModelFactories())
-                .containsOnlyKeys(OPENAI_COMPATIBLE_FACTORY_BEAN, ANTHROPIC_FACTORY_BEAN)
-            assertThat(build(factoriesIn(context), OpenAiModels.PROVIDER, "anything")?.name)
+        contextRunner.withUserConfiguration(OwnOpenAiPlatform::class.java).run { context ->
+            assertThat(context.chatModelPlatforms())
+                .containsOnlyKeys(OPENAI_COMPATIBLE_PLATFORM_BEAN, ANTHROPIC_PLATFORM_BEAN)
+            assertThat(build(platformsIn(context), OpenAiModels.PROVIDER, "anything")?.name)
                 .isEqualTo(OVERRIDE_SERVICE_NAME)
-            assertThat(build(factoriesIn(context), AnthropicModels.PROVIDER, AnthropicModels.CLAUDE_HAIKU_4_5)?.name)
+            assertThat(build(platformsIn(context), AnthropicModels.PROVIDER, AnthropicModels.CLAUDE_HAIKU_4_5)?.name)
                 .isEqualTo(AnthropicModels.CLAUDE_HAIKU_4_5)
         }
     }
 
     @Test
-    fun `a provider module absent from the classpath contributes no factory`() {
+    fun `a provider module absent from the classpath contributes no platform`() {
         // The gate that lets this module stay usable without both provider modules on the
         // classpath, since they are optional dependencies.
         contextRunner
             .withClassLoader(FilteredClassLoader(AnthropicModelFactory::class.java))
             .run { context ->
                 assertThat(context).hasNotFailed()
-                assertThat(context.chatModelFactories())
-                    .containsOnlyKeys(OPENAI_COMPATIBLE_FACTORY_BEAN)
+                assertThat(context.chatModelPlatforms())
+                    .containsOnlyKeys(OPENAI_COMPATIBLE_PLATFORM_BEAN)
             }
     }
 
@@ -318,71 +314,22 @@ class CredentialEndpointConfigTest {
             )
             .run { context ->
                 assertThat(context).hasNotFailed()
-                assertThat(context.chatModelFactories()).isEmpty()
+                assertThat(context.chatModelPlatforms()).isEmpty()
                 assertThat(context).hasBean(SetupRequiredLlm.NAME)
             }
     }
 
     @Test
-    fun `the configuration loads when the OpenAI module is really absent from the classpath`() {
-        contextWithout("com.embabel.agent.openai.", "org.springframework.ai.openai.").use { context ->
-            assertThat(context.getBeansOfType(CredentialLlmServiceFactory::class.java))
-                .containsOnlyKeys(ANTHROPIC_FACTORY_BEAN)
-            assertThat(context.getBeansOfType(CredentialEmbeddingServiceFactory::class.java)).isEmpty()
-        }
-    }
-
-    @Test
-    fun `the configuration loads when the Anthropic module is really absent from the classpath`() {
-        contextWithout("com.embabel.agent.anthropic.", "org.springframework.ai.anthropic.", "com.anthropic.").use { context ->
-            assertThat(context.getBeansOfType(CredentialLlmServiceFactory::class.java))
-                .containsOnlyKeys(OPENAI_COMPATIBLE_FACTORY_BEAN)
-            assertThat(context.getBeansOfType(CredentialEmbeddingServiceFactory::class.java))
-                .containsOnlyKeys(EMBEDDING_FACTORY_BEAN)
-        }
-    }
-
-    @Test
-    fun `the OpenAI factory builds a service when the Anthropic module is really absent from the classpath`() {
-        contextWithout("com.embabel.agent.anthropic.", "org.springframework.ai.anthropic.", "com.anthropic.").use { context ->
-            assertThat(build(factoriesIn(context), OpenAiModels.PROVIDER, OpenAiModels.GPT_41_MINI)?.name)
-                .isEqualTo(OpenAiModels.GPT_41_MINI)
-        }
-    }
-
-    /**
-     * A started context whose BYOK configuration classes are loaded by a
-     * [WithoutPackagesClassLoader], so every class they name resolves through it and the given
-     * packages are missing.
-     *
-     * The auto-configuration is registered by class name, as Spring Boot imports it, so Spring
-     * reads its annotations from bytecode. [ApplicationContextRunner] cannot be used: it loads
-     * configuration classes through the test's class loader.
-     */
-    private fun contextWithout(vararg absentPackages: String): AnnotationConfigApplicationContext {
-        val classLoader = WithoutPackagesClassLoader(javaClass.classLoader, absentPackages.toList())
-        return AnnotationConfigApplicationContext().apply {
-            setClassLoader(classLoader)
-            beanFactory.beanClassLoader = classLoader
-            registerBeanDefinition(
-                AgentByokAutoConfiguration::class.java.name,
-                GenericBeanDefinition().apply { beanClassName = AgentByokAutoConfiguration::class.java.name },
-            )
-            refresh()
-        }
-    }
-
-    @Test
-    fun `the platform resolves a role through a user's key using the shipped factory`() {
+    fun `the model provider resolves a role through a user's key using the shipped platform`() {
         /*
          * The end-to-end case the issue is actually about, and the only test here that exercises
          * the wiring rather than the beans: a pure BYOK deployment, a role configured per provider,
          * a key on the call context - and a real service, with no application code registering
-         * anything. Every other test in this class would still pass if the platform never consulted
+         * anything. Every other test in this class would still pass if the model provider never consulted
          * these beans at all.
          */
         contextRunner.run { context ->
-            val modelProvider = pureByokProviderUsing(factoriesIn(context))
+            val modelProvider = pureByokProviderUsing(platformsIn(context))
 
             val llm = ModelSelectionContextHolder.with(contextWithOpenAiKey()) {
                 modelProvider.getLlm(ByRoleModelSelectionCriteria(CHEAPEST_ROLE))
@@ -394,22 +341,24 @@ class CredentialEndpointConfigTest {
     }
 
     @Test
-    fun `the platform caches the built service, so the factory need not`() {
+    fun `the model provider caches the built service, so the model platform need not`() {
         /*
-         * Pins the reason these beans deliberately hold no cache of their own. The platform already
+         * Pins the reason these beans deliberately hold no cache of their own. The model provider already
          * caches per (provider, key, model) behind a bounded LRU; a cache in the bean would be a
          * second, unbounded one holding a service per key the deployment has ever seen. If the
-         * platform ever stopped caching, this fails and the decision gets revisited - rather than
+         * model provider ever stopped caching, this fails and the decision gets revisited - rather than
          * every BYOK deployment quietly rebuilding a client on every call.
          */
         val builds = AtomicInteger()
-        val counting = CredentialModelFactory.of(LlmService.KIND) { credential, model ->
-            if (!credential.provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) null
-            else {
-                builds.incrementAndGet()
-                SpringAiLlmService(name = model, provider = OpenAiModels.PROVIDER, chatModel = SetupRequiredChatModel())
+        val counting = ModelPlatform.builder()
+            .builds(LlmService.KIND) { credential, model ->
+                if (!credential.provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) null
+                else {
+                    builds.incrementAndGet()
+                    SpringAiLlmService(name = model, provider = OpenAiModels.PROVIDER, chatModel = SetupRequiredChatModel())
+                }
             }
-        }
+            .build()
         val modelProvider = pureByokProviderUsing(listOf(counting))
 
         repeat(3) {
@@ -425,7 +374,7 @@ class CredentialEndpointConfigTest {
      * A pure BYOK deployment: the placeholder is the only registered model, and `cheapest` is
      * configured per provider so a user's key selects a model without the deployment holding one.
      */
-    private fun pureByokProviderUsing(factories: List<CredentialModelFactory<LlmService<*>>>) =
+    private fun pureByokProviderUsing(platforms: List<ModelPlatform>) =
         ConfigurableModelProvider(
             llms = listOf(SetupRequiredLlm.llmService()),
             embeddingServices = emptyList(),
@@ -437,7 +386,7 @@ class CredentialEndpointConfigTest {
                     ),
                 ),
             ),
-            credentialModelFactories = factories,
+            modelPlatforms = platforms,
         )
 
     /** The per-call context an application sets at its request boundary once a user's key is known. */
@@ -445,22 +394,24 @@ class CredentialEndpointConfigTest {
         ModelSelectionContext(credential = ProviderCredential(OpenAiModels.PROVIDER, TEST_API_KEY))
 
     /**
-     * Stands in for an application that registers its own OpenAI factory - for a proxy, or a
+     * Stands in for an application that registers its own OpenAI platform - for a proxy, or a
      * self-hosted OpenAI-compatible endpoint - under the bean name the shipped one uses, which is
      * how it takes precedence.
      */
     @Configuration(proxyBeanMethods = false)
-    class OwnOpenAiFactory {
+    class OwnOpenAiPlatform {
 
-        @Bean(OPENAI_COMPATIBLE_FACTORY_BEAN)
-        fun openAiCompatibleCredentialLlmServiceFactory() = CredentialModelFactory.of(LlmService.KIND) { credential, _ ->
-            if (!credential.provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) null
-            else SpringAiLlmService(
-                name = OVERRIDE_SERVICE_NAME,
-                provider = OpenAiModels.PROVIDER,
-                chatModel = SetupRequiredChatModel(),
-            )
-        }
+        @Bean(OPENAI_COMPATIBLE_PLATFORM_BEAN)
+        fun openAiCompatibleModelPlatform(): ModelPlatform = ModelPlatform.builder()
+            .builds(LlmService.KIND) { credential, _ ->
+                if (!credential.provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) null
+                else SpringAiLlmService(
+                    name = OVERRIDE_SERVICE_NAME,
+                    provider = OpenAiModels.PROVIDER,
+                    chatModel = SetupRequiredChatModel(),
+                )
+            }
+            .build()
     }
 
     /**
@@ -475,7 +426,7 @@ class CredentialEndpointConfigTest {
         @Test
         fun `an application adds a provider the framework does not ship`() {
             contextRunner.withUserConfiguration(OwnGatewayEndpoint::class.java).run { context ->
-                val service = build(factoriesIn(context), GATEWAY_PROVIDER, "some-model")
+                val service = build(platformsIn(context), GATEWAY_PROVIDER, "some-model")
 
                 assertThat(service?.provider).isEqualTo(GATEWAY_PROVIDER)
                 assertThat(service?.name).isEqualTo("some-model")
@@ -492,7 +443,7 @@ class CredentialEndpointConfigTest {
              * bean registration order.
              */
             contextRunner.withUserConfiguration(OwnOpenAiEndpoint::class.java).run { context ->
-                val service = build(factoriesIn(context), OpenAiModels.PROVIDER, OpenAiModels.GPT_41_MINI)
+                val service = build(platformsIn(context), OpenAiModels.PROVIDER, OpenAiModels.GPT_41_MINI)
 
                 assertThat(service?.provider).isEqualTo(PROXIED_OPENAI_PROVIDER)
             }
@@ -533,7 +484,7 @@ class CredentialEndpointConfigTest {
                 val gateway = "http://localhost:${server.address.port}"
 
                 contextRunner.withUserConfiguration(OwnGatewayEndpoint::class.java).run { context ->
-                    val service = build(factoriesIn(context), GATEWAY_PROVIDER, "some-model", gateway)
+                    val service = build(platformsIn(context), GATEWAY_PROVIDER, "some-model", gateway)
                     // The response above is not a chat completion, so the call fails - after the
                     // request has arrived, which is the whole question.
                     runCatching {
@@ -552,7 +503,7 @@ class CredentialEndpointConfigTest {
             // The Anthropic half of the resolver path: everything the endpoint states has to reach
             // the built service, or a gateway fronting Anthropic reports itself as Anthropic.
             contextRunner.withUserConfiguration(OwnAnthropicEndpoint::class.java).run { context ->
-                val service = build(factoriesIn(context), ANTHROPIC_GATEWAY_PROVIDER, "some-model")
+                val service = build(platformsIn(context), ANTHROPIC_GATEWAY_PROVIDER, "some-model")
 
                 assertThat(service?.provider).isEqualTo(ANTHROPIC_GATEWAY_PROVIDER)
                 assertThat(service?.pricingModel).isEqualTo(PricingModel.ALL_YOU_CAN_EAT)
@@ -561,18 +512,18 @@ class CredentialEndpointConfigTest {
         }
 
         @Test
-        fun `each factory builds only the protocol it speaks`() {
+        fun `each platform builds only the protocol it speaks`() {
             /*
-             * The routing this split turns on. A resolver names a wire protocol, and the factory for
+             * The routing this split turns on. A resolver names a wire protocol, and the platform for
              * the other protocol must decline rather than point a client at an endpoint it cannot
              * talk to - which, taking the first non-null answer, would otherwise depend on bean order.
              */
             contextRunner.withUserConfiguration(OwnGatewayEndpoint::class.java).run { context ->
-                val beans = context.chatModelFactories()
+                val beans = context.chatModelPlatforms()
                 val gatewayKey = ProviderCredential(GATEWAY_PROVIDER, TEST_API_KEY)
 
-                assertThat(beans.getValue(ANTHROPIC_FACTORY_BEAN).create(gatewayKey, "some-model")).isNull()
-                assertThat(beans.getValue(OPENAI_COMPATIBLE_FACTORY_BEAN).create(gatewayKey, "some-model"))
+                assertThat(beans.getValue(ANTHROPIC_PLATFORM_BEAN).model(gatewayKey, LlmService.KIND, "some-model")).isNull()
+                assertThat(beans.getValue(OPENAI_COMPATIBLE_PLATFORM_BEAN).model(gatewayKey, LlmService.KIND, "some-model"))
                     .isNotNull()
             }
         }
@@ -582,11 +533,11 @@ class CredentialEndpointConfigTest {
             // The user's own key is billed, so counting the call against the deployment's cost
             // accounting would be wrong in the one direction that matters.
             contextRunner.run { context ->
-                val factories = factoriesIn(context)
+                val platforms = platformsIn(context)
 
-                assertThat(build(factories, OpenAiModels.PROVIDER, OpenAiModels.GPT_41_MINI)?.pricingModel)
+                assertThat(build(platforms, OpenAiModels.PROVIDER, OpenAiModels.GPT_41_MINI)?.pricingModel)
                     .isEqualTo(PricingModel.ALL_YOU_CAN_EAT)
-                assertThat(build(factories, AnthropicModels.PROVIDER, AnthropicModels.CLAUDE_HAIKU_4_5)?.pricingModel)
+                assertThat(build(platforms, AnthropicModels.PROVIDER, AnthropicModels.CLAUDE_HAIKU_4_5)?.pricingModel)
                     .isEqualTo(PricingModel.ALL_YOU_CAN_EAT)
             }
         }
@@ -594,7 +545,7 @@ class CredentialEndpointConfigTest {
         @Test
         fun `a resolver declining every provider leaves the shipped ones answering`() {
             contextRunner.withUserConfiguration(OwnGatewayEndpoint::class.java).run { context ->
-                val service = build(factoriesIn(context), AnthropicModels.PROVIDER, AnthropicModels.CLAUDE_HAIKU_4_5)
+                val service = build(platformsIn(context), AnthropicModels.PROVIDER, AnthropicModels.CLAUDE_HAIKU_4_5)
 
                 assertThat(service?.provider).isEqualTo(AnthropicModels.PROVIDER)
             }
@@ -615,7 +566,7 @@ class CredentialEndpointConfigTest {
                     .withUserConfiguration(OwnGatewayEndpoint::class.java)
                     .withPropertyValues("embabel.agent.platform.models.ourgateway.read-timeout=300ms")
                     .run { context ->
-                        val service = build(factoriesIn(context), GATEWAY_PROVIDER, "slow-model", gateway)
+                        val service = build(platformsIn(context), GATEWAY_PROVIDER, "slow-model", gateway)
 
                         assertFailsWithinTenSeconds {
                             service?.createMessageSender(LlmOptions())?.call(listOf(UserMessage("Hi")), emptyList())
@@ -633,10 +584,10 @@ class CredentialEndpointConfigTest {
                     .withUserConfiguration(OwnGatewayEndpoint::class.java)
                     .withPropertyValues("embabel.agent.platform.models.ourgateway.read-timeout=300ms")
                     .run { context ->
-                        val factory = context.embeddingModelFactories().values.single()
+                        val platform = context.embeddingModelPlatforms().values.single()
 
                         assertFailsWithinTenSeconds {
-                            factory.create(ProviderCredential(GATEWAY_PROVIDER, TEST_API_KEY), "slow-embedding")
+                            platform.model(ProviderCredential(GATEWAY_PROVIDER, TEST_API_KEY), EmbeddingService.KIND, "slow-embedding")
                         }
                         assertThat(requests.get()).describedAs("timed-out attempts").isEqualTo(3)
                     }
@@ -651,7 +602,7 @@ class CredentialEndpointConfigTest {
                 .run { context ->
                     assertThat(context).hasNotFailed()
                     repeat(2) {
-                        val failure = runCatching { build(factoriesIn(context), GATEWAY_PROVIDER, "any-model") }
+                        val failure = runCatching { build(platformsIn(context), GATEWAY_PROVIDER, "any-model") }
                             .exceptionOrNull()
                         assertThat(failure).isInstanceOf(InvalidProviderTimeoutException::class.java)
                         assertThat((failure as InvalidProviderTimeoutException).property)
@@ -739,38 +690,5 @@ class CredentialEndpointConfigTest {
             if (!credential.provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) null
             else CredentialEndpoint.OpenAiCompatible(provider = PROXIED_OPENAI_PROVIDER, baseUrl = GATEWAY_URL)
         }
-    }
-}
-
-/**
- * Loads the BYOK configuration classes itself and refuses every class in [absentPackages], so a
- * test sees what an application without an optional provider module sees.
- *
- * [FilteredClassLoader] cannot show this. The configuration class is already loaded by the test's
- * class loader, which has both provider modules, so the types named in its method signatures
- * resolve there whatever the filter says.
- */
-private class WithoutPackagesClassLoader(
-    parent: ClassLoader,
-    private val absentPackages: List<String>,
-) : ClassLoader(parent) {
-
-    private val ownPackages = listOf(
-        "com.embabel.agent.config.models.byok.",
-        "com.embabel.agent.autoconfigure.models.byok.",
-    )
-
-    override fun loadClass(name: String, resolve: Boolean): Class<*> = synchronized(getClassLoadingLock(name)) {
-        when {
-            absentPackages.any(name::startsWith) -> throw ClassNotFoundException(name)
-            ownPackages.none(name::startsWith) -> super.loadClass(name, resolve)
-            else -> findLoadedClass(name) ?: defineOwn(name)
-        }
-    }
-
-    private fun defineOwn(name: String): Class<*> {
-        val bytes = parent.getResourceAsStream(name.replace('.', '/') + ".class")?.use { it.readBytes() }
-            ?: throw ClassNotFoundException(name)
-        return defineClass(name, bytes, 0, bytes.size)
     }
 }

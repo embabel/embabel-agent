@@ -23,8 +23,8 @@ import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.CredentialEndpoint
 import com.embabel.common.ai.model.CredentialEndpointResolver
-import com.embabel.common.ai.model.CredentialModelFactory
 import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.ModelPlatform
 import com.embabel.common.ai.model.ProviderCredential
 import com.embabel.common.util.loggerFor
 import org.springframework.beans.factory.ObjectProvider
@@ -44,10 +44,11 @@ private const val MODELS_PREFIX = "embabel.agent.platform.models"
 
 /**
  * Makes per-user keys work with nothing on the classpath but `embabel-agent-starter-byok`: one
- * chat [CredentialModelFactory] per wire protocol, each turning an endpoint of that protocol into
- * a client for the user's own key.
+ * [ModelPlatform] per wire protocol, each turning an endpoint of that protocol into clients for
+ * the user's own key. The OpenAI-compatible platform builds chat and embedding models; the
+ * Anthropic platform builds chat models only, because Anthropic has no embedding API.
  *
- * Where a key is sent is decided before that, and an application can decide it: each factory asks
+ * Where a key is sent is decided before that, and an application can decide it: each platform asks
  * the registered [CredentialEndpointResolver] beans first and falls back to what this module knows
  * about the provider. So adding a provider - or overriding a shipped one's base URL - is a resolver
  * returning a value, with nothing from `com.embabel.agent.spi` in it, because a gateway speaking
@@ -58,8 +59,8 @@ private const val MODELS_PREFIX = "embabel.agent.platform.models"
  * and Atlas Cloud - the whole BYOK surface. A deployment using any of them writes nothing at all.
  *
  * Without these, a [com.embabel.common.ai.model.RoleResolution.Credential] fails with
- * `NoSuitableModelException` until the application registers a factory of its own - and that
- * factory is a call to the provider module's own factory, already on the classpath. Every
+ * `NoSuitableModelException` until the application registers a platform of its own - and that
+ * platform is a call to the provider module's own factory, already on the classpath. Every
  * application that has needed one has written the same `when` over provider names, each copy a
  * place to get a provider name's casing wrong or fall behind a factory signature change, and each
  * failing at runtime rather than at compile time.
@@ -69,10 +70,9 @@ private const val MODELS_PREFIX = "embabel.agent.platform.models"
  * autoconfiguration - `embabel-agent-starter-byok` bans it - but it does have the factories.
  *
  * No services are cached here. [com.embabel.common.ai.model.ConfigurableModelProvider] already
- * caches what a factory returns per (provider, key, model) behind a bounded LRU, so a cache here
+ * caches what a platform returns per (provider, key, model) behind a bounded LRU, so a cache here
  * would be a second, unbounded one holding a service per key the deployment has ever seen. The one
- * cache, in [OpenAiTimeouts], holds bound timeouts per provider, which is bounded by the number of
- * providers.
+ * cache here holds bound timeouts per provider, which is bounded by the number of providers.
  */
 @Configuration(proxyBeanMethods = false)
 class CredentialEndpointConfig @Autowired constructor(
@@ -87,119 +87,126 @@ class CredentialEndpointConfig @Autowired constructor(
 
     private val logger = loggerFor<CredentialEndpointConfig>()
 
-    /**
-     * Created on first use, by an OpenAI bean only, so an application without `embabel-agent-openai`
-     * never constructs it.
-     */
-    private val openAiTimeouts by lazy { OpenAiTimeouts(environment) }
+    private val timeoutsByPrefix = ConcurrentHashMap<String, OpenAiClientTimeouts>()
 
     /**
-     * Builds anything routed to Anthropic's protocol, whoever routed it there.
+     * Builds chat models for anything routed to Anthropic's protocol, whoever routed it there.
      *
-     * Declines every other protocol rather than answering for it, so the factory for that protocol
-     * gets its turn - the same contract a hand-written chat [CredentialModelFactory] follows for a
-     * provider it does not handle.
+     * Returns null for every other protocol, so the platform for that protocol gets its turn - the
+     * same contract a hand-written [ModelPlatform] follows for a provider it does not handle.
+     *
+     * Chat only: Anthropic has no embedding API, so an Anthropic key asked for an embedding model
+     * gets none here rather than somebody else's model.
      */
-    @Bean("anthropicCredentialLlmServiceFactory")
+    @Bean(ANTHROPIC_MODEL_PLATFORM)
     @ConditionalOnClass(AnthropicModelFactory::class)
-    @ConditionalOnMissingBean(name = ["anthropicCredentialLlmServiceFactory"])
-    fun anthropicCredentialLlmServiceFactory(
+    @ConditionalOnMissingBean(name = [ANTHROPIC_MODEL_PLATFORM])
+    fun anthropicModelPlatform(
         resolvers: ObjectProvider<CredentialEndpointResolver>,
-    ): CredentialModelFactory<LlmService<*>> {
+    ): ModelPlatform {
         logger.info(
-            "Per-user keys can build a service over Anthropic's protocol, for provider '{}' or any a CredentialEndpointResolver routes there",
+            "Per-user keys can build a chat service over Anthropic's protocol, for provider '{}' or any a CredentialEndpointResolver routes there",
             AnthropicModels.PROVIDER,
         )
-        return CredentialModelFactory.of(LlmService.KIND) { credential, model ->
-            val endpoint = resolvedByApplication(resolvers, credential, model) ?: anthropicEndpointFor(credential)
-            (endpoint as? CredentialEndpoint.Anthropic)?.let {
-                AnthropicModelFactory(apiKey = credential.apiKey, baseUrl = it.baseUrl)
-                    .build(
-                        model = model,
-                        provider = it.provider,
-                        pricingModel = it.pricingModel,
-                        knowledgeCutoffDate = it.knowledgeCutoffDate,
-                    )
+        return ModelPlatform.builder()
+            .builds(LlmService.KIND) { credential, model ->
+                // The application's resolvers decide first; Anthropic's own endpoint is used only for its own key.
+                val endpoint = resolvedByApplication(resolvers, credential, model) ?: anthropicEndpointFor(credential)
+                // Null when the endpoint speaks another protocol, so that protocol's platform answers.
+                (endpoint as? CredentialEndpoint.Anthropic)?.let {
+                    AnthropicModelFactory(apiKey = credential.apiKey, baseUrl = it.baseUrl)
+                        .build(
+                            model = model,
+                            provider = it.provider,
+                            pricingModel = it.pricingModel,
+                            knowledgeCutoffDate = it.knowledgeCutoffDate,
+                        )
+                }
             }
-        }
+            .build()
     }
 
     /**
-     * The same for the OpenAI wire protocol.
+     * Builds chat and embedding models for anything routed to the OpenAI wire protocol.
      *
-     * Builds without validating. The probe that [OpenAiCompatibleModelFactory.buildValidated] makes
-     * belongs where a user first supplies a key, not here: this runs on every cache miss, and it
-     * would validate against the spec's own validation model rather than the one the role asked for.
+     * Both kinds find the endpoint the same way, through [openAiCompatibleEndpoint], so a
+     * [CredentialEndpointResolver] that routes a provider here routes both its chat and its
+     * embedding models.
+     *
+     * Chat models are built without validating. The probe that
+     * [OpenAiCompatibleModelFactory.buildValidated] makes belongs where a user first supplies a
+     * key, not here: this runs on every cache miss, and it would validate against the spec's own
+     * validation model rather than the one the role asked for.
+     *
+     * Embedding models ARE validated. A chat model that turns out to be wrong fails the call that
+     * used it and nothing else. An embedding service states a WIDTH, and that width becomes the
+     * shape of a vector index - so one built on an unverified assumption is an index that accepts
+     * writes no later model agrees with, and the damage is silent and durable.
+     * [OpenAiCompatibleModelFactory.buildValidatedEmbeddingService] observes the dimension the
+     * provider actually returns. The cost is one probe per (provider, key, model), since the
+     * platform caches what this returns.
      */
-    @Bean("openAiCompatibleCredentialLlmServiceFactory")
+    @Bean(OPENAI_COMPATIBLE_MODEL_PLATFORM)
     @ConditionalOnClass(OpenAiCompatibleModelFactory::class)
-    @ConditionalOnMissingBean(name = ["openAiCompatibleCredentialLlmServiceFactory"])
-    fun openAiCompatibleCredentialLlmServiceFactory(
+    @ConditionalOnMissingBean(name = [OPENAI_COMPATIBLE_MODEL_PLATFORM])
+    fun openAiCompatibleModelPlatform(
         resolvers: ObjectProvider<CredentialEndpointResolver>,
-    ): CredentialModelFactory<LlmService<*>> {
+    ): ModelPlatform {
         logger.info(
-            "Per-user keys can build a service over the OpenAI protocol, for any provider {} knows or a CredentialEndpointResolver routes there",
+            "Per-user keys can build chat and embedding services over the OpenAI protocol, for any provider {} knows or a CredentialEndpointResolver routes there",
             OpenAiCompatibleModelFactory::class.java.simpleName,
         )
-        return CredentialModelFactory.of(LlmService.KIND) { credential, model ->
-            val endpoint = resolvedByApplication(resolvers, credential, model) ?: openAiCompatibleEndpointFor(credential)
-            (endpoint as? CredentialEndpoint.OpenAiCompatible)?.let {
-                OpenAiCompatibleModelFactory(
-                    baseUrl = it.baseUrl,
-                    apiKey = credential.apiKey,
-                    timeouts = openAiTimeouts.forProvider(it.provider),
-                )
-                    .openAiCompatibleLlm(
-                        model = model,
-                        pricingModel = it.pricingModel,
-                        provider = it.provider,
-                        knowledgeCutoffDate = it.knowledgeCutoffDate,
-                    )
+        return ModelPlatform.builder()
+            .builds(LlmService.KIND) { credential, model ->
+                openAiCompatibleEndpoint(resolvers, credential, model)?.let {
+                    openAiCompatibleFactory(it, credential)
+                        .openAiCompatibleLlm(
+                            model = model,
+                            pricingModel = it.pricingModel,
+                            provider = it.provider,
+                            knowledgeCutoffDate = it.knowledgeCutoffDate,
+                        )
+                }
             }
-        }
+            .builds(EmbeddingService.KIND) { credential, model ->
+                openAiCompatibleEndpoint(resolvers, credential, model)?.let {
+                    openAiCompatibleFactory(it, credential)
+                        .buildValidatedEmbeddingService(
+                            model = model,
+                            provider = it.provider,
+                            pricingModel = it.pricingModel,
+                        )
+                }
+            }
+            .build()
     }
 
     /**
-     * Embedding services from a per-user key, over the OpenAI protocol.
+     * The OpenAI-compatible endpoint for [credential], or null if it is routed to another protocol
+     * or is a provider nothing knows.
      *
-     * One factory rather than one per protocol, because embedding has one protocol worth speaking:
-     * Anthropic has no embedding API at all, so there is deliberately no Anthropic counterpart -
-     * an Anthropic-keyed deployment declines rather than being handed somebody else's model.
-     *
-     * UNLIKE THE LLM FACTORIES ABOVE, THIS VALIDATES. They build without probing, because a chat
-     * model that turns out to be wrong fails the call that used it and nothing else. An embedding
-     * service states a WIDTH, and that width becomes the shape of a vector index - so one built on
-     * an unverified assumption is an index that accepts writes no later model agrees with, and the
-     * damage is silent and durable. [OpenAiCompatibleModelFactory.buildValidatedEmbeddingService]
-     * observes the dimension the provider actually returns. The cost is one probe per
-     * (provider, key, model), since the platform caches what this returns.
+     * The application's resolvers decide first; the endpoints `embabel-agent-openai` knows are used
+     * only when none of them answers.
      */
-    @Bean("openAiCompatibleCredentialEmbeddingServiceFactory")
-    @ConditionalOnClass(OpenAiCompatibleModelFactory::class)
-    @ConditionalOnMissingBean(name = ["openAiCompatibleCredentialEmbeddingServiceFactory"])
-    fun openAiCompatibleCredentialEmbeddingServiceFactory(
+    private fun openAiCompatibleEndpoint(
         resolvers: ObjectProvider<CredentialEndpointResolver>,
-    ): CredentialModelFactory<EmbeddingService> {
-        logger.info(
-            "Per-user keys can build an embedding service over the OpenAI protocol, for any provider {} knows or a CredentialEndpointResolver routes there",
-            OpenAiCompatibleModelFactory::class.java.simpleName,
+        credential: ProviderCredential,
+        model: String,
+    ): CredentialEndpoint.OpenAiCompatible? =
+        (resolvedByApplication(resolvers, credential, model) ?: openAiCompatibleEndpointFor(credential))
+            // Null when the endpoint speaks another protocol, so that protocol's platform answers.
+            as? CredentialEndpoint.OpenAiCompatible
+
+    /** A client factory for [endpoint], authenticated with the user's key and the provider's configured timeouts. */
+    private fun openAiCompatibleFactory(
+        endpoint: CredentialEndpoint.OpenAiCompatible,
+        credential: ProviderCredential,
+    ): OpenAiCompatibleModelFactory =
+        OpenAiCompatibleModelFactory(
+            baseUrl = endpoint.baseUrl,
+            apiKey = credential.apiKey,
+            timeouts = timeoutsFor(endpoint.provider),
         )
-        return CredentialModelFactory.of(EmbeddingService.KIND) { credential, model ->
-            val endpoint = resolvedByApplication(resolvers, credential, model) ?: openAiCompatibleEndpointFor(credential)
-            (endpoint as? CredentialEndpoint.OpenAiCompatible)?.let {
-                OpenAiCompatibleModelFactory(
-                    baseUrl = it.baseUrl,
-                    apiKey = credential.apiKey,
-                    timeouts = openAiTimeouts.forProvider(it.provider),
-                )
-                    .buildValidatedEmbeddingService(
-                        model = model,
-                        provider = it.provider,
-                        pricingModel = it.pricingModel,
-                    )
-            }
-        }
-    }
 
     /**
      * What the application says, in [org.springframework.core.Ordered] order, or null if none of
@@ -207,8 +214,8 @@ class CredentialEndpointConfig @Autowired constructor(
      *
      * Read on each call rather than captured, because the ordered stream is only complete once
      * every bean is. Reached on a cache miss rather than per call, since the platform caches the
-     * service - but reached from each factory that gets a turn, so a resolver can be asked twice
-     * for one miss. Keep implementations pure and cheap, as their contract already asks.
+     * service - but reached from each model platform that gets a turn, so a resolver can be asked
+     * twice for one miss. Keep implementations pure and cheap, as their contract already asks.
      */
     private fun resolvedByApplication(
         resolvers: ObjectProvider<CredentialEndpointResolver>,
@@ -217,7 +224,48 @@ class CredentialEndpointConfig @Autowired constructor(
     ): CredentialEndpoint? =
         resolvers.orderedStream().toList().firstNotNullOfOrNull { it.resolve(credential, model) }
 
+    /**
+     * The timeouts configured for [provider], under the same prefix its platform configuration
+     * uses - `embabel.agent.platform.models.openai.read-timeout` applies to a user's OpenAI key as
+     * it does to the deployment's. How long a model takes depends on the endpoint, not on whose key
+     * pays for the call.
+     *
+     * Bound from the environment rather than read from the provider's properties bean, because a
+     * pure BYOK deployment has no provider autoconfiguration and so no such bean. A provider an
+     * application's resolver adds is configured the same way, under its own normalised name.
+     *
+     * Bound on the first call for a provider and cached per prefix after that, because the set of
+     * providers is open - a resolver can route to one this configuration has never heard of - so
+     * there is no list to bind eagerly at startup. The cost is that a malformed value, say
+     * `read-timeout: 5 minutes`, is not reported at startup: it surfaces on the first call for that
+     * provider, as an [InvalidProviderTimeoutException] naming the property, and on every call after
+     * it until fixed. A failed bind is not cached, and never falls back to a default.
+     */
+    private fun timeoutsFor(provider: String): OpenAiClientTimeouts =
+        timeoutsByPrefix.computeIfAbsent(timeoutPrefixFor(provider), ::bindTimeouts)
+
+    private fun bindTimeouts(prefix: String): OpenAiClientTimeouts {
+        val binder = Binder.get(environment)
+        return OpenAiClientTimeouts(
+            connect = bindDuration(binder, "$prefix.connect-timeout") ?: OpenAiClientTimeouts.DEFAULT_CONNECT,
+            read = bindDuration(binder, "$prefix.read-timeout"),
+        )
+    }
+
+    private fun bindDuration(binder: Binder, property: String): Duration? =
+        try {
+            binder.bind(property, Duration::class.java).orElse(null)
+        } catch (e: BindException) {
+            throw InvalidProviderTimeoutException(property, e)
+        }
+
     internal companion object {
+
+        /** Bean name of the shipped Anthropic platform. A bean of this name replaces it. */
+        const val ANTHROPIC_MODEL_PLATFORM = "anthropicModelPlatform"
+
+        /** Bean name of the shipped OpenAI-compatible platform. A bean of this name replaces it, for chat and embedding. */
+        const val OPENAI_COMPATIBLE_MODEL_PLATFORM = "openAiCompatibleModelPlatform"
 
         /**
          * `Mistral AI` becomes `embabel.agent.platform.models.mistralai`, matching the provider
@@ -256,53 +304,5 @@ class CredentialEndpointConfig @Autowired constructor(
     private fun openAiCompatibleEndpointFor(credential: ProviderCredential): CredentialEndpoint? =
         OpenAiCompatibleModelFactory.endpointFor(credential.provider)?.let {
             CredentialEndpoint.OpenAiCompatible(provider = it.provider, baseUrl = it.baseUrl)
-        }
-}
-
-/**
- * Timeouts bound per provider, for the OpenAI beans only.
- *
- * Not part of [CredentialEndpointConfig], because these signatures name `embabel-agent-openai`
- * types, which is an optional dependency. Spring reads every method signature of a configuration
- * class when it creates a bean from it, so an OpenAI type there stops an application without that
- * module from starting, whatever `@ConditionalOnClass` says.
- */
-private class OpenAiTimeouts(private val environment: Environment) {
-
-    private val timeoutsByPrefix = ConcurrentHashMap<String, OpenAiClientTimeouts>()
-
-    /**
-     * The timeouts configured for [provider], under the same prefix its platform configuration
-     * uses - `embabel.agent.platform.models.openai.read-timeout` applies to a user's OpenAI key as
-     * it does to the deployment's. How long a model takes depends on the endpoint, not on whose key
-     * pays for the call.
-     *
-     * Bound from the environment rather than read from the provider's properties bean, because a
-     * pure BYOK deployment has no provider autoconfiguration and so no such bean. A provider an
-     * application's resolver adds is configured the same way, under its own normalised name.
-     *
-     * Bound on the first call for a provider and cached per prefix after that, because the set of
-     * providers is open - a resolver can route to one this configuration has never heard of - so
-     * there is no list to bind eagerly at startup. The cost is that a malformed value, say
-     * `read-timeout: 5 minutes`, is not reported at startup: it surfaces on the first call for that
-     * provider, as an [InvalidProviderTimeoutException] naming the property, and on every call after
-     * it until fixed. A failed bind is not cached, and never falls back to a default.
-     */
-    fun forProvider(provider: String): OpenAiClientTimeouts =
-        timeoutsByPrefix.computeIfAbsent(CredentialEndpointConfig.timeoutPrefixFor(provider), ::bindTimeouts)
-
-    private fun bindTimeouts(prefix: String): OpenAiClientTimeouts {
-        val binder = Binder.get(environment)
-        return OpenAiClientTimeouts(
-            connect = bindDuration(binder, "$prefix.connect-timeout") ?: OpenAiClientTimeouts.DEFAULT_CONNECT,
-            read = bindDuration(binder, "$prefix.read-timeout"),
-        )
-    }
-
-    private fun bindDuration(binder: Binder, property: String): Duration? =
-        try {
-            binder.bind(property, Duration::class.java).orElse(null)
-        } catch (e: BindException) {
-            throw InvalidProviderTimeoutException(property, e)
         }
 }
