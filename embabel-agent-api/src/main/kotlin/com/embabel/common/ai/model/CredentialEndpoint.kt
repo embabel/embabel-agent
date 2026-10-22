@@ -22,7 +22,7 @@ import java.time.LocalDate
  *
  * A value rather than a service: the application states which endpoint speaks for a provider, and
  * the platform builds the client, so nothing here names a type from `com.embabel.agent.spi`. That
- * is the point - [CredentialLlmServiceFactory] is the other way round, and requires a package the
+ * is the point - a [ModelPlatform] that builds chat is the other way round, and requires a package the
  * documentation asks application code not to depend on.
  *
  * The case is the wire protocol, because that is what decides which client can talk to the
@@ -37,7 +37,7 @@ import java.time.LocalDate
  * whoever adds one has to add that client too. Sealed so that the two stay together: an open
  * hierarchy would let an application define a case nothing here can build, and it would fail at
  * runtime with a key already in hand. Until such a protocol is shipped, reach it by registering a
- * [CredentialLlmServiceFactory] and building the service yourself, accepting the SPI dependency
+ * [ModelPlatform] that builds chat and building the service yourself, accepting the SPI dependency
  * that carries.
  */
 sealed interface CredentialEndpoint {

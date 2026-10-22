@@ -15,11 +15,10 @@
  */
 package com.embabel.common.ai.model.local
 
-import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.ConfigurableModelProvider
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
-import com.embabel.common.ai.model.EmbeddingRoleResolver
-import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.ModelCapability
+import com.embabel.common.ai.model.ModelKind
 import com.embabel.common.ai.model.ModelMetadata
 import com.embabel.common.ai.model.RoleResolver
 import com.embabel.common.util.loggerFor
@@ -30,11 +29,9 @@ import java.util.concurrent.atomic.AtomicReference
  * What a [LocalModelSource] is serving, cached for long enough that asking is not an HTTP round
  * trip per embedding.
  *
- * Shared by [LocalModelRoleResolver] and [LocalModelEmbeddingRoleResolver] rather than held by
- * each, because the two answer from ONE runner and a runner asked twice per call is the cost this
- * class exists to avoid. They are separate classes only because `RoleResolver.resolve` and
- * `EmbeddingRoleResolver.resolve` take the same arguments and return different types, so one class
- * cannot implement both.
+ * Shared by the [LocalModelRoleResolver] of every kind rather than held by each, because they
+ * answer from ONE runner and a runner asked once per kind per call is the cost this class exists to
+ * avoid.
  *
  * Elapsed time here is [System.nanoTime], not a clock: this measures how long ago the runner was
  * asked, which must survive an NTP step mid-interval. [ticker] is a parameter so a test can drive
@@ -67,14 +64,16 @@ class LocalModelCatalog(
     override val lateArrivingProvider: String? get() = source.provider.takeIf { discovery.enabled }
 
     /**
-     * Services built for models this catalog reported, held for the life of the process.
+     * Models built for models this catalog reported, by kind and name, held for the life of the
+     * process.
      *
-     * Unbounded, unlike the credential caches in [ConfigurableModelProvider], and safely so: the
+     * Unbounded, unlike the credential cache in [ConfigurableModelProvider], and safely so: the
      * key space is the set of models one local runner serves, which is bounded by that machine's
      * disk rather than by how many users have ever supplied a key.
      */
-    private val llmServices = ConcurrentHashMap<String, LlmService<*>>()
-    private val embeddingServices = ConcurrentHashMap<String, EmbeddingService>()
+    private val built = ConcurrentHashMap<BuiltKey, ModelCapability>()
+
+    private data class BuiltKey(val kind: ModelKind<*, *>, val model: String)
 
     private val snapshot = AtomicReference<Snapshot?>(null)
 
@@ -121,7 +120,7 @@ class LocalModelCatalog(
      * or the runner is unreachable - a listing that cannot be taken says nothing rather than
      * failing the call that asked.
      */
-    fun servedNames(kind: LocalModelKind): Set<String> {
+    fun servedNames(kind: ModelKind<*, *>): Set<String> {
         if (!discovery.enabled) {
             return emptySet()
         }
@@ -129,38 +128,31 @@ class LocalModelCatalog(
     }
 
     /**
-     * A chat service for [model] if the runner is serving it AS a chat model, or null.
+     * A model of [kind] for [model] if the runner is serving it AS that kind, or null.
      *
      * Kind is decisive here and nowhere else: a caller naming a model has given no other signal for
-     * which of the two lists it meant, and answering an embedding request with a chat model - or
-     * the reverse - is worse than declining.
+     * which listing it meant, and answering an embedding request with a chat model - or the
+     * reverse - is worse than declining.
      */
-    fun llmNamed(model: String): LlmService<*>? =
-        served(model)?.takeIf { it.kind == LocalModelKind.CHAT }?.let { llmService(model) }
-
-    /** An embedding service for [model] if the runner is serving it AS an embedding model. */
-    fun embeddingNamed(model: String): EmbeddingService? =
-        served(model)?.takeIf { it.kind == LocalModelKind.EMBEDDING }?.let { embeddingService(model) }
+    fun <C : ModelCapability> named(kind: ModelKind<C, *>, model: String): C? =
+        served(model)?.takeIf { it.kind == kind }?.let { model(kind, model) }
 
     /**
-     * A chat service for [model], built once and then reused.
+     * A model of [kind] for [model], built once and then reused.
      *
-     * Read then put rather than `computeIfAbsent`, for the reason the credential caches give:
+     * Read then put rather than `computeIfAbsent`, for the reason the credential cache gives:
      * building can reach the runner, and holding a map bin's lock across that would block
-     * unrelated lookups. A race costs one redundant build and never a wrong service.
+     * unrelated lookups. A race costs one redundant build and never a wrong model.
      */
-    fun llmService(model: String): LlmService<*>? =
-        llmServices[model] ?: source.llmService(model)?.also {
-            llmServices[model] = it
-            logBuilt("chat", model)
+    fun <C : ModelCapability> model(kind: ModelKind<C, *>, model: String): C? {
+        val key = BuiltKey(kind, model)
+        // The key includes the kind, so a cached entry was built as that kind and the cast holds.
+        built[key]?.let { return kind.capability.cast(it) }
+        return source.model(kind, model)?.also {
+            built[key] = it
+            logBuilt(kind.name, model)
         }
-
-    /** An embedding service for [model], built once and then reused, on the same terms. */
-    fun embeddingService(model: String): EmbeddingService? =
-        embeddingServices[model] ?: source.embeddingService(model)?.also {
-            embeddingServices[model] = it
-            logBuilt("embedding", model)
-        }
+    }
 
     /**
      * Once per model: the moment a runner's model first became usable in this process, which is
@@ -203,7 +195,7 @@ class LocalModelCatalog(
 /**
  * Declares that a named provider's models may appear AFTER startup.
  *
- * Implemented alongside [RoleResolver] or [EmbeddingRoleResolver], or by a [LocalModelCatalog],
+ * Implemented alongside a [RoleResolver], or by a [LocalModelCatalog],
  * whichever object knows. It says nothing about how a role resolves; it answers a different
  * question, which only startup validation asks: is a role naming an unregistered model under this
  * provider a typo, or a model that has not arrived yet?

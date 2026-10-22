@@ -24,7 +24,7 @@ import org.jetbrains.annotations.ApiStatus
  * @param S the family's service type
  */
 @ApiStatus.Experimental
-interface ServiceSelector<S : ModelMetadata> {
+interface ServiceSelector<S : ModelCapability> {
 
     /**
      * Returns the family default service.

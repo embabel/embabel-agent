@@ -19,20 +19,19 @@ import com.embabel.agent.api.models.DockerLocalModels.Companion.PROVIDER
 import com.embabel.agent.config.models.docker.DockerRetryProperties.Companion.PREFIX
 import com.embabel.agent.openai.OpenAiChatOptionsConverter
 import com.embabel.agent.openai.OpenAiCompatibleClientProperties
+import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.*
+import com.embabel.common.ai.model.local.ChatAndEmbeddingModelSource
 import com.embabel.common.ai.model.local.DiscoveryFailureReporter
 import com.embabel.common.ai.model.local.LocalModel
 import com.embabel.common.ai.model.local.LocalModelBeans
 import com.embabel.common.ai.model.local.LocalModelCatalog
 import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
-import com.embabel.common.ai.model.local.LocalModelEmbeddingRoleResolver
-import com.embabel.common.ai.model.local.LocalModelKind
 import com.embabel.common.ai.model.local.LocalModelRoleResolver
-import com.embabel.common.ai.model.local.LocalModelSource
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.openai.client.OpenAIClient
 import com.openai.client.OpenAIClientAsync
@@ -258,9 +257,12 @@ class DockerLocalModelsConfig(
      * Docker models are open AI compatible
      */
     private fun dockerModelOf(model: Model): AiModel<*> =
-        when (kindOf(model.id)) {
-            LocalModelKind.EMBEDDING -> dockerEmbeddingServiceOf(model.id)
-            LocalModelKind.CHAT -> dockerLlmOf(model.id)
+        // kindFromConfiguration returns one of the two shipped constants, so comparing with the
+        // embedding kind is enough: every other model is registered as chat.
+        if (kindOf(model.id) == EmbeddingService.KIND) {
+            dockerEmbeddingServiceOf(model.id)
+        } else {
+            dockerLlmOf(model.id)
         }
 
     /**
@@ -270,8 +272,8 @@ class DockerLocalModelsConfig(
      * what startup registration here applies. One function, so a model cannot land in one category
      * at boot and the other when pulled later.
      */
-    private fun kindOf(modelName: String): LocalModelKind =
-        LocalModelKind.fromConfiguration(modelName, properties)
+    private fun kindOf(modelName: String): ModelKind<*, *> =
+        LocalModel.kindFromConfiguration(modelName, properties)
 
     private fun dockerEmbeddingServiceOf(modelId: String): SpringAiEmbeddingService {
         val springEmbeddingModel = OpenAiEmbeddingModel.builder()
@@ -320,16 +322,16 @@ class DockerLocalModelsConfig(
      * what arrives AFTER: `docker model pull` followed by a request is enough, with no restart and
      * no distinction from a model that was already there.
      */
-    private inner class DockerModelSource : LocalModelSource {
+    private inner class DockerModelSource : ChatAndEmbeddingModelSource() {
 
         override val provider: String = PROVIDER
 
         override fun servedModels(): Set<LocalModel> =
             loadModels().map { LocalModel(name = it.id, kind = kindOf(it.id)) }.toSet()
 
-        override fun llmService(model: String) = dockerLlmOf(model)
+        override fun chatModel(model: String): LlmService<*> = dockerLlmOf(model)
 
-        override fun embeddingService(model: String) = dockerEmbeddingServiceOf(model)
+        override fun embeddingModel(model: String): EmbeddingService = dockerEmbeddingServiceOf(model)
     }
 
     /**
@@ -347,9 +349,10 @@ class DockerLocalModelsConfig(
     fun dockerLocalModelCatalog(): LocalModelCatalog = localModelBeans.catalog
 
     @Bean
-    fun dockerLocalModelRoleResolver(): LocalModelRoleResolver = localModelBeans.roleResolver
+    fun dockerLocalModelRoleResolver(): LocalModelRoleResolver<LlmService<*>, LlmOptions> =
+        localModelBeans.chatRoleResolver
 
     @Bean
-    fun dockerLocalModelEmbeddingRoleResolver(): LocalModelEmbeddingRoleResolver =
+    fun dockerLocalModelEmbeddingRoleResolver(): LocalModelRoleResolver<EmbeddingService, ModelName> =
         localModelBeans.embeddingRoleResolver
 }
