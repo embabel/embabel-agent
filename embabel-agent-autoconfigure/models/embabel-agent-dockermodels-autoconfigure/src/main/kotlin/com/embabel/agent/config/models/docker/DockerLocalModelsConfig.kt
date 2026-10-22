@@ -26,10 +26,10 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.*
+import com.embabel.common.ai.model.local.ChatAndEmbeddingModelSource
 import com.embabel.common.ai.model.local.DiscoveryFailureReporter
 import com.embabel.common.ai.model.local.LocalModel
 import com.embabel.common.ai.model.local.LocalModelBeans
-import com.embabel.common.ai.model.local.ChatAndEmbeddingModelSource
 import com.embabel.common.ai.model.local.LocalModelCatalog
 import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
 import com.embabel.common.ai.model.local.LocalModelRoleResolver
@@ -258,6 +258,8 @@ class DockerLocalModelsConfig(
      * Docker models are open AI compatible
      */
     private fun dockerModelOf(model: Model): AiModel<*> =
+        // kindFromConfiguration returns one of the two shipped constants, so an identity check
+        // against the embedding kind is enough: every other model is registered as chat.
         if (kindOf(model.id) === EmbeddingService.KIND) {
             dockerEmbeddingServiceOf(model.id)
         } else {

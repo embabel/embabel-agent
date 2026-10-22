@@ -33,9 +33,8 @@ sealed interface RoleResolution<out C : ModelCapability, out B : RoleBinding> {
      * A configured binding: a model name, and for chat the hyperparameters that travel with the
      * role. Values the caller set explicitly still win.
      *
-     * The wrapper is what makes this a case rather than a payload. Returning a bare binding would
-     * leave the platform unable to tell "resolved to a binding" from the other two answers in a
-     * `when`, and would rule out ever adding a field to this case without changing every
+     * The binding is wrapped so that the platform can tell this case apart from the other two in a
+     * `when`, and so that a field can be added to this case later without changing every
      * resolver's signature.
      */
     data class Bound<out B : RoleBinding>(
@@ -57,7 +56,7 @@ sealed interface RoleResolution<out C : ModelCapability, out B : RoleBinding> {
      * model does not have to give up the tuning configured beside the model name. Null for a
      * resolver handing back a model it configured itself.
      */
-    data class Service<out C : ModelCapability, out B : RoleBinding>(
+    data class Service<out C : ModelCapability, out B : RoleBinding> @JvmOverloads constructor(
         val service: C,
         val binding: B? = null,
     ) : RoleResolution<C, B>
@@ -83,6 +82,17 @@ sealed interface RoleResolution<out C : ModelCapability, out B : RoleBinding> {
  *   your resolvers can answer the same role, order them explicitly.
  *
  * Implementations must be thread-safe: one instance serves every call, on any thread.
+ *
+ * ```kotlin
+ * @Bean
+ * fun byokRoleResolver(userKeyStore: UserKeyStore): RoleResolver<LlmService<*>, LlmOptions> =
+ *     RoleResolver.of(LlmService.KIND) { _, context ->
+ *         // Use the user's own key when they have one; null lets configuration decide.
+ *         context.userId
+ *             ?.let { userKeyStore.activeKeyFor(it) }
+ *             ?.let { RoleResolution.Credential(ProviderCredential(it.provider, it.apiKey)) }
+ *     }
+ * ```
  *
  * @param C the capability of the kind this resolver answers for
  * @param B what a role of that kind binds to
@@ -129,17 +139,27 @@ private class FunctionRoleResolver<C : ModelCapability, B : RoleBinding>(
  * Builds a model of one [ModelKind] from a user-supplied key, for a wire protocol the framework has
  * no client for.
  *
- * The second of two tiers for chat, and the one to reach for last: a chat factory names
- * [com.embabel.agent.spi.LlmService], which lives in `com.embabel.agent.spi` - a package
- * application code is asked not to depend on. Adding a chat provider that speaks the OpenAI or
- * Anthropic protocol - which is nearly all of them - is a [CredentialEndpointResolver] returning a
- * value instead, with no SPI type in sight.
+ * For chat, use this only when a [CredentialEndpointResolver] cannot do the job. A chat factory
+ * returns [com.embabel.agent.spi.LlmService], which is in the `com.embabel.agent.spi` package, and
+ * application code is asked not to depend on that package. Most chat providers use the OpenAI or
+ * Anthropic protocol. For those, register a [CredentialEndpointResolver] that returns the endpoint;
+ * it needs no SPI type.
  *
- * `embabel-agent-starter-byok` ships an implementation per wire protocol, covering every provider
+ * `embabel-agent-starter-byok` ships one implementation per wire protocol, covering every provider
  * BYOK supports, so per-user keys work with no application code at all; see
- * `com.embabel.agent.config.models.byok.CredentialEndpointConfig`. The shipped beans stand aside
- * for a bean of the same name, but replacing one that way also replaces the code that builds what
- * [CredentialEndpointResolver]s resolve for that protocol.
+ * `com.embabel.agent.config.models.byok.CredentialEndpointConfig`. Each shipped bean is skipped
+ * when the application registers a bean with the same name. A bean registered that way also
+ * replaces the code that builds clients for the endpoints [CredentialEndpointResolver]s return for
+ * that protocol.
+ *
+ * ```kotlin
+ * @Bean
+ * fun gatewayEmbeddingFactory(): CredentialModelFactory<EmbeddingService> =
+ *     CredentialModelFactory.of(EmbeddingService.KIND) { credential, model ->
+ *         // Build only for this provider; return null so other factories handle the rest.
+ *         if (credential.provider == "gateway") GatewayEmbeddingService(credential.apiKey, model) else null
+ *     }
+ * ```
  *
  * Without a factory of the right kind that handles the provider, a role resolving to
  * [RoleResolution.Credential] fails with [NoSuitableModelException] and a log line naming the
@@ -196,8 +216,8 @@ private class FunctionCredentialModelFactory<C : ModelCapability>(
 internal fun <C : ModelCapability, B : RoleBinding> List<RoleResolver<*, *>>.ofKind(
     kind: ModelKind<C, B>,
 ): List<RoleResolver<C, B>> =
-    // The kind's identity is what its generic signature promises: a resolver holding this kind
-    // was declared RoleResolver<C, B>.
+    // Kinds are matched by identity. A resolver that holds this exact kind instance was declared
+    // RoleResolver<C, B>, so the cast is safe.
     @Suppress("UNCHECKED_CAST")
     (filter { it.kind === kind } as List<RoleResolver<C, B>>)
 
@@ -206,5 +226,7 @@ internal fun <C : ModelCapability, B : RoleBinding> List<RoleResolver<*, *>>.ofK
 internal fun <C : ModelCapability> List<CredentialModelFactory<*>>.ofKind(
     kind: ModelKind<C, *>,
 ): List<CredentialModelFactory<C>> =
+    // A factory that holds this exact kind instance was declared CredentialModelFactory<C>, so the
+    // cast is safe.
     @Suppress("UNCHECKED_CAST")
     (filter { it.kind === kind } as List<CredentialModelFactory<C>>)

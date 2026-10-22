@@ -146,6 +146,7 @@ class LocalModelCatalog(
      */
     fun <C : ModelCapability> model(kind: ModelKind<C, *>, model: String): C? {
         val key = BuiltKey(kind, model)
+        // The key includes the kind, so a cached entry was built as that kind and the cast holds.
         built[key]?.let { return kind.capability.cast(it) }
         return source.model(kind, model)?.also {
             built[key] = it

@@ -25,12 +25,12 @@ import org.springframework.core.Ordered
  * Reads [ConfiguredRoles]: the nested role, then provider, then binding map, and the flat role to
  * binding map.
  *
- * The active provider comes from [ModelSelectionContext.provider] when a user key is in play, and
- * otherwise from [defaultProviderName] - so a single-provider deployment gets the right column
- * without setting a context at all.
+ * The active provider is [ModelSelectionContext.provider] when a user key is in play, and
+ * otherwise [defaultProviderName]. A single-provider deployment therefore reads the entries for its
+ * own provider without setting a context at all.
  *
- * Falls back to the flat map, which remains the right shape for a deployment that will only ever
- * have one provider - except under a user key, for the reason [resolve] gives.
+ * When the nested map has no entry for the role under the active provider, the resolver reads the
+ * flat map instead. It does not do this under a user key, for the reason [resolve] gives.
  *
  * @param kind the kind of model this resolver answers for
  * @param roles what configuration says this kind's roles mean
