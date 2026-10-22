@@ -87,10 +87,17 @@ class CredentialEndpointConfigTest {
         const val TEST_API_KEY = "sk-test-not-a-real-key"
 
         /**
-         * Bean name of the shipped OpenAI-compatible platform, and the name an application overrides
-         * by. One bean covers every provider `embabel-agent-openai` speaks to, not OpenAI alone.
+         * Bean name of the shipped platform for OpenAI-compatible endpoints that have no named
+         * platform: those a resolver returns, and Gemini and Atlas Cloud.
          */
         const val OPENAI_COMPATIBLE_PLATFORM_BEAN = CredentialEndpointConfig.OPENAI_COMPATIBLE_MODEL_PLATFORM
+
+        /** Bean name of the shipped OpenAI platform, and the name an application overrides it by. */
+        const val OPENAI_PLATFORM_BEAN = CredentialEndpointConfig.OPENAI_MODEL_PLATFORM
+
+        const val DEEP_SEEK_PLATFORM_BEAN = CredentialEndpointConfig.DEEP_SEEK_MODEL_PLATFORM
+
+        const val MISTRAL_AI_PLATFORM_BEAN = CredentialEndpointConfig.MISTRAL_AI_MODEL_PLATFORM
 
         /** Bean name of the shipped Anthropic platform. */
         const val ANTHROPIC_PLATFORM_BEAN = CredentialEndpointConfig.ANTHROPIC_MODEL_PLATFORM
@@ -147,11 +154,17 @@ class CredentialEndpointConfigTest {
     ): LlmService<*>? = OwnGatewayEndpoint.gatewayUrl.set(gatewayUrl).let { build(platforms, provider, model) }
 
     @Test
-    fun `a platform per provider module with nothing but the starter on the classpath`() {
+    fun `a platform per named provider, plus one for other OpenAI-compatible endpoints`() {
         contextRunner.run { context ->
             assertThat(context).hasNotFailed()
-            assertThat(context.chatModelPlatforms())
-                .containsOnlyKeys(OPENAI_COMPATIBLE_PLATFORM_BEAN, ANTHROPIC_PLATFORM_BEAN)
+            // Every shipped platform builds chat, so all five are here.
+            assertThat(context.chatModelPlatforms()).containsOnlyKeys(
+                OPENAI_PLATFORM_BEAN,
+                DEEP_SEEK_PLATFORM_BEAN,
+                MISTRAL_AI_PLATFORM_BEAN,
+                ANTHROPIC_PLATFORM_BEAN,
+                OPENAI_COMPATIBLE_PLATFORM_BEAN,
+            )
         }
     }
 
@@ -256,7 +269,7 @@ class CredentialEndpointConfigTest {
          */
         contextRunner.run { context ->
             val beans = context.chatModelPlatforms()
-            val openAi = beans.getValue(OPENAI_COMPATIBLE_PLATFORM_BEAN)
+            val openAi = beans.getValue(OPENAI_PLATFORM_BEAN)
             val anthropic = beans.getValue(ANTHROPIC_PLATFORM_BEAN)
             val anthropicKey = ProviderCredential(AnthropicModels.PROVIDER, TEST_API_KEY)
             val openAiKey = ProviderCredential(OpenAiModels.PROVIDER, TEST_API_KEY)
@@ -282,12 +295,18 @@ class CredentialEndpointConfigTest {
         // override rather than add. The Anthropic platform must survive the override - which is why
         // the shipped beans back off by name rather than by type.
         contextRunner.withUserConfiguration(OwnOpenAiPlatform::class.java).run { context ->
-            assertThat(context.chatModelPlatforms())
-                .containsOnlyKeys(OPENAI_COMPATIBLE_PLATFORM_BEAN, ANTHROPIC_PLATFORM_BEAN)
-            assertThat(build(platformsIn(context), OpenAiModels.PROVIDER, "anything")?.name)
-                .isEqualTo(OVERRIDE_SERVICE_NAME)
-            assertThat(build(platformsIn(context), AnthropicModels.PROVIDER, AnthropicModels.CLAUDE_HAIKU_4_5)?.name)
+            val platforms = platformsIn(context)
+            // The application's bean took the shipped name; no second OpenAI bean was added.
+            assertThat(context.chatModelPlatforms()).hasSize(5).containsKey(OPENAI_PLATFORM_BEAN)
+            // An OpenAI key now gets the application's model.
+            assertThat(build(platforms, OpenAiModels.PROVIDER, "anything")?.name).isEqualTo(OVERRIDE_SERVICE_NAME)
+            // The other providers still get their shipped platforms' models.
+            assertThat(build(platforms, AnthropicModels.PROVIDER, AnthropicModels.CLAUDE_HAIKU_4_5)?.name)
                 .isEqualTo(AnthropicModels.CLAUDE_HAIKU_4_5)
+            assertThat(build(platforms, DeepSeekModels.PROVIDER, DeepSeekModels.DEEPSEEK_V4_FLASH)?.name)
+                .isEqualTo(DeepSeekModels.DEEPSEEK_V4_FLASH)
+            assertThat(build(platforms, MistralAiModels.PROVIDER, MistralAiModels.MINISTRAL_8B)?.name)
+                .isEqualTo(MistralAiModels.MINISTRAL_8B)
         }
     }
 
@@ -299,8 +318,13 @@ class CredentialEndpointConfigTest {
             .withClassLoader(FilteredClassLoader(AnthropicModelFactory::class.java))
             .run { context ->
                 assertThat(context).hasNotFailed()
-                assertThat(context.chatModelPlatforms())
-                    .containsOnlyKeys(OPENAI_COMPATIBLE_PLATFORM_BEAN)
+                // Only the platforms from embabel-agent-openai are left.
+                assertThat(context.chatModelPlatforms()).containsOnlyKeys(
+                    OPENAI_PLATFORM_BEAN,
+                    DEEP_SEEK_PLATFORM_BEAN,
+                    MISTRAL_AI_PLATFORM_BEAN,
+                    OPENAI_COMPATIBLE_PLATFORM_BEAN,
+                )
             }
     }
 
@@ -442,24 +466,14 @@ class CredentialEndpointConfigTest {
         ModelSelectionContext(credential = ProviderCredential(OpenAiModels.PROVIDER, TEST_API_KEY))
 
     /**
-     * Stands in for an application that registers its own OpenAI platform - for a proxy, or a
-     * self-hosted OpenAI-compatible endpoint - under the bean name the shipped one uses, which is
-     * how it takes precedence.
+     * An application's own OpenAI platform, registered under the bean name the shipped one uses so
+     * that it replaces the shipped one.
      */
     @Configuration(proxyBeanMethods = false)
     class OwnOpenAiPlatform {
 
-        @Bean(OPENAI_COMPATIBLE_PLATFORM_BEAN)
-        fun openAiCompatibleModelPlatform(): ModelPlatform = ModelPlatform.builder()
-            .builds(LlmService.KIND) { credential, _ ->
-                if (!credential.provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) null
-                else SpringAiLlmService(
-                    name = OVERRIDE_SERVICE_NAME,
-                    provider = OpenAiModels.PROVIDER,
-                    chatModel = SetupRequiredChatModel(),
-                )
-            }
-            .build()
+        @Bean(OPENAI_PLATFORM_BEAN)
+        fun openAiModelPlatform(): ModelPlatform = applicationChatPlatform(OVERRIDE_SERVICE_NAME, OpenAiModels.PROVIDER)
     }
 
     /**
@@ -494,6 +508,23 @@ class CredentialEndpointConfigTest {
                 val service = build(platformsIn(context), OpenAiModels.PROVIDER, OpenAiModels.GPT_41_MINI)
 
                 assertThat(service?.provider).isEqualTo(PROXIED_OPENAI_PROVIDER)
+            }
+        }
+
+        @Test
+        fun `the named OpenAI platform returns null for a key an application resolver answers for`() {
+            // The test above takes the first answer in bean order. This one asks each bean, so the
+            // resolver's endpoint wins whatever order the beans are in.
+            contextRunner.withUserConfiguration(OwnOpenAiEndpoint::class.java).run { context ->
+                val beans = context.chatModelPlatforms()
+                val openAiKey = ProviderCredential(OpenAiModels.PROVIDER, TEST_API_KEY)
+
+                // The named platform returns null, because a resolver answered for the key.
+                assertThat(beans.getValue(OPENAI_PLATFORM_BEAN).model(openAiKey, LlmService.KIND, OpenAiModels.GPT_41_MINI))
+                    .isNull()
+                // The platform for resolver endpoints builds it at the proxy.
+                assertThat(beans.getValue(OPENAI_COMPATIBLE_PLATFORM_BEAN).model(openAiKey, LlmService.KIND, OpenAiModels.GPT_41_MINI)?.provider)
+                    .isEqualTo(PROXIED_OPENAI_PROVIDER)
             }
         }
 
@@ -632,7 +663,8 @@ class CredentialEndpointConfigTest {
                     .withUserConfiguration(OwnGatewayEndpoint::class.java)
                     .withPropertyValues("embabel.agent.platform.models.ourgateway.read-timeout=300ms")
                     .run { context ->
-                        val platform = context.embeddingModelPlatforms().values.single()
+                        // The gateway is resolver-routed, so the platform for other OpenAI-compatible endpoints builds it.
+                        val platform = context.embeddingModelPlatforms().getValue(OPENAI_COMPATIBLE_PLATFORM_BEAN)
 
                         assertFailsWithinTenSeconds {
                             platform.model(ProviderCredential(GATEWAY_PROVIDER, TEST_API_KEY), EmbeddingService.KIND, "slow-embedding")
@@ -656,6 +688,24 @@ class CredentialEndpointConfigTest {
                         assertThat((failure as InvalidProviderTimeoutException).property)
                             .isEqualTo("embabel.agent.platform.models.ourgateway.read-timeout")
                     }
+                }
+        }
+
+        @Test
+        fun `a named platform reads the timeouts configured for its provider`() {
+            // DeepSeek keys are built by deepSeekModelPlatform, not by a resolver, so this checks
+            // that the named platform's path reads the provider's timeout properties.
+            contextRunner
+                .withPropertyValues("embabel.agent.platform.models.deepseek.read-timeout=five minutes")
+                .run { context ->
+                    val failure = runCatching {
+                        context.chatModelPlatforms().getValue(DEEP_SEEK_PLATFORM_BEAN)
+                            .model(ProviderCredential(DeepSeekModels.PROVIDER, TEST_API_KEY), LlmService.KIND, DeepSeekModels.DEEPSEEK_V4_FLASH)
+                    }.exceptionOrNull()
+                    // The malformed value was read, so the property name is in the exception.
+                    assertThat(failure).isInstanceOf(InvalidProviderTimeoutException::class.java)
+                    assertThat((failure as InvalidProviderTimeoutException).property)
+                        .isEqualTo("embabel.agent.platform.models.deepseek.read-timeout")
                 }
         }
 
