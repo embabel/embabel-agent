@@ -838,21 +838,68 @@ ModelPlatform gatewayPlatform() {
 Call `builds` once per kind; one platform can build chat and embedding models from the same key.
 The platform caches each model it builds per provider, key and model, so a platform should build rather than cache.
 
-The starter ships one platform per wire protocol.
+The starter ships one platform each for OpenAI, DeepSeek, Mistral AI and Anthropic, plus one for other OpenAI-compatible endpoints, which include Gemini and Atlas Cloud.
+A platform lists only the kinds its provider offers, so a key asked for a kind its provider does not offer, such as an embedding model for a DeepSeek key, gets no model, and the role fails with `NoSuitableModelException`.
 A shipped platform is not registered when the application registers a bean with the same name:
 
 |===
-| Bean name | Builds
+| Bean name | Platform | Keys | Builds
 
-| `openAiCompatibleModelPlatform`
-| Chat and embedding models over the OpenAI protocol
+| `openAiModelPlatform`
+| `OpenAiPlatform`
+| OpenAI
+| Chat and embedding models
+
+| `deepSeekModelPlatform`
+| `DeepSeekPlatform`
+| DeepSeek
+| Chat models. DeepSeek has no embeddings API.
+
+| `mistralAiModelPlatform`
+| `MistralAiPlatform`
+| Mistral AI
+| Chat and embedding models
 
 | `anthropicModelPlatform`
-| Chat models over Anthropic's protocol
+| `AnthropicPlatform`
+| Anthropic, and endpoints your `CredentialEndpointResolver` beans return on Anthropic's protocol
+| Chat models. Anthropic has no embeddings API.
+
+| `openAiCompatibleModelPlatform`
+| No class of its own. It builds models the same way `OpenAiCompatiblePlatform` does.
+| Gemini, Atlas Cloud, and endpoints your `CredentialEndpointResolver` beans return on the OpenAI protocol
+| Chat and embedding models
 |===
 
-Replacing a shipped platform by name replaces every kind it builds.
-It also replaces the code that builds what your `CredentialEndpointResolver` beans resolve for that protocol.
+When one of your resolvers returns an endpoint for a key, the named platforms return null for that key, and `openAiCompatibleModelPlatform` or `anthropicModelPlatform` builds it at your endpoint.
+Replacing a shipped platform by name replaces every kind it builds, and leaves the other shipped platforms in place.
+
+The platform classes are in `embabel-agent-openai` and `embabel-agent-anthropic`, so an application without the starter can register them itself.
+For a gateway or self-hosted server that speaks the OpenAI protocol, register an `OpenAiCompatiblePlatform` with the provider name its keys carry and its base URL.
+It builds chat and embedding models unless you pass the kinds the server offers:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+@Bean
+fun ourGatewayPlatform(): ModelPlatform =
+    OpenAiCompatiblePlatform(provider = "OurGateway", baseUrl = "https://gateway.example.com/v1")
+----
+
+Java::
++
+[source,java]
+----
+@Bean
+ModelPlatform ourGatewayPlatform() {
+    // This server has no embeddings endpoint, so the platform lists chat only.
+    return new OpenAiCompatiblePlatform("OurGateway", "https://gateway.example.com/v1", OpenAiCompatiblePlatform.CHAT_ONLY);
+}
+----
+====
 
 ===== Reading what a role is configured to mean
 

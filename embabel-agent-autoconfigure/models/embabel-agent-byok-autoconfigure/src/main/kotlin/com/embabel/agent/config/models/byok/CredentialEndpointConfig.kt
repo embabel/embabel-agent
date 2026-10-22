@@ -16,14 +16,20 @@
 package com.embabel.agent.config.models.byok
 
 import com.embabel.agent.anthropic.AnthropicModelFactory
-import com.embabel.agent.api.models.AnthropicModels
+import com.embabel.agent.anthropic.AnthropicPlatform
 import com.embabel.agent.api.models.GoogleGenAiModels
+import com.embabel.agent.openai.DeepSeekPlatform
+import com.embabel.agent.openai.MistralAiPlatform
 import com.embabel.agent.openai.OpenAiClientTimeouts
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
+import com.embabel.agent.openai.OpenAiCompatiblePlatform
+import com.embabel.agent.openai.OpenAiPlatform
 import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.CredentialEndpoint
 import com.embabel.common.ai.model.CredentialEndpointResolver
 import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.ModelCapability
+import com.embabel.common.ai.model.ModelKind
 import com.embabel.common.ai.model.ModelPlatform
 import com.embabel.common.ai.model.ProviderCredential
 import com.embabel.common.util.loggerFor
@@ -43,36 +49,43 @@ import java.util.concurrent.ConcurrentHashMap
 private const val MODELS_PREFIX = "embabel.agent.platform.models"
 
 /**
- * Makes per-user keys work with nothing on the classpath but `embabel-agent-starter-byok`: one
- * [ModelPlatform] per wire protocol, each turning an endpoint of that protocol into clients for
- * the user's own key. The OpenAI-compatible platform builds chat and embedding models; the
- * Anthropic platform builds chat models only, because Anthropic has no embedding API.
+ * Makes per-user keys work with nothing on the classpath but `embabel-agent-starter-byok`. It
+ * registers one [ModelPlatform] bean per provider that has a named platform, plus one bean for
+ * every other OpenAI-compatible endpoint:
  *
- * Where a key is sent is decided before that, and an application can decide it: each platform asks
- * the registered [CredentialEndpointResolver] beans first and falls back to what this module knows
- * about the provider. So adding a provider - or overriding a shipped one's base URL - is a resolver
- * returning a value, with nothing from `com.embabel.agent.spi` in it, because a gateway speaking
- * the OpenAI protocol needs no client this module does not already have.
+ * | Bean | Platform | Kinds |
+ * |---|---|---|
+ * | `openAiModelPlatform` | [OpenAiPlatform] | chat, embedding |
+ * | `deepSeekModelPlatform` | [DeepSeekPlatform] | chat |
+ * | `mistralAiModelPlatform` | [MistralAiPlatform] | chat, embedding |
+ * | `anthropicModelPlatform` | [AnthropicPlatform] | chat |
+ * | `openAiCompatibleModelPlatform` | built with [OpenAiCompatiblePlatform.modelAt] | chat, embedding |
  *
- * That is one bean per provider *module*, not per provider: `embabel-agent-openai` speaks to five
- * providers over one wire protocol, so the coverage is Anthropic, OpenAI, DeepSeek, Mistral, Gemini
- * and Atlas Cloud - the whole BYOK surface. A deployment using any of them writes nothing at all.
+ * `openAiCompatibleModelPlatform` builds for two groups of keys: a key that an application's
+ * [CredentialEndpointResolver] sends to an OpenAI-compatible endpoint, and a key for a provider
+ * that `embabel-agent-openai` knows but that has no named platform yet (Gemini and Atlas Cloud).
  *
- * Without these, a [com.embabel.common.ai.model.RoleResolution.Credential] fails with
- * `NoSuitableModelException` until the application registers a platform of its own - and that
- * platform is a call to the provider module's own factory, already on the classpath. Every
- * application that has needed one has written the same `when` over provider names, each copy a
- * place to get a provider name's casing wrong or fall behind a factory signature change, and each
- * failing at runtime rather than at compile time.
+ * The application's resolvers are asked first. When a resolver returns an endpoint for a key, the
+ * named platforms return null for it, and `openAiCompatibleModelPlatform` (for the OpenAI protocol)
+ * or `anthropicModelPlatform` (for Anthropic's protocol) builds it at that endpoint. So a resolver
+ * that answers for "OpenAI" sends OpenAI keys to its proxy, whatever order the beans are in.
  *
- * These delegate to the provider modules, not to their autoconfigurations. That is the distinction
- * that makes shipping them possible at all: a pure BYOK deployment deliberately has no provider
- * autoconfiguration - `embabel-agent-starter-byok` bans it - but it does have the factories.
+ * Each bean is skipped when the application registers a bean with the same name. Replacing one
+ * leaves the others in place: replacing `deepSeekModelPlatform` changes what a DeepSeek key builds
+ * and nothing else.
  *
- * No services are cached here. [com.embabel.common.ai.model.ConfigurableModelProvider] already
- * caches what a platform returns per (provider, key, model) behind a bounded LRU, so a cache here
- * would be a second, unbounded one holding a service per key the deployment has ever seen. The one
- * cache here holds bound timeouts per provider, which is bounded by the number of providers.
+ * A key for a provider whose platform does not list a kind gets no model of that kind. For
+ * example, a DeepSeek key asked for an embedding model: `deepSeekModelPlatform` lists chat only,
+ * and `openAiCompatibleModelPlatform` leaves DeepSeek to its named platform. The role then fails
+ * with `NoSuitableModelException` and a warning naming the provider, before any HTTP request.
+ *
+ * These beans call the provider modules (`embabel-agent-openai`, `embabel-agent-anthropic`), not
+ * their autoconfigurations. A pure BYOK deployment has no provider autoconfiguration, because
+ * `embabel-agent-starter-byok` bans it, but it does have the provider modules.
+ *
+ * No models are cached here. [com.embabel.common.ai.model.ConfigurableModelProvider] already
+ * caches what a platform returns per (provider, key, model) in a bounded LRU cache. The one cache
+ * here holds bound timeouts per provider, so its size is the number of providers.
  */
 @Configuration(proxyBeanMethods = false)
 class CredentialEndpointConfig @Autowired constructor(
@@ -89,123 +102,160 @@ class CredentialEndpointConfig @Autowired constructor(
 
     private val timeoutsByPrefix = ConcurrentHashMap<String, OpenAiClientTimeouts>()
 
+    /** Chat models for an OpenAI key. Embedding models too. */
+    @Bean(OPENAI_MODEL_PLATFORM)
+    @ConditionalOnClass(OpenAiCompatibleModelFactory::class)
+    @ConditionalOnMissingBean(name = [OPENAI_MODEL_PLATFORM])
+    fun openAiModelPlatform(resolvers: ObjectProvider<CredentialEndpointResolver>): ModelPlatform =
+        applicationResolversFirst(OpenAiPlatform(), resolvers)
+
+    /** Chat models for a DeepSeek key. DeepSeek has no embeddings API. */
+    @Bean(DEEP_SEEK_MODEL_PLATFORM)
+    @ConditionalOnClass(OpenAiCompatibleModelFactory::class)
+    @ConditionalOnMissingBean(name = [DEEP_SEEK_MODEL_PLATFORM])
+    fun deepSeekModelPlatform(resolvers: ObjectProvider<CredentialEndpointResolver>): ModelPlatform =
+        applicationResolversFirst(DeepSeekPlatform(), resolvers)
+
+    /** Chat and embedding models for a Mistral AI key. */
+    @Bean(MISTRAL_AI_MODEL_PLATFORM)
+    @ConditionalOnClass(OpenAiCompatibleModelFactory::class)
+    @ConditionalOnMissingBean(name = [MISTRAL_AI_MODEL_PLATFORM])
+    fun mistralAiModelPlatform(resolvers: ObjectProvider<CredentialEndpointResolver>): ModelPlatform =
+        applicationResolversFirst(MistralAiPlatform(), resolvers)
+
     /**
-     * Builds chat models for anything routed to Anthropic's protocol, whoever routed it there.
-     *
-     * Returns null for every other protocol, so the platform for that protocol gets its turn - the
-     * same contract a hand-written [ModelPlatform] follows for a provider it does not handle.
-     *
-     * Chat only: Anthropic has no embedding API, so an Anthropic key asked for an embedding model
-     * gets none here rather than somebody else's model.
+     * Chat models for an Anthropic key, and for any key a [CredentialEndpointResolver] sends to an
+     * Anthropic-protocol endpoint. Anthropic has no embeddings API.
      */
     @Bean(ANTHROPIC_MODEL_PLATFORM)
     @ConditionalOnClass(AnthropicModelFactory::class)
     @ConditionalOnMissingBean(name = [ANTHROPIC_MODEL_PLATFORM])
-    fun anthropicModelPlatform(
-        resolvers: ObjectProvider<CredentialEndpointResolver>,
-    ): ModelPlatform {
-        logger.info(
-            "Per-user keys can build a chat service over Anthropic's protocol, for provider '{}' or any a CredentialEndpointResolver routes there",
-            AnthropicModels.PROVIDER,
-        )
+    fun anthropicModelPlatform(resolvers: ObjectProvider<CredentialEndpointResolver>): ModelPlatform {
+        val anthropic = AnthropicPlatform()
+        logger.info("Per-user keys can build {} models for {}", kindNames(anthropic), anthropic)
         return ModelPlatform.builder()
             .builds(LlmService.KIND) { credential, model ->
-                // The application's resolvers decide first; Anthropic's own endpoint is used only for its own key.
-                val endpoint = resolvedByApplication(resolvers, credential, model) ?: anthropicEndpointFor(credential)
-                // Null when the endpoint uses another protocol, so that protocol's platform answers.
-                (endpoint as? CredentialEndpoint.Anthropic)?.let {
-                    AnthropicModelFactory(apiKey = credential.apiKey, baseUrl = it.baseUrl)
-                        .build(
-                            model = model,
-                            provider = it.provider,
-                            pricingModel = it.pricingModel,
-                            knowledgeCutoffDate = it.knowledgeCutoffDate,
-                        )
+                when (val endpoint = resolvedByApplication(resolvers, credential, model)) {
+                    // No resolver answered: AnthropicPlatform builds for Anthropic's own key only.
+                    null -> anthropic.model(credential, LlmService.KIND, model)
+                    // A resolver chose an Anthropic-protocol endpoint, so build there.
+                    is CredentialEndpoint.Anthropic -> AnthropicPlatform.modelAt(endpoint, credential.apiKey, model)
+                    // A resolver chose the OpenAI protocol, so openAiCompatibleModelPlatform builds it.
+                    else -> null
                 }
             }
             .build()
     }
 
     /**
-     * Builds chat and embedding models for anything routed to the OpenAI wire protocol.
+     * Chat and embedding models for every other key whose endpoint speaks the OpenAI protocol:
+     * a key a [CredentialEndpointResolver] sends to such an endpoint, or a key for a provider
+     * `embabel-agent-openai` knows that has no named platform (Gemini, Atlas Cloud).
      *
-     * Both kinds find the endpoint the same way, through [openAiCompatibleEndpoint], so a
-     * [CredentialEndpointResolver] that routes a provider here routes both its chat and its
-     * embedding models.
-     *
-     * Chat models are built without validating. The probe that
-     * [OpenAiCompatibleModelFactory.buildValidated] makes belongs where a user first supplies a
-     * key, not here: this runs on every cache miss, and it would validate against the spec's own
-     * validation model rather than the one the role asked for.
-     *
-     * Embedding models are validated. A wrong chat model fails only the call that used it. An
-     * embedding service reports a dimension, and that dimension becomes the size of a vector
-     * index. A service built with a wrong dimension creates an index that later writes do not fit,
-     * and nothing reports the error. [OpenAiCompatibleModelFactory.buildValidatedEmbeddingService]
-     * reads the dimension from the provider's response. The cost is one probe per
-     * (provider, key, model), since the platform caches what this returns.
+     * Embedding models are built with one test call, which reads the vector width from the
+     * server's answer; see [OpenAiCompatiblePlatform.modelAt].
      */
     @Bean(OPENAI_COMPATIBLE_MODEL_PLATFORM)
     @ConditionalOnClass(OpenAiCompatibleModelFactory::class)
     @ConditionalOnMissingBean(name = [OPENAI_COMPATIBLE_MODEL_PLATFORM])
-    fun openAiCompatibleModelPlatform(
-        resolvers: ObjectProvider<CredentialEndpointResolver>,
-    ): ModelPlatform {
+    fun openAiCompatibleModelPlatform(resolvers: ObjectProvider<CredentialEndpointResolver>): ModelPlatform {
+        // Providers with a named platform are left to it, even when that bean was replaced.
+        val namedProviders = listOf(OpenAiPlatform(), DeepSeekPlatform(), MistralAiPlatform()).map { it.provider }
         logger.info(
-            "Per-user keys can build chat and embedding services over the OpenAI protocol, for any provider {} knows or a CredentialEndpointResolver routes there",
-            OpenAiCompatibleModelFactory::class.java.simpleName,
+            "Per-user keys can build chat and embedding models over the OpenAI protocol for endpoints a CredentialEndpointResolver returns, and for known providers other than {}",
+            namedProviders,
         )
         return ModelPlatform.builder()
             .builds(LlmService.KIND) { credential, model ->
-                openAiCompatibleEndpoint(resolvers, credential, model)?.let {
-                    openAiCompatibleFactory(it, credential)
-                        .openAiCompatibleLlm(
-                            model = model,
-                            pricingModel = it.pricingModel,
-                            provider = it.provider,
-                            knowledgeCutoffDate = it.knowledgeCutoffDate,
-                        )
-                }
+                openAiCompatibleModel(resolvers, namedProviders, credential, LlmService.KIND, model)
             }
             .builds(EmbeddingService.KIND) { credential, model ->
-                openAiCompatibleEndpoint(resolvers, credential, model)?.let {
-                    openAiCompatibleFactory(it, credential)
-                        .buildValidatedEmbeddingService(
-                            model = model,
-                            provider = it.provider,
-                            pricingModel = it.pricingModel,
-                        )
-                }
+                openAiCompatibleModel(resolvers, namedProviders, credential, EmbeddingService.KIND, model)
             }
             .build()
     }
 
     /**
-     * The OpenAI-compatible endpoint for [credential], or null if it is routed to another protocol
-     * or is a provider nothing knows.
+     * [platform] as a bean that leaves the application's endpoints to other beans: it returns null
+     * for a key that a [CredentialEndpointResolver] answers for, so the bean for that endpoint's
+     * protocol builds it.
      *
-     * The application's resolvers decide first; the endpoints `embabel-agent-openai` knows are used
-     * only when none of them answers.
+     * For example, with a resolver that sends "OpenAI" keys to a proxy, `openAiModelPlatform`
+     * returns null for an OpenAI key and `openAiCompatibleModelPlatform` builds it at the proxy.
      */
-    private fun openAiCompatibleEndpoint(
+    private fun applicationResolversFirst(
+        platform: OpenAiCompatiblePlatform,
         resolvers: ObjectProvider<CredentialEndpointResolver>,
-        credential: ProviderCredential,
-        model: String,
-    ): CredentialEndpoint.OpenAiCompatible? =
-        (resolvedByApplication(resolvers, credential, model) ?: openAiCompatibleEndpointFor(credential))
-            // Null when the endpoint uses another protocol, so that protocol's platform answers.
-            as? CredentialEndpoint.OpenAiCompatible
+    ): ModelPlatform {
+        logger.info("Per-user keys can build {} models for {}", kindNames(platform), platform)
+        return object : ModelPlatform {
 
-    /** A client factory for [endpoint], authenticated with the user's key and the provider's configured timeouts. */
-    private fun openAiCompatibleFactory(
-        endpoint: CredentialEndpoint.OpenAiCompatible,
+            override val kinds: Set<ModelKind<*, *>> = platform.kinds
+
+            override fun <C : ModelCapability> model(
+                credential: ProviderCredential,
+                kind: ModelKind<C, *>,
+                model: String,
+            ): C? = when {
+                // Checked first, so neither the resolvers nor this provider's timeouts are read for another provider's key.
+                !platform.serves(credential) -> null
+                // A resolver decides where this key goes, and the bean for that protocol builds it.
+                resolvedByApplication(resolvers, credential, model) != null -> {
+                    logger.debug(
+                        "{} leaves model '{}' for provider '{}' to the endpoint a CredentialEndpointResolver returned",
+                        platform,
+                        model,
+                        credential.provider,
+                    )
+                    null
+                }
+                // The timeouts for this provider are bound on its first call; see timeoutsFor.
+                else -> platform.withTimeouts(timeoutsFor(platform.provider)).model(credential, kind, model)
+            }
+
+            override fun toString(): String = platform.toString()
+        }
+    }
+
+    /**
+     * A model of [kind] for [credential] at the OpenAI-compatible endpoint chosen for it, or null
+     * when there is none.
+     *
+     * The endpoint is the application resolvers' answer if there is one. Without one, it is the
+     * endpoint `embabel-agent-openai` knows for the provider, unless the provider is one of
+     * [namedProviders].
+     */
+    private fun <C : ModelCapability> openAiCompatibleModel(
+        resolvers: ObjectProvider<CredentialEndpointResolver>,
+        namedProviders: List<String>,
         credential: ProviderCredential,
-    ): OpenAiCompatibleModelFactory =
-        OpenAiCompatibleModelFactory(
-            baseUrl = endpoint.baseUrl,
-            apiKey = credential.apiKey,
-            timeouts = timeoutsFor(endpoint.provider),
-        )
+        kind: ModelKind<C, *>,
+        model: String,
+    ): C? {
+        val endpoint = resolvedByApplication(resolvers, credential, model)
+            ?: knownEndpointWithoutNamedPlatform(credential, namedProviders)
+        // A resolver may choose Anthropic's protocol; anthropicModelPlatform builds that one.
+        return (endpoint as? CredentialEndpoint.OpenAiCompatible)?.let {
+            OpenAiCompatiblePlatform.modelAt(it, credential.apiKey, kind, model, timeoutsFor(it.provider))
+        }
+    }
+
+    /**
+     * The endpoint `embabel-agent-openai` knows for the credential's provider, or null if it knows
+     * none or the provider is one of [namedProviders]. For example, "Gemini" gives Gemini's
+     * endpoint, and "DeepSeek" gives null because [DeepSeekPlatform] builds DeepSeek keys.
+     *
+     * Read from [OpenAiCompatibleModelFactory.endpointFor], so the base URLs are written down once.
+     */
+    private fun knownEndpointWithoutNamedPlatform(
+        credential: ProviderCredential,
+        namedProviders: List<String>,
+    ): CredentialEndpoint? =
+        OpenAiCompatibleModelFactory.endpointFor(credential.provider)
+            ?.takeUnless { it.provider in namedProviders }
+            ?.let { CredentialEndpoint.OpenAiCompatible(provider = it.provider, baseUrl = it.baseUrl) }
+
+    private fun kindNames(platform: ModelPlatform): String = platform.kinds.joinToString(" and ") { it.name }
 
     /**
      * What the application says, in [org.springframework.core.Ordered] order, or null if none of
@@ -213,8 +263,10 @@ class CredentialEndpointConfig @Autowired constructor(
      *
      * Read on each call rather than captured, because the ordered stream is only complete once
      * every bean is. Reached on a cache miss rather than per call, since the platform caches the
-     * service - but reached from each model platform that gets a turn, so a resolver can be asked
-     * twice for one miss. Keep implementations pure and cheap, as their contract already asks.
+     * service - but reached from each model platform that gets a turn: the named platform for the
+     * key's provider, `anthropicModelPlatform` and `openAiCompatibleModelPlatform`. So a resolver
+     * can be asked up to three times for one miss. Keep implementations pure and cheap, as their
+     * contract already asks.
      */
     private fun resolvedByApplication(
         resolvers: ObjectProvider<CredentialEndpointResolver>,
@@ -260,10 +312,23 @@ class CredentialEndpointConfig @Autowired constructor(
 
     internal companion object {
 
+        /** Bean name of the shipped OpenAI platform. A bean of this name replaces it. */
+        const val OPENAI_MODEL_PLATFORM = "openAiModelPlatform"
+
+        /** Bean name of the shipped DeepSeek platform. A bean of this name replaces it. */
+        const val DEEP_SEEK_MODEL_PLATFORM = "deepSeekModelPlatform"
+
+        /** Bean name of the shipped Mistral AI platform. A bean of this name replaces it. */
+        const val MISTRAL_AI_MODEL_PLATFORM = "mistralAiModelPlatform"
+
         /** Bean name of the shipped Anthropic platform. A bean of this name replaces it. */
         const val ANTHROPIC_MODEL_PLATFORM = "anthropicModelPlatform"
 
-        /** Bean name of the shipped OpenAI-compatible platform. A bean of this name replaces it, for chat and embedding. */
+        /**
+         * Bean name of the shipped platform for other OpenAI-compatible endpoints: those an
+         * application's resolvers return, and Gemini and Atlas Cloud. A bean of this name replaces
+         * it, for chat and embedding.
+         */
         const val OPENAI_COMPATIBLE_MODEL_PLATFORM = "openAiCompatibleModelPlatform"
 
         /**
@@ -276,32 +341,4 @@ class CredentialEndpointConfig @Autowired constructor(
             return "$MODELS_PREFIX.${if (name == GoogleGenAiModels.PROVIDER.lowercase()) "gemini" else name}"
         }
     }
-
-    /**
-     * Anthropic's own endpoint, or null if this is not Anthropic's key.
-     *
-     * Not a [CredentialEndpointResolver] bean, deliberately. A bean would sort by
-     * [org.springframework.core.Ordered], where an application resolver carrying no `@Order` is
-     * `LOWEST_PRECEDENCE` - a tie with anything shipped, broken by bean registration order, which
-     * is not something an application should have to reason about to override a base URL. Consulted
-     * after the beans instead, so the application always wins. [com.embabel.common.ai.model.RoleResolver]
-     * keeps its configuration-driven resolver out of the bean stream for the same reason.
-     */
-    private fun anthropicEndpointFor(credential: ProviderCredential): CredentialEndpoint? =
-        if (!credential.provider.equals(AnthropicModels.PROVIDER, ignoreCase = true)) null
-        else CredentialEndpoint.Anthropic(provider = AnthropicModels.PROVIDER)
-
-    /**
-     * Every OpenAI-compatible provider, on the same terms.
-     *
-     * One lookup rather than one per provider, because `embabel-agent-openai` carries OpenAI,
-     * DeepSeek, Mistral, Gemini and Atlas Cloud behind a single wire protocol, and the only thing
-     * that differs is the base URL - which [OpenAiCompatibleModelFactory.endpointFor] already
-     * knows. Reading it there rather than restating it keeps this from drifting when an endpoint
-     * moves.
-     */
-    private fun openAiCompatibleEndpointFor(credential: ProviderCredential): CredentialEndpoint? =
-        OpenAiCompatibleModelFactory.endpointFor(credential.provider)?.let {
-            CredentialEndpoint.OpenAiCompatible(provider = it.provider, baseUrl = it.baseUrl)
-        }
 }
