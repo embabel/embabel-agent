@@ -58,8 +58,18 @@ class EmbeddingModelPlatformTest {
         /** Never sent anywhere real; shaped like a key only so a stray log line is recognisable. */
         const val TEST_API_KEY = "sk-test-not-a-real-key"
 
-        /** Bean name of the shipped platform that builds embedding models, and the name an application overrides by. */
+        /**
+         * Bean name of the shipped platform that builds embedding models for resolver-routed
+         * endpoints, and the name an application overrides it by.
+         */
         const val EMBEDDING_PLATFORM_BEAN = CredentialEndpointConfig.OPENAI_COMPATIBLE_MODEL_PLATFORM
+
+        /** Every shipped platform that builds embedding models. */
+        val EMBEDDING_PLATFORM_BEANS = arrayOf(
+            CredentialEndpointConfig.OPENAI_MODEL_PLATFORM,
+            CredentialEndpointConfig.MISTRAL_AI_MODEL_PLATFORM,
+            EMBEDDING_PLATFORM_BEAN,
+        )
 
         /** A provider this framework does not ship, reached through an application's own gateway. */
         const val GATEWAY_PROVIDER = "OurGateway"
@@ -95,11 +105,11 @@ class EmbeddingModelPlatformTest {
     }
 
     @Test
-    fun `the starter contributes one embedding platform, for the OpenAI protocol`() {
+    fun `the starter contributes embedding platforms for OpenAI, Mistral AI and other OpenAI-compatible endpoints`() {
         contextRunner.run { context ->
             assertThat(context).hasNotFailed()
-            assertThat(context.embeddingModelPlatforms())
-                .containsOnlyKeys(EMBEDDING_PLATFORM_BEAN)
+            // DeepSeek and Anthropic are missing: neither provider has an embeddings API.
+            assertThat(context.embeddingModelPlatforms()).containsOnlyKeys(*EMBEDDING_PLATFORM_BEANS)
         }
     }
 
@@ -138,8 +148,7 @@ class EmbeddingModelPlatformTest {
         contextRunner
             .withClassLoader(FilteredClassLoader(AnthropicModelFactory::class.java))
             .run { context ->
-                assertThat(context.embeddingModelPlatforms())
-                    .containsOnlyKeys(EMBEDDING_PLATFORM_BEAN)
+                assertThat(context.embeddingModelPlatforms()).containsOnlyKeys(*EMBEDDING_PLATFORM_BEANS)
             }
     }
 
@@ -147,13 +156,18 @@ class EmbeddingModelPlatformTest {
     fun `an application platform of the same name replaces the shipped one for every kind`() {
         contextRunner.withUserConfiguration(OwnEmbeddingPlatform::class.java).run { context ->
             val platforms = platformsIn(context)
-            // Only the application's platform builds embedding models now.
-            assertThat(platforms).hasSize(1)
+            // The application's bean took the shipped name, so the count of embedding platforms is unchanged.
+            assertThat(context.embeddingModelPlatforms()).containsOnlyKeys(*EMBEDDING_PLATFORM_BEANS)
             // The model comes from the application's platform, not the shipped one.
             assertThat(build(platforms, GATEWAY_PROVIDER)?.name).isEqualTo(OVERRIDE_SERVICE_NAME)
-            // The replacement builds embedding only, so the shipped OpenAI-compatible chat models
-            // went with the bean it replaced: only Anthropic's platform still builds chat.
-            assertThat(context.chatModelPlatforms()).containsOnlyKeys(CredentialEndpointConfig.ANTHROPIC_MODEL_PLATFORM)
+            // The replacement builds embedding only, so the chat models of the bean it replaced
+            // went with it. The named platforms still build chat.
+            assertThat(context.chatModelPlatforms()).containsOnlyKeys(
+                CredentialEndpointConfig.OPENAI_MODEL_PLATFORM,
+                CredentialEndpointConfig.DEEP_SEEK_MODEL_PLATFORM,
+                CredentialEndpointConfig.MISTRAL_AI_MODEL_PLATFORM,
+                CredentialEndpointConfig.ANTHROPIC_MODEL_PLATFORM,
+            )
         }
     }
 
