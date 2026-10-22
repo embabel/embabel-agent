@@ -29,6 +29,16 @@ import org.jetbrains.annotations.ApiStatus
  * [com.embabel.common.ai.classification.ClassificationService],
  * [com.embabel.common.ai.decision.DecisionService] and `com.embabel.agent.spi.LlmService`.
  *
+ * Example of a new kind of model, and of checking what a service can do:
+ * ```kotlin
+ * interface ImageGenerationService : ModelCapability {
+ *     fun generate(prompt: String): ByteArray
+ * }
+ *
+ * // True for an embedding service, false for an image generation service.
+ * fun canEmbed(service: ModelCapability): Boolean = service is EmbeddingService
+ * ```
+ *
  * See https://github.com/embabel/embabel-agent/issues/1585.
  */
 @ApiStatus.Experimental
