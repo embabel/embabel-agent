@@ -26,6 +26,7 @@ import com.embabel.common.ai.model.AiModel
 import com.embabel.common.ai.prompt.PromptContributor
 import org.springframework.ai.chat.model.ChatModel
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.chat.UserMessage as ChatUserMessage
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
@@ -118,6 +119,17 @@ class SetupRequiredLlmTest {
         // The placeholder implements StreamingChatCompletion, so asking it for streaming operations
         // does not fail with UnsupportedOperationException before the setup message can be shown.
         assertThat(SetupRequiredLlm.llmService()).isInstanceOf(StreamingChatCompletion::class.java)
+    }
+
+    @Test
+    fun `streaming through the placeholder's streamer fails with the setup message`() {
+        // This is the path a streaming call takes: the streaming capability builds a streamer, and
+        // the streamer calls the model. The caller must see the setup message, not a streaming error.
+        val streamer = (SetupRequiredLlm.llmService() as StreamingChatCompletion).createMessageStreamer(LlmOptions())
+
+        assertThatThrownBy { streamer.stream(listOf(ChatUserMessage("hello")), emptyList(), emptyList()).blockLast() }
+            .isInstanceOf(NoLlmConfiguredException::class.java)
+            .hasMessageContaining("withLlmService")
     }
 
     @Test
