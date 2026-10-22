@@ -309,12 +309,10 @@ class DecisionServiceRegistry private constructor(
             selectAdvice = { typeName -> "Select it through classifications(), or register a $typeName under that name." },
         )
 
-        private val CLASSIFICATION_FAMILY = ModelRegistry.FamilySpec(
-            label = "classification",
-            builderName = BUILDER,
-            bindAdvice = { name, typeName -> "Name a $typeName, or bind '$name' with decisionRole or decisionDefault." },
-            selectAdvice = { typeName -> "Select it through classifications(), or register a $typeName under that name." },
-        )
+        // Every registered service and every provider model is a classification service, so no
+        // binding or selection in this family can name a model of the wrong kind. It keeps the
+        // default advice, which is never shown.
+        private val CLASSIFICATION_FAMILY = ModelRegistry.FamilySpec(label = "classification", builderName = BUILDER)
 
         private val EMPTY: DecisionServiceRegistry by lazy { Builder().build(log = false) }
 
