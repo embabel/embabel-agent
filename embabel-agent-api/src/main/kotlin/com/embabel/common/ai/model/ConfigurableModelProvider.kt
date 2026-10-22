@@ -279,6 +279,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      * provider that has been configured never to be asked.
      */
     private val lateArrivingProviders: Set<String> =
+        // Starts from List<Any> because the three lists have no common element type.
         (listOf<Any>() + this.roleResolvers + this.embeddingRoleResolvers + localModelCatalogs)
             .filterIsInstance<LateArrivingModels>()
             .mapNotNull { it.lateArrivingProvider?.lowercase() }
@@ -465,8 +466,8 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     }
 
     /**
-     * The provider behind the deployment's default embedding service, for
-     * the embedding [ConfigurableRoleResolver] to pick a column with when no user key is active.
+     * The provider behind the deployment's default embedding service. When no user key is active,
+     * the embedding [ConfigurableRoleResolver] reads the `embedding-roles` entry for this provider.
      *
      * Reads only what is REGISTERED, never the role chain: the chain is what calls this, and
      * asking it back would recurse. A deployment whose default is a role and whose key has not
@@ -790,22 +791,22 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     /**
      * Warn about resolvers and factories that hold a kind this provider never selects.
      *
-     * Kinds are matched by identity, so a resolver or factory holding any other kind - a new
-     * [ModelKind] built with the chat kind's name, say - is never asked. Saying so at startup is
-     * the difference between a bean that does nothing and a bean that does nothing without a trace.
+     * Kinds are matched by identity, so a resolver or factory holding any other kind instance is
+     * never asked. That includes a new [ModelKind] created with the name "chat". Without this
+     * warning such a bean would be ignored with nothing in the log.
      */
     private fun warnOfUnselectedKinds(
         roleResolvers: List<RoleResolver<*, *>>,
         credentialModelFactories: List<CredentialModelFactory<*>>,
     ) {
-        val selected = setOf<ModelKind<*, *>>(LlmService.KIND, EmbeddingService.KIND)
-        roleResolvers.filter { it.kind !in selected }.forEach {
+        val selectedKinds = setOf<ModelKind<*, *>>(LlmService.KIND, EmbeddingService.KIND)
+        roleResolvers.filter { it.kind !in selectedKinds }.forEach {
             logger.warn(
                 "Role resolver {} answers for {}, which this provider does not select, so it will never be asked. Use the kind's own constant, such as LlmService.KIND or EmbeddingService.KIND",
                 it, it.kind,
             )
         }
-        credentialModelFactories.filter { it.kind !in selected }.forEach {
+        credentialModelFactories.filter { it.kind !in selectedKinds }.forEach {
             logger.warn(
                 "Credential model factory {} builds {}, which this provider does not select, so it will never be asked. Use the kind's own constant, such as LlmService.KIND or EmbeddingService.KIND",
                 it, it.kind,
@@ -1030,6 +1031,8 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     private fun attemptRole(role: String, context: ModelSelectionContext): RoleAttempt {
         val resolution = roleResolvers.firstNotNullOfOrNull { it.resolve(role, context) }
         val resolved = when (resolution) {
+            // A service returned without a binding carries no configured tuning, so it gets the
+            // platform default options.
             is RoleResolution.Service ->
                 ResolvedRole(resolution.service, resolution.binding ?: LlmOptions.withDefaults())
 
