@@ -328,7 +328,7 @@ A resolver that returned `RoleResolution.Options(llmOptions)` now returns `RoleR
 An embedding resolver that returned `EmbeddingRoleResolution.Model("text-embedding-3-small")` now returns `RoleResolution.Bound(ModelName("text-embedding-3-small"))`.
 
 Pass the kind's own constant, `LlmService.KIND` or `EmbeddingService.KIND`.
-The platform compares kinds by identity, so a resolver created with a new `ModelKind` of the same name is never asked, and the platform logs a warning about it at startup.
+A kind equals only itself, so a resolver created with a new `ModelKind` of the same name is never asked, and the platform logs a warning about it at startup.
 
 ==== A credential factory becomes a `ModelPlatform`
 

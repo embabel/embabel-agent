@@ -40,8 +40,8 @@ import org.springframework.core.Ordered
  * machine for this one - and the asymmetry the platform had was that only one of them was asked
  * again after startup.
  *
- * Reads the same [ConfiguredRoles] [ConfigurableRoleResolver] does, so the two cannot drift on what
- * a role means:
+ * Reads the same [ConfiguredRoles] that [ConfigurableRoleResolver] reads, so this resolver and
+ * [ConfigurableRoleResolver] always agree on what a role means:
  *
  * ```yaml
  * embabel:

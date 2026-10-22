@@ -23,9 +23,10 @@ import org.jetbrains.annotations.ApiStatus
  *
  * This is a class, not an enum, so a new kind of model can be added without changing this file:
  * declare one instance next to the capability interface. Resolvers, model platforms and local
- * model runners say which kind they serve by holding that instance, and the platform compares kinds
- * by identity (`===`), not by name. Declare each kind once as a constant and always refer to that
- * constant. The platform ships two: `LlmService.KIND` for chat and [EmbeddingService.KIND].
+ * model runners say which kind they serve by holding that instance. A kind equals only itself (see
+ * [equals]), so two kinds with the same name and capability are different kinds. Declare each kind
+ * once as a constant and always refer to that constant. The platform ships two: `LlmService.KIND`
+ * for chat and [EmbeddingService.KIND].
  *
  * The platform's model provider selects only those two kinds. A new kind, such as the one below,
  * also needs code that selects models of that kind. Until that exists, a resolver that holds the
@@ -51,5 +52,15 @@ open class ModelKind<C : ModelCapability, B : RoleBinding>(
     val name: String,
     val capability: Class<C>,
 ) {
+
+    /**
+     * A kind is an identity: it equals only itself. This is final, so a subclass cannot make two
+     * kinds equal, and sets, maps and `==` all compare kinds the way the platform does.
+     */
+    final override fun equals(other: Any?): Boolean = this === other
+
+    /** The identity hash code, to agree with [equals]. */
+    final override fun hashCode(): Int = System.identityHashCode(this)
+
     override fun toString(): String = "ModelKind($name)"
 }

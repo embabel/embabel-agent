@@ -32,7 +32,7 @@ import org.springframework.context.annotation.Import;
  * at runtime and reach a call through {@code PromptRunner.withLlmService(...)}.
  * <p>
  * It also contributes a {@link com.embabel.common.ai.model.ModelPlatform} per provider module it
- * can see, so a role resolving to a user's own key builds a real service without the application
+ * can see, so a role resolving to a user's own key builds a service without the application
  * writing one. Those platforms ask any
  * {@link com.embabel.common.ai.model.CredentialEndpointResolver} the application registered before
  * falling back to the endpoints this module knows - see {@link CredentialEndpointConfig}.

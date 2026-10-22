@@ -201,11 +201,13 @@ data class ConfigurableModelProviderProperties(
     /** What `roles` and `llms` say the chat roles mean. */
     fun chatRoles(): ConfiguredRoles<LlmOptions> = ConfiguredRoles(
         byProvider = { roles },
+        // A flat entry is only a model name, so it binds options that set the model and nothing else.
         flat = { llms.mapValues { (_, model) -> LlmOptions.withModel(model) } },
     )
 
     /** What `embedding-roles` and `embedding-services` say the embedding roles mean. */
     fun embeddingRoleBindings(): ConfiguredRoles<ModelName> = ConfiguredRoles(
+        // Both maps hold plain model names; each one is wrapped as a ModelName binding.
         byProvider = { embeddingRoles.mapValues { (_, byProvider) -> byProvider.mapValues { (_, model) -> ModelName(model) } } },
         flat = { embeddingServices.mapValues { (_, model) -> ModelName(model) } },
     )
@@ -530,11 +532,10 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      * Build - or reuse - an embedding service for the model this role names under the user's own
      * provider.
      *
-     * The lookup ends at the flat map, which the embedding [ConfigurableRoleResolver.resolve] refuses
-     * to read under a user key - not a contradiction, because the two are spending different
-     * money. There, reading it would serve a service the DEPLOYMENT is keyed for and billed for.
-     * Here, only the model NAME is taken and the service is built on the user's own key, so the
-     * user pays for the model their role names. Reachable only from an application resolver
+     * The lookup ends at the flat map. The embedding [ConfigurableRoleResolver.resolve] does not read
+     * the flat map under a user key, because there it would return a service that the DEPLOYMENT's
+     * key pays for. Here only the model NAME is read from it, and the service is built on the
+     * user's own key, so the user pays for the model their role names. Reachable only from an application resolver
      * returning [RoleResolution.Credential], since the configured one gets this far only
      * when the nested map already answered.
      */
@@ -550,7 +551,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         val service = credentialEmbeddingService(credential, model)
         if (service == null) {
             logger.warn(
-                "Nothing built an embedding service for provider '{}', needed for role '{}'. Register a ModelPlatform that builds the embedding kind for it, and check that the module speaking its wire protocol is on the classpath",
+                "Nothing built an embedding service for provider '{}', needed for role '{}'. Register a ModelPlatform that builds the embedding kind for it, and check that the module that calls that provider's API is on the classpath",
                 credential.provider, role,
             )
         }
@@ -784,7 +785,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     /**
      * Warn about resolvers and model platforms that this provider never asks.
      *
-     * Kinds are matched by identity, so a resolver holding any other kind instance is never asked.
+     * A kind equals only itself, so a resolver holding any other kind instance is never asked.
      * That includes a new [ModelKind] created with the name "chat". Without this warning such a
      * bean would be ignored with nothing in the log.
      *
@@ -1147,7 +1148,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 ?.also { credentialLlmServices[key] = it }
         if (llmService == null) {
             logger.warn(
-                """Nothing built a service for provider '{}', needed for role '{}'. Register a CredentialEndpointResolver for it, and check that the module speaking its wire protocol is on the classpath""",
+                """Nothing built a service for provider '{}', needed for role '{}'. Register a CredentialEndpointResolver for it, and check that the module that calls that provider's API is on the classpath""",
                 credential.provider, role,
             )
             return null
@@ -1413,7 +1414,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             .also {
                 if (it == null) {
                     logger.warn(
-                        "Nothing built an embedding service for provider '{}', needed for the named model '{}'. Register a ModelPlatform that builds the embedding kind for it, and check that the module speaking its wire protocol is on the classpath",
+                        "Nothing built an embedding service for provider '{}', needed for the named model '{}'. Register a ModelPlatform that builds the embedding kind for it, and check that the module that calls that provider's API is on the classpath",
                         credential.provider, model,
                     )
                 }
