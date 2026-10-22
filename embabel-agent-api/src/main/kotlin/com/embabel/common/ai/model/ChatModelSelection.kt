@@ -59,7 +59,7 @@ internal class ChatModelSelection(
         modelPlatforms = modelPlatforms,
         catalogs = localModelCatalogs,
         credentialCacheSize = properties.credentialServiceCacheSize,
-        rolesProperty = "embabel.models.roles",
+        rolesProperty = "embabel.models.roles or embabel.models.llms",
         isPlaceholder = { it is PlaceholderLlmService },
     )
 
