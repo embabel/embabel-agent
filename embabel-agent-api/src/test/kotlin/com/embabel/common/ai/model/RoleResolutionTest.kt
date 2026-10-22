@@ -554,6 +554,40 @@ class RoleResolutionTest {
         }
 
         @Test
+        fun `a deployment awaiting a key tells the placeholder the model a flat-only role names for a user's key`() {
+            // The placeholder records the role and model it is told about, so the test can read them.
+            var unsatisfied: Pair<String, String?>? = null
+            val recordingPlaceholder: LlmService<*> = object :
+                LlmService<SpringAiLlmService> by SpringAiLlmService(
+                    "setup-required", "none", mockk<ChatModel>(), DefaultOptionsConverter,
+                ),
+                PlaceholderLlmService {
+                override fun forUnsatisfiedRole(role: String, model: String?): LlmService<*>? {
+                    unsatisfied = role to model
+                    return null
+                }
+            }
+            val mp = provider(
+                models = listOf(recordingPlaceholder),
+                properties = ConfigurableModelProviderProperties(
+                    llms = mapOf("drafting" to "claude-haiku-4-5"),
+                    defaultLlm = "setup-required",
+                ),
+                roleResolvers = listOf(
+                    RoleResolver.of(LlmService.KIND) { _, _ ->
+                        RoleResolution.Credential(ProviderCredential("anthropic", "sk-test"))
+                    },
+                ),
+                // No platform builds anything, so the role cannot be satisfied and the placeholder is used.
+                platforms = listOf(platformBuilding(LlmService.KIND) { _, _ -> null }),
+            )
+            assertSame(recordingPlaceholder, mp.getLlm(ByRoleModelSelectionCriteria("drafting")))
+            // "drafting" has no nested entry for anthropic, so the model name comes from the flat map,
+            // the same map the model would have been built from.
+            assertEquals("drafting" to "claude-haiku-4-5", unsatisfied)
+        }
+
+        @Test
         fun `a user's key for a role configured nowhere warns under the provider's logger, naming both maps`() {
             val mp = provider(
                 roleResolvers = listOf(
