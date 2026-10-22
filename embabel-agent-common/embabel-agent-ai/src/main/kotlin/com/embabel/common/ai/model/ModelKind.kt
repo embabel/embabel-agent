@@ -57,7 +57,7 @@ open class ModelKind<C : ModelCapability, B : RoleBinding>(
      * A kind is an identity: it equals only itself. This is final, so a subclass cannot make two
      * kinds equal, and sets, maps and `==` all compare kinds the way the platform does.
      */
-    final override fun equals(other: Any?): Boolean = this === other
+    final override fun equals(other: Any?): Boolean = this === other // NOSONAR: an identity comparison needs no type test
 
     /** The identity hash code, to agree with [equals]. */
     final override fun hashCode(): Int = System.identityHashCode(this)
