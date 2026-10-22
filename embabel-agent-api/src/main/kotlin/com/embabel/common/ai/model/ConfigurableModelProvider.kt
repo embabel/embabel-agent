@@ -210,9 +210,10 @@ data class ConfigurableModelProviderProperties(
 /**
  * Take LLM definitions from configuration
  *
- * A [ModelProvider] over one selection per kind of model: [ChatModelSelection] and
- * [EmbeddingModelSelection]. Each runs on a [ModelFamily], which holds what every kind does the same
- * way; what this class adds is construction, startup validation in a fixed order, and listings.
+ * Chat model selection is done by [ChatModelSelection] and embedding model selection by
+ * [EmbeddingModelSelection]. Both use a [ModelFamily] for the steps that are the same for every kind
+ * of model. This class builds the two selections, validates configuration at startup (chat first,
+ * then embedding), and lists models and roles.
  */
 class ConfigurableModelProvider @JvmOverloads constructor(
     private val llms: List<LlmService<*>>,
@@ -269,15 +270,18 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         chat.validate()
         warnOfUnselectedKinds(roleResolvers, modelPlatforms)
         logger.info(infoString(verbose = true))
+        // Embedding is checked last so that a failed embedding check is thrown after the model
+        // listing above has been logged. chat.setupRequired is set when chat is constructed, so it
+        // does not depend on chat.validate() having run.
         embedding.validate(chatSetupRequired = chat.setupRequired)
     }
 
     /**
      * Warn about resolvers and model platforms that this provider never asks.
      *
-     * A kind equals only itself, so a resolver holding any other kind - a new [ModelKind] built
-     * with the chat kind's name, say - is never asked. Saying so at startup is the difference
-     * between a bean that does nothing and a bean that does nothing without a trace.
+     * A kind equals only itself, so a resolver holding any other kind instance is never asked.
+     * That includes a new [ModelKind] created with the name "chat". Without this warning such a
+     * bean would be ignored with nothing in the log.
      *
      * A platform is reported only when none of its kinds is selected. A platform that builds chat
      * and also a kind nothing selects yet is still asked for chat, so it is not reported.
