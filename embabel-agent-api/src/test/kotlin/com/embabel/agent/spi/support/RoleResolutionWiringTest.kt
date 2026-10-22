@@ -173,7 +173,7 @@ class RoleResolutionWiringTest {
 
     @Test
     fun `capability queries answer about the model the role means, not the default`() {
-        val roleModel = mockk<LlmService<*>>(relaxed = true)
+        val roleModel = mockk<StreamingLlm>(relaxed = true)
         every { roleModel.name } returns OpenAiModels.GPT_6_LUNA
         every { roleModel.provider } returns "openai"
         every { roleModel.supportsStreaming() } returns true
