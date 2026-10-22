@@ -16,6 +16,8 @@
 package com.embabel.agent.api.tool
 
 import com.embabel.agent.api.annotation.LlmTool
+import com.embabel.agent.api.annotation.UnfoldingTools
+import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import org.aopalliance.intercept.MethodInterceptor
 import org.aopalliance.intercept.MethodInvocation
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -43,6 +45,12 @@ class ProxiedToolDiscoveryTest {
 
     open class NoToolsHere {
         fun notATool(): String = "nothing to see here"
+    }
+
+    @UnfoldingTools(name = "greetings", description = "Greeting tools")
+    open class ProgressiveGreetingTools {
+        @LlmTool(name = "greet", description = "Greets someone")
+        open fun greet(name: String): String = "Hello, $name"
     }
 
     interface Greeter {
@@ -92,6 +100,36 @@ class ProxiedToolDiscoveryTest {
 
         val tools = Tool.safelyFromInstance(proxy)
         val greet = tools.single { it.definition.name == "greet" }
+
+        val result = greet.call("""{"name": "World"}""") as Tool.Result.Text
+
+        assertEquals("Hello, World", result.content)
+        assertEquals(1, interceptor.invocationCount)
+    }
+
+    @Test
+    fun `discovers unfolding tool on a CGLIB-proxied instance`() {
+        val proxyFactory = ProxyFactory(ProgressiveGreetingTools())
+        proxyFactory.isProxyTargetClass = true
+        val proxy = proxyFactory.proxy as ProgressiveGreetingTools
+
+        val tool = UnfoldingTool.fromInstance(proxy)
+
+        assertEquals("greetings", tool.definition.name)
+        assertEquals(listOf("greet"), tool.innerTools.map { it.definition.name })
+    }
+
+    @Test
+    fun `invoking an unfolding child discovered on a CGLIB proxy goes through the proxy`() {
+        val interceptor = CountingInterceptor()
+        val proxyFactory = ProxyFactory(ProgressiveGreetingTools())
+        proxyFactory.isProxyTargetClass = true
+        proxyFactory.addAdvice(interceptor)
+        val proxy = proxyFactory.proxy as ProgressiveGreetingTools
+
+        val tools = Tool.fromInstance(proxy)
+        val unfoldingTool = tools.single() as UnfoldingTool
+        val greet = unfoldingTool.innerTools.single()
 
         val result = greet.call("""{"name": "World"}""") as Tool.Result.Text
 
