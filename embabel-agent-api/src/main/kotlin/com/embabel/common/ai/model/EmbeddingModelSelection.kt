@@ -61,7 +61,7 @@ internal class EmbeddingModelSelection(
         modelPlatforms = modelPlatforms,
         catalogs = localModelCatalogs,
         credentialCacheSize = properties.credentialServiceCacheSize,
-        rolesProperty = "embabel.models.embedding-roles",
+        rolesProperty = "embabel.models.embedding-roles or embabel.models.embedding-services",
         isPlaceholder = { it.awaitingProviderKey },
     )
 

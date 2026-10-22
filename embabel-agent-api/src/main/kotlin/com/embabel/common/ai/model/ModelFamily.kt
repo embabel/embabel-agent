@@ -37,7 +37,8 @@ import java.util.Collections
  * @param modelPlatforms platforms that build a model of this kind from a user's key
  * @param catalogs what local runners are serving
  * @param credentialCacheSize how many models built from user keys to keep
- * @param rolesProperty the nested roles property, for messages, such as `embabel.models.roles`
+ * @param rolesProperty the role properties a credential's model is looked up in, for messages, such as
+ * `embabel.models.roles or embabel.models.llms`
  * @param isPlaceholder whether a registered model stands in for one that is awaiting a key
  */
 internal class ModelFamily<C, B : RoleBinding>(
@@ -52,7 +53,11 @@ internal class ModelFamily<C, B : RoleBinding>(
     private val isPlaceholder: (C) -> Boolean,
 ) where C : ModelCapability, C : ModelMetadata {
 
-    private val logger = loggerFor<ModelFamily<*, *>>()
+    /**
+     * Logs as [ConfigurableModelProvider], as both selections do, so every line selection writes
+     * stays under the one logger an operator already filters or captures.
+     */
+    private val logger = loggerFor<ConfigurableModelProvider>()
 
     /**
      * Models built from user keys, which are per-user and so cannot be Spring beans.
@@ -112,9 +117,6 @@ internal class ModelFamily<C, B : RoleBinding>(
      * must not depend on the BYOK module that implements them.
      */
     fun placeholder(): C? = registered.firstOrNull(isPlaceholder)
-
-    /** Whether [model] stands in for one that is awaiting a key. */
-    fun isPlaceholder(model: C): Boolean = isPlaceholder.invoke(model)
 
     /**
      * What [resolution] materializes into, or null when it names a model this deployment cannot

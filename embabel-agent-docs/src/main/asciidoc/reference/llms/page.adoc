@@ -684,7 +684,7 @@ is expected and only worth reporting.
 
 |A role reached through a user's own credential
 |n/a
-|Resolved per call against that provider's entry only. It never falls back to the flat `embabel.models.llms` map - a user's key must not silently select a model the deployment pays for.
+|Resolved per call against that provider's entry. The configuration-driven resolver never falls back to the flat `embabel.models.llms` map under a user's key - a user's key must not silently select a model the deployment pays for. When an application resolver returns `RoleResolution.Credential`, a role with no entry for that provider takes its model name from the flat map, and that model is built on the user's key, so the user pays for it.
 |===
 
 Whichever way startup goes, asking for a role that cannot be satisfied still throws at the point of
@@ -744,7 +744,8 @@ fun byokRoleResolver(userKeyStore: UserKeyStore) =
 ----
 
 `RoleResolution.Credential` hands back a key and lets the platform do the rest: it looks up what the
-role means under that provider, builds the service for it, and caches it per (provider, key, model)
+role means under that provider (or, when `roles` has no entry for it, in the flat `llms` map), builds
+the service for it on the user's key, and caches it per (provider, key, model)
 so it is not rebuilt on every call. Return `RoleResolution.Bound` to name a model and its tuning
 directly, or `RoleResolution.Service` to supply an `LlmService` you built yourself.
 

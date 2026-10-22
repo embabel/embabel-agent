@@ -552,6 +552,28 @@ class RoleResolutionTest {
         }
 
         @Test
+        fun `a user's key for a role configured nowhere warns under the provider's logger, naming both maps`() {
+            val mp = provider(
+                roleResolvers = listOf(
+                    RoleResolver.of(LlmService.KIND) { _, _ ->
+                        RoleResolution.Credential(ProviderCredential("mistral", "sk-test"))
+                    },
+                ),
+                platforms = listOf(platform),
+            )
+            val warnings = captureWarnings {
+                assertThrows<NoSuitableModelException> { mp.getLlm(ByRoleModelSelectionCriteria("drafting")) }
+            }
+            assertTrue(
+                warnings.any {
+                    it.contains("'drafting'") && it.contains("'mistral'") &&
+                        it.contains("embabel.models.roles or embabel.models.llms")
+                },
+                warnings.toString(),
+            )
+        }
+
+        @Test
         fun `the role's tuning for that provider travels with the user's key`() {
             val mp = provider(platforms = listOf(platform))
             val resolved = ModelSelectionContextHolder.with(
