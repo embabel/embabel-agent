@@ -21,12 +21,21 @@ import com.embabel.agent.api.common.PromptRunner
  * A [PromptRunner] that can run prompts with thinking extraction.
  *
  * A runner offers thinking by implementing this interface. The compiler then requires it to
- * implement [thinking]. A runner that does not implement this interface answers false from
- * [supportsThinking], and its [thinking] throws [UnsupportedOperationException].
+ * implement [thinking]. [PromptRunner]'s own defaults answer false from [supportsThinking] and
+ * throw [UnsupportedOperationException] from [thinking].
+ *
+ * Thinking has two questions, and each has its own check:
+ * - Does this runner implement thinking operations? The type answers: `is ThinkingPromptRunner`.
+ * - Does the selected model produce reasoning? [supportsThinking] answers. It is data about the
+ *   model, so it is a method rather than a type.
  *
  * [supportsThinking] defaults to true here. An implementation whose model is chosen per call
  * overrides it to report what the selected model supports. The runner returned by `Ai`
  * overrides it in this way.
+ *
+ * The runner returned by `Ai` is always a ThinkingPromptRunner, so for that runner the type check
+ * is optional: checking [supportsThinking] and then calling [thinking] works. Check the type when
+ * the runner may come from somewhere else.
  *
  * Usage (Kotlin):
  * ```kotlin
