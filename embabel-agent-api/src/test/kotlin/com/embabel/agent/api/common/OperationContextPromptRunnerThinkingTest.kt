@@ -110,9 +110,10 @@ class OperationContextPromptRunnerThinkingTest {
     }
 
     @Test
-    fun `supportsThinking delegates to llm operations`() {
+    fun `this test runner reports thinking support through the ThinkingPromptRunner default`() {
+        // The relaxed mock answers false if asked. The runner never asks it: it is a
+        // ThinkingPromptRunner and keeps that interface's default of true.
         val mockChatClientOps = mockk<ChatClientLlmOperations>(relaxed = true)
-        every { mockChatClientOps.supportsThinking(any()) } returns true
         val context = createMockOperationContextWithLlmOperations(mockChatClientOps)
         val runner = createOperationContextPromptRunner(context)
 
