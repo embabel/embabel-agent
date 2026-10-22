@@ -425,13 +425,7 @@ class ModelRegistry<M : ModelCapability> private constructor(
                 "No ${spec.label} service is registered under the name '$name'. ${family.context()} Register a service under that name in configuration or with ${spec.builderName}.register(name, service), or select one of the listed names.",
             )
             // The lookup above finds models of every capability, so check that this one fits the family.
-            if (!family.type.isInstance(model)) {
-                throw ServiceSelectionException(
-                    Reason.WRONG_CAPABILITY,
-                    "Service '$name' is a ${describe(model)} service (${model.javaClass.name}) and cannot answer ${spec.label} requests. ${spec.selectAdvice(family.type.simpleName)} ${family.context()}",
-                )
-            }
-            return cast(model)
+            return requireFits(name, model)
         }
 
         override fun byRole(role: String): S {
@@ -444,13 +438,29 @@ class ModelRegistry<M : ModelCapability> private constructor(
 
         override fun using(service: S): S = service
 
-        /** Casts the model a default or role names to this family's type. [Builder.build] checked it fits. */
-        private fun lookup(name: String): S = cast(
+        /**
+         * Returns the model a default or role names. [Builder.build] checked that the source listing
+         * the name first fits the family, but when that source returns nothing a later source of
+         * another type can serve the name, so the model is checked again here.
+         */
+        private fun lookup(name: String): S = requireFits(
+            name,
             models[name] ?: sourceModel(name) ?: throw ServiceSelectionException(
                 Reason.UNKNOWN_NAME,
                 "No provider returned a service for the model '$name'. ${family.context()}",
             ),
         )
+
+        /** Returns [model] as this family's type, or fails with WRONG_CAPABILITY when it lacks the capability. */
+        private fun requireFits(name: String, model: M): S {
+            if (!family.type.isInstance(model)) {
+                throw ServiceSelectionException(
+                    Reason.WRONG_CAPABILITY,
+                    "Service '$name' is a ${describe(model)} service (${model.javaClass.name}) and cannot answer ${spec.label} requests. ${spec.selectAdvice(family.type.simpleName)} ${family.context()}",
+                )
+            }
+            return cast(model)
+        }
 
         /** The family's type is S: [select] hands this selector out only under that type. */
         @Suppress("UNCHECKED_CAST")
