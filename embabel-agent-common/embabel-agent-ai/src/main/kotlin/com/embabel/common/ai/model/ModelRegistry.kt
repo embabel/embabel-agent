@@ -40,6 +40,20 @@ import java.util.concurrent.ConcurrentHashMap
  * model whose type fits the family. Source models are never chosen as a default by the candidate or
  * single-model rules.
  *
+ * Usage, with a made-up `ImageService` capability and two registered models:
+ * ```kotlin
+ * val registry = ModelRegistry.builder<ImageService>()
+ *     .family(ImageService::class.java, ModelRegistry.FamilySpec("image", "MyImageRegistry.Builder"))
+ *     .register("sketch", sketchModel)
+ *     .register("photo", photoModel)
+ *     .defaultFor(ImageService::class.java, "photo")
+ *     .role(ImageService::class.java, "cheap", "sketch")
+ *     .build()
+ * val images = registry.select(ImageService::class.java)
+ * images.defaultService() // photoModel
+ * images.byRole("cheap") // sketchModel
+ * ```
+ *
  * @param M the kind of model the registry holds
  */
 @ApiStatus.Experimental
@@ -189,7 +203,10 @@ class ModelRegistry<M : ModelCapability> private constructor(
         private fun sourceModels(sources: List<ModelSource<M>>, models: Map<String, M>): SourceModels {
             val claimedModelNames = HashSet<String>(models.keys)
             return SourceModels(
+                // add returns false for a name a registered model or an earlier source already has,
+                // so the filter keeps only names this source is the first to serve.
                 sources.map { source -> SourceGroup(source.provider, source.type, source.modelNames().filter(claimedModelNames::add)) }
+                    // Drop a source whose names are all taken, so messages do not list it with no names.
                     .filter { it.names.isNotEmpty() },
             )
         }
@@ -206,6 +223,7 @@ class ModelRegistry<M : ModelCapability> private constructor(
             registrations.forEach { (name, model) ->
                 require(name.isNotBlank()) { "service registration name must not be blank" }
                 require(name !in models) { "service name '$name' is registered more than once" }
+                // The map compares models by identity, so two equal but distinct models may both register.
                 namesByInstance[model]?.let { first ->
                     throw IllegalArgumentException(
                         "the same service instance is registered as '$first' and '$name'. Register each instance under one name.",
@@ -272,7 +290,9 @@ class ModelRegistry<M : ModelCapability> private constructor(
         ) {
             val spec = declared.spec
             val type = declared.type
+            // A name no registered model holds is valid when a source of a fitting type serves it.
             if (name !in models && name in sourceModels.value.namesFitting(type)) return
+            // A name a source serves reaches here only when that source's models lack the family's capability.
             if (name !in models) {
                 sourceModels.value.typeServing(name)?.let { sourceType ->
                     throw IllegalArgumentException(
@@ -280,6 +300,7 @@ class ModelRegistry<M : ModelCapability> private constructor(
                     )
                 }
             }
+            // Here the name is either registered or served by no source.
             val model = requireNotNull(models[name]) {
                 "$binding names unknown service '$name' (property $property). Registered services: ${models.keys.toList()}. Provider models: ${sourceModels.value.describeFitting(type)}."
             }
@@ -344,6 +365,7 @@ class ModelRegistry<M : ModelCapability> private constructor(
          * resolution recorded.
          */
         fun withDefault(candidates: List<String>): Family {
+            // A candidate counts only for a family whose capability its model has.
             val eligibleCandidates = candidates.filter { it in eligible }
             val state = when {
                 explicitDefault != null -> DefaultState.Resolved(explicitDefault, "explicit")
@@ -375,6 +397,7 @@ class ModelRegistry<M : ModelCapability> private constructor(
         fun context(): String {
             // Listing source models is best effort here: a failure must not replace the selection error.
             val models = runCatching { sourceModels.value }.fold(
+                // Source models are listed only when some of them fit this family.
                 onSuccess = { if (it.namesFitting(type).isEmpty()) "" else " Provider models: ${it.describeFitting(type)}." },
                 onFailure = { " Provider models could not be listed." },
             )
@@ -396,10 +419,12 @@ class ModelRegistry<M : ModelCapability> private constructor(
         }
 
         override fun named(name: String): S {
+            // A registered model wins over a source model of the same name.
             val model = models[name] ?: sourceModel(name) ?: throw ServiceSelectionException(
                 Reason.UNKNOWN_NAME,
                 "No ${spec.label} service is registered under the name '$name'. ${family.context()} Register a service under that name in configuration or with ${spec.builderName}.register(name, service), or select one of the listed names.",
             )
+            // The lookup above finds models of every capability, so check that this one fits the family.
             if (!family.type.isInstance(model)) {
                 throw ServiceSelectionException(
                     Reason.WRONG_CAPABILITY,
