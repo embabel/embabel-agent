@@ -272,6 +272,28 @@ class ModelRegistryTest {
         assertTrue(second.built.isEmpty())
     }
 
+    @Test
+    fun `a default that a later source of the wrong kind serves at lookup fails with wrong capability`() {
+        // The animation source lists "x" first, so the build accepts "x" as the animation default.
+        // It then returns no model for "x", so the lookup falls through to the drawing source.
+        val listsButReturnsNothing = object : ModelSource<Drawing> {
+            override val provider = "empty"
+            override val type = Animation::class.java
+            override fun modelNames() = listOf("x")
+            override fun modelNamed(name: String): Drawing? = null
+        }
+        val animations = builder()
+            .source(listsButReturnsNothing)
+            .source(NamedSource("drawings", "x"))
+            .defaultFor(Animation::class.java, "x")
+            .build()
+            .select(Animation::class.java)
+
+        // The drawing source's model cannot animate, so the lookup fails with a selection error.
+        val failure = assertThrows<ServiceSelectionException> { animations.defaultService() }
+        assertEquals(Reason.WRONG_CAPABILITY, failure.reason)
+    }
+
     /** Serves drawing models under the given names, from a provider with the given name. */
     private class NamedSource(override val provider: String, private vararg val names: String) : ModelSource<Drawing> {
         /** The models this source has built, in the order it built them. */
