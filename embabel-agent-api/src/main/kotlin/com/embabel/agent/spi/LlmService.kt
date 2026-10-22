@@ -42,8 +42,8 @@ interface LlmService<THIS : LlmService<THIS>> : LlmMetadata, ChatCompletion, Pro
      *
      * Each LlmService instance is bound to a specific model, so this checks
      * whether that particular model supports streaming. By default the answer is whether this
-     * service implements [StreamingChatCompletion]. A service whose provider might still refuse to
-     * stream overrides this to ask the provider.
+     * service implements [StreamingChatCompletion]. A service whose provider can return an error
+     * for a streaming request overrides this to check with the provider.
      *
      * @return true if the underlying model supports streaming, false otherwise
      */
