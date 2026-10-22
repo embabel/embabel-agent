@@ -132,25 +132,60 @@ The "Shipped in" column is the first release that contained the removed type or 
 ===== Bean names in `embabel-agent-starter-byok`
 
 The starter used to ship one factory bean per protocol and kind.
-It now ships one `ModelPlatform` bean per protocol.
-If your application replaced a shipped bean by registering a bean of the same name, rename your bean:
+It now ships one `ModelPlatform` bean each for OpenAI, DeepSeek, Mistral AI and Anthropic, plus one for other OpenAI-compatible endpoints, which include Gemini and Atlas Cloud.
+If your application replaced a shipped bean by registering a bean of the same name, rename your bean.
+Pick the new name by the keys your bean handled:
 
-[cols="1,1",options="header"]
+[cols="1,1,1",options="header"]
 |===
-|1.5.x bean name |Bean name now
+|1.5.x bean name |Keys it handled |Bean name now
 
 |`anthropicCredentialLlmServiceFactory`
+|Anthropic, and endpoints a `CredentialEndpointResolver` returns on Anthropic's protocol
 |`anthropicModelPlatform`
 
-|`openAiCompatibleCredentialLlmServiceFactory`
+.5+|`openAiCompatibleCredentialLlmServiceFactory` and `openAiCompatibleCredentialEmbeddingServiceFactory`
+|OpenAI
+|`openAiModelPlatform`
+
+|DeepSeek
+|`deepSeekModelPlatform`
+
+|Mistral AI
+|`mistralAiModelPlatform`
+
+|Gemini and Atlas Cloud
 |`openAiCompatibleModelPlatform`
 
-|`openAiCompatibleCredentialEmbeddingServiceFactory`
+|Endpoints a `CredentialEndpointResolver` returns on the OpenAI protocol
 |`openAiCompatibleModelPlatform`
 |===
 
-The OpenAI-compatible platform builds chat and embedding models.
-A bean named `openAiCompatibleModelPlatform` therefore replaces both, so it must build every kind your application uses with OpenAI-compatible keys.
+A bean that replaced both OpenAI-compatible factories for every provider now has to be registered under each of the names in the last column for the providers it handles.
+You can register one bean per name, or one bean under several names, because a shipped bean is also skipped when one of your bean's other names (aliases) matches it:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+@Bean(name = ["openAiModelPlatform", "deepSeekModelPlatform", "mistralAiModelPlatform", "openAiCompatibleModelPlatform"])
+fun openAiProtocolPlatform(): ModelPlatform = ...
+----
+
+Java::
++
+[source,java]
+----
+@Bean(name = {"openAiModelPlatform", "deepSeekModelPlatform", "mistralAiModelPlatform", "openAiCompatibleModelPlatform"})
+ModelPlatform openAiProtocolPlatform() { ... }
+----
+====
+
+Replacing one bean leaves the others in place.
+Each platform builds chat models, and also embedding models when its provider has an embeddings API, so a bean you register under one of these names must build every kind your application uses with those keys.
+A DeepSeek key no longer gets an embedding model: DeepSeek has no embeddings API, so the role fails with `NoSuitableModelException` instead of an HTTP error from DeepSeek.
 See <<reference.llms,Working with LLMs>> for the list of shipped platforms.
 
 ==== A custom streaming `LlmService`
