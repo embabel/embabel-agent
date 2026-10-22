@@ -165,7 +165,7 @@ class AnthropicModelFactoryClientLifecycleTest {
     }
 
     @Test
-    fun `the async client carries the factory's credentials and base URL`() {
+    fun `createAnthropicClientAsync returns a non-null client`() {
         val factory = object : AnthropicModelFactory(apiKey = "test-key", baseUrl = "https://gateway.example.com") {
             fun async(): AnthropicClientAsync = createAnthropicClientAsync()
         }
