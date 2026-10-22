@@ -473,6 +473,52 @@ class EmbeddingRoleResolutionTest {
             // must not pay for that per call.
             assertSame(first, second)
         }
+
+        @Test
+        fun `an unregistered name throws when the default role names a model instead of a key`() {
+            // The default role is answered with a model of its own, not with a key. A model of its
+            // own is not the model the caller named, and there is no key to build the named model
+            // on, so asking for that name throws.
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = DEFAULT_LLM,
+                    defaultEmbeddingModel = DOCUMENTS_ROLE,
+                    embeddingServices = mapOf(DOCUMENTS_ROLE to SMALL_MODEL),
+                ),
+                listOf(small),
+                modelPlatforms = listOf(
+                    platformBuilding(EmbeddingService.KIND) { credential, model ->
+                        FakeEmbeddingService(model, credential.provider)
+                    },
+                ),
+            )
+            assertThrows<NoSuitableModelException> {
+                mp.getEmbeddingService(ByNameModelSelectionCriteria(LARGE_MODEL))
+            }
+        }
+
+        @Test
+        fun `an unregistered name throws when no model platform builds it on the default role's key`() {
+            // The default role is answered with a key, but the only model platform builds nothing,
+            // so nothing can serve the named model and asking for it throws.
+            val mp = provider(
+                ConfigurableModelProviderProperties(
+                    defaultLlm = DEFAULT_LLM,
+                    defaultEmbeddingModel = DOCUMENTS_ROLE,
+                    embeddingRoles = mapOf(DOCUMENTS_ROLE to mapOf(OPENAI to SMALL_MODEL)),
+                ),
+                listOf(placeholder),
+                roleResolvers = listOf(
+                    RoleResolver.of(EmbeddingService.KIND) { _, _ ->
+                        RoleResolution.Credential(ProviderCredential(OPENAI, "sk-stored"))
+                    },
+                ),
+                modelPlatforms = listOf(platformBuilding(EmbeddingService.KIND) { _, _ -> null }),
+            )
+            assertThrows<NoSuitableModelException> {
+                mp.getEmbeddingService(ByNameModelSelectionCriteria(LARGE_MODEL))
+            }
+        }
     }
 
     /**
