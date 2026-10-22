@@ -707,7 +707,7 @@ class EmbeddingRoleResolutionTest {
             }
             val message = events.single { it.level == Level.WARN }.formattedMessage
             assertTrue(message.contains("No embedding model is configured"), message)
-            assertTrue(message.contains("CHOICE not yet made"), message)
+            assertTrue(message.contains("No embedding model has been chosen yet"), message)
             assertFalse(message.contains("provider API key"), message)
         }
 
@@ -720,7 +720,7 @@ class EmbeddingRoleResolutionTest {
                 ).getEmbeddingService(DefaultModelSelectionCriteria)
             }
             assertTrue(
-                events.single { it.level == Level.WARN }.formattedMessage.contains("unset or empty"),
+                events.single { it.level == Level.WARN }.formattedMessage.contains("unset or blank"),
                 "an empty override is how a container passes 'no value', and must not read as a typo",
             )
         }
@@ -738,13 +738,13 @@ class EmbeddingRoleResolutionTest {
                 ).getEmbeddingService(DefaultModelSelectionCriteria)
             }
             assertTrue(
-                events.any { it.formattedMessage.contains("is a role, and will be resolved per call") },
+                events.any { it.formattedMessage.contains("is a role and is resolved on each call") },
                 events.joinToString { it.formattedMessage },
             )
             // Startup still reports that the role's model is not registered yet — that is accurate
             // and useful. What must NOT appear is the fallback blaming the default itself.
             assertTrue(
-                events.none { it.formattedMessage.contains("is not registered; falling back") },
+                events.none { it.formattedMessage.contains("placeholder is used instead") },
                 events.joinToString { it.formattedMessage },
             )
         }
@@ -790,7 +790,7 @@ class EmbeddingRoleResolutionTest {
             )
             assertEquals(
                 1,
-                events.count { it.formattedMessage.contains("is not registered; falling back") },
+                events.count { it.formattedMessage.contains("placeholder is used instead") },
                 "suppression must be per reason, not per process",
             )
         }
