@@ -23,6 +23,8 @@ import com.embabel.common.core.types.Semver
 import com.embabel.common.util.indent
 import io.a2a.spec.AgentCapabilities
 import io.a2a.spec.AgentCard
+import io.a2a.spec.AgentInterface
+import io.a2a.spec.TransportProtocol
 import io.a2a.spec.AgentProvider
 import org.slf4j.LoggerFactory
 
@@ -39,6 +41,7 @@ class EmbabelServerGoalsAgentCardHandler(
     private val agentPlatform: AgentPlatform,
     private val a2ARequestHandler: A2ARequestHandler,
     private val goalFilter: GoalFilter,
+    private val preferredTransport: String = TransportProtocol.JSONRPC.asString(),
 ) : AgentCardHandler, A2ARequestHandler by a2ARequestHandler {
 
     private val logger = LoggerFactory.getLogger(EmbabelServerGoalsAgentCardHandler::class.java)
@@ -73,6 +76,8 @@ class EmbabelServerGoalsAgentCardHandler(
             )
             .supportsAuthenticatedExtendedCard(false)
             .protocolVersion("0.3.0")
+            .preferredTransport(preferredTransport)
+            .additionalInterfaces(listOf(AgentInterface(preferredTransport, hostingUrl)))
             .build()
         logger.info("Returning agent card: {}", agentCard)
         return agentCard
