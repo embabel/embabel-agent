@@ -608,6 +608,20 @@ class CredentialEndpointConfigTest {
         }
 
         @Test
+        fun `the OpenAI-compatible platform returns null for a key a resolver sends to Anthropic's protocol`() {
+            // The other direction of the test above: the resolver returns an Anthropic endpoint,
+            // so only the Anthropic platform builds the key.
+            contextRunner.withUserConfiguration(OwnAnthropicEndpoint::class.java).run { context ->
+                val beans = context.chatModelPlatforms()
+                val gatewayKey = ProviderCredential(ANTHROPIC_GATEWAY_PROVIDER, TEST_API_KEY)
+
+                assertThat(beans.getValue(OPENAI_COMPATIBLE_PLATFORM_BEAN).model(gatewayKey, LlmService.KIND, "some-model")).isNull()
+                assertThat(beans.getValue(ANTHROPIC_PLATFORM_BEAN).model(gatewayKey, LlmService.KIND, "some-model")?.provider)
+                    .isEqualTo(ANTHROPIC_GATEWAY_PROVIDER)
+            }
+        }
+
+        @Test
         fun `a BYOK call is not charged to the deployment`() {
             // The user's own key is billed, so counting the call against the deployment's cost
             // accounting would be wrong in the one direction that matters.
