@@ -24,9 +24,10 @@ import com.embabel.common.util.loggerFor
  * How [ConfigurableModelProvider] selects chat models: the deployment default, roles, names, and
  * what happens when nothing satisfies a request.
  *
- * The mechanics every kind shares - resolvers, credentials, local runners - are [family]'s. What is
- * here is chat's own policy: an unsatisfied role hands back the placeholder while the deployment
- * awaits a key and throws otherwise, and a role carries [LlmOptions] that merge into the call.
+ * The steps every kind shares (resolvers, user keys, local runners) are done by [family]. This class
+ * holds what chat does differently from embedding. An unsatisfied role returns the placeholder while
+ * the deployment waits for a key, and throws otherwise. A role's [LlmOptions] are merged into the
+ * options of the call.
  *
  * @param llms the chat models registered at startup
  * @param properties the bound `embabel.models` configuration
@@ -47,8 +48,9 @@ internal class ChatModelSelection(
     private val logger = loggerFor<ConfigurableModelProvider>()
 
     /**
-     * Application resolvers first, the configuration-driven one last, so an application can
-     * override any role and ignore the rest.
+     * The application's resolvers are asked first and the configuration-driven resolver last. An
+     * application resolver can answer for any role and return null for the others, which are then
+     * resolved from configuration.
      */
     val family: ModelFamily<LlmService<*>, LlmOptions> = ModelFamily(
         kind = LlmService.KIND,
@@ -66,23 +68,24 @@ internal class ChatModelSelection(
     )
 
     /**
-     * The registered service `default-llm` names directly, or null when it names a role - or a
-     * model nothing has registered.
+     * The registered service whose name is `default-llm`, or null when `default-llm` names a role
+     * or a model that is not registered.
      *
-     * Null is what sends the default through the role chain on every call, so it is also the thing
-     * that keeps a *registered* default off that path: a name that resolves here is resolved once,
-     * at startup, exactly as before.
+     * When this is null, [defaultLlmService] resolves the default through the role resolvers on
+     * every call. When it is not null, the default is this service, found once at startup, and the
+     * resolvers are not asked.
      */
     private val registeredDefaultLlm: LlmService<*>? = llms.firstOrNull { it.name == properties.defaultLlm }
 
     /**
-     * What the default resolves to when nothing better is available - the deployment's provider for
-     * role resolution, and the answer to [DefaultModelSelectionCriteria] when the role chain
-     * declines.
+     * The default chat model found at startup. Its provider is the deployment's provider for role
+     * resolution, and it is returned for [DefaultModelSelectionCriteria] when no resolver satisfies
+     * the default on a call.
      *
-     * Resolved against whichever role map names a model this deployment has registered: the flat
-     * `llms` map first, since that is the single-provider shape and says what the default means
-     * without further qualification, then the nested `roles` map.
+     * When `default-llm` is not the name of a registered model, it is looked up as a role: first in
+     * the flat `llms` map, because that map has one model per role and needs no provider, then in
+     * the nested `roles` map. When neither gives a registered model, the placeholder is used. When
+     * there is no placeholder either, construction throws.
      */
     private val defaultLlm =
         if (llms.isNotEmpty())
@@ -102,20 +105,19 @@ internal class ChatModelSelection(
         properties.llms[properties.defaultLlm]?.let { model -> llms.firstOrNull { it.name == model } }
 
     /**
-     * The registered service a nested `roles` entry for `default-llm` names, taking whichever
-     * provider column this deployment can actually serve.
+     * The registered service named by a nested `roles` entry for `default-llm`, taken from the first
+     * provider whose model is registered.
      *
-     * The provider cannot be used to pick the column, because the provider is what this value is
-     * being computed to supply. Taking whichever column a registered model answers for is the same
-     * question from the other end: a deployment can only serve the providers it has models for, and
-     * where it has several, any of them is a defensible startup default. Per-call resolution still
-     * picks the right column for whichever key is active.
+     * The deployment's provider cannot be used to choose the provider entry, because the
+     * deployment's provider is read from the value computed here. A deployment can only serve the
+     * providers it has registered models for, so this takes the first provider that has one. When
+     * several have one, any of them is acceptable as the startup default. Each call still uses the
+     * entry for the provider of the key that is active on that call.
      *
-     * The nested shape is not only for deployments awaiting a key. One that holds its own key may
-     * use it to say what each role means per provider, against the day it serves users who bring
-     * theirs - and such a deployment has no placeholder to fall back to. Without this it could not
-     * name a role as its default at all: it failed to start, and was told the role it had just
-     * configured was not a role.
+     * Deployments that hold their own key also use the nested map, to configure each role per
+     * provider for users who will bring their own keys. Such a deployment may have no placeholder.
+     * Without this lookup, it could not use a nested role as its default, and it would fail to
+     * start.
      */
     private fun nestedRoleDefaultLlm(): LlmService<*>? =
         properties.roles[properties.defaultLlm]
@@ -124,11 +126,11 @@ internal class ChatModelSelection(
             ?.firstNotNullOfOrNull { model -> llms.firstOrNull { it.name == model } }
 
     /**
-     * Why `default-llm` resolved to nothing, said in the terms the reader has to act on.
+     * The startup error message for a `default-llm` that resolved to nothing.
      *
-     * A configured role that nothing satisfies is a different problem from a name that is not a
-     * role at all, and telling someone their role is not a role sends them to fix the one thing
-     * that is already right.
+     * A configured role that no registered model satisfies gets a different message from a name
+     * that is neither a registered model nor a configured role. Each message names the setting
+     * the reader has to change.
      */
     private fun unresolvableDefaultLlmMessage(): String =
         if (properties.defaultLlmNamesRole())
@@ -139,46 +141,48 @@ internal class ChatModelSelection(
     /**
      * Whether this deployment is waiting for a key rather than misconfigured.
      *
-     * True exactly when `default-llm` resolved to a [PlaceholderLlmService] - either because it
-     * names one, or because the model it names is not registered and a placeholder stands in. That
-     * is the deployment stating that keys arrive at runtime, and it is the only thing that makes an
-     * unresolvable model name in configuration expected rather than a typo.
+     * True when [defaultLlm] is a [PlaceholderLlmService]. That happens when `default-llm` names
+     * the placeholder, or when it names a model or role that gave no registered model and the
+     * placeholder was used instead. This means keys arrive at runtime. Only in this mode is a
+     * configured model name that is not registered treated as expected rather than as a typo.
      *
-     * A deployment that has a key resolves `default-llm` to a real model and so is never in this
-     * mode, even with a placeholder registered alongside - which is what a BYOK starter next to a
-     * provider starter looks like.
+     * A deployment that has a key resolves `default-llm` to a registered model that is not the
+     * placeholder, so it is not in this mode, even when a placeholder is also registered. A
+     * placeholder is also registered when a BYOK starter and a provider starter are both on the
+     * classpath.
      */
     val setupRequired: Boolean = defaultLlm is PlaceholderLlmService
 
     /**
      * The registered placeholder, if this deployment carries one.
      *
-     * Deliberately structural rather than by name: `com.embabel.agent.spi` owns the marker, and
-     * this class must not depend on the BYOK module that implements it.
+     * Found by the [PlaceholderLlmService] type rather than by name, because this class must not
+     * depend on the BYOK module that implements it.
      */
     private fun placeholderLlm(): LlmService<*>? =
         family.placeholder()
             ?.also {
-                // Named, because degrading a real model to the placeholder would otherwise hide the
-                // case where the key IS set and the model simply failed to register.
+                // A model name that is not registered is logged as a warning that names it.
+                // Without the warning, a deployment whose key is set but whose model failed to
+                // register would switch to the placeholder with no message.
                 //
-                // A role is reported differently: it has not failed to resolve, it simply resolves
-                // per call, and the placeholder is only what it falls back to on a call nothing can
-                // satisfy. Warning about it at startup would fire on every boot of exactly the
-                // deployment this is meant to serve.
+                // A role is logged at info instead. The role has not failed: it is resolved on each
+                // call, and the placeholder is used only on a call that nothing satisfies. A warning
+                // here would appear on every startup of a deployment that waits for keys, which is
+                // the kind of deployment the placeholder is registered for.
                 if (properties.defaultLlmNamesRole()) {
                     logger.info(
                         """
-                        Default LLM '{}' is a role, and will be resolved per call.
-                        Until a key is supplied it falls back to the '{}' placeholder
+                        Default LLM '{}' is a role and is resolved on each call.
+                        Until a key is supplied, each call gets the '{}' placeholder
                         """.trimIndent(),
                         properties.defaultLlm, it.name,
                     )
                 } else {
                     logger.warn(
                         """
-                        Default LLM '{}' is not registered; falling back to the '{}' placeholder.
-                        Calls will fail with an actionable 'no LLM configured' error until a key is supplied. Available: {}
+                        Default LLM '{}' is not registered, so the '{}' placeholder is used instead.
+                        Each call fails with a 'No LLM is configured' error until a model with that name is registered or a local runner serves it. Available: {}
                         """.trimIndent(),
                         properties.defaultLlm, it.name, llms.map { it.name },
                     )
@@ -186,27 +190,28 @@ internal class ChatModelSelection(
             }
 
     /**
-     * Fail on a flat `llms` entry or a nested `roles` entry this deployment cannot satisfy - unless
-     * it is awaiting a key, when the same entry is expected and only reported.
+     * Throws on a flat `llms` entry or a nested `roles` entry that this deployment cannot satisfy.
+     * When the deployment is waiting for a key ([setupRequired]), the entry is expected and only a
+     * warning is logged.
      */
     fun validate() {
         properties.llms.forEach { (role, model) ->
             if (llms.none { it.name == model }) {
-                // Fatal, unless this deployment is waiting for a key. A name that resolves to
-                // nothing is a typo in a deployment that has one, and letting it start would move
-                // the failure to whichever unrelated call first asks for that role. A deployment in
-                // setup-required mode is waiting for the key that registers its models, so the same
-                // name is expected there and only worth reporting.
+                // Throw, unless this deployment is waiting for a key. In a deployment that has a
+                // key, a name that matches no registered model is a typo. If startup continued, the
+                // error would appear later, on whichever call first asks for that role. In
+                // setup-required mode the deployment is waiting for the key its models need, so the
+                // missing name is expected and only a warning is logged.
                 if (setupRequired) {
                     logger.warn(
                         """
                         LLM '{}' for role '{}' is not registered. This deployment is awaiting a key, so that is expected;
-                        the role will report 'no LLM configured' until one is supplied. Available: {}
+                        the role will report 'No LLM is configured' until one is supplied. Available: {}
                         """.trimIndent(),
                         model, role, llms.map { it.name },
                     )
                 } else {
-                    error("LLM '$model' for role $role is not available: Choices are ${llms.map { it.name }}")
+                    error("LLM '$model' for role '$role' is not registered. Available: ${llms.map { it.name }}")
                 }
             }
         }
@@ -214,22 +219,23 @@ internal class ChatModelSelection(
     }
 
     /**
-     * Warn about `embabel.models.roles` entries that cannot be satisfied, on the same terms as
-     * the flat map above.
+     * Checks `embabel.models.roles` entries that cannot be satisfied with the same rule [validate]
+     * uses for the flat map: throw, or log a warning when [setupRequired].
      *
-     * Only entries for the deployment's own provider are checked. An entry for a provider this
-     * deployment is not keyed for is the point of the nested shape - it applies when a user
-     * brings a key for that provider, and its model is not expected to be registered here, so
-     * warning about it would train people to ignore the warning.
+     * Only entries for the deployment's own provider are checked. An entry for another provider is
+     * used when a user brings a key for that provider, so its model is not expected to be
+     * registered here. Warnings about those entries would always appear, and operators would learn
+     * to ignore them.
      *
-     * A provider that has declared [LateArrivingModels] is excused for the same reason one step
-     * later: its models are pulled on the host, so a role naming one nobody has pulled yet is the
-     * ordinary state of an appliance before setup, and refusing to start is refusing to reach the
-     * point where the operator could pull it.
+     * Entries for a provider in [lateArrivingProviders], one that declared [LateArrivingModels], are
+     * not checked either and are only logged at info. That provider's models are pulled on the host
+     * after startup, so before setup a role can name a model that has not been pulled yet. Stopping
+     * startup would prevent the operator from reaching the point where they can pull it.
      *
-     * Without this, a typo under `roles` is silent until something asks for the role: the entry
-     * is found, its model is not registered, and resolution throws rather than falling back to
-     * the flat map - which is the one case where the nested shape can take a role AWAY.
+     * Without this check, a typo under `roles` is not reported until something asks for the role.
+     * Then the nested entry is found, its model is not registered, and resolution throws. It does
+     * not fall back to the flat `llms` map, so a typo in a nested entry makes the role fail even when
+     * the flat map has a working entry for it.
      */
     private fun checkNestedRoles() {
         val deploymentProvider = defaultLlm.provider
@@ -239,9 +245,9 @@ internal class ChatModelSelection(
                 .forEach { (provider, options) ->
                     val model = options.modelName
                     if (provider.lowercase() in lateArrivingProviders) {
-                        // Reported, never silent: the entry has been EXCUSED from a check that would
-                        // otherwise have stopped the deployment, and an operator reading a boot log
-                        // to work out why a role does nothing needs to see that.
+                        // Log the skipped entry at info. It is skipped by a check that would
+                        // otherwise stop startup, and an operator reading the startup log to find
+                        // out why a role does nothing needs to see that.
                         if (model == null || llms.none { it.name == model }) {
                             logger.info(
                                 "Role '{}' names model '{}' under provider '{}', whose models may arrive after startup; it will resolve once that model is served",
@@ -257,7 +263,7 @@ internal class ChatModelSelection(
                     } else if (llms.none { it.name == model }) {
                         reportUnsatisfiableRole(
                             """
-                            LLM '$model' for role '$role' under provider '$provider' - this deployment's own provider - is not available. Available: ${llms.map { it.name }}
+                            LLM '$model' for role '$role' under provider '$provider', which is this deployment's own provider, is not registered. Available: ${llms.map { it.name }}
                             """.trimIndent(),
                         )
                     }
@@ -266,11 +272,11 @@ internal class ChatModelSelection(
     }
 
     /**
-     * Report a role this deployment cannot satisfy, on the same terms as the flat map: fatal in a
-     * deployment that holds a key, expected in one that is waiting for one.
+     * Reports a nested role this deployment cannot satisfy: throws in a deployment that holds a
+     * key, and logs a warning in one that is waiting for a key.
      *
-     * Shared so the two shapes cannot drift. Applying the rule to only one of them was the original
-     * defect here - a typo under `roles` warned and booted while the same typo under `llms` did not.
+     * The flat check in [validate] applies the same rule, so a typo under `roles` stops startup just
+     * as the same typo under `llms` does.
      */
     private fun reportUnsatisfiableRole(message: String) {
         if (setupRequired) {
@@ -296,9 +302,10 @@ internal class ChatModelSelection(
             .withDefaultsFrom(resolved.llmOptions)
             .copy(
                 modelSelectionCriteria = ModelSelectionCriteria.preResolved(resolved.llmService),
-                // Keep the role that was asked for. Selection no longer consults it - the
-                // pre-resolved criteria decide - but events, logs and cost attribution all want to
-                // know a call was made "as cheapest", which is otherwise lost the moment it resolves.
+                // Keep the role that was asked for. Model selection does not read it, because the
+                // pre-resolved criteria already name the service. Events, logs and cost attribution
+                // read it to know that a call was made for a role such as "cheapest". Without it
+                // that would be lost once the role is resolved.
                 role = criteria.role,
             )
     }
@@ -309,13 +316,15 @@ internal class ChatModelSelection(
     /**
      * Ask each resolver in turn what the role means, and materialize the answer.
      *
-     * A role that cannot be satisfied throws, rather than quietly resolving to something else.
-     * Falling back to the default LLM would mean a role like "cheapest" silently becoming the most
-     * capable - and most expensive - model in the deployment, which is exactly the kind of thing
-     * nobody notices until the bill arrives.
+     * A role that cannot be satisfied throws [NoSuitableModelException]. The exception is a
+     * deployment waiting for a key, which gets the placeholder (see the comments in the body). The
+     * role does not fall back to the default LLM. If it did, a role such as "cheapest" would use the
+     * default model, which may be the most capable and most expensive one, and nothing would report
+     * it.
      *
-     * Booting is a separate question: an unsatisfiable role only warns at startup, so a deployment
-     * keyed for one provider still starts and still serves every role that does work.
+     * Startup is checked separately, by [validate]. That check skips nested entries for providers
+     * other than the deployment's own, so a deployment that holds a key for one provider still
+     * starts and serves every role that has a model.
      */
     private fun resolveRole(role: String, context: ModelSelectionContext): ResolvedRole {
         val attempt = attemptRole(role, context)
@@ -325,19 +334,19 @@ internal class ChatModelSelection(
         }
         val resolution = attempt.resolution
         if (setupRequired) {
-            // No key has arrived yet, so no role can name a registered model and this is not a
-            // misconfiguration. Hand back the placeholder rather than throwing: the caller then
-            // fails with the same actionable "no LLM configured" error that the default LLM already
-            // gives, instead of a NoSuitableModelException listing the placeholder as a choice.
+            // No key has arrived yet, so a role cannot resolve to a registered model, and that is
+            // not a configuration error. Return the placeholder instead of throwing. The caller
+            // then fails with a "no LLM configured" error, as it does for the default LLM, instead
+            // of a NoSuitableModelException that lists the placeholder as an available model.
             //
-            // Not a silent substitution of the kind this method otherwise refuses. The objection to
-            // falling back is that "cheapest" would quietly become a real, expensive model; the
-            // placeholder answers nothing and bills nothing.
+            // This does not break the rule against falling back to the default LLM. That rule is
+            // there so that "cheapest" does not use an expensive model without anyone knowing. The
+            // placeholder does not answer any call and costs nothing.
             //
-            // The placeholder is told which role it is standing in for, so the eventual failure can
-            // name the role and the model it wanted. That is the only thing separating a typo from
-            // a key that has not arrived, and at this point it is the last chance to say it: both
-            // look identical at startup, and after this the caller sees only "no LLM configured".
+            // The placeholder is given the role and the model the role wanted, so its error can
+            // name them. That is the only information that tells a typo apart from a key that has
+            // not arrived. Both look the same at startup, and after this point the caller sees only
+            // "no LLM configured".
             val wantedModel = wantedModelFor(role, resolution)
             logger.debug(
                 "Role '{}' (model '{}') has no registered model and this deployment is awaiting a key; using the placeholder",
@@ -354,15 +363,15 @@ internal class ChatModelSelection(
     }
 
     /**
-     * Ask each resolver in turn what the role means, and materialize whatever answers - or nothing,
-     * if no resolver answered or the answer named a model this deployment cannot serve.
+     * Asks each resolver in turn what the role means, and materializes the answer. The result has
+     * no model when no resolver answered or the answer named a model this deployment cannot serve.
      *
-     * Split out of [resolveRole] because the deployment default resolves through the same chain but
-     * must not inherit its ending: an unsatisfiable role throws, where an unsatisfiable default
-     * falls back to what `default-llm` resolved to at startup.
+     * Separate from [resolveRole] because [defaultLlmService] uses the same resolvers but handles a
+     * failure differently: an unsatisfied role throws, and an unsatisfied default returns
+     * [defaultLlm], the model `default-llm` resolved to at startup.
      *
-     * Carries the raw [RoleResolution] back alongside the result so a caller can report what was
-     * wanted, which is otherwise lost the moment materialization fails.
+     * Also returns the [RoleResolution] the resolvers gave, so a caller can report which model was
+     * wanted when materialization fails.
      */
     private fun attemptRole(role: String, context: ModelSelectionContext): RoleAttempt {
         val resolution = family.resolve(role, context)
@@ -376,40 +385,40 @@ internal class ChatModelSelection(
     /**
      * What `default-llm` means for this call.
      *
-     * A name that matched a registered service at startup is that service, resolved once and never
-     * sent through the resolvers - so the ordinary deployment pays nothing for this and cannot have
-     * its default overridden per call.
+     * When `default-llm` matched a registered service at startup, the default is that service. It
+     * was found once, and the resolvers are not asked, so such a deployment does no work per call
+     * for this and its default cannot be changed per call.
      *
-     * Anything else goes through the role chain, on every call. That is the point: under BYOK the
-     * first key arrives after startup, so a default fixed at construction can only be the
-     * placeholder, permanently, until the process restarts. Resolving per call means the same key
-     * that satisfies every other role satisfies the default too.
+     * Otherwise the default is resolved through the role resolvers on every call. Under BYOK the
+     * first key arrives after startup, so a default chosen at construction would be the placeholder
+     * until the process restarts. Resolved per call, the default uses the same key as every other
+     * role.
      *
-     * A name that is neither a role nor a registered model reaches the chain as well, rather than
-     * being refused for not looking like a role. Resolvers answer per call and per user; whether a
-     * name is "a role" is not something this class can decide on their behalf.
+     * A name that is neither a configured role nor a registered model is also passed to the
+     * resolvers. An application resolver may answer for any name, per call and per user, so this
+     * class does not decide which names are roles.
      *
-     * Falls back to [defaultLlm] - the placeholder, in the deployment this exists for - when nothing
-     * answers, rather than throwing as an unsatisfied role does. A caller asking for the default
-     * asked for whatever this deployment has, and the placeholder's "no LLM configured" is the
-     * accurate answer; a [NoSuitableModelException] naming the default as an unsatisfiable role
-     * would not be.
+     * When nothing answers, this returns [defaultLlm] instead of throwing as an unsatisfied role
+     * does. In a deployment waiting for a key, [defaultLlm] is the placeholder. A caller asking for
+     * the default asked for whatever this deployment has, so the placeholder's "no LLM configured"
+     * error is the accurate answer. A [NoSuitableModelException] would wrongly report the default
+     * as a role that cannot be satisfied.
      */
     private fun defaultLlmService(): LlmService<*> {
         registeredDefaultLlm?.let { return it }
         val resolved = attemptRole(properties.defaultLlm, ModelSelectionContextHolder.get()).resolved?.llmService
-        // A default naming a MODEL a runner has since started serving, for the same reason the
-        // embedding default asks: the name was unresolvable at startup and is not any more. Guarded
-        // on the name not being a ROLE, as the embedding default is: a role resolves through the
-        // chain, which already includes the local resolvers, so asking the runners for a model
-        // called `cheapest` can only miss - and a miss is an HTTP request, on the path of every
-        // call a BYOK deployment makes before a key arrives.
+        // When `default-llm` names a model, ask the local runners for it, as the embedding default
+        // does. The model may not have been served at startup but may be served now. This is
+        // skipped when `default-llm` names a role. A role is resolved by the resolvers above, which
+        // include the local resolvers, so asking the runners for a model named after the role (for
+        // example `cheapest`) would find nothing. Each such lookup is an HTTP request, and it would
+        // be made on every call a BYOK deployment makes before a key arrives.
             ?: properties.defaultLlm.takeUnless { properties.defaultLlmNamesRole() }?.let { family.locallyServed(it) }
         if (resolved == null) {
-            // Debug, not warn: under BYOK this is the ordinary state of every call made before a
-            // key arrives, and the eventual failure already names it.
+            // Logged at debug, not warn. Under BYOK every call made before a key arrives reaches
+            // this point, and the error the caller gets later already names the default.
             logger.debug(
-                "Nothing resolved default LLM '{}' for this call; falling back to '{}'",
+                "Nothing resolved default LLM '{}' for this call; using '{}'",
                 properties.defaultLlm, defaultLlm.name,
             )
         }
@@ -427,13 +436,13 @@ internal class ChatModelSelection(
     /**
      * The model name [role] carried, taken from whatever answered for it.
      *
-     * Read back off the resolution rather than re-queried, so it is the name resolution actually
-     * tried and not a second, possibly different, lookup. A [RoleResolution.Credential] carries a
-     * key rather than a model, so that one case does have to ask - the same call
-     * [ModelFamily.materialize] made.
+     * Read from the resolution instead of asking the resolvers again, so it is the name that
+     * resolution tried. A [RoleResolution.Credential] carries a key and no model name, so for it the
+     * name is looked up in the role configuration, with the same call [ModelFamily.materialize]
+     * makes.
      *
-     * Null when nothing named a model: no resolver answered at all, or the entry that did names
-     * only a provider. There is then nothing to report beyond the role itself.
+     * Null when no model was named: no resolver answered, or the configured entry has a provider
+     * and no model name. Only the role is then reported.
      */
     private fun wantedModelFor(role: String, resolution: RoleResolution<LlmService<*>, LlmOptions>?): String? =
         when (resolution) {
@@ -447,8 +456,9 @@ internal class ChatModelSelection(
     /**
      * The chat service this deployment can serve under [name], registered or locally served.
      *
-     * Registered first, always: a model captured at startup is the one the deployment was built
-     * with, and a runner that happens to serve a model of the same name must not displace it.
+     * Registered models are checked first. A model registered at startup is the one the deployment
+     * was configured with, and a local runner serving a model with the same name must not replace
+     * it.
      */
     private fun llmNamed(name: String): LlmService<*>? =
         family.registeredNamed(name) ?: family.locallyServed(name)
@@ -456,8 +466,8 @@ internal class ChatModelSelection(
     /**
      * Every chat model name a caller could ask for, for the "available" list in a failure.
      *
-     * The same set [ConfigurableModelProvider.listModelNames] reports, so being told what is
-     * available and then asking for one of them cannot disagree.
+     * [ConfigurableModelProvider.listModelNames] reports the same set, so every name it lists can be
+     * asked for.
      */
     fun listableLlmNames(): List<String> = family.listableNames()
 
