@@ -219,7 +219,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     private val embeddingServices: List<EmbeddingService>,
     private val properties: ConfigurableModelProviderProperties,
     roleResolvers: List<RoleResolver<*, *>> = emptyList(),
-    credentialModelFactories: List<CredentialModelFactory<*>> = emptyList(),
+    private val modelPlatforms: List<ModelPlatform> = emptyList(),
     private val localModelCatalogs: List<LocalModelCatalog> = emptyList(),
 ) : ModelProvider, AutoCloseable {
 
@@ -238,12 +238,6 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      */
     private val roleResolvers: List<RoleResolver<LlmService<*>, LlmOptions>> =
         roleResolvers.ofKind(LlmService.KIND) + configurableRoleResolver
-
-    private val credentialLlmServiceFactories: List<CredentialModelFactory<LlmService<*>>> =
-        credentialModelFactories.ofKind(LlmService.KIND)
-
-    private val credentialEmbeddingServiceFactories: List<CredentialModelFactory<EmbeddingService>> =
-        credentialModelFactories.ofKind(EmbeddingService.KIND)
 
     /**
      * Services built from user keys, which are per-user and so cannot be Spring beans.
@@ -574,7 +568,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         val service = credentialEmbeddingService(credential, model)
         if (service == null) {
             logger.warn(
-                "Nothing built an embedding service for provider '{}', needed for role '{}'. Register a CredentialModelFactory of the embedding kind for it, and check that the module speaking its wire protocol is on the classpath",
+                "Nothing built an embedding service for provider '{}', needed for role '{}'. Register a ModelPlatform that builds the embedding kind for it, and check that the module speaking its wire protocol is on the classpath",
                 credential.provider, role,
             )
         }
@@ -595,8 +589,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     private fun credentialEmbeddingService(credential: ProviderCredential, model: String): EmbeddingService? {
         val key = CredentialModelKey.of(credential, model)
         return credentialEmbeddingServices[key]
-            ?: credentialEmbeddingServiceFactories
-                .firstNotNullOfOrNull { it.create(credential, model) }
+            ?: modelPlatforms.firstModel(credential, EmbeddingService.KIND, model)
                 ?.also { credentialEmbeddingServices[key] = it }
     }
 
@@ -755,7 +748,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             }
         }
         checkNestedRoles()
-        warnOfUnselectedKinds(roleResolvers, credentialModelFactories)
+        warnOfUnselectedKinds(roleResolvers, modelPlatforms)
         logger.info(infoString(verbose = true))
 
         properties.embeddingServices.forEach { (role, model) ->
@@ -807,15 +800,18 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     }
 
     /**
-     * Warn about resolvers and factories that hold a kind this provider never selects.
+     * Warn about resolvers and model platforms that this provider never asks.
      *
-     * Kinds are matched by identity, so a resolver or factory holding any other kind instance is
-     * never asked. That includes a new [ModelKind] created with the name "chat". Without this
-     * warning such a bean would be ignored with nothing in the log.
+     * Kinds are matched by identity, so a resolver holding any other kind instance is never asked.
+     * That includes a new [ModelKind] created with the name "chat". Without this warning such a
+     * bean would be ignored with nothing in the log.
+     *
+     * A platform is reported only when none of its kinds is selected. A platform that builds chat
+     * and also a kind nothing selects yet is still asked for chat, so it is not reported.
      */
     private fun warnOfUnselectedKinds(
         roleResolvers: List<RoleResolver<*, *>>,
-        credentialModelFactories: List<CredentialModelFactory<*>>,
+        modelPlatforms: List<ModelPlatform>,
     ) {
         val selectedKinds = setOf<ModelKind<*, *>>(LlmService.KIND, EmbeddingService.KIND)
         roleResolvers.filter { it.kind !in selectedKinds }.forEach {
@@ -824,10 +820,11 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                 it, it.kind,
             )
         }
-        credentialModelFactories.filter { it.kind !in selectedKinds }.forEach {
+        // Report a platform only if no kind it builds is selected; one selected kind means it is asked.
+        modelPlatforms.filter { platform -> platform.kinds.none { it in selectedKinds } }.forEach {
             logger.warn(
-                "Credential model factory {} builds {}, which this provider does not select, so it will never be asked. Use the kind's own constant, such as LlmService.KIND or EmbeddingService.KIND",
-                it, it.kind,
+                "Model platform {} builds {}, none of which this provider selects, so it will never be asked. Use the kind's own constant, such as LlmService.KIND or EmbeddingService.KIND",
+                it, it.kinds,
             )
         }
     }
@@ -1158,8 +1155,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             check(!credentialLlmServicesClosed) { "Credential LLM services are closed" }
             credentialLlmServices[key]
         }
-            ?: credentialLlmServiceFactories
-                .firstNotNullOfOrNull { it.create(credential, model) }
+            ?: modelPlatforms.firstModel(credential, LlmService.KIND, model)
                 ?.let { built ->
                     val chosen = synchronized(credentialLlmServices) {
                         if (credentialLlmServicesClosed) null
@@ -1436,7 +1432,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             .also {
                 if (it == null) {
                     logger.warn(
-                        "Nothing built an embedding service for provider '{}', needed for the named model '{}'. Register a CredentialModelFactory of the embedding kind for it, and check that the module speaking its wire protocol is on the classpath",
+                        "Nothing built an embedding service for provider '{}', needed for the named model '{}'. Register a ModelPlatform that builds the embedding kind for it, and check that the module speaking its wire protocol is on the classpath",
                         credential.provider, model,
                     )
                 }

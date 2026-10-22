@@ -31,9 +31,9 @@ import com.embabel.common.ai.model.ConfigurableModelProvider;
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties;
 import com.embabel.common.ai.model.CredentialEndpoint;
 import com.embabel.common.ai.model.CredentialEndpointResolver;
-import com.embabel.common.ai.model.CredentialModelFactory;
 import com.embabel.common.ai.model.DefaultModelSelectionCriteria;
 import com.embabel.common.ai.model.EmbeddingService;
+import com.embabel.common.ai.model.ModelPlatform;
 import com.embabel.common.ai.model.ModelProvider;
 import com.embabel.common.ai.model.ProviderCredential;
 import org.junit.jupiter.api.Test;
@@ -61,13 +61,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class ByokStarterBootTest {
 
-    /** The chat credential factories the context contributed. */
-    private static List<CredentialModelFactory<?>> chatFactories(ApplicationContext context) {
-        return context.getBeansOfType(CredentialModelFactory.class).values().stream()
-                // Kinds are compared by identity, the same way the platform selects factories.
-                .filter(factory -> factory.getKind() == LlmService.KIND)
-                // Turns the raw type from getBeansOfType into a wildcard type.
-                .<CredentialModelFactory<?>>map(factory -> factory)
+    /** The model platforms the context contributed that build chat models. */
+    private static List<ModelPlatform> chatPlatforms(ApplicationContext context) {
+        return context.getBeansOfType(ModelPlatform.class).values().stream()
+                // Kinds are compared by identity, the same way the model provider selects platforms.
+                .filter(platform -> platform.getKinds().stream().anyMatch(kind -> kind == LlmService.KIND))
                 .toList();
     }
 
@@ -107,12 +105,12 @@ class ByokStarterBootTest {
      * The issue's acceptance test, at the level it was written about: put the starter on the
      * classpath, and per-user keys work. Asserted here rather than only in the autoconfigure
      * module because it is the starter's dependency set that decides which provider modules are
-     * visible, and so how many providers the shipped factories actually cover.
+     * visible, and so how many providers the shipped platforms actually cover.
      */
     @Test
-    void shipsCredentialFactoriesCoveringEveryProviderByokSupports() {
+    void shipsModelPlatformsCoveringEveryProviderByokSupports() {
         contextRunner.run(context -> {
-            var factories = chatFactories(context);
+            var platforms = chatPlatforms(context);
             var wholeSurface = Map.of(
                     AnthropicModels.PROVIDER, AnthropicModels.CLAUDE_HAIKU_4_5,
                     OpenAiModels.PROVIDER, OpenAiModels.GPT_41_MINI,
@@ -123,8 +121,8 @@ class ByokStarterBootTest {
 
             wholeSurface.forEach((provider, model) -> {
                 var credential = new ProviderCredential(provider, "sk-test-not-a-real-key");
-                var service = factories.stream()
-                        .map(factory -> (LlmService<?>) factory.create(credential, model))
+                var service = platforms.stream()
+                        .map(platform -> platform.model(credential, LlmService.KIND, model))
                         .filter(java.util.Objects::nonNull)
                         .findFirst();
                 assertThat(service).describedAs(provider).isPresent();
@@ -136,16 +134,16 @@ class ByokStarterBootTest {
     /**
      * The extension point as a Java application meets it: one bean, one value, and no import from
      * {@code com.embabel.agent.spi} - which is the whole reason it exists alongside
-     * a chat {@link CredentialModelFactory}.
+     * a {@link ModelPlatform} that builds chat.
      */
     @Test
     void anApplicationAddsAProviderTheFrameworkDoesNotShip() {
         contextRunner.withUserConfiguration(OwnGatewayEndpoint.class).run(context -> {
-            var factories = chatFactories(context);
+            var platforms = chatPlatforms(context);
             var credential = new ProviderCredential(OwnGatewayEndpoint.PROVIDER, "sk-test-not-a-real-key");
 
-            var service = factories.stream()
-                    .map(factory -> (LlmService<?>) factory.create(credential, "some-model"))
+            var service = platforms.stream()
+                    .map(platform -> platform.model(credential, LlmService.KIND, "some-model"))
                     .filter(java.util.Objects::nonNull)
                     .findFirst();
 
