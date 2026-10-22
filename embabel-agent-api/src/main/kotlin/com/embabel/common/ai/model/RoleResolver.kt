@@ -42,9 +42,10 @@ sealed interface RoleResolution<out C : ModelCapability, out B : RoleBinding> {
     ) : RoleResolution<Nothing, B>
 
     /**
-     * A provider key. The platform looks the role up for that provider, and in the flat role map
-     * when no entry names one for it, and builds the model through a [ModelPlatform] that builds
-     * this kind on that key, caching it.
+     * A provider key. The platform looks up the model the role names for that provider. If the role
+     * has no entry for that provider, it uses the role's entry in the flat role map instead. An
+     * entry for the provider that names no model does not fall back. The platform then builds the
+     * model through a [ModelPlatform] that builds this kind on that key, and caches it.
      */
     data class Credential(
         val credential: ProviderCredential,
