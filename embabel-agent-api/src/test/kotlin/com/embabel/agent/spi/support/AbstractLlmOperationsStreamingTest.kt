@@ -129,6 +129,14 @@ class AbstractLlmOperationsStreamingTest {
     }
 
     @Test
+    fun `supportsStreaming is false for a model that implements streaming but says it cannot stream`() {
+        // The mock implements StreamingChatCompletion, but the provider says this model does not stream.
+        every { mockLlmService.supportsStreaming() } returns false
+
+        assertFalse(llmOperations.supportsStreaming(LlmOptions()))
+    }
+
+    @Test
     fun `supportsStreaming is false for a model that says it streams but does not implement streaming`() {
         val textOnly = mockk<LlmService<*>>()
         // The model says it streams, but the mock does not implement StreamingChatCompletion.
