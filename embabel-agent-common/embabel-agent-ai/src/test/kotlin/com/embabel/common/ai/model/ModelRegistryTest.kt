@@ -238,11 +238,47 @@ class ModelRegistryTest {
         assertFalse(message.contains("test []"), message)
     }
 
+    @Test
+    fun `a source that returns no model is asked again on the next lookup`() {
+        // The source returns nothing on the first call and a model on every call after.
+        val source = object : ModelSource<Drawing> {
+            var calls = 0
+            override val provider = "late"
+            override val type = Drawing::class.java
+            override fun modelNames() = listOf("late")
+            override fun modelNamed(name: String): Drawing? = if (calls++ == 0) null else Drawer()
+        }
+        val drawings = builder().source(source).build().select(Drawing::class.java)
+
+        // The first lookup finds no model, and the registry does not remember that.
+        assertEquals(Reason.UNKNOWN_NAME, assertThrows<ServiceSelectionException> { drawings.named("late") }.reason)
+        // The second lookup asks the source again and gets the model.
+        val model = drawings.named("late")
+        // The model is now kept, so a third lookup does not ask the source.
+        assertSame(model, drawings.named("late"))
+        assertEquals(2, source.calls)
+    }
+
+    @Test
+    fun `a name two sources serve resolves to the model of the source added first`() {
+        val first = NamedSource("first", "shared")
+        val second = NamedSource("second", "shared")
+        val drawings = builder().source(first).source(second).build().select(Drawing::class.java)
+
+        val model = drawings.named("shared")
+
+        assertSame(first.built.single(), model)
+        // The second source is never asked, because the first one served the name.
+        assertTrue(second.built.isEmpty())
+    }
+
     /** Serves drawing models under the given names, from a provider with the given name. */
     private class NamedSource(override val provider: String, private vararg val names: String) : ModelSource<Drawing> {
+        /** The models this source has built, in the order it built them. */
+        val built = mutableListOf<Drawing>()
         override val type = Drawing::class.java
         override fun modelNames() = names.toList()
-        override fun modelNamed(name: String): Drawing? = if (name in names) Drawer() else null
+        override fun modelNamed(name: String): Drawing? = if (name in names) Drawer().also { built += it } else null
     }
 
     /** Serves one drawing model, named `served`, and counts how many times it builds it. */
