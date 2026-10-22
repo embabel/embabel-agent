@@ -20,6 +20,7 @@ import com.embabel.agent.api.models.MistralAiModels
 import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.spi.LlmService
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.model.CredentialEndpoint
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelKind
@@ -147,6 +148,19 @@ class OpenAiCompatiblePlatformTest {
             assertEquals(DeepSeekModels.PROVIDER, patient.provider)
             assertEquals(setOf(LlmService.KIND), patient.kinds)
         }
+
+        @Test
+        fun `withTimeouts on OpenAI and Mistral AI keeps the named type and holds the new timeouts`() {
+            val timeouts = OpenAiClientTimeouts(read = Duration.ofMinutes(5))
+            // The declared types fail to compile if an override that keeps the named type is removed.
+            val openAi: OpenAiPlatform = OpenAiPlatform().withTimeouts(timeouts)
+            val mistral: MistralAiPlatform = MistralAiPlatform().withTimeouts(timeouts)
+
+            assertSame(timeouts, openAi.timeouts)
+            assertEquals(OpenAiModels.PROVIDER, openAi.provider)
+            assertSame(timeouts, mistral.timeouts)
+            assertEquals(MistralAiModels.PROVIDER, mistral.provider)
+        }
     }
 
     @Nested
@@ -213,6 +227,31 @@ class OpenAiCompatiblePlatformTest {
             assertEquals(
                 GATEWAY_PROVIDER,
                 gateway.model(key(GATEWAY_PROVIDER), LlmService.KIND, "some-model")?.provider,
+            )
+        }
+
+        @Test
+        fun `withTimeouts on the catch-all keeps its provider, base URL and kinds`() {
+            val timeouts = OpenAiClientTimeouts(read = Duration.ofMinutes(5))
+            val gateway = OpenAiCompatiblePlatform(GATEWAY_PROVIDER, GATEWAY_URL, OpenAiCompatiblePlatform.CHAT_ONLY)
+                .withTimeouts(timeouts)
+
+            // The new platform holds the timeouts it was given.
+            assertSame(timeouts, gateway.timeouts)
+            // Everything else is what the original platform was given.
+            assertEquals(GATEWAY_PROVIDER, gateway.provider)
+            assertEquals(GATEWAY_URL, gateway.baseUrl)
+            assertEquals(OpenAiCompatiblePlatform.CHAT_ONLY, gateway.kinds)
+        }
+
+        @Test
+        fun `modelAt returns null for a kind that is neither chat nor embedding`() {
+            // The constructor rejects such a kind, so only a direct call to modelAt can pass one.
+            val reranking = ModelKind<EmbeddingService, ModelName>("reranking", EmbeddingService::class.java)
+            val endpoint = CredentialEndpoint.OpenAiCompatible(provider = GATEWAY_PROVIDER, baseUrl = GATEWAY_URL)
+
+            assertNull(
+                OpenAiCompatiblePlatform.modelAt(endpoint, TEST_API_KEY, reranking, "some-model", OpenAiClientTimeouts.DEFAULT),
             )
         }
 
