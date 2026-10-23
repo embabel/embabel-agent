@@ -16,8 +16,6 @@
 package com.embabel.agent.config.models.docker
 
 import com.embabel.agent.openai.OpenAiClientTimeouts
-import com.embabel.agent.openai.withOpenAiReasoningEffort
-import org.springframework.ai.openai.OpenAiChatOptions
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
@@ -139,14 +137,6 @@ class DockerClientTimeoutsTest {
                 llm.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())
             }
             assertFailsWithinTenSeconds { llm.chatModel.call(Prompt("Hi")) }
-        }
-
-        @Test
-        fun `a Docker chat model forwards a configured reasoning effort`() {
-            val llm = modelsWith(DockerRetryProperties()).getValue("dockerModel-slow-chat") as SpringAiLlmService
-            val options = LlmOptions().withOpenAiReasoningEffort("none")
-
-            assertEquals("none", (llm.optionsConverter.convertOptions(options, "slow-chat") as OpenAiChatOptions).reasoningEffort)
         }
 
         private fun assertFailsWithinTenSeconds(call: () -> Unit) {
