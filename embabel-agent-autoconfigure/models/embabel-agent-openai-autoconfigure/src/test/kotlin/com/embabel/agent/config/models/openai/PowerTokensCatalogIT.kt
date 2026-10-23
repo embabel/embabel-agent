@@ -21,6 +21,10 @@ import com.openai.client.okhttp.OpenAIOkHttpClient
 import com.openai.errors.OpenAIServiceException
 import com.openai.models.ChatModel
 import com.openai.models.chat.completions.ChatCompletionCreateParams
+import com.openai.models.chat.completions.ChatCompletionFunctionTool
+import com.openai.models.FunctionParameters
+import com.openai.models.FunctionDefinition
+import com.openai.core.JsonValue
 import com.openai.models.chat.completions.ChatCompletionToolMessageParam
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -29,13 +33,16 @@ import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
-import java.util.Collection
 
 /**
  * Live tests for PowerTokens' OpenAI-compatible API.
  *
- * To run these tests, create an API key at https://powertokens.ai
- * (Dashboard → API Keys) and set POWERTOKENS_API_KEY to that key.
+ * To run these tests you need a PowerTokens account (sign-up / sign-in is
+ * required; a key cannot be created anonymously):
+ * 1. Open https://powertokens.ai and sign in (Google, GitHub, or email).
+ * 2. Dashboard → API Keys → Create new key
+ *    (guide: https://docs.powertokens.ai/en/guides/api-key-and-model-call).
+ * 3. export POWERTOKENS_API_KEY=<that key>
  * An existing key with chat access also works.
  * Tests that need a valid key are skipped when the variable is not set.
  *
@@ -132,37 +139,70 @@ class PowerTokensCatalogIT {
     )
     fun `each smoke model answers a tool-bearing request`(model: String) {
         val client = client(System.getenv("POWERTOKENS_API_KEY"))
+        // Hand-written tool schema (avoids openai-java Class→JSON-Schema path).
+        val badgeCodeTool = ChatCompletionFunctionTool.builder()
+            .function(
+                FunctionDefinition.builder()
+                    .name("BadgeCode")
+                    .description("Returns the current badge code for a named door")
+                    .parameters(
+                        FunctionParameters.builder()
+                            .putAdditionalProperty("type", JsonValue.from("object"))
+                            .putAdditionalProperty(
+                                "properties",
+                                JsonValue.from(
+                                    mapOf(
+                                        "doorName" to mapOf(
+                                            "type" to "string",
+                                            "description" to "The name of the door",
+                                        ),
+                                    ),
+                                ),
+                            )
+                            .putAdditionalProperty("required", JsonValue.from(listOf("doorName")))
+                            .build(),
+                    )
+                    .build(),
+            )
+            .build()
+
         val createParamsBuilder = ChatCompletionCreateParams.builder()
             .model(ChatModel.of(model))
             .maxCompletionTokens(512)
-            .addTool(BadgeCode::class.java)
+            .addTool(badgeCodeTool)
             .addUserMessage(
                 "Call the BadgeCode tool for the door named 'north', " +
                     "then reply with the code it returned and nothing else.",
             )
 
         var toolInvoked = false
-        // Ask the model to call BadgeCode, then send the tool result back.
-        client.chat().completions().create(createParamsBuilder.build()).choices().stream()
-            .map { it.message() }
-            .peek { createParamsBuilder.addMessage(it) }
-            .flatMap { message -> message.toolCalls().stream().flatMap { Collection.stream(it) } }
-            .forEach { toolCall ->
-                val function = toolCall.asFunction().function()
+        // Round 1: ask the model to call BadgeCode.
+        val first = client.chat().completions().create(createParamsBuilder.build())
+        for (choice in first.choices()) {
+            // Take the assistant message from this choice.
+            val message = choice.message()
+            // Keep that message on the builder for the follow-up call.
+            createParamsBuilder.addMessage(message)
+            // Run each tool call the model requested.
+            for (toolCall in message.toolCalls().orElse(emptyList())) {
+                val functionCall = toolCall.asFunction()
+                val function = functionCall.function()
                 assertEquals("BadgeCode", function.name(), "Unexpected tool: ${function.name()}")
-                val result = function.arguments(BadgeCode::class.java).execute()
+                // Local stub: return a fixed code so we can check it appears in the reply.
+                val result = BadgeCode().execute()
                 toolInvoked = true
                 createParamsBuilder.addMessage(
                     ChatCompletionToolMessageParam.builder()
-                        .toolCallId(toolCall.asFunction().id())
+                        .toolCallId(functionCall.id())
                         .contentAsJson(result)
                         .build(),
                 )
             }
+        }
 
         assertTrue(toolInvoked, "$model never called the BadgeCode tool")
 
-        // Check that the reply includes the code returned by the tool.
+        // Round 2: check that the reply includes the code returned by the tool.
         val answer = client.chat().completions().create(createParamsBuilder.build()).choices().stream()
             .flatMap { it.message().content().stream() }
             .findFirst()
