@@ -70,7 +70,8 @@ private const val MODELS_PREFIX = "embabel.agent.platform.models"
  * No services are cached here. [com.embabel.common.ai.model.ConfigurableModelProvider] already
  * caches what a factory returns per (provider, key, model) behind a bounded LRU, so a cache here
  * would be a second, unbounded one holding a service per key the deployment has ever seen. The one
- * cache here holds bound timeouts per provider, which is bounded by the number of providers.
+ * cache, in [OpenAiTimeouts], holds bound timeouts per provider, which is bounded by the number of
+ * providers.
  */
 @Configuration(proxyBeanMethods = false)
 class CredentialEndpointConfig @Autowired constructor(
@@ -85,6 +86,10 @@ class CredentialEndpointConfig @Autowired constructor(
 
     private val logger = loggerFor<CredentialEndpointConfig>()
 
+    /**
+     * Created on first use, by an OpenAI bean only, so an application without `embabel-agent-openai`
+     * never constructs it.
+     */
     private val openAiTimeouts by lazy { OpenAiTimeouts(environment) }
 
     /**

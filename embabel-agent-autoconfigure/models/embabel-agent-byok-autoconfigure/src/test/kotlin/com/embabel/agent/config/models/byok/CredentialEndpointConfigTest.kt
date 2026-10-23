@@ -95,6 +95,9 @@ class CredentialEndpointConfigTest {
         /** Bean name of the shipped Anthropic factory. */
         const val ANTHROPIC_FACTORY_BEAN = "anthropicCredentialLlmServiceFactory"
 
+        /** Bean name of the shipped OpenAI-compatible embedding factory. */
+        const val EMBEDDING_FACTORY_BEAN = "openAiCompatibleCredentialEmbeddingServiceFactory"
+
         /** Name carried by the service an overriding application builds, to tell it apart. */
         const val OVERRIDE_SERVICE_NAME = "from-the-application"
 
@@ -326,6 +329,7 @@ class CredentialEndpointConfigTest {
         contextWithout("com.embabel.agent.openai.", "org.springframework.ai.openai.").use { context ->
             assertThat(context.getBeansOfType(CredentialLlmServiceFactory::class.java))
                 .containsOnlyKeys(ANTHROPIC_FACTORY_BEAN)
+            assertThat(context.getBeansOfType(CredentialEmbeddingServiceFactory::class.java)).isEmpty()
         }
     }
 
@@ -334,6 +338,16 @@ class CredentialEndpointConfigTest {
         contextWithout("com.embabel.agent.anthropic.", "org.springframework.ai.anthropic.", "com.anthropic.").use { context ->
             assertThat(context.getBeansOfType(CredentialLlmServiceFactory::class.java))
                 .containsOnlyKeys(OPENAI_COMPATIBLE_FACTORY_BEAN)
+            assertThat(context.getBeansOfType(CredentialEmbeddingServiceFactory::class.java))
+                .containsOnlyKeys(EMBEDDING_FACTORY_BEAN)
+        }
+    }
+
+    @Test
+    fun `the OpenAI factory builds a service when the Anthropic module is really absent from the classpath`() {
+        contextWithout("com.embabel.agent.anthropic.", "org.springframework.ai.anthropic.", "com.anthropic.").use { context ->
+            assertThat(build(factoriesIn(context), OpenAiModels.PROVIDER, OpenAiModels.GPT_41_MINI)?.name)
+                .isEqualTo(OpenAiModels.GPT_41_MINI)
         }
     }
 
