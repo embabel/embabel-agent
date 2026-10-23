@@ -233,10 +233,10 @@ class McpToolExportTest {
         }
 
         @Test
-        fun `reference with spaces preserves spaces in prefix`() {
+        fun `reference with spaces converts spaces to underscores in prefix`() {
             val reference = TestLlmReference(name = "My API", description = "API with spaces")
             val export = McpToolExport.fromLlmReference(reference)
-            assertEquals("my api_reverse", export.toolCallbacks[0].toolDefinition.name())
+            assertEquals("my_api_reverse", export.toolCallbacks[0].toolDefinition.name())
         }
 
         @Test
@@ -341,7 +341,7 @@ class McpToolExportTest {
         override val description: String,
     ) : LlmReference {
         override fun notes(): String = "Test notes"
-        override fun tools(): List<Tool> = Tool.fromInstance(PersonWithReverseTool("test"))
+        override fun rawTools(): List<Tool> = Tool.fromInstance(PersonWithReverseTool("test"))
     }
 
     private class TestLlmReferenceWithFunnyTool(
@@ -349,6 +349,6 @@ class McpToolExportTest {
         override val description: String,
     ) : LlmReference {
         override fun notes(): String = "Test notes"
-        override fun tools(): List<Tool> = Tool.fromInstance(FunnyTool())
+        override fun rawTools(): List<Tool> = Tool.fromInstance(FunnyTool())
     }
 }

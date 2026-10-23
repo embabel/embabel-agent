@@ -320,18 +320,22 @@ data class ToolishRag @JvmOverloads constructor(
         )
     }
 
-    // LlmReference: returns flat list of inner tools with naming strategy applied.
-    //
-    // Items in [toolObjects] may already BE [Tool] instances (e.g. [TextSearchTools],
-    // which is a Tool with a description composed dynamically from the store's
-    // [TextSearch.luceneSyntaxNotes]) or they may be classes carrying `@LlmTool`-annotated
-    // methods (most other SearchTools). Handle both — `Tool.fromInstance` would throw
-    // "no @LlmTool methods" on the Tool branch.
-
-    // unprefixedTools() returns bare tool names (e.g. "vectorSearch").
-    // PromptRunner.withReference() calls this and applies namingStrategy once, so each tool
-    // gets its prefix exactly once with no double-prefix.
-    override fun unprefixedTools(): List<Tool> = toolObjects
+    /**
+     * Returns tools with **bare** (unprefixed) names, e.g. `"vectorSearch"`.
+     *
+     * [com.embabel.agent.api.common.PromptRunner.withReference] calls this and applies
+     * [namingStrategy] once, so each tool is registered in the catalog under exactly
+     * one prefixed name (e.g. `"docs_vectorSearch"`). The default [tools] implementation
+     * computes those prefixed names from this method — callers that need prefixed names
+     * should call [tools] instead.
+     *
+     * Items in [toolObjects] may already BE [Tool] instances (e.g. [TextSearchTools],
+     * whose description is composed dynamically from [com.embabel.agent.rag.service.TextSearch.luceneSyntaxNotes])
+     * or objects carrying `@LlmTool`-annotated methods. Both are handled —
+     * `Tool.fromInstance` would throw on the [Tool] branch.
+     */
+    // Tool must be passed through directly; Tool.fromInstance throws on a Tool argument.
+    override fun rawTools(): List<Tool> = toolObjects
         .flatMap { instance ->
             when (instance) {
                 is Tool -> listOf(instance)
@@ -339,14 +343,9 @@ data class ToolishRag @JvmOverloads constructor(
             }
         }
 
-    // tools() returns prefixed names (e.g. "docs_vectorSearch") for backward compatibility.
-    // Direct callers that relied on rag.tools() returning prefixed names continue to work.
-    override fun tools(): List<Tool> = unprefixedTools()
-        .map { tool -> tool.withName(namingStrategy.transform(tool.definition.name)) }
-
-    // Tool interface implementation via lazy UnfoldingTool
-    // When used directly as a Tool, wraps all inner tools in a UnfoldingTool
-    // Implements DelegatingTool so MatryoshkaToolInjectionStrategy can unwrap it
+    // Tool interface implementation via lazy UnfoldingTool.
+    // When used directly as a Tool, wraps inner tools in a UnfoldingTool.
+    // Implements DelegatingTool so MatryoshkaToolInjectionStrategy can unwrap it.
     override val delegate: Tool by lazy {
         UnfoldingTool.of(
             name = name,

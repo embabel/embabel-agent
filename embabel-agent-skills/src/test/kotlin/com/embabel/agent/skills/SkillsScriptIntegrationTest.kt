@@ -66,12 +66,12 @@ class SkillsScriptIntegrationTest {
 
         // Script tools should be available immediately (for PromptRunner compatibility)
         val tools = skills.tools()
-        val scriptTools = tools.filter { it.definition.name.startsWith("my-skill_") }
+        val scriptTools = tools.filter { it.definition.name.startsWith("test_my-skill_") }
         assertEquals(2, scriptTools.size, "Should have 2 script tools immediately")
 
         val toolNames = scriptTools.map { it.definition.name }.toSet()
-        assertTrue("my-skill_process" in toolNames)
-        assertTrue("my-skill_analyze" in toolNames)
+        assertTrue("test_my-skill_process" in toolNames)
+        assertTrue("test_my-skill_analyze" in toolNames)
 
         // Activate the skill to get instructions
         val activationResult = skills.activate("my-skill")
@@ -79,9 +79,9 @@ class SkillsScriptIntegrationTest {
         // Activation should mention script tools
         assertTrue(activationResult.contains("Available Script Tools"),
             "Activation should mention available script tools. Got: $activationResult")
-        assertTrue(activationResult.contains("my-skill_process"),
+        assertTrue(activationResult.contains("test_my-skill_process"),
             "Activation should list process tool")
-        assertTrue(activationResult.contains("my-skill_analyze"),
+        assertTrue(activationResult.contains("test_my-skill_analyze"),
             "Activation should list analyze tool")
     }
 
@@ -113,11 +113,11 @@ class SkillsScriptIntegrationTest {
         skills.activate("multi-lang")
 
         val tools = skills.tools()
-        val scriptTools = tools.filter { it.definition.name.startsWith("multi-lang_") }
+        val scriptTools = tools.filter { it.definition.name.startsWith("test_multi-lang_") }
 
         // Should only have Python tool
         assertEquals(1, scriptTools.size)
-        assertEquals("multi-lang_script", scriptTools[0].definition.name)
+        assertEquals("test_multi-lang_script", scriptTools[0].definition.name)
     }
 
     @Test
@@ -149,7 +149,7 @@ class SkillsScriptIntegrationTest {
         // Activate and verify tools
         skills.activate("chain-skill")
         val tools = skills.tools()
-        assertTrue(tools.any { it.definition.name == "chain-skill_run" })
+        assertTrue(tools.any { it.definition.name == "test_chain-skill_run" })
     }
 
     @Test
@@ -180,7 +180,7 @@ class SkillsScriptIntegrationTest {
         println("Step 3 - after withScriptExecutionEngine: ${toolsAfterEngine.map { it.definition.name }}")
 
         // Script tools should be available immediately after engine is configured
-        assertTrue(toolsAfterEngine.any { it.definition.name == "debug-skill_run" },
+        assertTrue(toolsAfterEngine.any { it.definition.name == "test_debug-skill_run" },
             "Script tool should be available immediately after engine configured")
 
         // Step 4: Activate to get instructions
@@ -242,10 +242,10 @@ class SkillsScriptIntegrationTest {
 
         // Verify tools() returns script tools after activation
         val allTools = skills.tools()
-        val scriptToolNames = allTools.filter { it.definition.name.startsWith("github-skill_") }
+        val scriptToolNames = allTools.filter { it.definition.name.startsWith("skills_github-skill_") }
             .map { it.definition.name }
         println("Tools after activation: $scriptToolNames")
-        assertTrue("github-skill_convert" in scriptToolNames)
+        assertTrue("skills_github-skill_convert" in scriptToolNames)
     }
 
     private class TestEngine(

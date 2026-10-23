@@ -24,6 +24,7 @@ import com.embabel.common.ai.model.LlmOptions
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
@@ -132,18 +133,18 @@ class WithReferenceToolRegistrationTest {
     inner class DoublePrefix {
 
         @Test
-        fun `withReference does not double-prefix when tools() already returns prefixed names`() {
-            // Simulate a reference whose tools() returns pre-prefixed names (e.g. ToolishRag)
-            // but unprefixedTools() returns bare names. Before the fix, toolObject() used
-            // tools() and applied namingStrategy again, producing "docs_docs_search".
-            val prefixedTool = Tool.of("docs_search", "Search") { Tool.Result.text("ok") }
+        fun `withReference does not double-prefix when rawTools returns bare names`() {
+            // withReference calls rawTools() + namingStrategy, never tools() directly.
+            // tools() is computed from rawTools() + strategy, so tools() already has
+            // the prefix. Calling withReference() on such a ref must produce a single
+            // prefix, not "docs_docs_search".
             val bareTool = Tool.of("search", "Search") { Tool.Result.text("ok") }
             val reference = object : LlmReference {
                 override val name = "docs"
                 override val description = "Documentation"
                 override fun notes() = ""
-                override fun tools() = listOf(prefixedTool)
-                override fun unprefixedTools() = listOf(bareTool)
+                override fun rawTools() = listOf(bareTool)
+                // tools() = default = namingStrategy("search") = "docs_search"
             }
 
             val runner = makeRunner().withReference(reference) as OperationContextPromptRunner
@@ -151,9 +152,31 @@ class WithReferenceToolRegistrationTest {
             val fromToolObjects = safelyGetTools(runner.toolObjects)
             assertFalse(
                 fromToolObjects.any { it.definition.name.startsWith("docs_docs_") },
-                "toolObject() path must not double-prefix: got ${fromToolObjects.map { it.definition.name }}"
+                "withReference must not double-prefix: got ${fromToolObjects.map { it.definition.name }}"
             )
             assertEquals("docs_search", fromToolObjects[0].definition.name)
+        }
+    }
+
+    @Nested
+    inner class OtherToolsGuard {
+
+        @Test
+        fun `withReference does not populate otherTools`() {
+            // If withReference() were ever changed to also call withTools(reference.tools()),
+            // the second copy would land in otherTools and bypass name-based deduplication.
+            // This test makes that regression visible immediately.
+            val tool = Tool.of("search", "Search") { Tool.Result.text("ok") }
+            val reference = LlmReference.of("docs", "Documentation", listOf(tool))
+
+            val runner = makeRunner().withReference(reference) as OperationContextPromptRunner
+
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("otherTools")
+            field.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val otherTools = field.get(runner) as List<*>
+            assertEquals(0, otherTools.size,
+                "withReference must not populate otherTools — tools there bypass dedup and would register each tool twice")
         }
     }
 
@@ -161,23 +184,30 @@ class WithReferenceToolRegistrationTest {
     inner class RawTools {
 
         @Test
-        fun `unprefixedTools defaults to tools for standard LlmReference`() {
+        fun `rawTools returns bare names`() {
             val tool = Tool.of("search", "Search") { Tool.Result.text("ok") }
             val reference = LlmReference.of("docs", "Documentation", listOf(tool))
-
-            assertEquals(
-                reference.tools().map { it.definition.name },
-                reference.unprefixedTools().map { it.definition.name },
-            )
+            val rawNames = reference.rawTools().map { it.definition.name }
+            assertFalse(rawNames.any { it.startsWith("docs_") }, "rawTools must return unprefixed names")
+            assertTrue(rawNames.contains("search"))
         }
 
         @Test
-        fun `unprefixedTools returns unprefixed names`() {
+        fun `tools returns prefixed names`() {
             val tool = Tool.of("search", "Search") { Tool.Result.text("ok") }
             val reference = LlmReference.of("docs", "Documentation", listOf(tool))
+            val names = reference.tools().map { it.definition.name }
+            assertTrue(names.contains("docs_search"), "tools() must return names prefixed with toolPrefix: got $names")
+        }
 
-            val rawNames = reference.unprefixedTools().map { it.definition.name }
-            assertFalse(rawNames.any { it.startsWith("docs_") }, "unprefixedTools must return unprefixed names")
+        @Test
+        fun `rawTools and tools differ for a prefixed reference`() {
+            val tool = Tool.of("search", "Search") { Tool.Result.text("ok") }
+            val reference = LlmReference.of("docs", "Documentation", listOf(tool))
+            assertFalse(
+                reference.rawTools().map { it.definition.name } == reference.tools().map { it.definition.name },
+                "rawTools() (bare) and tools() (prefixed) must return different names"
+            )
         }
     }
 }

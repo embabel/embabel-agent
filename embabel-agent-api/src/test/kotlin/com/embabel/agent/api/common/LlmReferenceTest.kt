@@ -59,8 +59,8 @@ class LlmReferenceTest {
             assertThat(reference.name).isEqualTo("Test API")
             assertThat(reference.description).isEqualTo("A test API reference")
             assertThat(reference.notes()).isEqualTo("Use this for testing")
-            assertThat(reference.tools()).hasSize(1)
-            assertThat(reference.tools()[0].definition.name).isEqualTo("test_tool")
+            assertThat(reference.rawTools()).hasSize(1)
+            assertThat(reference.rawTools()[0].definition.name).isEqualTo("test_tool")
         }
 
         @Test
@@ -74,7 +74,7 @@ class LlmReferenceTest {
             )
 
             assertThat(reference.notes()).isEmpty()
-            assertThat(reference.tools()).hasSize(1)
+            assertThat(reference.rawTools()).hasSize(1)
         }
 
         @Test
@@ -103,8 +103,8 @@ class LlmReferenceTest {
                 notes = "Has three tools"
             )
 
-            assertThat(reference.tools()).hasSize(3)
-            assertThat(reference.tools().map { it.definition.name })
+            assertThat(reference.rawTools()).hasSize(3)
+            assertThat(reference.rawTools().map { it.definition.name })
                 .containsExactly("tool_one", "tool_two", "tool_three")
         }
 
@@ -117,7 +117,15 @@ class LlmReferenceTest {
             )
 
             val toolPrefix = reference.toolPrefix()
-            assertThat(toolPrefix).isEqualTo("my api reference")
+            assertThat(toolPrefix).isEqualTo("my_api_reference")
+        }
+
+        @Test
+        fun `toolPrefix replaces spaces and special chars with underscores`() {
+            assertThat(LlmReference.of("My API", "d", emptyList()).toolPrefix()).isEqualTo("my_api")
+            assertThat(LlmReference.of("docs-v2", "d", emptyList()).toolPrefix()).isEqualTo("docs_v2")
+            assertThat(LlmReference.of("hello world", "d", emptyList()).toolPrefix()).isEqualTo("hello_world")
+            assertThat(LlmReference.of("My API 2.0", "d", emptyList()).toolPrefix()).isEqualTo("my_api_2_0")
         }
 
         @Test
@@ -148,8 +156,8 @@ class LlmReferenceTest {
             )
 
             assertThat(reference.name).isEqualTo("Weather")
-            assertThat(reference.tools()).hasSize(2)
-            assertThat(reference.tools().map { it.definition.name })
+            assertThat(reference.rawTools()).hasSize(2)
+            assertThat(reference.rawTools().map { it.definition.name })
                 .containsExactlyInAnyOrder("getWeather", "getForecast")
         }
 
@@ -163,8 +171,8 @@ class LlmReferenceTest {
                 tool = tool
             )
 
-            assertThat(reference.tools()).hasSize(1)
-            assertThat(reference.tools()[0].definition.name).isEqualTo("my_tool")
+            assertThat(reference.rawTools()).hasSize(1)
+            assertThat(reference.rawTools()[0].definition.name).isEqualTo("my_tool")
         }
 
         @Test
@@ -177,7 +185,7 @@ class LlmReferenceTest {
             )
 
             assertThat(reference.notes()).isEqualTo("Use for math")
-            assertThat(reference.tools()).hasSize(1)
+            assertThat(reference.rawTools()).hasSize(1)
         }
 
         @Test
@@ -207,8 +215,8 @@ class LlmReferenceTest {
             assertThat(reference.name).isEqualTo("Weather API")
             assertThat(reference.description).isEqualTo("Weather tools")
             assertThat(reference.notes()).isEqualTo("Use these for weather queries")
-            assertThat(reference.tools()).hasSize(2)
-            assertThat(reference.tools().map { it.definition.name })
+            assertThat(reference.rawTools()).hasSize(2)
+            assertThat(reference.rawTools().map { it.definition.name })
                 .containsExactlyInAnyOrder("getWeather", "getForecast")
         }
 
@@ -222,8 +230,8 @@ class LlmReferenceTest {
                 CalculatorTools()
             )
 
-            assertThat(reference.tools()).hasSize(3)
-            assertThat(reference.tools().map { it.definition.name })
+            assertThat(reference.rawTools()).hasSize(3)
+            assertThat(reference.rawTools().map { it.definition.name })
                 .containsExactlyInAnyOrder("getWeather", "getForecast", "add")
         }
 
@@ -236,7 +244,7 @@ class LlmReferenceTest {
                 CalculatorTools()
             )
 
-            val addTool = reference.tools().first { it.definition.name == "add" }
+            val addTool = reference.rawTools().first { it.definition.name == "add" }
             val result = addTool.call("""{"a": 5, "b": 3}""")
 
             assertThat(result).isInstanceOf(Tool.Result.WithArtifact::class.java)
@@ -254,8 +262,8 @@ class LlmReferenceTest {
                 tool
             )
 
-            assertThat(reference.tools()).hasSize(1)
-            assertThat(reference.tools()[0].definition.name).isEqualTo("test_tool")
+            assertThat(reference.rawTools()).hasSize(1)
+            assertThat(reference.rawTools()[0].definition.name).isEqualTo("test_tool")
         }
 
         @Test
@@ -270,8 +278,8 @@ class LlmReferenceTest {
                 tool
             )
 
-            assertThat(reference.tools()).hasSize(3)
-            assertThat(reference.tools().map { it.definition.name })
+            assertThat(reference.rawTools()).hasSize(3)
+            assertThat(reference.rawTools().map { it.definition.name })
                 .containsExactlyInAnyOrder("getWeather", "getForecast", "direct_tool")
         }
     }
@@ -314,8 +322,10 @@ class LlmReferenceTest {
             assertThat(outerTool).isInstanceOf(UnfoldingTool::class.java)
             val unfoldingTool = outerTool as UnfoldingTool
             assertThat(unfoldingTool.innerTools).hasSize(2)
+            // inner tools are prefixed by the reference's namingStrategy so the model sees
+            // the same names after unfolding as withReference() registers in the catalog
             assertThat(unfoldingTool.innerTools.map { it.definition.name })
-                .containsExactlyInAnyOrder("tool_one", "tool_two")
+                .containsExactlyInAnyOrder("test_api_tool_one", "test_api_tool_two")
         }
 
         @Test

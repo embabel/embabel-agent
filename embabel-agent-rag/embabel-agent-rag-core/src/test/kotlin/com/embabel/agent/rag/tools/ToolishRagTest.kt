@@ -332,9 +332,8 @@ class ToolishRagTest {
             val tools = toolishRag.tools()
             val toolNames = tools.map { it.definition.name }
 
-            // Special characters (!) should be replaced with underscores and lowercased
-            // Note: spaces are preserved by toolPrefix()
-            assertTrue(toolNames.any { it == "my special rag__vectorSearch" })
+            // Special characters (!) and spaces are replaced with underscores and lowercased
+            assertTrue(toolNames.any { it == "my_special_rag__vectorSearch" })
         }
     }
 
@@ -1773,27 +1772,27 @@ class ToolishRagTest {
         }
 
         @Test
-        fun `unprefixedTools returns unprefixed names`() {
+        fun `rawTools returns unprefixed names`() {
             val rag = ToolishRag("docs", "Documentation", mockVectorSearch)
 
-            val names = rag.unprefixedTools().map { it.definition.name }
+            val names = rag.rawTools().map { it.definition.name }
 
             assertTrue(names.isNotEmpty())
-            assertFalse(names.any { it.startsWith("docs_") }, "unprefixedTools() must return unprefixed names; got: $names")
+            assertFalse(names.any { it.startsWith("docs_") }, "rawTools() must return unprefixed names; got: $names")
         }
 
         @Test
-        fun `unprefixedTools and tools expose the same tools under different names`() {
+        fun `rawTools and tools expose the same tools under different names`() {
             val rag = ToolishRag("docs", "Documentation", mockVectorSearch)
 
-            assertEquals(rag.tools().size, rag.unprefixedTools().size)
+            assertEquals(rag.tools().size, rag.rawTools().size)
         }
 
         @Test
         fun `withReference naming applies prefix exactly once - no docs_docs prefix`() {
             val rag = ToolishRag("docs", "Documentation", mockVectorSearch)
 
-            val tools = safelyGetToolsFrom(ToolObject(rag.unprefixedTools(), rag.namingStrategy))
+            val tools = safelyGetToolsFrom(ToolObject(rag.rawTools(), rag.namingStrategy))
 
             assertTrue(tools.isNotEmpty())
             assertTrue(tools.all { it.definition.name.startsWith("docs_") }, "All tools must be prefixed with docs_; got: ${tools.map { it.definition.name }}")

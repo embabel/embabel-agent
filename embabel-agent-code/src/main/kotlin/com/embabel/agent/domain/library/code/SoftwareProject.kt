@@ -56,11 +56,11 @@ open class SoftwareProject @JvmOverloads constructor(
             error("Directory '$root' does not exist")
         }
         loggerFor<SoftwareProject>().info(
-            "Software project tools: ${tools().map { it.definition.name }.sorted()}"
+            "Software project tools: ${rawTools().map { it.definition.name }.sorted()}"
         )
     }
 
-    override fun tools(): List<Tool> = Tool.fromInstance(this)
+    override fun rawTools(): List<Tool> = Tool.fromInstance(this)
 
     override val name
         get() = root.substringAfterLast('/')

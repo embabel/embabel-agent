@@ -29,6 +29,7 @@ import com.embabel.agent.skills.support.GitHubSkillDefinitionLoader
 import com.embabel.agent.skills.support.LoadedSkill
 import com.embabel.agent.skills.support.ResourceType
 import org.slf4j.LoggerFactory
+import com.embabel.common.util.StringTransformer
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -192,7 +193,7 @@ data class Skills @JvmOverloads constructor(
         return copy(skills = skills + loadedSkills)
     }
 
-    override fun tools(): List<Tool> {
+    override fun rawTools(): List<Tool> {
         val annotationTools = Tool.fromInstance(this)
 
         // Include script tools for ALL skills (not just activated ones).
@@ -240,7 +241,9 @@ data class Skills @JvmOverloads constructor(
         val activationText = skill.getActivationText()
 
         return if (scriptTools.isNotEmpty()) {
-            val toolNames = scriptTools.map { it.definition.name }
+            // Use namingStrategy so listed names match what the model sees in the catalog
+            // after withReference(skills) applies the prefix (e.g. "skills_my-skill_build").
+            val toolNames = scriptTools.map { namingStrategy.transform(it.definition.name) }
             """
             |$activationText
             |
@@ -320,14 +323,20 @@ data class Skills @JvmOverloads constructor(
     fun asIndividualReferences(): List<LlmReference> {
         if (skills.isEmpty()) return emptyList()
 
+        // Each per-skill reference uses IDENTITY namingStrategy so withReference() does not
+        // add a second prefix. The activation tool is already named "github_workflows" (via
+        // sanitizeToolName); without IDENTITY, withReference() would apply the default
+        // "github_workflows_" prefix and produce "github_workflows_github_workflows".
         val perSkill = skills.map { skill ->
-            LlmReference.of(
-                name = skill.name,
-                description = skill.description,
-                tools = listOf<Tool>(SkillActivationTool(skill)) +
-                        skill.getScriptTools(scriptExecutionEngine),
-                notes = "",
-            )
+            val activationTools: List<Tool> = listOf(SkillActivationTool(skill)) +
+                    skill.getScriptTools(scriptExecutionEngine)
+            object : LlmReference {
+                override val name = skill.name
+                override val description = skill.description
+                override val namingStrategy = StringTransformer.IDENTITY
+                override fun notes() = ""
+                override fun rawTools() = activationTools
+            }
         }
 
         // Single shared reference holding listResources / readResource —
