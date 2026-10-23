@@ -180,6 +180,101 @@ class WithReferenceToolRegistrationTest {
         }
     }
 
+    /**
+     * Backward-compatibility: implementations written before [LlmReference.rawTools] was
+     * introduced override [LlmReference.tools] only (returning bare tool names).
+     * [LlmReference.rawTools] must bridge to [LlmReference.tools] so they still work with
+     * [withReference] and MCP export without silent tool loss.
+     */
+    @Nested
+    inner class ToolsOnlyOverrideCompatibility {
+
+        @Test
+        fun `withReference picks up tools from an impl that overrides tools() but not rawTools()`() {
+            val tool = Tool.of("search", "Search") { Tool.Result.text("ok") }
+            // Simulates a pre-rawTools() implementation: overrides tools() to return bare tool names.
+            // rawTools() was not part of the API at that time, so this impl does not override it.
+            val reference = object : LlmReference {
+                override val name = "docs"
+                override val description = "Documentation"
+                override fun notes() = ""
+                override fun tools() = listOf(tool)
+            }
+
+            val runner = makeRunner().withReference(reference) as OperationContextPromptRunner
+
+            val tools = safelyGetTools(runner.toolObjects)
+            assertEquals(1, tools.size,
+                "withReference must register tools even when only tools() is overridden — rawTools() bridges to tools()")
+            assertEquals("docs_search", tools[0].definition.name,
+                "namingStrategy must be applied exactly once to the bare name returned by the tools() override")
+        }
+
+        @Test
+        fun `withReference does not double-prefix when tools()-only impl returns bare names`() {
+            val tool = Tool.of("search", "Search") { Tool.Result.text("ok") }
+            val reference = object : LlmReference {
+                override val name = "docs"
+                override val description = "Documentation"
+                override fun notes() = ""
+                override fun tools() = listOf(tool)
+            }
+
+            val runner = makeRunner().withReference(reference) as OperationContextPromptRunner
+
+            val names = safelyGetTools(runner.toolObjects).map { it.definition.name }
+            assertFalse(names.any { it.startsWith("docs_docs_") },
+                "namingStrategy must be applied once, not twice: got $names")
+        }
+
+        @Test
+        fun `rawTools cycle guard returns emptyList when neither tools() nor rawTools() is overridden`() {
+            // When neither method is overridden the bridge would loop:
+            //   rawTools() → bridge → tools() → rawTools() → bridge → ...
+            // inToolsBridge detects the re-entry and breaks the cycle.
+            val reference = object : LlmReference {
+                override val name = "empty"
+                override val description = "No tools defined"
+                override fun notes() = ""
+            }
+
+            val raw = reference.rawTools()  // must not throw StackOverflowError
+
+            assertTrue(raw.isEmpty(),
+                "A reference with no tools() or rawTools() override must produce an empty list, not a stack overflow")
+        }
+
+        @Test
+        fun `inToolsBridge ThreadLocal is cleared after rawTools() returns normally`() {
+            val reference = object : LlmReference {
+                override val name = "docs"
+                override val description = "test"
+                override fun notes() = ""
+                override fun tools() = listOf(Tool.of("t", "t") { Tool.Result.text("ok") })
+            }
+
+            reference.rawTools()
+
+            assertFalse(LlmReference.inToolsBridge.get(),
+                "inToolsBridge must be false after rawTools() returns — ThreadLocal not released would leak into the next call on this thread")
+        }
+
+        @Test
+        fun `inToolsBridge ThreadLocal is cleared even when tools() throws`() {
+            val reference = object : LlmReference {
+                override val name = "docs"
+                override val description = "test"
+                override fun notes() = ""
+                override fun tools(): List<Tool> = throw RuntimeException("tools() failed")
+            }
+
+            try { reference.rawTools() } catch (_: RuntimeException) {}
+
+            assertFalse(LlmReference.inToolsBridge.get(),
+                "inToolsBridge must be false after an exception in tools() — finally block must run regardless")
+        }
+    }
+
     @Nested
     inner class RawTools {
 

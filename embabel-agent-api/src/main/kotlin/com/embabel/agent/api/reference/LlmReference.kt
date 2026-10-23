@@ -98,19 +98,47 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
      * [PromptRunner.withReference] calls this and applies [namingStrategy] once, so each tool
      * is registered in the catalog under exactly one prefixed name (e.g. `"docs_vectorSearch"`).
      *
-     * The default bridges from the deprecated [toolInstances] method. New implementations
-     * should override this method directly rather than [tools].
+     * The default has two compatibility bridges (applied in order):
+     *  1. Deprecated [toolInstances]: if non-empty, converts each entry to [Tool].
+     *  2. [tools]-only override: if [toolInstances] is empty and an implementation overrides
+     *     [tools] without overriding [rawTools] (the pattern before PR #2132 introduced
+     *     `unprefixedTools()` — now [rawTools] — as the dedicated override point),
+     *     delegates to [tools] so those implementations continue to work with
+     *     [PromptRunner.withReference] and MCP export without silent tool loss.
+     *     A cycle guard ([inToolsBridge]) prevents infinite recursion when neither method
+     *     is overridden, because the default [tools] calls back into [rawTools].
+     *
+     * New implementations should override this method directly rather than [tools].
      */
     @Suppress("DEPRECATION")
     fun rawTools(): List<Tool> {
         val instances = toolInstances()
-        if (instances.isEmpty()) return emptyList()
-        // Tool must be passed through directly; Tool.fromInstance throws on a Tool argument.
-        return instances.flatMap { instance ->
-            when (instance) {
-                is Tool -> listOf(instance)
-                else -> Tool.fromInstance(instance)
+        if (instances.isNotEmpty()) {
+            // Tool must be passed through directly; Tool.fromInstance throws on a Tool argument.
+            return instances.flatMap { instance ->
+                when (instance) {
+                    is Tool -> listOf(instance)
+                    else -> Tool.fromInstance(instance)
+                }
             }
+        }
+        // Compatibility bridge: prior to this design, withReference() reached tools() via
+        // unprefixedTools() = tools(). Without this bridge, any LlmReference that overrides
+        // only tools() silently loses its tools from withReference() and MCP export.
+        //
+        // Cycle guard — why it is needed:
+        //   When an implementation provides no tools — overrides neither rawTools() nor tools() — the call chain loops:
+        //     rawTools() → [bridge] → tools() → rawTools() → [bridge] → tools() → ...
+        //   inToolsBridge detects the re-entry and breaks the cycle by returning emptyList(),
+        //   which is the correct result (no tools defined on this reference).
+        //   When tools() IS overridden the call chain terminates at the override and never
+        //   re-enters rawTools(), so the guard is never triggered.
+        if (inToolsBridge.get()) return emptyList()
+        inToolsBridge.set(true)
+        return try {
+            tools()
+        } finally {
+            inToolsBridge.remove()  // release even on exception; remove() avoids ThreadLocal leak
         }
     }
 
@@ -120,10 +148,10 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
      * The default applies [namingStrategy] over [rawTools]. Consumers should call this
      * when they need the names the model will actually see in the catalog.
      *
-     * Override [rawTools] rather than this method. Implementations that must override
-     * [tools] directly (e.g. for backward compatibility) should also override [rawTools]
-     * to return the bare names, so [PromptRunner.withReference] and [McpToolExport] apply
-     * the naming strategy exactly once.
+     * **Override [rawTools] rather than this method.** [PromptRunner.withReference] and
+     * MCP export call [rawTools] directly. Overriding only [tools] is supported via a
+     * compatibility bridge in [rawTools] but is deprecated and will be removed in a future
+     * version — migrate to [rawTools].
      */
     // Avoid wrapping in RenamedTool when the strategy leaves the name unchanged (e.g. IDENTITY).
     // withName always allocates a wrapper regardless, which would destroy the concrete type
@@ -154,6 +182,12 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
     }
 
     companion object {
+
+        // Cycle guard for the rawTools() → tools() compatibility bridge.
+        // Set to true while rawTools() is delegating to tools(), preventing re-entry
+        // when tools()'s default implementation calls rawTools() back.
+        // Always released in a finally block — safe under exceptions and early returns.
+        internal val inToolsBridge: ThreadLocal<Boolean> = ThreadLocal.withInitial { false }
 
         /**
          * Create an LlmReference with tools.
