@@ -112,6 +112,7 @@ class ObservabilityTool(
                 observation.highCardinalityKeyValue("error_message", result.message)
                 observation.error(error)
             } else {
+                // successful path
                 observation.lowCardinalityKeyValue("status", "success")
                 observation.highCardinalityKeyValue("result", result.content)
             }
