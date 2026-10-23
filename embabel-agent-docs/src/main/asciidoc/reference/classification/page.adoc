@@ -163,9 +163,11 @@ Reading throws a Jackson `DatabindException` for a member these types don't defi
 ==== Describe and Inject a Service
 
 The service interface describes a capability; `ModelType` describes its model family.
+Every service interface (`EmbeddingService`, `ClassificationService`, `DecisionService` and `LlmService`) extends the marker interface `ModelCapability`.
+A new kind of model is added as a new interface that extends `ModelCapability`, not as a new `ModelType` value.
 A `DecisionService` supports classification while continuing to report family `DECISION`, even through a `ClassificationService` reference.
 A classification-only service reports `CLASSIFICATION`.
-Applications with exhaustive `ModelType` switches must handle these additional families.
+Applications with exhaustive `ModelType` switches must handle `CLASSIFICATION` and `DECISION`; no further values will be added.
 
 Call `metadata()` to obtain a pure metadata snapshot before serializing a service description.
 Snapshots contain model metadata. They hold no live provider implementation, client or credentials.
