@@ -42,10 +42,12 @@ import com.embabel.common.ai.model.ProviderCredential
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.support.GenericBeanDefinition
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.FilteredClassLoader
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.ApplicationContext
+import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.Ordered
@@ -317,6 +319,44 @@ class CredentialEndpointConfigTest {
                 assertThat(context.getBeansOfType(CredentialLlmServiceFactory::class.java)).isEmpty()
                 assertThat(context).hasBean(SetupRequiredLlm.NAME)
             }
+    }
+
+    @Test
+    fun `the configuration loads when the OpenAI module is really absent from the classpath`() {
+        contextWithout("com.embabel.agent.openai.", "org.springframework.ai.openai.").use { context ->
+            assertThat(context.getBeansOfType(CredentialLlmServiceFactory::class.java))
+                .containsOnlyKeys(ANTHROPIC_FACTORY_BEAN)
+        }
+    }
+
+    @Test
+    fun `the configuration loads when the Anthropic module is really absent from the classpath`() {
+        contextWithout("com.embabel.agent.anthropic.", "org.springframework.ai.anthropic.", "com.anthropic.").use { context ->
+            assertThat(context.getBeansOfType(CredentialLlmServiceFactory::class.java))
+                .containsOnlyKeys(OPENAI_COMPATIBLE_FACTORY_BEAN)
+        }
+    }
+
+    /**
+     * A started context whose BYOK configuration classes are loaded by a
+     * [WithoutPackagesClassLoader], so every class they name resolves through it and the given
+     * packages are missing.
+     *
+     * The auto-configuration is registered by class name, as Spring Boot imports it, so Spring
+     * reads its annotations from bytecode. [ApplicationContextRunner] cannot be used: it loads
+     * configuration classes through the test's class loader.
+     */
+    private fun contextWithout(vararg absentPackages: String): AnnotationConfigApplicationContext {
+        val classLoader = WithoutPackagesClassLoader(javaClass.classLoader, absentPackages.toList())
+        return AnnotationConfigApplicationContext().apply {
+            setClassLoader(classLoader)
+            beanFactory.beanClassLoader = classLoader
+            registerBeanDefinition(
+                AgentByokAutoConfiguration::class.java.name,
+                GenericBeanDefinition().apply { beanClassName = AgentByokAutoConfiguration::class.java.name },
+            )
+            refresh()
+        }
     }
 
     @Test
@@ -686,5 +726,38 @@ class CredentialEndpointConfigTest {
             if (!credential.provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) null
             else CredentialEndpoint.OpenAiCompatible(provider = PROXIED_OPENAI_PROVIDER, baseUrl = GATEWAY_URL)
         }
+    }
+}
+
+/**
+ * Loads the BYOK configuration classes itself and refuses every class in [absentPackages], so a
+ * test sees what an application without an optional provider module sees.
+ *
+ * [FilteredClassLoader] cannot show this. The configuration class is already loaded by the test's
+ * class loader, which has both provider modules, so the types named in its method signatures
+ * resolve there whatever the filter says.
+ */
+private class WithoutPackagesClassLoader(
+    parent: ClassLoader,
+    private val absentPackages: List<String>,
+) : ClassLoader(parent) {
+
+    private val ownPackages = listOf(
+        "com.embabel.agent.config.models.byok.",
+        "com.embabel.agent.autoconfigure.models.byok.",
+    )
+
+    override fun loadClass(name: String, resolve: Boolean): Class<*> = synchronized(getClassLoadingLock(name)) {
+        when {
+            absentPackages.any(name::startsWith) -> throw ClassNotFoundException(name)
+            ownPackages.none(name::startsWith) -> super.loadClass(name, resolve)
+            else -> findLoadedClass(name) ?: defineOwn(name)
+        }
+    }
+
+    private fun defineOwn(name: String): Class<*> {
+        val bytes = parent.getResourceAsStream(name.replace('.', '/') + ".class")?.use { it.readBytes() }
+            ?: throw ClassNotFoundException(name)
+        return defineClass(name, bytes, 0, bytes.size)
     }
 }
