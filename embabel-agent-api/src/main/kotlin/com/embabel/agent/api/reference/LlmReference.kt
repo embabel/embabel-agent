@@ -106,7 +106,9 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
      *     delegates to [tools] so those implementations continue to work with
      *     [PromptRunner.withReference] and MCP export without silent tool loss.
      *     A cycle guard ([inToolsBridge]) prevents infinite recursion when neither method
-     *     is overridden, because the default [tools] calls back into [rawTools].
+     *     is overridden, because the default [tools] calls back into [rawTools]. The guard
+     *     tracks references by identity so a composite parent calling [rawTools] on its
+     *     children is not falsely blocked.
      *
      * New implementations should override this method directly rather than [tools].
      */
@@ -129,16 +131,20 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
         // Cycle guard — why it is needed:
         //   When an implementation provides no tools — overrides neither rawTools() nor tools() — the call chain loops:
         //     rawTools() → [bridge] → tools() → rawTools() → [bridge] → tools() → ...
-        //   inToolsBridge detects the re-entry and breaks the cycle by returning emptyList(),
-        //   which is the correct result (no tools defined on this reference).
+        //   inToolsBridge tracks this reference by identity; re-entry for the SAME reference
+        //   breaks the cycle by returning emptyList() (correct: no tools defined here).
+        //   Other references on the same thread are NOT blocked — a composite parent can
+        //   call rawTools() on its children without their tools being suppressed.
         //   When tools() IS overridden the call chain terminates at the override and never
         //   re-enters rawTools(), so the guard is never triggered.
-        if (inToolsBridge.get()) return emptyList()
-        inToolsBridge.set(true)
+        val active = inToolsBridge.get()
+        if (this in active) return emptyList()
+        active.add(this)
         return try {
             tools()
         } finally {
-            inToolsBridge.remove()  // release even on exception; remove() avoids ThreadLocal leak
+            active.remove(this)
+            if (active.isEmpty()) inToolsBridge.remove()  // avoid leak when set drains to empty
         }
     }
 
@@ -184,10 +190,13 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
     companion object {
 
         // Cycle guard for the rawTools() → tools() compatibility bridge.
-        // Set to true while rawTools() is delegating to tools(), preventing re-entry
-        // when tools()'s default implementation calls rawTools() back.
-        // Always released in a finally block — safe under exceptions and early returns.
-        internal val inToolsBridge: ThreadLocal<Boolean> = ThreadLocal.withInitial { false }
+        // Tracks references currently delegating to tools() by object identity.
+        // Blocks re-entry for the SAME reference (cycle break) while allowing
+        // legitimate rawTools() calls on other references (e.g. a composite parent
+        // calling rawTools() on its children).
+        // Always cleaned up in a finally block — safe under exceptions and early returns.
+        internal val inToolsBridge: ThreadLocal<MutableSet<LlmReference>> =
+            ThreadLocal.withInitial { java.util.Collections.newSetFromMap(java.util.IdentityHashMap()) }
 
         /**
          * Create an LlmReference with tools.

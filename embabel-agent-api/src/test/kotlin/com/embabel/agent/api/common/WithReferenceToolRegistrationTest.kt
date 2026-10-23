@@ -255,8 +255,8 @@ class WithReferenceToolRegistrationTest {
 
             reference.rawTools()
 
-            assertFalse(LlmReference.inToolsBridge.get(),
-                "inToolsBridge must be false after rawTools() returns — ThreadLocal not released would leak into the next call on this thread")
+            assertTrue(LlmReference.inToolsBridge.get().isEmpty(),
+                "inToolsBridge must be empty after rawTools() returns — reference not removed would leak into the next call on this thread")
         }
 
         @Test
@@ -270,8 +270,34 @@ class WithReferenceToolRegistrationTest {
 
             try { reference.rawTools() } catch (_: RuntimeException) {}
 
-            assertFalse(LlmReference.inToolsBridge.get(),
-                "inToolsBridge must be false after an exception in tools() — finally block must run regardless")
+            assertTrue(LlmReference.inToolsBridge.get().isEmpty(),
+                "inToolsBridge must be empty after an exception in tools() — finally block must run regardless")
+        }
+
+        @Test
+        fun `rawTools bridge does not suppress child tools when parent is a composite legacy reference`() {
+            // Regression: the old Boolean guard blocked ALL references on the thread once the
+            // parent entered the bridge. The identity-keyed set blocks only the re-entrant
+            // reference, so a child with its own tools()-only override is unaffected.
+            val childTool = Tool.of("child_op", "Child op") { Tool.Result.text("ok") }
+            val child = object : LlmReference {
+                override val name = "child"
+                override val description = "child ref"
+                override fun notes() = ""
+                override fun tools() = listOf(childTool)  // legacy tools()-only override
+            }
+            val parent = object : LlmReference {
+                override val name = "parent"
+                override val description = "parent ref"
+                override fun notes() = ""
+                override fun tools() = child.rawTools()   // composite: collects from child
+            }
+
+            val tools = parent.rawTools()
+
+            assertEquals(1, tools.size,
+                "Child tools must not be suppressed by the parent's bridge guard: got ${tools.map { it.definition.name }}")
+            assertEquals("child_op", tools[0].definition.name)
         }
     }
 
