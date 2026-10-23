@@ -401,4 +401,41 @@ class LlmReferenceTest {
             assertThat(unfolding.toolInstances()).isEmpty()
         }
     }
+
+    @Nested
+    inner class DeprecatedBridge {
+
+        @Test
+        fun `rawTools default bridges Tool instance from toolInstances`() {
+            val tool = Tool.of("search", "Search") { Tool.Result.text("ok") }
+            val reference = object : LlmReference {
+                override val name = "test"
+                override val description = "test"
+                override fun notes() = ""
+                @Suppress("DEPRECATION")
+                override fun toolInstances(): List<Any> = listOf(tool)
+            }
+
+            val raw = reference.rawTools()
+
+            assertThat(raw).hasSize(1)
+            assertThat(raw[0].definition.name).isEqualTo("search")
+        }
+
+        @Test
+        fun `rawTools default bridges annotated object from toolInstances`() {
+            val reference = object : LlmReference {
+                override val name = "test"
+                override val description = "test"
+                override fun notes() = ""
+                @Suppress("DEPRECATION")
+                override fun toolInstances(): List<Any> = listOf(WeatherTools())
+            }
+
+            val raw = reference.rawTools()
+
+            assertThat(raw).hasSizeGreaterThanOrEqualTo(1)
+            assertThat(raw.map { it.definition.name }).containsAnyOf("getWeather", "getForecast")
+        }
+    }
 }

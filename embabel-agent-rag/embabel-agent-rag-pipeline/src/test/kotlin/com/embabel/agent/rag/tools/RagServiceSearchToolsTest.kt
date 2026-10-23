@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.rag.tools
 
+import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.service.*
 import com.embabel.common.core.types.SimpleSimilaritySearchResult
@@ -249,5 +250,17 @@ class RagServiceSearchToolsTest {
         assertEquals(0.85, request.similarityThreshold)
         assertEquals(12, request.topK)
         assertEquals(setOf("test-label"), request.entitySearch?.labels)
+    }
+
+    @Test
+    @Suppress("DEPRECATION")
+    fun `RagServiceReference rawTools returns non-empty tool list`() {
+        val mockRagService = mockk<RagService>()
+        val mockRunner = mockk<PromptRunner>()
+        val ref = RagServiceReference("test", "test", RagOptions(mockRagService), mockRunner)
+
+        val tools = ref.rawTools()
+
+        assertTrue(tools.isNotEmpty(), "RagServiceReference must expose at least one LlmTool method")
     }
 }
