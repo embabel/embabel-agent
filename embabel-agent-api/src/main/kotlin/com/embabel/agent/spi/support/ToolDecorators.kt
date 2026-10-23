@@ -104,8 +104,19 @@ class ObservabilityTool(
             .start()
         return try {
             val result = action()
-            observation.lowCardinalityKeyValue("status", "success")
-            observation.highCardinalityKeyValue("result", result.content)
+            // A tool can return an error without throwing. Record that as an error too.
+            if (result is Tool.Result.Error) {
+                val error = ToolReturnedError(delegate.definition.name, result.message, result.cause)
+                observation.lowCardinalityKeyValue("status", "error")
+                observation.highCardinalityKeyValue("error_type", (result.cause ?: error)::class.simpleName ?: "Unknown")
+                observation.highCardinalityKeyValue("error_message", result.message)
+                observation.error(error)
+            } else {
+                // successful path
+                observation.lowCardinalityKeyValue("status", "success")
+                observation.highCardinalityKeyValue("result", result.content)
+            }
+            // Return the result in both cases. Only a thrown exception is rethrown below.
             result
         } catch (ex: Exception) {
             observation.lowCardinalityKeyValue("status", "error")

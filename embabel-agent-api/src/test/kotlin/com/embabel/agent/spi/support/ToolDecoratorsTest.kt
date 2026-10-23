@@ -27,6 +27,9 @@ import com.embabel.agent.core.ToolGroupMetadata
 import com.embabel.agent.spi.OperationScheduler
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.StringTransformer
+import io.micrometer.observation.Observation
+import io.micrometer.observation.ObservationHandler
+import io.micrometer.observation.ObservationRegistry
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -361,6 +364,69 @@ class ToolDecoratorsTest {
 
             assertTrue(str.contains("obs-tool"))
             assertTrue(str.contains("ObservabilityTool"))
+        }
+
+        @Test
+        fun `tags text result as success`() {
+            val handler = RecordingHandler()
+            val delegateTool = createMockTool("obs-tool") { Tool.Result.text("observed") }
+            val observabilityTool = ObservabilityTool(delegateTool, registryWith(handler))
+
+            observabilityTool.call("{}")
+
+            val context = handler.stopped.single()
+            assertEquals("success", context.getLowCardinalityKeyValue("status")?.value)
+            assertEquals("observed", context.getHighCardinalityKeyValue("result")?.value)
+            assertNull(context.error)
+        }
+
+        @Test
+        fun `tags returned error result as error and still returns it`() {
+            val handler = RecordingHandler()
+            val cause = IllegalStateException("root cause")
+            val errorResult = Tool.Result.error("Execution denied: rm", cause)
+            val delegateTool = createMockTool("error-tool") { errorResult }
+            val observabilityTool = ObservabilityTool(delegateTool, registryWith(handler))
+
+            val result = observabilityTool.call("{}")
+
+            assertSame(errorResult, result)
+            val context = handler.stopped.single()
+            assertEquals("error", context.getLowCardinalityKeyValue("status")?.value)
+            assertEquals("IllegalStateException", context.getHighCardinalityKeyValue("error_type")?.value)
+            assertEquals("Execution denied: rm", context.getHighCardinalityKeyValue("error_message")?.value)
+            val error = context.error
+            assertTrue(error is ToolReturnedError)
+            assertEquals("error-tool", (error as ToolReturnedError).toolName)
+            assertSame(cause, error.cause)
+        }
+
+        @Test
+        fun `tags returned error result without a cause as ToolReturnedError`() {
+            val handler = RecordingHandler()
+            val delegateTool = createMockTool("error-tool") { Tool.Result.error("Script failed") }
+            val observabilityTool = ObservabilityTool(delegateTool, registryWith(handler))
+
+            observabilityTool.call("{}")
+
+            val context = handler.stopped.single()
+            assertEquals("error", context.getLowCardinalityKeyValue("status")?.value)
+            assertEquals("ToolReturnedError", context.getHighCardinalityKeyValue("error_type")?.value)
+            assertEquals("Script failed", context.getHighCardinalityKeyValue("error_message")?.value)
+        }
+
+        private inner class RecordingHandler : ObservationHandler<Observation.Context> {
+            val stopped = mutableListOf<Observation.Context>()
+            override fun supportsContext(context: Observation.Context) = true
+            override fun onStop(context: Observation.Context) {
+                stopped += context
+            }
+        }
+
+        private fun registryWith(handler: ObservationHandler<*>): ObservationRegistry {
+            val registry = ObservationRegistry.create()
+            registry.observationConfig().observationHandler(handler)
+            return registry
         }
     }
 
