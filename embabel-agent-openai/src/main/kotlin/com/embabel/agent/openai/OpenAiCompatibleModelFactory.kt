@@ -507,6 +507,15 @@ open class OpenAiCompatibleModelFactory(
         return builder.build()
     }
 
+    /**
+     * An LLM served over the OpenAI chat-completions API by [provider].
+     *
+     * [forwardsReasoningEffort] says whether a reasoning effort set on the call's
+     * [com.embabel.common.ai.model.LlmOptions] (see [withOpenAiReasoningEffort]) is sent as the
+     * request's `reasoning_effort`. It defaults to OpenAI's own endpoint only, because not every
+     * OpenAI-compatible server accepts the field; a provider whose server does - LM Studio, Docker
+     * Model Runner - passes true, so a caller can turn a local thinking model's reasoning down.
+     */
     @JvmOverloads
     fun openAiCompatibleLlm(
         model: String,
@@ -516,13 +525,14 @@ open class OpenAiCompatibleModelFactory(
         optionsConverter: OptionsConverter = OpenAiChatOptionsConverter,
         @Suppress("UNUSED_PARAMETER")
         retryTemplate: RetryTemplate? = null,
+        forwardsReasoningEffort: Boolean = provider.equals(OpenAiModels.PROVIDER, ignoreCase = true),
     ): LlmService<*> {
         return SpringAiLlmService(
             name = model,
             chatModel = chatModelOf(model),
             provider = provider,
             optionsConverter = timeouts.optionsConverter(
-                if (provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) {
+                if (forwardsReasoningEffort) {
                     OpenAiReasoningEffortOptionsConverter(optionsConverter)
                 } else {
                     optionsConverter

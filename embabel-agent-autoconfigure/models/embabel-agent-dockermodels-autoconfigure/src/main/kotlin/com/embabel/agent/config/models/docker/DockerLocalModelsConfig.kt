@@ -17,6 +17,7 @@ package com.embabel.agent.config.models.docker
 
 import com.embabel.agent.api.models.DockerLocalModels.Companion.PROVIDER
 import com.embabel.agent.config.models.docker.DockerRetryProperties.Companion.PREFIX
+import com.embabel.agent.openai.OpenAiReasoningEffortOptionsConverter
 import com.embabel.agent.openai.OpenAiChatOptionsConverter
 import com.embabel.agent.openai.OpenAiCompatibleClientProperties
 import com.embabel.agent.spi.common.RetryProperties
@@ -306,7 +307,8 @@ class DockerLocalModelsConfig(
             name = modelId,
             chatModel = chatModel,
             provider = PROVIDER,
-            optionsConverter = timeouts.optionsConverter(OpenAiChatOptionsConverter),
+            // Docker Model Runner accepts `reasoning_effort`, so a caller's effort reaches the model.
+            optionsConverter = timeouts.optionsConverter(OpenAiReasoningEffortOptionsConverter(OpenAiChatOptionsConverter)),
             knowledgeCutoffDate = null,
             pricingModel = PricingModel.ALL_YOU_CAN_EAT,
         )
