@@ -72,7 +72,8 @@ private const val MODELS_PREFIX = "embabel.agent.platform.models"
  * No services are cached here. [com.embabel.common.ai.model.ConfigurableModelProvider] already
  * caches what a platform returns per (provider, key, model) behind a bounded LRU, so a cache here
  * would be a second, unbounded one holding a service per key the deployment has ever seen. The one
- * cache here holds bound timeouts per provider, which is bounded by the number of providers.
+ * cache, in [OpenAiTimeouts], holds bound timeouts per provider, which is bounded by the number of
+ * providers.
  */
 @Configuration(proxyBeanMethods = false)
 class CredentialEndpointConfig @Autowired constructor(
@@ -87,7 +88,11 @@ class CredentialEndpointConfig @Autowired constructor(
 
     private val logger = loggerFor<CredentialEndpointConfig>()
 
-    private val timeoutsByPrefix = ConcurrentHashMap<String, OpenAiClientTimeouts>()
+    /**
+     * Created on first use, by an OpenAI bean only, so an application without `embabel-agent-openai`
+     * never constructs it.
+     */
+    private val openAiTimeouts by lazy { OpenAiTimeouts(environment) }
 
     /**
      * Builds chat models for anything routed to Anthropic's protocol, whoever routed it there.
@@ -158,7 +163,7 @@ class CredentialEndpointConfig @Autowired constructor(
         return ModelPlatform.builder()
             .builds(LlmService.KIND) { credential, model ->
                 openAiCompatibleEndpoint(resolvers, credential, model)?.let {
-                    openAiCompatibleFactory(it, credential)
+                    openAiCompatibleFactory(it, credential, openAiTimeouts.forProvider(it.provider))
                         .openAiCompatibleLlm(
                             model = model,
                             pricingModel = it.pricingModel,
@@ -169,7 +174,7 @@ class CredentialEndpointConfig @Autowired constructor(
             }
             .builds(EmbeddingService.KIND) { credential, model ->
                 openAiCompatibleEndpoint(resolvers, credential, model)?.let {
-                    openAiCompatibleFactory(it, credential)
+                    openAiCompatibleFactory(it, credential, openAiTimeouts.forProvider(it.provider))
                         .buildValidatedEmbeddingService(
                             model = model,
                             provider = it.provider,
@@ -196,17 +201,6 @@ class CredentialEndpointConfig @Autowired constructor(
             // Null when the endpoint uses another protocol, so that protocol's platform answers.
             as? CredentialEndpoint.OpenAiCompatible
 
-    /** A client factory for [endpoint], authenticated with the user's key and the provider's configured timeouts. */
-    private fun openAiCompatibleFactory(
-        endpoint: CredentialEndpoint.OpenAiCompatible,
-        credential: ProviderCredential,
-    ): OpenAiCompatibleModelFactory =
-        OpenAiCompatibleModelFactory(
-            baseUrl = endpoint.baseUrl,
-            apiKey = credential.apiKey,
-            timeouts = timeoutsFor(endpoint.provider),
-        )
-
     /**
      * What the application says, in [org.springframework.core.Ordered] order, or null if none of
      * its resolvers claims this provider.
@@ -222,41 +216,6 @@ class CredentialEndpointConfig @Autowired constructor(
         model: String,
     ): CredentialEndpoint? =
         resolvers.orderedStream().toList().firstNotNullOfOrNull { it.resolve(credential, model) }
-
-    /**
-     * The timeouts configured for [provider], under the same prefix its platform configuration
-     * uses - `embabel.agent.platform.models.openai.read-timeout` applies to a user's OpenAI key as
-     * it does to the deployment's. How long a model takes depends on the endpoint, not on whose key
-     * pays for the call.
-     *
-     * Bound from the environment rather than read from the provider's properties bean, because a
-     * pure BYOK deployment has no provider autoconfiguration and so no such bean. A provider an
-     * application's resolver adds is configured the same way, under its own normalised name.
-     *
-     * Bound on the first call for a provider and cached per prefix after that, because the set of
-     * providers is open - a resolver can route to one this configuration has never heard of - so
-     * there is no list to bind eagerly at startup. The cost is that a malformed value, say
-     * `read-timeout: 5 minutes`, is not reported at startup: it surfaces on the first call for that
-     * provider, as an [InvalidProviderTimeoutException] naming the property, and on every call after
-     * it until fixed. A failed bind is not cached, and never falls back to a default.
-     */
-    private fun timeoutsFor(provider: String): OpenAiClientTimeouts =
-        timeoutsByPrefix.computeIfAbsent(timeoutPrefixFor(provider), ::bindTimeouts)
-
-    private fun bindTimeouts(prefix: String): OpenAiClientTimeouts {
-        val binder = Binder.get(environment)
-        return OpenAiClientTimeouts(
-            connect = bindDuration(binder, "$prefix.connect-timeout") ?: OpenAiClientTimeouts.DEFAULT_CONNECT,
-            read = bindDuration(binder, "$prefix.read-timeout"),
-        )
-    }
-
-    private fun bindDuration(binder: Binder, property: String): Duration? =
-        try {
-            binder.bind(property, Duration::class.java).orElse(null)
-        } catch (e: BindException) {
-            throw InvalidProviderTimeoutException(property, e)
-        }
 
     internal companion object {
 
@@ -303,5 +262,71 @@ class CredentialEndpointConfig @Autowired constructor(
     private fun openAiCompatibleEndpointFor(credential: ProviderCredential): CredentialEndpoint? =
         OpenAiCompatibleModelFactory.endpointFor(credential.provider)?.let {
             CredentialEndpoint.OpenAiCompatible(provider = it.provider, baseUrl = it.baseUrl)
+        }
+}
+
+/**
+ * A client factory for [endpoint], authenticated with the user's key and the provider's configured
+ * timeouts.
+ *
+ * A top-level function rather than a member of [CredentialEndpointConfig], for the same reason as
+ * [OpenAiTimeouts]: its return type is from `embabel-agent-openai`, an optional dependency.
+ */
+private fun openAiCompatibleFactory(
+    endpoint: CredentialEndpoint.OpenAiCompatible,
+    credential: ProviderCredential,
+    timeouts: OpenAiClientTimeouts,
+): OpenAiCompatibleModelFactory =
+    OpenAiCompatibleModelFactory(
+        baseUrl = endpoint.baseUrl,
+        apiKey = credential.apiKey,
+        timeouts = timeouts,
+    )
+
+/**
+ * Timeouts bound per provider, for the OpenAI beans only.
+ *
+ * Not part of [CredentialEndpointConfig], because these signatures name `embabel-agent-openai`
+ * types, which is an optional dependency. Spring reads every method signature of a configuration
+ * class when it creates a bean from it, so an OpenAI type there stops an application without that
+ * module from starting, whatever `@ConditionalOnClass` says.
+ */
+private class OpenAiTimeouts(private val environment: Environment) {
+
+    private val timeoutsByPrefix = ConcurrentHashMap<String, OpenAiClientTimeouts>()
+
+    /**
+     * The timeouts configured for [provider], under the same prefix its platform configuration
+     * uses - `embabel.agent.platform.models.openai.read-timeout` applies to a user's OpenAI key as
+     * it does to the deployment's. How long a model takes depends on the endpoint, not on whose key
+     * pays for the call.
+     *
+     * Bound from the environment rather than read from the provider's properties bean, because a
+     * pure BYOK deployment has no provider autoconfiguration and so no such bean. A provider an
+     * application's resolver adds is configured the same way, under its own normalised name.
+     *
+     * Bound on the first call for a provider and cached per prefix after that, because the set of
+     * providers is open - a resolver can route to one this configuration has never heard of - so
+     * there is no list to bind eagerly at startup. The cost is that a malformed value, say
+     * `read-timeout: 5 minutes`, is not reported at startup: it surfaces on the first call for that
+     * provider, as an [InvalidProviderTimeoutException] naming the property, and on every call after
+     * it until fixed. A failed bind is not cached, and never falls back to a default.
+     */
+    fun forProvider(provider: String): OpenAiClientTimeouts =
+        timeoutsByPrefix.computeIfAbsent(CredentialEndpointConfig.timeoutPrefixFor(provider), ::bindTimeouts)
+
+    private fun bindTimeouts(prefix: String): OpenAiClientTimeouts {
+        val binder = Binder.get(environment)
+        return OpenAiClientTimeouts(
+            connect = bindDuration(binder, "$prefix.connect-timeout") ?: OpenAiClientTimeouts.DEFAULT_CONNECT,
+            read = bindDuration(binder, "$prefix.read-timeout"),
+        )
+    }
+
+    private fun bindDuration(binder: Binder, property: String): Duration? =
+        try {
+            binder.bind(property, Duration::class.java).orElse(null)
+        } catch (e: BindException) {
+            throw InvalidProviderTimeoutException(property, e)
         }
 }
