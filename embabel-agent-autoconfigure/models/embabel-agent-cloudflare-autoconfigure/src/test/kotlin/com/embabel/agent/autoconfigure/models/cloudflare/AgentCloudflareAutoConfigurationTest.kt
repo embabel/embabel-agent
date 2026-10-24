@@ -19,7 +19,7 @@ import com.embabel.agent.autoconfigure.models.typesafe.AgentTypeSafeAutoConfigur
 import com.embabel.agent.autoconfigure.platform.DecisionServiceRegistryAutoConfiguration
 import com.embabel.agent.cloudflare.CloudflareModelFactory
 import com.embabel.agent.config.models.cloudflare.CloudflareModelDefinition
-import com.embabel.agent.config.models.cloudflare.CloudflareModelsRegistrar
+import com.embabel.agent.config.models.cloudflare.CloudflareModelsConfig
 import com.embabel.agent.config.models.cloudflare.CloudflareProperties
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.classification.FailureReason
@@ -340,7 +340,7 @@ class AgentCloudflareAutoConfigurationTest {
             @JvmStatic
             @Bean
             fun malformedCatalogRegistrar(beanFactory: BeanFactory): BeanDefinitionRegistryPostProcessor =
-                CloudflareModelsRegistrar(listOf(CloudflareModelDefinition("typo", "TypeSafe/Jev")), beanFactory)
+                CloudflareModelsConfig.registrar(listOf(CloudflareModelDefinition("typo", "TypeSafe/Jev")), beanFactory)
         }
     }
 
