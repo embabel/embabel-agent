@@ -356,8 +356,18 @@ class CredentialEndpointConfigTest {
     @Test
     fun `the configuration loads when the Anthropic module is really absent from the classpath`() {
         contextWithout("com.embabel.agent.anthropic.", "org.springframework.ai.anthropic.", "com.anthropic.").use { context ->
-            assertThat(context.chatModelPlatforms()).containsOnlyKeys(OPENAI_COMPATIBLE_PLATFORM_BEAN)
-            assertThat(context.embeddingModelPlatforms()).containsOnlyKeys(OPENAI_COMPATIBLE_PLATFORM_BEAN)
+            assertThat(context.chatModelPlatforms()).containsOnlyKeys(
+                OPENAI_PLATFORM_BEAN,
+                DEEP_SEEK_PLATFORM_BEAN,
+                MISTRAL_AI_PLATFORM_BEAN,
+                OPENAI_COMPATIBLE_PLATFORM_BEAN,
+            )
+            // DeepSeek has no embeddings API.
+            assertThat(context.embeddingModelPlatforms()).containsOnlyKeys(
+                OPENAI_PLATFORM_BEAN,
+                MISTRAL_AI_PLATFORM_BEAN,
+                OPENAI_COMPATIBLE_PLATFORM_BEAN,
+            )
         }
     }
 
