@@ -467,9 +467,9 @@ class SkillsTest {
         val tools = skills.tools()
         val toolNames = tools.map { it.definition.name }
 
-        // Script tools should be available immediately (for PromptRunner compatibility)
-        assertTrue(toolNames.contains("my-skill_build"))
-        assertTrue(toolNames.contains("my-skill_deploy"))
+        // tools() applies namingStrategy — script tools carry the Skills prefix
+        assertTrue(toolNames.contains("test_my-skill_build"))
+        assertTrue(toolNames.contains("test_my-skill_deploy"))
     }
 
     @Test
@@ -493,7 +493,7 @@ class SkillsTest {
         val toolNames = tools.map { it.definition.name }
 
         // No script tools because NoOpExecutionEngine supports no languages
-        assertFalse(toolNames.any { it.startsWith("my-skill_") })
+        assertFalse(toolNames.any { it.startsWith("test_my-skill_") })
     }
 
     @Test
@@ -516,8 +516,9 @@ class SkillsTest {
         val result = skills.activate("my-skill")
 
         assertTrue(result.contains("Available Script Tools"))
-        assertTrue(result.contains("my-skill_build"))
-        assertTrue(result.contains("my-skill_deploy"))
+        // activate() applies namingStrategy — names must match the catalog the model sees
+        assertTrue(result.contains("test_my-skill_build"))
+        assertTrue(result.contains("test_my-skill_deploy"))
     }
 
     @Test
@@ -546,8 +547,8 @@ class SkillsTest {
         val toolNames = tools.map { it.definition.name }
 
         // All skill scripts should be available (no activation required for tools)
-        assertTrue(toolNames.contains("skill-1_build"))
-        assertTrue(toolNames.contains("skill-2_test"))
+        assertTrue(toolNames.contains("test_skill-1_build"))
+        assertTrue(toolNames.contains("test_skill-2_test"))
     }
 
     // asIndividualReferences() tests
@@ -737,11 +738,12 @@ class SkillsTest {
         val toolNames = sharedRef.tools().map { it.definition.name }.toSet()
 
         assertEquals("skill_resources", sharedRef.name)
-        assertTrue("listResources" in toolNames, "listResources should be in shared ref, was $toolNames")
-        assertTrue("readResource" in toolNames, "readResource should be in shared ref, was $toolNames")
+        // sharedRef uses default namingStrategy: name "skill_resources" → prefix "skill_resources_"
+        assertTrue("skill_resources_listResources" in toolNames, "skill_resources_listResources should be in shared ref, was $toolNames")
+        assertTrue("skill_resources_readResource" in toolNames, "skill_resources_readResource should be in shared ref, was $toolNames")
         // activate is intentionally NOT exposed — body delivery happens via
         // the per-skill activation tool.
-        assertTrue("activate" !in toolNames, "activate should not be in shared ref, was $toolNames")
+        assertTrue("skill_resources_activate" !in toolNames, "skill_resources_activate should not be in shared ref, was $toolNames")
     }
 
     // Helper methods

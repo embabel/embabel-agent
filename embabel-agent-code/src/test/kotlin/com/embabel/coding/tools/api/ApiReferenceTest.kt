@@ -142,6 +142,13 @@ class ApiReferenceTest {
     inner class ConstructorAndPropertiesTests {
 
         @Test
+        fun `rawTools returns non-empty tool list`() {
+            val apiRef = ApiReference("test", smallApi)
+            val tools = apiRef.rawTools()
+            assertTrue(tools.isNotEmpty(), "ApiReference must expose at least one LlmTool method")
+        }
+
+        @Test
         fun `should initialize with default class limit`() {
             val apiRef = ApiReference("API reference for TestAPI", smallApi)
             assertEquals("TestAPI", apiRef.name)

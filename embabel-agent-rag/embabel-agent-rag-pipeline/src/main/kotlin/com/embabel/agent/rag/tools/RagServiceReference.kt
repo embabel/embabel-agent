@@ -45,7 +45,7 @@ class RagServiceReference(
         }
     }
 
-    override fun tools(): List<Tool> = Tool.fromInstance(toolInstance)
+    override fun rawTools(): List<Tool> = Tool.fromInstance(toolInstance)
 
     override fun notes() = ""
 

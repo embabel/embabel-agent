@@ -38,10 +38,13 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
 
     /**
      * A safe prefix for LLM tools associated with this reference.
-     * Defaults to the name lowercased with spaces replaced by underscores.
-     * Subclasses can override it
+     * Defaults to the name lowercased with all non-alphanumeric characters (including spaces)
+     * replaced by underscores. Subclasses can override it.
+     *
+     * Spaces are replaced because most LLM providers reject tool names that contain spaces.
+     * Example: `"My API"` → `"my_api"`, `"docs-v2"` → `"docs_v2"`.
      */
-    fun toolPrefix(): String = name.replace(Regex("[^a-zA-Z0-9 ]"), "_").lowercase()
+    fun toolPrefix(): String = name.replace(Regex("[^a-zA-Z0-9]"), "_").lowercase()
 
     /**
      * Naming strategy for tools associated with this reference.
@@ -58,17 +61,17 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
         level = DeprecationLevel.WARNING,
     )
     fun toolObject(): ToolObject = ToolObject(
-        objects = unprefixedTools(),
+        objects = rawTools(),
         namingStrategy = namingStrategy,
     )
 
     /**
      * Return the instances of tool object. Defaults to this
-     * @deprecated Use [tools] instead. Convert @LlmTool objects using Tool.fromInstance().
+     * @deprecated Override [rawTools] instead. Convert @LlmTool objects using Tool.fromInstance().
      */
     @Deprecated(
-        message = "Use tools() instead. Convert @LlmTool objects using Tool.fromInstance().",
-        replaceWith = ReplaceWith("tools()"),
+        message = "Override rawTools() instead. Convert @LlmTool objects using Tool.fromInstance().",
+        replaceWith = ReplaceWith("rawTools()"),
         level = DeprecationLevel.WARNING,
     )
     fun toolInstances(): List<Any> = emptyList()
@@ -90,41 +93,79 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
     fun notes(): String
 
     /**
-     * Return framework-agnostic tools provided by this reference.
-     * These tools will be added to the PromptRunner when the reference is added.
+     * Return tools with **bare** (unprefixed) names — the override point for new implementations.
      *
-     * The default implementation bridges from the deprecated [toolInstances] method
-     * by converting any @LlmTool annotated objects to [Tool] instances.
-     * New implementations should override this method directly.
+     * [PromptRunner.withReference] calls this and applies [namingStrategy] once, so each tool
+     * is registered in the catalog under exactly one prefixed name (e.g. `"docs_vectorSearch"`).
      *
-     * @see Tool
+     * The default has two compatibility bridges (applied in order):
+     *  1. Deprecated [toolInstances]: if non-empty, converts each entry to [Tool].
+     *  2. [tools]-only override: if [toolInstances] is empty and an implementation overrides
+     *     [tools] without overriding [rawTools] (the pattern before PR #2132 introduced
+     *     `unprefixedTools()` — now [rawTools] — as the dedicated override point),
+     *     delegates to [tools] so those implementations continue to work with
+     *     [PromptRunner.withReference] and MCP export without silent tool loss.
+     *     A cycle guard ([inToolsBridge]) prevents infinite recursion when neither method
+     *     is overridden, because the default [tools] calls back into [rawTools]. The guard
+     *     tracks references by identity so a composite parent calling [rawTools] on its
+     *     children is not falsely blocked.
+     *
+     * New implementations should override this method directly rather than [tools].
      */
     @Suppress("DEPRECATION")
-    fun tools(): List<Tool> {
+    fun rawTools(): List<Tool> {
         val instances = toolInstances()
-        if (instances.isEmpty()) {
-            return emptyList()
-        }
-        return instances.flatMap { instance ->
-            when (instance) {
-                is Tool -> listOf(instance)
-                else -> Tool.fromInstance(instance)
+        if (instances.isNotEmpty()) {
+            // Tool must be passed through directly; Tool.fromInstance throws on a Tool argument.
+            return instances.flatMap { instance ->
+                when (instance) {
+                    is Tool -> listOf(instance)
+                    else -> Tool.fromInstance(instance)
+                }
             }
+        }
+        // Compatibility bridge: prior to this design, withReference() reached tools() via
+        // unprefixedTools() = tools(). Without this bridge, any LlmReference that overrides
+        // only tools() silently loses its tools from withReference() and MCP export.
+        //
+        // Cycle guard — why it is needed:
+        //   When an implementation provides no tools — overrides neither rawTools() nor tools() — the call chain loops:
+        //     rawTools() → [bridge] → tools() → rawTools() → [bridge] → tools() → ...
+        //   inToolsBridge tracks this reference by identity; re-entry for the SAME reference
+        //   breaks the cycle by returning emptyList() (correct: no tools defined here).
+        //   Other references on the same thread are NOT blocked — a composite parent can
+        //   call rawTools() on its children without their tools being suppressed.
+        //   When tools() IS overridden the call chain terminates at the override and never
+        //   re-enters rawTools(), so the guard is never triggered.
+        val active = inToolsBridge.get()
+        if (this in active) return emptyList()
+        active.add(this)
+        return try {
+            tools()
+        } finally {
+            active.remove(this)
+            if (active.isEmpty()) inToolsBridge.remove()  // avoid leak when set drains to empty
         }
     }
 
     /**
-     * Return tools with unprefixed names. [PromptRunner.withReference] calls this and
-     * applies [namingStrategy] to the result, so each tool gets its prefix exactly once.
+     * Return tools with **final** (prefixed) names.
      *
-     * Override this (rather than [tools]) in new implementations. The default bridges
-     * to [tools], so existing implementations that return unprefixed names from [tools]
-     * work without change. Implementations whose [tools] already returns prefixed names
-     * (for backward compatibility) should override this to return the unprefixed variants.
+     * The default applies [namingStrategy] over [rawTools]. Consumers should call this
+     * when they need the names the model will actually see in the catalog.
      *
-     * @see tools for the legacy method that may return pre-prefixed names
+     * **Override [rawTools] rather than this method.** [PromptRunner.withReference] and
+     * MCP export call [rawTools] directly. Overriding only [tools] is supported via a
+     * compatibility bridge in [rawTools] but is deprecated and will be removed in a future
+     * version — migrate to [rawTools].
      */
-    fun unprefixedTools(): List<Tool> = tools()
+    // Avoid wrapping in RenamedTool when the strategy leaves the name unchanged (e.g. IDENTITY).
+    // withName always allocates a wrapper regardless, which would destroy the concrete type
+    // (e.g. UnfoldingTool would become RenamedTool).
+    fun tools(): List<Tool> = rawTools().map { tool ->
+        val prefixedName = namingStrategy.transform(tool.definition.name)
+        if (prefixedName == tool.definition.name) tool else tool.withName(prefixedName)
+    }
 
     /**
      * Convert this reference to a reference exposing a single unfolding tool.
@@ -147,6 +188,15 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
     }
 
     companion object {
+
+        // Cycle guard for the rawTools() → tools() compatibility bridge.
+        // Tracks references currently delegating to tools() by object identity.
+        // Blocks re-entry for the SAME reference (cycle break) while allowing
+        // legitimate rawTools() calls on other references (e.g. a composite parent
+        // calling rawTools() on its children).
+        // Always cleaned up in a finally block — safe under exceptions and early returns.
+        internal val inToolsBridge: ThreadLocal<MutableSet<LlmReference>> =
+            ThreadLocal.withInitial { java.util.Collections.newSetFromMap(java.util.IdentityHashMap()) }
 
         /**
          * Create an LlmReference with tools.
@@ -238,7 +288,7 @@ private data class SimpleLlmReference(
     private val tools: List<Tool>,
 ) : LlmReference {
     override fun notes(): String = notes
-    override fun tools(): List<Tool> = tools
+    override fun rawTools(): List<Tool> = tools
 }
 
 
@@ -253,10 +303,8 @@ private class UnfoldingReference(
 
     override fun toolPrefix(): String = delegate.toolPrefix()
 
-    // tools() wraps all inner tools in one UnfoldingTool named after the prefix (e.g. "docs").
-    // unprefixedTools() inherits the interface default and returns that same single UnfoldingTool.
-    // withReference() applies namingStrategy to its name; IDENTITY keeps "docs" as-is.
-    // The default strategy would produce "docs_docs" — IDENTITY prevents that.
+    // IDENTITY prevents withReference() from producing "docs_docs": rawTools() already returns
+    // the UnfoldingTool named "docs", so the default strategy would prefix it again.
     override val namingStrategy: StringTransformer get() = StringTransformer.IDENTITY
 
     override fun notes(): String = delegate.notes()
@@ -267,8 +315,12 @@ private class UnfoldingReference(
     @Deprecated("Use tools() instead", level = DeprecationLevel.WARNING)
     override fun toolInstances(): List<Any> = emptyList()
 
-    override fun tools(): List<Tool> {
-        val innerTools = delegate.tools()
+    // rawTools() returns the single UnfoldingTool (bare name = delegate's prefix, e.g. "docs").
+    // tools() falls back to default: IDENTITY(rawTools()) = rawTools() — no renaming needed.
+    // delegate.tools() already returns prefixed inner names (e.g. "docs_vectorSearch"), so the
+    // model sees the same names after unfolding as withReference() registers in the catalog.
+    override fun rawTools(): List<Tool> {
+        val innerTools = delegate.tools()  // already prefixed via delegate's namingStrategy
         if (innerTools.isEmpty()) {
             return emptyList()
         }

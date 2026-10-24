@@ -31,7 +31,7 @@ class ApiReference(
 
     override val name = api.name
 
-    override fun tools(): List<Tool> = Tool.fromInstance(this)
+    override fun rawTools(): List<Tool> = Tool.fromInstance(this)
 
     override fun notes(): String {
         if (api.classes.size > classLimit) {
