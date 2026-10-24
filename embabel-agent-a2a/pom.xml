@@ -26,6 +26,39 @@
             <artifactId>embabel-agent-api</artifactId>
         </dependency>
 
+        <!-- JSON-RPC request and response types of A2A 1.0 -->
+        <dependency>
+            <groupId>org.a2aproject.sdk</groupId>
+            <artifactId>a2a-java-sdk-jsonrpc-common</artifactId>
+            <version>${a2a-java-sdk.version}</version>
+        </dependency>
+
+        <!--
+            JSONRPCUtils: reads and writes the A2A 1.0 JSON-RPC wire format, the same way
+            the SDK client and reference server do. It needs protobuf-java-util at runtime,
+            which spec-grpc declares as provided.
+        -->
+        <dependency>
+            <groupId>org.a2aproject.sdk</groupId>
+            <artifactId>a2a-java-sdk-spec-grpc</artifactId>
+            <version>${a2a-java-sdk.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java-util</artifactId>
+        </dependency>
+
+        <!--
+            Serves A2A 0.3 clients next to A2A 1.0: the A2A 0.3 types and the SDK's
+            mappers between A2A 0.3 and A2A 1.0
+        -->
+        <dependency>
+            <groupId>org.a2aproject.sdk</groupId>
+            <artifactId>a2a-java-sdk-compat-0.3-server-conversion</artifactId>
+            <version>${a2a-java-sdk.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-webmvc</artifactId>

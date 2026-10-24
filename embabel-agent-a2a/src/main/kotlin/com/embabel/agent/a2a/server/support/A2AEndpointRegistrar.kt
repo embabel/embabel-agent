@@ -15,18 +15,34 @@
  */
 package com.embabel.agent.a2a.server.support
 
+import com.embabel.agent.a2a.server.A2AProtocolVersion
 import com.embabel.agent.a2a.server.AgentCardHandler
 import com.embabel.common.util.EmbabelObjectMapperHolder
+import com.google.gson.JsonSyntaxException
 import tools.jackson.databind.ObjectMapper
-import io.a2a.spec.AgentCard
-import io.a2a.spec.CancelTaskRequest
-import io.a2a.spec.GetTaskRequest
-import io.a2a.spec.JSONRPCError
-import io.a2a.spec.JSONRPCErrorResponse
-import io.a2a.spec.SendMessageRequest
-import io.a2a.spec.SendStreamingMessageRequest
-import io.a2a.spec.TaskResubscriptionRequest
 import jakarta.servlet.ServletRequest
+import org.a2aproject.sdk.common.A2AHeaders
+import org.a2aproject.sdk.grpc.utils.JSONRPCUtils
+import org.a2aproject.sdk.grpc.utils.ProtoUtils
+import org.a2aproject.sdk.jsonrpc.common.json.IdJsonMappingException
+import org.a2aproject.sdk.jsonrpc.common.json.InvalidParamsJsonMappingException
+import org.a2aproject.sdk.jsonrpc.common.json.JsonMappingException
+import org.a2aproject.sdk.jsonrpc.common.json.JsonProcessingException
+import org.a2aproject.sdk.jsonrpc.common.json.JsonUtil
+import org.a2aproject.sdk.jsonrpc.common.json.MethodNotFoundJsonMappingException
+import org.a2aproject.sdk.jsonrpc.common.wrappers.A2AResponse
+import org.a2aproject.sdk.jsonrpc.common.wrappers.CancelTaskResponse
+import org.a2aproject.sdk.jsonrpc.common.wrappers.GetTaskResponse
+import org.a2aproject.sdk.jsonrpc.common.wrappers.NonStreamingJSONRPCRequest
+import org.a2aproject.sdk.jsonrpc.common.wrappers.SendMessageResponse
+import org.a2aproject.sdk.jsonrpc.common.wrappers.StreamingJSONRPCRequest
+import org.a2aproject.sdk.spec.A2AError
+import org.a2aproject.sdk.spec.InternalError
+import org.a2aproject.sdk.spec.InvalidParamsError
+import org.a2aproject.sdk.spec.InvalidRequestError
+import org.a2aproject.sdk.spec.JSONParseError
+import org.a2aproject.sdk.spec.MethodNotFoundError
+import org.a2aproject.sdk.spec.VersionNotSupportedError
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
@@ -34,6 +50,7 @@ import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Component
 import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMethod
 import org.springframework.web.bind.annotation.ResponseBody
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo
@@ -84,7 +101,8 @@ class A2AEndpointRegistrar(
 
         val jsonRpcPostMethod = achwf.javaClass.getMethod(
             "handleJsonRpc",
-            Map::class.java,
+            String::class.java,
+            String::class.java,
         )
         val jsonRpcPostMapping = RequestMappingInfo.paths(agentCardHandler.path)
             .methods(RequestMethod.POST)
@@ -106,104 +124,105 @@ private class AgentCardHandlerWebFacade(
     private val logger = LoggerFactory.getLogger(AgentCardHandlerWebFacade::class.java)
 
     @ResponseBody
-    fun agentCard(servletRequest: ServletRequest): ResponseEntity<AgentCard> {
+    fun agentCard(servletRequest: ServletRequest): ResponseEntity<String> {
         val agentCard = agentCardHandler.agentCard(
             scheme = servletRequest.scheme,
             host = servletRequest.serverName,
             port = servletRequest.serverPort,
         )
-        return ResponseEntity.ok()
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(agentCard)
+        return jsonResponse(JsonUtil.toJson(agentCard))
     }
 
-    @ResponseBody
-    fun handleJsonRpc(@RequestBody requestMap: Map<String, Any>): Any {
-        return try {
-            val method = requestMap["method"] as? String
-            val requestId = requestMap["id"]
-            logger.info("Received JSON-RPC request: method='{}', id='{}', params keys={}",
-                method, requestId, (requestMap["params"] as? Map<*, *>)?.keys)
-            logger.debug("Full JSON-RPC request: {}", requestMap)
+    private val a2a03JsonRpcHandler = A2A03JsonRpcHandler(agentCardHandler)
 
-            return when (method) {
-                SendStreamingMessageRequest.METHOD -> {
-                    logger.debug("Processing streaming request for method: {}", method)
-                    // For streaming requests, return the SseEmitter directly without wrapping
-                    try {
-                        val request = objectMapper.convertValue(requestMap, SendStreamingMessageRequest::class.java)
-                        logger.debug("Successfully deserialized SendStreamingMessageRequest")
-                        agentCardHandler.handleJsonRpcStream(request)
-                    } catch (e: Exception) {
-                        logger.error("Failed to deserialize or handle streaming request", e)
-                        throw e
-                    }
-                }
-                TaskResubscriptionRequest.METHOD -> {
-                    logger.debug("Processing resubscribe request for method: {}", method)
-                    // For resubscribe requests, handle separately
-                    // Cast to AutonomyA2ARequestHandler to access custom streaming method
-                    if (agentCardHandler is AutonomyA2ARequestHandler) {
-                        agentCardHandler.handleCustomStreamingRequest(method, requestMap, objectMapper)
-                    } else {
-                        throw UnsupportedOperationException("Method ${method} is not supported by this handler")
-                    }
-                }
-                else -> {
-                    logger.debug("Processing non-streaming request for method: {}", method)
-                    val request = when (method) {
-                        SendMessageRequest.METHOD -> {
-                            try {
-                                objectMapper.convertValue(requestMap, SendMessageRequest::class.java)
-                            } catch (e: Exception) {
-                                logger.error("Failed to deserialize SendMessageRequest", e)
-                                throw e
-                            }
-                        }
-                        GetTaskRequest.METHOD -> {
-                            try {
-                                objectMapper.convertValue(requestMap, GetTaskRequest::class.java)
-                            } catch (e: Exception) {
-                                logger.error("Failed to deserialize GetTaskRequest", e)
-                                throw e
-                            }
-                        }
-                        CancelTaskRequest.METHOD -> {
-                            try {
-                                objectMapper.convertValue(requestMap, CancelTaskRequest::class.java)
-                            } catch (e: Exception) {
-                                logger.error("Failed to deserialize CancelTaskRequest", e)
-                                throw e
-                            }
-                        }
-                        else -> {
-                            logger.warn("Unsupported method: {}", method)
-                            throw UnsupportedOperationException("Method ${method} is not supported")
-                        }
-                    }
-                    // Regular JSON-RPC handling
-                    ResponseEntity.ok()
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(agentCardHandler.handleJsonRpc(request))
-                }
+    /**
+     * Handles a JSON-RPC request in the A2A version the client asks for in the A2A-Version header:
+     * A2A 1.0, or A2A 0.3 when the header is missing.
+     * Requests and responses are read and written with the A2A Java SDK.
+     * Errors are returned as JSON-RPC error responses.
+     */
+    @ResponseBody
+    fun handleJsonRpc(
+        @RequestBody body: String,
+        @RequestHeader(name = A2AHeaders.A2A_VERSION, required = false) a2aVersion: String?,
+    ): Any =
+        when (A2AProtocolVersion.fromHeader(a2aVersion)) {
+            A2AProtocolVersion.V1_0 -> handleJsonRpc10(body)
+            A2AProtocolVersion.V0_3 -> when (val response = a2a03JsonRpcHandler.handle(body, requestIdOf(body))) {
+                is String -> jsonResponse(response)
+                else -> response
             }
-        } catch (e: Exception) {
-            val requestId = requestMap.getOrDefault("id", "unknown")
-            val method = requestMap.getOrDefault("method", "unknown")
-            logger.error("Error handling JSON-RPC request: method='{}', id='{}', error={}",
-                method, requestId, e.message, e)
-            ResponseEntity.status(500)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(
-                    JSONRPCErrorResponse(
-                        requestId,
-                        JSONRPCError(
-                            500,
-                            "Internal server error: ${e.message}",
-                            null
-                        )
-                    )
+
+            null -> errorResponse(
+                requestIdOf(body),
+                VersionNotSupportedError(
+                    null,
+                    "Protocol version '$a2aVersion' is not supported. " +
+                        "Supported versions: ${A2AProtocolVersion.entries.map { it.version }}",
+                    null,
+                ),
+            )
+        }
+
+    /**
+     * Handles an A2A 1.0 JSON-RPC request.
+     */
+    private fun handleJsonRpc10(body: String): Any {
+        return try {
+            val request = JSONRPCUtils.parseRequestBody(body, null)
+            logger.info("Received JSON-RPC request: method='{}', id='{}'", request.method, request.id)
+            when (request) {
+                is StreamingJSONRPCRequest<*> -> agentCardHandler.handleJsonRpcStream(request)
+                // The SDK turns a numeric string id such as "42" into a number, so answer with the id as sent
+                is NonStreamingJSONRPCRequest<*> -> jsonResponse(
+                    toJson(agentCardHandler.handleJsonRpc(request), requestIdOf(body) ?: request.id)
                 )
+            }
+        } catch (e: A2AError) {
+            errorResponse(requestIdOf(body), e)
+        } catch (e: InvalidParamsJsonMappingException) {
+            errorResponse(e.id, InvalidParamsError(null, e.message, null))
+        } catch (e: MethodNotFoundJsonMappingException) {
+            errorResponse(e.id, MethodNotFoundError(null, e.message, null))
+        } catch (e: IdJsonMappingException) {
+            errorResponse(e.id, InvalidRequestError(null, e.message, null))
+        } catch (e: JsonMappingException) {
+            errorResponse(null, InvalidRequestError(null, e.message, null))
+        } catch (e: JsonProcessingException) {
+            errorResponse(null, JSONParseError(e.message))
+        } catch (e: JsonSyntaxException) {
+            errorResponse(null, JSONParseError(e.message))
+        } catch (e: Throwable) {
+            // Throwable, not Exception: errors such as kotlin.NotImplementedError must still get a JSON-RPC response
+            logger.error("Error handling JSON-RPC request: {}", e.message, e)
+            errorResponse(requestIdOf(body), InternalError("Internal server error: ${e.message}"))
         }
     }
+
+    private fun toJson(response: A2AResponse<*>, requestId: Any?): String {
+        response.error?.let { return JSONRPCUtils.toJsonRPCErrorResponse(requestId, it) }
+        val result = when (response) {
+            is SendMessageResponse -> ProtoUtils.ToProto.taskOrMessage(response.result)
+            is GetTaskResponse -> ProtoUtils.ToProto.task(response.result)
+            is CancelTaskResponse -> ProtoUtils.ToProto.task(response.result)
+            else -> throw IllegalArgumentException("Unsupported response type: ${response::class.java.name}")
+        }
+        return JSONRPCUtils.toJsonRPCResultResponse(requestId, result)
+    }
+
+    /**
+     * Best effort, so that errors raised before the request is parsed still carry its id.
+     */
+    private fun requestIdOf(body: String): Any? =
+        runCatching { objectMapper.readValue(body, Map::class.java)["id"] }.getOrNull()
+
+    private fun errorResponse(requestId: Any?, error: A2AError): ResponseEntity<String> {
+        logger.warn("Returning JSON-RPC error: id='{}', code={}, message='{}'", requestId, error.code, error.message)
+        return jsonResponse(JSONRPCUtils.toJsonRPCErrorResponse(requestId, error))
+    }
+
+    private fun jsonResponse(json: String): ResponseEntity<String> =
+        ResponseEntity.ok()
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(json)
 }

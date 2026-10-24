@@ -17,7 +17,7 @@ package com.embabel.agent.a2a.server.support
 
 import com.embabel.agent.a2a.server.AgentSkillFactory
 import com.embabel.agent.core.Goal
-import io.a2a.spec.AgentSkill
+import org.a2aproject.sdk.spec.AgentSkill
 
 /**
  * Expose a skill for every goal defined in the agent platform.
