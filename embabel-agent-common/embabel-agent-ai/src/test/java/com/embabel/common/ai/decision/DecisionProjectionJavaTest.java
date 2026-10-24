@@ -24,8 +24,11 @@ import com.embabel.common.ai.classification.ModelProvenance;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.convert.converter.Converter;
 
+import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.json.JsonMapper;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -62,6 +65,29 @@ class DecisionProjectionJavaTest {
             .answer(department, new ClassificationResult.Selected("billing", JEV, 0.91))
             .answer(frustration, new RatingResult.Answered(JEV, "Frustrated"))
             .build();
+    }
+
+    @Test
+    void callerBuiltValuesConvertAndKeepTheOriginalResponse() {
+        var response = answered();
+        var projection = DecisionProjection.of(response, SupportRoute.class, JsonMapper.builder().build(), from -> {
+            Map<String, Object> values = new HashMap<>(DecisionProjection.answeredValues(List.of(from.answer("is_urgent"))));
+            values.put("department", "sales");
+            return values;
+        });
+        assertEquals(new SupportRoute(true, "sales"), projection.getValue());
+        assertSame(response, projection.getResponse());
+        assertEquals(Map.of(), DecisionProjection.answeredValues(List.of()));
+    }
+
+    @Test
+    void callerBuiltValuesThatDoNotFitTheTypeKeepTheJacksonCause() {
+        var response = answered();
+        var mapper = JsonMapper.builder().build();
+        var ex = assertThrows(DecisionProjectionException.class, () ->
+            DecisionProjection.of(response, SupportRoute.class, mapper, from -> Map.of("is_urgent", "not a boolean")));
+        assertEquals("Cannot map the answered values to " + SupportRoute.class.getName(), ex.getMessage());
+        assertInstanceOf(JacksonException.class, ex.getCause());
     }
 
     @Test
