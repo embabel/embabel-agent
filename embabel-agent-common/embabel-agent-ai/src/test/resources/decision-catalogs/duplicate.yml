@@ -1,0 +1,5 @@
+models:
+  - name: first
+    model_id: provider/first
+  - name: first
+    model_id: provider/second
