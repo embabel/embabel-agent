@@ -19,6 +19,7 @@ import com.embabel.agent.a2a.server.AgentCardHandler;
 import com.embabel.agent.a2a.server.support.A2AEndpointRegistrar;
 import com.embabel.agent.a2a.server.support.A2AStreamingHandler;
 import com.embabel.agent.a2a.server.support.AutonomyA2ARequestHandler;
+import com.embabel.agent.a2a.server.support.TaskStateManager;
 import com.embabel.common.util.EmbabelObjectMapperHolder;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.api.event.AgenticEventListener;
@@ -56,7 +57,8 @@ class AgentA2AAutoConfigurationTest {
                      () -> new AutonomyA2ARequestHandler(
                              mock(Autonomy.class),
                              mock(AgenticEventListener.class),
-                             mock(A2AStreamingHandler.class)))
+                             mock(A2AStreamingHandler.class),
+                             mock(TaskStateManager.class)))
            .withBean(RequestMappingHandlerMapping.class, () -> mock(RequestMappingHandlerMapping.class))
            .withBean(EmbabelObjectMapperHolder.class, EmbabelObjectMapperHolder::createDefault);
 
