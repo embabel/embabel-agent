@@ -168,7 +168,7 @@ class LmStudioModelsConfigTest {
 
         @Test
         fun `an LM Studio chat model forwards a configured reasoning effort`() {
-            val llm = servingBoth().lmStudioLocalModelCatalog().llmNamed("qwen3") as SpringAiLlmService
+            val llm = servingBoth().lmStudioLocalModelCatalog().named(LlmService.KIND, "qwen3") as SpringAiLlmService
             val options = LlmOptions().withOpenAiReasoningEffort("none")
 
             assertEquals("none", (llm.optionsConverter.convertOptions(options, "qwen3") as OpenAiChatOptions).reasoningEffort)
