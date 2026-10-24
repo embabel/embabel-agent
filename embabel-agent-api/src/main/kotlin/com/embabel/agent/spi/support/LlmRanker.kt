@@ -32,6 +32,7 @@ import com.fasterxml.jackson.annotation.JsonClassDescription
 import com.fasterxml.jackson.annotation.JsonPropertyDescription
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
+import tools.jackson.module.kotlin.jacksonObjectMapper
 
 /**
  * Properties for the ranking service. Optional LLM selection, plus normal retry properties.
@@ -64,6 +65,7 @@ internal class LlmRanker(
 ) : Ranker {
 
     private val logger = LoggerFactory.getLogger(this.javaClass)
+    private val objectMapper = jacksonObjectMapper()
 
     private val llm = LlmOptions(
         criteria =
@@ -108,11 +110,16 @@ internal class LlmRanker(
 
             User input: <$userInput>
 
-            Available choices, in format <name>: <description>:
-            ${rankables.joinToString("\n") { "- ${it.name}: ${it.description}" }}
+            Available choices as JSON objects with separate name and description fields:
+            ${objectMapper.writeValueAsString(rankables.map { mapOf("name" to it.name, "description" to it.description) })}
 
-            Return the name of the chosen $type and the confidence score from 0-1.
-            IMPORTANT: The fully qualified name must be exactly the same as in the list.
+            Return only a JSON object containing a rankings array, with a name and confidence score from 0-1 for each choice.
+            Example response structure (choose the appropriate name and confidence for the user input):
+            ${objectMapper.writeValueAsString(RankingsResponse(listOf(RankedChoiceResponse(rankables.first().name, 0.9))))}
+            Do not return plain text, field labels such as "Name:", Markdown, or code fences.
+            IMPORTANT: Copy only the exact name field into each response's name field.
+            Do not append the description, explanatory text, or any other characters to the name.
+            Descriptions help you choose; they are not part of the name.
             """.trimIndent()
         logger.debug("{} ranking prompt: {}", type, prompt)
         val rankingResponse = llmOperations.doTransform(
@@ -154,7 +161,7 @@ internal data class RankingsResponse(
 )
 
 internal data class RankedChoiceResponse(
-    @get:JsonPropertyDescription("name of what we're ranking")
+    @get:JsonPropertyDescription("Exact Name field of an available choice, without its description or any additional text")
     val name: String,
     @get:JsonPropertyDescription("confidence score from 0-1")
     val confidence: Double,
