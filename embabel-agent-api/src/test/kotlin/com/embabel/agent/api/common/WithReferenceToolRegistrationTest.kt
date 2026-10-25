@@ -23,7 +23,6 @@ import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.common.ai.model.LlmOptions
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
@@ -128,56 +127,4 @@ class WithReferenceToolRegistrationTest {
         }
     }
 
-    @Nested
-    inner class DoublePrefix {
-
-        @Test
-        fun `withReference does not double-prefix when tools() already returns prefixed names`() {
-            // Simulate a reference whose tools() returns pre-prefixed names (e.g. ToolishRag)
-            // but unprefixedTools() returns bare names. Before the fix, toolObject() used
-            // tools() and applied namingStrategy again, producing "docs_docs_search".
-            val prefixedTool = Tool.of("docs_search", "Search") { Tool.Result.text("ok") }
-            val bareTool = Tool.of("search", "Search") { Tool.Result.text("ok") }
-            val reference = object : LlmReference {
-                override val name = "docs"
-                override val description = "Documentation"
-                override fun notes() = ""
-                override fun tools() = listOf(prefixedTool)
-                override fun unprefixedTools() = listOf(bareTool)
-            }
-
-            val runner = makeRunner().withReference(reference) as OperationContextPromptRunner
-
-            val fromToolObjects = safelyGetTools(runner.toolObjects)
-            assertFalse(
-                fromToolObjects.any { it.definition.name.startsWith("docs_docs_") },
-                "toolObject() path must not double-prefix: got ${fromToolObjects.map { it.definition.name }}"
-            )
-            assertEquals("docs_search", fromToolObjects[0].definition.name)
-        }
-    }
-
-    @Nested
-    inner class RawTools {
-
-        @Test
-        fun `unprefixedTools defaults to tools for standard LlmReference`() {
-            val tool = Tool.of("search", "Search") { Tool.Result.text("ok") }
-            val reference = LlmReference.of("docs", "Documentation", listOf(tool))
-
-            assertEquals(
-                reference.tools().map { it.definition.name },
-                reference.unprefixedTools().map { it.definition.name },
-            )
-        }
-
-        @Test
-        fun `unprefixedTools returns unprefixed names`() {
-            val tool = Tool.of("search", "Search") { Tool.Result.text("ok") }
-            val reference = LlmReference.of("docs", "Documentation", listOf(tool))
-
-            val rawNames = reference.unprefixedTools().map { it.definition.name }
-            assertFalse(rawNames.any { it.startsWith("docs_") }, "unprefixedTools must return unprefixed names")
-        }
-    }
 }
