@@ -115,6 +115,22 @@ fun bindCustomer(id: Long): String {
 ----
 ====
 
+===== Generic Tool Parameters
+
+Java `@LlmTool` methods can declare generic collection parameters such as `List<Item>`, `Map<String, Item>`, or `List<Long>`.
+Embabel uses the declared generic types both to generate the input schema and to convert JSON arguments before invoking the method.
+For example, a `List<Item>` parameter receives `Item` instances rather than raw maps, and a `List<Long>` parameter receives `Long` values even when JSON numbers are small integers.
+Declare concrete element and value types rather than raw `List` or `Map` parameters so Embabel can perform this conversion.
+
+===== Spring-Proxied Tool Instances
+
+Tools on class-based Spring AOP (CGLIB) proxies support the same generic argument conversion.
+Tool discovery inspects the target class, while invocation goes through the proxy so AOP advice still runs.
+The tool class and its methods must be non-final for class-based proxying.
+
+JDK dynamic (interface-based) proxies are not supported for `@LlmTool` discovery; `Tool.safelyFromInstance()` returns an empty list for these proxies.
+Use class-based proxying for tool instances, for example with `spring.aop.proxy-target-class=true`.
+
 [[reference.tools__tool-call-context]]
 ==== Receiving Out-of-Band Context in Tools
 
