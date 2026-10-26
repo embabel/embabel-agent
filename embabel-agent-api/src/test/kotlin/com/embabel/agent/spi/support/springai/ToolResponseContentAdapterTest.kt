@@ -110,6 +110,34 @@ class ToolResponseContentAdapterTest {
         }
 
         @Test
+        fun `wraps plain text that starts with a bracket`() {
+            val content = "[Submission accepted] The total has been written to output/total.json."
+            val result = adapter.adapt(content)
+
+            assertThat(result).startsWith("{")
+            assertThat(result).contains("\"result\"")
+            assertThat(result).contains("[Submission accepted]")
+        }
+
+        @Test
+        fun `wraps malformed JSON-like content`() {
+            val result = adapter.adapt("{not json}")
+
+            assertThat(result).startsWith("{\"result\"")
+            assertThat(result).contains("{not json}")
+        }
+
+        @Test
+        fun `wraps valid JSON followed by text`() {
+            assertThat(adapter.adapt("[1] done")).isEqualTo("""{"result":"[1] done"}""")
+        }
+
+        @Test
+        fun `wraps a bare JSON value`() {
+            assertThat(adapter.adapt("42")).isEqualTo("""{"result":"42"}""")
+        }
+
+        @Test
         fun `properly escapes special characters in wrapped content`() {
             val content = "Line 1\nLine 2\tTabbed \"quoted\""
             val result = adapter.adapt(content)
