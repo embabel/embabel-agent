@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.config.models.googlegenai
 
+import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.autoconfigure.models.googlegenai.AgentGoogleGenAiAutoConfiguration
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
@@ -53,12 +54,12 @@ class GoogleGenAiToolResponseIT {
         ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(AgentGoogleGenAiAutoConfiguration::class.java))
             .withPropertyValues(
-                "embabel.agent.platform.models.googlegenai.api-key=${System.getenv("GEMINI_API_KEY")}",
+                "embabel.agent.platform.models.googlegenai.api-key=\${GOOGLE_API_KEY:\${GEMINI_API_KEY:dummy-key-for-context-loading}}",
                 "embabel.agent.platform.models.googlegenai.max-attempts=1",
             )
             .run { context ->
                 val service = context.getBeansOfType(SpringAiLlmService::class.java).values
-                    .first { it.name == "gemini-2.5-flash" }
+                    .first { it.name == GoogleGenAiModels.GEMINI_2_5_FLASH }
                 val response = service.createMessageSender(LlmOptions()).call(
                     messages = listOf(
                         UserMessage("Write the report files, then tell me in one sentence what was written."),

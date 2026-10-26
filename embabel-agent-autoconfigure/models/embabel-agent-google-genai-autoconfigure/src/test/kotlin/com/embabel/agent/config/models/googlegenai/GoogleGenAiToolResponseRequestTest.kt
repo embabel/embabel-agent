@@ -95,6 +95,16 @@ class GoogleGenAiToolResponseRequestTest {
     }
 
     @Test
+    fun `valid JSON followed by text reaches Gemini wrapped`() {
+        assertEquals(mapOf("result" to "[1] done"), functionResponseFor("[1] done"))
+    }
+
+    @Test
+    fun `a bare JSON value reaches Gemini wrapped`() {
+        assertEquals(mapOf("result" to "42"), functionResponseFor("42"))
+    }
+
+    @Test
     fun `plain text reaches Gemini wrapped`() {
         assertEquals(mapOf("result" to "3 files written"), functionResponseFor("3 files written"))
     }
