@@ -15,17 +15,17 @@
  */
 package com.embabel.agent.config.models.openai
 
-import com.fasterxml.jackson.annotation.JsonClassDescription
-import com.fasterxml.jackson.annotation.JsonPropertyDescription
+import com.embabel.agent.api.common.Ai
+import com.embabel.agent.autoconfigure.models.openai.AgentOpenAiAutoConfiguration
+import com.embabel.agent.config.models.openai.OpenAiIntegrationSupport.sayReady
+import com.embabel.agent.openai.OpenAiCompatibleModelFactory
+import com.embabel.agent.spi.LlmService
+import com.embabel.common.ai.autoconfig.ProviderInitialization
+import com.embabel.common.ai.autoconfig.RegisteredModel
+import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.PricingModel
+import com.embabel.common.byok.InvalidApiKeyException
 import com.openai.client.okhttp.OpenAIOkHttpClient
-import com.openai.errors.OpenAIServiceException
-import com.openai.models.ChatModel
-import com.openai.models.chat.completions.ChatCompletionCreateParams
-import com.openai.models.chat.completions.ChatCompletionFunctionTool
-import com.openai.models.FunctionParameters
-import com.openai.models.FunctionDefinition
-import com.openai.core.JsonValue
-import com.openai.models.chat.completions.ChatCompletionToolMessageParam
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -33,24 +33,107 @@ import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.beans.factory.config.ConfigurableBeanFactory
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan
+import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.ComponentScan
+import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Import
+import org.springframework.context.annotation.Profile
+import org.springframework.test.context.ActiveProfiles
+import org.springframework.test.context.DynamicPropertyRegistry
+import org.springframework.test.context.DynamicPropertySource
+import java.time.Duration
+
+@Profile("powertokens-catalog-test")
+@ConfigurationPropertiesScan(basePackages = ["com.embabel.agent"])
+@ComponentScan(basePackages = ["com.embabel.agent"])
+class PowerTokensCatalogTestConfig
 
 /**
- * Live tests for PowerTokens' OpenAI-compatible API.
+ * Registers the PowerTokens smoke models against the OpenAI-compatible client that
+ * [OpenAiModelsConfig] already pointed at PowerTokens via OPENAI_BASE_URL / OPENAI_API_KEY.
  *
- * To run these tests you need a PowerTokens account (sign-up / sign-in is
- * required; a key cannot be created anonymously):
+ * The shipped OpenAI catalog still loads (same autoconfig), but those ids are not what
+ * PowerTokens serves; chat and tool tests select the beans registered here by model id.
+ */
+@Profile("powertokens-catalog-test")
+@Configuration
+class PowerTokensSmokeModelsConfig(
+    @param:Value("\${OPENAI_API_KEY}") private val apiKey: String,
+    private val configurableBeanFactory: ConfigurableBeanFactory,
+) {
+
+    @Bean
+    fun powerTokensSmokeModels(): ProviderInitialization {
+        val factory = OpenAiCompatibleModelFactory(
+            baseUrl = PowerTokensCatalogIT.BASE_URL,
+            apiKey = apiKey,
+        )
+        val registered = PowerTokensCatalogIT.smokeModels().map { modelId ->
+            val llm: LlmService<*> = factory.openAiCompatibleLlm(
+                model = modelId,
+                pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+                provider = "PowerTokens",
+                knowledgeCutoffDate = null,
+            )
+            // Bean name is local; ModelProvider resolves by LlmService.name (== modelId).
+            configurableBeanFactory.registerSingleton("powertokens-$modelId", llm)
+            RegisteredModel(beanName = "powertokens-$modelId", modelId = modelId)
+        }
+        return ProviderInitialization(
+            provider = "PowerTokens",
+            registeredLlms = registered,
+            registeredEmbeddings = emptyList(),
+        )
+    }
+}
+
+/**
+ * Live tests for PowerTokens' OpenAI-compatible gateway through Embabel.
+ *
+ * Chat and tool calls go through [Ai] (same shape as [OpenAiCatalogIT]). The model-list
+ * check uses a bare OpenAI client against GET /v1/models — the same deliberate choice as
+ * OpenAiCatalogIT, because the question is what the gateway serves, not what Embabel has
+ * registered. Invalid-key handling uses the Embabel BYOK path.
+ *
+ * To run these tests you need a PowerTokens account (sign-up / sign-in is required; a key
+ * cannot be created anonymously):
  * 1. Open https://powertokens.ai and sign in (Google, GitHub, or email).
  * 2. Dashboard → API Keys → Create new key
  *    (guide: https://docs.powertokens.ai/en/guides/api-key-and-model-call).
  * 3. export POWERTOKENS_API_KEY=<that key>
+ * 4. Point the OpenAI autoconfig at PowerTokens (GuardRail test config on this
+ *    classpath reads OPENAI_API_KEY from the process environment, not only from
+ *    Spring properties):
+ *      export OPENAI_API_KEY=$POWERTOKENS_API_KEY
+ *      export OPENAI_BASE_URL=https://api.powertokens.ai/v1
  * An existing key with chat access also works.
- * Tests that need a valid key are skipped when the variable is not set.
- *
- * Checks model availability, chat responses, and tool calls.
+ * Tests that need a valid key are skipped when POWERTOKENS_API_KEY is not set.
  *
  * @see <a href="https://github.com/embabel/embabel-agent/issues/2066">Issue 2066</a>
  */
-class PowerTokensCatalogIT {
+@SpringBootTest(
+    properties = [
+        // One of the smoke models; the bean is registered by PowerTokensSmokeModelsConfig.
+        "embabel.models.default-llm=deepseek-v3-2-251201",
+        "embabel.agent.platform.models.openai.max-attempts=1",
+        "embabel.agent.platform.llm-operations.data-binding.max-attempts=1",
+        "spring.main.allow-bean-definition-overriding=true",
+    ]
+)
+@ActiveProfiles("powertokens-catalog-test")
+@Import(
+    PowerTokensCatalogTestConfig::class,
+    PowerTokensSmokeModelsConfig::class,
+    AgentOpenAiAutoConfiguration::class,
+)
+class PowerTokensCatalogIT(
+    @param:Autowired private val ai: Ai,
+) {
 
     companion object {
         const val BASE_URL = "https://api.powertokens.ai/v1"
@@ -63,17 +146,37 @@ class PowerTokensCatalogIT {
             "MiniMax-M3",
         )
 
-        private fun client(apiKey: String) =
-            OpenAIOkHttpClient.builder()
-                .apiKey(apiKey)
-                .baseUrl(BASE_URL)
-                .build()
-
         /** Not a key PowerTokens issued. */
         const val UNKNOWN_KEY = "not-a-real-key"
+
+        /**
+         * Point the OpenAI autoconfig at PowerTokens. OPENAI_API_KEY is filled from
+         * POWERTOKENS_API_KEY when present; a placeholder keeps the context loadable so the
+         * BYOK 401 test can run without a real key.
+         */
+        @JvmStatic
+        @DynamicPropertySource
+        fun powerTokensOpenAiProps(registry: DynamicPropertyRegistry) {
+            registry.add("OPENAI_BASE_URL") { BASE_URL }
+            registry.add("OPENAI_API_KEY") {
+                System.getenv("POWERTOKENS_API_KEY") ?: "powertokens-test-placeholder"
+            }
+        }
     }
 
-    /** Check that all models used below are available to this key. */
+    /**
+     * glm-5.2 counts reasoning toward the completion budget; 256 leaves room for a short reply.
+     * Five minutes covers a two-turn tool loop on slower models.
+     */
+    private fun optionsFor(model: String) =
+        LlmOptions.withModel(model)
+            .withMaxTokens(256)
+            .withTimeout(Duration.ofMinutes(5))
+
+    /**
+     * One GET /v1/models covers every smoke id. Built on a bare client on purpose: same reason
+     * as OpenAiCatalogIT — this asks what PowerTokens serves, not what Embabel registered.
+     */
     @Test
     @EnabledIfEnvironmentVariable(
         named = "POWERTOKENS_API_KEY",
@@ -81,8 +184,10 @@ class PowerTokensCatalogIT {
         disabledReason = "Integration test requires POWERTOKENS_API_KEY",
     )
     fun `every smoke model id is one PowerTokens serves`() {
-        val client = client(System.getenv("POWERTOKENS_API_KEY"))
-        // Fetch the model list once and check the smoke model IDs against it.
+        val client = OpenAIOkHttpClient.builder()
+            .apiKey(System.getenv("POWERTOKENS_API_KEY"))
+            .baseUrl(BASE_URL)
+            .build()
         val served = client.models().list().autoPager().map { it.id() }.toSet()
 
         val unknown = smokeModels().filterNot { it in served }
@@ -94,34 +199,16 @@ class PowerTokensCatalogIT {
         )
     }
 
-    /**
-     * Check that each model can return a simple chat response.
-     *
-     * The completion limit is 256 because glm-5.2 also uses it for reasoning tokens.
-     * A smaller limit can leave no tokens for the reply.
-     */
-    @ParameterizedTest(name = "{0} answers READY over chat completions")
+    /** Each smoke model answers a short prompt through Embabel [Ai]. */
+    @ParameterizedTest(name = "{0} answers READY through Embabel Ai")
     @MethodSource("smokeModels")
     @EnabledIfEnvironmentVariable(
         named = "POWERTOKENS_API_KEY",
         matches = ".+",
         disabledReason = "Integration test requires POWERTOKENS_API_KEY",
     )
-    fun `each smoke model replies READY over chat completions`(model: String) {
-        val client = client(System.getenv("POWERTOKENS_API_KEY"))
-        val completion = client.chat().completions().create(
-            ChatCompletionCreateParams.builder()
-                .model(ChatModel.of(model))
-                .maxCompletionTokens(256)
-                .addUserMessage(OpenAiIntegrationSupport.READY_PROMPT)
-                .build(),
-        )
-
-        val response = completion.choices().stream()
-            .flatMap { it.message().content().stream() }
-            .findFirst()
-            .orElse("")
-            .trim()
+    fun `each smoke model replies READY through Embabel Ai`(model: String) {
+        val response = sayReady(ai, model, optionsFor(model))
 
         assertTrue(
             response.contains("READY", ignoreCase = true),
@@ -129,7 +216,7 @@ class PowerTokensCatalogIT {
         )
     }
 
-    /** Check that each model calls BadgeCode and uses its result in the reply. */
+    /** Each smoke model calls a bound tool and returns its result through Embabel [Ai]. */
     @ParameterizedTest(name = "{0} answers a request carrying function tools")
     @MethodSource("smokeModels")
     @EnabledIfEnvironmentVariable(
@@ -137,102 +224,40 @@ class PowerTokensCatalogIT {
         matches = ".+",
         disabledReason = "Integration test requires POWERTOKENS_API_KEY",
     )
-    fun `each smoke model answers a tool-bearing request`(model: String) {
-        val client = client(System.getenv("POWERTOKENS_API_KEY"))
-        // Hand-written tool schema (avoids openai-java Class→JSON-Schema path).
-        val badgeCodeTool = ChatCompletionFunctionTool.builder()
-            .function(
-                FunctionDefinition.builder()
-                    .name("BadgeCode")
-                    .description("Returns the current badge code for a named door")
-                    .parameters(
-                        FunctionParameters.builder()
-                            .putAdditionalProperty("type", JsonValue.from("object"))
-                            .putAdditionalProperty(
-                                "properties",
-                                JsonValue.from(
-                                    mapOf(
-                                        "doorName" to mapOf(
-                                            "type" to "string",
-                                            "description" to "The name of the door",
-                                        ),
-                                    ),
-                                ),
-                            )
-                            .putAdditionalProperty("required", JsonValue.from(listOf("doorName")))
-                            .build(),
-                    )
-                    .build(),
-            )
-            .build()
+    fun `each smoke model answers a tool-carrying request through Embabel Ai`(model: String) {
+        val tool = BadgeCodeTool()
 
-        val createParamsBuilder = ChatCompletionCreateParams.builder()
-            .model(ChatModel.of(model))
-            .maxCompletionTokens(512)
-            .addTool(badgeCodeTool)
-            .addUserMessage(
-                "Call the BadgeCode tool for the door named 'north', " +
-                    "then reply with the code it returned and nothing else.",
+        val answer = ai.withLlm(optionsFor(model).withMaxTokens(512))
+            .withToolObject(tool)
+            .generateText(
+                "Call the badgeCode tool for the door named 'north', " +
+                    "then reply with the code it returned and nothing else."
             )
 
-        var toolInvoked = false
-        // Round 1: ask the model to call BadgeCode.
-        val first = client.chat().completions().create(createParamsBuilder.build())
-        for (choice in first.choices()) {
-            // Take the assistant message from this choice.
-            val message = choice.message()
-            // Keep that message on the builder for the follow-up call.
-            createParamsBuilder.addMessage(message)
-            // Run each tool call the model requested.
-            for (toolCall in message.toolCalls().orElse(emptyList())) {
-                val functionCall = toolCall.asFunction()
-                val function = functionCall.function()
-                assertEquals("BadgeCode", function.name(), "Unexpected tool: ${function.name()}")
-                // Local stub: return a fixed code so we can check it appears in the reply.
-                val result = BadgeCode().execute()
-                toolInvoked = true
-                createParamsBuilder.addMessage(
-                    ChatCompletionToolMessageParam.builder()
-                        .toolCallId(functionCall.id())
-                        .contentAsJson(result)
-                        .build(),
-                )
-            }
-        }
-
-        assertTrue(toolInvoked, "$model never called the BadgeCode tool")
-
-        // Round 2: check that the reply includes the code returned by the tool.
-        val answer = client.chat().completions().create(createParamsBuilder.build()).choices().stream()
-            .flatMap { it.message().content().stream() }
-            .findFirst()
-            .orElse("")
-            .trim()
-
+        assertTrue(
+            tool.invoked,
+            "$model never called the tool, so the answer cannot be grounded, got: '$answer'",
+        )
         assertTrue(
             answer.contains("QP-4471"),
             "The tool result never made it back into the answer from $model, got: $answer",
         )
     }
 
-    /** Check that an invalid API key returns 401 rather than 500. */
+    /**
+     * Invalid-key probe via Embabel BYOK ([OpenAiCompatibleModelFactory.byok]), not the bare
+     * openai-java client. Needs network; does not need POWERTOKENS_API_KEY.
+     */
     @Test
     fun `powerTokens responds 401 to a key it did not issue`() {
-        val client = client(UNKNOWN_KEY)
-        val ex = assertThrows<OpenAIServiceException> {
-            client.models().list()
+        val ex = assertThrows<InvalidApiKeyException> {
+            OpenAiCompatibleModelFactory.byok(
+                baseUrl = BASE_URL,
+                apiKey = UNKNOWN_KEY,
+                validationModel = smokeModels().first(),
+                validationProvider = "PowerTokens",
+            ).buildValidated()
         }
-        assertEquals(401, ex.statusCode())
+        assertEquals(401, ex.statusCode)
     }
-
-    /** Returns a fixed code so the test can check that the model used the tool result. */
-    @JsonClassDescription("Returns the current badge code for a named door")
-    class BadgeCode {
-        @JsonPropertyDescription("The name of the door")
-        var doorName: String = ""
-
-        fun execute(): BadgeCodeResult = BadgeCodeResult(code = "QP-4471")
-    }
-
-    class BadgeCodeResult(val code: String)
 }
