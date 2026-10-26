@@ -128,6 +128,16 @@ class ToolResponseContentAdapterTest {
         }
 
         @Test
+        fun `wraps valid JSON followed by text`() {
+            assertThat(adapter.adapt("[1] done")).isEqualTo("""{"result":"[1] done"}""")
+        }
+
+        @Test
+        fun `wraps a bare JSON value`() {
+            assertThat(adapter.adapt("42")).isEqualTo("""{"result":"42"}""")
+        }
+
+        @Test
         fun `properly escapes special characters in wrapped content`() {
             val content = "Line 1\nLine 2\tTabbed \"quoted\""
             val result = adapter.adapt(content)
