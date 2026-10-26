@@ -1530,7 +1530,7 @@ Java::
 ConfirmationGuardedTool guard = ConfirmationGuardedTool.of(createTask(), "Create this task?");
 
 // Pass both the guard and its verdict tool to the prompt runner
-guard.tools();
+promptRunner.withTools(guard.tools());
 guard.getVerdictTool().getDefinition().getName(); // "confirm_create_task"
 ----
 Kotlin::

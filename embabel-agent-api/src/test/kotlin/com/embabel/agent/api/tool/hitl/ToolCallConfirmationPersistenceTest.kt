@@ -21,6 +21,7 @@ import com.embabel.agent.spi.support.persistence.InMemoryBlackboardSnapshotter
 import com.embabel.agent.spi.support.persistence.JacksonBlackboardEntrySerializer
 import com.embabel.common.util.EmbabelObjectMapperHolder
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Test
 
 class ToolCallConfirmationPersistenceTest {
@@ -49,5 +50,23 @@ class ToolCallConfirmationPersistenceTest {
         val restored = snapshotter.restore(snapshotter.snapshot(blackboard))
 
         assertEquals(listOf(proposal, verdict, outcome), restored.objects)
+    }
+
+    @Test
+    fun `a pending ToolCallConfirmationRequest survives a snapshot round trip`() {
+        val blackboard = InMemoryBlackboard("bb-2")
+        val proposal = ToolCallProposal(
+            toolName = "create_task",
+            arguments = """{"title":"Write spec"}""",
+            message = "Create this task?",
+        )
+        blackboard.addObject(proposal)
+        blackboard.addObject(ToolCallConfirmationRequest(proposal))
+
+        val restored = snapshotter.restore(snapshotter.snapshot(blackboard))
+
+        val request = assertInstanceOf(ToolCallConfirmationRequest::class.java, restored.objects.last())
+        assertEquals(proposal, request.payload)
+        assertEquals("Create this task?", request.message)
     }
 }

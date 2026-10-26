@@ -65,10 +65,14 @@ class ConfirmationVerdictTool internal constructor(
             return Tool.Result.error("Invalid input for '${definition.name}': ${e.message}", e)
         }
         val acceptedNode = node?.get("accepted")
-        if (acceptedNode == null || !acceptedNode.isBoolean) {
-            return Tool.Result.error("'${definition.name}' requires a boolean 'accepted' argument.")
-        }
+        // Some models send booleans as strings, so "true" and "false" are accepted too
+        val accepted = when {
+            acceptedNode == null -> null
+            acceptedNode.isBoolean -> acceptedNode.asBoolean()
+            acceptedNode.isTextual -> acceptedNode.asString().trim().toBooleanStrictOrNull()
+            else -> null
+        } ?: return Tool.Result.error("'${definition.name}' requires a boolean 'accepted' argument.")
         val note = node.get("note")?.takeIf { it.isTextual }?.asString()
-        return guard.recordVerdict(acceptedNode.asBoolean(), note, context)
+        return guard.recordVerdict(accepted, note, context)
     }
 }

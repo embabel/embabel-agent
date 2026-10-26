@@ -37,20 +37,31 @@ import java.util.function.Function
  * [ToolCallOutcome] records keyed by tool name, so tool instances stay stateless and
  * several guarded tools can coexist in one loop.
  *
- * **Lifecycle** for a call with arguments `A`:
+ * **What happens on a call.** The guard looks up the latest proposal recorded for this
+ * tool and compares the call's arguments with it.
  *
- * 1. No open proposal for this tool: record a proposal for `A`. In
- *    [ConfirmationMode.ASK_VIA_LLM] return an instruction telling the LLM to ask the
- *    user and then call the verdict tool. In [ConfirmationMode.PAUSE_PROCESS] throw
- *    [AwaitableResponseException] with a [ToolCallConfirmationRequest].
- * 2. Open proposal for `A`, no verdict yet: return the same instruction. Never pause again.
- * 3. Open proposal for different arguments: supersede it with a new proposal for `A`.
- * 4. Accepted verdict, same arguments, not yet consumed: run the delegate with the
- *    *confirmed* arguments, record the outcome, return the result.
- * 5. Accepted verdict but different arguments: treat as a new proposal. Arguments the user
- *    did not see are never executed.
- * 6. Declined verdict: record the outcome and report the decline. A later identical call
- *    starts a fresh proposal.
+ * No proposal yet, or the latest one is already closed:
+ * - Record a new proposal and ask the user. In [ConfirmationMode.ASK_VIA_LLM] that means
+ *   returning an instruction telling the LLM to ask the user and then call the verdict
+ *   tool. In [ConfirmationMode.PAUSE_PROCESS] it means throwing
+ *   [AwaitableResponseException] with a [ToolCallConfirmationRequest].
+ *
+ * The latest proposal is still waiting for the user's answer:
+ * - Same arguments: the LLM called again before the user answered. Repeat the
+ *   instruction. No new proposal, and in pause mode no second pause.
+ * - Different arguments: the LLM changed the call before the user answered, for example
+ *   after the user corrected a detail. Abandon the waiting proposal (closed, not
+ *   executed), record a new one for the new arguments and ask the user about those.
+ *
+ * The user accepted the latest proposal:
+ * - Same arguments: run the delegate with the confirmed arguments, close the proposal,
+ *   return the result.
+ * - Different arguments: abandon the accepted proposal (closed, not executed) and record
+ *   a new one. Arguments the user did not see are never executed.
+ *
+ * The user declined the latest proposal:
+ * - Close it and tell the LLM the user declined. A later call, same arguments or not,
+ *   is a new proposal.
  *
  * A confirmation is single use. Once consumed, the same call needs a new confirmation.
  * If the delegate throws, no outcome is recorded and the accepted proposal remains
@@ -75,11 +86,10 @@ class ConfirmationGuardedTool @JvmOverloads constructor(
 
     override val definition: Tool.Definition = Tool.Definition(
         name = delegate.definition.name,
-        description = if (options.confirmationNote.isBlank()) {
-            delegate.definition.description
-        } else {
-            delegate.definition.description.trimEnd() + " " + options.confirmationNote.trim()
-        },
+        description = listOf(delegate.definition.description, options.confirmationNote)
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .joinToString(" "),
         inputSchema = delegate.definition.inputSchema,
         metadata = delegate.definition.metadata,
     )
@@ -106,14 +116,18 @@ class ConfirmationGuardedTool @JvmOverloads constructor(
         val same = proposal != null && proposal.arguments == arguments
 
         return when {
+            // Nothing open for this tool: start a proposal
             proposal == null || state.outcome != null -> propose(blackboard, input, arguments)
 
+            // Waiting for the user
             state.verdict == null ->
-                if (same) pending(proposal) else propose(blackboard, input, arguments)
+                if (same) pending(proposal) else supersede(blackboard, proposal, input, arguments)
 
+            // User said yes: only the arguments they saw may run
             state.verdict.accepted ->
-                if (same) execute(blackboard, proposal, context) else propose(blackboard, input, arguments)
+                if (same) execute(blackboard, proposal, context) else supersede(blackboard, proposal, input, arguments)
 
+            // User said no
             else -> {
                 val declined = decline(blackboard, proposal)
                 if (same) declined else propose(blackboard, input, arguments)
@@ -148,6 +162,25 @@ class ConfirmationGuardedTool @JvmOverloads constructor(
         return if (accepted) execute(blackboard, proposal, context) else decline(blackboard, proposal)
     }
 
+    /**
+     * Close [proposal] unexecuted, then open a new one for [arguments].
+     * Used when the LLM calls with different arguments while [proposal] is still open.
+     */
+    private fun supersede(
+        blackboard: Blackboard,
+        proposal: ToolCallProposal,
+        input: String,
+        arguments: String,
+    ): Tool.Result {
+        logger.debug("Tool '{}': proposal {} superseded by a call with different arguments", definition.name, proposal.id)
+        blackboard += ToolCallOutcome(proposalId = proposal.id, executed = false)
+        return propose(blackboard, input, arguments)
+    }
+
+    /**
+     * Record a new proposal for [arguments] and hand it to the user according to [mode].
+     * [input] is the raw tool input, passed to the message provider as the LLM sent it.
+     */
     private fun propose(
         blackboard: Blackboard,
         input: String,
@@ -166,6 +199,10 @@ class ConfirmationGuardedTool @JvmOverloads constructor(
         }
     }
 
+    /**
+     * The result the LLM sees while [proposal] awaits the user's answer.
+     * Tells it to ask the user and then call the verdict tool.
+     */
     private fun pending(proposal: ToolCallProposal): Tool.Result =
         Tool.Result.text(
             """
@@ -177,6 +214,10 @@ class ConfirmationGuardedTool @JvmOverloads constructor(
             """.trimIndent()
         )
 
+    /**
+     * Run the delegate with the confirmed arguments of [proposal] and close the proposal.
+     * If the delegate throws, no outcome is recorded and the proposal stays executable.
+     */
     private fun execute(
         blackboard: Blackboard,
         proposal: ToolCallProposal,
@@ -188,6 +229,9 @@ class ConfirmationGuardedTool @JvmOverloads constructor(
         return result
     }
 
+    /**
+     * Close [proposal] without running the delegate and tell the LLM not to retry.
+     */
     private fun decline(
         blackboard: Blackboard,
         proposal: ToolCallProposal,
@@ -205,8 +249,8 @@ class ConfirmationGuardedTool @JvmOverloads constructor(
             ?: throw IllegalStateException("No AgentProcess available for ConfirmationGuardedTool '${definition.name}'")
 
     /**
-     * Snapshot of the confirmation records relevant to one tool: the latest proposal
-     * and, if any, its verdict and outcome.
+     * Where one tool's confirmation stands: its latest proposal and, if any,
+     * the verdict and outcome recorded for that proposal.
      */
     private data class ConfirmationState(
         val proposal: ToolCallProposal?,
@@ -214,13 +258,21 @@ class ConfirmationGuardedTool @JvmOverloads constructor(
         val outcome: ToolCallOutcome?,
     ) {
         companion object {
+            /**
+             * Read the state for [toolName] from the blackboard.
+             * The blackboard is append-only, so the last record of each kind is the current one.
+             */
             fun of(
                 blackboard: Blackboard,
                 toolName: String,
             ): ConfirmationState {
+                // Only the newest proposal for this tool matters. Older ones were
+                // executed, declined or superseded, and each of those has an outcome.
                 val proposal = blackboard.objectsOfType(ToolCallProposal::class.java)
                     .lastOrNull { it.toolName == toolName }
                     ?: return ConfirmationState(null, null, null)
+                // Verdict and outcome are matched to that proposal by id, so records
+                // for other tools or earlier proposals are never picked up
                 return ConfirmationState(
                     proposal = proposal,
                     verdict = blackboard.objectsOfType(ToolCallVerdict::class.java)

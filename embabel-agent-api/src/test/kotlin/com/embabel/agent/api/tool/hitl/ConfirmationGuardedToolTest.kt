@@ -85,14 +85,18 @@ class ConfirmationGuardedToolTest {
 
         @Test
         fun `first call records a proposal and instructs the LLM without calling the delegate`() {
+            // The LLM calls the guarded tool as if it were the real one
             val result = text(guard.call("""{"title":"Write spec","priority":1}"""))
 
+            // Nothing runs yet: the call becomes a proposal on the blackboard
             assertTrue(delegate.calls.isEmpty(), "delegate must not run before confirmation")
             assertEquals(1, proposals().size)
             val proposal = proposals().single()
             assertEquals("create_task", proposal.toolName)
             assertEquals("Create this task?", proposal.message)
+            // Arguments are stored in canonical form (sorted keys, no whitespace)
             assertEquals("""{"priority":1,"title":"Write spec"}""", proposal.arguments)
+            // The LLM gets the question to ask, what was proposed, and the tool to answer with
             assertTrue(result.contains("Create this task?"), result)
             assertTrue(result.contains("confirm_create_task"), result)
             assertTrue(result.contains("Write spec"), result)
@@ -109,13 +113,31 @@ class ConfirmationGuardedToolTest {
         }
 
         @Test
-        fun `different arguments supersede the open proposal`() {
+        fun `different arguments supersede the open proposal and close it`() {
             guard.call("""{"title":"Write spec"}""")
             guard.call("""{"title":"Write tests"}""")
 
             assertEquals(2, proposals().size)
             assertEquals("""{"title":"Write tests"}""", proposals().last().arguments)
             assertTrue(delegate.calls.isEmpty())
+            // The superseded proposal is closed so it never shows up as pending
+            val closed = outcomes().single()
+            assertEquals(proposals().first().id, closed.proposalId)
+            assertFalse(closed.executed)
+        }
+
+        @Test
+        fun `accepted proposal is closed when superseded before it ran`() {
+            guard.call("""{"title":"Write spec"}""")
+            blackboard += ToolCallVerdict(proposals().single().id, accepted = true, source = VerdictSource.UI)
+
+            guard.call("""{"title":"Delete everything"}""")
+
+            assertTrue(delegate.calls.isEmpty(), "unconfirmed arguments must not run")
+            assertEquals(2, proposals().size)
+            val closed = outcomes().single()
+            assertEquals(proposals().first().id, closed.proposalId)
+            assertFalse(closed.executed)
         }
 
         @Test
@@ -166,6 +188,27 @@ class ConfirmationGuardedToolTest {
             guard.call("""{"title":"Write spec"}""")
 
             val result = guard.verdictTool.call("""{"note":"hmm"}""")
+
+            assertInstanceOf(Tool.Result.Error::class.java, result)
+            assertTrue(verdicts().isEmpty())
+            assertTrue(delegate.calls.isEmpty())
+        }
+
+        @Test
+        fun `verdict tool accepts a stringified boolean`() {
+            guard.call("""{"title":"Write spec"}""")
+
+            guard.verdictTool.call("""{"accepted":"true"}""")
+
+            assertEquals(1, delegate.calls.size)
+            assertTrue(verdicts().single().accepted)
+        }
+
+        @Test
+        fun `verdict tool rejects a non boolean accepted value`() {
+            guard.call("""{"title":"Write spec"}""")
+
+            val result = guard.verdictTool.call("""{"accepted":"maybe"}""")
 
             assertInstanceOf(Tool.Result.Error::class.java, result)
             assertTrue(verdicts().isEmpty())
@@ -364,6 +407,15 @@ class ConfirmationGuardedToolTest {
             val guard = delegate.withLlmConfirmation("Create it?", options = options)
 
             assertEquals(delegate.definition.description, guard.definition.description)
+        }
+
+        @Test
+        fun `blank delegate description gets the note without a leading space`() {
+            val delegate = Tool.create("create_task", "") { Tool.Result.text("ok") }
+
+            val guard = delegate.withLlmConfirmation("Create it?")
+
+            assertEquals(ConfirmationGuardOptions.DEFAULT_CONFIRMATION_NOTE, guard.definition.description)
         }
 
         @Test

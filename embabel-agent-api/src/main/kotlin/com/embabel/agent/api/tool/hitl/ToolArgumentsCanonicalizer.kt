@@ -35,11 +35,16 @@ internal object ToolArgumentsCanonicalizer {
         if (input.isBlank()) {
             return "{}"
         }
+        // Tool input is normally JSON, but a tool may accept plain text.
+        // Non-JSON input is not rejected: the trimmed text is its own canonical form,
+        // so repeating the same text still matches the open proposal.
         val node = try {
             objectMapper.readTree(input)
         } catch (e: JacksonException) {
             return input.trim()
         }
+        // readTree returns a missing node rather than throwing for some degenerate input,
+        // so it is treated the same way as a parse failure
         if (node == null || node.isMissingNode) {
             return input.trim()
         }

@@ -19,6 +19,8 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.agent.core.hitl.ConfirmationResponse
 import com.embabel.agent.core.hitl.ResponseImpact
+import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonProperty
 import org.jetbrains.annotations.ApiStatus
 import java.time.Instant
 import java.util.UUID
@@ -74,7 +76,9 @@ data class ToolCallProposal(
 )
 
 /**
- * The human's answer to a [ToolCallProposal], however it arrived.
+ * The human's answer to a [ToolCallProposal]. Written by the LLM through
+ * [ConfirmationVerdictTool], or by a UI through [ToolCallConfirmationRequest.onResponse].
+ * [source] says which.
  */
 @ApiStatus.Experimental
 data class ToolCallVerdict(
@@ -86,8 +90,11 @@ data class ToolCallVerdict(
 )
 
 /**
- * Terminal record for a [ToolCallProposal]: it has been executed or cancelled
- * and can no longer be acted on.
+ * Closes a [ToolCallProposal]. Once an outcome exists the proposal is finished and the
+ * next call to the guarded tool starts a new one.
+ *
+ * @param executed `true` if the delegate ran with the confirmed arguments.
+ * `false` if the proposal was declined, or superseded by a call with different arguments.
  */
 @ApiStatus.Experimental
 data class ToolCallOutcome(
@@ -103,14 +110,16 @@ data class ToolCallOutcome(
  * on it when the process resumes.
  */
 @ApiStatus.Experimental
-class ToolCallConfirmationRequest @JvmOverloads constructor(
-    proposal: ToolCallProposal,
-    persistent: Boolean = false,
+class ToolCallConfirmationRequest @JsonCreator constructor(
+    @JsonProperty("payload") proposal: ToolCallProposal,
+    @JsonProperty("persistent") persistent: Boolean = false,
 ) : ConfirmationRequest<ToolCallProposal>(
     payload = proposal,
     message = proposal.message,
     persistent = persistent,
 ) {
+
+    constructor(proposal: ToolCallProposal) : this(proposal, false)
 
     override fun onResponse(
         response: ConfirmationResponse,
