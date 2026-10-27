@@ -41,26 +41,13 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
      * Defaults to the name lowercased with spaces replaced by underscores.
      * Subclasses can override it
      */
-    fun toolPrefix(): String = name.replace(Regex("[^a-zA-Z0-9 ]"), "_").lowercase()
+    fun toolPrefix(): String = name.replace(Regex("[^a-zA-Z0-9]"), "_").lowercase()
 
     /**
      * Naming strategy for tools associated with this reference.
      * Defaults to prefixing tool names with the tool prefix and an underscore.
      */
     val namingStrategy: StringTransformer get() = StringTransformer { toolName -> "${toolPrefix()}_$toolName" }
-
-    /**
-     * Create a tool object for this reference.
-     * @deprecated Use [tools] instead. Tools are now accessed via the tools() method.
-     */
-    @Deprecated(
-        message = "Use tools() instead. Tools are now accessed via the tools() method.",
-        level = DeprecationLevel.WARNING,
-    )
-    fun toolObject(): ToolObject = ToolObject(
-        objects = unprefixedTools(),
-        namingStrategy = namingStrategy,
-    )
 
     /**
      * Return the instances of tool object. Defaults to this
@@ -114,19 +101,6 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
     }
 
     /**
-     * Return tools with unprefixed names. [PromptRunner.withReference] calls this and
-     * applies [namingStrategy] to the result, so each tool gets its prefix exactly once.
-     *
-     * Override this (rather than [tools]) in new implementations. The default bridges
-     * to [tools], so existing implementations that return unprefixed names from [tools]
-     * work without change. Implementations whose [tools] already returns prefixed names
-     * (for backward compatibility) should override this to return the unprefixed variants.
-     *
-     * @see tools for the legacy method that may return pre-prefixed names
-     */
-    fun unprefixedTools(): List<Tool> = tools()
-
-    /**
      * Convert this reference to a reference exposing a single unfolding tool.
      * Does not rewrap an unfolding reference. Thus
      * repeated calls to this method are safe.
@@ -147,6 +121,16 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
     }
 
     companion object {
+
+        /**
+         * Return tools with prefixed names ready for the LLM (e.g. "search" → "docs_search").
+         */
+        @JvmStatic
+        fun prefixedTools(reference: LlmReference): List<Tool> =
+            reference.tools().map { tool ->
+                val name = reference.namingStrategy.transform(tool.definition.name)
+                if (name == tool.definition.name) tool else tool.withName(name)
+            }
 
         /**
          * Create an LlmReference with tools.
@@ -228,6 +212,9 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
     }
 }
 
+/** Convenience extension so callers can write `reference.prefixedTools()` instead of `LlmReference.prefixedTools(reference)`. */
+fun LlmReference.prefixedTools(): List<Tool> = LlmReference.prefixedTools(this)
+
 /**
  * Simple implementation of LlmReference for factory methods.
  */
@@ -253,10 +240,9 @@ private class UnfoldingReference(
 
     override fun toolPrefix(): String = delegate.toolPrefix()
 
-    // tools() wraps all inner tools in one UnfoldingTool named after the prefix (e.g. "docs").
-    // unprefixedTools() inherits the interface default and returns that same single UnfoldingTool.
-    // withReference() applies namingStrategy to its name; IDENTITY keeps "docs" as-is.
-    // The default strategy would produce "docs_docs" — IDENTITY prevents that.
+    // The outer UnfoldingTool is named after the prefix (e.g. "docs").
+    // The inner tools carry prefixed names (e.g. "docs_vectorSearch") via prefixedTools(delegate).
+    // IDENTITY prevents withReference() from adding the prefix again ("docs_docs").
     override val namingStrategy: StringTransformer get() = StringTransformer.IDENTITY
 
     override fun notes(): String = delegate.notes()
@@ -268,7 +254,7 @@ private class UnfoldingReference(
     override fun toolInstances(): List<Any> = emptyList()
 
     override fun tools(): List<Tool> {
-        val innerTools = delegate.tools()
+        val innerTools = LlmReference.prefixedTools(delegate)
         if (innerTools.isEmpty()) {
             return emptyList()
         }

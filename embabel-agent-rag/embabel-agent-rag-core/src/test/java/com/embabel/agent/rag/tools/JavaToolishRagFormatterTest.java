@@ -42,12 +42,12 @@ class JavaToolishRagFormatterTest {
 
     @Test
     void vectorSearchToolUsesConfiguredFormatter() {
-        assertEquals("CUSTOM 42", callTool("fmt_vectorSearch"));
+        assertEquals("CUSTOM 42", callTool("vectorSearch"));
     }
 
     @Test
     void textSearchToolUsesConfiguredFormatter() {
-        assertEquals("CUSTOM 42", callTool("fmt_textSearch"));
+        assertEquals("CUSTOM 42", callTool("textSearch"));
     }
 
     private String callTool(String name) {

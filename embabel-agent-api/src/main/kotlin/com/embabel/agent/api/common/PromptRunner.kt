@@ -241,13 +241,12 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
         withTools(listOf(tool) + tools.toList())
 
     /**
-     * Add a reference which provides tools and prompt contribution.
-     * Tools are registered once, with [LlmReference.namingStrategy] applied to
-     * [LlmReference.unprefixedTools]. A second registration path would add each tool again
-     * under a different name and circumvent name-based de-duplication.
+     * Add a reference which provides tools and a prompt contribution.
+     * [LlmReference.tools] returns bare names; [LlmReference.namingStrategy] prefixes them
+     * at registration time, so the LLM sees names like "docs_search".
      */
     fun withReference(reference: LlmReference): PromptRunner {
-        return withToolObject(ToolObject(objects = reference.unprefixedTools(), namingStrategy = reference.namingStrategy))
+        return withToolObject(ToolObject(objects = reference.tools(), namingStrategy = reference.namingStrategy))
             .withPromptContributor(reference)
     }
 

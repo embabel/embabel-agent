@@ -233,10 +233,10 @@ class McpToolExportTest {
         }
 
         @Test
-        fun `reference with spaces preserves spaces in prefix`() {
+        fun `reference with spaces converts spaces to underscores in prefix`() {
             val reference = TestLlmReference(name = "My API", description = "API with spaces")
             val export = McpToolExport.fromLlmReference(reference)
-            assertEquals("my api_reverse", export.toolCallbacks[0].toolDefinition.name())
+            assertEquals("my_api_reverse", export.toolCallbacks[0].toolDefinition.name())
         }
 
         @Test
