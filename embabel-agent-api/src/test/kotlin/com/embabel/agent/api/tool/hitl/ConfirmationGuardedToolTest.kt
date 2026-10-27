@@ -67,6 +67,25 @@ class ConfirmationGuardedToolTest {
         }
     }
 
+    /** Delegate that throws on its first call and succeeds afterwards. */
+    private class FailingOnceTool(name: String = "create_task") {
+        val calls = mutableListOf<String>()
+        val tool: Tool = Tool.create(name, "Create a task on the board") { input ->
+            calls += input
+            if (calls.size == 1) throw IllegalStateException("board unavailable")
+            Tool.Result.text("created:$input")
+        }
+    }
+
+    /** Delegate that returns an error result on its first call and succeeds afterwards, as TypedTool does when the function throws. */
+    private class ErrorOnceTool(name: String = "create_task") {
+        val calls = mutableListOf<String>()
+        val tool: Tool = Tool.create(name, "Create a task on the board") { input ->
+            calls += input
+            if (calls.size == 1) Tool.Result.error("board unavailable") else Tool.Result.text("created:$input")
+        }
+    }
+
     private fun text(result: Tool.Result): String =
         (result as? Tool.Result.Text)?.content ?: fail("Expected Text result, got $result")
 
@@ -216,6 +235,104 @@ class ConfirmationGuardedToolTest {
         }
 
         @Test
+        fun `verdict tool accepts integer booleans`() {
+            guard.call("""{"title":"Write spec"}""")
+
+            guard.verdictTool.call("""{"accepted":1}""")
+
+            assertEquals(1, delegate.calls.size)
+            assertTrue(verdicts().single().accepted)
+        }
+
+        @Test
+        fun `verdict tool rejects an integer other than 0 or 1`() {
+            guard.call("""{"title":"Write spec"}""")
+
+            val result = guard.verdictTool.call("""{"accepted":2}""")
+
+            assertInstanceOf(Tool.Result.Error::class.java, result)
+            assertTrue(verdicts().isEmpty())
+            assertTrue(delegate.calls.isEmpty())
+        }
+
+        @Test
+        fun `blank note is not recorded`() {
+            guard.call("""{"title":"Write spec"}""")
+
+            guard.verdictTool.call("""{"accepted":true,"note":"   "}""")
+
+            assertNull(verdicts().single().note)
+        }
+
+        @Test
+        fun `verdict tool can be called again after the delegate failed`() {
+            val flaky = FailingOnceTool()
+            val guard = flaky.tool.withLlmConfirmation("Create this task?")
+            guard.call("""{"title":"Write spec"}""")
+
+            // First attempt: the user said yes, the delegate blew up
+            assertThrows<IllegalStateException> { guard.verdictTool.call("""{"accepted":true}""") }
+            assertEquals(1, verdicts().size)
+            assertTrue(outcomes().isEmpty(), "a failed execution must not close the proposal")
+
+            // The LLM retries the verdict tool, as the pending instruction told it to
+            val result = text(guard.verdictTool.call("""{"accepted":true}"""))
+
+            assertEquals("""created:{"title":"Write spec"}""", result)
+            assertEquals(2, flaky.calls.size)
+            assertEquals(1, verdicts().size, "a retry must not record a second verdict")
+            assertTrue(outcomes().single().executed)
+        }
+
+        @Test
+        fun `an error result from the delegate keeps the proposal executable`() {
+            val erroring = ErrorOnceTool()
+            val guard = erroring.tool.withLlmConfirmation("Create this task?")
+            guard.call("""{"title":"Write spec"}""")
+
+            // Typed tools report failures as Tool.Result.Error rather than throwing
+            val first = guard.verdictTool.call("""{"accepted":true}""")
+            assertInstanceOf(Tool.Result.Error::class.java, first)
+            assertTrue(outcomes().isEmpty(), "an error result must not close the proposal")
+
+            val result = text(guard.verdictTool.call("""{"accepted":true}"""))
+
+            assertEquals("""created:{"title":"Write spec"}""", result)
+            assertEquals(2, erroring.calls.size)
+            assertEquals(1, verdicts().size)
+            assertTrue(outcomes().single().executed)
+        }
+
+        @Test
+        fun `accepted proposal can be declined through the verdict tool if the delegate failed`() {
+            val flaky = FailingOnceTool()
+            val guard = flaky.tool.withLlmConfirmation("Create this task?")
+            guard.call("""{"title":"Write spec"}""")
+            assertThrows<IllegalStateException> { guard.verdictTool.call("""{"accepted":true}""") }
+
+            val result = text(guard.verdictTool.call("""{"accepted":false}"""))
+
+            assertTrue(result.contains("declined", ignoreCase = true), result)
+            assertEquals(1, flaky.calls.size)
+            assertEquals(listOf(true, false), verdicts().map { it.accepted })
+            assertFalse(outcomes().single().executed)
+        }
+
+        @Test
+        fun `same call after a failed execution runs without a new confirmation`() {
+            val flaky = FailingOnceTool()
+            val guard = flaky.tool.withLlmConfirmation("Create this task?")
+            guard.call("""{"title":"Write spec"}""")
+            assertThrows<IllegalStateException> { guard.verdictTool.call("""{"accepted":true}""") }
+
+            val result = text(guard.call("""{"title":"Write spec"}"""))
+
+            assertEquals("""created:{"title":"Write spec"}""", result)
+            assertEquals(1, proposals().size)
+            assertTrue(outcomes().single().executed)
+        }
+
+        @Test
         fun `guarded tools are scoped by tool name`() {
             val other = RecordingTool("send_email")
             val otherGuard = other.tool.withLlmConfirmation("Send it?")
@@ -310,6 +427,39 @@ class ConfirmationGuardedToolTest {
 
             assertTrue(delegate.calls.isEmpty())
             assertEquals(2, proposals().size)
+        }
+
+        @Test
+        fun `UI rejection followed by different arguments closes the declined proposal and pauses again`() {
+            val request = raise("""{"title":"Write spec"}""")
+            request.onResponse(
+                ConfirmationResponse(awaitableId = request.id, accepted = false),
+                AgentProcess.get()!!,
+            )
+
+            val next = raise("""{"title":"Write tests"}""")
+
+            assertTrue(delegate.calls.isEmpty())
+            assertEquals(2, proposals().size)
+            assertEquals(proposals().last(), next.payload)
+            val closed = outcomes().single()
+            assertEquals(proposals().first().id, closed.proposalId)
+            assertFalse(closed.executed)
+        }
+
+        @Test
+        fun `verdict tool cannot override a UI rejection`() {
+            val request = raise("""{"title":"Write spec"}""")
+            request.onResponse(
+                ConfirmationResponse(awaitableId = request.id, accepted = false),
+                AgentProcess.get()!!,
+            )
+
+            val result = guard.verdictTool.call("""{"accepted":true}""")
+
+            assertInstanceOf(Tool.Result.Error::class.java, result)
+            assertTrue(delegate.calls.isEmpty())
+            assertEquals(1, verdicts().size)
         }
 
         @Test

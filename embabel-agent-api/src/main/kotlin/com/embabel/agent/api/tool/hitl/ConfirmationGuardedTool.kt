@@ -64,8 +64,9 @@ import java.util.function.Function
  *   is a new proposal.
  *
  * A confirmation is single use. Once consumed, the same call needs a new confirmation.
- * If the delegate throws, no outcome is recorded and the accepted proposal remains
- * executable on the next identical call.
+ * If the delegate throws or returns a [Tool.Result.Error], no outcome is recorded and the
+ * accepted proposal remains executable, either through the verdict tool again or through
+ * the next identical call.
  *
  * Kotlin callers typically use [withLlmConfirmation]; Java callers use [of].
  *
@@ -136,8 +137,13 @@ class ConfirmationGuardedTool @JvmOverloads constructor(
     }
 
     /**
-     * Record the LLM's verdict on the open proposal and act on it.
+     * Record the LLM's verdict on the latest proposal and act on it.
      * Called by [ConfirmationVerdictTool].
+     *
+     * A proposal the user already accepted but which has no outcome yet, because the
+     * delegate failed, is still actionable: accepting again retries the delegate without
+     * recording a second verdict, declining cancels it. A declined verdict is final here
+     * so the LLM cannot override a decline the user gave in a UI.
      */
     internal fun recordVerdict(
         accepted: Boolean,
@@ -147,10 +153,20 @@ class ConfirmationGuardedTool @JvmOverloads constructor(
         val blackboard = requireAgentProcess().blackboard
         val state = ConfirmationState.of(blackboard, definition.name)
         val proposal = state.proposal
-        if (proposal == null || state.verdict != null || state.outcome != null) {
+        if (proposal == null || state.outcome != null) {
             return Tool.Result.error(
                 "No confirmation is pending for '${definition.name}'. Call '${definition.name}' first to propose the action."
             )
+        }
+        val previous = state.verdict
+        if (previous != null && !previous.accepted) {
+            return Tool.Result.error(
+                "The user already declined '${definition.name}'. Call '${definition.name}' again to propose a new action."
+            )
+        }
+        if (previous != null && accepted) {
+            logger.debug("Tool '{}': retrying accepted proposal {} after a failed execution", definition.name, proposal.id)
+            return execute(blackboard, proposal, context)
         }
         blackboard += ToolCallVerdict(
             proposalId = proposal.id,
@@ -216,7 +232,8 @@ class ConfirmationGuardedTool @JvmOverloads constructor(
 
     /**
      * Run the delegate with the confirmed arguments of [proposal] and close the proposal.
-     * If the delegate throws, no outcome is recorded and the proposal stays executable.
+     * If the delegate throws or returns an error result, no outcome is recorded and the
+     * proposal stays executable.
      */
     private fun execute(
         blackboard: Blackboard,
@@ -225,6 +242,10 @@ class ConfirmationGuardedTool @JvmOverloads constructor(
     ): Tool.Result {
         logger.debug("Tool '{}': executing confirmed proposal {}", definition.name, proposal.id)
         val result = delegate.call(proposal.arguments, context)
+        if (result is Tool.Result.Error) {
+            logger.debug("Tool '{}': delegate failed for proposal {}, it stays executable", definition.name, proposal.id)
+            return result
+        }
         blackboard += ToolCallOutcome(proposalId = proposal.id, executed = true)
         return result
     }
