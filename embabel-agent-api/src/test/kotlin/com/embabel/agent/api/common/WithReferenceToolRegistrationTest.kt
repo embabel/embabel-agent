@@ -111,6 +111,24 @@ class WithReferenceToolRegistrationTest {
     }
 
     @Nested
+    inner class DelegatingWrapper {
+
+        @Test
+        fun `withReference uses a delegating wrapper's tools() override`() {
+            val inner = LlmReference.of("docs", "Documentation", listOf(Tool.of("search", "Search") { Tool.Result.text("inner") }))
+            val wrapper = object : LlmReference by inner {
+                override fun tools() = listOf(Tool.of("search", "Search") { Tool.Result.text("wrapped") })
+            }
+
+            val runner = makeRunner().withReference(wrapper) as OperationContextPromptRunner
+            val tool = safelyGetTools(runner.toolObjects).single()
+
+            assertEquals("docs_search", tool.definition.name)
+            assertEquals(Tool.Result.text("wrapped"), tool.call("{}"))
+        }
+    }
+
+    @Nested
     inner class Unfolding {
 
         @Test
