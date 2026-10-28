@@ -28,7 +28,10 @@ import com.openai.models.responses.FunctionTool
 import com.openai.models.responses.ResponseCreateParams
 import com.openai.models.responses.ResponseFormatTextJsonSchemaConfig
 import com.openai.models.responses.ResponseFunctionToolCall
+import com.openai.models.responses.ResponseInputContent
+import com.openai.models.responses.ResponseInputImage
 import com.openai.models.responses.ResponseInputItem
+import com.openai.models.responses.ResponseInputText
 import com.openai.models.responses.ResponseOutputMessage
 import com.openai.models.responses.ResponseStatus
 import com.openai.models.responses.ResponseTextConfig
@@ -51,17 +54,20 @@ import org.springframework.ai.chat.observation.ChatModelObservationDocumentation
 import org.springframework.ai.chat.observation.DefaultChatModelObservationConvention
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.prompt.Prompt
+import org.springframework.ai.content.Media
 import org.springframework.ai.content.MediaContent
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.ai.openai.OpenAiChatModel
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.ai.retry.NonTransientAiException
 import reactor.core.publisher.Flux
+import java.util.Base64
 import java.util.function.Supplier
 import com.openai.models.responses.Response as OpenAiResponse
 
 /**
- * Spring AI [ChatModel] backed by the OpenAI Responses API, which serves the `*-pro` models.
+ * Spring AI [ChatModel] backed by the OpenAI Responses API, which serves the `*-pro` models and
+ * carries tool calls for the GPT-5.6 and GPT-6 tiers.
  *
  * Spring AI has no client for that endpoint — native support is milestoned for 2.1
  * (spring-ai#2962) — so this adapts the official OpenAI SDK, as
@@ -69,7 +75,8 @@ import com.openai.models.responses.Response as OpenAiResponse
  *
  * Only the single request/response exchange is mapped. Embabel drives its own tool loop, so the
  * stateful half of the Responses API — background mode, server-side conversation state, remote
- * MCP — is deliberately unused, and requests are non-streaming.
+ * MCP — is deliberately unused, and requests are non-streaming. User messages may carry images;
+ * other media is refused.
  *
  * Headers in the prompt's [OpenAiChatOptions] override client headers with the same name,
  * ignoring case. Other client headers are unchanged.
@@ -195,20 +202,53 @@ class OpenAiResponsesChatModel(
             message.toolCalls.orEmpty().forEach { add(toFunctionCall(it)) }
         }
 
-        else -> listOf(toEasyInputMessage(EasyInputMessage.Role.USER, textOf(message)))
+        else -> listOf(toUserInputMessage(message))
     }
 
     /**
-     * Only text is mapped. Refused rather than dropped: a prompt stripped of its image still gets a
-     * confident answer, about something the model never saw.
+     * Text alone stays a plain string; a message with images becomes a content list of
+     * `input_text` followed by one `input_image` per image, in order.
      */
-    private fun textOf(message: Message): String {
-        if ((message as? MediaContent)?.media.orEmpty().isNotEmpty()) {
+    private fun toUserInputMessage(message: Message): ResponseInputItem {
+        val media = (message as? MediaContent)?.media.orEmpty()
+        if (media.isEmpty()) return toEasyInputMessage(EasyInputMessage.Role.USER, message.text.orEmpty())
+        val parts = buildList {
+            message.text?.takeIf { it.isNotBlank() }?.let {
+                add(ResponseInputContent.ofInputText(ResponseInputText.builder().text(it).build()))
+            }
+            media.forEach { add(toInputImage(it)) }
+        }
+        return ResponseInputItem.ofEasyInputMessage(
+            EasyInputMessage.builder()
+                .role(EasyInputMessage.Role.USER)
+                .content(EasyInputMessage.Content.ofResponseInputMessageContentList(parts))
+                .build()
+        )
+    }
+
+    /**
+     * Only images are mapped. Anything else is refused rather than dropped: a prompt stripped of its
+     * attachment still gets a confident answer, about something the model never saw.
+     *
+     * The image travels as Spring AI's OpenAI chat model sends it: bytes as a `data:` URL, a string
+     * as given (an `https:` or `data:` URL).
+     */
+    private fun toInputImage(media: Media): ResponseInputContent {
+        if (media.mimeType.type != "image") {
             throw UnsupportedOperationException(
-                "Media is not supported for OpenAI models served over the Responses API"
+                "Only image media is supported for OpenAI models served over the Responses API, not ${media.mimeType}"
             )
         }
-        return message.text.orEmpty()
+        val url = when (val data = media.data) {
+            is ByteArray -> "data:${media.mimeType};base64,${Base64.getEncoder().encodeToString(data)}"
+            is String -> data
+            else -> throw UnsupportedOperationException(
+                "Unsupported image data for the Responses API: ${data.javaClass.simpleName}"
+            )
+        }
+        return ResponseInputContent.ofInputImage(
+            ResponseInputImage.builder().imageUrl(url).detail(ResponseInputImage.Detail.AUTO).build()
+        )
     }
 
     private fun toEasyInputMessage(role: EasyInputMessage.Role, content: String): ResponseInputItem =

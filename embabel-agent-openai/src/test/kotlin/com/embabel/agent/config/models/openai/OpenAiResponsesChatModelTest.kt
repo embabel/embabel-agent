@@ -36,6 +36,7 @@ import com.openai.core.http.HttpResponse
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseCreateParams
 import com.openai.models.responses.ResponseError
+import com.openai.models.responses.ResponseInputContent
 import com.openai.models.responses.ResponseFunctionToolCall
 import com.openai.models.responses.ResponseInputItem
 import com.openai.models.responses.ResponseOutputItem
@@ -528,9 +529,54 @@ class OpenAiResponsesChatModelTest {
             )
         }
 
-        /** An image-bearing prompt sent as text alone yields a confident answer about nothing. */
+        private fun userContentOf(text: String?, vararg media: Media): List<ResponseInputContent> {
+            val message = UserMessage.builder().text(text ?: "").media(media.toList()).build()
+            val params = capture(Prompt(listOf(message), OpenAiChatOptions.builder().model("gpt-6-astra").build()))
+            return params.input().orElseThrow().asResponse().single()
+                .easyInputMessage().orElseThrow().content().asResponseInputMessageContentList()
+        }
+
+        private fun imageUrlOf(part: ResponseInputContent): String =
+            part.inputImage().orElseThrow().imageUrl().orElseThrow()
+
+        /** Image analysis and chat attachments reach GPT-6 over this transport, so images must arrive. */
         @Test
-        fun `media is refused rather than silently dropped`() {
+        fun `image bytes are sent as a data url after the text`() {
+            val parts = userContentOf(
+                "What is in this image?",
+                Media.builder().mimeType(MimeTypeUtils.IMAGE_PNG).data(ByteArrayResource(byteArrayOf(1, 2, 3))).build(),
+            )
+
+            assertEquals(2, parts.size)
+            assertEquals("What is in this image?", parts[0].inputText().orElseThrow().text())
+            assertEquals("data:image/png;base64,AQID", imageUrlOf(parts[1]))
+        }
+
+        @Test
+        fun `an image url is passed through and several images keep their order`() {
+            val parts = userContentOf(
+                "Compare",
+                Media.builder().mimeType(MimeTypeUtils.IMAGE_JPEG).data("https://example.com/a.jpg").build(),
+                Media.builder().mimeType(MimeTypeUtils.IMAGE_PNG).data(byteArrayOf(9)).build(),
+            )
+
+            assertEquals(listOf("https://example.com/a.jpg", "data:image/png;base64,CQ=="), parts.drop(1).map(::imageUrlOf))
+        }
+
+        @Test
+        fun `an image without text is sent as the image alone`() {
+            val parts = userContentOf(
+                null,
+                Media.builder().mimeType(MimeTypeUtils.IMAGE_PNG).data(byteArrayOf(1)).build(),
+            )
+
+            assertEquals(1, parts.size)
+            assertTrue(parts.single().isInputImage())
+        }
+
+        /** A document sent as text alone yields a confident answer about nothing. */
+        @Test
+        fun `non image media is refused rather than silently dropped`() {
             respondWith(textResponse("ok"))
 
             assertThrows(UnsupportedOperationException::class.java) {
@@ -538,11 +584,11 @@ class OpenAiResponsesChatModelTest {
                     Prompt(
                         listOf(
                             UserMessage.builder()
-                                .text("What is in this image?")
+                                .text("Summarise this")
                                 .media(
                                     listOf(
                                         Media.builder()
-                                            .mimeType(MimeTypeUtils.IMAGE_PNG)
+                                            .mimeType(MimeTypeUtils.parseMimeType("application/pdf"))
                                             .data(ByteArrayResource(byteArrayOf(1, 2, 3)))
                                             .build()
                                     )
