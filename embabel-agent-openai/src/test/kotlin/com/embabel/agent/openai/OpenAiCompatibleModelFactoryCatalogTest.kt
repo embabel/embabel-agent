@@ -30,6 +30,9 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.NullSource
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.openai.OpenAiChatModel
@@ -144,11 +147,14 @@ class OpenAiCompatibleModelFactoryCatalogTest {
         }
     }
 
-    @Test
-    fun `OpenAI's own endpoint follows the catalog`() {
-        val service = OpenAiCompatibleModelFactory(baseUrl = null, apiKey = "test-key")
+    /** No base URL is OpenAI's own API; so is its host spelled any way DNS accepts. */
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = ["https://api.openai.com/v1", "https://API.OpenAI.com/v1/"])
+    fun `OpenAI's own endpoint follows the catalog`(baseUrl: String?) {
+        val service = OpenAiCompatibleModelFactory(baseUrl = baseUrl, apiKey = "test-key")
             .llm(model = OpenAiModels.GPT_6_LUNA, pricingModel = PricingModel.ALL_YOU_CAN_EAT, provider = OpenAiModels.PROVIDER)
-        assertTrue((service as SpringAiLlmService).chatModel is OpenAiResponsesChatModel)
+        assertTrue((service as SpringAiLlmService).chatModel is OpenAiResponsesChatModel, "$baseUrl")
     }
 
     /** A Chat-Completions-only gateway that worked before must not be sent to `/v1/responses`. */
