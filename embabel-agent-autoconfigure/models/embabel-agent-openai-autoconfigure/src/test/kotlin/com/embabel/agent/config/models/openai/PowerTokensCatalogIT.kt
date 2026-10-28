@@ -24,12 +24,7 @@ import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.PricingModel
-import com.embabel.common.byok.InvalidApiKeyException
-import com.openai.client.okhttp.OpenAIOkHttpClient
-import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
@@ -41,6 +36,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.FilterType
 import org.springframework.context.annotation.Import
 import org.springframework.context.annotation.Profile
 import org.springframework.test.context.ActiveProfiles
@@ -48,9 +44,24 @@ import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import java.time.Duration
 
+/**
+ * Scans Embabel for the PowerTokens catalog IT.
+ *
+ * Excludes [GuardRailConfiguration] from [LLMOpenAiGuardRailsIntegrationIT]: that config has no
+ * `@Profile`, so a bare package scan would load it and make it read shell `OPENAI_API_KEY`,
+ * failing this IT for reasons that have nothing to do with PowerTokens.
+ */
 @Profile("powertokens-catalog-test")
 @ConfigurationPropertiesScan(basePackages = ["com.embabel.agent"])
-@ComponentScan(basePackages = ["com.embabel.agent"])
+@ComponentScan(
+    basePackages = ["com.embabel.agent"],
+    excludeFilters = [
+        ComponentScan.Filter(
+            type = FilterType.ASSIGNABLE_TYPE,
+            classes = [GuardRailConfiguration::class],
+        )
+    ],
+)
 class PowerTokensCatalogTestConfig
 
 /**
@@ -93,12 +104,11 @@ class PowerTokensSmokeModelsConfig(
 }
 
 /**
- * Live tests for PowerTokens' OpenAI-compatible gateway through Embabel.
+ * Live tests for PowerTokens' OpenAI-compatible gateway through Embabel [Ai].
  *
- * Chat and tool calls go through [Ai] (same shape as [OpenAiCatalogIT]). The model-list
- * check uses a bare OpenAI client against GET /v1/models — the same deliberate choice as
- * OpenAiCatalogIT, because the question is what the gateway serves, not what Embabel has
- * registered. Invalid-key handling uses the Embabel BYOK path.
+ * Chat and tool calls use the same shape as [OpenAiCatalogIT]. Model-list and invalid-key
+ * coverage live in [PowerTokensModelsListIT] (no Spring), so they stay fast and independent
+ * of this context.
  *
  * To run these tests you need a PowerTokens account (sign-up / sign-in is required; a key
  * cannot be created anonymously):
@@ -106,11 +116,9 @@ class PowerTokensSmokeModelsConfig(
  * 2. Dashboard → API Keys → Create new key
  *    (guide: https://docs.powertokens.ai/en/guides/api-key-and-model-call).
  * 3. export POWERTOKENS_API_KEY=<that key>
- * 4. Point the OpenAI autoconfig at PowerTokens (GuardRail test config on this
- *    classpath reads OPENAI_API_KEY from the process environment, not only from
- *    Spring properties):
- *      export OPENAI_API_KEY=$POWERTOKENS_API_KEY
- *      export OPENAI_BASE_URL=https://api.powertokens.ai/v1
+ * The Spring context is pointed at PowerTokens in code via [DynamicPropertySource]
+ * (`OPENAI_BASE_URL` and `OPENAI_API_KEY` from `POWERTOKENS_API_KEY`); no shell export of
+ * those two is required.
  * An existing key with chat access also works.
  * Tests that need a valid key are skipped when POWERTOKENS_API_KEY is not set.
  *
@@ -146,13 +154,10 @@ class PowerTokensCatalogIT(
             "MiniMax-M3",
         )
 
-        /** Not a key PowerTokens issued. */
-        const val UNKNOWN_KEY = "not-a-real-key"
-
         /**
          * Point the OpenAI autoconfig at PowerTokens. OPENAI_API_KEY is filled from
-         * POWERTOKENS_API_KEY when present; a placeholder keeps the context loadable so the
-         * BYOK 401 test can run without a real key.
+         * POWERTOKENS_API_KEY when present; a placeholder keeps the context loadable when the
+         * key is absent (chat/tool tests then skip via EnabledIfEnvironmentVariable).
          */
         @JvmStatic
         @DynamicPropertySource
@@ -172,32 +177,6 @@ class PowerTokensCatalogIT(
         LlmOptions.withModel(model)
             .withMaxTokens(256)
             .withTimeout(Duration.ofMinutes(5))
-
-    /**
-     * One GET /v1/models covers every smoke id. Built on a bare client on purpose: same reason
-     * as OpenAiCatalogIT — this asks what PowerTokens serves, not what Embabel registered.
-     */
-    @Test
-    @EnabledIfEnvironmentVariable(
-        named = "POWERTOKENS_API_KEY",
-        matches = ".+",
-        disabledReason = "Integration test requires POWERTOKENS_API_KEY",
-    )
-    fun `every smoke model id is one PowerTokens serves`() {
-        val client = OpenAIOkHttpClient.builder()
-            .apiKey(System.getenv("POWERTOKENS_API_KEY"))
-            .baseUrl(BASE_URL)
-            .build()
-        val served = client.models().list().autoPager().map { it.id() }.toSet()
-
-        val unknown = smokeModels().filterNot { it in served }
-
-        assertTrue(
-            unknown.isEmpty(),
-            "Smoke ids PowerTokens does not serve for this key. Either a typo, a retired model, " +
-                "or one this account is not entitled to: $unknown",
-        )
-    }
 
     /** Each smoke model answers a short prompt through Embabel [Ai]. */
     @ParameterizedTest(name = "{0} answers READY through Embabel Ai")
@@ -242,22 +221,5 @@ class PowerTokensCatalogIT(
             answer.contains("QP-4471"),
             "The tool result never made it back into the answer from $model, got: $answer",
         )
-    }
-
-    /**
-     * Invalid-key probe via Embabel BYOK ([OpenAiCompatibleModelFactory.byok]), not the bare
-     * openai-java client. Needs network; does not need POWERTOKENS_API_KEY.
-     */
-    @Test
-    fun `powerTokens responds 401 to a key it did not issue`() {
-        val ex = assertThrows<InvalidApiKeyException> {
-            OpenAiCompatibleModelFactory.byok(
-                baseUrl = BASE_URL,
-                apiKey = UNKNOWN_KEY,
-                validationModel = smokeModels().first(),
-                validationProvider = "PowerTokens",
-            ).buildValidated()
-        }
-        assertEquals(401, ex.statusCode)
     }
 }
