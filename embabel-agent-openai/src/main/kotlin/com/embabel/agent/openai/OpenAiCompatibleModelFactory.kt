@@ -560,7 +560,7 @@ open class OpenAiCompatibleModelFactory(
      * compatibility check that falls back to prompt-based output. Without it, structured output
      * is prompt-based, as with [openAiCompatibleLlm].
      *
-     * The transport does not stream and rejects media.
+     * The transport does not stream. It sends a user message's images and rejects any other media.
      */
     @JvmOverloads
     fun openAiResponsesLlm(
