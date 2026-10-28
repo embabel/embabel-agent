@@ -20,6 +20,7 @@ import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.util.loggerFor
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.openai.OpenAiChatOptions
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Shared wire/param names for the sampling fields [CapabilityAwareOpenAiOptionsConverter]
@@ -120,6 +121,9 @@ class CapabilityAwareOpenAiOptionsConverter(
 
     private val logger = loggerFor<CapabilityAwareOpenAiOptionsConverter>()
 
+    /** `model|dropped` pairs already warned about; bounded by the models and option sets in use. */
+    private val warned: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
     override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
         require(model.isNotBlank()) { "model id must not be blank" }
 
@@ -156,7 +160,9 @@ class CapabilityAwareOpenAiOptionsConverter(
 
     /**
      * Dropping unsupported sampling values silently would read as the model ignoring them;
-     * throwing would cost the caller an answer. Warn once per conversion when anything is dropped.
+     * throwing would cost the caller an answer. Warn the first time a model drops a given set, and
+     * log repeats at debug: an application that configures `temperature: 0.0` for every role would
+     * otherwise put one warning on every call.
      */
     private fun warnAboutIgnoredParameters(options: LlmOptions, model: String) {
         val ignored = buildList {
@@ -176,13 +182,10 @@ class CapabilityAwareOpenAiOptionsConverter(
                 options.frequencyPenalty?.let { add("${SamplingParameterNames.FREQUENCY_PENALTY}=$it") }
             }
         }
-        if (ignored.isNotEmpty()) {
-            logger.warn(
-                "Model '{}' rejects some sampling parameters, so the following are ignored rather than sent: {}",
-                model,
-                ignored.joinToString(", "),
-            )
-        }
+        if (ignored.isEmpty()) return
+        val dropped = ignored.joinToString(", ")
+        val message = "Model '{}' rejects some sampling parameters, so the following are ignored rather than sent: {}"
+        if (warned.add("$model|$dropped")) logger.warn(message, model, dropped) else logger.debug(message, model, dropped)
     }
 
     companion object {
