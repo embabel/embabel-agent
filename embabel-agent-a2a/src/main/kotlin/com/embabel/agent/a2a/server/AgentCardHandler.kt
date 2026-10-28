@@ -16,7 +16,7 @@
 package com.embabel.agent.a2a.server
 
 import com.embabel.common.core.types.HasInfoString
-import io.a2a.spec.AgentCard
+import org.a2aproject.sdk.spec.AgentCard
 
 /**
  * Exposes an A2A AgentCard and handles JSON-RPC requests routed to its path

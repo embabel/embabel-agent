@@ -15,12 +15,12 @@
  */
 package com.embabel.agent.a2a.server.support
 
-import io.a2a.spec.Message
-import io.a2a.spec.Task
-import io.a2a.spec.TaskState
-import io.a2a.spec.TaskStatus
-import io.a2a.spec.TaskStatusUpdateEvent
-import io.a2a.spec.TextPart
+import org.a2aproject.sdk.spec.Message
+import org.a2aproject.sdk.spec.Task
+import org.a2aproject.sdk.spec.TaskState
+import org.a2aproject.sdk.spec.TaskStatus
+import org.a2aproject.sdk.spec.TaskStatusUpdateEvent
+import org.a2aproject.sdk.spec.TextPart
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -51,9 +51,9 @@ class TaskStateManagerTest {
     fun `should record events for task`() {
         // Given
         taskStateManager.registerTask("task-1", "ctx-1", "stream-1")
-        val message = Message.Builder()
+        val message = Message.builder()
             .messageId("msg-1")
-            .role(Message.Role.USER)
+            .role(Message.Role.ROLE_USER)
             .parts(listOf(TextPart("Hello")))
             .taskId("task-1")
             .contextId("ctx-1")
@@ -74,11 +74,10 @@ class TaskStateManagerTest {
         // Given
         taskStateManager.registerTask("task-1", "ctx-1", "stream-1")
         // Use TaskStatusUpdateEvent with final=true as per actual streaming implementation
-        val completedStatus = TaskStatusUpdateEvent.Builder()
+        val completedStatus = TaskStatusUpdateEvent.builder()
             .taskId("task-1")
             .contextId("ctx-1")
-            .status(TaskStatus(TaskState.COMPLETED))
-            .isFinal(true)
+            .status(TaskStatus(TaskState.TASK_STATE_COMPLETED))
             .build()
 
         // When
@@ -89,7 +88,7 @@ class TaskStateManagerTest {
         assertTrue(taskStateManager.taskExists("task-1"))
         val taskInfo = taskStateManager.getTaskInfo("task-1")
         assertNotNull(taskInfo?.completedAt)
-        assertEquals(TaskState.COMPLETED, taskInfo?.currentState)
+        assertEquals(TaskState.TASK_STATE_COMPLETED, taskInfo?.currentState)
     }
 
     @Test
@@ -97,11 +96,10 @@ class TaskStateManagerTest {
         // Given
         taskStateManager.registerTask("task-1", "ctx-1", "stream-1")
         // Use TaskStatusUpdateEvent with final=true as per actual streaming implementation
-        val failedStatus = TaskStatusUpdateEvent.Builder()
+        val failedStatus = TaskStatusUpdateEvent.builder()
             .taskId("task-1")
             .contextId("ctx-1")
-            .status(TaskStatus(TaskState.FAILED))
-            .isFinal(true)
+            .status(TaskStatus(TaskState.TASK_STATE_FAILED))
             .build()
 
         // When
@@ -109,7 +107,7 @@ class TaskStateManagerTest {
 
         // Then
         assertFalse(taskStateManager.isTaskActive("task-1"))
-        assertEquals(TaskState.FAILED, taskStateManager.getTaskInfo("task-1")?.currentState)
+        assertEquals(TaskState.TASK_STATE_FAILED, taskStateManager.getTaskInfo("task-1")?.currentState)
     }
 
     @Test
@@ -117,11 +115,10 @@ class TaskStateManagerTest {
         // Given
         taskStateManager.registerTask("task-1", "ctx-1", "stream-1")
         // Use TaskStatusUpdateEvent with final=true as per actual streaming implementation
-        val canceledStatus = TaskStatusUpdateEvent.Builder()
+        val canceledStatus = TaskStatusUpdateEvent.builder()
             .taskId("task-1")
             .contextId("ctx-1")
-            .status(TaskStatus(TaskState.CANCELED))
-            .isFinal(true)
+            .status(TaskStatus(TaskState.TASK_STATE_CANCELED))
             .build()
 
         // When
@@ -129,7 +126,7 @@ class TaskStateManagerTest {
 
         // Then
         assertFalse(taskStateManager.isTaskActive("task-1"))
-        assertEquals(TaskState.CANCELED, taskStateManager.getTaskInfo("task-1")?.currentState)
+        assertEquals(TaskState.TASK_STATE_CANCELED, taskStateManager.getTaskInfo("task-1")?.currentState)
     }
 
     @Test
@@ -157,19 +154,19 @@ class TaskStateManagerTest {
     fun `should handle multiple events for same task`() {
         // Given
         taskStateManager.registerTask("task-1", "ctx-1", "stream-1")
-        val message1 = Message.Builder()
+        val message1 = Message.builder()
             .messageId("msg-1")
-            .role(Message.Role.USER)
+            .role(Message.Role.ROLE_USER)
             .parts(listOf(TextPart("Hello")))
             .build()
-        val statusUpdate = TaskStatusUpdateEvent.Builder()
+        val statusUpdate = TaskStatusUpdateEvent.builder()
             .taskId("task-1")
             .contextId("ctx-1")
-            .status(TaskStatus(TaskState.WORKING))
+            .status(TaskStatus(TaskState.TASK_STATE_WORKING))
             .build()
-        val message2 = Message.Builder()
+        val message2 = Message.builder()
             .messageId("msg-2")
-            .role(Message.Role.AGENT)
+            .role(Message.Role.ROLE_AGENT)
             .parts(listOf(TextPart("Response")))
             .build()
 
@@ -188,11 +185,10 @@ class TaskStateManagerTest {
         // Given
         taskStateManager.registerTask("task-1", "ctx-1", "stream-1")
         // Use TaskStatusUpdateEvent with final=true as per actual streaming implementation
-        val completedStatus = TaskStatusUpdateEvent.Builder()
+        val completedStatus = TaskStatusUpdateEvent.builder()
             .taskId("task-1")
             .contextId("ctx-1")
-            .status(TaskStatus(TaskState.COMPLETED))
-            .isFinal(true)
+            .status(TaskStatus(TaskState.TASK_STATE_COMPLETED))
             .build()
         taskStateManager.recordEvent("task-1", completedStatus)
 
@@ -212,11 +208,10 @@ class TaskStateManagerTest {
         // Given
         taskStateManager.registerTask("task-1", "ctx-1", "stream-1")
         // Use TaskStatusUpdateEvent with final=true as per actual streaming implementation
-        val completedStatus = TaskStatusUpdateEvent.Builder()
+        val completedStatus = TaskStatusUpdateEvent.builder()
             .taskId("task-1")
             .contextId("ctx-1")
-            .status(TaskStatus(TaskState.COMPLETED))
-            .isFinal(true)
+            .status(TaskStatus(TaskState.TASK_STATE_COMPLETED))
             .build()
         taskStateManager.recordEvent("task-1", completedStatus)
 
@@ -231,10 +226,10 @@ class TaskStateManagerTest {
     fun `should keep task in working state until terminal state received`() {
         // Given
         taskStateManager.registerTask("task-1", "ctx-1", "stream-1")
-        val statusUpdate = TaskStatusUpdateEvent.Builder()
+        val statusUpdate = TaskStatusUpdateEvent.builder()
             .taskId("task-1")
             .contextId("ctx-1")
-            .status(TaskStatus(TaskState.WORKING))
+            .status(TaskStatus(TaskState.TASK_STATE_WORKING))
             .build()
 
         // When
