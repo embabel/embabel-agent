@@ -98,7 +98,9 @@ class OpenAiCompatibleModelFactoryCatalogTest {
         val service = llm(OpenAiModels.GPT_41_MINI)
 
         assertTrue(service.chatModel is OpenAiChatModel)
-        assertEquals("/v1/chat/completions", callAtZeroTemperature(service, OpenAiModels.GPT_41_MINI).path)
+        val request = callAtZeroTemperature(service, OpenAiModels.GPT_41_MINI)
+        assertEquals("/v1/chat/completions", request.path)
+        assertEquals(0.0, request.body["temperature"].asDouble(), "Embabel Me's default model keeps its temperature")
     }
 
     /** `deepseek-v4-pro` looks like a `*-pro` model by name; only the catalog decides. */
