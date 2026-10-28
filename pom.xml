@@ -8,7 +8,7 @@
     </parent>
     <groupId>com.embabel.agent</groupId>
     <artifactId>embabel-agent-parent</artifactId>
-    <version>1.5.4</version>
+    <version>1.5.5-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Embabel Agent Parent</name>
     <description>Parent POM for Embabel Agent Modules</description>
@@ -53,7 +53,7 @@
         <url>https://github.com/embabel/embabel-agent</url>
         <connection>scm:git:https://github.com/embabel/embabel-agent.git</connection>
         <developerConnection>scm:git:https://github.com/embabel/embabel-agent.git</developerConnection>
-        <tag>v.1.5.4</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <!-- Embabel Common BOM -->
