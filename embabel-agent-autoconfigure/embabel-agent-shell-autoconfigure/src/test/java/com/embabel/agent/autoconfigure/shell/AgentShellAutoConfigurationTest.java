@@ -89,6 +89,26 @@ class AgentShellAutoConfigurationTest {
    }
 
    /**
+    * Confirms the JVM is forced to exit after the shell ends when Spring Shell is configured to close the context.
+    */
+   @Test
+   void registersShellExitListenerWhenContextCloseEnabled() {
+      contextRunner
+              .withPropertyValues("spring.shell.context.close=true")
+              .run(context -> assertThat(context).hasSingleBean(ShellExitListener.class));
+   }
+
+   /**
+    * Confirms applications (and integration tests) that keep the context open are not terminated.
+    */
+   @Test
+   void doesNotRegisterShellExitListenerWhenContextCloseDisabled() {
+      contextRunner
+              .withPropertyValues("spring.shell.context.close=false")
+              .run(context -> assertThat(context).doesNotHaveBean(ShellExitListener.class));
+   }
+
+   /**
     * Test configuration that supplies a custom prompt provider so the auto-configuration can be checked for proper backoff behavior.
     */
    @Configuration

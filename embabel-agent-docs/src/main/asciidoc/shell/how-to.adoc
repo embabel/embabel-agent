@@ -20,6 +20,16 @@ If you are using the Embabel example or template projects, use the provided conv
 ./scripts/shell.sh
 ----
 
+==== Exiting the Shell
+
+Type `quit` or `exit` at the shell prompt to stop the application.
+Spring Shell ends its input loop, then Embabel closes the application context and terminates the JVM with `System.exit`, so threads still running outside Spring's control do not keep the process alive.
+The application's exit code comes from any `ExitCodeGenerator` beans, as with `SpringApplication.exit`.
+
+This is controlled by `spring.shell.context.close`, which Embabel defaults to `true`.
+Set it to `false` explicitly if your application must keep running after the shell exits (for example, to keep serving web requests).
+`EmbabelMockitoIntegrationTest` sets it to `false` so the test context stays open.
+
 ==== Navigating the Shell
 
 Type `help` to list all available commands with a short description of each:
