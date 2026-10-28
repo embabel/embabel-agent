@@ -665,7 +665,7 @@ open class OpenAiCompatibleModelFactory(
      * override this.
      */
     protected open val servesOpenAiCatalog: Boolean
-        get() = baseUrl == null || runCatching { URI(baseUrl).host }.getOrNull() == OPENAI_API_HOST
+        get() = baseUrl == null || runCatching { URI(baseUrl).host }.getOrNull().equals(OPENAI_API_HOST, ignoreCase = true)
 
     /**
      * An LLM for a catalog [definition]: the transport it declares, the options converter its
