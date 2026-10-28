@@ -273,7 +273,8 @@ class CapabilityAwareOpenAiOptionsConverterTest {
         logger.addAppender(logs)
         try {
             val converter = CapabilityAwareOpenAiOptionsConverter(ModelCapabilities.GPT5_FAMILY)
-            repeat(3) { converter.convertOptions(LlmOptions().withTemperature(0.0), "gpt-6-astra") }
+            // A changing value is the same dropped parameter: warned once, and the set does not grow.
+            listOf(0.0, 0.3, 0.7).forEach { converter.convertOptions(LlmOptions().withTemperature(it), "gpt-6-astra") }
             converter.convertOptions(LlmOptions().withTemperature(0.0), "gpt-6-luna")
 
             assertEquals(

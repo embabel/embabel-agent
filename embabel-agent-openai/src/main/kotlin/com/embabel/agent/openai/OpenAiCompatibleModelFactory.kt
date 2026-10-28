@@ -61,6 +61,7 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.retry.support.RetryTemplate
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
+import java.net.URI
 import java.time.LocalDate
 
 /**
@@ -137,6 +138,7 @@ open class OpenAiCompatibleModelFactory(
 
     companion object {
         private val RESPONSES_OBJECT_MAPPER = ObjectMapper()
+        private const val OPENAI_API_HOST = "api.openai.com"
         private val OPEN_AI = ProviderEndpoint(OpenAiModels.PROVIDER, null)
         private val DEEP_SEEK = ProviderEndpoint(DeepSeekModels.PROVIDER, "https://api.deepseek.com")
         private val MISTRAL = ProviderEndpoint(MistralAiModels.PROVIDER, "https://api.mistral.ai/v1")
@@ -619,7 +621,8 @@ open class OpenAiCompatibleModelFactory(
 
     /**
      * An LLM for [model], built the way the shipped OpenAI catalog (`models/openai-models.yml`)
-     * declares it when [provider] is OpenAI and the catalog lists [model] by its exact id: the
+     * declares it when [provider] is OpenAI, the endpoint is OpenAI's own ([servesOpenAiCatalog]) and
+     * the catalog lists [model] by its exact id: the
      * catalog's transport (Chat Completions or Responses), its options converter, and native
      * structured output. Any other provider or model gets [openAiCompatibleLlm].
      *
@@ -639,7 +642,7 @@ open class OpenAiCompatibleModelFactory(
         provider: String,
         knowledgeCutoffDate: LocalDate? = null,
     ): LlmService<*> {
-        val definition = catalogDefinitionFor(provider, model)
+        val definition = catalogDefinitionFor(provider, model)?.takeIf { servesOpenAiCatalog }
             ?: return openAiCompatibleLlm(
                 model = model,
                 pricingModel = pricingModel,
@@ -653,6 +656,16 @@ open class OpenAiCompatibleModelFactory(
             knowledgeCutoffDate = knowledgeCutoffDate ?: definition.knowledgeCutoffDate,
         )
     }
+
+    /**
+     * Whether [llm] may follow the OpenAI catalog for this factory's endpoint: true for OpenAI's own
+     * API. A gateway at another address that calls itself OpenAI may speak only Chat Completions,
+     * and sending its catalog models to `/v1/responses` would turn a working key into a 404, so it
+     * keeps [openAiCompatibleLlm]. A subclass for a gateway known to serve the Responses API can
+     * override this.
+     */
+    protected open val servesOpenAiCatalog: Boolean
+        get() = baseUrl == null || runCatching { URI(baseUrl).host }.getOrNull() == OPENAI_API_HOST
 
     /**
      * An LLM for a catalog [definition]: the transport it declares, the options converter its

@@ -67,7 +67,14 @@ class OpenAiCompatibleModelFactoryCatalogTest {
     @AfterEach
     fun stopServer() = server.stop(0)
 
-    private fun factory() = OpenAiCompatibleModelFactory(
+    /** The local server stands in for OpenAI's own API, which is where the catalog applies. */
+    private fun factory(): OpenAiCompatibleModelFactory =
+        object : OpenAiCompatibleModelFactory(baseUrl = "http://localhost:${server.address.port}/v1", apiKey = "test-key") {
+            override val servesOpenAiCatalog = true
+        }
+
+    /** A gateway at its own address that calls itself OpenAI, as Embabel Me's named connections do. */
+    private fun gateway() = OpenAiCompatibleModelFactory(
         baseUrl = "http://localhost:${server.address.port}/v1",
         apiKey = "test-key",
     )
@@ -135,6 +142,26 @@ class OpenAiCompatibleModelFactoryCatalogTest {
         responsesModels.forEach { model ->
             assertTrue(llm(model).chatModel is OpenAiResponsesChatModel, model)
         }
+    }
+
+    @Test
+    fun `OpenAI's own endpoint follows the catalog`() {
+        val service = OpenAiCompatibleModelFactory(baseUrl = null, apiKey = "test-key")
+            .llm(model = OpenAiModels.GPT_6_LUNA, pricingModel = PricingModel.ALL_YOU_CAN_EAT, provider = OpenAiModels.PROVIDER)
+        assertTrue((service as SpringAiLlmService).chatModel is OpenAiResponsesChatModel)
+    }
+
+    /** A Chat-Completions-only gateway that worked before must not be sent to `/v1/responses`. */
+    @Test
+    fun `a gateway at another address keeps Chat Completions for catalog models`() {
+        gateway().buildValidated(
+            model = OpenAiModels.GPT_6_LUNA,
+            pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+            provider = OpenAiModels.PROVIDER,
+            knowledgeCutoffDate = null,
+        )
+
+        assertEquals(listOf("/v1/chat/completions"), captured.map { it.path })
     }
 
     /** A key validated against GPT-6 proves the transport it will be served on. */
