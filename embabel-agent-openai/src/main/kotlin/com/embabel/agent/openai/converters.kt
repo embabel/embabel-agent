@@ -121,7 +121,7 @@ class CapabilityAwareOpenAiOptionsConverter(
 
     private val logger = loggerFor<CapabilityAwareOpenAiOptionsConverter>()
 
-    /** `model|dropped` pairs already warned about; bounded by the models and option sets in use. */
+    /** `model|parameter names` already warned about; bounded by the models in use times four parameters. */
     private val warned: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     override fun convertOptions(options: LlmOptions, model: String): ChatOptions {
@@ -185,7 +185,9 @@ class CapabilityAwareOpenAiOptionsConverter(
         if (ignored.isEmpty()) return
         val dropped = ignored.joinToString(", ")
         val message = "Model '{}' rejects some sampling parameters, so the following are ignored rather than sent: {}"
-        if (warned.add("$model|$dropped")) logger.warn(message, model, dropped) else logger.debug(message, model, dropped)
+        // Keyed by parameter names, not values, so a caller varying a value cannot grow the set.
+        val names = ignored.joinToString(",") { it.substringBefore('=') }
+        if (warned.add("$model|$names")) logger.warn(message, model, dropped) else logger.debug(message, model, dropped)
     }
 
     companion object {
