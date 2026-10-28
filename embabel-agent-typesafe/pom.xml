@@ -9,6 +9,14 @@
     <artifactId>embabel-agent-typesafe</artifactId>
     <name>Embabel Agent TypeSafe</name>
     <description>Decision services for TypeSafe Jev models</description>
+    <url>https://github.com/embabel/embabel-agent</url>
+
+    <scm>
+        <url>https://github.com/embabel/embabel-agent</url>
+        <connection>scm:git:https://github.com/embabel/embabel-agent.git</connection>
+        <developerConnection>scm:git:https://github.com/embabel/embabel-agent.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
     <dependencies>
         <dependency>
             <groupId>com.embabel.agent</groupId>
