@@ -16,6 +16,8 @@
 package com.embabel.agent.api.tool.callback
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.hitl.AwaitableResponseException
+import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.agent.spi.loop.LlmMessageResponse
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.MockLlmMessageSender
@@ -32,6 +34,7 @@ import tools.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 
 /**
  * Unit tests for [ToolLoopInspector] and [ToolLoopTransformer] callbacks.
@@ -841,6 +844,155 @@ class ToolLoopCallbackTest {
             Assertions.assertEquals("tool_b", firstIterationToolCalls[1].name)
             // Second iteration (early exit) has no tool calls
             Assertions.assertTrue(afterIterationCalls[1].toolCallsInIteration.isEmpty())
+        }
+    }
+
+    @Nested
+    inner class BeforeToolCallTransformTest {
+
+        private fun loop(vararg transformers: ToolLoopTransformer, inspectors: List<ToolCallInspector> = emptyList()) =
+            DefaultToolLoop(
+                llmMessageSender = MockLlmMessageSender(
+                    responses = listOf(
+                        MockLlmMessageSender.Companion.toolCallResponse("call_1", "test_tool", """{"q":"original"}"""),
+                        MockLlmMessageSender.Companion.textResponse("Done!")
+                    )
+                ),
+                objectMapper = objectMapper,
+                toolLoopTransformers = transformers.toList(),
+                toolCallInspectors = inspectors,
+            )
+
+        private fun run(loop: DefaultToolLoop, tool: Tool) = loop.execute(
+            initialMessages = listOf(UserMessage("Use the tool")),
+            initialTools = listOf(tool),
+            outputParser = { it }
+        )
+
+        @Test
+        fun `context carries the call the tool the history and the iteration`() {
+            var seen: BeforeToolExecutionContext? = null
+            val transformer = object : ToolLoopTransformer {
+                override fun transformBeforeToolCall(context: BeforeToolExecutionContext): ToolCallDisposition {
+                    seen = context
+                    return ToolCallDisposition.Proceed(context.toolCall)
+                }
+            }
+            val tool = MockTool("test_tool", "Test tool") { Tool.Result.text("ok") }
+
+            run(loop(transformer), tool)
+
+            val context = seen!!
+            Assertions.assertEquals("test_tool", context.toolCall.name)
+            Assertions.assertEquals("""{"q":"original"}""", context.toolCall.arguments)
+            Assertions.assertSame(tool, context.tool)
+            Assertions.assertEquals(1, context.iteration)
+            Assertions.assertTrue(context.history.any { it is UserMessage })
+        }
+
+        @Test
+        fun `rewritten arguments reach the tool and the after tool result context`() {
+            val received = mutableListOf<String>()
+            val afterContexts = mutableListOf<AfterToolResultContext>()
+            val rewriter = object : ToolLoopTransformer {
+                override fun transformBeforeToolCall(context: BeforeToolExecutionContext) =
+                    ToolCallDisposition.Proceed(context.toolCall.copy(arguments = """{"q":"rewritten"}"""))
+            }
+            val loop = DefaultToolLoop(
+                llmMessageSender = MockLlmMessageSender(
+                    responses = listOf(
+                        MockLlmMessageSender.Companion.toolCallResponse("call_1", "test_tool", """{"q":"original"}"""),
+                        MockLlmMessageSender.Companion.textResponse("Done!")
+                    )
+                ),
+                objectMapper = objectMapper,
+                toolLoopInspectors = listOf(object : ToolLoopInspector {
+                    override fun afterToolResult(context: AfterToolResultContext) {
+                        afterContexts.add(context)
+                    }
+                }),
+                toolLoopTransformers = listOf(rewriter),
+            )
+            val tool = MockTool("test_tool", "Test tool") { input -> received.add(input); Tool.Result.text("ok") }
+
+            val result = run(loop, tool)
+
+            Assertions.assertEquals(listOf("""{"q":"rewritten"}"""), received)
+            Assertions.assertEquals("""{"q":"rewritten"}""", afterContexts.single().toolCall.arguments)
+            Assertions.assertEquals("call_1", result.conversationHistory.filterIsInstance<ToolResultMessage>().single().toolCallId)
+        }
+
+        @Test
+        fun `short circuit skips the tool and its result goes through the after tool result path`() {
+            var toolCalled = false
+            val afterResults = mutableListOf<String>()
+            val before = mutableListOf<BeforeToolCallContext>()
+            val after = mutableListOf<AfterToolCallContext>()
+            val gate = object : ToolLoopTransformer {
+                override fun transformBeforeToolCall(context: BeforeToolExecutionContext) =
+                    ToolCallDisposition.ShortCircuit(Tool.Result.text("needs confirmation"))
+
+                override fun transformAfterToolResult(context: AfterToolResultContext): String {
+                    afterResults.add(context.resultAsString)
+                    return "SEEN: ${context.resultAsString}"
+                }
+            }
+            val inspector = object : ToolCallInspector {
+                override fun beforeToolCall(context: BeforeToolCallContext) { before.add(context) }
+                override fun afterToolCall(context: AfterToolCallContext) { after.add(context) }
+            }
+            val tool = MockTool("test_tool", "Test tool") { toolCalled = true; Tool.Result.text("ok") }
+
+            val result = run(loop(gate, inspectors = listOf(inspector)), tool)
+
+            Assertions.assertFalse(toolCalled, "a short-circuited tool must not run")
+            Assertions.assertEquals(listOf("needs confirmation"), afterResults)
+            val toolResult = result.conversationHistory.filterIsInstance<ToolResultMessage>().single()
+            Assertions.assertEquals("SEEN: needs confirmation", toolResult.content)
+            Assertions.assertEquals("call_1", toolResult.toolCallId)
+            Assertions.assertTrue(before.isEmpty(), "nothing was called, so beforeToolCall must not fire")
+            Assertions.assertEquals(1, after.size, "the LLM saw a result, so afterToolCall fires")
+            Assertions.assertEquals(0L, after.single().durationMs)
+            Assertions.assertEquals("Done!", result.result)
+        }
+
+        @Test
+        fun `a short circuit error result is rendered like a tool error`() {
+            val gate = object : ToolLoopTransformer {
+                override fun transformBeforeToolCall(context: BeforeToolExecutionContext) =
+                    ToolCallDisposition.ShortCircuit(Tool.Result.error("denied by policy"))
+            }
+            val tool = MockTool("test_tool", "Test tool") { Tool.Result.text("ok") }
+
+            val result = run(loop(gate), tool)
+
+            val toolResult = result.conversationHistory.filterIsInstance<ToolResultMessage>().single()
+            Assertions.assertEquals("Error: denied by policy", toolResult.content)
+        }
+
+        @Test
+        fun `a control flow signal from the transform propagates`() {
+            val gate = object : ToolLoopTransformer {
+                override fun transformBeforeToolCall(context: BeforeToolExecutionContext): ToolCallDisposition =
+                    throw AwaitableResponseException(ConfirmationRequest(context.toolCall.arguments, "Confirm?"))
+            }
+            var toolCalled = false
+            val tool = MockTool("test_tool", "Test tool") { toolCalled = true; Tool.Result.text("ok") }
+
+            assertThrows<AwaitableResponseException> { run(loop(gate), tool) }
+            Assertions.assertFalse(toolCalled)
+        }
+
+        @Test
+        fun `a transformer exception propagates and is not swallowed`() {
+            val gate = object : ToolLoopTransformer {
+                override fun transformBeforeToolCall(context: BeforeToolExecutionContext): ToolCallDisposition =
+                    throw IllegalStateException("gate failed")
+            }
+            val tool = MockTool("test_tool", "Test tool") { Tool.Result.text("ok") }
+
+            val e = assertThrows<IllegalStateException> { run(loop(gate), tool) }
+            Assertions.assertEquals("gate failed", e.message)
         }
     }
 }
