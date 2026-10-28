@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.autoconfigure.shell;
 
+import com.embabel.agent.autoconfigure.shell.spi.ShellEnvironmentPostProcessor;
 import com.embabel.agent.api.common.Asyncer;
 import com.embabel.common.util.EmbabelObjectMapperHolder;
 import com.embabel.agent.api.common.ToolsStats;
@@ -28,10 +29,15 @@ import com.embabel.common.ai.model.ModelProvider;
 import org.jline.terminal.Terminal;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.shell.jline.PromptProvider;
+import org.springframework.shell.core.autoconfigure.ApplicationRunnerAutoConfiguration;
+
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -106,6 +112,35 @@ class AgentShellAutoConfigurationTest {
       contextRunner
               .withPropertyValues("spring.shell.context.close=false")
               .run(context -> assertThat(context).doesNotHaveBean(ShellExitListener.class));
+   }
+
+   @Test
+   void backsOffWhenCustomShellExitListenerExists() {
+      ShellExitListener customListener = new ShellExitListener(code -> { });
+      contextRunner
+              .withPropertyValues("spring.shell.context.close=true")
+              .withBean("customShellExitListener", ShellExitListener.class, () -> customListener)
+              .run(context -> {
+                 assertThat(context).hasSingleBean(ShellExitListener.class);
+                 assertThat(context.getBean(ShellExitListener.class)).isSameAs(customListener);
+              });
+   }
+
+   @Test
+   void keepsNonInteractiveContextOpenOnReadyEvent() {
+      contextRunner
+              .withConfiguration(AutoConfigurations.of(
+                      ApplicationRunnerAutoConfiguration.class))
+              .withPropertyValues("spring.shell.interactive.enabled=false")
+              .withInitializer(context -> new ShellEnvironmentPostProcessor()
+                      .postProcessEnvironment(context.getEnvironment(), new SpringApplication()))
+              .run(context -> {
+                 assertThat(context).doesNotHaveBean(ShellExitListener.class);
+                 context.publishEvent(new ApplicationReadyEvent(
+                         new SpringApplication(), new String[0],
+                         context.getSourceApplicationContext(), Duration.ZERO));
+                 assertThat(context.isActive()).isTrue();
+              });
    }
 
    /**

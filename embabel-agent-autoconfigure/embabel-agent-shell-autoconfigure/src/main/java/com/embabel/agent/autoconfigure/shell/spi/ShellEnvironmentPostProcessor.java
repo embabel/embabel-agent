@@ -19,6 +19,7 @@ import com.embabel.agent.autoconfigure.shell.AgentShellProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.context.config.ConfigDataEnvironmentPostProcessor;
 import org.springframework.boot.context.properties.bind.BindException;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.env.EnvironmentPostProcessor;
@@ -53,7 +54,7 @@ public class ShellEnvironmentPostProcessor implements EnvironmentPostProcessor, 
 
     @Override
     public int getOrder() {
-        return Ordered.HIGHEST_PRECEDENCE + 10; // Run early, but after core Spring Boot processors
+        return ConfigDataEnvironmentPostProcessor.ORDER + 1; // Resolve application and profile configuration first
     }
 
     @Override
@@ -114,8 +115,8 @@ public class ShellEnvironmentPostProcessor implements EnvironmentPostProcessor, 
      *
      * <p>Spring Shell 4 handles {@code quit}/{@code exit} by ending its input loop only; the
      * application context stays open (and non-daemon threads keep the JVM alive) unless
-     * {@code spring.shell.context.close} is true. Default it to true unless the application
-     * has set it explicitly.
+     * {@code spring.shell.context.close} is true. Unless explicitly configured, close the
+     * context only when interactive mode is enabled.
      *
      * @param environment the configurable environment
      * @param shellConfig the shell configuration
@@ -130,10 +131,13 @@ public class ShellEnvironmentPostProcessor implements EnvironmentPostProcessor, 
         // Configure Spring Shell behavior
         properties.put(SHELL_EXIT_ENABLED_PROPERTY, shellConfig.isExitCommandEnabled());
         properties.put(SHELL_QUIT_ENABLED_PROPERTY, shellConfig.isQuitCommandEnabled());
-        properties.put(SHELL_INTERACTIVE_ENABLED_PROPERTY, shellConfig.isInteractiveMode());
+        Boolean configuredInteractive = environment.getProperty(SHELL_INTERACTIVE_ENABLED_PROPERTY, Boolean.class);
+        boolean interactive = configuredInteractive != null ? configuredInteractive : shellConfig.isInteractiveMode();
+        properties.put(SHELL_INTERACTIVE_ENABLED_PROPERTY, interactive);
         properties.put(SHELL_HISTORY_ENABLED_PROPERTY, shellConfig.isHistoryEnabled());
         if (!environment.containsProperty(SHELL_CONTEXT_CLOSE_PROPERTY)) {
-            properties.put(SHELL_CONTEXT_CLOSE_PROPERTY, true);
+            Boolean contextClose = shellConfig.getContextClose();
+            properties.put(SHELL_CONTEXT_CLOSE_PROPERTY, contextClose != null ? contextClose : interactive);
         }
 
         return properties;
@@ -168,6 +172,10 @@ public class ShellEnvironmentPostProcessor implements EnvironmentPostProcessor, 
 
         public boolean isHistoryEnabled() {
             return properties.getInteractive().isHistoryEnabled();
+        }
+
+        public Boolean getContextClose() {
+            return properties.getContextClose();
         }
     }
 }

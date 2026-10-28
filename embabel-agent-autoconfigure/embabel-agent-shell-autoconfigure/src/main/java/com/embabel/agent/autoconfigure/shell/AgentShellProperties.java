@@ -53,6 +53,12 @@ public class AgentShellProperties {
     private String webApplicationType = "none";
 
     /**
+     * Close the context and exit the process after the shell ends.
+     * When unset, follows interactive mode. An explicit spring.shell.context.close takes precedence.
+     */
+    private Boolean contextClose;
+
+    /**
      * Shell command configuration.
      */
     @Valid
@@ -72,6 +78,14 @@ public class AgentShellProperties {
 
     public void setWebApplicationType(String webApplicationType) {
         this.webApplicationType = webApplicationType;
+    }
+
+    public Boolean getContextClose() {
+        return contextClose;
+    }
+
+    public void setContextClose(Boolean contextClose) {
+        this.contextClose = contextClose;
     }
 
     public Command getCommand() {

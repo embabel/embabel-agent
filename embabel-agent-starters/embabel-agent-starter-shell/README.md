@@ -153,6 +153,15 @@ fun main(args: Array<String>) {
 | `embabel.agent.shell.command.quit-enabled` | `false` | Enable Spring Shell 'quit' command |
 | `embabel.agent.shell.interactive.enabled` | `true` | Enable interactive shell mode |
 | `embabel.agent.shell.interactive.history-enabled` | `true` | Enable command history navigation |
+| `embabel.agent.shell.context-close` | Follows interactive mode | Close the context and exit the process after the shell ends |
+
+Typing `quit` or `exit` ends the interactive shell, closes the application context, and exits the process with the application's exit code.
+When interactive mode is disabled, the context stays open by default so non-interactive applications and tests can continue running.
+An explicit `spring.shell.interactive.enabled` takes precedence over `embabel.agent.shell.interactive.enabled`.
+
+Set `embabel.agent.shell.context-close=false` to keep the application running after the shell ends.
+An explicit `spring.shell.context.close` takes precedence over this setting; otherwise, context closing follows the resolved interactive mode.
+Explicitly enabling context closing also requests shutdown after application runners finish when interactive mode is disabled.
 
 ## How It Works
 
