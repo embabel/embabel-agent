@@ -33,7 +33,8 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
  *
  * <p>This configuration enables:
  * <ul>
- *   <li>Agent card endpoint: {@code /{path}/.well-known/agent.json}</li>
+ *   <li>Agent card endpoint: {@code /{path}/.well-known/agent-card.json}, and {@code /{path}/.well-known/agent.json}
+ *   for A2A 0.2 clients</li>
  *   <li>JSON-RPC endpoint: {@code /{path}}</li>
  * </ul>
  *
