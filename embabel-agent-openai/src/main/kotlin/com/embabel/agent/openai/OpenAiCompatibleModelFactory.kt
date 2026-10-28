@@ -592,8 +592,8 @@ open class OpenAiCompatibleModelFactory(
      *
      * LlmOptions are used to request native structured output when [nativeSupport] declares it.
      * Pass the
-     * shipped OpenAI catalog's settings, `OpenAiModelLoader().loadAutoConfigMetadata().nativeSupportDefaults`
-     * from the OpenAI autoconfigure module, to get what catalog models get, including the schema
+     * shipped OpenAI catalog's settings, `OpenAiModelLoader().loadAutoConfigMetadata().nativeSupportDefaults`,
+     * to get what catalog models get, including the schema
      * compatibility check that falls back to prompt-based output. Without it, structured output
      * is prompt-based, as with [openAiCompatibleLlm].
      *

@@ -174,6 +174,16 @@ fun luna(): LlmService<*> =
 ----
 ====
 
+To build a model the way the shipped OpenAI catalog (`models/openai-models.yml`) declares it, call `llm` instead.
+For a model the catalog lists by its exact id, on OpenAI's own endpoint, it picks the catalog's transport, options and native structured output; GPT-6 gets the Responses API, GPT-4.1 gets Chat Completions.
+Any other model, provider or base URL gets `openAiCompatibleLlm`, so a gateway that only implements Chat Completions keeps working.
+
+[source,kotlin]
+----
+val astra: LlmService<*> = OpenAiCompatibleModelFactory.openAi(apiKey)
+    .llm(model = "gpt-6-astra", pricingModel = PricingModel.ALL_YOU_CAN_EAT, provider = "OpenAI")
+----
+
 - *Requests*: no sampling parameters are sent, and `LlmOptions.maxTokens` becomes `max_output_tokens`, which also covers reasoning tokens.
 - *Reasoning*: set the effort per call with `LlmOptions.withOpenAiReasoningEffort("low")`. It is sent as the Responses `reasoning.effort` whatever the `provider` name is.
 - *Structured output*: native only when `nativeSupport` declares it, as with the catalog settings above. Schemas that fail the native-output compatibility check fall back to prompt-based output, as for catalog models. Without `nativeSupport`, structured output is prompt-based.
@@ -282,6 +292,7 @@ The provider's SDK does not retry a 401, 402 or 403 response, so a refused key i
 one request. The SDK retries a 429 response twice, so a rate limited key is reported after three
 requests. The SDK also retries other failures it treats as temporary, such as a failed connection.
 On success it returns a production `LlmService`; on failure it throws `InvalidApiKeyException`.
+The probe and the returned service are built with `llm`, so an OpenAI key gets each catalog model on the transport the catalog declares, GPT-6 included.
 
 A **blank** key is treated as absent and rejected before any network call, also with
 `InvalidApiKeyException`. This matters more than it sounds: Docker Compose passes
