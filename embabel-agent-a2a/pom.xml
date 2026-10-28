@@ -56,6 +56,12 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <scope>test</scope>
+        </dependency>
+
         <!--
             Spring Boot 4 split the webmvc/MockMvc test slice out of
             spring-boot-test-autoconfigure into its own artifact. Needed for
