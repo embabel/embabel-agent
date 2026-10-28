@@ -180,7 +180,7 @@ Any other model, provider or base URL gets `openAiCompatibleLlm`, so a gateway t
 
 [source,kotlin]
 ----
-val astra: LlmService<*> = OpenAiCompatibleModelFactory.openAi(apiKey)
+val astra: LlmService<*> = OpenAiCompatibleModelFactory(baseUrl = null, apiKey = apiKey)
     .llm(model = "gpt-6-astra", pricingModel = PricingModel.ALL_YOU_CAN_EAT, provider = "OpenAI")
 ----
 
