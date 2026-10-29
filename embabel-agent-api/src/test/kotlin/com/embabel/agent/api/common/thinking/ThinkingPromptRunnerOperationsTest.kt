@@ -164,11 +164,8 @@ class ThinkingPromptRunnerOperationsTest {
 
 
     /**
-     * Tests that StreamingPromptRunner throws exception when withThinking() is called.
-     *
-     * Verifies that:
-     * 1. StreamingPromptRunner.withThinking() throws UnsupportedOperationException
-     * 2. Exception message guides users to use streaming events instead
+     * Tests that a StreamingPromptRunner that is not a ThinkingPromptRunner throws
+     * UnsupportedOperationException from thinking().
      */
     @Test
     fun `StreamingPromptRunner should throw exception when withThinking called`() {
@@ -276,8 +273,7 @@ class ThinkingPromptRunnerOperationsTest {
             override fun withLlmService(llmService: com.embabel.agent.spi.LlmService<*>): PromptRunner = this
         }
 
-        // When/Then: Call withThinking() on StreamingPromptRunner should throw exception
-        // testStreamingRunner.withThinking().createObject("test prompt", String::class.java) // does not compile - ThinkingCapability has no createObject method
+        // When/Then: this StreamingPromptRunner is not a ThinkingPromptRunner, so thinking() throws
 
         assertThrows<UnsupportedOperationException> {
             testStreamingRunner.thinking()
@@ -299,8 +295,7 @@ class ThinkingPromptRunnerOperationsTest {
             responses = mutableListOf("fake test result")
         )
 
-        // When/Then: Call withThinking() on FakePromptRunner should throw exception
-        // fakeRunner.withThinking().createObject("test prompt", String::class.java) // does not compile - ThinkingCapability has no createObject method
+        // When/Then: FakePromptRunner is not a ThinkingPromptRunner, so thinking() throws
 
         assertThrows<UnsupportedOperationException> {
             fakeRunner.thinking()

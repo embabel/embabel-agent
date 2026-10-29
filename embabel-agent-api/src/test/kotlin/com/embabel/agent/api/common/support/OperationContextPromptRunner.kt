@@ -22,6 +22,7 @@ import com.embabel.agent.api.common.streaming.StreamingPromptRunner
 import com.embabel.agent.spi.support.streaming.InternalStreamingApi
 import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.api.common.support.streaming.StreamingImpl
+import com.embabel.agent.api.common.thinking.ThinkingPromptRunner
 import com.embabel.agent.api.common.thinking.support.ThinkingPromptRunnerOperationsImpl
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
@@ -71,7 +72,7 @@ internal data class OperationContextPromptRunner(
     private val guardRails: List<GuardRail> = emptyList(),
     private val toolLoopInspectors: List<ToolLoopInspector> = emptyList(),
     private val toolLoopTransformers: List<ToolLoopTransformer> = emptyList(),
-) : StreamingPromptRunner {
+) : StreamingPromptRunner, ThinkingPromptRunner {
 
     val action = (context as? ActionContext)?.action
 
@@ -324,8 +325,6 @@ internal data class OperationContextPromptRunner(
      * @return PromptRunner.Thinking for executing prompts with thinking extraction
      * @throws UnsupportedOperationException if the underlying LLM operations don't support thinking extraction
      */
-    override fun supportsThinking(): Boolean = true
-
     override fun thinking(): PromptRunner.Thinking {
         val llmOperations = context.agentPlatform().platformServices.llmOperations
 
