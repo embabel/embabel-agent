@@ -59,7 +59,14 @@ interface EmbeddingServiceMetadata : ModelMetadata {
 /**
  * Embed text in vector space
  */
-interface EmbeddingService : EmbeddingServiceMetadata, HasInfoString {
+interface EmbeddingService : EmbeddingServiceMetadata, ModelCapability, HasInfoString {
+
+    companion object {
+
+        /** Embedding models. A role binds one to a [ModelName]. */
+        @JvmField
+        val KIND: ModelKind<EmbeddingService, ModelName> = ModelKind("embedding", EmbeddingService::class.java)
+    }
 
     /**
      * Embed a single text in vector space

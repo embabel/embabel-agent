@@ -205,6 +205,29 @@ A service registered later is outside the snapshot and cannot be found there by 
 Provider models are not in this snapshot: the registry looks them up on first selection and caches each service.
 Pass a service built at run time, such as a per-user service, to `using(service)`.
 
+===== Other model kinds
+
+`DecisionServiceRegistry` uses `ModelRegistry`, which is not specific to decisions.
+A `ModelRegistry` groups registered models into families. Each family is a capability interface that extends `ModelCapability`, declared with `family(type, spec)`.
+A model is in every family whose interface it implements.
+Each family has a default and role bindings that resolve as described above, and `select(type)` returns its `ServiceSelector`.
+A `ModelSource` creates models by name on first lookup. The decision registry wraps each `DecisionModelProvider` in a `ModelSource`.
+
+[source,kotlin]
+----
+val registry = ModelRegistry.builder<ImageService>()
+    .family(ImageService::class.java, ModelRegistry.FamilySpec("image", "MyImageRegistry.Builder"))
+    .register("sketch", sketchModel)
+    .register("photo", photoModel)
+    .defaultFor(ImageService::class.java, "photo")
+    .role(ImageService::class.java, "cheap", "sketch")
+    .build()
+val cheap = registry.select(ImageService::class.java).byRole("cheap") // sketchModel
+----
+
+`ImageService` stands for any capability interface you declare.
+`ModelRegistry` is experimental.
+
 ==== Configuration
 
 Decision models are configured the way chat models are.

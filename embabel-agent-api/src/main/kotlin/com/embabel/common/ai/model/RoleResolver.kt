@@ -15,55 +15,61 @@
  */
 package com.embabel.common.ai.model
 
-import com.embabel.agent.spi.LlmService
+import org.jetbrains.annotations.ApiStatus
 
 /**
- * What a role resolved to.
+ * What a role resolved to, for one [ModelKind].
  *
  * Three cases, in increasing order of how much the resolver does itself. Most applications need
  * only [Credential]: say whose key is active and let the platform do the rest.
+ *
+ * @param C the capability of the kind the role was resolved for
+ * @param B what a role of that kind binds to
  */
-sealed interface RoleResolution {
+@ApiStatus.Experimental
+sealed interface RoleResolution<out C : ModelCapability, out B : RoleBinding> {
 
     /**
-     * Configured options - a model name, and optionally hyperparameters that travel with the role.
-     * Values the caller set explicitly still win.
+     * A configured binding: a model name, and for chat the hyperparameters that travel with the
+     * role. Values the caller set explicitly still win.
      *
-     * The wrapper is what makes this a case rather than a payload. Returning a bare [LlmOptions]
-     * would leave the platform unable to tell "resolved to options" from the other two answers in
-     * a `when`, and would rule out ever adding a third field to this case without changing every
-     * resolver's signature. The other two wrap for the same reason; the cost is one `.llmOptions`
-     * at the use site.
+     * The binding is wrapped so that the platform can tell this case apart from the other two in a
+     * `when`, and so that a field can be added to this case later without changing every
+     * resolver's signature.
      */
-    data class Options(
-        val llmOptions: LlmOptions,
-    ) : RoleResolution
+    data class Bound<out B : RoleBinding>(
+        val binding: B,
+    ) : RoleResolution<Nothing, B>
 
     /**
-     * A provider key. The platform looks the role up for that provider and builds the service
-     * through a [CredentialEndpointResolver], caching it.
+     * A provider key. The platform looks up the model the role names for that provider. If the role
+     * has no entry for that provider, it uses the role's entry in the flat role map instead. An
+     * entry for the provider that names no model does not fall back. The platform then builds the
+     * model through a [ModelPlatform] that builds this kind on that key, and caches it.
      */
     data class Credential(
         val credential: ProviderCredential,
-    ) : RoleResolution
+    ) : RoleResolution<Nothing, Nothing>
 
     /**
-     * An already-built service, for callers that construct their own.
+     * An already-built model, for callers that construct their own.
      *
-     * [llmOptions] travels with it and is merged the way [Options] is, so a resolver that built its
-     * own service does not have to give up the tuning configured beside the model name. Defaulted,
-     * because a resolver handing back a service it configured itself has nothing to add.
+     * [binding] travels with it and is merged the way [Bound] is, so a resolver that built its own
+     * model does not have to give up the tuning configured beside the model name. Null for a
+     * resolver handing back a model it configured itself.
      */
-    data class Service(
-        val llmService: LlmService<*>,
-        val llmOptions: LlmOptions = LlmOptions.withDefaults(),
-    ) : RoleResolution
+    data class Service<out C : ModelCapability, out B : RoleBinding> @JvmOverloads constructor(
+        val service: C,
+        val binding: B? = null,
+    ) : RoleResolution<C, B>
 }
 
 /**
- * Decides what a role means for a given call.
+ * Decides what a role means for a given call, for one [ModelKind].
  *
- * Register as many as you like. The platform takes the first non-null answer, so a resolver can
+ * Register as many as you like. The platform asks only the resolvers of the kind being selected,
+ * so a role name shared between kinds - "cheapest" for chat and for embedding - cannot resolve to a
+ * model of the wrong kind. Within a kind it takes the first non-null answer, so a resolver can
  * handle the roles it cares about and delegate the rest by returning null.
  *
  * Ordering, in full, because it decides who wins:
@@ -78,48 +84,64 @@ sealed interface RoleResolution {
  *   your resolvers can answer the same role, order them explicitly.
  *
  * Implementations must be thread-safe: one instance serves every call, on any thread.
+ *
+ * ```kotlin
+ * @Bean
+ * fun byokRoleResolver(userKeyStore: UserKeyStore): RoleResolver<LlmService<*>, LlmOptions> =
+ *     RoleResolver.of(LlmService.KIND) { _, context ->
+ *         // Use the user's own key when they have one; null lets configuration decide.
+ *         context.userId
+ *             ?.let { userKeyStore.activeKeyFor(it) }
+ *             ?.let { RoleResolution.Credential(ProviderCredential(it.provider, it.apiKey)) }
+ *     }
+ * ```
+ *
+ * @param C the capability of the kind this resolver answers for
+ * @param B what a role of that kind binds to
  */
-fun interface RoleResolver {
+@ApiStatus.Experimental
+interface RoleResolver<C : ModelCapability, B : RoleBinding> {
+
+    /** The kind of model this resolver answers for. */
+    val kind: ModelKind<C, B>
 
     /**
      * @param role the role requested, for example "cheapest"
      * @param context who the call is for and which provider key is active
      * @return how to satisfy the role, or null to let the next resolver decide
      */
-    fun resolve(role: String, context: ModelSelectionContext): RoleResolution?
+    fun resolve(role: String, context: ModelSelectionContext): RoleResolution<C, B>?
+
+    companion object {
+
+        /**
+         * A resolver of [kind] that answers with [resolve].
+         *
+         * @param kind the kind of model the resolver answers for
+         * @param resolve the role and context to an answer, or null to let the next resolver decide
+         * @return the resolver
+         */
+        @JvmStatic
+        fun <C : ModelCapability, B : RoleBinding> of(
+            kind: ModelKind<C, B>,
+            resolve: (role: String, context: ModelSelectionContext) -> RoleResolution<C, B>?,
+        ): RoleResolver<C, B> = FunctionRoleResolver(kind, resolve)
+    }
 }
 
-/**
- * Builds an [LlmService] from a user-supplied key, for a wire protocol the framework has no client
- * for.
- *
- * The second of two tiers, and the one to reach for last: it names [LlmService], which lives in
- * `com.embabel.agent.spi` - a package application code is asked not to depend on. Adding a provider
- * that speaks the OpenAI or Anthropic protocol - which is nearly all of them - is a
- * [CredentialEndpointResolver] returning a value instead, with no SPI type in sight.
- *
- * `embabel-agent-starter-byok` ships an implementation per wire protocol, covering every provider
- * BYOK supports - Anthropic, OpenAI, DeepSeek, Mistral, Gemini and Atlas Cloud - so per-user keys
- * work with no application code at all; see
- * `com.embabel.agent.config.models.byok.CredentialEndpointConfig`. The shipped beans stand aside
- * for a bean of the same name, but replacing one that way also replaces the code that builds what
- * [CredentialEndpointResolver]s resolve for that protocol.
- *
- * Without a factory that handles the provider, a role resolving to [RoleResolution.Credential]
- * fails with [NoSuitableModelException] and a log line naming the provider nothing handled.
- *
- * Return null for a provider this factory does not handle, rather than building something: the
- * platform tries each factory in turn, and a factory that answers for everything would hand back a
- * client pointed at the wrong endpoint for someone else's key.
- *
- * The platform caches what this returns, per (provider, key, model), so an implementation should
- * build rather than maintain a cache of its own.
- */
-fun interface CredentialLlmServiceFactory {
-
-    /**
-     * @return a service for [model] authenticated with [credential], or null if this factory does
-     * not handle that provider
-     */
-    fun createLlmService(credential: ProviderCredential, model: String): LlmService<*>?
+private class FunctionRoleResolver<C : ModelCapability, B : RoleBinding>(
+    override val kind: ModelKind<C, B>,
+    private val answer: (role: String, context: ModelSelectionContext) -> RoleResolution<C, B>?,
+) : RoleResolver<C, B> {
+    override fun resolve(role: String, context: ModelSelectionContext): RoleResolution<C, B>? = answer(role, context)
+    override fun toString(): String = "RoleResolver(${kind.name})"
 }
+
+/** The resolvers of [kind], in order. */
+internal fun <C : ModelCapability, B : RoleBinding> List<RoleResolver<*, *>>.ofKind(
+    kind: ModelKind<C, B>,
+): List<RoleResolver<C, B>> =
+    // A kind equals only itself. A resolver that holds this kind was declared RoleResolver<C, B>,
+    // so the cast is safe.
+    @Suppress("UNCHECKED_CAST")
+    (filter { it.kind == kind } as List<RoleResolver<C, B>>)

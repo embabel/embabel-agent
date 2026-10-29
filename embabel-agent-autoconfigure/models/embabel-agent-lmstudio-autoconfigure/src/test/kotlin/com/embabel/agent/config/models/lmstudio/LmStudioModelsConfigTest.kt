@@ -20,10 +20,12 @@ import com.embabel.agent.openai.OpenAiClientTimeouts
 import com.embabel.agent.openai.withOpenAiReasoningEffort
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.LlmOptions
-import org.springframework.ai.openai.OpenAiChatOptions
+import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
+import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.local.LocalModel
 import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
-import com.embabel.common.ai.model.local.LocalModelKind
+import org.springframework.ai.openai.OpenAiChatOptions
 import io.micrometer.observation.ObservationRegistry
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -160,13 +162,13 @@ class LmStudioModelsConfigTest {
         fun `the catalog splits models by the type the server itself reports`() {
             val catalog = servingBoth().lmStudioLocalModelCatalog()
 
-            assertEquals(setOf("qwen3"), catalog.servedNames(LocalModelKind.CHAT))
-            assertEquals(setOf("nomic-embed-text"), catalog.servedNames(LocalModelKind.EMBEDDING))
+            assertEquals(setOf("qwen3"), catalog.servedNames(LlmService.KIND))
+            assertEquals(setOf("nomic-embed-text"), catalog.servedNames(EmbeddingService.KIND))
         }
 
         @Test
         fun `an LM Studio chat model forwards a configured reasoning effort`() {
-            val llm = servingBoth().lmStudioLocalModelCatalog().llmNamed("qwen3") as SpringAiLlmService
+            val llm = servingBoth().lmStudioLocalModelCatalog().named(LlmService.KIND, "qwen3") as SpringAiLlmService
             val options = LlmOptions().withOpenAiReasoningEffort("none")
 
             assertEquals("none", (llm.optionsConverter.convertOptions(options, "qwen3") as OpenAiChatOptions).reasoningEffort)
@@ -176,11 +178,11 @@ class LmStudioModelsConfigTest {
         fun `a model loaded after boot resolves to a service by name`() {
             val catalog = servingBoth().lmStudioLocalModelCatalog()
 
-            val llm = catalog.llmNamed("qwen3")
+            val llm = catalog.named(LlmService.KIND, "qwen3")
             assertNotNull(llm)
             assertEquals("qwen3", llm.name)
 
-            val embedding = catalog.embeddingNamed("nomic-embed-text")
+            val embedding = catalog.named(EmbeddingService.KIND, "nomic-embed-text")
             assertNotNull(embedding)
             assertEquals("nomic-embed-text", embedding.name)
         }
@@ -194,8 +196,8 @@ class LmStudioModelsConfigTest {
         fun `a chat model does not answer an embedding request by name, or the reverse`() {
             val catalog = servingBoth().lmStudioLocalModelCatalog()
 
-            assertNull(catalog.embeddingNamed("qwen3"))
-            assertNull(catalog.llmNamed("nomic-embed-text"))
+            assertNull(catalog.named(EmbeddingService.KIND, "qwen3"))
+            assertNull(catalog.named(LlmService.KIND, "nomic-embed-text"))
         }
 
         @Test
@@ -209,8 +211,8 @@ class LmStudioModelsConfigTest {
                 config.lmStudioLocalModelEmbeddingRoleResolver(),
             )
 
-            config.lmStudioLocalModelCatalog().servedNames(LocalModelKind.CHAT)
-            config.lmStudioLocalModelCatalog().servedNames(LocalModelKind.EMBEDDING)
+            config.lmStudioLocalModelCatalog().servedNames(LlmService.KIND)
+            config.lmStudioLocalModelCatalog().servedNames(EmbeddingService.KIND)
 
             verify(exactly = 1) { mockResponseSpec.body(String::class.java) }
         }
