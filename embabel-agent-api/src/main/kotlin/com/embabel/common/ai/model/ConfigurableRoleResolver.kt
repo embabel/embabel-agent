@@ -15,49 +15,47 @@
  */
 package com.embabel.common.ai.model
 
+import org.jetbrains.annotations.ApiStatus
 import org.springframework.core.Ordered
 
 /**
- * The platform's own [RoleResolver], consulted after any the application registers.
+ * The platform's own [RoleResolver] for one [ModelKind], consulted after any the application
+ * registers.
  *
- * Reads `embabel.models.roles` - role, then provider, then options:
+ * Reads [ConfiguredRoles]: the nested role, then provider, then binding map, and the flat role to
+ * binding map.
  *
- * ```yaml
- * embabel:
- *   models:
- *     roles:
- *       cheapest:
- *         openai:    { model: gpt-4.1-nano }
- *         anthropic: { model: claude-haiku-4-5, temperature: 0.3 }
- * ```
+ * The active provider is [ModelSelectionContext.provider] when a user key is in play, and
+ * otherwise [defaultProviderName]. A single-provider deployment therefore reads the entries for its
+ * own provider without setting a context at all.
  *
- * The active provider comes from [ModelSelectionContext.provider] when a user key is in play, and
- * otherwise from whichever provider supplies the default LLM - so a single-provider deployment gets
- * the right column without setting a context at all.
+ * When the nested map has no entry for the role under the active provider, the resolver reads the
+ * flat map instead. It does not do this under a user key, for the reason [resolve] gives.
  *
- * Falls back to the flat `embabel.models.llms` map, which remains the right shape for a deployment
- * that will only ever have one provider.
- *
- * @param properties the bound `embabel.models` configuration
- * @param defaultProviderName provider of the default LLM, used when no key is active. A function
- * because the default LLM is resolved by [ConfigurableModelProvider] against registered beans.
+ * @param kind the kind of model this resolver answers for
+ * @param roles what configuration says this kind's roles mean
+ * @param defaultProviderName provider of the deployment's default model of this kind, used when no
+ * key is active. A function because that default is resolved by [ConfigurableModelProvider] against
+ * registered beans, after this is constructed.
  */
-class ConfigurableRoleResolver(
-    private val properties: ConfigurableModelProviderProperties,
+@ApiStatus.Experimental
+class ConfigurableRoleResolver<C : ModelCapability, B : RoleBinding>(
+    override val kind: ModelKind<C, B>,
+    private val roles: ConfiguredRoles<B>,
     private val defaultProviderName: () -> String?,
-) : RoleResolver, Ordered {
+) : RoleResolver<C, B>, Ordered {
 
     override fun getOrder(): Int = Ordered.LOWEST_PRECEDENCE
 
-    override fun resolve(role: String, context: ModelSelectionContext): RoleResolution? {
+    override fun resolve(role: String, context: ModelSelectionContext): RoleResolution<C, B>? {
         val activeProvider = context.provider ?: defaultProviderName()
-        val configuredForProvider = optionsFor(role, activeProvider)
+        val configuredForProvider = roles.boundFor(role, activeProvider)
         if (configuredForProvider != null) {
             // A user key beats deployment credentials: hand the key back and let the platform
-            // build a service for the model this role names under that provider.
+            // build a model for the one this role names under that provider.
             return context.credential
                 ?.let { RoleResolution.Credential(it) }
-                ?: RoleResolution.Options(configuredForProvider)
+                ?: RoleResolution.Bound(configuredForProvider)
         }
         if (context.credential != null) {
             // The flat map names models the deployment is keyed for. Serving them to a user who
@@ -65,61 +63,8 @@ class ConfigurableRoleResolver(
             // pay for, so leave it alone and let the role fail for this user.
             return null
         }
-        return flatOptionsFor(role)?.let { RoleResolution.Options(it) }
+        return roles.flatFor(role)?.let { RoleResolution.Bound(it) }
     }
 
-    /**
-     * What configuration says [role] means for [provider] - the nested entry if there is one,
-     * otherwise the flat map.
-     *
-     * This is the read side of [resolve], for callers that want to *show* a role's model rather
-     * than use it: a settings UI, a diagnostic endpoint, an application with its own per-user
-     * override layer on top. Sharing the lookup means such a caller cannot drift from what
-     * resolution would actually pick.
-     *
-     * It is deliberately narrower than resolution in two ways. It does not consult application
-     * [RoleResolver] beans, so a resolver that overrides a role per user is not reflected here.
-     * And it takes the provider as an argument rather than reading the active
-     * [ModelSelectionContext], so the answer does not depend on which thread asks.
-     */
-    fun configuredOptionsFor(role: String, provider: String?): LlmOptions? =
-        optionsFor(role, provider) ?: flatOptionsFor(role)
-
-    /**
-     * Options configured for [role] under [provider], or null if the role says nothing about it.
-     *
-     * Reads the nested shape, in which a role names a different model per provider:
-     *
-     * ```yaml
-     * embabel:
-     *   models:
-     *     roles:
-     *       cheapest:
-     *         openai:
-     *           model: gpt-4.1-nano
-     *         anthropic:
-     *           model: claude-haiku-4-5
-     *           temperature: 0.0
-     * ```
-     *
-     * `optionsFor("cheapest", "anthropic")` returns those Anthropic options, temperature included.
-     * `optionsFor("cheapest", "mistral")` returns null - the role is configured, but says nothing
-     * about that provider, so the caller falls back to the flat `embabel.models.llms` map.
-     *
-     * A null [provider] returns null rather than guessing: with no active credential there is no
-     * provider to select within, and the flat map is the right answer. Provider names are matched
-     * case-insensitively, because they arrive from user-supplied credentials as often as from yaml.
-     */
-    fun optionsFor(role: String, provider: String?): LlmOptions? {
-        if (provider == null) {
-            return null
-        }
-        return properties.roles[role]
-            ?.entries
-            ?.firstOrNull { it.key.equals(provider, ignoreCase = true) }
-            ?.value
-    }
-
-    private fun flatOptionsFor(role: String): LlmOptions? =
-        properties.llms[role]?.let { LlmOptions.withModel(it) }
+    override fun toString(): String = "ConfigurableRoleResolver(${kind.name})"
 }

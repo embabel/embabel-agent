@@ -28,7 +28,6 @@ import java.util.concurrent.atomic.AtomicReference
 import com.embabel.common.ai.model.local.LateArrivingModels
 import com.embabel.common.ai.model.local.LocalModelCatalog
 import com.embabel.common.ai.model.local.LocalModelDiscoveryProperties
-import com.embabel.common.ai.model.local.LocalModelKind
 import com.embabel.common.ai.model.local.LocalModelRoleResolver
 
 /**
@@ -198,6 +197,20 @@ data class ConfigurableModelProviderProperties(
      */
     fun namesEmbeddingRole(name: String): Boolean =
         embeddingServices.containsKey(name) || embeddingRoles.containsKey(name)
+
+    /** What `roles` and `llms` say the chat roles mean. */
+    fun chatRoles(): ConfiguredRoles<LlmOptions> = ConfiguredRoles(
+        byProvider = { roles },
+        // A flat entry is only a model name, so it binds options that set the model and nothing else.
+        flat = { llms.mapValues { (_, model) -> LlmOptions.withModel(model) } },
+    )
+
+    /** What `embedding-roles` and `embedding-services` say the embedding roles mean. */
+    fun embeddingRoleBindings(): ConfiguredRoles<ModelName> = ConfiguredRoles(
+        // Both maps hold plain model names; each one is wrapped as a ModelName binding.
+        byProvider = { embeddingRoles.mapValues { (_, byProvider) -> byProvider.mapValues { (_, model) -> ModelName(model) } } },
+        flat = { embeddingServices.mapValues { (_, model) -> ModelName(model) } },
+    )
 }
 
 /**
@@ -207,23 +220,26 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     private val llms: List<LlmService<*>>,
     private val embeddingServices: List<EmbeddingService>,
     private val properties: ConfigurableModelProviderProperties,
-    roleResolvers: List<RoleResolver> = emptyList(),
-    private val credentialLlmServiceFactories: List<CredentialLlmServiceFactory> = emptyList(),
-    embeddingRoleResolvers: List<EmbeddingRoleResolver> = emptyList(),
-    private val credentialEmbeddingServiceFactories: List<CredentialEmbeddingServiceFactory> = emptyList(),
+    roleResolvers: List<RoleResolver<*, *>> = emptyList(),
+    private val modelPlatforms: List<ModelPlatform> = emptyList(),
     private val localModelCatalogs: List<LocalModelCatalog> = emptyList(),
 ) : ModelProvider {
 
     private val logger = loggerFor<ConfigurableModelProvider>()
 
+    private val chatRoles = properties.chatRoles()
+
+    private val embeddingRoles = properties.embeddingRoleBindings()
+
     private val configurableRoleResolver =
-        ConfigurableRoleResolver(properties) { defaultLlm.provider }
+        ConfigurableRoleResolver(LlmService.KIND, chatRoles) { defaultLlm.provider }
 
     /**
      * Application resolvers first, the configuration-driven one last, so an application can
      * override any role and ignore the rest.
      */
-    private val roleResolvers: List<RoleResolver> = roleResolvers + configurableRoleResolver
+    private val roleResolvers: List<RoleResolver<LlmService<*>, LlmOptions>> =
+        roleResolvers.ofKind(LlmService.KIND) + configurableRoleResolver
 
     /**
      * Services built from user keys, which are per-user and so cannot be Spring beans.
@@ -237,16 +253,15 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         }.let { Collections.synchronizedMap(it) }
 
     private val configurableEmbeddingRoleResolver =
-        ConfigurableEmbeddingRoleResolver(properties) { defaultEmbeddingProviderName() }
+        ConfigurableRoleResolver(EmbeddingService.KIND, embeddingRoles) { defaultEmbeddingProviderName() }
 
     /**
      * Application resolvers first, the configuration-driven one last - the same ordering as
-     * [roleResolvers], and a separate chain for the reason [EmbeddingRoleResolution] is a separate
-     * type: a resolver that answers "cheapest" for chat must not be asked what it means for a
-     * vector.
+     * [roleResolvers], and a separate chain because the kinds are separate: a resolver that answers
+     * "cheapest" for chat must not be asked what it means for a vector.
      */
-    private val embeddingRoleResolvers: List<EmbeddingRoleResolver> =
-        embeddingRoleResolvers + configurableEmbeddingRoleResolver
+    private val embeddingRoleResolvers: List<RoleResolver<EmbeddingService, ModelName>> =
+        roleResolvers.ofKind(EmbeddingService.KIND) + configurableEmbeddingRoleResolver
 
     /**
      * Providers whose models may appear after startup, declared by the resolvers that cover them.
@@ -260,7 +275,8 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      * provider that has been configured never to be asked.
      */
     private val lateArrivingProviders: Set<String> =
-        (this.roleResolvers + this.embeddingRoleResolvers + localModelCatalogs)
+        // Starts from List<Any> because the three lists have no common element type.
+        (listOf<Any>() + this.roleResolvers + this.embeddingRoleResolvers + localModelCatalogs)
             .filterIsInstance<LateArrivingModels>()
             .mapNotNull { it.lateArrivingProvider?.lowercase() }
             .toSet()
@@ -446,8 +462,8 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     }
 
     /**
-     * The provider behind the deployment's default embedding service, for
-     * [ConfigurableEmbeddingRoleResolver] to pick a column with when no user key is active.
+     * The provider behind the deployment's default embedding service. When no user key is active,
+     * the embedding [ConfigurableRoleResolver] reads the `embedding-roles` entry for this provider.
      *
      * Reads only what is REGISTERED, never the role chain: the chain is what calls this, and
      * asking it back would recurse. A deployment whose default is a role and whose key has not
@@ -477,17 +493,17 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      */
     private fun attemptEmbeddingRole(role: String, context: ModelSelectionContext): EmbeddingService? =
         when (val resolution = embeddingRoleResolvers.firstNotNullOfOrNull { it.resolve(role, context) }) {
-            is EmbeddingRoleResolution.Service -> resolution.embeddingService
+            is RoleResolution.Service -> resolution.service
 
             // By name alone, placeholder included. A deployment may point a role AT the placeholder
             // deliberately - `memory: setup-required-embedding` says "this role has no model yet"
             // - and screening placeholders out here would refuse the one configuration that means
             // to name one. A role naming a model nothing registered still resolves to nothing,
             // because the name simply does not match.
-            is EmbeddingRoleResolution.Model ->
-                embeddingServices.firstOrNull { it.name == resolution.model }
+            is RoleResolution.Bound ->
+                embeddingServices.firstOrNull { it.name == resolution.binding.modelName }
 
-            is EmbeddingRoleResolution.Credential -> embeddingFromCredential(role, resolution.credential)
+            is RoleResolution.Credential -> embeddingFromCredential(role, resolution.credential)
 
             null -> null
         }
@@ -516,16 +532,15 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      * Build - or reuse - an embedding service for the model this role names under the user's own
      * provider.
      *
-     * The lookup ends at the flat map, which [ConfigurableEmbeddingRoleResolver.resolve] refuses
-     * to read under a user key - not a contradiction, because the two are spending different
-     * money. There, reading it would serve a service the DEPLOYMENT is keyed for and billed for.
-     * Here, only the model NAME is taken and the service is built on the user's own key, so the
-     * user pays for the model their role names. Reachable only from an application resolver
-     * returning [EmbeddingRoleResolution.Credential], since the configured one gets this far only
+     * The lookup ends at the flat map. The embedding [ConfigurableRoleResolver.resolve] does not read
+     * the flat map under a user key, because there it would return a service that the DEPLOYMENT's
+     * key pays for. Here only the model NAME is read from it, and the service is built on the
+     * user's own key, so the user pays for the model their role names. Reachable only from an application resolver
+     * returning [RoleResolution.Credential], since the configured one gets this far only
      * when the nested map already answered.
      */
     private fun embeddingFromCredential(role: String, credential: ProviderCredential): EmbeddingService? {
-        val model = configurableEmbeddingRoleResolver.configuredModelFor(role, credential.provider)
+        val model = embeddingRoles.configuredFor(role, credential.provider)?.modelName
         if (model == null) {
             logger.warn(
                 "Embedding role '{}' has no model configured for provider '{}' under embabel.models.embedding-roles",
@@ -536,7 +551,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         val service = credentialEmbeddingService(credential, model)
         if (service == null) {
             logger.warn(
-                "Nothing built an embedding service for provider '{}', needed for role '{}'. Register a CredentialEmbeddingServiceFactory for it, and check that the module speaking its wire protocol is on the classpath",
+                "Nothing built an embedding service for provider '{}', needed for role '{}'. Register a ModelPlatform that builds the embedding kind for it, and check that the module that calls that provider's API is on the classpath",
                 credential.provider, role,
             )
         }
@@ -557,8 +572,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     private fun credentialEmbeddingService(credential: ProviderCredential, model: String): EmbeddingService? {
         val key = CredentialModelKey.of(credential, model)
         return credentialEmbeddingServices[key]
-            ?: credentialEmbeddingServiceFactories
-                .firstNotNullOfOrNull { it.createEmbeddingService(credential, model) }
+            ?: modelPlatforms.firstModel(credential, EmbeddingService.KIND, model)
                 ?.also { credentialEmbeddingServices[key] = it }
     }
 
@@ -587,14 +601,14 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      * the same model, so there is nothing to choose between them.
      */
     private fun locallyServedLlm(name: String): LlmService<*>? =
-        localModelCatalogs.firstNotNullOfOrNull { it.llmNamed(name) }
+        localModelCatalogs.firstNotNullOfOrNull { it.named(LlmService.KIND, name) }
 
     /** The embedding counterpart of [locallyServedLlm]. */
     private fun locallyServedEmbedding(name: String): EmbeddingService? =
-        localModelCatalogs.firstNotNullOfOrNull { it.embeddingNamed(name) }
+        localModelCatalogs.firstNotNullOfOrNull { it.named(EmbeddingService.KIND, name) }
 
     /** Names a local runner is serving of this kind, for the listings. */
-    private fun locallyServedNames(kind: LocalModelKind): List<String> =
+    private fun locallyServedNames(kind: ModelKind<*, *>): List<String> =
         localModelCatalogs.flatMap { it.servedNames(kind) }.distinct()
 
     private fun placeholderEmbeddingService(warn: Boolean): EmbeddingService? =
@@ -717,6 +731,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             }
         }
         checkNestedRoles()
+        warnOfUnselectedKinds(roleResolvers, modelPlatforms)
         logger.info(infoString(verbose = true))
 
         properties.embeddingServices.forEach { (role, model) ->
@@ -764,6 +779,36 @@ class ConfigurableModelProvider @JvmOverloads constructor(
                     )
                 }
             }
+        }
+    }
+
+    /**
+     * Warn about resolvers and model platforms that this provider never asks.
+     *
+     * A kind equals only itself, so a resolver holding any other kind instance is never asked.
+     * That includes a new [ModelKind] created with the name "chat". Without this warning such a
+     * bean would be ignored with nothing in the log.
+     *
+     * A platform is reported only when none of its kinds is selected. A platform that builds chat
+     * and also a kind nothing selects yet is still asked for chat, so it is not reported.
+     */
+    private fun warnOfUnselectedKinds(
+        roleResolvers: List<RoleResolver<*, *>>,
+        modelPlatforms: List<ModelPlatform>,
+    ) {
+        val selectedKinds = setOf<ModelKind<*, *>>(LlmService.KIND, EmbeddingService.KIND)
+        roleResolvers.filter { it.kind !in selectedKinds }.forEach {
+            logger.warn(
+                "Role resolver {} answers for {}, which this provider does not select, so it will never be asked. Use the kind's own constant, such as LlmService.KIND or EmbeddingService.KIND",
+                it, it.kind,
+            )
+        }
+        // Report a platform only if no kind it builds is selected; one selected kind means it is asked.
+        modelPlatforms.filter { platform -> platform.kinds.none { it in selectedKinds } }.forEach {
+            logger.warn(
+                "Model platform {} builds {}, none of which this provider selects, so it will never be asked. Use the kind's own constant, such as LlmService.KIND or EmbeddingService.KIND",
+                it, it.kinds,
+            )
         }
     }
 
@@ -873,11 +918,11 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     private fun localModelMetadata(): List<ModelMetadata> =
         localModelCatalogs.flatMap { catalog ->
             // Chat models the runner serves, minus those registered at startup (already listed).
-            catalog.servedNames(LocalModelKind.CHAT)
+            catalog.servedNames(LlmService.KIND)
                 .filter { name -> llms.none { it.name == name } }
                 .map { LlmMetadata(it, provider = catalog.provider) } +
                 // The same for embedding models, checked against the registered embedding services.
-                catalog.servedNames(LocalModelKind.EMBEDDING)
+                catalog.servedNames(EmbeddingService.KIND)
                     .filter { name -> embeddingServices.none { it.name == name } }
                     .map { EmbeddingServiceMetadata(it, provider = catalog.provider) }
         }
@@ -921,7 +966,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     }
 
     override fun configuredOptionsForRole(role: String): LlmOptions? =
-        configurableRoleResolver.configuredOptionsFor(role, defaultLlm.provider)
+        chatRoles.configuredFor(role, defaultLlm.provider)
 
     /**
      * Ask each resolver in turn what the role means, and materialize the answer.
@@ -984,10 +1029,13 @@ class ConfigurableModelProvider @JvmOverloads constructor(
     private fun attemptRole(role: String, context: ModelSelectionContext): RoleAttempt {
         val resolution = roleResolvers.firstNotNullOfOrNull { it.resolve(role, context) }
         val resolved = when (resolution) {
-            is RoleResolution.Service -> ResolvedRole(resolution.llmService, resolution.llmOptions)
+            // A service returned without a binding carries no configured tuning, so it gets the
+            // platform default options.
+            is RoleResolution.Service ->
+                ResolvedRole(resolution.service, resolution.binding ?: LlmOptions.withDefaults())
 
-            is RoleResolution.Options -> byName(resolution.llmOptions)
-                ?.let { ResolvedRole(it, resolution.llmOptions) }
+            is RoleResolution.Bound -> byName(resolution.binding)
+                ?.let { ResolvedRole(it, resolution.binding) }
 
             is RoleResolution.Credential -> fromCredential(role, resolution.credential)
 
@@ -1043,7 +1091,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      * A resolution attempt: what the resolvers said, and what it materialized into, if anything.
      */
     private data class RoleAttempt(
-        val resolution: RoleResolution?,
+        val resolution: RoleResolution<LlmService<*>, LlmOptions>?,
         val resolved: ResolvedRole?,
     )
 
@@ -1058,11 +1106,11 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      * Null when nothing named a model: no resolver answered at all, or the entry that did names
      * only a provider. There is then nothing to report beyond the role itself.
      */
-    private fun wantedModelFor(role: String, resolution: RoleResolution?): String? =
+    private fun wantedModelFor(role: String, resolution: RoleResolution<LlmService<*>, LlmOptions>?): String? =
         when (resolution) {
-            is RoleResolution.Options -> resolution.llmOptions.modelName
+            is RoleResolution.Bound -> resolution.binding.modelName
             is RoleResolution.Credential ->
-                configurableRoleResolver.optionsFor(role, resolution.credential.provider)?.modelName
+                chatRoles.boundFor(role, resolution.credential.provider)?.modelName
             // A Service resolved to a built service, so it never reaches the placeholder.
             is RoleResolution.Service, null -> null
         }
@@ -1074,7 +1122,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         role: String,
         credential: ProviderCredential,
     ): ResolvedRole? {
-        val options = configurableRoleResolver.optionsFor(role, credential.provider)
+        val options = chatRoles.boundFor(role, credential.provider)
         val model = options?.modelName
         if (model == null) {
             logger.warn(
@@ -1096,12 +1144,11 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         // and the cost is one wasted validation call.
         val key = CredentialModelKey.of(credential, model)
         val llmService = credentialLlmServices[key]
-            ?: credentialLlmServiceFactories
-                .firstNotNullOfOrNull { it.createLlmService(credential, model) }
+            ?: modelPlatforms.firstModel(credential, LlmService.KIND, model)
                 ?.also { credentialLlmServices[key] = it }
         if (llmService == null) {
             logger.warn(
-                """Nothing built a service for provider '{}', needed for role '{}'. Register a CredentialEndpointResolver for it, and check that the module speaking its wire protocol is on the classpath""",
+                """Nothing built a service for provider '{}', needed for role '{}'. Register a CredentialEndpointResolver for it, and check that the module that calls that provider's API is on the classpath""",
                 credential.provider, role,
             )
             return null
@@ -1131,7 +1178,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
      * one of them cannot disagree.
      */
     private fun listableLlmNames(): List<String> =
-        (llms.map { it.name } + locallyServedNames(LocalModelKind.CHAT)).distinct()
+        (llms.map { it.name } + locallyServedNames(LlmService.KIND)).distinct()
 
     override fun listRoles(modelClass: Class<*>): List<String> {
         return when {
@@ -1161,7 +1208,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         return when {
             LlmService::class.java.isAssignableFrom(modelClass) -> listableLlmNames()
             EmbeddingService::class.java.isAssignableFrom(modelClass) ->
-                (embeddingServices.map { it.name } + locallyServedNames(LocalModelKind.EMBEDDING)).distinct()
+                (embeddingServices.map { it.name } + locallyServedNames(EmbeddingService.KIND)).distinct()
 
             else -> throw IllegalArgumentException("Unsupported model class: $modelClass")
         }
@@ -1354,7 +1401,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
         }
         val role = properties.defaultEmbeddingModel ?: return null
         val credential = (embeddingRoleResolvers.firstNotNullOfOrNull { it.resolve(role, context) }
-                as? EmbeddingRoleResolution.Credential)
+                as? RoleResolution.Credential)
             ?.credential
         if (credential == null) {
             logger.debug(
@@ -1367,7 +1414,7 @@ class ConfigurableModelProvider @JvmOverloads constructor(
             .also {
                 if (it == null) {
                     logger.warn(
-                        "Nothing built an embedding service for provider '{}', needed for the named model '{}'. Register a CredentialEmbeddingServiceFactory for it, and check that the module speaking its wire protocol is on the classpath",
+                        "Nothing built an embedding service for provider '{}', needed for the named model '{}'. Register a ModelPlatform that builds the embedding kind for it, and check that the module that calls that provider's API is on the classpath",
                         credential.provider, model,
                     )
                 }
