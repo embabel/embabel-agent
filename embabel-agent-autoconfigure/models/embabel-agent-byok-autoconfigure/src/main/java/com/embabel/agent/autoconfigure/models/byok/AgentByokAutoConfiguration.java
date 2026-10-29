@@ -31,9 +31,10 @@ import org.springframework.context.annotation.Import;
  * {@code embabel.models.default-llm} and {@code embabel.models.default-embedding-model}. Keys arrive
  * at runtime and reach a call through {@code PromptRunner.withLlmService(...)}.
  * <p>
- * It also contributes a {@link com.embabel.common.ai.model.ModelPlatform} per provider module it
- * can see, so a role resolving to a user's own key builds a service without the application
- * writing one. Those platforms ask any
+ * It also contributes a {@link com.embabel.common.ai.model.ModelPlatform} for each of OpenAI,
+ * DeepSeek, Mistral AI and Anthropic, and one for other OpenAI-compatible endpoints, when the
+ * provider module that builds them is on the classpath. So a role resolving to a user's own key
+ * builds a service without the application writing one. Those platforms ask any
  * {@link com.embabel.common.ai.model.CredentialEndpointResolver} the application registered before
  * falling back to the endpoints this module knows - see {@link CredentialEndpointConfig}.
  * <p>
