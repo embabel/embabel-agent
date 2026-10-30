@@ -58,8 +58,13 @@ internal class SpringAiLlmMessageStreamer(
         tools: List<Tool>,
         toolCallInspectors: List<ToolCallInspector>,
     ): Flux<String> = streamInference(messages, tools)
-        .ofType(LlmInferenceStreamEvent.Content::class.java)
-        .map { it.text }
+        .handle { event, sink ->
+            when (event) {
+                is LlmInferenceStreamEvent.Content -> sink.next(event.text)
+                is LlmInferenceStreamEvent.Thinking -> sink.next(event.text)
+                is LlmInferenceStreamEvent.Complete -> Unit
+            }
+        }
 
     override fun streamInference(
         messages: List<Message>,
@@ -88,9 +93,15 @@ internal class SpringAiLlmMessageStreamer(
         // this adapter deliberately performs no tool execution.
         chatModel.stream(prompt).publish { responses ->
             val content = responses
-                .flatMapIterable { response -> listOfNotNull(response.result?.output?.text) }
-                .filter { it.isNotEmpty() }
-                .map<LlmInferenceStreamEvent> { LlmInferenceStreamEvent.Content(it) }
+                .flatMapIterable { response -> listOfNotNull(response.result?.output) }
+                .mapNotNull { output -> output.text?.takeIf { it.isNotEmpty() }?.let { output to it } }
+                .map<LlmInferenceStreamEvent> { (output, text) ->
+                    if (output.metadata["thinking"] == true) {
+                        LlmInferenceStreamEvent.Thinking(text)
+                    } else {
+                        LlmInferenceStreamEvent.Content(text)
+                    }
+                }
             val completion = MessageAggregator()
                 .aggregate(responses, aggregate::tryEmitValue)
                 .then(aggregate.asMono())
