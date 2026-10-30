@@ -36,6 +36,24 @@ interface PricingModel {
         return usdPerInputToken() * inputTokens + usdPerOutputToken() * outputTokens
     }
 
+    /**
+     * Defaults to the ordinary input rate when the provider's cache rate is unknown.
+     */
+    fun usdPerCacheReadInputToken(): Double = usdPerInputToken()
+
+    /**
+     * Defaults to the ordinary input rate when the provider's cache rate is unknown.
+     */
+    fun usdPerCacheWriteInputToken(): Double = usdPerInputToken()
+
+    /**
+     * @param inputTokens input tokens not read from or written to the prompt cache
+     */
+    fun costOf(inputTokens: Int, outputTokens: Int, cacheReadInputTokens: Int, cacheWriteInputTokens: Int): Double =
+        costOf(inputTokens, outputTokens) +
+            usdPerCacheReadInputToken() * cacheReadInputTokens +
+            usdPerCacheWriteInputToken() * cacheWriteInputTokens
+
     fun costOf(usage: Usage): Double {
         return costOf(usage.promptTokens.toInt(), usage.completionTokens.toInt())
     }
@@ -57,9 +75,11 @@ interface PricingModel {
     }
 }
 
-class PerTokenPricingModel(
+class PerTokenPricingModel @JvmOverloads constructor(
     val usdPer1mInputTokens: Double,
     val usdPer1mOutputTokens: Double,
+    val usdPer1mCacheReadInputTokens: Double? = null,
+    val usdPer1mCacheWriteInputTokens: Double? = null,
 ) : PricingModel {
 
     override fun usdPerInputToken(): Double {
@@ -69,4 +89,10 @@ class PerTokenPricingModel(
     override fun usdPerOutputToken(): Double {
         return usdPer1mOutputTokens / ONE_MILLION
     }
+
+    override fun usdPerCacheReadInputToken(): Double =
+        usdPer1mCacheReadInputTokens?.let { it / ONE_MILLION } ?: usdPerInputToken()
+
+    override fun usdPerCacheWriteInputToken(): Double =
+        usdPer1mCacheWriteInputTokens?.let { it / ONE_MILLION } ?: usdPerInputToken()
 }

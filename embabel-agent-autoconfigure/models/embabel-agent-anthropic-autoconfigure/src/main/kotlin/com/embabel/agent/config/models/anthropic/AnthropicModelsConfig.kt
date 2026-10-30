@@ -190,15 +190,20 @@ class AnthropicModelsConfig(
             optionsConverter = AnthropicOptionsConverter,
             thinkingSupported = true,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
+            // ponytail: cache writes priced at the 5-minute TTL rate; 1-hour TTL writes cost 2x input,
+            // configure usd_per1m_cache_write_input_tokens if a deployment uses them.
             pricingModel = modelDef.pricingModel?.let {
                 PerTokenPricingModel(
                     usdPer1mInputTokens = it.usdPer1mInputTokens,
                     usdPer1mOutputTokens = it.usdPer1mOutputTokens,
+                    usdPer1mCacheReadInputTokens = it.usdPer1mCacheReadInputTokens ?: (it.usdPer1mInputTokens * 0.1),
+                    usdPer1mCacheWriteInputTokens = it.usdPer1mCacheWriteInputTokens ?: (it.usdPer1mInputTokens * 1.25),
                 )
             },
             nativeStructuredOutputConfigurer = nativeStructuredOutputConfigurer,
             nativeThinkingExtractor = AnthropicNativeThinkingExtractor,
             nativeSupport = modelDef.nativeSupport,
+            promptTokensExcludeCache = true,
         )
     }
 

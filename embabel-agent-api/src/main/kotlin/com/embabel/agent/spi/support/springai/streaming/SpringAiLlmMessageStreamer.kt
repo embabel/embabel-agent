@@ -51,6 +51,7 @@ internal class SpringAiLlmMessageStreamer(
     private val chatModel: ChatModel,
     private val chatOptions: ChatOptions,
     private val toolResponseContentAdapter: ToolResponseContentAdapter = ToolResponseContentAdapter.PASSTHROUGH,
+    private val promptTokensExcludeCache: Boolean = false,
 ) : LlmMessageStreamer {
 
     override fun stream(
@@ -99,7 +100,7 @@ internal class SpringAiLlmMessageStreamer(
                         ?: throw IllegalStateException("Streaming response contained no assistant output")
                     LlmInferenceStreamEvent.Complete(
                         message = output.toEmbabelMessage(),
-                        usage = response.metadata?.usage?.toEmbabelUsage(),
+                        usage = response.metadata?.usage?.toEmbabelUsage(promptTokensExcludeCache),
                     )
                 }
 

@@ -22,6 +22,7 @@ import ch.qos.logback.core.read.ListAppender
 import com.embabel.agent.anthropic.ClaudeCapabilities
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
+import com.embabel.common.ai.model.PerTokenPricingModel
 import io.micrometer.observation.ObservationRegistry
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -34,7 +35,7 @@ import org.springframework.web.client.RestClient
 
 class AnthropicModelsConfigTest {
 
-    private class Built(val options: AnthropicChatOptions, val warnings: List<String>)
+    private class Built(val llm: SpringAiLlmService, val options: AnthropicChatOptions, val warnings: List<String>)
 
     private fun build(modelDef: AnthropicModelDefinition): Built {
         val logger = LoggerFactory.getLogger(ClaudeCapabilities::class.java) as Logger
@@ -55,7 +56,7 @@ class AnthropicModelsConfigTest {
             ).anthropicModelsInitializer()
             val llm = beanFactory.getBean(modelDef.name) as SpringAiLlmService
             val options = llm.chatModel.defaultOptions as AnthropicChatOptions
-            return Built(options, logs.list.filter { it.level == Level.WARN }.map { it.formattedMessage })
+            return Built(llm, options, logs.list.filter { it.level == Level.WARN }.map { it.formattedMessage })
         } finally {
             logger.detachAppender(logs)
         }
@@ -103,5 +104,30 @@ class AnthropicModelsConfigTest {
         assertEquals(0.9, built.options.topP)
         assertEquals(40, built.options.topK)
         assertTrue(built.warnings.isEmpty()) { "${built.warnings}" }
+    }
+
+    @Test
+    fun `cache tokens are counted on top of prompt tokens and priced at Anthropic cache rates`() {
+        val llm = build(
+            AnthropicModelDefinition(
+                name = "sonnet55",
+                modelId = "claude-sonnet-5-5",
+                pricingModel = PerTokenPricingModel(2.0, 10.0),
+            )
+        ).llm
+        assertTrue(llm.promptTokensExcludeCache)
+        assertEquals(0.0093, llm.pricingModel!!.costOf(100, 50, 18_000, 2_000), 1e-12)
+    }
+
+    @Test
+    fun `configured cache rates win over the derived ones`() {
+        val llm = build(
+            AnthropicModelDefinition(
+                name = "sonnet55",
+                modelId = "claude-sonnet-5-5",
+                pricingModel = PerTokenPricingModel(2.0, 10.0, 0.0, 0.0),
+            )
+        ).llm
+        assertEquals(0.0007, llm.pricingModel!!.costOf(100, 50, 18_000, 2_000), 1e-12)
     }
 }

@@ -19,7 +19,6 @@ import com.embabel.agent.api.common.ToolsStats
 import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.core.types.Timed
 import com.embabel.common.core.types.Timestamped
-import org.springframework.ai.chat.metadata.DefaultUsage
 import java.time.Duration
 import java.time.Instant
 
@@ -55,11 +54,8 @@ interface LlmInvocationHistory {
      * Cost will correctly reflect this.
      * Look in the list for more details about what tokens were spent where.
      */
-    fun usage(): Usage {
-        val promptTokens = llmInvocations.sumOf { it.usage.promptTokens ?: 0 }
-        val completionTokens = llmInvocations.sumOf { it.usage.completionTokens ?: 0 }
-        return Usage(promptTokens, completionTokens, null)
-    }
+    fun usage(): Usage =
+        llmInvocations.fold(Usage(0, 0, null)) { total, invocation -> total + invocation.usage }
 
     /** Total LLM call count. Default = own; overridable for subtree aggregation. */
     fun llmInvocationCount(): Int = llmInvocations.size
@@ -91,10 +87,15 @@ data class LlmInvocation(
     /**
      * Dollar cost of this interaction.
      */
-    fun cost(): Double = llmMetadata.pricingModel?.costOf(
-        DefaultUsage(
-            usage.promptTokens ?: 0,
-            usage.completionTokens ?: 0,
+    fun cost(): Double {
+        val pricingModel = llmMetadata.pricingModel ?: return 0.0
+        val cacheRead = usage.cacheReadInputTokens ?: 0
+        val cacheWrite = usage.cacheWriteInputTokens ?: 0
+        return pricingModel.costOf(
+            inputTokens = ((usage.promptTokens ?: 0) - cacheRead - cacheWrite).coerceAtLeast(0),
+            outputTokens = usage.completionTokens ?: 0,
+            cacheReadInputTokens = cacheRead,
+            cacheWriteInputTokens = cacheWrite,
         )
-    ) ?: 0.0
+    }
 }

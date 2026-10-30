@@ -1448,6 +1448,11 @@ val options = LlmOptions.withDefaultLlm()
 
 ===== Accessing Cache Metrics
 
+Cache reads and writes count as input tokens: `Usage.promptTokens` includes them, and `Usage.cacheReadInputTokens` and `Usage.cacheWriteInputTokens` report them separately.
+Token totals, cost and early-termination budgets therefore include cached input.
+Cost prices cache reads at 10% and cache writes at 125% of the model's input rate.
+Override either rate in the model's `pricing_model` with `usd_per1m_cache_read_input_tokens` or `usd_per1m_cache_write_input_tokens`, for example when using the 1-hour cache TTL.
+
 Embabel provides extension methods to access Anthropic-specific cache metrics from the `Usage` object:
 
 [tabs]

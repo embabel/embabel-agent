@@ -35,10 +35,24 @@ internal fun safelyGetToolCallbacks(instances: Collection<ToolObject>): List<Too
 internal fun safelyGetToolCallbacksFrom(toolObject: ToolObject): List<ToolCallback> =
     safelyGetToolsFrom(toolObject).map { it.toSpringToolCallback() }
 
-fun org.springframework.ai.chat.metadata.Usage.toEmbabelUsage(): Usage {
+/**
+ * Spring AI does not define whether promptTokens includes cache tokens:
+ * OpenAI counts cached reads inside it, Anthropic reports reads and writes on top of it.
+ * @param promptTokensExcludeCache true when cache tokens are reported on top of promptTokens
+ */
+@JvmOverloads
+fun org.springframework.ai.chat.metadata.Usage.toEmbabelUsage(promptTokensExcludeCache: Boolean = false): Usage {
+    val cacheRead = cacheReadInputTokens?.let { Math.toIntExact(it) }
+    val cacheWrite = cacheWriteInputTokens?.let { Math.toIntExact(it) }
     return Usage(
-        promptTokens = this.promptTokens,
-        completionTokens = this.completionTokens,
-        nativeUsage = this.nativeUsage,
+        promptTokens = if (promptTokensExcludeCache) {
+            (promptTokens ?: 0) + (cacheRead ?: 0) + (cacheWrite ?: 0)
+        } else {
+            promptTokens
+        },
+        completionTokens = completionTokens,
+        nativeUsage = nativeUsage,
+        cacheReadInputTokens = cacheRead,
+        cacheWriteInputTokens = cacheWrite,
     )
 }
