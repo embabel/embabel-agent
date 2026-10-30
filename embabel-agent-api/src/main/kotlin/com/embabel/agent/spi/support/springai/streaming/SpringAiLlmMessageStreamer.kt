@@ -26,6 +26,7 @@ import com.embabel.agent.spi.support.springai.toEmbabelUsage
 import com.embabel.agent.spi.support.springai.toSpringToolCallbacks
 import com.embabel.agent.spi.support.springai.ToolResponseContentAdapter
 import com.embabel.chat.Message
+import org.springframework.ai.chat.metadata.DefaultUsage
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.MessageAggregator
@@ -81,6 +82,10 @@ internal class SpringAiLlmMessageStreamer(
         // It emits one assembled response for this inference turn, after its partial
         // content/tool fragments and before Embabel executes any requested tools.
         val aggregate = Sinks.one<ChatResponse>()
+        // MessageAggregator rebuilds usage without cache counts; keep the last positive
+        // values, as it does for prompt and completion tokens.
+        var cacheRead: Long? = null
+        var cacheWrite: Long? = null
 
         // Spring providers may split a tool-call ID, name, and JSON arguments across
         // multiple ChatResponse chunks. MessageAggregator leaves those chunks in the
@@ -93,14 +98,31 @@ internal class SpringAiLlmMessageStreamer(
                 .filter { it.isNotEmpty() }
                 .map<LlmInferenceStreamEvent> { LlmInferenceStreamEvent.Content(it) }
             val completion = MessageAggregator()
-                .aggregate(responses, aggregate::tryEmitValue)
+                .aggregate(
+                    responses.doOnNext { response ->
+                        response.metadata?.usage?.let { usage ->
+                            usage.cacheReadInputTokens?.takeIf { it > 0 }?.let { cacheRead = it }
+                            usage.cacheWriteInputTokens?.takeIf { it > 0 }?.let { cacheWrite = it }
+                        }
+                    },
+                    aggregate::tryEmitValue,
+                )
                 .then(aggregate.asMono())
                 .map<LlmInferenceStreamEvent> { response ->
                     val output = response.result?.output
                         ?: throw IllegalStateException("Streaming response contained no assistant output")
                     LlmInferenceStreamEvent.Complete(
                         message = output.toEmbabelMessage(),
-                        usage = response.metadata?.usage?.toEmbabelUsage(promptTokensExcludeCache),
+                        usage = response.metadata?.usage?.let { usage ->
+                            DefaultUsage(
+                                usage.promptTokens,
+                                usage.completionTokens,
+                                usage.totalTokens,
+                                usage.nativeUsage,
+                                cacheRead,
+                                cacheWrite,
+                            ).toEmbabelUsage(promptTokensExcludeCache)
+                        },
                     )
                 }
 

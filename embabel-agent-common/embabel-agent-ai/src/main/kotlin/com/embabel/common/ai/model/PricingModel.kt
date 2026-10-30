@@ -54,8 +54,18 @@ interface PricingModel {
             usdPerCacheReadInputToken() * cacheReadInputTokens +
             usdPerCacheWriteInputToken() * cacheWriteInputTokens
 
+    /**
+     * @param usage usage whose promptTokens include any cache reads and writes
+     */
     fun costOf(usage: Usage): Double {
-        return costOf(usage.promptTokens.toInt(), usage.completionTokens.toInt())
+        val cacheRead = usage.cacheReadInputTokens?.toInt() ?: 0
+        val cacheWrite = usage.cacheWriteInputTokens?.toInt() ?: 0
+        return costOf(
+            inputTokens = (usage.promptTokens.toInt() - cacheRead - cacheWrite).coerceAtLeast(0),
+            outputTokens = usage.completionTokens.toInt(),
+            cacheReadInputTokens = cacheRead,
+            cacheWriteInputTokens = cacheWrite,
+        )
     }
 
     companion object {

@@ -39,6 +39,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.metadata.ChatResponseMetadata
 import org.springframework.ai.chat.metadata.DefaultUsage
+import org.springframework.ai.chat.metadata.Usage as SpringAiUsage
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
@@ -171,6 +172,16 @@ class CacheTokenUsageTest {
             assertEquals(18_000, usage.cacheReadInputTokens)
             val cost = invocation(usage, PricingModel.usdPer1MTokens(2.0, 10.0)).cost()
             assertEquals((20_100 * 2.0 + 50 * 10.0) / 1_000_000, cost, 1e-12)
+        }
+
+        @Test
+        fun `custom costOf usage override is honoured`() {
+            val overriding = object : PricingModel {
+                override fun usdPerInputToken() = 2.0 / 1_000_000
+                override fun usdPerOutputToken() = 10.0 / 1_000_000
+                override fun costOf(usage: SpringAiUsage) = 0.123
+            }
+            assertEquals(0.123, invocation(Usage(100, 50, null), overriding).cost(), 1e-12)
         }
 
         @Test

@@ -192,7 +192,9 @@ class BedrockModelsConfig(
                     usdPer1mInputTokens = it.usdPer1mInputTokens,
                     usdPer1mOutputTokens = it.usdPer1mOutputTokens,
                 )
-            }
+            },
+            // Converse reports inputTokens excluding cacheReadInputTokens and cacheWriteInputTokens
+            promptTokensExcludeCache = true,
         )
     }
 

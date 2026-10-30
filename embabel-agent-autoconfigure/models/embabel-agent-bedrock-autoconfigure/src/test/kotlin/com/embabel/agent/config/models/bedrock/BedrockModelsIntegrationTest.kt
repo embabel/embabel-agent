@@ -36,9 +36,24 @@ import com.embabel.agent.config.models.bedrock.BedrockModelsConfig.Companion.US_
 import com.embabel.agent.config.models.bedrock.BedrockModelsConfig.Companion.US_ANTHROPIC_CLAUDE_HAIKU_4_5
 import com.embabel.agent.config.models.bedrock.BedrockModelsConfig.Companion.US_ANTHROPIC_CLAUDE_OPUS_4
 import com.embabel.agent.config.models.bedrock.BedrockModelsConfig.Companion.US_ANTHROPIC_CLAUDE_SONNET_4
-import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.chat.UserMessage
+import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.PricingModel
+import io.mockk.every
+import io.mockk.mockk
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import org.springframework.ai.chat.messages.AssistantMessage
+import org.springframework.ai.chat.metadata.ChatResponseMetadata
+import org.springframework.ai.chat.metadata.DefaultUsage
+import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
+import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.bedrock.cohere.api.CohereEmbeddingBedrockApi.CohereEmbeddingModel.COHERE_EMBED_ENGLISH_V3
 import org.springframework.ai.bedrock.cohere.api.CohereEmbeddingBedrockApi.CohereEmbeddingModel.COHERE_EMBED_MULTILINGUAL_V3
 import org.springframework.ai.bedrock.titan.api.TitanEmbeddingBedrockApi.TitanEmbeddingModel.*
@@ -46,6 +61,8 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.ApplicationContext
 import org.springframework.test.context.ActiveProfiles
+import java.time.Duration
+import java.time.Instant
 import kotlin.test.assertTrue
 
 @SpringBootTest(
@@ -98,6 +115,30 @@ class BedrockModelsIntegrationTest {
                 )
             )
         )
+    }
+
+    @Test
+    fun `Bedrock usage counts cache tokens reported on top of input tokens`() {
+        // Bedrock Converse reports inputTokens excluding cacheReadInputTokens and cacheWriteInputTokens
+        val chatModel = mockk<ChatModel>()
+        every { chatModel.call(any<Prompt>()) } returns ChatResponse(
+            listOf(Generation(AssistantMessage("done"))),
+            ChatResponseMetadata.builder().usage(DefaultUsage(30_000, 50, 30_050, null, 18_000L, 2_000L)).build(),
+        )
+        val llm = applicationContext.getBeansOfType(SpringAiLlmService::class.java).values
+            .first { it.name == EU_ANTHROPIC_CLAUDE_SONNET_4 }
+            .copy(chatModel = chatModel, pricingModel = PricingModel.usdPer1MTokens(2.0, 10.0))
+
+        val usage = llm.createMessageSender(LlmOptions()).call(listOf(UserMessage("hi")), emptyList()).usage!!
+
+        assertEquals(50_000, usage.promptTokens)
+        val invocation = LlmInvocation(
+            llmMetadata = llm,
+            usage = usage,
+            timestamp = Instant.now(),
+            runningTime = Duration.ZERO,
+        )
+        assertEquals(0.1005, invocation.cost(), 1e-12)
     }
 
     @Test

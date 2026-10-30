@@ -19,6 +19,7 @@ import com.embabel.agent.api.common.ToolsStats
 import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.core.types.Timed
 import com.embabel.common.core.types.Timestamped
+import org.springframework.ai.chat.metadata.DefaultUsage
 import java.time.Duration
 import java.time.Instant
 
@@ -87,15 +88,14 @@ data class LlmInvocation(
     /**
      * Dollar cost of this interaction.
      */
-    fun cost(): Double {
-        val pricingModel = llmMetadata.pricingModel ?: return 0.0
-        val cacheRead = usage.cacheReadInputTokens ?: 0
-        val cacheWrite = usage.cacheWriteInputTokens ?: 0
-        return pricingModel.costOf(
-            inputTokens = ((usage.promptTokens ?: 0) - cacheRead - cacheWrite).coerceAtLeast(0),
-            outputTokens = usage.completionTokens ?: 0,
-            cacheReadInputTokens = cacheRead,
-            cacheWriteInputTokens = cacheWrite,
+    fun cost(): Double = llmMetadata.pricingModel?.costOf(
+        DefaultUsage(
+            usage.promptTokens ?: 0,
+            usage.completionTokens ?: 0,
+            (usage.promptTokens ?: 0) + (usage.completionTokens ?: 0),
+            null,
+            usage.cacheReadInputTokens?.toLong(),
+            usage.cacheWriteInputTokens?.toLong(),
         )
-    }
+    ) ?: 0.0
 }

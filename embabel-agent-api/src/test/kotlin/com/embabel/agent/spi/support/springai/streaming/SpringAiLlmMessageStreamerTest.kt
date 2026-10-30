@@ -16,9 +16,12 @@
 package com.embabel.agent.spi.support.springai.streaming
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.spi.loop.streaming.LlmInferenceStreamEvent
 import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.model.LlmMetadata
+import com.embabel.common.ai.model.PerTokenPricingModel
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -27,6 +30,8 @@ import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.AssistantMessage
+import org.springframework.ai.chat.metadata.ChatResponseMetadata
+import org.springframework.ai.chat.metadata.DefaultUsage
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
@@ -34,6 +39,8 @@ import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 import reactor.core.publisher.Flux
 import reactor.test.StepVerifier
+import java.time.Duration
+import java.time.Instant
 
 class SpringAiLlmMessageStreamerTest {
 
@@ -98,6 +105,36 @@ class SpringAiLlmMessageStreamerTest {
         val options = capturedPrompt.captured.options as ToolCallingChatOptions
         assertEquals(listOf("lookup"), options.toolCallbacks.map { it.toolDefinition.name() })
     }
+
+    @Test
+    fun `completion keeps cache tokens reported on top of promptTokens`() {
+        every { chatModel.stream(any<Prompt>()) } returns Flux.just(
+            chunk("hel", DefaultUsage(100, 0, 100, null, 18_000L, 2_000L)),
+            chunk("lo", DefaultUsage(100, 50, 150, null, 18_000L, 2_000L)),
+        )
+        val streamer = SpringAiLlmMessageStreamer(chatModel, chatOptions, promptTokensExcludeCache = true)
+
+        val usage = streamer.streamInference(listOf(UserMessage("Hi")), emptyList())
+            .ofType(LlmInferenceStreamEvent.Complete::class.java)
+            .blockLast()!!
+            .usage!!
+
+        assertEquals(20_100, usage.promptTokens)
+        assertEquals(18_000, usage.cacheReadInputTokens)
+        assertEquals(2_000, usage.cacheWriteInputTokens)
+        val invocation = LlmInvocation(
+            llmMetadata = LlmMetadata.create("model", "provider", null, PerTokenPricingModel(2.0, 10.0, 0.2, 2.5)),
+            usage = usage,
+            timestamp = Instant.now(),
+            runningTime = Duration.ZERO,
+        )
+        assertEquals(0.0093, invocation.cost(), 1e-12)
+    }
+
+    private fun chunk(text: String, usage: DefaultUsage) = ChatResponse(
+        listOf(Generation(AssistantMessage(text))),
+        ChatResponseMetadata.builder().usage(usage).build(),
+    )
 
     @Test
     fun `propagates model streaming errors`() {
