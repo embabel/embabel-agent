@@ -225,7 +225,7 @@ interface FileReadTools : DirectoryBased, FileReadLog, FileAccessLog, SelfToolPu
             "%,d".format(rawContent.length),
             "%,d".format(transformedContent.length),
         )
-        recordRead(path)
+        recordRead(path, transformedContent.toByteArray(Charsets.UTF_8).size.toLong())
         return transformedContent
     }
 
