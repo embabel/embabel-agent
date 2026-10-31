@@ -20,10 +20,15 @@ import com.embabel.agent.api.models.DeepSeekModels
 import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.api.models.MistralAiModels
 import com.embabel.agent.api.models.OpenAiModels
+import com.embabel.agent.config.models.openai.OpenAiApiFormat
+import com.embabel.agent.config.models.openai.OpenAiModelDefinition
+import com.embabel.agent.config.models.openai.OpenAiModelLoader
 import com.embabel.agent.config.models.openai.OpenAiNativeStructuredOutputConfigurer
+import com.embabel.agent.config.models.openai.SupportFeaturesConfiguration
 import com.embabel.agent.config.models.openai.OpenAiResponsesChatModel
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.agent.spi.support.springai.SpringAiNativeStructuredOutputConfigurer
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.*
@@ -56,6 +61,7 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.retry.support.RetryTemplate
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
+import java.net.URI
 import java.time.LocalDate
 
 /**
@@ -132,6 +138,7 @@ open class OpenAiCompatibleModelFactory(
 
     companion object {
         private val RESPONSES_OBJECT_MAPPER = ObjectMapper()
+        private const val OPENAI_API_HOST = "api.openai.com"
         private val OPEN_AI = ProviderEndpoint(OpenAiModels.PROVIDER, null)
         private val DEEP_SEEK = ProviderEndpoint(DeepSeekModels.PROVIDER, "https://api.deepseek.com")
         private val MISTRAL = ProviderEndpoint(MistralAiModels.PROVIDER, "https://api.mistral.ai/v1")
@@ -144,6 +151,36 @@ open class OpenAiCompatibleModelFactory(
         private val ENDPOINTS_BY_PROVIDER: Map<String, ProviderEndpoint> =
             listOf(OPEN_AI, DEEP_SEEK, MISTRAL, GEMINI, ATLAS_CLOUD)
                 .associateBy { it.provider.lowercase() }
+
+        /** The shipped OpenAI catalog by model id, read once, with its native-support defaults merged. */
+        private val CATALOG: Map<String, OpenAiModelDefinition> by lazy {
+            OpenAiModelLoader().loadAutoConfigMetadata().effectiveModels().associateBy { it.modelId }
+        }
+
+        /** The catalog entry [llm] builds from, or null when [provider] is not OpenAI or [model] is not listed. */
+        internal fun catalogDefinitionFor(provider: String, model: String): OpenAiModelDefinition? =
+            if (provider.equals(OpenAiModels.PROVIDER, ignoreCase = true)) CATALOG[model] else null
+
+        /**
+         * The options converter a catalog model's `special_handling` calls for. Canonical DEFAULT and
+         * GPT5_FAMILY map back to the shared objects so identity checks and equals-based wiring hold.
+         */
+        internal fun optionsConverterFor(capabilities: ModelCapabilities): OptionsConverter = when (capabilities) {
+            ModelCapabilities.DEFAULT -> StandardOpenAiOptionsConverter
+            ModelCapabilities.GPT5_FAMILY -> Gpt5ChatOptionsConverter
+            else -> CapabilityAwareOpenAiOptionsConverter(capabilities)
+        }
+
+        internal fun SupportFeaturesConfiguration?.toModelCapabilities(): ModelCapabilities =
+            this?.let {
+                ModelCapabilities(
+                    supportsTemperature = it.supportsTemperature,
+                    supportsTopP = it.supportsTopP,
+                    supportsFrequencyPenalty = it.supportsFrequencyPenalty,
+                    supportsPresencePenalty = it.supportsPresencePenalty,
+                    usesMaxCompletionTokens = it.usesMaxCompletionTokens,
+                )
+            } ?: ModelCapabilities.DEFAULT
 
         /**
          * The endpoint for [provider], or null if this module does not speak to it.
@@ -555,8 +592,8 @@ open class OpenAiCompatibleModelFactory(
      *
      * LlmOptions are used to request native structured output when [nativeSupport] declares it.
      * Pass the
-     * shipped OpenAI catalog's settings, `OpenAiModelLoader().loadAutoConfigMetadata().nativeSupportDefaults`
-     * from the OpenAI autoconfigure module, to get what catalog models get, including the schema
+     * shipped OpenAI catalog's settings, `OpenAiModelLoader().loadAutoConfigMetadata().nativeSupportDefaults`,
+     * to get what catalog models get, including the schema
      * compatibility check that falls back to prompt-based output. Without it, structured output
      * is prompt-based, as with [openAiCompatibleLlm].
      *
@@ -582,6 +619,87 @@ open class OpenAiCompatibleModelFactory(
         nativeStructuredOutputConfigurer = OpenAiNativeStructuredOutputConfigurer,
         nativeSupport = nativeSupport,
     )
+
+    /**
+     * An LLM for [model], built the way the shipped OpenAI catalog (`models/openai-models.yml`)
+     * declares it when [provider] is OpenAI, the endpoint is OpenAI's own ([servesOpenAiCatalog]) and
+     * the catalog lists [model] by its exact id: the
+     * catalog's transport (Chat Completions or Responses), its options converter, and native
+     * structured output. Any other provider or model gets [openAiCompatibleLlm].
+     *
+     * This is what a key supplied at runtime (BYOK) should build with. The GPT-5.6 and GPT-6 tiers
+     * refuse tools, `temperature` and `max_tokens` on Chat Completions, so building them with
+     * [openAiCompatibleLlm] yields a model that answers "hi" and fails the first real call. A new
+     * model family with a constraint like that needs a catalog entry, not a change here.
+     *
+     * The match is on the exact model id, never on its shape: `deepseek-v4-pro` is not a `*-pro`
+     * OpenAI model, and a dated snapshot the catalog does not list keeps today's behaviour.
+     * [pricingModel] and [knowledgeCutoffDate] are the caller's; a null cutoff takes the catalog's.
+     */
+    @JvmOverloads
+    fun llm(
+        model: String,
+        pricingModel: PricingModel,
+        provider: String,
+        knowledgeCutoffDate: LocalDate? = null,
+    ): LlmService<*> {
+        val definition = catalogDefinitionFor(provider, model)?.takeIf { servesOpenAiCatalog }
+            ?: return openAiCompatibleLlm(
+                model = model,
+                pricingModel = pricingModel,
+                provider = provider,
+                knowledgeCutoffDate = knowledgeCutoffDate,
+            )
+        return catalogLlm(
+            definition = definition,
+            provider = provider,
+            pricingModel = pricingModel,
+            knowledgeCutoffDate = knowledgeCutoffDate ?: definition.knowledgeCutoffDate,
+        )
+    }
+
+    /**
+     * Whether [llm] may follow the OpenAI catalog for this factory's endpoint: true for OpenAI's own
+     * API. A gateway at another address that calls itself OpenAI may speak only Chat Completions,
+     * and sending its catalog models to `/v1/responses` would turn a working key into a 404, so it
+     * keeps [openAiCompatibleLlm]. A subclass for a gateway known to serve the Responses API can
+     * override this.
+     */
+    protected open val servesOpenAiCatalog: Boolean
+        get() = baseUrl == null || runCatching { URI(baseUrl).host }.getOrNull().equals(OPENAI_API_HOST, ignoreCase = true)
+
+    /**
+     * An LLM for a catalog [definition]: the transport it declares, the options converter its
+     * `special_handling` calls for, and native structured output. Shared by [llm] and the
+     * catalog-driven OpenAI autoconfiguration, so a model behaves the same whichever built it.
+     */
+    protected fun catalogLlm(
+        definition: OpenAiModelDefinition,
+        provider: String,
+        pricingModel: PricingModel?,
+        knowledgeCutoffDate: LocalDate?,
+        nativeStructuredOutputConfigurer: SpringAiNativeStructuredOutputConfigurer =
+            OpenAiNativeStructuredOutputConfigurer,
+    ): LlmService<*> {
+        val chatModel = when (definition.apiFormat) {
+            OpenAiApiFormat.CHAT_COMPLETIONS -> chatModelOf(definition.modelId)
+            OpenAiApiFormat.RESPONSES -> responsesChatModelOf(definition.modelId, provider)
+        }
+        return SpringAiLlmService(
+            name = definition.modelId,
+            chatModel = chatModel,
+            provider = provider,
+            // Only OpenAI's own models forward reasoning effort, and this is only reached for them.
+            optionsConverter = timeouts.optionsConverter(
+                OpenAiReasoningEffortOptionsConverter(optionsConverterFor(definition.specialHandling.toModelCapabilities()))
+            ),
+            knowledgeCutoffDate = knowledgeCutoffDate,
+            pricingModel = pricingModel,
+            thinkingSupported = true,
+            nativeStructuredOutputConfigurer = nativeStructuredOutputConfigurer,
+            nativeSupport = definition.nativeSupport,
+        )
+    }
 
     /**
      * Validates the configured API key by making a probe call, then returns a production
@@ -616,7 +734,8 @@ open class OpenAiCompatibleModelFactory(
         knowledgeCutoffDate: LocalDate?,
     ): LlmService<*> {
         requireUsableApiKey(apiKey)
-        val probe = openAiCompatibleLlm(
+        // Built as it will be served, so the probe proves the transport the model needs.
+        val probe = llm(
             model = model,
             pricingModel = pricingModel,
             provider = provider,
@@ -629,7 +748,7 @@ open class OpenAiCompatibleModelFactory(
             // as the cause, and the HTTP status code of the response as the status code.
             throw InvalidApiKeyException(e.message ?: "Invalid API key", e, providerStatus(e))
         }
-        return openAiCompatibleLlm(
+        return llm(
             model = model,
             pricingModel = pricingModel,
             provider = provider,

@@ -415,6 +415,9 @@ models:
 
   # ========================================
   # GPT-4.1 FAMILY (April 2025 - 1M token context window)
+  # Accepts any temperature again: 0.8 verified on gpt-4.1 and gpt-4.1-mini 2026-10-29
+  # (restricted ~June 2026, see #1724). If OpenAI tightens it again,
+  # InstrumentedChatModel strips a refused temperature and retries.
   # ========================================
 
   - name: "gpt41"
@@ -425,8 +428,6 @@ models:
     pricing_model:
       usd_per1m_input_tokens: 2.0
       usd_per1m_output_tokens: 8.0
-    special_handling:
-      supports_temperature: false
 
   - name: "gpt41mini"
     model_id: "gpt-4.1-mini"
@@ -436,8 +437,6 @@ models:
     pricing_model:
       usd_per1m_input_tokens: 0.40
       usd_per1m_output_tokens: 1.60
-    special_handling:
-      supports_temperature: false
 
   # Deprecated: removed from the API on 2026-10-23 (replacement gpt-5.6-luna).
   - name: "gpt41nano"

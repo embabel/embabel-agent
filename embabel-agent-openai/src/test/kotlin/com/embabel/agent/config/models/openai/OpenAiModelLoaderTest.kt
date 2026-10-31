@@ -116,31 +116,14 @@ class OpenAiModelLoaderTest {
         }
 
         /**
-         * GPT-4.1 family is temperature-restricted but still accepts classic `max_tokens` and
-         * other sampling fields (unlike the GPT-5 family).
+         * GPT-4.1 and GPT-4.1 Mini accept any temperature and classic `max_tokens`, so they take the
+         * standard converter: Embabel Me's `temperature: 0.0` roles must reach them as sent.
          */
         @Test
-        fun `every GPT-4_1 model declares temperature-only special handling`() {
-            val gpt41Models = shippedCatalogue.models.filter { it.name.startsWith("gpt41") }
-            assertTrue(gpt41Models.isNotEmpty(), "Should have GPT-4.1 models")
-
-            gpt41Models.forEach { model ->
-                assertNotNull(model.specialHandling, "GPT-4.1 models should have special handling")
-                assertEquals(
-                    false,
-                    model.specialHandling?.supportsTemperature,
-                    "GPT-4.1 models should not support temperature adjustment (${model.modelId})",
-                )
-                assertEquals(
-                    true,
-                    model.specialHandling?.supportsTopP ?: true,
-                    "GPT-4.1 still accepts top_p (${model.modelId})",
-                )
-                assertEquals(
-                    false,
-                    model.specialHandling?.usesMaxCompletionTokens ?: false,
-                    "GPT-4.1 still uses max_tokens (${model.modelId})",
-                )
+        fun `GPT-4_1 and GPT-4_1 Mini accept every sampling parameter`() {
+            listOf("gpt-4.1", "gpt-4.1-mini").forEach { id ->
+                val model = shippedCatalogue.models.single { it.modelId == id }
+                assertNull(model.specialHandling, "$id should need no special handling")
             }
         }
 
