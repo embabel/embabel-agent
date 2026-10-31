@@ -560,7 +560,8 @@ open class OpenAiCompatibleModelFactory(
      * compatibility check that falls back to prompt-based output. Without it, structured output
      * is prompt-based, as with [openAiCompatibleLlm].
      *
-     * The transport does not stream and rejects media.
+     * The transport does not stream. It sends a user message's images as `input_image` and other
+     * media as `input_file`; OpenAI decides which file types it reads.
      */
     @JvmOverloads
     fun openAiResponsesLlm(
