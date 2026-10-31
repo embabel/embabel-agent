@@ -41,8 +41,12 @@ import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.ONE_MILLION
+import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.ai.model.PricingModel
+import io.micrometer.observation.ObservationRegistry
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -53,10 +57,19 @@ import org.springframework.ai.chat.metadata.DefaultUsage
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
+import org.springframework.ai.chat.observation.ChatModelObservationConvention
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.bedrock.cohere.api.CohereEmbeddingBedrockApi.CohereEmbeddingModel.COHERE_EMBED_ENGLISH_V3
 import org.springframework.ai.bedrock.cohere.api.CohereEmbeddingBedrockApi.CohereEmbeddingModel.COHERE_EMBED_MULTILINGUAL_V3
 import org.springframework.ai.bedrock.titan.api.TitanEmbeddingBedrockApi.TitanEmbeddingModel.*
+import org.springframework.ai.model.bedrock.autoconfigure.BedrockAwsConnectionProperties
+import org.springframework.ai.model.bedrock.cohere.autoconfigure.BedrockCohereEmbeddingProperties
+import org.springframework.ai.model.bedrock.titan.autoconfigure.BedrockTitanEmbeddingProperties
+import org.springframework.beans.factory.support.DefaultListableBeanFactory
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider
+import software.amazon.awssdk.regions.providers.AwsRegionProvider
+import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient
+import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.ApplicationContext
@@ -139,6 +152,42 @@ class BedrockModelsIntegrationTest {
             runningTime = Duration.ZERO,
         )
         assertEquals(0.1005, invocation.cost(), 1e-12)
+    }
+
+    @Test
+    fun `configured cache rates reach the registered model`() {
+        val beanFactory = DefaultListableBeanFactory()
+        val model = BedrockModelDefinition(
+            name = "cached",
+            modelId = EU_ANTHROPIC_CLAUDE_SONNET_4,
+            region = "eu",
+            pricingModel = PerTokenPricingModel(
+                usdPer1mInputTokens = 3.0,
+                usdPer1mOutputTokens = 15.0,
+                usdPer1mCacheReadInputTokens = 0.3,
+                usdPer1mCacheWriteInputTokens = 3.75,
+            ),
+        )
+        BedrockModelsConfig(
+            properties = applicationContext.getBean(BedrockProperties::class.java),
+            credentialsProvider = applicationContext.getBean(AwsCredentialsProvider::class.java),
+            regionProvider = applicationContext.getBean(AwsRegionProvider::class.java),
+            connectionProperties = applicationContext.getBean(BedrockAwsConnectionProperties::class.java),
+            observationRegistry = applicationContext.getBeanProvider(ObservationRegistry::class.java),
+            observationConvention = applicationContext.getBeanProvider(ChatModelObservationConvention::class.java),
+            bedrockRuntimeClient = applicationContext.getBeanProvider(BedrockRuntimeClient::class.java),
+            bedrockRuntimeAsyncClient = applicationContext.getBeanProvider(BedrockRuntimeAsyncClient::class.java),
+            bedrockCohereEmbeddingProperties = applicationContext.getBean(BedrockCohereEmbeddingProperties::class.java),
+            bedrockTitanEmbeddingProperties = applicationContext.getBean(BedrockTitanEmbeddingProperties::class.java),
+            configurableBeanFactory = beanFactory,
+            modelLoader = object : LlmAutoConfigMetadataLoader<BedrockModelDefinitions> {
+                override fun loadAutoConfigMetadata() = BedrockModelDefinitions(models = listOf(model))
+            },
+        ).bedrockModelsInitializer()
+
+        val pricing = (beanFactory.getBean("bedrockModel-cached") as SpringAiLlmService).pricingModel!!
+        assertEquals(0.3, pricing.usdPerCacheReadInputToken() * ONE_MILLION, 1e-9)
+        assertEquals(3.75, pricing.usdPerCacheWriteInputToken() * ONE_MILLION, 1e-9)
     }
 
     @Test

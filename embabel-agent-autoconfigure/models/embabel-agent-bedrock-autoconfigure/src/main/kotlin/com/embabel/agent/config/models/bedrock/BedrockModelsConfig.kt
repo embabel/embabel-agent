@@ -187,12 +187,7 @@ class BedrockModelsConfig(
             provider = PROVIDER,
             optionsConverter = BedrockOptionsConverter,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
-            pricingModel = modelDef.pricingModel?.let {
-                PerTokenPricingModel(
-                    usdPer1mInputTokens = it.usdPer1mInputTokens,
-                    usdPer1mOutputTokens = it.usdPer1mOutputTokens,
-                )
-            },
+            pricingModel = modelDef.pricingModel,
             // Converse reports inputTokens excluding cacheReadInputTokens and cacheWriteInputTokens
             promptTokensExcludeCache = true,
         )
