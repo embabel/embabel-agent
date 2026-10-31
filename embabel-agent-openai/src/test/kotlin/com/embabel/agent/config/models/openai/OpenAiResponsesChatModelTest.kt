@@ -78,6 +78,7 @@ import org.springframework.ai.tool.definition.ToolDefinition
 import org.springframework.core.io.ByteArrayResource
 import org.springframework.util.MimeTypeUtils
 import reactor.core.publisher.Flux
+import java.net.URL
 import java.util.Optional
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CyclicBarrier
@@ -574,31 +575,52 @@ class OpenAiResponsesChatModelTest {
             assertTrue(parts.single().isInputImage())
         }
 
-        /** A document sent as text alone yields a confident answer about nothing. */
+        /** Spring AI keeps a `java.net.URL` as given, unlike a `URI`, which it turns into a string. */
         @Test
-        fun `non image media is refused rather than silently dropped`() {
-            respondWith(textResponse("ok"))
+        fun `an image given as a java URL is passed through as its string`() {
+            val parts = userContentOf(
+                "What is this?",
+                Media.builder().mimeType(MimeTypeUtils.IMAGE_PNG).data(URL("https://example.com/a.png")).build(),
+            )
 
-            assertThrows(UnsupportedOperationException::class.java) {
-                model.call(
-                    Prompt(
-                        listOf(
-                            UserMessage.builder()
-                                .text("Summarise this")
-                                .media(
-                                    listOf(
-                                        Media.builder()
-                                            .mimeType(MimeTypeUtils.parseMimeType("application/pdf"))
-                                            .data(ByteArrayResource(byteArrayOf(1, 2, 3)))
-                                            .build()
-                                    )
-                                )
-                                .build()
-                        ),
-                        OpenAiChatOptions.builder().model("gpt-5-pro").build(),
-                    )
-                )
-            }
+            assertEquals("https://example.com/a.png", imageUrlOf(parts[1]))
+        }
+
+        /** `withDocument` works over Chat Completions, so it must keep working when a model moves here. */
+        @Test
+        fun `a document is sent as an input file with its data url and name`() {
+            val parts = userContentOf(
+                "Summarise this",
+                Media.builder().mimeType(MimeTypeUtils.parseMimeType("application/pdf"))
+                    .data(ByteArrayResource(byteArrayOf(1, 2, 3))).name("invoice.pdf").build(),
+            )
+
+            val file = parts[1].inputFile().orElseThrow()
+            assertEquals("data:application/pdf;base64,AQID", file.fileData().orElseThrow())
+            assertEquals("invoice.pdf", file.filename().orElseThrow())
+            assertTrue(file.fileUrl().isEmpty)
+        }
+
+        /** The Responses API fetches a file from a URL itself; a data URL is file data, not a URL to fetch. */
+        @Test
+        fun `a document given as a url is sent as a file url`() {
+            val parts = userContentOf(
+                "Summarise these",
+                Media.builder().mimeType(MimeTypeUtils.parseMimeType("application/pdf"))
+                    .data(URL("https://example.com/a.pdf")).build(),
+                Media.builder().mimeType(MimeTypeUtils.parseMimeType("application/pdf"))
+                    .data("https://example.com/b.pdf").build(),
+                Media.builder().mimeType(MimeTypeUtils.parseMimeType("application/pdf"))
+                    .data("data:application/pdf;base64,AQID").name("c.pdf").build(),
+            )
+
+            val files = parts.drop(1).map { it.inputFile().orElseThrow() }
+            assertEquals(
+                listOf("https://example.com/a.pdf", "https://example.com/b.pdf"),
+                files.take(2).map { it.fileUrl().orElseThrow() },
+            )
+            assertEquals("data:application/pdf;base64,AQID", files[2].fileData().orElseThrow())
+            assertEquals("c.pdf", files[2].filename().orElseThrow())
         }
 
         /**

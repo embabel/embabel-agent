@@ -29,6 +29,7 @@ import com.openai.models.responses.ResponseCreateParams
 import com.openai.models.responses.ResponseFormatTextJsonSchemaConfig
 import com.openai.models.responses.ResponseFunctionToolCall
 import com.openai.models.responses.ResponseInputContent
+import com.openai.models.responses.ResponseInputFile
 import com.openai.models.responses.ResponseInputImage
 import com.openai.models.responses.ResponseInputItem
 import com.openai.models.responses.ResponseInputText
@@ -61,6 +62,7 @@ import org.springframework.ai.openai.OpenAiChatModel
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.ai.retry.NonTransientAiException
 import reactor.core.publisher.Flux
+import java.net.URL
 import java.util.Base64
 import java.util.function.Supplier
 import com.openai.models.responses.Response as OpenAiResponse
@@ -75,8 +77,8 @@ import com.openai.models.responses.Response as OpenAiResponse
  *
  * Only the single request/response exchange is mapped. Embabel drives its own tool loop, so the
  * stateful half of the Responses API — background mode, server-side conversation state, remote
- * MCP — is deliberately unused, and requests are non-streaming. User messages may carry images;
- * other media is refused.
+ * MCP — is deliberately unused, and requests are non-streaming. User messages may carry images and
+ * files.
  *
  * Headers in the prompt's [OpenAiChatOptions] override client headers with the same name,
  * ignoring case. Other client headers are unchanged.
@@ -206,8 +208,8 @@ class OpenAiResponsesChatModel(
     }
 
     /**
-     * Text alone stays a plain string; a message with images becomes a content list of
-     * `input_text` followed by one `input_image` per image, in order.
+     * Text alone stays a plain string; a message with media becomes a content list of
+     * `input_text` followed by one part per media item, in order.
      */
     private fun toUserInputMessage(message: Message): ResponseInputItem {
         val media = (message as? MediaContent)?.media.orEmpty()
@@ -216,7 +218,7 @@ class OpenAiResponsesChatModel(
             message.text?.takeIf { it.isNotBlank() }?.let {
                 add(ResponseInputContent.ofInputText(ResponseInputText.builder().text(it).build()))
             }
-            media.forEach { add(toInputImage(it)) }
+            media.forEach { add(toInputContent(it)) }
         }
         return ResponseInputItem.ofEasyInputMessage(
             EasyInputMessage.builder()
@@ -227,28 +229,31 @@ class OpenAiResponsesChatModel(
     }
 
     /**
-     * Only images are mapped. Anything else is refused rather than dropped: a prompt stripped of its
-     * attachment still gets a confident answer, about something the model never saw.
+     * The Responses API takes images and files. Images go as `input_image`; any other media goes as
+     * `input_file`, and OpenAI decides which file types it reads: a type it cannot read fails with
+     * its own reason rather than being dropped, so no answer comes back about an unseen attachment.
      *
-     * The image travels as Spring AI's OpenAI chat model sends it: bytes as a `data:` URL, a string
-     * as given (an `https:` or `data:` URL).
+     * Media data is encoded as Spring AI's OpenAI chat model encodes it: bytes as a `data:` URL, a
+     * string or [URL] as given. A file's `data:` URL is file data with the media's name; any
+     * other URL is fetched by OpenAI.
      */
-    private fun toInputImage(media: Media): ResponseInputContent {
-        if (media.mimeType.type != "image") {
-            throw UnsupportedOperationException(
-                "Only image media is supported for OpenAI models served over the Responses API, not ${media.mimeType}"
-            )
-        }
-        val url = when (val data = media.data) {
+    private fun toInputContent(media: Media): ResponseInputContent {
+        val ref = when (val data = media.data) {
             is ByteArray -> "data:${media.mimeType};base64,${Base64.getEncoder().encodeToString(data)}"
             is String -> data
+            is URL -> data.toString()
             else -> throw UnsupportedOperationException(
-                "Unsupported image data for the Responses API: ${data.javaClass.simpleName}"
+                "Unsupported media data for the Responses API: ${data.javaClass.simpleName}"
             )
         }
-        return ResponseInputContent.ofInputImage(
-            ResponseInputImage.builder().imageUrl(url).detail(ResponseInputImage.Detail.AUTO).build()
-        )
+        if (media.mimeType.type == "image") {
+            return ResponseInputContent.ofInputImage(
+                ResponseInputImage.builder().imageUrl(ref).detail(ResponseInputImage.Detail.AUTO).build()
+            )
+        }
+        val file = ResponseInputFile.builder()
+        if (ref.startsWith("data:")) file.fileData(ref).filename(media.name) else file.fileUrl(ref)
+        return ResponseInputContent.ofInputFile(file.build())
     }
 
     private fun toEasyInputMessage(role: EasyInputMessage.Role, content: String): ResponseInputItem =

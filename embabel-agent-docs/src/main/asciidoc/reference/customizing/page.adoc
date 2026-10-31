@@ -177,7 +177,7 @@ fun luna(): LlmService<*> =
 - *Requests*: no sampling parameters are sent, and `LlmOptions.maxTokens` becomes `max_output_tokens`, which also covers reasoning tokens.
 - *Reasoning*: set the effort per call with `LlmOptions.withOpenAiReasoningEffort("low")`. It is sent as the Responses `reasoning.effort` whatever the `provider` name is.
 - *Structured output*: native only when `nativeSupport` declares it, as with the catalog settings above. Schemas that fail the native-output compatibility check fall back to prompt-based output, as for catalog models. Without `nativeSupport`, structured output is prompt-based.
-- *Images*: images attached to a user message are sent as `input_image` parts after the text: bytes as a `data:` URL, a string as given. Media other than images is rejected rather than dropped.
+- *Media*: media attached to a user message is sent after the text, images as `input_image` and other media, such as a document from `withDocument`, as `input_file`: bytes as a `data:` URL with the media's name, a string or URL as given. OpenAI decides which file types it reads; a type it refuses fails the call with OpenAI's reason.
 - *Limits*: this transport does not stream. The endpoint must implement `/v1/responses`.
 
 ==== Adding embedding models
